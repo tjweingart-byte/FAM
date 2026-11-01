@@ -557,6 +557,13 @@ class Settings:
         default_factory=lambda: os.environ.get("EI_MODEL") or SMALL_MODEL)
     ei_effort: str = field(
         default_factory=lambda: os.environ.get("EI_EFFORT", "medium"))
+    # **C3P0's effort ahead of the tap** (the owner, 2026-10-30, §346 and
+    # decided item 36). When the contextualizer works on a brief written
+    # before any tap - an edition, the write-ahead, prefetch - its call runs
+    # at this effort; a brief a listener waits on keeps `EI_EFFORT`. Read
+    # only by C3P0's call (§375): with the agents off nothing reads it.
+    ei_ahead_effort: str = field(
+        default_factory=lambda: os.environ.get("EI_AHEAD_EFFORT", "high"))
     # A ceiling on the brief's thinking and its JSON together; a brief that
     # hits it is cut off mid-JSON and searched as the raw query (§248). 1200
     # was sized on Sonnet 5, whose briefs ran ~400-1,200 tokens and sometimes
@@ -2018,6 +2025,11 @@ class Settings:
     contextualizer: bool = field(
         default_factory=lambda: os.environ.get("CONTEXTUALIZER", "0")
         not in ("0", "false", "False", ""))
+    # C3P0's title is the episode's title while he works (decided item 1,
+    # §375); 0 keeps the writer's `<<TITLE:>>` with C3P0 otherwise on.
+    contextualizer_titles: bool = field(
+        default_factory=lambda: os.environ.get("CONTEXTUALIZER_TITLES", "1")
+        not in ("0", "false", "False", ""))
     categorizer: bool = field(
         default_factory=lambda: os.environ.get("CATEGORIZER", "0")
         not in ("0", "false", "False", ""))
@@ -2052,6 +2064,11 @@ class Settings:
     categorizer_model: str = field(
         default_factory=lambda: os.environ.get(
             "CATEGORIZER_MODEL", "anthropic:claude-haiku-5-5").strip())
+    # Nando's answer key (§381): the stronger model that grades his filings
+    # in the background, nightly. Opus, the owner's choice.
+    categorizer_judge_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CATEGORIZER_JUDGE_MODEL", "anthropic:claude-opus-5-5").strip())
     retriever_model: str = field(
         default_factory=lambda: os.environ.get("RETRIEVER_MODEL", "").strip())
     editor_model: str = field(
@@ -2100,6 +2117,13 @@ class Settings:
     # check of one unsure sentence, and the background agents' calls.
     categorizer_timeout_seconds: float = _env_float("CATEGORIZER_TIMEOUT_SECONDS", 8.0)
     categorizer_max_tokens: int = _env_int("CATEGORIZER_MAX_TOKENS", 300)
+    # The answer key's one call (§381): it reads the whole tree and the
+    # script, in the background, so it may take its time.
+    categorizer_judge_timeout_seconds: float = _env_float(
+        "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", 60.0)
+    categorizer_judge_max_tokens: int = _env_int("CATEGORIZER_JUDGE_MAX_TOKENS", 400)
+    # How many written episodes one nightly run grades at most (§381).
+    nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 50)
     editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
     editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
     editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 4000)

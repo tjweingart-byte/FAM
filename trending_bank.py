@@ -470,6 +470,17 @@ def stories_now(now: Optional[float] = None) -> list:
     return [s for s in edition.stories if not s.expired(now)]
 
 
+def stories_in_memory(now: Optional[float] = None) -> list:
+    """The edition this process already holds, unexpired - never a read of
+    the store, for code on a listener's path that must not wait on one
+    (Nando, §376). `[]` when nothing is held yet; `stories_now` reloads."""
+    edition = _CURRENT
+    now = time.time() if now is None else now
+    if edition is None or edition.expired(now):
+        return []
+    return [s for s in edition.stories if not s.expired(now)]
+
+
 def empty_reason(now: Optional[float] = None) -> str:
     """What Trending says when it has nothing to show. One sentence per cause.
 
@@ -842,6 +853,11 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     notes = ScriptNotes()
     # Written ahead of every tap: the brief may take its time (§268).
     notes.ahead = True
+    # What the story is already filed under, for Nando to start from (§372).
+    if getattr(story, "category", ""):
+        from agents import categorizer
+
+        notes.category_prior = categorizer.Prior(story.category, "edition")
     # And its writer is the editions' own, when one is set (§269).
     notes.edition = True
     plan = await generator.understand(plan, notes)
@@ -879,6 +895,12 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
 
     extra["origin"] = origin
     extra["voice"] = voice_bank.random_slug()
+    # Nando's node, confirmed after the writer (§371), only when he filed it.
+    from agents import categorizer
+
+    node = categorizer.settle(notes, story.query)
+    if node:
+        extra["category_node"] = node
     cache.put(key, sentences, ttl, story.query, notes.thread, minutes,
               bucket_for(plan), sources, "", notes.title, **extra)
     # What each categoriser said about it (§209): the composer's category is
@@ -886,7 +908,8 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
     import category_audit
 
     category_audit.note(story.query, getattr(notes, "category", ""), origin,
-                        composer=getattr(story, "category", "") or "")
+                        composer=getattr(story, "category", "") or "",
+                        nando=getattr(notes, "category_settled", None), key=key)
     # Its articles, for the history archive (§308). Never awaited.
     import history_archive
 

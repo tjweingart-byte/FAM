@@ -677,7 +677,18 @@ async def lifespan(_: FastAPI):
     # Netenyahu's background loop (§350), only when the agents are on: with
     # `AGENTS=0` no task is ever claimed, so there is nothing to run.
     if settings.agents:
+        # The holds and the rule books' disk check read once here, so the
+        # first episode decides from copies, never the database (§369).
+        await asyncio.to_thread(netenyahu.prime)
         _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
+        # Nando's answer key (§381), reading the scripts it grades from the
+        # script cache. Queued nightly only while CATEGORIZER is on; the
+        # loop's first round runs after this, at the next await.
+        from agents import training as agent_training
+
+        # `script` reads without counting a hit: grading is not a replay (§391).
+        agent_training.register(
+            lambda key: getattr(SCRIPT_CACHE, "script", lambda _k: [])(key) or [])
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
@@ -7137,8 +7148,10 @@ def _name_written_tiles(tiles: list[dict], minutes: int) -> None:
             title = SCRIPT_CACHE.title(key) if key and SCRIPT_CACHE else ""
             summary = (getattr(SCRIPT_CACHE, "summary", lambda _k: "")(key)
                        if title else "")
-            category = (getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
-                        if key and SCRIPT_CACHE else "")
+            # Through the one reader (review, §376): Nando's node when he
+            # filed it, else the writer's words placed exactly as before - so
+            # the tile, the player and the category page draw one picture.
+            category = _episode_category(key) if key and SCRIPT_CACHE else ""
         except Exception:  # noqa: BLE001 - a card's name is never worth a 500
             log.exception("could not name a written tile")
             continue
@@ -7178,14 +7191,32 @@ def _episode_category(key: str) -> str:
     player's picture, the ranking and the logged tags all come through here,
     so one episode is filed under one node everywhere. The words are stored
     as the writer put them and resolved against the tree as it is now, so a
-    tree that has grown since still places an older episode. One local read;
+    tree that has grown since still places an older episode. Nando's stored
+    node outranks the words when he filed the episode (§371). Local reads;
     never a model call."""
     if not key or SCRIPT_CACHE is None:
         return ""
+    # Nando's node first (§371): one id, placed at the request and confirmed
+    # after the writer, read as stored - while the tree still holds it. A
+    # node merged away since, or an episode Nando never filed, falls back to
+    # the writer's words below, as before. Both in one read (§376), so the
+    # store is asked once, as it was before the node existed.
+    node = ""
     try:
-        words = getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
+        pair = getattr(SCRIPT_CACHE, "category_pair", None)
+        if callable(pair):
+            words, node = pair(key)
+        else:
+            # A store without the one read (a test double, an older one).
+            node = getattr(SCRIPT_CACHE, "category_node", lambda _k: "")(key)
+            words = getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
     except Exception:  # noqa: BLE001 - a category is never worth a failure
         return ""
+    if node:
+        import topics
+
+        if node in topics.FACETS or topics.category_tree().get(node) is not None:
+            return node
     if not words:
         return ""
     import stories as stories_mod

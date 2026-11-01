@@ -368,4 +368,27 @@ and `limit` = Lines.
 | 25056 | 13 | 365. The player's source circles show the publishers' logos (2026-10-31) |
 | 25069 | 26 | 366. The archive keeps nothing Parallel returns (2026-10-31) |
 | 25095 | 18 | 367. Go Deeper on LinkedIn is removed (2026-10-31) |
-| 25113 | 82 | 368. The X agent adds to conversations instead of distributing episodes (2026-10-31) |
+| 25113 | 81 | 368. The X agent adds to conversations instead of distributing episodes (2026-10-31) |
+| 25194 | 67 | 369. Phase 1, piece 1: nothing of the agents' bookkeeping in front of the first word, and the ahead surface asked (2026-10-30) |
+| 25261 | 54 | 370. Phase 1, piece 2: C3P0's ResearchPlan in code, and what an empty search would have found in the archive (2026-10-31) |
+| 25315 | 103 | 371. Phase 1, piece 3: Nando in code - one node per episode, stored with it, read by the one reader (2026-10-31) |
+| 25418 | 66 | 372. Phase 1, piece 4: Nando starts from what the tap already knows, and chooses the facet first (2026-10-31) |
+| 25484 | 70 | 373. Phase 1, piece 5: names that mean two things, and broader when unsure (2026-10-31) |
+| 25554 | 92 | 374. Phase 1, piece 6: the category vocabulary - other wordings and named things, and a tool to draft them (2026-10-31) |
+| 25646 | 110 | 375. Phase 1, piece 7: C3P0 and Nando in the brief's call (2026-10-31) |
+| 25756 | 138 | 376. Phase 1 reviewed: the bookkeeping that was still on the listener's path, ties that were guessed, and claims that were not true (2026-10-31) |
+| 25894 | 105 | 377. Phase 1 reviewed a second time: names that were never what the table thought, and the paths the first fixes missed (2026-10-31) |
+| 25999 | 87 | 378. Phase 1 reviewed a third time: the second round's fixes broke things, and a corpus that stops that happening again (2026-10-31) |
+| 26086 | 62 | 379. Nando decides: code builds the shortlist, the model chooses, and the result check catches every guess (2026-10-31) |
+| 26148 | 56 | 380. Training Nando, piece N2: worked examples, code's hints and every facet on the list (2026-10-31) |
+| 26204 | 60 | 381. Training Nando, piece N3: the answer key - Opus grades his filings nightly (2026-10-31) |
+| 26264 | 47 | 382. Training Nando, piece N4: a memory of graded answers, recalled by meaning (2026-10-31) |
+| 26311 | 27 | 383. Training Nando, piece N5: his corrected mistakes become worked examples (2026-10-31) |
+| 26338 | 39 | 384. The owner's rule for the answer key, and a `<teaching>` label (2026-10-31) |
+| 26377 | 47 | 385. Training Nando, piece N6: a small model of his own, trusted only when its numbers say so (2026-10-31) |
+| 26424 | 17 | 386. This branch's sections renumbered, twice: Main kept taking the numbers (2026-11-01) |
+| 26441 | 39 | 387. Training Nando, piece N7: his training follows the tree as it grows (2026-10-31) |
+| 26480 | 65 | 388. Measured with a key at last: the probe's lost Opus, and the whole tree on Nando's list (2026-10-31) |
+| 26545 | 81 | 389. The vocabulary drafted, cleaned and measured: it does not help yet (2026-10-31) |
+| 26626 | 38 | 390. What Phase 1 leaves for the next branch (2026-10-31) |
+| 26664 | 108 | 391. Phase 1 reviewed before merge: what the writer chose was counted as Nando's, and the answer key read twice (2026-11-01) |

@@ -122,11 +122,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Endings do not tease**: no dangling hook, no rhetorical question,
   no forecasting; say anything unresolved inside the piece. [endings-do-not-tease]
 - Every sentence carries information; atmosphere alone is cut. [every-sentence-informs]
-- **Titled by what it turned out to be about**: a `<<TITLE: ...>>` line, stripped,
-  no extra call; the player opens on a derived title and swaps; a listener's or
-  bank tile's title (`titleOverridden`) is never replaced; cached in its own column.
-  A *written* live-story tile takes the writer's title, summary and
-  `<<CATEGORY:>>` for every later listener (§189). [title-from-content]
+- **Titled by what it turned out to be about**: C3P0's title while he works
+  (§375), else the writer's stripped `<<TITLE:>>`; no extra call, never a result;
+  derived title first, then swapped; `titleOverridden` never replaced; own column;
+  a written live-story tile takes the episode's title, summary, category (§189). [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
   gestures at it. Every Go Deeper (Explore included) shows a suggestion - that
@@ -136,9 +135,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   is Go Deeper's own suggestion, played as its follow-up (§178), then album next,
   then `topics.rank_next_up` over both inventories; a search box above Back
   stops the countdown; not on Explore / Explore New. [post-episode-grid]
-- **One episode, one category** (§209): the writer's `<<CATEGORY:>>` is read
-  through `app._episode_category` by tile, player picture, ranking and logged
-  tags; events name the heard episode; a written live story ranks under it;
+- **One episode, one category** (§209): Nando's stored node (§371), else the
+  writer's `<<CATEGORY:>>`, via `app._episode_category` for tile, picture,
+  ranking and tags; events name the heard episode; a written live story ranks under it;
   the writer sees its branch's names; nodes match as in-order phrases; each
   write is audited (`categories_report.py --audit`). [one-category]
 - **Category gaps** (§235): beneath the phrases, the nearest node by meaning

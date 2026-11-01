@@ -25191,3 +25191,1580 @@ approval, now also `relevance >= 4` on the server; a written proposal stayed
 "not run"); Match again could change an approved reply (refused); and the
 eval tool did not rewrite code fallback words as a run does.
 
+## 369. Phase 1, piece 1: nothing of the agents' bookkeeping in front of the first word, and the ahead surface asked (2026-10-30)
+
+Phase 1 (C3P0 and Nando at the request) was planned with the owner first,
+in eight pieces, and the owner answered the five questions the docs left
+open: C3P0 rides in one of the brief's existing calls, sent through
+`agents.models.ask` so it is metered and locked like any agent call (the
+`[agent-model-layer]` rule and "folded into the brief's call" read together);
+that call is the brief's search half, which already writes the queries and
+the title; an ambiguous name is asked through `/api/progress` and a resumed
+request with `reading=`, never by a call in front of every search; Nando's
+tie call runs beside the brief; and a named person neither Wikipedia/Wikidata
+nor a provider's catalogue knows gets no episode (4a). This piece is the
+groundwork: no agent yet, nothing a listener hears changes.
+
+**The two reads §353 left on the request path.** Once an agent works while a
+listener waits, every episode would have read Netenyahu's holds from the
+task store and re-hashed each rule book on disk before deciding. Both are
+now copies refreshed in a background thread:
+
+- `netenyahu._held` reads an in-memory copy of the holds; a stale copy (30 s)
+  starts one background read, a hold made here is written into the copy at
+  once, a failed read keeps the last copy, and boot reads it once
+  (`netenyahu.prime`, only when `AGENTS=1`). Before the first read nobody
+  knows what is held, so no agent works that episode - a missed agent costs
+  quality, a held one that ran would break the hold. The background loop
+  still reads the store itself.
+- `rulebooks.check` compares against the books' hashes as they were on disk
+  at the last background read (`DISK_REFRESH_SECONDS`, 30), never a read of
+  its own. A book changed on disk after boot is still caught and still holds
+  its agent until signed and restarted - within 30 seconds rather than at
+  the next call. `test_a_file_changed_after_boot...` now reads the disk
+  (`refresh_disk`) between the change and the check, which is what the
+  background does.
+
+**The ahead surface.** Prefetch and the DailyFAM and Trending editions call
+`ScriptGenerator.understand` without the pipeline, which only ever asked
+for `search`. `understand` now asks Netenyahu for `ahead` once when the
+notes are an ahead or prefetch episode and nobody asked yet - so C3P0 can
+run at `EI_AHEAD_EFFORT` there in piece 4. `tests/test_agents_off.py`'s
+"only the pipeline asks" became "two places, one per surface, each once";
+`netenyahu.OFF` while `AGENTS=0`, decided before anything is read.
+
+**Whether the API reports the exact pinned id.** Still unknowable without a
+key. `tools/agent_probe.py` makes one ~30-token call per distinct agent
+model through the same adapter `ask` uses (not through `ask`, so no switch
+needs to be on and no ledger row is written), prints asked and served, and
+exits 1 when any would come back `wrong_model`. Refuses on staging and with
+no key. To run where there is a key:
+
+    python tools/agent_probe.py
+
+If it says a dated id is served, the comparison in `agents.models._ask` is
+what changes, recorded here.
+
+**Latency.** None while `AGENTS=0` (the default): `for_episode` returns
+`OFF` before anything is read, as before. With agents on, deciding an
+episode now costs no database read and no file read.
+
+Tests: `tests/test_agents_request_path.py` (primed, deciding reads no
+database; unprimed, no agent and a read started; a hold in the copy at once;
+a stale copy re-read once in the background; a failed read keeps the copy;
+prime does nothing off; boot primes only when on; the lock reads no file
+when it checks; a stale disk snapshot re-read in the background catches a
+change; an unreadable book holds; the ahead surface asked for prefetch and
+editions, off while off, a tap's answer kept; the probe's model list, its
+verdict on an exact, dated or missing id, and nothing sent on staging).
+
+## 370. Phase 1, piece 2: C3P0's ResearchPlan in code, and what an empty search would have found in the archive (2026-10-31)
+
+The guide's first step for C3P0 (`docs/FAM_AGENTS.md`, C3P0, Plugin options,
+"First"): write the `ResearchPlan` and fill it from today's brief and code
+routes with no model, and log how often a search comes back empty while the
+archive had something. Both built; nothing a listener hears changes, and
+with `AGENTS=0` none of it runs.
+
+**`agents/contextualizer.py`, `from_brief(brief, query)`.** The plan the
+pipeline already acts on, as one typed decision: the search ladder always
+with the brief's search ([always-researched]); a live provider with the bare
+name when `live_route.domain_of` names a domain, and the player report
+beside it on sports; the weather on a weather question; a town's own news
+ladder when the brief names a place; the forecast when
+`live_facts.wants_forecast` says so, by its market words; and the archive
+through Sonic - `ArchiveRequest(node, "background", subject)` under the
+brief's `category_path` node - when `history_archive.recall_wanted` allows
+it. The entity, its kind, the node and its path, and the brief's title.
+It reads the same predicates the pipeline uses, so the plan can only
+describe what the episode will ask, never drift from it. Pure: no file,
+store, socket or model (a test refuses all four), microseconds, never
+raises. `ScriptGenerator.prepare` keeps it on `ScriptNotes.research_plan`
+after the code route, only when Netenyahu let the contextualizer work on
+the episode (`_agent_runs`). Nothing reads it yet; piece 4's call improves
+it.
+
+**The closed plugin list** is now in the hand-off's shape:
+`agents.handoffs.PLUGINS` and `PluginCall.plugin` a `Literal` of the seven
+(c3p0.md, "always" 3; "never" 3: a source FAM does not have cannot be
+named).
+
+**The empty search, counted.** When the ladder comes back with nothing, an
+episode C3P0 works on no longer cancels the archive recall started beside
+it: `contextualizer.note_empty_search` counts, when the recall ends, whether
+it held something - never waited for, and never handed to the writer, so
+the episode is exactly as before (§316: an empty search gets no archive
+until `archive_alone` is built, responsibility 8). With C3P0 off the recall
+is cancelled as it always was. `/api/health`'s `agents.contextualizer` gives
+the counts and `empty_search_archive_had_rate` (None before any empty
+search, never 0). That rate is what decides how much the archive answering
+alone would buy.
+
+**Latency.** None. Off: one attribute read. On: microseconds after the
+brief, and the empty-search count runs on the recall's own completion.
+
+Tests: `tests/test_agents_research_plan.py` (the ladder always, with the
+brief's search or the question; scoreboard and players by bare name; a code
+route's provider; no players on markets; weather alone; a town's news
+without the archive; the forecast's words; Sonic under the brief's node;
+the brief's title; only the seven plugins; no brief or a broken one never
+raises; no socket or file; kept on the episode only when C3P0 works on it;
+the empty search counted with the recall left running, as before when off;
+None before any empty search; the health block).
+
+## 371. Phase 1, piece 3: Nando in code - one node per episode, stored with it, read by the one reader (2026-10-31)
+
+Nando exists to fix two things the owner sees (`docs/FAM_AGENTS.md`,
+Nando): thumbnails that do not match the episode, and myFAM category pages
+holding episodes that do not belong. Both come from three filers that never
+consult each other (§209) and a picture chosen from words. This piece is
+Nando's code - placing, confirming, storing and reading one node - with the
+tie call on Haiku left to piece 4, where it rides beside C3P0's call. With
+`AGENTS=0` or `CATEGORIZER=0` none of it runs, nothing new is written, and
+the reader answers exactly as before.
+
+**At the request** (`agents/categorizer.place`, in `ScriptGenerator.prepare`
+when Netenyahu lets Nando work on the episode). From what the brief already
+worked out, before the question's raw words, because the brief has already
+told "Miami heat wave" from the basketball team: the brief's category words
+by the tree's phrases; its subject; the question's phrases, kept only on
+the facet the brief named (how "hurricanes hitting the Carolina coast"
+became a hockey team, §209); the brief's words by meaning
+(`category_near`, the rung built for short category words); the keyword
+map's deepest tree node; and the brief's facet - broader, never wrong
+(decided item 38). Dictionary lookups and at most one embedding of a few
+words; no file, store or network. The node goes on the live track at once,
+so the player's picture is the node's from the first word.
+
+**A provider's filing is never left** (nando.md, "never" 4). When the
+question is a live game's or market move's story in the pool, Nando places
+only inside the facets its provider filed it under, and otherwise takes the
+provider's own deepest tag. The pool is memory; Trending holds news only
+and is not read, so this adds no database read in front of the first word.
+
+**After the writer** (`confirm`, `settle`), on all four write paths - a tap,
+prefetch, the DailyFAM and Trending editions. The writer's `<<CATEGORY:>>`
+placed by phrases, then by meaning: nothing the tree knows keeps the
+request's node; the same node, or a broader one on its branch, confirms it;
+a narrower one on its branch narrows it; anything else means the episode
+turned out to be about something else, and it is re-filed - both decisions
+logged. The settled node replaces the writer's words on the live track.
+
+**Stored and read.** The script cache has a `category_node` column (memory,
+SQLite and Postgres through the same migration), written with the same
+rule as `category`: a re-write with new words and no node clears it, the
+same words keep it, an archived row keeps its own. `app._episode_category` -
+the one reader the tile, the player's picture, the category pages, the
+ranking and the logged tags already go through (§209) - reads Nando's node
+first while the tree still holds it, and otherwise the writer's words as
+before. So `thumbnails.pick*` and `/api/categories/episodes` follow Nando
+with no change of their own. The write paths pass the column only when
+Nando filed the episode, so every cache (and test double) written before it
+is called exactly as it was.
+
+**Audited.** `category_audit` gains Nando's request node and how it was
+found, and his node after the writer and how (`nando_request`,
+`nando_request_how`, `nando`, `nando_how`); `summary()` and
+`categories_report.py --audit` report how many he filed, how each was
+found, how often the writer confirmed, narrowed or re-filed, and how often
+his node differs from the writer's words - the episodes whose picture and
+category page change.
+
+**Measured, before and after.** `tools/nando_eval.py`: §346's forty
+questions were not committed, so the set is rebuilt in the same kinds and
+committed, labelled once by hand with the most specific seeded node each is
+truly about (or the closest above it where the tree has no node). Today's
+placement (`resolve_category` on the question): **11 right, 0 broader, 28
+unplaced, 1 wrong** ("high school football scores in my town" ->
+`football`) - the shape §346 found (17/1/22). **Nando's code with no brief:
+the same 11 / 0 / 28 / 1.** That is the honest finding: on the question
+alone there is nothing more for code to read, and what Nando adds is reading
+the brief's category words and subject first. That needs a brief, which
+needs a key:
+
+    python tools/nando_eval.py --with-brief
+
+(one brief per question, a few cents for the set). The thumbnails and the
+category pages are measured on a deployment with episodes, after
+`CATEGORIZER=1`:
+
+    python tools/categories_report.py --audit
+
+which this container's empty database cannot answer. The nearest-by-meaning
+rung could not be measured here either: the embedding model is not
+installed in this container (`taste_vectors._encoder()` is None).
+
+**Latency.** None off. On: a few dictionary lookups and at most one small
+embedding after the brief, before the search starts; the confirmation runs
+after the episode is written.
+
+**Guard tests that moved.** `test_nothing_on_the_listener_path_imports_the_model_layer`
+listed the files allowed to import from `agents/`; it now lists which agent
+modules each may import - the model layer still only from `/api/health`,
+and C3P0's plan and Nando's placement are checked to import no model layer.
+
+Tests: `tests/test_agents_categorizer.py` (the brief's words outrank a word
+in the question; the subject; a question phrase on another facet passed
+over; no brief places as today; a facet is broader, never wrong; nothing is
+nothing; the path from the facet; never raises; a game's provider field
+never left, even by the writer; news has no provider field; no database
+read; eight confirmation cases; settle records both and moves the picture;
+nothing when Nando did not work; stored and cleared on both cache backends;
+the reader takes the node first, falls back when the tree lost it, and reads
+an unfiled episode as before; placed and published only when Nando works;
+every write path settles and audits; the audit's numbers, None before any
+filing; the forty labels exist in the seed; Nando never wronger than today).
+
+## 372. Phase 1, piece 4: Nando starts from what the tap already knows, and chooses the facet first (2026-10-31)
+
+Piece 3 measured what it should have: on a typed question alone, Nando's
+code places what today's code places (11 right, 28 unplaced of 40). The
+owner asked for ways to make categorisation actually work - "arguably our
+most important one", because the node decides what both packets look for
+and which picture shows - and approved a rewritten plan in which Nando is
+six pieces (4-9 and 12-14 of the new list). This is the first: most taps
+are not typed at all, and each already says what it is about.
+
+**`categorizer.prior_for(query, context, notes)`**, memory reads only, in
+order:
+
+1. an edition writer's own - the Trending edition hands Nando its story's
+   category before the brief (`notes.category_prior`, source `edition`);
+2. a tile - the live story, or Trending story, whose question this is: its
+   category, else its deepest tree tag (`tile`); the same lookup
+   `stories.context_for` already makes on a tap;
+3. a bank topic with this question: its deepest tree tag (`bank`);
+4. a DailyFAM prompt, whose shape is FAM's own (`mixes.daily_prompt`,
+   "The latest on Eagles (NFL) as of ..."): the followed subject from the
+   interest catalogue, and the narrowed specific within it when the tree
+   places it on that branch (`dailyfam`);
+5. a Go Deeper: the episode it follows, by the title the client already
+   sends as `context` (`parent`).
+
+**The words may narrow, never move.** `place(..., prior=)` keeps the
+question's node only when it is the prior's or below it on its branch;
+anything else is the prior. A tile filed under extreme weather stays
+there however much the brief says "Miami Heat".
+
+**Facet first.** Every placement now decides its facet before anything
+else - the tap's, else the brief's category words', else the subject's -
+and every later step (the brief's words included) stays inside it. That is
+where the cross-facet mistakes are stopped.
+
+**Measured.** `tools/nando_eval.py` gains twelve taps that carry context -
+five tiles, a bank topic, four DailyFAM subjects, two Go Deepers - labelled
+by hand like the forty. Today: **3 right, 1 broader, 8 unplaced, 0 wrong.
+Nando from the tap: 11 right, 1 broader, 0 unplaced, 0 wrong.** Read it for
+what it is. The tiles are right because the tile's category is the label I
+gave it: that measures that the episode now keeps the tile's filing, which
+it did not (the episode was filed by the writer's words alone, so a tile
+and its episode could disagree - the owner's thumbnail complaint), not that
+the composer's category is right. The one broader is "Eagles" inside NFL:
+the tree's phrase is "philadelphia eagles", which piece 6's other wordings
+are for. The forty typed questions are unchanged (11/0/28/1), as they must
+be: a typed search carries no context.
+
+Not done here: a Go Deeper carries its parent's *title*; sending the parent
+episode's id (`X-FAM-Episode`, §173) would let Nando read the parent's
+stored node exactly. That is a client change, left for the ambiguity
+piece's screen work.
+
+**Latency.** None off. On: scans of the pool, the bank (28 topics) and the
+interest catalogue (73) in memory, after the brief; Trending's edition is
+read as `stories.context_for` already reads it on every tap.
+
+Tests: `tests/test_agents_categorizer_prior.py` (a tile's category, or its
+deepest tag; a Trending story as a tile; a bank topic; a DailyFAM subject,
+narrowed only within it; a Go Deeper's parent; an edition writer's own
+first; a typed search has none; never raises; the words narrow on the
+branch and never move off it; a prior with no words is the node; the facet
+first; `prepare` places from the tap; the Trending edition hands over its
+story's category; taps place better than today and never wrong).
+
+## 373. Phase 1, piece 5: names that mean two things, and broader when unsure (2026-10-31)
+
+Most of the typed questions Nando could not place, and the one it placed
+wrong in §209, are names that mean two things: the Heat and a heat wave,
+the Hurricanes and a hurricane, United the airline and the club, Apple,
+Amazon, the Eagles. A phrase in the question picks one reading by its
+words, and the picture and the packets follow it.
+
+**The clash table** (`category_collisions.py`, data beside the category
+seed at the owner's direction - reviewed like the seed, never a signed
+rule book). Nineteen names, each with its readings: the node each is filed
+under, or "" for a reading the tree has no node for (the bird, the fruit),
+and the words around the name that point to it ("storm", "landfall" for
+the weather; "puck", "goalie" for the team). `categorizer.clashes` reads the
+question and the brief's words: one reading with the most cues is decided;
+none, or a draw, is a tie.
+
+**How Nando uses it.** The tap's filing and the brief's own category words
+still come first - the brief has read the question - then a decided name's
+reading (and a team named in full under it), then the old phrase steps,
+which may no longer land on a reading the name ruled out. A reading on the
+winner's own branch is not ruled out (consumer hardware above
+smartphones: found by the held-out check below, as a bug). A decided
+reading the tree has no node for files nothing - never the other reading.
+**A tie is never guessed**: Nando files under what all its readings share
+(the Kings: `sports`), or nothing (United), and records the name on the
+placement (`ambiguous`) for C3P0 to ask about (piece 10).
+
+**Confidence, and broader when unsure.** Every placement carries a
+confidence from the step that decided it (`CONFIDENCE`: the tap's or a
+provider's filing 0.9, the brief's words 0.8, a decided name 0.75, a phrase
+in the raw question 0.6, meaning and keywords 0.5, a facet 1.0), halved
+when an undecided name touches the chosen node. Below `MIN_CONFIDENCE`
+(0.5) the episode is filed under the node's parent - true, broader, so the
+picture is the parent's rather than a possibly wrong team's (decided item
+38). The audit records each placement's confidence and undecided names;
+`categories_report.py --audit` counts filings made broader and the names
+left undecided most often - which is where the table needs a word.
+
+**Measured.** The forty typed questions: today 11 right / 28 unplaced / 1
+wrong; Nando in code now **20 right, 1 broader, 18 unplaced, 1 wrong**. The
+table was written beside the forty, so that number flatters it. **Twenty
+held-out clash questions**, written and labelled after the table and never
+used to tune it: today **1 right, 1 narrower, 18 unplaced**; Nando **18
+right, 1 narrower, 1 unplaced, 0 wrong**. The held-out run found two code
+problems, fixed, and one table gap, left as found: the consumer-hardware bug
+above; a scorer with no "narrower" verdict ("United cancels flights" filed
+under `flights`, which sits under my label `airlines` - now counted as
+narrower in every column, never as right); and "thunderstorms and lightning
+expected tonight" unplaced, because "thunderstorms" is not a cue. The
+taps with context are 12 of 12. The remaining unplaced typed questions are
+plain wordings and subjects the tree has no phrase for - piece 6's other
+wordings, definitions and Wikidata anchors.
+
+**Latency.** None off. On: nineteen names checked against a short text with
+regular expressions, in memory, after the brief.
+
+**Tests that moved.** Two of piece 3's tests pinned which step decided
+("subject") or compared against an empty facet; they now pin the node, which
+is what they were for. The settle test reads the two new fields.
+
+Tests: `tests/test_agents_categorizer_clashes.py` (every reading a seeded
+node or none; the table is data, not a rule book; eight names decided by
+their words; a reading on the winner's branch kept; the bird files nothing;
+the brief and the tap outrank the table; a tie is what the readings share,
+or nothing, and names itself; a decided name rules out the others; every
+placement's confidence; below the floor the parent; a facet never made
+broader; the audit's counts; the held-out set never wrong and better than
+today).
+
+## 374. Phase 1, piece 6: the category vocabulary - other wordings and named things, and a tool to draft them (2026-10-31)
+
+After pieces 4 and 5 the typed questions Nando cannot place are plain
+wordings the tree has no phrase for ("why rents keep rising" against
+`rental market`, "is bitcoin going up", "Fed interest rate decision") and
+named things it should not grow a node for (Taylor Swift, OpenAI, a team
+whose name is an everyday word). The owner approved giving every node a
+definition, its other wordings and its Wikidata id, an entity table, and a
+batch tool to draft them for a key-holder to run once and check, with
+Haiku 5.5 drafting and the files kept beside the category seed (not signed
+rule books).
+
+**`category_vocabulary.py`** reads two sources:
+
+- **Derived in code**, from data FAM already has and nothing fitted to a
+  test: each seeded team's nickname ("lakers", "red sox"), read as the team
+  only in a question about sport - a nickname alone can be an everyday word
+  ("jazz festival" is not the Utah Jazz); and each followable interest's
+  label ("cryptocurrency" for `crypto`).
+- **Drafted, then checked**: `category_vocabulary.json` - `nodes` (each
+  one's `definition`, `excludes`, `wordings`, `wikidata`) and `entities`
+  (name -> node, kind, Wikidata id). Committed empty; nodes or entities the
+  tree does not hold are ignored, and an unreadable file is no vocabulary.
+
+`match(text, facet)` finds the longest known wording in the text (a named
+thing before a wording of the same length), inside the facet when one is
+known. A wording two nodes share comes back as both - a tie. Built once per
+tree and file, then a walk over a dictionary.
+
+**Nando reads it** after the tree's own phrases (exact, §209) and before
+meaning and keywords: the brief's words, then its subject, then the
+question (`wording` 0.65, `entity` 0.8 in `CONFIDENCE`). A tie is filed
+under what its nodes share, never one of them. A DailyFAM specific
+("Eagles" under NFL) now narrows through the vocabulary inside its
+subject's branch.
+
+**`tools/draft_category_vocabulary.py`.** Nando's offline task, through
+`agents.models.ask` like any agent call - `CATEGORIZER_MODEL` (Haiku 5.5),
+Nando's signed rule book, metered, refused on staging and sending nothing
+unless the deployment has `AGENTS=1 CATEGORIZER=1`. Thirteen calls of
+twenty-five nodes each for definitions, exclusions and wordings, from the
+node ids and paths (FAM's own material); then the named things the tree
+leaves out on purpose (`category_seed.LEFT_TO_GROW`) and the specifics
+DailyFAM offers (`topics.FOCUS_HINTS`), each filed under a node chosen from
+the tree's list or "none". Every answer is checked in code: an unasked or
+unknown node is dropped, wordings are normalised and capped at fifteen, and
+a Wikidata id is kept only when Wikidata's own label is exactly the name.
+It writes `category_vocabulary.pending.json`, which Nando never reads; a
+person reads it, edits it and renames it. To run where there is a key:
+
+    AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py
+
+Then measure:
+
+    python tools/nando_eval.py
+
+**Not in this piece.** The Wikidata ids are drafted and verified, but
+walking them at the request (a name -> its league or industry -> an
+anchored node) needs links the reference look's cache does not keep
+(`wikimedia.raw_facts` holds occupations, teams, employers - not sport,
+league or industry) and would be a disk read in front of the first word; it
+moves to piece 8, where the sources' names are linked after research. The
+definitions are for piece 7's candidate list; `category_near` still embeds
+bare node ids, because changing it would change what the readers place
+with the agents off.
+
+**Measured.** With the vocabulary file still empty, the derived wordings
+add one typed question (Lakers trade rumors): the forty are **21 right, 1
+broader, 17 unplaced, 1 wrong** (today 11 / 0 / 28 / 1); the held-out
+clashes 18 / 1 narrower / 1 unplaced / 0 wrong; the taps 12 of 12. The gain
+the plan expects - most of the seventeen - waits for the drafted file, and
+is measured by the same command once it is checked in.
+
+**Latency.** None off. On: one dictionary walk after the brief; the file is
+read once per change.
+
+**A test that moved.** Piece 4's DailyFAM test pinned "Eagles (NFL)" to
+`nfl` because Nando could not read the nickname; it now narrows to the
+team, and the test pins that a specific the branch has no word for stays
+the subject.
+
+Tests: `tests/test_category_vocabulary.py` (a nickname in a sports question
+and not outside one; a two-word nickname; an interest's label; drafted
+wordings and entities read; a shared wording a tie; the longest wording and
+an entity first; the facet kept; unknown nodes ignored; an unreadable file
+is none; the pending draft never read; the repository's file holds only
+seeded nodes; not a rule book; Nando places by a wording, files a tie under
+what it shares, places a named thing, narrows a DailyFAM specific; the
+tool cleans wordings, drops unasked and unknown nodes, keeps entities only
+under real nodes, sends nothing when the agent is off, keeps a Wikidata id
+only for one exact label, and the dry run sends nothing).
+
+## 375. Phase 1, piece 7: C3P0 and Nando in the brief's call (2026-10-31)
+
+The decided design (§346; the owner's answers 1, 2 and 5, §369): C3P0 rides
+in the brief's existing search half, sent through the agent layer so it is
+metered and locked; Nando's node is chosen in the same call from candidates
+code built from the tree; Haiku on ties runs beside the brief. Nothing new
+in series in front of the first word. With `AGENTS=0` or `CONTEXTUALIZER=0`
+the brief is byte for byte what it was (with C3P0 on and Nando off, C3P0
+still answers the search half, without a candidate list - corrected, §377).
+
+**C3P0's call** (`contextualizer.search_half`). When Netenyahu lets him work
+on the episode and the brief is split (`EI_SPLIT=1`, the default), the
+search half is not asked of EI's client: it is one `AgentRequest` - agent
+`contextualizer`, `CONTEXTUALIZER_MODEL` (Haiku 5.5), C3P0's signed rule
+book, the brief's own instructions, worked examples and the search half's
+field guide followed by C3P0's (the guide's prompt: tell same-name things
+apart and say `ambiguous` rather than guess, plugins from the closed list,
+inputs as what must be found with dates from the moment, a name as the
+provider lists it, private person, advice, opinion only when asked for by
+name, a title of three to eight words with no result) and Nando's (the most
+specific node from the list, by what it is about). The request goes in its
+`<request>` tag (the consent check applies, Anthropic covered); the moment,
+the length and Nando's candidates as `<evidence>`. Effort `EI_EFFORT`
+(medium) on the tap and the new `EI_AHEAD_EFFORT` (high, decided item 36)
+for prefetch and the editions; the brief's own time limits and call size.
+The answer's schema is the search half field for field (a test holds the
+two together) plus C3P0's and Nando's fields.
+
+**Held in code** (`contextualizer.checked`): a title, search or plugin
+input with a result - a score, or a verb saying how something ended - is
+refused (the title left empty so the player keeps its derived one; a
+plugin input replaced by the search), "who won" being a question; plugins
+only from the seven (the schema's enum); `ambiguous` only with two readings
+or more; `opinion_requested` only when the request names that person and
+asks for a view; Nando's node only from the candidates.
+
+**Failure.** A request never sent (held, off, misconfigured, unpriced,
+staging) runs the brief's own search half at once - no time was spent. One
+that was sent and failed is the search half failing, which the brief
+already survives (the understanding half stands, the gate searches the
+question). Every result goes to Netenyahu, who holds C3P0 after three
+failures in a row - after which every brief is EI's own again. This is
+where a dated served-model id would show (§353): `tools/agent_probe.py`
+answers it before C3P0 is switched on.
+
+**Kept on the brief** (`Brief.contextualized`), so a brief warmed before
+the tap carries C3P0's answer to it. `contextualizer.from_brief` now builds
+the `ResearchPlan` from it - his entity, kind, readings, plugins and Sonic's
+request - and counts whether his plugin choices match the routes code took
+(`plugins_agree` / `plugins_differ` in `/api/health`). **The pipeline does
+not follow his plugin choices yet**: which plugins run is still the brief's
+fields and the code routes. Following them is a routing change worth making
+only once those counts say how often he and the code disagree, and on what.
+
+**Nando in the same call.** `categorizer.candidates_for` lists, in memory,
+up to twenty nodes: the tap's own, every reading of a clash, the tree's
+phrase, the vocabulary's matches, the keyword map's nodes, and each one's
+parent, so a broader true node is always on offer - the facets when nothing
+else is found - with each node's drafted definition and exclusions when
+the vocabulary has them (§374). His pick (`place(..., picked=)`) outranks
+every code step but the tap's own filing, which it may only narrow. **On a
+tie code could not settle** (a clash or a wording with no deciding words),
+Nando's own call (`ask_tie`, `CATEGORIZER_MODEL`, his ceilings) starts
+beside the brief and is read at placement only if C3P0 gave no pick - and
+cancelled if it has not answered: nothing waits for it.
+
+**C3P0's title is the episode's title** (decided item 1). While he works
+(and `CONTEXTUALIZER_TITLES=1`, the guide's setting, default on), the title
+from his call is the one published before the first word and the writer's
+`<<TITLE:>>` does not replace it (`ScriptNotes.c3p0_title`). `[title-from-content]`
+and `[one-category]` are rewritten in `CLAUDE.md` and `product.md` as the
+build prompt asked - inside the core's budget (39,956 of 40,000 bytes then;
+`tests/test_claude_md.py` holds it since), the full text in the topic file. Mclovin's comparison of the title with
+the finished script, and C3P0 retitling on a mismatch, are Phase 3.
+
+**Latency - what cannot be measured here.** No new call in series: C3P0's
+call is the search half, at its moment. But it asks for more: about 200
+more output tokens (his and Nando's fields) and a longer cached prompt (the
+rule books and his instructions). The brief takes as long as its slower
+half, so this adds time only if the search half becomes the slower one.
+There is no key in this container. Where there is one:
+
+    python tools/agent_probe.py
+    AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1 python tools/nando_eval.py --with-brief
+
+and, on a deployment, compare `/admin`'s pipeline steps "brief: search"
+and "brief: understand" (`pipeline_errors.step`) and `/api/health`'s
+`episode_intelligence.seconds_by_path` before and after switching C3P0 on.
+The rule the owner set: the brief's time must not grow. If it does, the
+first lever is moving C3P0's and Nando's fields into the understanding
+half, or trimming his instructions - the owner's call.
+
+**Tests that moved.** The guard on what the listener's path imports now
+allows the brief to import C3P0 and Nando and pins that the model layer is
+reached in exactly two places: C3P0's search half and Nando's tie call.
+
+Tests: `tests/test_agents_c3p0_call.py` (the call carries the search half
+field for field and a sendable schema; with C3P0 working the search half is
+his call, with his rule book, model and the request in its tag; the effort
+on the tap and ahead; Nando's candidates go with it; never sent runs the
+brief's own half; sent and failed is the half failing; every result
+reported to Netenyahu; off, the brief is as before; the one-call brief
+leaves C3P0 out; results found and refused in titles, searches and inputs;
+ambiguous needs two readings; opinion only by name; the node only from the
+candidates; candidates hold every reading and parent, the facets when
+nothing; the tie call only from candidates, cancelled if late; the pick
+outranks code but not the tap; prepare files the pick, or the tie call's;
+C3P0's title kept while he works, and its switch; the plan is his and
+counts agreement with the code routes).
+
+## 376. Phase 1 reviewed: the bookkeeping that was still on the listener's path, ties that were guessed, and claims that were not true (2026-10-31)
+
+At the owner's request ("carefully double check all changes made to this
+point"), two independent reviewers read everything from §369 to §375 cold -
+one the `agents/` code and tools, one everything around it - and I read it
+again myself. They found real defects, several in exactly the places the
+earlier sections said were safe. All are fixed here; what each earlier
+section claimed that was not true is listed at the end, because this log
+is the record.
+
+**On the listener's path after all** (the rule since §369: nothing of the
+agents' bookkeeping in front of the first word):
+
+- **The ledger row** (`agents.models._record`) was a synchronous insert
+  inside `ask`, so C3P0's call - now the brief's search half - waited on a
+  database commit, on Postgres a network round trip. It is written by one
+  background thread, in order (`RECORD_OFF_LOOP`); `models.flush()` waits
+  for it. Tests write inline (`tests/conftest.py`).
+- **A hold** (`netenyahu.report` on the third failure) wrote the task store
+  and `pipeline_errors` on the same path. The copy holds the agent at once;
+  the store is written in a thread (`HOLD_OFF_LOOP`).
+- **The vocabulary** read `category_vocabulary.json` once per candidate
+  (`definition`, up to twenty times a brief) and checked the file's time on
+  every match, and rebuilt itself on the request path after any tree
+  change. It is built once (boot primes it when `AGENTS=1`), definitions
+  come from the copy, and staleness is checked and rebuilt in a background
+  thread while the old copy answers.
+- **The Trending edition** was read through `stories_now`, which reloads
+  from its store every minute. Nando now reads only the edition in memory
+  (`trending_bank.stories_in_memory`).
+- **The meaning step** embedded the brief's words inline. It queues them
+  (`inline=0`), as the readers always have.
+- **With the agents off**, `app._episode_category` asked the store twice
+  (node, then words). One read now returns both (`category_pair`), as the
+  store was asked before the node existed.
+
+**Ties were guessed.** When a name was left undecided ("Rangers", "Panthers",
+"Cardinals"), a later step could land on one reading, be marked unsure and
+be filed under that reading's parent - still inside the guess: "Rangers
+season preview" was filed under the NHL. Now a node that touches one
+reading of an undecided name is filed under what all its readings share
+(`sports`), or nothing. The confidence penalty that did this badly is gone;
+the two weakest steps (meaning and the keyword map, 0.45) now sit below the
+floor, so what they find is filed under its parent.
+
+**Everyday words read as teams.** `SPORT_WORDS` held "season", "lineup",
+"trade", "win", "series", "draft": "jazz festival lineup" was filed under
+the Utah Jazz. Only words about sport and little else remain; "Lakers trade
+rumors" is now unplaced (the brief and C3P0 place it - the honest cost). A
+drafted one-word entity ("Bills", "Lions", "Mercedes") is read only inside
+its own field, and an entity no longer removes the context a nickname asked
+for. "golden state" was a dead entry (the code looks at the last two words).
+Cues holding the name itself ("new york jets", "private jets", "united
+airlines") could never match, because the name was removed before cues were
+read; they are read in the whole text now.
+
+**C3P0's answer.** The title skipped the brief's `clean_title` (a re-cased
+question could become the episode's title for good) and nothing enforced
+the three-to-eight words `product.md` said code held; both are enforced.
+The forecast input and Sonic's request were never checked for results; they
+are. Dates and ranges ("2026-10-11", "ages 18-25", "5-7 day forecast") were
+read as scores, and "Can the Chiefs beat the Bills?" as a result; they are
+not. `opinion_requested` passed on any "think" or "views" anywhere ("how
+many views did Taylor Swift's video get"); it now needs the name next to a
+view word.
+
+**A second request for one site.** If the layer failed after sending, `ask`
+reported `sent=False` and C3P0's call ran the brief's own search half - a
+second request, the first one's cost unrecorded. `ask` now marks a request
+sent the moment it leaves, and C3P0 falls back only on the statuses that
+mean nothing left (`models.UNSENT`). A failure building the request (before
+anything is sent) also falls back, where it used to fail the brief.
+
+**The tie call ran on.** When C3P0 picked, Nando's tie call was neither
+read nor cancelled (`or` short-circuited), and ran to completion, paid for
+and thrown away. It is read or cancelled at every placement - which still
+left the paths that never reach a placement (§377).
+
+**Smaller.** Netenyahu's refresh could overwrite a hold made while it was
+reading (holds made since a read began are now merged in) and, with the
+store down, started a refresh per episode (it now waits an interval).
+Candidates are listed each with its parent beside it, so cutting the list
+never drops the broader node first. The drafting tool wrote the seed into
+an empty live tree; it drafts against a throwaway copy. Stale docstrings
+(Netenyahu's "no agent is built", the categorizer's six steps and "no file",
+the contextualizer's "no model") are rewritten.
+
+**The measurement, said honestly.** "Narrower" also catches a wrong team
+under a broad label, so every narrower result is printed for a person to
+read and never counted as right. The tile taps are circular (the story's
+category is the label). The "held-out" clash set was written by the same
+session, in the same commit, with the table's own cue words: it shows the
+table works on the words it lists, not that it covers what listeners say.
+The independent set is piece 9's. Numbers after the fixes - the forty:
+today 11 / 28 unplaced / 1 wrong, Nando **20 right, 1 broader, 18
+unplaced, 1 wrong** (one fewer than §374: "Lakers trade rumors"); the
+clash set 18 right, 1 narrower, 1 unplaced; taps 12 of 12.
+
+**Tests that tested nothing.** A clash test asserted "broadened, or
+confident" - true of anything; it now pins the three cases above to
+`sports`. The agents-off brief test only checked that C3P0 was not asked;
+it now compares the whole brief and every model call with C3P0's and
+Nando's code made unable to run. `tests/test_agents_off.py`'s golden
+episode never reaches the code C3P0 and Nando are built into (it streams a
+fake generator); its docstring now says so and names the tests that cover
+it.
+
+**Left as designed, and why.** Nando's confirmation after the writer may
+re-file away from a tile's filing: his signed rule book says "if the
+episode turned out to be about something else, change it", and the prior
+binds the request's words, not the finished episode. C3P0's stricter answer
+(a closed schema, more output under the same `EI_MAX_TOKENS`) can fail more
+often than EI's search half did; a sent call that fails is the search half
+failing, never a second call in series. Both are for the owner to see in
+`/api/health` once C3P0 runs.
+
+**What earlier sections claimed that was not true until now:** §371 "no
+file, store or network" and "at most one embedding"; §372 that the
+Trending read was harmless; §373's confidence "broader when unsure" (it
+kept ties inside a guess) and "held-out" (not independent); §374 "the file
+is read once per change" and "a dictionary walk"; §375 "lists, in memory",
+"cancelled if it has not answered", and product.md's "three to eight words
+in code".
+
+Tests: `tests/test_review_fixes_376.py` (the ledger written off the loop
+and flushed; a failure after sending marked sent; C3P0 never sends twice;
+a request that cannot be built falls back; a refresh racing a hold keeps
+it; a failed refresh waits; a hold from the listener's path written in the
+background; the vocabulary never rebuilt or stat'ed on the path, a stale
+one checked in the background, definitions from memory; cues holding the
+name read; meaning queued, never embedded; each candidate's parent beside
+it; the tie call cancelled when C3P0 picked; Trending in memory only; the
+reader asks the store once; dates, ranges and questions not results;
+opinion only by name; forecast and archive inputs checked; the title
+cleaned and three to eight words; drafting never writes the live tree; off,
+the brief and every call are what they were) and the tie cases in
+`tests/test_agents_categorizer_clashes.py`.
+
+## 377. Phase 1 reviewed a second time: names that were never what the table thought, and the paths the first fixes missed (2026-10-31)
+
+The owner asked for a second check after the first (§376). Two new
+reviewers read the fixed code cold and tried to break it. The agents' code
+reviewer found that Nando still filed things under a specific wrong node on
+adversarial questions; the integration reviewer found paths the first round
+missed and two docs that still claimed too much. All fixed here.
+
+**No cue is no evidence.** The clash table lists only the readings FAM files
+(the Kings as two teams), so "what the readings share" filed "kings and
+queens of England", "tech giants earnings", "cardinals gather to elect a
+new pope", "Power Rangers movie" under `sports` - over the brief's own
+facet. A name with no word around it pointing to any reading now decides
+nothing and is filed under nothing; only a draw between readings that each
+had a cue is a tie, and only the tied readings count ("Kings game tonight":
+the two teams, `sports`). `NOT_THE_NAME` takes out words inside other names
+("United States", "Kings of Leon", "College of Cardinals"); readings with no
+node were added where a third meaning is common (a pope, a monarch, a
+ranger, an endangered panther, the jazz "giants"); weak cues went ("texas",
+"airport", "watch" - "apple watch" stays); a reading's own node name in the
+text decides it ("New York Rangers trade").
+
+**Two names that disagree decide nothing.** "Eagles fans brave the heat
+wave at the game" was filed under the NBA, because "fans" and "game" are
+sports cues and "heat" came first in the table. Decided names whose
+readings are not on one branch now cancel each other (the Eagles then come
+from the vocabulary); there is no table order.
+
+**A team's name needs a sports question.** "Utah jazz festival lineup",
+"Boston red sox the color of autumn": a seeded team's full name in the raw
+words, and any sports tag the keyword map reads off it, is taken only in a
+question about sport, as its nickname is. "Stanley Cup odds" needs nothing.
+
+**C3P0's pick, when he said ambiguous, is not taken.** It was accepted
+even when his own `ambiguous` was true - a guess between the readings he
+had just said he could not tell apart. Nando's own tie call (asked for a
+node or "none") is still taken: the owner's design, a model on ties.
+
+**A Go Deeper's parent is a hint, not a pin.** Its title was phrase-matched
+(the §209 failure - "Utah's jazz festival lineup" became the Utah Jazz) and
+then could only be narrowed. It is now placed by Nando's own steps, and it
+stands only when the request itself places nothing more than a facet.
+
+**The tie call, everywhere.** It no longer starts ahead of the tap (a
+prefetch or an edition may stop after the brief, where nothing reads it;
+C3P0 there has the whole of `EI_AHEAD_EFFORT`), it is cancelled if the
+brief raises or the listener leaves, and a cancelled call still leaves its
+ledger row. Nando's candidates are listed once per request, not twice.
+
+**Written live-story tiles** drew their picture from the writer's words
+through their own resolver, bypassing `_episode_category` - the very
+tile/episode mismatch Nando is for. They read the one reader now (with
+Nando off it returns exactly what the tile code computed before, in the
+same single read). `product.md`'s §189 note says so.
+
+**C3P0's answer.** Missed results: "Eagles 24, Giants 17" (the comma form;
+without the comma it is too like "Windows 11 Office 365"), "lost",
+"loses", "clinched", "eliminated", "swept". Wrongly flagged: date ranges
+("October 10-11"), named numbers ("9-11", "737-800", "4-3 defense",
+"50-50", "9-5 job", "top 10-15"), "won't", "have won" (a streak). A view:
+the name must stand alone ("Byron" is not "Ron"), the last name alone
+counts ("Krugman" for "Paul Krugman"), a reporting verb is not a view
+("Biden said GDP grew"), and a possessive noun needs what it is on
+("Krugman's take on", not "Krugman's position in the rankings"). A title
+over eighty characters is refused, not cut mid-word. Every step after the
+call is inside the safety net: an answer that cannot be read is the search
+half failing once; any failure before sending runs the brief's own half.
+
+**Smaller.** Holds made here stay in the copy until a read of the store
+shows them, whenever the refresh began; a store down since boot is asked
+once an interval, not once an episode. The confirmation after the writer
+queues its embedding. A replaced tree object rebuilds the vocabulary in the
+background, and the vocabulary step checks each node against the tree. An
+edition's node the tree has lost is no prior. `tools/agent_probe.py` meters
+its calls under the agent name `probe`.
+
+**Docs that claimed too much.** §375: the brief is byte for byte what it
+was with `CONTEXTUALIZER=0` (with C3P0 on and Nando off he still answers
+the search half); §376's tie-call line; the core's byte count.
+
+**Measured.** The forty: **20 right, 18 unplaced, 1 broader, 1 wrong** (today
+11 / 28 / 1; corrected - the first count here said 19 unplaced); every
+adversarial question both reviews found is filed true or not at all. The
+clash set 18 right, 1 narrower, 1 unplaced; taps 12 of 12. **Several of these
+fixes caused regressions of their own - §378.**
+
+**Open, for the owner.** Whether Nando's Haiku tie call choosing one
+reading counts as "guessing" under c3p0.md's "never guess" (it is asked to
+say "none" when it cannot tell, and it is the owner's decision of §346); and
+whether C3P0's stricter answer failing more often than the old search half
+is acceptable once `/api/health` shows how often.
+
+Tests: `tests/test_second_review_377.py` (a team's full name only in a
+sports question, an unambiguous sports phrase without one; C3P0's pick not
+taken when he said ambiguous, and `prepare` passing it; a parent title
+placed by Nando and overridden by the request; an edition's lost node; no
+tie call ahead; the tie call cancelled with a failed brief; a cancelled call
+still a ledger row; candidates listed once; a late-written hold kept until
+the store shows it; a down store asked once an interval; fourteen results
+and non-results; six views and non-views; a long title refused; an
+unreadable answer fails once; any failure before sending falls back; a
+written tile drawn from Nando's node; a new tree built in the background;
+the probe metered) and the clash cases in
+`tests/test_agents_categorizer_clashes.py`.
+
+## 378. Phase 1 reviewed a third time: the second round's fixes broke things, and a corpus that stops that happening again (2026-10-31)
+
+A third reviewer read only §377's changes, compared every case against the
+code before them, and found that several of my fixes had caused new
+failures - some of them specific wrong nodes, the one failure Nando must
+never have:
+
+- **A word stripped as another name came back as a nickname.** §377 took
+  "power rangers", "park rangers", "black panthers" out of the clash check,
+  but not out of the vocabulary: "Power Rangers game" and "park rangers
+  rescue hikers near the stadium" went to the New York Rangers, "Black
+  Panthers history game" to the Carolina Panthers.
+- **The conflict rule dropped every guard.** Two contradicting decided names
+  were thrown out of the decided, losing and tied lists alike, so a later
+  step could take the very reading the table had ruled out ("eagles nest
+  and migration ... during heat wave temperatures" went to the Eagles); and
+  a reading with no node (the bird) counted as a contradiction.
+- **The team gate unplaced twenty right teams.** "Dallas Cowboys news", "New
+  York Yankees", "bengals", "Detroit Tigers manager fired" were all unplaced,
+  and Go Deeper parents with team titles lost their prior. The seed already
+  leaves out the team names that are everyday phrases (`LEFT_TO_GROW`).
+- **The result check's new verbs flagged ordinary sentences** ("Lost in
+  Translation review", "I lost my job", "swept away by the flood",
+  "eliminated tariffs"), and the comma score form flagged "Windows 11,
+  Office 365"; treating "has" and "have" as asking let present-perfect
+  results through ("Spain has won Euro 2024").
+- **The view check** missed curly apostrophes (iOS types them) and "what did
+  Taylor Swift say about", and took the last name alone ("Jordan thinks
+  about peace with Israel" for Michael Jordan) and "feels" as a view.
+- **Smaller:** a Go Deeper ignored the brief's pick; the tie call could still
+  leak if a step between the brief and the placement raised; holds made in
+  this process could stick in the copy for ever; a new tree object could
+  start a rebuild thread per call; cues removed in §377 had made correct
+  teams broader ("Texas Rangers score").
+
+**The real fault was the method.** Three rounds of fixes, each written
+against the cases in front of it, each moved some cases from wrong to right
+and others from right to wrong, and nothing measured both. So the first fix
+here is a **fixed adversarial corpus**, `tests/nando_corpus.py`: every
+question the three reviews used, with the nodes acceptable for it (the true
+one, a true broader one, or nothing; a specific wrong node never), the Go
+Deeper parent titles, and the result and view texts, each read the right
+way - 124 cases, run as `tests/test_nando_corpus_378.py`. Before the fixes
+below, the branch's code failed 36 of them. After: **0**.
+
+**The fixes, each checked against the whole corpus:**
+
+- Words inside another name are taken out before the vocabulary is read as
+  well as before the clash check (`_without_other_names`) - unless a cue
+  holding the word is there ("Manchester United States tour": the club).
+- Contradicting decided names become a tie between their own readings
+  (filed under what they share, or nothing), and their losing readings stay
+  ruled out; a reading with no node contradicts nothing ("bald eagles nest
+  survives heat wave" is the weather).
+- The team gate is gone. Where a seeded team's name is also an everyday
+  phrase it is a clash in the table and must win on its cues: "jazz" (the
+  Utah Jazz or the music) is added; "lineup" is no longer a sports cue; a
+  reading's own name in the text counts as one cue, not three.
+- `texas`, `florida`, `st. louis` are cues again (their third meanings
+  carry their own cues: "Texas Rangers arrest suspect" files nothing).
+- Results: no bare "lost", "lose", "swept", "eliminated" (only "lost to",
+  "loses to", "lost by"); no comma score form; "has"/"have" are results
+  unless a streak follows ("have won four straight"); "how many" asks.
+  Known misses, noted rather than chased: "Eagles win Super Bowl" (a bare
+  "win" is too common), "Eagles 24, Giants 17".
+- Views: the name as C3P0 wrote it, not its last word; curly apostrophes;
+  "say/said about"; no "feels".
+- A Go Deeper takes the brief's pick over its parent; the tie call is
+  cancelled if anything between the brief and the placement raises; an
+  unconfirmed hold is kept at most two refresh intervals; a new tree's
+  rebuild is throttled.
+
+**Measured.** The corpus 124 of 124. The forty: 20 right, 1 broader, 18
+unplaced, 1 wrong (today 11 / 28 / 1). The clash set 18 / 1 narrower / 1
+unplaced; taps 12 of 12. Every test that pinned a §377 behaviour this round
+reverses says so where it changed.
+
+**What this does not prove.** The corpus is a floor built from what three
+reviewers thought of, labelled by me; it says Nando is not wrong on those,
+not how often he is right on what listeners ask. That is piece 9's judged
+set, and production's `category_audit` once he runs.
+
+Tests: `tests/test_nando_corpus_378.py` (the 124 cases; a Go Deeper takes
+the brief's pick over its parent; an unconfirmed hold not kept for ever; a
+tie call cancelled with a prepare that raises), and the §377 tests updated
+where this round reverses them.
+
+## 379. Nando decides: code builds the shortlist, the model chooses, and the result check catches every guess (2026-10-31)
+
+A fourth reviewer wrote 369 questions of their own and found 86 specific
+wrong nodes - 22 from §378's changes, 64 older, all of them hand-written
+rules on raw words ("boxing day sales" -> boxing, "Detroit lions at the
+zoo" -> the NFL team, "Tottenham Spurs game" -> the San Antonio Spurs,
+"tennis elbow" -> tennis). Three rounds had shown the rules do not
+converge. The owner, asked how Nando should decide: "at the end of the day,
+we want Nando to decide" - and asked for comprehensive training that keeps
+going as the tree grows (pieces N1-N7, starting here).
+
+**What Nando files** (`categorizer.place`) now comes only from a solid
+source (`SOLID`): the tap's own filing (a tile's story, a bank topic, a
+DailyFAM subject, an edition's story - which the words may narrow on its
+branch), a provider's field, the brief's own category words (or the facet
+they name), and the model's pick from the candidate list (C3P0's call, or
+Nando's own). Everything code reads off the raw words - the tree's
+phrases, the clash table, the vocabulary, the keyword map, meaning - is
+`suggest`: the suggestion and the candidates the model is shown, logged,
+never filed by itself. A Go Deeper's parent title is a suggestion too.
+With no solid source and no pick, Nando files nothing and the writer's
+category stands after the episode, as before Nando.
+
+**Nando's own call** (`ask_tie`, Haiku 5.5, his ceilings) now runs whenever
+nothing solid will file the request and C3P0 is not choosing for him - not
+only on ties. This widens the owner's §346 decision ("Haiku on ties"),
+because the owner now wants Nando to decide; about 0.01 cents a call. On
+the tap it runs beside the brief and is never waited for; ahead of the tap
+(prefetch, the editions) nobody waits, so it is awaited in `prepare`.
+
+**The result check** (the owner's other answer: missing a guessed result is
+the worse mistake). The bare forms are read again ("lost", "swept",
+"eliminated", "win", "defeat"), the comma score ("Eagles 24, Giants 17"),
+"have/has won" unless a streak ("four straight") follows, and the asking
+window is three words again ("how many" five). So innocent texts are
+flagged by design - "I lost my job", "Has Spain ever won the World Cup",
+"Windows 11, Office 365" - and each only sends that search back to the
+question itself. The corpus lists both: every result form that must be
+caught, and the accepted flags.
+
+**Measured, here, with no model and no key.** On the forty typed
+questions what Nando *files* is now nothing: 0 right, 0 wrong, 40 unplaced
+- correctly, since without a model he has no solid source. What code
+*suggests* is unchanged (20 right, 1 broader, 18 unplaced, 1 wrong). The
+taps: 10 of 12 filed right, the two Go Deepers now suggestions. The corpus
+(both what is filed and what is suggested) 0 failures. How well Nando
+decides with his model is measurable only with a key:
+
+    AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1 python tools/nando_eval.py --with-brief
+
+and, once N3 exists, against the answer key.
+
+**Latency.** None in front of the first word: his call runs beside the
+brief, never waited for; ahead of the tap it is awaited where nobody waits.
+
+Tests: `tests/test_nando_decides_379.py` (raw words a suggestion, never a
+filing; the brief's words and their facet solid; the tap's filing solid and
+narrowed; a Go Deeper parent alone a suggestion; the model's pick solid;
+his own call when nothing solid will file, none when C3P0 chooses or the
+tap files it; awaited ahead of the tap), the corpus split into what is
+filed and what is suggested, and the accepted result flags.
+
+## 380. Training Nando, piece N2: worked examples, code's hints and every facet on the list (2026-10-31)
+
+The owner asked for comprehensive training for Nando that keeps going as
+the tree grows (all six levers proposed after §379). The first is the one
+FAM's writer already proves ([examples-lever]): teach the model with worked
+cases chosen for the request in front of it, rather than with rules.
+
+**`category_examples.json`**, beside the category seed and reviewed like it:
+sixty questions from the three reviews' adversarial corpus, each labelled
+with the node it is truly about, or "none" where no node fits ("kings and
+queens of England", "cardinals gather to elect a new pope") - so the model
+learns that "none" is a right answer. Relabelled by hand where the
+corpus's first acceptable answer was "none" but a node truly fits ("Kings
+of Leon tour" -> `live touring`, "Power Rangers movie" -> `film`). Every
+question also measured by `tools/nando_eval.py` (the forty, the clash set)
+is kept out, so the examples cannot flatter the measurement - a test holds
+that (and caught seven overlaps while it was being written).
+
+**`category_examples.py`** picks up to twelve for each request: examples
+whose node is a candidate or on a candidate's branch, then those sharing
+the most content words, at most two "none" examples, never the request's
+own answer. The file is read once (boot primes it when `AGENTS=1`);
+learned examples - the answer key's and Nando's corrected mistakes, pieces
+N3 and N5 - join through `add_source`, read in a background thread every
+five minutes, never on a request.
+
+**Every call Nando makes is taught** (`categorizer.teaching`): his own call
+and C3P0's (when Nando works too) now carry, beside the candidate list and
+each candidate's drafted definition (§374), the chosen examples and
+**code's hints** - what code read off the words, said to be often wrong,
+and every name in the request that means two things with its readings and
+whether anything decided it. The rules' knowledge reaches the model as
+evidence, never as a filing.
+
+**Every facet is always a candidate.** The list held only what the words
+pointed at, so for "Detroit lions at the zoo" the model could choose only
+football nodes - or none. Every facet now closes the list, so a broader
+true answer (science, culture) is always on offer.
+
+**Latency.** On the tap: none in front of the first word for Nando's own
+call (beside the brief, never waited for). C3P0's call - the brief's search
+half - reads about 300-600 more tokens of examples and hints in its
+material; the brief takes as long as its slower half, so whether this
+shows is measurable only with a key (§375's command).
+
+**Measured.** Nothing here can measure the model; the examples change what
+the model reads, not what code files. With a key:
+
+    AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1 python tools/nando_eval.py --with-brief
+
+Tests: `tests/test_nando_teaching_380.py` (every example a seeded node or
+none; no example a measured question; chosen for the request, never its
+own answer, at most two "none"; learned examples join in the background;
+hints say they are hints; every facet always a candidate; Nando's own call
+and C3P0's carry the teaching; teaching never raises).
+
+## 381. Training Nando, piece N3: the answer key - Opus grades his filings nightly (2026-10-31)
+
+**The problem.** Nothing said how often Nando files an episode under the
+right node. The forty questions and the corpus (§378) are fixed sets; the
+owner wants training that keeps going as the tree grows, with nobody
+hand-scoring episodes (decided item 30). Every later piece - his memory
+(N4), corrected mistakes as examples (N5), a small trained model (N6) -
+needs right answers to learn from.
+
+**The answer key** (`agents/training.py`). A stronger model,
+`CATEGORIZER_JUDGE_MODEL` (Opus 5.5, the owner's choice), reads each
+finished episode - the question and the first forty sentences of its
+script - with the whole tree (id, path, drafted definition) and names the
+one node it is truly about, or "none", with how sure it is and why. One
+request through `agents.models.ask`, as Nando (`categorizer:judge`), under
+his signed rule book (rules 5 and 11: read the finished episode, record
+what every part of FAM said); a node the tree lacks is thrown away, a
+failed call labels nothing. The tree listing sits in the cached fixed
+block, so a batch pays for it once.
+
+**Nightly.** Netenyahu gained a clock (`netenyahu.SCHEDULE`): at or after
+03:00 Eastern, clear of both editions, one task keyed by the Eastern date -
+a restart never runs it twice, and a day the loop was down is not made up.
+Only with `AGENTS=1`, `CATEGORIZER=1` and the handler registered (the app
+registers it at boot, reading scripts from the script cache). A run grades
+at most `NANDO_JUDGE_PER_RUN` (50) episodes from the last week that it has
+not graded, newest first, one per cache key.
+
+**What it never reads.** A private search's episodes (origin `private`)
+and history archives; an attached file's episode is never cached and so
+never audited. Labels keep the cache key, the question, the node, the
+confidence and the reason - never a listener id. A wipe forgets them
+(`demo_data._forget_what_the_log_taught`).
+
+**To find the script**, the category audit now keeps each episode's cache
+key (a `key` column, passed from all four write paths).
+
+**The number** (`training.report`, printed by `tools/categories_report.py
+--audit`): over episodes both filed and graded, the same node, on its
+branch (one an ancestor of the other: true, more or less specific), wrong,
+and filed nothing (counted apart: never wrong, only unhelpful), by facet,
+with the commonest confusions. `None`, not 0, before anything is graded.
+
+**Cost.** Opus at the pinned price; one call per episode, at most fifty a
+night, the tree read from the prompt cache after the first. Recorded in
+`agent_calls` per call like every agent call.
+
+**Not measured here.** No key in this container: nothing has been graded.
+The first night's numbers are the measurement. To grade now, by hand, with
+a key and the agents on: run the app with `AGENTS=1 CATEGORIZER=1`; the
+task is queued at the first tick after 03:00 Eastern.
+
+Tests: `tests/test_nando_answer_key_381.py` (the audit keeps the key on all
+four write paths; the store round-trips and a wipe forgets; the judge is
+Nando's background call on its own model and setting; it never keeps a node
+the tree lacks; "none" is an answer; a failed call labels nothing; a batch
+grades each episode once, never a private one, skips a missing script; the
+report's four counts and confusions; `None` before grading; queued once a
+night only when Nando is on and has a handler).
+
+## 382. Training Nando, piece N4: a memory of graded answers, recalled by meaning (2026-10-31)
+
+**The problem.** Worked examples (§380) are chosen by shared words, from a
+fixed file. The answer key (§381) now grades episodes every night, but
+nothing showed those grades to Nando when a new request looked like an old
+one.
+
+**His memory** (`agents/memory.py`). The answer key's grades it was sure of
+(`high`, `medium`; a grade of "none" too, so the model learns that answer
+exists) and the reviewed examples, embedded with the same local sentence
+model `category_near` and the ranker use (`taste_vectors`). For each
+request, up to five past requests at cosine 0.55 or more, each with the
+node it was truly about, are
+
+* **shown to the model** on every call he teaches (`categorizer.teaching`:
+  his own call, and C3P0's when Nando works too), skipping any already
+  shown as a worked example; and
+* **on his list** (`candidates_for`, right after the tap's own node): a
+  remembered node can be chosen even when the words never pointed at it.
+
+A node the tree has lost is never recalled (N7 re-files grades when the
+tree moves).
+
+**Latency.** The matrix is built on a background thread, at most every five
+minutes, and primed at boot with `AGENTS=1`. On a search nothing is
+embedded on the listener's path: C3P0's call (the brief's search half)
+reads memory only for a request whose vector is already made. Nando's own
+call - beside the brief, never waited for - embeds the request in a thread
+first (one short sentence through the local model) and so always reads
+his memory; so does C3P0's call ahead of the tap.
+
+**Availability.** No sentence model installed (true here, and on every
+deployment until someone runs the installer), a model that throws, vectors
+still building: each is an empty memory, exactly the answer before. The
+audit report says which (`tools/categories_report.py --audit`).
+
+**Not measured here.** No key and no graded episodes in this container;
+the tests use a stand-in encoder. Memory starts to matter after the answer
+key's first nights.
+
+Tests: `tests/test_nando_memory_382.py` (no model, no memory; a graded
+request recalled by meaning and not by an unrelated one; only sure grades
+remembered, "none" among them; a lost node never recalled; nothing embedded
+on a search; recalled nodes join the list and the teaching; his own call
+embeds and may choose a remembered node; grades and examples both
+remembered).
+
+## 383. Training Nando, piece N5: his corrected mistakes become worked examples (2026-10-31)
+
+**The problem.** The worked examples (§380) are a fixed, reviewed file. The
+cases that teach the most are the ones Nando himself gets wrong, and the
+answer key (§381) now finds them every night.
+
+**What changed.** `training.mistakes()`: every graded episode Nando filed
+under a wrong node - or under nothing - that the key was sure of (`high`),
+with the key's node as the answer, newest first, one per question, at most
+200 from the last 30 days (the audit's own window; 60 until §391). A filing on the right branch (more or less
+specific, but true) is not a mistake. Registered at boot (`netenyahu.prime`,
+`AGENTS=1`) as a source of `category_examples`, read in its background
+thread every five minutes, never on a request. In `pick`, his own mistakes
+come first among equally relevant examples. A grade of "none" becomes a
+"none" example, still capped at two a request.
+
+`training.compared()` and `training.verdict()` are now the one place a
+filing is compared with the key; `report` (§381) and `mistakes` both read
+them.
+
+**Not measured here.** No graded episodes in this container.
+
+Tests: `tests/test_nando_mistakes_383.py` (a confident correction is a
+mistake, a branch or an exact match is not, nor is an unsure grade; filed
+nothing counts; one example per question; mistakes reach the examples and
+come first among equals; boot registers them; never raises).
+
+## 384. The owner's rule for the answer key, and a `<teaching>` label (2026-10-31)
+
+**Raised by the session, decided by the owner.** Checking the rule books
+against training (§381-§383) found two things.
+
+1. **The answer key broke a bound.** `every-agent.md`, always 3: at most one
+   call per episode plus one retry. Nando may already call once at the
+   request; the key reads the same episode again overnight. The owner chose
+   to add a rule to `nando.md` (always 12) naming the answer key, and saying
+   its grades never change an episode's category without the owner's
+   review (rule 10). A session never edits a signed book - the build fails
+   until the owner signs - so the agreed file waits in
+   `docs/agent_rule_proposals/nando.md`, with the signing commands beside
+   it. **Until it is signed, the key grades nothing**: `training.allowed()`
+   asks the lock for Nando's signed text and refuses the nightly run unless
+   it carries the rule, and says why in the log and the run's result. A
+   test holds the proposal to the signed book plus exactly that rule, and
+   asks for it to be deleted once signed.
+
+2. **Model wording travelled as evidence.** Worked examples, remembered
+   grades, corrected mistakes and code's hints reached the model in
+   `<evidence>` tags, against the spirit of every-agent.md, never 2 (never
+   pass your own wording on as evidence). The owner agreed a fifth material
+   label, `<teaching>` (`models.MATERIAL_TAGS`): the shared preamble says it
+   holds examples and past grades for learning the task and is never
+   evidence about the world (`docs/FAM_AGENTS.md`, the preamble, word for
+   word, as a test requires). Every part of `categorizer.teaching` now
+   travels as `<teaching>`; the candidate list stays `<evidence>` - it is
+   the tree, not a model's words. A forged `</teaching>` in material is
+   escaped like the other tags.
+
+Also checked and found consistent: a grade keeps a listener's question but
+never who asked, and never a private search's or attached file's episode
+(never 4); memory, mistakes and the small model make no call and add no
+category; N7 will mark grades whose node moved rather than delete them
+(always 8).
+
+Tests: `tests/test_teaching_label_384.py`.
+
+## 385. Training Nando, piece N6: a small model of his own, trusted only when its numbers say so (2026-10-31)
+
+**The problem.** Examples (§380), memory (§382) and mistakes (§383) all
+teach the model Nando asks; none of them makes him better when no model is
+asked, and none learns a pattern across hundreds of grades.
+
+**His model** (`agents/nando_model.py`). Multinomial logistic regression
+(softmax) over signed-hashed features of the request's words (words, word
+pairs, character trigrams; 2,048 slots), trained in numpy - already a
+dependency - on everything his memory holds: the answer key's sure grades
+and the reviewed examples. Classes are nodes with three or more rows, plus
+"none". Netenyahu retrains it at 04:00 Eastern (`categorizer:train`), an
+hour after the answer key; no model call, so no rule book is touched.
+Measured here: 5,000 rows over 300 nodes trains in about 32 s in a
+background thread; a reading takes about 0.3 ms; the saved model is about
+2 MB, one row in the agents' store, loaded in the background.
+
+**Trusted only when its own numbers say so.** Before the real training, a
+fixed fifth of the questions is held out: the model is *trusted* at 90%
+only if, of at least 30 held-out requests it was that sure about, 95% or
+more were right. The owner's answer (§379) was that a missed guess is worse
+than a miss; this is the guess allowed when the record says it is almost
+never one.
+
+**How it is used.**
+
+* Its reading, how sure it is and that it is a guess reach the model Nando
+  asks, as `<teaching>` (§384); a reading at even odds or better joins his
+  list.
+* It **files on its own** (`how="model"`) only when trusted at that
+  probability, only a node already on his list, never over a name that
+  means two things and nothing decided, never when the brief said unsure,
+  and never over a solid source - a tap's own filing, a provider, the
+  brief's category words or a model's pick all come first.
+
+**Availability.** No model yet (every deployment until the grades build
+up: too few rows trains nothing), one that will not load, a node the tree
+has lost: each is no reading. A wipe forgets it.
+
+**Not measured here.** Real accuracy needs real grades; the tests use
+separable synthetic requests to show it learns and noisy ones to show it
+is never trusted on them. `tools/categories_report.py --audit` will say how
+filings with `how="model"` fare against the answer key (§381 counts them
+like any filing).
+
+Tests: `tests/test_nando_model_385.py`.
+
+## 386. This branch's sections renumbered, twice: Main kept taking the numbers (2026-11-01)
+
+Phase 1 began from Main at §353 and numbered its sections from §354. While
+it was being built, Main merged sections of its own under 354-364
+(provider terms, the archive's sources, the whole script before the tap,
+the status bar, Explore's wait...), so on 2026-10-31 every section of this
+branch moved up by eleven, to 365-381. By the time this branch was made
+ready to merge, Main had reached 368 (the player's source logos, the
+archive keeping nothing Parallel returns, Go Deeper on LinkedIn, the X
+agent), and no open branch was past 368; so every section of this branch
+moved up by four more, to **§369-§390**. Both times by one script over
+every heading, every `§` reference in code, docs and tests, and the test
+files named for their section, applied only to this branch's own numbers
+(Main had none at or above 354 at the branch point). Plain numbers that
+are counts ("358 words") were left alone. A merge with Main meets no two
+sections under one number.
+
+## 387. Training Nando, piece N7: his training follows the tree as it grows (2026-10-31)
+
+**The problem.** The owner asked for training that continues as the tree
+grows. The tree mints nodes, prunes ones nobody has matched for 180 days,
+and reparents branches; every grade (§381), memory (§382), example (§383)
+and the small model (§385) names nodes, so each change can leave training
+pointing at a tree that is gone.
+
+**What changed.** A nightly look (`training.follow_tree`, Netenyahu's
+`categorizer:follow` at 02:00 Eastern, before the answer key at 03:00 and
+the model at 04:00) compares the tree with the last look:
+
+* **Pruned**: the node's grades are *retired*, not deleted
+  (every-agent.md, always 8): the grade keeps the key's node and reason,
+  and points at the nearest ancestor still in the tree - from the path
+  stored with each grade - or at nothing. Memory and the model learn it
+  under that ancestor; a grade with nothing left is not learnt at all
+  (never as "none"); retired grades are never compared with filings. If
+  the node is minted again, its grades come back.
+* **Minted**: grades filed under its parent are flagged for a fresh grade.
+  *(Until §391 the answer key then read them again first; it no longer
+  does - nando.md rule 12 lets it read each finished episode once - so the
+  flag is kept for the report.)*
+  A minted node with no drafted definition is listed, and
+  `tools/categories_report.py --audit` lists every node without one, with
+  the command to draft them for a person to review (definitions are never
+  written without review, §374).
+* **Moved**: stored paths under the moved branch are refreshed.
+* **Every change** is a re-file task for Consuela (`housekeeper:refile`,
+  nando.md always 9: tell Consuela when the tree changes). She is not built,
+  so the tasks wait in the queue - Netenyahu never claims a task nobody can
+  run.
+
+Memory refreshes itself every five minutes and drops nodes the tree has
+lost; the model is retrained every night on the corrected rows. The first
+look only remembers the tree. A wipe forgets the last look with the grades.
+
+Tests: `tests/test_nando_follows_the_tree_387.py`.
+
+## 388. Measured with a key at last: the probe's lost Opus, and the whole tree on Nando's list (2026-10-31)
+
+**A key was there all along.** The environment holds an Anthropic key as
+`FAM_ANTHROPIC_KEY`; FAM reads `ANTHROPIC_API_KEY`, so every earlier
+"no key here" was true for FAM and wrong for the container. The commands
+below pass it under FAM's name for one process; nothing writes it down.
+
+**The served model ids** (`tools/agent_probe.py`, §353's carry-over): Haiku
+5.5, Sonnet 5.5 and Opus 5.5 each come back as exactly the pinned id, so no
+agent call is refused as `wrong_model`. Opus first failed with a connection
+error - not Opus: the probe ran each model in its own `asyncio.run`, the
+adapter's client is shared, and a connection opened on one loop and reused
+after that loop closed fails on the next model. `tools/nando_eval.py
+--with-brief` (one loop per question) and `tools/draft_category_vocabulary.py`
+(two) had the same fault, which would have failed every other measured
+brief and silently measured EI alone. Each now runs one loop
+(`tests/test_one_event_loop_388.py`). Production runs one loop and never
+had it.
+
+**Nando through the real brief** (`AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1
+python tools/nando_eval.py --with-brief`, the forty questions, C3P0's call
+carrying Nando's list; 38 of 40 calls ran, one timed out, one not sent):
+
+| | right | narrower | broader | unplaced | wrong |
+|---|---|---|---|---|---|
+| today's code (`resolve_category`) | 11 | 0 | 0 | 28 | 1 |
+| Nando through the brief, as built | 20 | 1 | 12 | 1 | 6 |
+| + the level under the facets | 23-24 | 1 | 10-12 | 1-2 | 2-4 |
+| **+ the whole tree when nothing was found** (kept) | **36, 36** | 1-2 | 0-1 | 0 | **2, 2** |
+
+The cause of the first row's misses: when code read nothing specific in the
+words ("is bitcoin going up", "SpaceX Starship launch"), Nando's list was
+the eight facets alone (§380), so the model could only answer `money` or
+`science` - five of the six wrong answers. Now, when the words point at
+nothing below a facet, the whole tree goes on the list after the facets
+while it is at most `WHOLE_TREE_NODES` (400; 303 today), else the level
+under the facets. What is still wrong: "high school football scores in my
+town" -> `football` (is `high school sports`), and one of "fusion of two
+big banks" or "tech companies cutting jobs" per run.
+
+**Latency, on a search** (the real brief, 24 questions, one run each; the
+brief is waited on in front of the first word):
+
+| | median | p90 | max |
+|---|---|---|---|
+| agents off (EI's own search half) | 5.59-5.73 s | 6.57-7.10 s | 7.99-8.10 s |
+| agents on, as built | 6.13 s | 7.34 s | 7.91 s |
+| agents on, whole tree on the list | 6.32 s | 7.39 s | 7.67 s |
+
+C3P0's own call: median 4.4-4.9 s as built, 5.1 s with the tree (82 calls,
+all ok). So with the agents on, a search's brief takes about 0.6 s longer
+at the median and 0.3 s at p90. That is the owner's to weigh against 36
+right instead of 11 (today's code) or 20; the agents stay off by default.
+
+**Cost.** C3P0's forty calls: about $0.02 (`agent_calls`); the brief's own
+calls are metered as before.
+
+**Found, not changed:** `category_vocabulary.json` holds no drafted node or
+entity - the drafting tool (§374) needed a key. Drafting writes
+`category_vocabulary.pending.json` for a person to review; it has not been
+run.
+
+Tests: `tests/test_one_event_loop_388.py`;
+`tests/test_agents_c3p0_call.py::test_with_nothing_found_the_facets_then_the_tree_are_offered`.
+
+## 389. The vocabulary drafted, cleaned and measured: it does not help yet (2026-10-31)
+
+**Drafted** (`tools/draft_category_vocabulary.py --no-wikidata`, the owner's
+go-ahead; Haiku 5.5 through `agents.models.ask`): all 303 nodes have a
+definition, an exclusion and other wordings; 166 of 188 named things are
+filed. The 22 left out are names several teams share ("Giants", "Kings",
+"Panthers", "Rangers") or places and institutions the tree has no node for
+("Congress", "India") - right to leave out. Wikidata ids are missing: this
+environment's network refuses `www.wikidata.org` (the owner can allow it,
+with `query.wikidata.org` and `en.wikipedia.org`, in the environment's
+network settings).
+
+**What the draft got wrong, and the tool now refuses** (`category_vocabulary.refused`,
+used by the tool and again by the loader, whatever the file says):
+
+* **A lone letter.** "M&A", "A's" and "O's" normalise to "m a", "a s" and
+  "o s" - and a question normalises the same way, so "I'm a Lakers fan"
+  ("i m a lakers fan") would have read as mergers. A wording with a
+  one-letter word and no word of three letters or more is refused; "e
+  commerce" and "women s health" keep their long word and stay.
+* **Another node's own name** (37): "nfl" under american football. That
+  node already matches its name; listing it elsewhere only made ties.
+* **A name that means two things** ("hurricanes", "rangers"): those are
+  `category_collisions`' to decide.
+* **A wording several nodes claim** (35): kept on the broadest node when
+  they lie on one branch ("movies": film, not hollywood; "diet":
+  nutrition, not weight loss - a broader true node is better than a
+  specific wrong one), dropped from all when they are on different
+  branches ("chip fabs"). The tool cleans every draft as it writes it;
+  `--clean` re-cleans the pending file and sends nothing. 77 changes to
+  this draft, listed in its `drafted.cleaned`.
+
+**Measured** (`nando_eval --with-brief`, two runs each, right / wrong of 40):
+
+| | no vocabulary | draft as written | draft cleaned |
+|---|---|---|---|
+| whole tree only when nothing found (§388) | 36, 36 / 2, 2 | 31, 33 / 3, 4 | - |
+| whole tree always (kept) | 35, 36 / 2, 3 | 34, 32 / 2, 3 | 32, 32 / 2, 2 |
+
+The first cause: with the whole tree only when nothing was found, a
+vocabulary match ("stock market" for "the gold rush in AI chip stocks")
+put code's shortlist in its place and the true node was off the list.
+**The whole tree now always follows code's matches** while the tree has
+at most 400 nodes; it costs nothing without a vocabulary (35-36) and
+protects as one grows.
+
+**Still, the cleaned draft scores below none** (32 against 35-36): code's
+vocabulary matches go first on the list and into the hints, and the model
+leans on them ("the Jets quarterback situation" -> `quarterback play`,
+"AI chip stocks" -> `stock market`; three more left unplaced). So the draft
+waits, cleaned, as `category_vocabulary.pending.json` - which Nando never
+reads - and is **not recommended for approval** until a run shows it helps.
+What to try next, one at a time, each measured: the vocabulary's matches as
+plain candidates without the "code's reading" hint; definitions only, no
+wordings; wordings only for named things.
+
+**The three experiments, measured** (two runs each, right / unplaced /
+wrong of 40; no vocabulary is 35-36 / 0-1 / 2-3):
+
+| | right | unplaced | wrong |
+|---|---|---|---|
+| A: cleaned draft, code's reading not shown as a hint | 31, 31 | 5, 5 | 2, 1 |
+| B: definitions and exclusions only, no wordings | 32, 33 | 2, 3 | 3, 1 |
+| C: named things, definitions and exclusions | 32, 33 | 3, 2 | 3, 2 |
+
+None helps; even B, which matches nothing in the words, costs three or
+four. The likely cause is in `contextualizer.candidate_block`: with the
+whole tree on the list (§388), every one of its 303 lines carries its
+drafted definition and its exclusion - about 12,000 more words for C3P0's
+search call to read - and the exclusions ("not about ...") make "none" the
+easier answer (unplaced rises from 0-1 to 2-5). The draft stays pending
+and is not recommended. Worth trying only if wanted: definitions on code's
+own matches alone, with no exclusions.
+
+**Found on the way:** `tools/` holds its own `trending_bank.py`, so a test
+that puts `tools/` first on the import path shadows the real module; the
+new test loads the tool from its file instead.
+
+Tests: `tests/test_vocabulary_cleanup_389.py`;
+`tests/test_agents_c3p0_call.py` (the whole tree after code's matches).
+
+## 390. What Phase 1 leaves for the next branch (2026-10-31)
+
+At the owner's direction, these four items of Phase 1
+(`docs/AGENTS_BUILD_PROMPT.md`, Phase 1) are the next branch's work, not
+this one's:
+
+1. **Ask the listener when a name is ambiguous** (decided item 15): an
+   ambiguous brief returns the readings before any plugin is called (`/api`
+   first, then the search and voice-search screens); the chosen reading
+   resumes the request; old clients get the likeliest reading from context;
+   tiles and editions use context, else stay unwritten. The owner's answer:
+   the transport is `/api/progress` plus a `reading=` parameter. This also
+   settles the open question from §377: today Nando's own call (`ask_tie`)
+   picks one reading of an undecided name, and the build prompt says
+   "never a guess".
+2. **Public figures only** (decided item 16, the owner's answer 4a): a name
+   unknown to Wikipedia, Wikidata or a provider's catalogue gets no episode
+   and a plain explanation, logged. C3P0 already sets `private_person`
+   (`agents/contextualizer.py`), but nothing acts on it. Needs
+   `en.wikipedia.org`, `www.wikidata.org` and `query.wikidata.org` allowed in
+   the environment's network settings.
+3. **Facts, never advice** (decided item 17): C3P0 sets `advice_request`;
+   nothing acts on it yet - the writer must be told to give the facts
+   around the request, never a recommendation.
+4. **Re-file old episodes** (decided item 20; nando.md always 10): a dry run
+   listing every category change Nando would make, for the owner's review,
+   applied only after a yes.
+
+Also left: the before-and-after measurement of the two problems Nando
+exists to fix (pictures that do not match titles, category pages with
+unrelated episodes; `tools/categories_report.py --audit`), which needs real
+episodes - staging or production with the agents on.
+
+Waiting on the owner, not on a branch: signing `nando.md` rule 12
+(`docs/agent_rule_proposals/README.md`, §384); the search-latency
+trade-off with the agents on (§388); the vocabulary draft, not recommended
+(§389).
+
+## 391. Phase 1 reviewed before merge: what the writer chose was counted as Nando's, and the answer key read twice (2026-11-01)
+
+Before this branch was readied to merge, four independent reviews read
+every change (`git diff 29c092a`), one each on the request path, Nando,
+his training, and whether the documents tell the truth. None found a
+change to anything with the agents off - `AGENTS=0`, the default, is still
+byte for byte what it was. What they found only shows with the agents on,
+and all of it is fixed here, each pinned in
+`tests/test_review_before_merge_391.py`.
+
+**Nando, the most serious.**
+
+- **What the writer chose was stored as Nando's.** When Nando filed
+  nothing at the request, `settle` stored the writer's category as his
+  node (`how="writer"`). It froze the reading against a tree that grows,
+  counted the writer's choices as Nando's filings in the audit, and fed
+  the writer's mistakes to the answer key's report and to his "mistakes"
+  as if they were his. Now nothing is stored: the writer's category stands
+  as it did before him, read live. **Every Nando number before this,
+  §376-§389's included, counted those episodes**; the forty-question
+  measurements (§388, §389) are re-measured below.
+- **A provider's filing could be re-filed by the writer** (nando.md, never
+  4). `settle` now locks a provider's filing: the writer may narrow it on
+  its branch, never move it.
+- **The nearest node by meaning could re-file a solid filing.** `confirm`
+  now reads the writer's words only as the tree's phrases.
+- **C3P0's "ambiguous" never reached the placement**, so the trained model
+  (§385) could file a guess when he said the name meant two things. It is
+  passed (`unsure`).
+- **A named thing that means two things** ("Eagles", "Heat", "Apple") was
+  never refused - only wordings were (§389). The loader and the drafting
+  tool refuse it now; six went from the pending draft, appended to its
+  `drafted.cleaned` (which `--clean` now adds to instead of replacing).
+- **Since the whole tree went on the list (§389), every worked example was
+  "on the list"**, so the same twelve unrelated ones were shown for every
+  request. Examples are now chosen for code's own matches
+  (`categorizer.code_part`).
+- **A facet past the 20-candidate cut was lost**; facets are now tested
+  against the list as cut.
+- **When C3P0 was switched on but not running** (`EI_SPLIT=0`), neither he
+  nor Nando chose. Nando's own call now starts whenever C3P0 is not
+  actually choosing; ahead of the tap it is recorded as `ahead`.
+
+**Re-measured** (`nando_eval --with-brief`, which now places as production
+does - C3P0's pick dropped when he says the request is ambiguous, the
+provider's field and that unsureness passed on; two runs, of 40):
+
+| | right | narrower | broader | unplaced | wrong |
+|---|---|---|---|---|---|
+| today's code (`resolve_category`) | 11 | 0 | 0 | 28 | 1 |
+| Nando through the brief, before (§388, counted his ambiguous picks) | 36, 36 | 1-2 | 0-1 | 0 | 2, 2 |
+| **Nando through the brief, as production files** | **32, 32** | 1, 1 | 1, 2 | 4, 5 | **2, 0** |
+
+The four that moved were picks C3P0 himself called ambiguous: production
+never filed them, so §388's 36 overstated what a listener would get by
+four. They now go unfiled - the writer's category stands - which is what
+asking the listener (§390, the next branch) turns into answers.
+
+**The answer key and the request path.**
+
+- **Three failed nightly grades would have held Nando on every listener's
+  episode**: the grader shared his failure count. It no longer reports to
+  the hold; a failure is still in `agent_calls` and on /admin.
+- **Read twice, against the rule waiting for the owner's signature.** A
+  failed grade was asked again every night, and a node minted under a
+  grade asked for it again (§387). Every episode asked about is now
+  recorded (`nando_asked`) and never asked again, answered or not; a new
+  node only flags its parent's grades.
+- **The grader worked on the event loop listeners share**, and counted
+  each script it read as a cache hit. Its reads run in threads, and it
+  reads scripts with `SCRIPT_CACHE.script`, which counts nothing.
+- **C3P0 ahead of the tap could run the embedding model on that loop**
+  (his memory, §382). It now embeds in a thread, as Nando's own call does.
+- **A tie call cancelled by design was logged as a failure** on /admin and
+  in the ledger. Its status is now `cancelled`, never a failure.
+- **Agreeing that no node fits** (Nando filed nothing, the key said
+  "none") was counted as one of his mistakes; it is agreement.
+- **A wipe left the remembered grades and learned examples in memory** for
+  up to five minutes; it resets them ([wipe-derived]).
+- **A tree that read empty would have retired every grade**; it is
+  skipped. A grade restored when its node returns refreshes its path.
+- `MISTAKE_DAYS` was 60 while the audit keeps 30; it is 30.
+  `NANDO_JUDGE_PER_RUN` is reported in `/api/health`.
+
+**Documents.** Eleven comments cited the first review (§376) for what the
+second recorded (§377); `docs/FAM_AGENTS.md` still said Nando was asked
+"only on ties" and lacked the answer key's settings and Opus exception;
+`product.md`, `DATA.md` and §375's, §383's, §387's and §389's details
+were brought up to date.
+
+**Known and left, said plainly:** a grade outlives a key written again
+(the second episode under one key is never graded, §173); Consuela's
+re-file tasks keep only a hash of what changed, as every task does
+(`agents/tasks.py`); and a sent-then-failed C3P0 call answers the brief as
+a failed search half, never a second request (§376) - the owner may want
+to confirm that reading of "falls back".
+
+**The pull request's CI, and Main's red Postgres job.** PR 214's first CI
+run failed two tests. `test_problems_index_is_current` was this branch's:
+the re-measurement table above moved a line and the index was not
+regenerated after it - regenerated. `test_nothing_parallel_returned_is_kept`
+(§366) was Main's, red on Main since #212: it read the archive with
+`sqlite3.connect(store.path)`, but under `DATABASE_URL` the store is
+Postgres and that file has no `intake` table. It now reads through the
+store's own connection (`store._connect()`), and only its own two links,
+since the Postgres job shares one database across tests. The full suite on a
+local Postgres 16 had failed exactly these two and nothing else.

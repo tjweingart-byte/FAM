@@ -57,9 +57,14 @@ def composer_category(query: str, now: Optional[float] = None) -> str:
 
 
 def note(query: str, words: str, origin: str = "",
-         composer: Optional[str] = None, at: float = 0.0) -> dict:
+         composer: Optional[str] = None, at: float = 0.0,
+         nando: Optional[dict] = None, key: str = "") -> dict:
     """Log what each categoriser said about one written episode, and return
-    the row. `composer` is looked up when not given. Never raises."""
+    the row. `composer` is looked up when not given. `nando` is
+    `ScriptNotes.category_settled` when Nando filed the episode (§371): his
+    node at the request and after the writer, and how each was found.
+    `key` is the episode's cache key, for the answer key (§381). Never
+    raises."""
     row: dict = {}
     try:
         import stories
@@ -78,11 +83,65 @@ def note(query: str, words: str, origin: str = "",
             "composer": composer or "",
             "composer_facet": (stories.facet_for(composer) if composer else ""),
             "keywords": " ".join(sorted(keywords)),
+            "key": key or "",
         }
+        if nando:
+            row.update(nando_request=nando.get("request", "") or "",
+                       nando_request_how=nando.get("request_how", "") or "",
+                       nando=nando.get("node", "") or "",
+                       nando_how=nando.get("how", "") or "",
+                       nando_confidence=str(nando.get("confidence", "") or ""),
+                       nando_ambiguous=nando.get("ambiguous", "") or "")
         topics.category_tree().note_written(row, at=at)
     except Exception:  # noqa: BLE001 - a log, never the episode
         log.exception("could not log a categorisation")
     return row
+
+
+def _nando_summary(rows: list, examples: int) -> dict:
+    """Nando's numbers (§371): how many episodes he filed, how often the
+    writer confirmed his request node, narrowed it or made him re-file, how
+    each request node was found, and the re-files themselves."""
+    filed = [r for r in rows if r.get("nando") or r.get("nando_request")]
+    how: dict = {}
+    found: dict = {}
+    for r in filed:
+        how[r.get("nando_how") or "?"] = how.get(r.get("nando_how") or "?", 0) + 1
+        key = r.get("nando_request_how") or "unplaced"
+        found[key] = found.get(key, 0) + 1
+    refiled = [r for r in filed if r.get("nando_how") == "refiled"]
+    # Where the picture and the category page would differ from the old
+    # reader's: the writer's words placed by phrases (§209) against Nando's.
+    moved = [r for r in filed if r.get("nando") and r.get("nando") != r.get("writer")]
+    unsure = [r for r in filed if "~broader" in (r.get("nando_request_how") or "")]
+    names: dict = {}
+    for r in filed:
+        for name in (r.get("nando_ambiguous") or "").split():
+            names[name] = names.get(name, 0) + 1
+    return {
+        "filed": len(filed),
+        "differs_from_writer_words": len(moved),
+        # Filed under the parent because the placement was unsure (§373).
+        "broader_when_unsure": len(unsure),
+        # Names that meant two things and nothing decided, most common first.
+        "undecided_names": dict(sorted(names.items(), key=lambda kv: -kv[1])),
+        "after_the_writer": dict(sorted(how.items())),
+        "at_the_request": dict(sorted(found.items())),
+        "refiled_rate": _rate(len(refiled), len(filed)),
+        "refiled": [{"query": r["query"], "request": r.get("nando_request", ""),
+                     "after": r.get("nando", ""), "words": r["words"]}
+                    for r in refiled[:examples]],
+    }
+
+
+def _answer_key(days: float, examples: int) -> dict:
+    try:
+        from agents import training
+
+        return training.report(days, examples) if training.exists() else {}
+    except Exception:  # noqa: BLE001 - a report line, never the report
+        log.exception("could not compare nando with the answer key")
+        return {}
 
 
 def _rate(hits: int, of: int) -> Optional[float]:
@@ -134,6 +193,10 @@ def summary(days: float = 7.0, now: Optional[float] = None,
         "writer_vs_composer": _rate(len(composer_agrees), len(both)),
         "with_keywords": len(with_keys),
         "writer_vs_keywords": _rate(len(keyword_agrees), len(with_keys)),
+        "nando": _nando_summary(rows, examples),
+        # How his filings agree with the answer key (§381), once it has
+        # graded anything; never creates the agents' store.
+        "answer_key": _answer_key(days, examples),
         "composer_to_writer": [
             {"composer": a, "writer": b, "episodes": n}
             for (a, b), n in sorted(pairs.items(), key=lambda kv: -kv[1])],
