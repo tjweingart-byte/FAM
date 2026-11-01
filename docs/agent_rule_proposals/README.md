@@ -7,16 +7,8 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-**`nando.md` - always 12, the answer key** (agreed by the owner
-2026-10-31, PROBLEMS.md §384). Adds one rule and changes nothing else:
-
-> 12. Let your answer key - a stronger model chosen by the owner - read each
->     finished episode once, in the background, to grade your filing. Its
->     grades only teach you and measure you; they never change an episode's
->     category without the owner's review (rule 10).
-
-Until it is signed, the answer key grades nothing (`agents/training.py`,
-`allowed`).
+Nothing. `nando.md` rule 12, the answer key, was signed on 2026-11-01
+(PROBLEMS.md §392).
 
 ## Signing it (on the owner's machine, with the owner's key)
 

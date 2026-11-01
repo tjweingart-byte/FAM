@@ -26768,3 +26768,33 @@ Postgres and that file has no `intake` table. It now reads through the
 store's own connection (`store._connect()`), and only its own two links,
 since the Postgres job shares one database across tests. The full suite on a
 local Postgres 16 had failed exactly these two and nothing else.
+
+## 392. The owner signed nando.md rule 12, and a stray file came with it (2026-11-01)
+
+The owner signed manifest version 2 - only `nando.md`'s fingerprint changed,
+to the proposal's, which adds rule 12 (the answer key, §384) and nothing
+else - and uploaded `nando.md`, `MANIFEST.json` and its `.sig` through
+GitHub's web page (6434fed). `python tools/rulebook_manifest.py --verify`
+says every agent may run, signed with the same `owner.pub`, and
+`training.allowed()` now answers yes: the nightly answer key may grade.
+
+**A stray empty file came with the upload**, named
+`MANIFEST.json.sig-----BEGIN`. Signing reads the private key from the
+clipboard (`pbpaste | openssl ... -inkey /dev/stdin`), and the command must be
+typed before the key is copied (§352); one attempt pasted the key onto the
+command line instead, so the shell took `-----BEGIN` as part of the output
+file's name. The file is 0 bytes and its name holds only the PEM header every
+private key starts with: no key material reached the repository. The key did
+reach the owner's shell history on their own Mac; the owner was told to
+delete it there and decides whether to replace the key, as with the first key
+in §352. This branch deletes the stray file, the pending manifest and the
+proposal, and the proposals README says nothing is waiting.
+
+`test_the_proposal_adds_only_the_answer_key_rule_and_goes_once_signed` failed
+on Main once the rule was signed and the proposal still existed - the test
+doing its job - and now also asserts that the real lock lets the key grade.
+
+**The lesson for the owner's guide:** the clipboard route has now put a key on
+a command line twice. Signing from a key file that exists for a minute (saved
+from TextEdit, deleted with `rm -P` straight after `openssl`) never puts the
+key where the shell can read it as a command.

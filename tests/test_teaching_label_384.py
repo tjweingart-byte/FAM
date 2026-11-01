@@ -47,6 +47,8 @@ def test_the_proposal_adds_only_the_answer_key_rule_and_goes_once_signed():
     signed = SIGNED.read_text(encoding="utf-8")
     if training.ANSWER_KEY_RULE in signed:
         assert not PROPOSED.exists(), "signed: delete the proposal"
+        # Signed on 2026-11-01 (§392): the real lock now lets the key grade.
+        assert training.allowed() == (True, "")
         return
     anchor = "   decided.\n"
     assert signed.count(anchor) == 1
