@@ -124,8 +124,10 @@ def test_nothing_parallel_returned_is_kept(tmp_path, monkeypatch):
                    provider="parallel"),
     ]
     ha._write(findings, "subject", "", "episode-1", "key", 1.0)
-    with closing(sqlite3.connect(store.path)) as db:
-        rows = db.execute("SELECT url, passages, by_provider FROM intake").fetchall()
+    # Through the store's own connection: under DATABASE_URL it is Postgres.
+    with closing(store._connect()) as db:
+        rows = db.execute("SELECT url, passages, by_provider FROM intake WHERE url IN"
+                          " ('https://a.com/1', 'https://b.com/2')").fetchall()
     assert [r[0] for r in rows] == ["https://a.com/1"]
     assert json.loads(rows[0][1]) == ["From Perplexity."]
     assert json.loads(rows[0][2]) == {"perplexity": ["From Perplexity."]}

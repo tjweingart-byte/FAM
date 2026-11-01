@@ -391,4 +391,4 @@ and `limit` = Lines.
 | 26480 | 65 | 388. Measured with a key at last: the probe's lost Opus, and the whole tree on Nando's list (2026-10-31) |
 | 26545 | 81 | 389. The vocabulary drafted, cleaned and measured: it does not help yet (2026-10-31) |
 | 26626 | 38 | 390. What Phase 1 leaves for the next branch (2026-10-31) |
-| 26664 | 82 | 391. Phase 1 reviewed before merge: what the writer chose was counted as Nando's, and the answer key read twice (2026-11-01) |
+| 26664 | 108 | 391. Phase 1 reviewed before merge: what the writer chose was counted as Nando's, and the answer key read twice (2026-11-01) |

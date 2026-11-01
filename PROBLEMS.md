@@ -26757,3 +26757,14 @@ re-file tasks keep only a hash of what changed, as every task does
 (`agents/tasks.py`); and a sent-then-failed C3P0 call answers the brief as
 a failed search half, never a second request (§376) - the owner may want
 to confirm that reading of "falls back".
+
+**The pull request's CI, and Main's red Postgres job.** PR 214's first CI
+run failed two tests. `test_problems_index_is_current` was this branch's:
+the re-measurement table above moved a line and the index was not
+regenerated after it - regenerated. `test_nothing_parallel_returned_is_kept`
+(§366) was Main's, red on Main since #212: it read the archive with
+`sqlite3.connect(store.path)`, but under `DATABASE_URL` the store is
+Postgres and that file has no `intake` table. It now reads through the
+store's own connection (`store._connect()`), and only its own two links,
+since the Postgres job shares one database across tests. The full suite on a
+local Postgres 16 had failed exactly these two and nothing else.
