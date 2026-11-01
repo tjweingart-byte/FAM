@@ -26755,8 +26755,8 @@ were brought up to date.
 (the second episode under one key is never graded, §173); Consuela's
 re-file tasks keep only a hash of what changed, as every task does
 (`agents/tasks.py`); and a sent-then-failed C3P0 call answers the brief as
-a failed search half, never a second request (§376) - the owner may want
-to confirm that reading of "falls back".
+a failed search half, never a second request (§376) - the owner confirmed
+that reading of "falls back" on 2026-11-01: carry on without his answer.
 
 **The pull request's CI, and Main's red Postgres job.** PR 214's first CI
 run failed two tests. `test_problems_index_is_current` was this branch's:
