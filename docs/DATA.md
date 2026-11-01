@@ -338,7 +338,10 @@ recalled beside the search. Never a private search or an attachment.
 **x_threads.db** (`x_threads.Store`, §321): `/admin/x`'s cards. `candidates`,
 one row per public X post a search found worth replying to - its text, the
 author's handle, name and follower count, the episode it matched, the drafted
-reply, and the admin's verdict (and, once approved, the words handed to X).
+reply, and the admin's verdict (and, once approved, the words handed to X);
+since §368 also the relevance judgement (`assess`, `relevance`), up to five
+public replies read as context (`replies`), and when the admin heard the
+episode through its link (`listened_at`).
 `runs`, what each search asked and how many posts it read, which is how the
 daily read ceiling is counted. No listener's data; pruned after 7 days. Read
 only by `/admin/x`.

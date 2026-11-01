@@ -151,6 +151,7 @@ FAM_ENVIRONMENT = (
     # /admin/x (§321); its token is cleared by `isolated_x_threads`.
     "X_THREADS_MAX_READS",
     "X_THREADS_DAILY_READS", "X_THREADS_WINDOW_HOURS", "X_THREADS_SEEDS", "X_THREADS_MIN_ENGAGEMENT",
+    "X_THREADS_REPLY_READS",
     "X_THREADS_MODEL",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test

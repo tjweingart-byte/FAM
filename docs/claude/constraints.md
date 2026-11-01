@@ -1599,6 +1599,26 @@
   > `/admin/linkedin`) was removed at the owner's direction (§367); X is
   > the only outreach page. The listener's LinkedIn share button is a
   > separate feature and stays ([share-link]).
+  > **Current:** since §368 (the owner's guardrails brief) **the original
+  > post anchors everything**: replies under a card are read as context
+  > (`X_THREADS_REPLY_READS`, inside the ceilings) and never set its
+  > subject. Before the reply the read states the author's central message
+  > and a **relevance score 1-5** against the original post, with why, and
+  > answers the **original-author test** (would they see at once why this
+  > relates to what they posted?) - false rejects the card whatever the
+  > score; 1-2 rejects; 3 is a comment only; only 4-5 may link a kept
+  > episode (checked again on the server at approval) or **propose** a
+  > specific one (title, scope, question), which is never mentioned until
+  > written and matched ("Match again"). Outcomes are episode + comment /
+  > comment only / skip; an episode is never required. A code read is worth
+  > 3 and its author test is "not run". A reply that sounds like an ad
+  > (`promotional`) goes back to the code's words, and a card with no link
+  > never keeps words saying FAM has an episode; one sharing no word with
+  > the post is flagged. Approve needs a person's tick that every claim was
+  > checked, and a link needs the episode heard through that link first
+  > (`listened_at`). Rejections are listed for audit, never actionable.
+  > `tools/x_agent_eval.py` is the before-deployment review: real posts
+  > beside FAM's episode and comment.
 <!-- rule:app-review-safety -->
 - **Report anything, block both ways, and ask before a listener's words go to
   the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,

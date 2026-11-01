@@ -117,7 +117,7 @@ THREAD_TO_EPISODE = "thread_episode"    # 03: their question has an episode
 BOTH_SIDES = "both_sides"               # 04: connect competing perspectives
 KINDS = {
     ANGLE_AND_EPISODE: "Another angle + episode",
-    QUESTION_ONLY: "A better question, no link",
+    QUESTION_ONLY: "A comment, no link",
     THREAD_TO_EPISODE: "Their question, our episode",
     BOTH_SIDES: "Both sides",
 }
@@ -157,6 +157,46 @@ _STOP = {
     "says", "said", "could", "would", "should", "may", "might", "be", "has",
     "have", "had", "not", "no", "yes", "up", "out", "just", "than", "then",
 }
+
+#: The guardrails' relevance scale (§368, FAM_X_Marketing_Agent_Guardrails
+#: §6): how much FAM's contribution has to do with what the ORIGINAL post
+#: says. Judged by the read, never computed from keyword overlap.
+RELEVANCE = {
+    1: "Unrelated to the original post",
+    2: "Same broad subject, wrong angle",
+    3: "Relevant, but limited value",
+    4: "Specific and substantively useful",
+    5: "Addresses a central question or argument",
+}
+#: Under this a card is rejected; at it, a comment only, never an episode.
+COMMENT_RELEVANCE = 3
+#: Only from here may a card link or propose an episode.
+EPISODE_RELEVANCE = 4
+#: What a read in code is worth: code cannot apply the original-author
+#: test, so it never puts an episode under a stranger's post on its own word.
+CODE_RELEVANCE = 3
+
+#: The three outcomes (§368): an episode is never the required result.
+RECOMMEND_EPISODE, RECOMMEND_COMMENT, RECOMMEND_SKIP = "episode_comment", "comment", "skip"
+RECOMMENDATIONS = {
+    RECOMMEND_EPISODE: "Episode + comment",
+    RECOMMEND_COMMENT: "Comment only",
+    RECOMMEND_SKIP: "Skip",
+}
+
+#: How many replies a card reads for context, and the most shown to the read.
+REPLY_CONTEXT = 5
+
+#: What an advertisement sounds like (§368 rule 4). A reply that says any of
+#: these is not part of the conversation; its words go back to the code's.
+_PROMO = re.compile(
+    r"\b(check (it|this|us|them) out|check out (our|the|this|my) (episode|pod|show|link)|"
+    r"link (below|in bio)|listen now|tune in (now|here|to (our|the episode))|"
+    r"don'?t miss (this|it|out)|must[- ]listen|game[- ]?changer|changing everything|"
+    r"changes everything|you won'?t believe|"
+    r"great (question|post|point|take|thread)|love this|so true|"
+    r"mind[- ]?blowing|hit play|click here|follow us|our (new|latest) episode)\b"
+    r"|!|#[A-Za-z]|[\U0001F300-\U0001FAFF\u2600-\u26FF]", re.I)
 
 #: The score's parts and their weights. Episode match leads because a reply
 #: with nothing to add is the thing the playbook says not to post.
@@ -226,6 +266,15 @@ class Candidate:
     material: dict = field(default_factory=dict)
     #: What the drafting call understood about the post (`OI.Read.as_dict`).
     read: dict = field(default_factory=dict)
+    #: Replies read as secondary context (§368): they may say what people are
+    #: debating, never what the card is about.
+    replies: list = field(default_factory=list)
+    #: The guardrails' judgement (§368): relevance 1-5 and why, the original-
+    #: author test, the central message, the recommendation, and a proposed
+    #: episode ({title, scope, query}) when none kept answers the post.
+    assess: dict = field(default_factory=dict)
+    #: When a person heard the linked episode through its link (§368).
+    listened_at: float = 0.0
 
 
 # --------------------------------------------------------------------------
@@ -521,6 +570,54 @@ def takes_a_side(text: str) -> bool:
     return bool(_STANCE.search(text or ""))
 
 
+def promotional(text: str) -> list[str]:
+    """What in a reply sounds like an advertisement (§368 rule 4): generic
+    praise, a pitch, manufactured urgency, hashtags, emoji, exclamation."""
+    out = []
+    for m in _PROMO.finditer(text or ""):
+        hit = m.group(0).strip().lower()
+        if hit and hit not in out:
+            out.append(hit)
+    return out
+
+
+def anchored(reply: str, post_text: str) -> bool:
+    """Whether a reply takes up something concrete the post itself says -
+    shares one of its content words - rather than talking past it (§368
+    rule 4: acknowledge something concrete from the original post)."""
+    import news_clusters
+
+    generic = {news_clusters._stem(w) for w in GENERIC}
+    return bool((news_clusters.tokens(reply) - generic)
+                & (news_clusters.tokens(post_text) - generic))
+
+
+def replies_query(post: "Post") -> str:
+    """X's search for the replies under one post: what the thread is
+    debating, read as context only (§368)."""
+    return f"conversation_id:{post.id} is:reply lang:en -is:retweet"
+
+
+def thread_replies(post: "Post", found: Iterable["Post"],
+                   limit: int = REPLY_CONTEXT) -> list["Post"]:
+    """The replies worth showing the read, most engaged first: only replies,
+    never the post itself, never one carrying a slur."""
+    out = []
+    for p in found:
+        if p.id == post.id or not p.is_reply or not p.text:
+            continue
+        try:
+            import content_filter
+
+            if content_filter.scrub(p.text) != p.text:
+                continue
+        except Exception:  # noqa: BLE001
+            pass
+        out.append(p)
+    out.sort(key=lambda p: -engagement(p))
+    return out[:limit]
+
+
 def engagement(post: Post) -> int:
     """Everything people did with a post: likes, replies, reposts, quotes."""
     return post.likes + post.replies + post.reposts + post.quotes
@@ -757,17 +854,68 @@ def shortlist(found: list[tuple[Post, Seed]], now: float, *, window_hours: float
 
 #: The drafting call: Outreach Intelligence's read (§337), X's voice, and
 #: what an X card needs besides - the both-sides pair, and the reply.
-DRAFT_RULES = """What an X reply needs besides:
+DRAFT_RULES = """FAM's question is not "where can I share an episode?" but \
+"where is an interesting conversation FAM could make more interesting?" FAM \
+does not interrupt the conversation; it adds to it.
+
+The ORIGINAL post anchors everything. Replies, when given, are secondary \
+context: they may show what people are debating, but they never set the \
+subject, and nothing is proposed because of one reply.
+
+Then judge, in this order, before the reply:
+- central: what the original author actually means - their central \
+question, claim, concern or perspective - in one sentence.
+- author_would_see_it: if the original author saw FAM's comment (and the \
+episode, if any), would they IMMEDIATELY understand why it relates to what \
+THEY posted? This is a hard gate: false rejects everything, whatever else \
+you decide. Broad topic overlap is not enough. When unsure, false.
+- relevance: 1-5, how directly FAM's contribution engages the ORIGINAL post:
+  1 unrelated to the original post; 2 same broad subject, wrong angle; \
+3 relevant but limited value; 4 specific and substantively useful (answers \
+a raised question, gives directly useful context, compares the perspectives \
+in play, or makes an overlooked distinction); 5 addresses the post's \
+central question or argument. Keywords in common are never above 2.
+- relevance_why: one sentence justifying the number.
+- recommendation: "episode_comment", "comment" or "skip". An episode is \
+never required: a concise, informed comment or question often adds more \
+than audio. Below 3, skip. At 3, comment at most. episode_comment only at \
+4-5 and only when an episode (kept, or the one you propose) is about the \
+post's own point - not the general topic. Prefer fewer, better \
+contributions: skip anything generic.
+- proposed_title, proposed_scope, proposed_query: when relevance is 4-5 and \
+NO offered episode answers this post but one should exist - a specific \
+title on the author's actual point (not "The Future of AI" but "Can AI \
+Diagnose Diseases More Accurately Than Doctors?"), its scope in one \
+sentence, and the question to type into FAM to write it. "" otherwise, and \
+"" whenever choice is not -1.
 - other_same_subject: when a second post is given, is it about that same \
 subject and conversation? false when no second post is given.
-- reply: the reply itself, answering THIS post's own question, claim or \
-point - not the episode's angle. No link: one is added after your words \
-when there is an episode."""
+- reply: the comment itself. Acknowledge something concrete the original \
+post says; offer a thought, distinction, relevant perspective or genuinely \
+useful question; it must be worth reading if nobody clicks anything. \
+Answer THIS post's own question, claim or point - not the episode's angle, \
+not a reply's tangent. Never a pitch, generic praise, keyword-stuffed hook \
+or manufactured urgency. Mention FAM's episode only when an offered \
+episode was chosen; never mention a proposed one (it does not exist yet). \
+No link: one is added after your words when there is an episode.
+Weak: "AI is changing everything! Check out our FAM episode." Better: "One \
+distinction is whether AI replaces a doctor's judgment or improves the \
+information used in diagnosis. Where do you think that line will be drawn?\""""
 
 DRAFT_SYSTEM = OI.system(OI.X, DRAFT_RULES, DRAFT_CHARS)
 
-DRAFT_SCHEMA = OI.schema({"other_same_subject": {"type": "boolean"},
-                          "reply": {"type": "string"}})
+DRAFT_SCHEMA = OI.schema({
+    "central": {"type": "string"},
+    "author_would_see_it": {"type": "boolean"},
+    "relevance": {"type": "integer", "enum": [1, 2, 3, 4, 5]},
+    "relevance_why": {"type": "string"},
+    "recommendation": {"type": "string", "enum": list(RECOMMENDATIONS)},
+    "proposed_title": {"type": "string"},
+    "proposed_scope": {"type": "string"},
+    "proposed_query": {"type": "string"},
+    "other_same_subject": {"type": "boolean"},
+    "reply": {"type": "string"},
+})
 
 
 def offered(cand: Candidate) -> list:
@@ -778,14 +926,22 @@ def offered(cand: Candidate) -> list:
 
 
 def draft_prompt(cand: Candidate) -> str:
-    lines = [f"The post, by @{cand.post.author}:", cand.post.text.strip(), ""]
+    lines = [f"The ORIGINAL post, by @{cand.post.author}:", cand.post.text.strip(), ""]
+    if cand.replies:
+        lines.append("Replies under it - secondary context only; they never set "
+                     "the subject:")
+        for r in cand.replies[:REPLY_CONTEXT]:
+            lines.append(f"- @{r.author}: {' '.join(r.text.split())[:280]}")
+        lines.append("")
     if cand.other is not None:
         lines += [f"Another side, by @{cand.other.author}:", cand.other.text.strip(), "",
                   "Connect the two perspectives: name the trade-off between them."]
     if cand.kind == QUESTION_ONLY or cand.seed is None:
-        lines.append("FAM has no episode to link here: choice is -1. Ask a better "
-                     "question - one that helps people in the thread see what they "
-                     "disagree about. Do not mention FAM or an episode.")
+        lines.append("FAM has no kept episode to link here: choice is -1. Comment "
+                     "or ask a better question - one that helps people in the "
+                     "thread see what they disagree about. Do not mention FAM or "
+                     "an episode. If relevance is 4-5 you may propose the episode "
+                     "that should exist.")
         if cand.seed is not None:
             lines.append(f"(The nearest episode, for the read only: “{cand.seed.title}”.)")
     else:
@@ -851,6 +1007,44 @@ class Verdict:
     read: Optional[dict] = None
     #: Why the words were replaced by the code's, or "".
     replaced: str = ""
+    #: The guardrails (§368). The defaults are a read that found nothing
+    #: wrong; every path that did not read with a model sets
+    #: `relevance=CODE_RELEVANCE`, so code never links on its own word.
+    relevance: int = EPISODE_RELEVANCE
+    relevance_why: str = ""
+    #: The original-author test: True passed, False failed (a hard gate),
+    #: None not run - a read in code cannot ask it.
+    author_test: Optional[bool] = True
+    central: str = ""
+    recommendation: str = ""
+    #: `{title, scope, query}` of an episode that should exist, or None.
+    proposed: Optional[dict] = None
+
+    def assess(self) -> dict:
+        return {"relevance": self.relevance, "relevance_why": self.relevance_why,
+                "author_test": self.author_test, "central": self.central,
+                "recommendation": self.recommendation,
+                "proposed": dict(self.proposed) if self.proposed else None}
+
+
+def _code_verdict(options, text: str, why: str, *, episode_fits: bool = True) -> Verdict:
+    """The verdict when no model read the post: the code's gates have
+    passed it, but relevance is capped at a comment (§368) and the card
+    says why."""
+    return Verdict(episode_fits=episode_fits, why=why,
+                   read=OI.code_read(text, options, why=why).as_dict(),
+                   relevance=CODE_RELEVANCE, recommendation=RECOMMEND_COMMENT,
+                   relevance_why="not judged by a model, so a comment at most",
+                   author_test=None)
+
+
+def _proposal(body: dict) -> Optional[dict]:
+    title = OI._line(body.get("proposed_title"), 140)
+    query = OI._line(body.get("proposed_query"), 200)
+    if not title or not query:
+        return None
+    return {"title": title, "scope": OI._line(body.get("proposed_scope")),
+            "query": query}
 
 
 async def draft(cand: Candidate, client=None) -> tuple[str, str, float]:
@@ -871,8 +1065,8 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
 
     options = offered(cand)
     if client is None and not credentials.active("ANTHROPIC_API_KEY"):
-        read = OI.code_read(cand.post.text, options)
-        return trim(fallback_draft(cand)), "code", 0.0, Verdict(read=read.as_dict())
+        return trim(fallback_draft(cand)), "code", 0.0, _code_verdict(
+            options, cand.post.text, "no model key, so read in code")
     model = config.settings.x_threads_model
     try:
         if client is None:
@@ -889,11 +1083,24 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
         text = next(b.text for b in response.content if b.type == "text")
         body = json.loads(text)
         read = OI.parse(body, len(options), model)
+        try:
+            relevance = max(1, min(5, int(body.get("relevance"))))
+        except (TypeError, ValueError):
+            # An answer with no number is not a judgement: a comment at most.
+            relevance = CODE_RELEVANCE
+        recommendation = str(body.get("recommendation") or "")
+        if recommendation not in RECOMMENDATIONS:
+            recommendation = ""
         verdict = Verdict(same_subject=read.same_subject,
                           episode_fits=read.choice >= 0,
                           other_same_subject=bool(body.get("other_same_subject")),
                           why=read.why, choice=max(read.choice, 0),
-                          read=read.as_dict())
+                          read=read.as_dict(), relevance=relevance,
+                          relevance_why=OI._line(body.get("relevance_why")),
+                          author_test=body.get("author_would_see_it") is not False,
+                          central=OI._line(body.get("central")),
+                          recommendation=recommendation,
+                          proposed=_proposal(body) if read.choice < 0 else None)
         reply = trim(body.get("reply") or "")
         if not reply:
             # The judgement stands; only the words are the code's.
@@ -908,6 +1115,12 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
             verdict.replaced = (f"the drafted reply named {', '.join(stray[:3])}, "
                                 "which neither the post nor the episode states")
             return trim(fallback_draft(cand)), "code", dollars, verdict
+        pitch = promotional(reply)
+        if pitch:
+            # An advertisement is not part of the conversation (§368).
+            verdict.replaced = (f"the drafted reply sounded like an ad "
+                                f"({', '.join(pitch[:3])})")
+            return trim(fallback_draft(cand)), "code", dollars, verdict
         return reply, model, dollars, verdict
     except asyncio.CancelledError:
         raise
@@ -916,9 +1129,8 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
         # The relevance check did not run: the code's gate has passed the
         # post, but no episode is linked on its word alone.
         why = "the relevance check could not run, so no link"
-        return trim(fallback_draft(cand)), "code", 0.0, Verdict(
-            episode_fits=False, why=why,
-            read=OI.code_read(cand.post.text, options, why=why).as_dict())
+        return trim(fallback_draft(cand)), "code", 0.0, _code_verdict(
+            options, cand.post.text, why, episode_fits=False)
 
 
 def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
@@ -926,8 +1138,28 @@ def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
     "" when it stays - the post itself is about something else."""
     if verdict.read:
         cand.read = dict(verdict.read)
+    cand.assess = verdict.assess()
     if not verdict.same_subject:
         return verdict.why or "the post is about something else"
+    # The guardrails' hard gates (§368), whatever the score.
+    if verdict.author_test is False:
+        return ("the original author would not see why this relates to their post"
+                + (f": {verdict.relevance_why or verdict.why}"
+                   if (verdict.relevance_why or verdict.why) else ""))
+    if verdict.relevance < COMMENT_RELEVANCE:
+        return (f"relevance {verdict.relevance}/5 ({RELEVANCE[verdict.relevance].lower()})"
+                + (f": {verdict.relevance_why}" if verdict.relevance_why else ""))
+    if verdict.recommendation == RECOMMEND_SKIP:
+        return "the read recommends skipping" + (
+            f": {verdict.relevance_why}" if verdict.relevance_why else "")
+    if verdict.relevance < EPISODE_RELEVANCE or verdict.recommendation == RECOMMEND_COMMENT:
+        # Relevant, but a comment is the contribution: no link, no proposal.
+        comment_only = True
+        verdict.episode_fits = False
+        verdict.proposed = None
+        cand.assess["proposed"] = None
+    else:
+        comment_only = False
     options = cand.options or []
     if verdict.episode_fits and 0 < verdict.choice < len(options):
         if options[verdict.choice][1] >= LINK_FLOOR:
@@ -949,11 +1181,17 @@ def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
     if not verdict.episode_fits and cand.kind != QUESTION_ONLY:
         cand.kind = QUESTION_ONLY
         cand.other = None
-        cand.reason += " Same subject, but the episode does not answer this post, so no link."
+        cand.reason += (f" Relevance {verdict.relevance}/5: a comment is the contribution, so no link."
+                        if comment_only else
+                        " Same subject, but the episode does not answer this post, so no link.")
     if verdict.why:
         cand.reason += f" Checked: {verdict.why}"
     if verdict.replaced:
         cand.reason += f" Rewritten in code: {verdict.replaced}."
+    # What the card recommends, as it now stands: an episode only when one
+    # is linked; otherwise a comment (a proposal waits to be written).
+    cand.assess["recommendation"] = (RECOMMEND_EPISODE if cand.kind != QUESTION_ONLY
+                                     else RECOMMEND_COMMENT)
     return ""
 
 
@@ -1009,11 +1247,17 @@ class Store:
                          " ON candidates(status, found_at)")
             # §337: what the drafting call understood about the post. Added
             # after the table shipped, so an existing file is widened.
-            try:
-                conn.execute("ALTER TABLE candidates ADD COLUMN reading"
-                             " TEXT NOT NULL DEFAULT ''")
-            except sqlite3.OperationalError:
-                pass  # already there
+            # §368: the guardrails' judgement, the replies read for context,
+            # its relevance for ordering, and when the episode was heard.
+            for column, kind in (("reading", "TEXT NOT NULL DEFAULT ''"),
+                                 ("assess", "TEXT NOT NULL DEFAULT ''"),
+                                 ("replies", "TEXT NOT NULL DEFAULT ''"),
+                                 ("relevance", "INTEGER NOT NULL DEFAULT 0"),
+                                 ("listened_at", "REAL NOT NULL DEFAULT 0")):
+                try:
+                    conn.execute(f"ALTER TABLE candidates ADD COLUMN {column} {kind}")
+                except Exception:  # noqa: BLE001 - already there
+                    pass
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS runs (
                        at      REAL NOT NULL,
@@ -1046,13 +1290,17 @@ class Store:
         episode = asdict(cand.seed) if cand.seed is not None else {}
         self._conn().execute(
             "INSERT OR IGNORE INTO candidates (post_id, found_at, score, kind,"
-            " reason, post, other, episode, draft, drafted_by, status, reading)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " reason, post, other, episode, draft, drafted_by, status, reading,"
+            " assess, replies, relevance)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (cand.post.id, at, cand.score, cand.kind, cand.reason,
              json.dumps(asdict(cand.post)),
              json.dumps(asdict(cand.other)) if cand.other is not None else "",
              json.dumps(episode), cand.draft, cand.drafted_by, status,
-             json.dumps(cand.read) if cand.read else ""))
+             json.dumps(cand.read) if cand.read else "",
+             json.dumps(cand.assess) if cand.assess else "",
+             json.dumps([asdict(r) for r in cand.replies]) if cand.replies else "",
+             int((cand.assess or {}).get("relevance") or 0)))
 
     def get(self, post_id: str) -> Optional[dict]:
         """One card by its post, or None - a set-aside post is not a card,
@@ -1062,7 +1310,8 @@ class Store:
 
     def all(self, status: str = "", post_id: str = "", limit: int = 100) -> list[dict]:
         sql = ("SELECT post_id, found_at, score, kind, reason, post, other, episode,"
-               " draft, drafted_by, status, decided_at, posted, share_url, reading"
+               " draft, drafted_by, status, decided_at, posted, share_url, reading,"
+               " assess, replies, relevance, listened_at"
                " FROM candidates WHERE 1=1")
         args: list = []
         if status:
@@ -1074,8 +1323,10 @@ class Store:
         if post_id:
             sql += " AND post_id = ?"
             args.append(post_id)
+        # Waiting first; within a run, a 5 (the post's central question)
+        # before a 4 before a comment (§368).
         sql += (" ORDER BY CASE status WHEN 'waiting' THEN 0 ELSE 1 END,"
-                " found_at DESC, score DESC LIMIT ?")
+                " found_at DESC, relevance DESC, score DESC LIMIT ?")
         args.append(int(limit))
         out = []
         for r in self._conn().execute(sql, args).fetchall():
@@ -1092,8 +1343,36 @@ class Store:
                 "draft": r[8], "drafted_by": r[9], "status": r[10],
                 "decided_at": r[11], "posted": r[12], "share_url": r[13],
                 "read": json.loads(r[14]) if r[14] else None,
-                "read_line": OI.summary(json.loads(r[14]) if r[14] else None)})
+                "read_line": OI.summary(json.loads(r[14]) if r[14] else None),
+                **_assessed(json.loads(r[15]) if r[15] else {}, r[3]),
+                "replies": [{**x, "url": Post(**x).url}
+                            for x in (json.loads(r[16]) if r[16] else [])],
+                "listened_at": r[18] or 0.0})
         return out
+
+    def listened(self, post_id: str, at: float) -> bool:
+        """A person heard the card's episode through its link (§368)."""
+        cur = self._conn().execute(
+            "UPDATE candidates SET listened_at = ? WHERE post_id = ?", (at, post_id))
+        return cur.rowcount > 0
+
+    def attach(self, post_id: str, seed: "Seed", kind: str, reason: str) -> bool:
+        """Put the episode written for a card's proposal on it (§368). It
+        has not been heard through its link yet, so `listened_at` is reset."""
+        row = self._conn().execute("SELECT assess FROM candidates WHERE post_id = ?",
+                                   (post_id,)).fetchone()
+        if row is None:
+            return False
+        assess = json.loads(row[0]) if row[0] else {}
+        assess["recommendation"] = RECOMMEND_EPISODE
+        # The proposal is written now: the card links it, it no longer proposes.
+        assess["written_from"] = assess.pop("proposed", None)
+        assess["proposed"] = None
+        cur = self._conn().execute(
+            "UPDATE candidates SET episode = ?, kind = ?, reason = ?, assess = ?,"
+            " listened_at = 0 WHERE post_id = ?",
+            (json.dumps(asdict(seed)), kind, reason, json.dumps(assess), post_id))
+        return cur.rowcount > 0
 
     def decide(self, post_id: str, status: str, at: float, *, posted: str = "",
                share_url: str = "") -> bool:
@@ -1138,6 +1417,26 @@ class Store:
         if not row:
             return None
         return {"at": row[0], "reads": row[1], **json.loads(row[2] or "{}")}
+
+
+def _assessed(assess: dict, kind: str) -> dict:
+    """A card's guardrail fields for the page (§368). A card from before
+    them has no score: it says so rather than inventing one."""
+    relevance = int(assess.get("relevance") or 0)
+    recommendation = assess.get("recommendation") or (
+        RECOMMEND_COMMENT if kind == QUESTION_ONLY else RECOMMEND_EPISODE)
+    return {"relevance": relevance,
+            "relevance_label": RELEVANCE.get(relevance, "Not scored"),
+            "relevance_why": assess.get("relevance_why") or "",
+            # True passed, None not run (read in code); a failed one is never
+            # a card, only a rejection.
+            # A card from before §368 was never asked: not run, never "passed".
+            "author_test": assess.get("author_test"),
+            "central": assess.get("central") or "",
+            "recommendation": recommendation,
+            "recommendation_label": RECOMMENDATIONS.get(recommendation, recommendation),
+            "proposed": assess.get("proposed") or None,
+            "anchored": assess.get("anchored", True) is not False}
 
 
 _STORE: list = []
@@ -1195,7 +1494,7 @@ def _day_start(now: float) -> float:
 
 
 async def run(cache, *, now: Optional[float] = None, searcher=None,
-              drafter=None, held: Optional[Store] = None) -> dict:
+              drafter=None, held: Optional[Store] = None, replier=None) -> dict:
     """Find, screen, score and draft; leave the cards on the page.
 
     Returns the run's report, which is also stored and shown: a run that
@@ -1214,6 +1513,9 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             held.record_run(now, 0, report)
             return report
         searcher = search
+        # The replies under a card are read with the same search, and
+        # billed and counted the same way (§368).
+        replier = replier or search
     room = min(config.settings.x_threads_max_reads,
                config.settings.x_threads_daily_reads - held.reads_since(_day_start(now)))
     if room < 10:
@@ -1284,6 +1586,23 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             # What each offered episode says, so the read writes from it.
             cand.material = await asyncio.to_thread(
                 lambda: {s.key: OI.material(cache, s.key) for s in offered(cand)})
+            # The replies, as secondary context (§368): only for a card about
+            # to be read, only inside the ceilings, never a failure.
+            want = config.settings.x_threads_reply_reads
+            if replier is not None and want > 0 and reads + 10 <= room \
+                    and cand.post.replies > 0:
+                try:
+                    under = await replier(replies_query(cand.post),
+                                          max_results=min(max(want, 10), room - reads),
+                                          since=max(cand.post.created_at - 60, since))
+                    reads += len(under)
+                    report["read"] = reads
+                    held.record_run(now, reads, report)
+                    cand.replies = thread_replies(cand.post, under)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - context, not the card
+                    report["errors"].append(f"replies to @{cand.post.author}: {exc}"[:200])
             result = await (drafter or judge_and_draft)(cand)
             reply, by, dollars = result[:3]
             verdict = result[3] if len(result) > 3 else Verdict()
@@ -1301,14 +1620,25 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
                 # (the read may have changed it), and a reply written to
                 # connect two posts, one of which is gone, is the code's.
                 reply, by = trim(fallback_draft(cand)), "code"
-            elif by != "code" and not verdict.episode_fits and cand.kind == QUESTION_ONLY \
+            elif by != "code" and cand.kind == QUESTION_ONLY \
                     and "episode" in reply.lower():
+                # A card with no link never says FAM has an episode - also when
+                # the read chose one too far from the post to link (§368).
                 # Told not to mention the episode, and did: the code's
                 # question rather than words that point at nothing.
                 reply, by = trim(fallback_draft(cand)), "code"
             cand.draft, cand.drafted_by = reply, by
+            # Shown, not enforced: a person rewrites a reply that talks past
+            # the post (§368 rule 4: acknowledge something concrete).
+            cand.assess = {**(cand.assess or {}),
+                           "anchored": anchored(reply, cand.post.text)}
             held.add(cand, now)
             report["cards"] += 1
+            outcome = (cand.assess or {}).get("recommendation") or RECOMMEND_COMMENT
+            report.setdefault("outcomes", {}).setdefault(outcome, 0)
+            report["outcomes"][outcome] += 1
+            if (cand.assess or {}).get("proposed"):
+                report["proposed"] = report.get("proposed", 0) + 1
     except asyncio.CancelledError:
         report["stopped"] = "the run was stopped before it finished"
         raise
@@ -1326,7 +1656,9 @@ def health() -> dict:
            "min_engagement": config.settings.x_threads_min_engagement,
            "max_reads": config.settings.x_threads_max_reads,
            "daily_reads": config.settings.x_threads_daily_reads,
-           "window_hours": config.settings.x_threads_window_hours}
+           "window_hours": config.settings.x_threads_window_hours,
+           "reply_reads": config.settings.x_threads_reply_reads,
+           "relevance": RELEVANCE, "recommendations": RECOMMENDATIONS}
     if not _exists():
         out["counts"], out["reads_today"], out["last_run"] = {}, 0, None
         return out
@@ -1338,3 +1670,62 @@ def health() -> dict:
     except Exception as exc:  # noqa: BLE001
         out["error"] = str(exc)
     return out
+
+
+# --------------------------------------------------------------------------
+# A proposal, once written (§368)
+
+
+def _norm(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", (text or "").lower()))
+
+
+def find_written(cache, card: dict) -> Optional[Seed]:
+    """The kept episode written for a card's proposed episode, or None.
+
+    The proposal's own question first, as typed; then - because FAM
+    corrects a search at send ([autocorrect-at-send]) - the kept episode
+    closest to the proposal's title and question, if it is close and on the
+    post's subject. Code only; a person listens before it is linked."""
+    proposed = card.get("proposed") or {}
+    if not proposed.get("query") or cache is None:
+        return None
+    episodes = OI.catalogue(cache)
+    want = _norm(proposed["query"])
+    for e in episodes:
+        if _norm(e["query"]) == want:
+            return _seed_of(e)
+    text = f"{proposed.get('title', '')}. {proposed['query']}"
+    post_text = (card.get("post") or {}).get("text", "")
+    for e in OI.rank(episodes, text, limit=3):
+        if e["match"] >= WRITTEN_MATCH and not OI.off_subject(post_text, e):
+            return _seed_of(next(x for x in episodes if x["key"] == e["key"]))
+    return None
+
+
+#: How close a kept episode must be to a proposal to be the one written for it.
+WRITTEN_MATCH = 0.6
+
+
+def attach_written(cache, post_id: str, held: Optional[Store] = None) -> dict:
+    """Match a card's proposal against what is kept now; on a find, the card
+    links that episode (still unheard). Returns the card. Raises KeyError
+    for no card, LookupError when nothing written answers the proposal."""
+    held = held or store()
+    card = held.get(post_id)
+    if card is None:
+        raise KeyError(post_id)
+    if card.get("status") == APPROVED:
+        # What was handed to X is what was approved; it never changes under it.
+        raise LookupError("This reply is approved. Put it back to waiting first.")
+    if not card.get("proposed"):
+        raise LookupError("This card proposes no episode.")
+    seed = find_written(cache, card)
+    if seed is None:
+        raise LookupError("No kept episode answers the proposal yet. Search its "
+                          "question in FAM, let it finish, then match again.")
+    kind = THREAD_TO_EPISODE if asks(card["post"]["text"]) else ANGLE_AND_EPISODE
+    reason = (card["reason"] + f" “{seed.title}” was written for this card's "
+              "proposal; listen before linking it.")
+    held.attach(post_id, seed, kind, reason)
+    return held.get(post_id) or {}

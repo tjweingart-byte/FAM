@@ -1289,6 +1289,10 @@ class Settings:
     # High engagement is the target (§337): a post with fewer interactions
     # (likes, replies, reposts and quotes together) is not a card.
     x_threads_min_engagement: int = max(0, _env_int("X_THREADS_MIN_ENGAGEMENT", 25))
+    # The replies read under each card as context for the read (§368): the
+    # original post sets the subject, replies only say what is debated. X's
+    # least is 10 a request; 0 reads none. Counted inside the ceilings above.
+    x_threads_reply_reads: int = max(0, _env_int("X_THREADS_REPLY_READS", 10))
     # Drafts the replies a person approves. A short call; the small model.
     x_threads_model: str = field(
         default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
