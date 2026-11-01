@@ -1,7 +1,7 @@
 """Worked examples for Nando: questions with the node each is truly about
-(§376, training piece N2).
+(§380, training piece N2).
 
-The owner wants Nando - the model - to decide (§375), and asked for
+The owner wants Nando - the model - to decide (§379), and asked for
 training that keeps going as the tree grows. The first lever is the one
 FAM's writer already uses (`examples/`, [examples-lever]): show the model a
 handful of hard cases with their right answers, chosen for the request in
@@ -11,7 +11,7 @@ from an example rather than from a rule.
 Two sources, read together:
 
 * **`category_examples.json`**, beside the category seed and reviewed like
-  it (the owner's decision, §370): the questions three reviews used to
+  it (the owner's decision, §374): the questions three reviews used to
   break Nando, each labelled with its node - or "" for none of the tree
   ("kings and queens of England"). Kept out of `tools/nando_eval.py`'s
   measured sets, so the examples cannot flatter the measurement.
@@ -128,7 +128,7 @@ def pick(query: str, candidates=(), per_request: int = PER_REQUEST) -> list:
             on_list = 2 if node in cands else (1 if node and node in branch else 0)
             if not on_list and not overlap:
                 continue
-            # His own corrected mistakes first among equals (§379): they
+            # His own corrected mistakes first among equals (§383): they
             # are exactly where he goes wrong.
             mistake = 1 if ex.get("source") == "mistake" else 0
             scored.append((-(on_list * 2 + overlap + mistake), i, ex))

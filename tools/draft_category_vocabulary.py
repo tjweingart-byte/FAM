@@ -1,11 +1,11 @@
 """Draft each category node's definition, exclusions, other wordings and
-Wikidata id, and the entity table - for a person to check (§370).
+Wikidata id, and the entity table - for a person to check (§374).
 
     AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py
     AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py --limit 40
     python tools/draft_category_vocabulary.py --dry-run     # what it would ask, sending nothing
 
-Nando's offline task (`docs/FAM_AGENTS.md`, Nando; PROBLEMS.md §370): one
+Nando's offline task (`docs/FAM_AGENTS.md`, Nando; PROBLEMS.md §374): one
 call per batch of nodes through `agents.models.ask` - the only way an agent
 reaches a model ([agent-model-layer]) - on `CATEGORIZER_MODEL` (Haiku 5.5,
 the owner's choice for this draft), under Nando's signed rule book, metered
@@ -148,10 +148,10 @@ def clean_wordings(node: str, wordings, tree=None) -> list:
 
 def clean_draft(data: dict, tree) -> tuple:
     """`(data, notes)`: a draft with every wording `clean_wordings` refuses
-    taken out (§385), and a wording several nodes claim kept only where it
+    taken out (§389), and a wording several nodes claim kept only where it
     is unambiguous - on the broadest of them when they lie on one branch
     ("movies": film, not hollywood; "diet": nutrition, not weight loss - a
-    broader true node is better than a specific wrong one, §375), on none
+    broader true node is better than a specific wrong one, §379), on none
     when they are on different branches ("chip fabs": chip or semiconductor
     manufacturing is the model's to choose, not the table's). `notes` says
     what went."""
@@ -263,7 +263,7 @@ def main() -> int:
     parser.add_argument("--no-wikidata", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--clean", action="store_true",
-                        help="clean the pending draft already written (§385); sends nothing")
+                        help="clean the pending draft already written (§389); sends nothing")
     args = parser.parse_args()
 
     import category_vocabulary
@@ -272,7 +272,7 @@ def main() -> int:
 
     tree = topics.category_tree()
     if not tree.nodes():
-        # Drafting never writes the deployment's tree (review, §372): an
+        # Drafting never writes the deployment's tree (review, §376): an
         # empty one is drafted against the seed in a throwaway copy.
         import tempfile
 
@@ -294,7 +294,7 @@ def main() -> int:
               f"and {len(entity_names())} named things, on CATEGORIZER_MODEL")
         return 0
 
-    # One event loop for both drafts: the adapter's client is shared (§384).
+    # One event loop for both drafts: the adapter's client is shared (§388).
     loop = asyncio.new_event_loop()
     nodes, problems = loop.run_until_complete(draft_nodes(tree, args.limit))
     entities = {}

@@ -114,7 +114,7 @@ def audit(days: int, as_json: bool) -> int:
     nando = found.get("nando") or {}
     if nando.get("filed"):
         print()
-        print(f"  Nando filed {nando['filed']} (§367): at the request"
+        print(f"  Nando filed {nando['filed']} (§371): at the request"
               f" {nando['at_the_request']}; after the writer"
               f" {nando['after_the_writer']}; re-filed {_pct(nando['refiled_rate'])};"
               f" node differs from the writer's words on"
@@ -125,7 +125,7 @@ def audit(days: int, as_json: bool) -> int:
     key = found.get("answer_key") or {}
     if key.get("compared"):
         print()
-        print(f"  Nando against the answer key (§377), {key['compared']} graded:"
+        print(f"  Nando against the answer key (§381), {key['compared']} graded:"
               f" same node {key['exact']}, on its branch {key['on_branch']},"
               f" wrong {key['wrong']} ({_pct(key['wrong_rate'])} of filed),"
               f" filed nothing {key['filed_nothing']}")
@@ -139,7 +139,7 @@ def audit(days: int, as_json: bool) -> int:
                          if not category_vocabulary.definition(n).get("definition"))
         if missing:
             print()
-            print(f"  {len(missing)} nodes have no drafted definition (§383), e.g."
+            print(f"  {len(missing)} nodes have no drafted definition (§387), e.g."
                   f" {', '.join(missing[:8])}; draft them for review with"
                   " `AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py`")
     except Exception:  # noqa: BLE001 - a report line, never the report
@@ -150,7 +150,7 @@ def audit(days: int, as_json: bool) -> int:
         memory.build()
         mem = memory.describe()
         print()
-        print(f"  Nando's memory (§378): {mem['remembered'] or 0} graded requests and"
+        print(f"  Nando's memory (§382): {mem['remembered'] or 0} graded requests and"
               f" examples remembered"
               + ("" if mem["semantic"] else " - no sentence model installed, so none"
                  " is recalled"))

@@ -1,4 +1,4 @@
-"""Which model id the API says served an agent's call (§353's carry-over, §365).
+"""Which model id the API says served an agent's call (§353's carry-over, §369).
 
     python tools/agent_probe.py              # every distinct agent model, one tiny call each
     python tools/agent_probe.py --json
@@ -11,7 +11,7 @@ call per distinct model in the agents' settings, through the same adapter
 `ask` uses, about 30 tokens each - a fraction of a cent. It does not go
 through `ask`, so no agent switch needs to be on and nothing is written to
 `agent_calls` as any agent's; each probe is still metered there under the
-agent name `probe` (review, §372), so its cost is never missing.
+agent name `probe` (review, §376), so its cost is never missing.
 
 Refuses on a zero-spend deployment (`spend_guard`) and with no Anthropic
 key. Prints, per model: asked, served, and whether `ask` would accept it.
@@ -101,7 +101,7 @@ def main() -> int:
         return 2
     # One event loop for every probe: the adapter's client is shared, and a
     # connection opened on one loop and reused after `asyncio.run` closed it
-    # fails as a connection error on the next model (§384).
+    # fails as a connection error on the next model (§388).
     async def all_probes() -> list:
         return [await probe(v, m) for v, m in models_to_probe()]
 

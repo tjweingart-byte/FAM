@@ -1,4 +1,4 @@
-"""Nando starts from what the tap already knows (§368): a tile's story, a
+"""Nando starts from what the tap already knows (§372): a tile's story, a
 bank topic, a DailyFAM subject, an edition's story, or the episode a Go
 Deeper follows - and chooses the facet first. The question's words may
 narrow that node and never move it.
@@ -67,7 +67,7 @@ def test_a_trending_story_counts_as_a_tile(tree, pool, monkeypatch):
     story = stories.Story(subject="s", title="t", angle="", query="why the oil price jumped",
                           category="oil price", first_seen=time.time())
     monkeypatch.setattr(trending_bank, "stories_in_memory", lambda *a: [story])
-    # Never the store on a listener's path (review, §372).
+    # Never the store on a listener's path (review, §376).
     monkeypatch.setattr(trending_bank, "stories_now",
                         lambda *a: (_ for _ in ()).throw(AssertionError("store read")))
     assert categorizer.prior_for("why the oil price jumped") == Prior("oil price", "tile")
@@ -86,7 +86,7 @@ def test_a_dailyfam_subject_from_the_catalogue(tree, pool):
 
 def test_a_narrowed_dailyfam_subject_stays_in_its_subject(tree, pool):
     # "Eagles" alone is not a phrase the tree holds, but it is the
-    # Eagles' nickname inside NFL (§370), so it narrows to the team.
+    # Eagles' nickname inside NFL (§374), so it narrows to the team.
     prior = categorizer.prior_for(f"The latest on Eagles (NFL) as of {DATE}. Cover only Eagles")
     assert prior == Prior("philadelphia eagles", "dailyfam")
     # A specific the subject's branch has no word for stays the subject.

@@ -1,4 +1,4 @@
-"""Nando's small trained model (§381, training piece N6)."""
+"""Nando's small trained model (§385, training piece N6)."""
 from __future__ import annotations
 
 import dataclasses
@@ -112,7 +112,7 @@ def test_its_reading_is_taught_and_listed(tree):
     text = "\n".join(t for _tag, t in categorizer.teaching(query, ()))
     assert "trained model" in text and nodes[2] in text and "guess" in text
     found = categorizer.candidates_for(query)[0]
-    # Among code's own matches, before the facets and the tree (§385).
+    # Among code's own matches, before the facets and the tree (§389).
     assert found.index(nodes[2]) < found.index("business")
 
 

@@ -1,4 +1,4 @@
-"""Nando's training follows the tree as it grows (§383, piece N7)."""
+"""Nando's training follows the tree as it grows (§387, piece N7)."""
 from __future__ import annotations
 
 import asyncio

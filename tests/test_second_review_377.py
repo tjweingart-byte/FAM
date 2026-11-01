@@ -1,4 +1,4 @@
-"""What the second review of Phase 1 found (§373), each pinned."""
+"""What the second review of Phase 1 found (§377), each pinned."""
 from __future__ import annotations
 
 import asyncio
@@ -35,7 +35,7 @@ def tree():
 
 # ------------------------------------------------------------------ Nando
 def test_a_team_whose_name_is_an_everyday_phrase_is_a_clash(tree):
-    # §374 reverted the team gate (it unplaced twenty right teams): a seeded
+    # §378 reverted the team gate (it unplaced twenty right teams): a seeded
     # full name means the team, and where one is also an everyday phrase it
     # is in the clash table and must win on its cues.
     assert categorizer.suggest(None, "Utah jazz festival lineup").node == ""
@@ -213,7 +213,7 @@ def test_a_store_down_since_boot_is_asked_once_an_interval(signed, monkeypatch):
 
 # ------------------------------------------------------------------ C3P0's answer
 @pytest.mark.parametrize("text, result", [
-    # §375: caught again - missing a guessed result is the worse mistake,
+    # §379: caught again - missing a guessed result is the worse mistake,
     # and "Windows 11, Office 365" being flagged is the accepted cost.
     ("Eagles 24, Giants 17", True), ("Eagles lost on Sunday", True),
     ("Chiefs clinched the division", True), ("October 10-11", False),
@@ -232,7 +232,7 @@ def test_more_results_and_non_results(text, result):
     ("Biden", "Biden says he will veto the bill", False),
     ("Taylor Swift", "Taylor Swift's views count on YouTube", False),
     ("Krugman", "Krugman's position in the rankings", False),
-    # §374: C3P0 writes the name as the request has it; the last name alone
+    # §378: C3P0 writes the name as the request has it; the last name alone
     # also matched "Jordan thinks about peace with Israel" for Michael Jordan.
     ("Paul Krugman", "What does Krugman think", False),
 ])
@@ -286,7 +286,7 @@ def test_a_written_tile_is_drawn_from_nandos_node(tree, monkeypatch):
 
 def test_a_new_tree_object_is_built_in_the_background(tree, monkeypatch):
     V.index(tree)
-    V._CACHE["checked"] -= V.CHECK_SECONDS          # past the throttle (§374)
+    V._CACHE["checked"] -= V.CHECK_SECONDS          # past the throttle (§378)
     other = C.CategoryStore(str(pathlib.Path(tree.path).with_name("other.db")))
     C.apply_seed(other)
     monkeypatch.setattr(V, "_built", lambda t: (_ for _ in ()).throw(AssertionError("inline")))

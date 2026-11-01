@@ -1,4 +1,4 @@
-"""Nando's mistakes become worked examples (§379, training piece N5)."""
+"""Nando's mistakes become worked examples (§383, training piece N5)."""
 from __future__ import annotations
 
 import dataclasses

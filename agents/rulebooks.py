@@ -21,7 +21,7 @@ signed:
   covers every book in the folder, and its own book and `every-agent.md`
   (and, for the editor, the playbook) hash to what the manifest says - both
   as loaded and as they were on disk at the last background read, at most
-  `DISK_REFRESH_SECONDS` old (§365: `check` itself reads no file, so an
+  `DISK_REFRESH_SECONDS` old (§369: `check` itself reads no file, so an
   agent working while a listener waits adds no disk read in front of the
   first word). Anything else holds the agent and names the file. **No
   setting skips the check.**
@@ -240,7 +240,7 @@ _STATE: list = [None]
 _LOCK = threading.Lock()
 
 #: **The on-disk check, kept off the request path** (§353's carry-over,
-#: §365). Every book's hash as it is on disk now, re-read in a background
+#: §369). Every book's hash as it is on disk now, re-read in a background
 #: thread at most this often, never by `check` itself: an agent working
 #: while a listener waits must not read a file in front of the first word.
 #: A book changed on disk after boot is still caught - within this many
@@ -338,7 +338,7 @@ def check(book: str) -> Lock:
             if sha256(text.encode("utf-8")) != loaded:
                 return Lock(ok=False, version=state.version, file=name,
                             reason=f"{name} changed in memory")
-            # The last background read, never a read here (§365).
+            # The last background read, never a read here (§369).
             on_disk = _DISK["hashes"].get(name, loaded)
             if on_disk is None:
                 return Lock(ok=False, version=state.version, file=name,

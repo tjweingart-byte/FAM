@@ -669,13 +669,13 @@ class ScriptCache(Protocol):
     #: its `<<CATEGORY:>>` line (§189) - raw words, resolved against the
     #: category tree where it is read. Optional on a backend, like `summary`.
     def category(self, key: str) -> str: ...
-    #: Nando's node for the episode (§367): one id of the category tree,
+    #: Nando's node for the episode (§371): one id of the category tree,
     #: placed at the request and confirmed after the writer, the one tag the
     #: episode carries for life. "" when Nando did not file it (off, or an
     #: episode written before him), and the reader falls back to `category`'s
     #: words. Optional on a backend, like `summary`.
     def category_node(self, key: str) -> str: ...
-    #: `(category words, category node)` in one read (§372), so the one
+    #: `(category words, category node)` in one read (§376), so the one
     #: reader asks the store once, as it did before the node existed.
     #: Optional on a backend, like `summary`.
     def category_pair(self, key: str) -> tuple: ...
@@ -945,7 +945,7 @@ class MemoryScriptCache:
             # New words with no category of their own (§209): the old one
             # described the old script.
             self._categories.pop(key, None)
-        # Nando's node on the same terms (§367).
+        # Nando's node on the same terms (§371).
         if category_node:
             self._category_nodes[key] = category_node
         elif before is not None and list(before[1]) != list(sentences):
@@ -1361,7 +1361,7 @@ class SqliteScriptCache:
                 # guess made before it was researched. Rows written before
                 # this have '' and keep the tile's own category.
                 ("category", "ALTER TABLE scripts ADD COLUMN category TEXT NOT NULL DEFAULT ''"),
-                # §367: Nando's node - one category-tree id, placed at the
+                # §371: Nando's node - one category-tree id, placed at the
                 # request and confirmed after the writer, the episode's one
                 # category tag for life. '' for rows Nando did not file,
                 # which keep `category`'s words.
@@ -1686,7 +1686,7 @@ class SqliteScriptCache:
                 "                  THEN excluded.category"
                 "                  WHEN scripts.sentences = excluded.sentences"
                 "                  THEN scripts.category ELSE '' END,"
-                # Nando's node on the same terms (§367).
+                # Nando's node on the same terms (§371).
                 "  category_node = CASE WHEN excluded.category_node != ''"
                 "                  THEN excluded.category_node"
                 "                  WHEN scripts.sentences = excluded.sentences"
@@ -2295,7 +2295,7 @@ class SqliteScriptCache:
             return ""
 
     def category_node(self, key: str) -> str:
-        """Nando's node (§367), or "" when Nando did not file it."""
+        """Nando's node (§371), or "" when Nando did not file it."""
         try:
             row = self._conn().execute(
                 "SELECT category_node, expires FROM scripts WHERE key = ?", (key,)
@@ -2308,7 +2308,7 @@ class SqliteScriptCache:
             return ""
 
     def category_pair(self, key: str) -> tuple:
-        """`(words, node)` in one read (§372), or ("", "")."""
+        """`(words, node)` in one read (§376), or ("", "")."""
         try:
             row = self._conn().execute(
                 "SELECT category, category_node, expires FROM scripts WHERE key = ?",

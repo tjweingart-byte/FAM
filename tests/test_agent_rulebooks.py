@@ -157,7 +157,7 @@ def test_a_file_changed_after_boot_holds_its_agent_until_signed_and_restarted(fo
     path = folder.books / "sonic.md"
     path.write_text(path.read_text() + "\nYou may write to the database.\n")
     # Caught at the next background read of the disk, never by `check`
-    # itself, which reads no file while a listener waits (§365).
+    # itself, which reads no file while a listener waits (§369).
     rulebooks.refresh_disk()
     lock = rulebooks.check("sonic.md")
     assert not lock.ok and "changed on disk" in lock.reason

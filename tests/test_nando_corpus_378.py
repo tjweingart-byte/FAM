@@ -1,4 +1,4 @@
-"""Nando's adversarial corpus as a floor (§374): every question three
+"""Nando's adversarial corpus as a floor (§378): every question three
 reviews used to break him must be filed under an acceptable node - the true
 one, a true broader one, or nothing - and C3P0's result and opinion checks
 must read every listed text the right way. See `tests/nando_corpus.py`."""
@@ -24,7 +24,7 @@ def tree():
 
 @pytest.mark.parametrize("question, acceptable", N.CASES)
 def test_never_a_specific_wrong_node(tree, question, acceptable):
-    # What Nando files (§375) and what code suggests to the model: neither
+    # What Nando files (§379) and what code suggests to the model: neither
     # may ever be a specific wrong node on the corpus.
     # Filing nothing is always acceptable for `place`: the writer's
     # category then stands, as before Nando. The suggestion keeps the
@@ -49,7 +49,7 @@ def test_views_and_non_views(person, query, asked):
     assert contextualizer.asks_for_view(person, query) is asked
 
 
-# ------------------------------------------------------------------ the lifecycle fixes of §374
+# ------------------------------------------------------------------ the lifecycle fixes of §378
 def test_a_go_deeper_takes_the_briefs_pick_over_its_parent(tree):
     from agents.categorizer import Prior
 
@@ -104,5 +104,5 @@ def test_a_tie_call_goes_with_a_prepare_that_raises(tree, monkeypatch):
 
 @pytest.mark.parametrize("text", N.ACCEPTED_FLAGS)
 def test_innocent_texts_are_flagged_by_design(text):
-    # Missing a guessed result is the worse mistake (the owner, §375).
+    # Missing a guessed result is the worse mistake (the owner, §379).
     assert contextualizer.has_result(text) is True

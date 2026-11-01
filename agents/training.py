@@ -1,6 +1,6 @@
-"""Training Nando: the answer key and what it teaches (§377, piece N3).
+"""Training Nando: the answer key and what it teaches (§381, piece N3).
 
-The owner wants Nando to decide (§375) and to keep getting better as the
+The owner wants Nando to decide (§379) and to keep getting better as the
 tree grows, without anyone hand-scoring episodes (decided item 30). The
 answer key is how: a stronger model - `CATEGORIZER_JUDGE_MODEL`, Opus 5.5
 (the owner's choice) - reads finished episodes in the background and says
@@ -77,7 +77,7 @@ class TrainingStore:
                 confidence TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',
                 judge_model TEXT NOT NULL DEFAULT '', at REAL NOT NULL)""")
             db.execute("CREATE INDEX IF NOT EXISTS nando_labels_at ON nando_labels(at)")
-            # §383: following the tree. The node's path when it was graded
+            # §387: following the tree. The node's path when it was graded
             # (so a pruned node's grade can point at the nearest ancestor
             # still there), when it was retired and what it points at now,
             # and whether a new node under it asks for a fresh grade.
@@ -89,7 +89,7 @@ class TrainingStore:
                     db.execute(f"ALTER TABLE nando_labels ADD COLUMN {column} {kind}")
                 except Exception:  # noqa: BLE001 - already there
                     pass
-            # The tree as the last nightly look saw it (§383).
+            # The tree as the last nightly look saw it (§387).
             db.execute("""CREATE TABLE IF NOT EXISTS nando_tree (
                 node TEXT PRIMARY KEY, parent TEXT NOT NULL DEFAULT '',
                 seen_at REAL NOT NULL)""")
@@ -131,7 +131,7 @@ class TrainingStore:
     def labels(self, since: float = 0.0, limit: int = 20000,
                retired: bool = True) -> list:
         """Grades since `since`, newest first. `retired=False` leaves out
-        grades whose node the tree has lost (§383)."""
+        grades whose node the tree has lost (§387)."""
         where = "at >= ?" + ("" if retired else " AND retired_at = 0")
         with self._connect() as db:
             rows = db.execute(f"SELECT {', '.join(self._COLUMNS)} FROM nando_labels"
@@ -257,7 +257,7 @@ def _newest_per_key(rows) -> list:
     return out
 
 
-#: The words of the owner's rule (nando.md, always 12, §380) that lets the
+#: The words of the owner's rule (nando.md, always 12, §384) that lets the
 #: answer key read a finished episode. Until the signed rule book Nando
 #: runs under carries them, the key grades nothing: one call per episode
 #: plus a retry is every agent's bound (every-agent.md, always 3), and only
@@ -276,7 +276,7 @@ def allowed() -> tuple:
             return False, f"nando's rule books are not signed: {lock.reason}"
         if ANSWER_KEY_RULE not in lock.text:
             return False, ("nando's signed rule book has no answer-key rule yet "
-                           "(nando.md, always 12, §380): nothing is graded")
+                           "(nando.md, always 12, §384): nothing is graded")
         return True, ""
     except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
@@ -313,7 +313,7 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
                 if r.get("key") and r.get("origin", "") not in NOT_LABELLED]
         rows = _newest_per_key(rows)
         seen = store().labelled(r["key"] for r in rows)
-        # A new node under a grade's node asks for a fresh grade (§383),
+        # A new node under a grade's node asks for a fresh grade (§387),
         # first, while the episode's script is still kept.
         again = store().to_regrade()
         fresh = ([r for r in rows if r["key"] in again]
@@ -341,7 +341,7 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
 
 def handler(script_for: Callable[[str], list]):
     """The background task `categorizer:judge`, bound to the script cache.
-    (`register` also gives Netenyahu his model's nightly training, §381.)"""
+    (`register` also gives Netenyahu his model's nightly training, §385.)"""
     async def run(_task: str) -> None:
         result = await judge_batch(script_for)
         log.info("nando's answer key: %s", result)
@@ -386,7 +386,7 @@ def compared(days: float = 30.0) -> list:
     import topics
 
     since = time.time() - days * 86400
-    # A retired grade describes a tree that has gone (§383): not compared.
+    # A retired grade describes a tree that has gone (§387): not compared.
     labels = {l["key"]: l for l in store().labels(since=since, retired=False)}
     out = []
     for r in _newest_per_key(row for row in topics.category_tree().audit_rows(since=since)
@@ -399,14 +399,14 @@ def compared(days: float = 30.0) -> list:
     return out
 
 
-#: How many corrected mistakes become worked examples at most (§379), and
+#: How many corrected mistakes become worked examples at most (§383), and
 #: from how far back.
 MISTAKES_KEPT = 200
 MISTAKE_DAYS = 60.0
 
 
 def mistakes(limit: int = MISTAKES_KEPT, days: float = MISTAKE_DAYS) -> list:
-    """Nando's corrected mistakes as worked examples (§379, piece N5): each
+    """Nando's corrected mistakes as worked examples (§383, piece N5): each
     graded episode he filed under a wrong node - or under nothing - that the
     key was sure about, as `{"question", "node", "source": "mistake"}`, the
     key's node the answer. Newest first, one per question. A filing on the
@@ -431,7 +431,7 @@ def mistakes(limit: int = MISTAKES_KEPT, days: float = MISTAKE_DAYS) -> list:
 
 
 def report(days: float = 30.0, examples: int = 10) -> dict:
-    """How Nando's filings agree with the answer key (§377). Agreement is
+    """How Nando's filings agree with the answer key (§381). Agreement is
     "same node" (exact), "on one branch" (one is the other's ancestor: true
     but more or less specific), else a disagreement. A filing of nothing is
     counted apart: it is never wrong, only unhelpful. Never raises."""
@@ -494,7 +494,7 @@ def _nearest_surviving(path: str, now: dict) -> str:
 
 
 def follow_tree(now_nodes: Optional[dict] = None, at: float = 0.0) -> dict:
-    """The nightly look at the tree (§383, piece N7): what was minted,
+    """The nightly look at the tree (§387, piece N7): what was minted,
     pruned or moved since the last look, and what that changes for Nando's
     training. Never deletes a grade (every-agent.md, always 8):
 

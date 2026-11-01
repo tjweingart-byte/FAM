@@ -1,4 +1,4 @@
-"""Tools that make several model calls keep one event loop (§384): the
+"""Tools that make several model calls keep one event loop (§388): the
 adapter's client is shared, and a connection reused after `asyncio.run`
 closed its loop fails as a connection error on the next call."""
 from __future__ import annotations

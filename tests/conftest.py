@@ -255,7 +255,7 @@ FAM_ENVIRONMENT = (
     "EDITOR_AHEAD_TIMEOUT_SECONDS", "EDITOR_MAX_TOKENS", "SUPERVISOR_TIMEOUT_SECONDS",
     "SUPERVISOR_MAX_TOKENS", "HOUSEKEEPER_TIMEOUT_SECONDS", "HOUSEKEEPER_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
-    # §377: Nando's answer key.
+    # §381: Nando's answer key.
     "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", "CATEGORIZER_JUDGE_MAX_TOKENS",
     "NANDO_JUDGE_PER_RUN",
     # §350: Netenyahu's loop.
@@ -840,7 +840,7 @@ def kept_only_while_current(monkeypatch):
 @pytest.fixture(autouse=True)
 def _agent_writes_inline(monkeypatch):
     """The agents' bookkeeping is written off the event loop in a running
-    server (§372); tests write it inline, so a ledger row or a hold can be
+    server (§376); tests write it inline, so a ledger row or a hold can be
     read the moment the call returns. The tests of the off-loop path turn
     it back on themselves."""
     from agents import models as agent_models

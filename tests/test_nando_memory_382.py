@@ -1,4 +1,4 @@
-"""Nando's memory of graded answers (§378, training piece N4): past
+"""Nando's memory of graded answers (§382, training piece N4): past
 requests like this one, chosen by meaning, with the node each was truly
 about - shown to the model, and on his list."""
 from __future__ import annotations
@@ -103,7 +103,7 @@ def test_recalled_nodes_join_the_candidates_and_the_teaching(tree, meaning):
     _grade("Eagles touchdown last night", node)
     memory.recall("Eagles touchdown", inline=1)             # vector made
     nodes, _tie = categorizer.candidates_for("Eagles touchdown")
-    # Among code's own matches, before the facets and the tree (§385).
+    # Among code's own matches, before the facets and the tree (§389).
     assert nodes.index(node) < nodes.index("business")
     text = "\n".join(t for _tag, t in categorizer.teaching("Eagles touchdown", nodes))
     assert f"Eagles touchdown last night -> {node}" in text

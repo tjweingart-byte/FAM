@@ -656,10 +656,10 @@ async def lifespan(_: FastAPI):
     # `AGENTS=0` no task is ever claimed, so there is nothing to run.
     if settings.agents:
         # The holds and the rule books' disk check read once here, so the
-        # first episode decides from copies, never the database (§365).
+        # first episode decides from copies, never the database (§369).
         await asyncio.to_thread(netenyahu.prime)
         _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
-        # Nando's answer key (§377), reading the scripts it grades from the
+        # Nando's answer key (§381), reading the scripts it grades from the
         # script cache. Queued nightly only while CATEGORIZER is on; the
         # loop's first round runs after this, at the next await.
         from agents import training as agent_training
@@ -7096,7 +7096,7 @@ def _name_written_tiles(tiles: list[dict], minutes: int) -> None:
             title = SCRIPT_CACHE.title(key) if key and SCRIPT_CACHE else ""
             summary = (getattr(SCRIPT_CACHE, "summary", lambda _k: "")(key)
                        if title else "")
-            # Through the one reader (review, §372): Nando's node when he
+            # Through the one reader (review, §376): Nando's node when he
             # filed it, else the writer's words placed exactly as before - so
             # the tile, the player and the category page draw one picture.
             category = _episode_category(key) if key and SCRIPT_CACHE else ""
@@ -7140,14 +7140,14 @@ def _episode_category(key: str) -> str:
     so one episode is filed under one node everywhere. The words are stored
     as the writer put them and resolved against the tree as it is now, so a
     tree that has grown since still places an older episode. Nando's stored
-    node outranks the words when he filed the episode (§367). Local reads;
+    node outranks the words when he filed the episode (§371). Local reads;
     never a model call."""
     if not key or SCRIPT_CACHE is None:
         return ""
-    # Nando's node first (§367): one id, placed at the request and confirmed
+    # Nando's node first (§371): one id, placed at the request and confirmed
     # after the writer, read as stored - while the tree still holds it. A
     # node merged away since, or an episode Nando never filed, falls back to
-    # the writer's words below, as before. Both in one read (§372), so the
+    # the writer's words below, as before. Both in one read (§376), so the
     # store is asked once, as it was before the node existed.
     node = ""
     try:

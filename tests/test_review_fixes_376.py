@@ -1,4 +1,4 @@
-"""What the review of Phase 1 found (§372), each pinned: nothing of the
+"""What the review of Phase 1 found (§376), each pinned: nothing of the
 agents' bookkeeping on the listener's path, a tie never guessed, C3P0's
 answer held to the rules it claimed, and no second request for one site.
 """
@@ -67,7 +67,7 @@ def test_the_ledger_row_is_written_off_the_loop_and_flush_waits_for_it(monkeypat
 
 def test_a_failure_after_sending_is_marked_sent(monkeypatch):
     """A layer failure after the request left must say so, so its caller
-    never sends a second one (review, §372)."""
+    never sends a second one (review, §376)."""
     async def boom(request, notes, client, started, sent):
         sent[0] = True
         raise RuntimeError("metering broke after the answer")
@@ -202,8 +202,8 @@ def test_meaning_is_never_embedded_on_the_listeners_path(tree, monkeypatch):
 
 def test_each_candidates_parent_comes_right_after_it(tree):
     nodes, _tie = categorizer.candidates_for("United flights after the match")
-    # Code's own matches only: the facets close them on purpose (§376) and
-    # the whole tree follows, alphabetically (§385).
+    # Code's own matches only: the facets close them on purpose (§380) and
+    # the whole tree follows, alphabetically (§389).
     def facets_after(k):
         rest = sorted(set(topics.FACETS) - set(nodes[:k]))
         return list(nodes[k:k + len(rest)]) == rest

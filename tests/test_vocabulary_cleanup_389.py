@@ -1,5 +1,5 @@
 """The drafted vocabulary is cleaned before a person reads it, and the
-loader refuses the same wordings whatever the file says (§385)."""
+loader refuses the same wordings whatever the file says (§389)."""
 from __future__ import annotations
 
 import json

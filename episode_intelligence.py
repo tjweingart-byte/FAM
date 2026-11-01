@@ -347,7 +347,7 @@ class Brief:
     outline_opening: dict = field(default_factory=dict)
     #: What the last line has to land on - the kind of thing, never the thing.
     outline_ending: str = ""
-    #: **C3P0's answer** when he worked on this brief (§371): the resolved
+    #: **C3P0's answer** when he worked on this brief (§375): the resolved
     #: entity and its kind, whether a name is ambiguous and its readings,
     #: his plugin choices and inputs, what Sonic should fetch, whose opinion
     #: is asked for, whether it is about a private person or asks for
@@ -1696,7 +1696,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     parts = ("understand", "search") if settings.ei_split else ("whole",)
     started = time.monotonic()
     outline = None
-    # C3P0 rides in the search half when he works on this episode (§371):
+    # C3P0 rides in the search half when he works on this episode (§375):
     # the same call, at the same moment, through the agent layer. Nando's
     # candidate nodes go with it when Nando works too.
     run = getattr(getattr(notes, "agents", None), "runs", None)
@@ -2077,7 +2077,7 @@ def report() -> dict:
         "enabled": bool(settings.episode_intelligence),
         "model": settings.ei_model,
         "effort": settings.ei_effort,
-        # C3P0's effort ahead of the tap (§371), read only while he works.
+        # C3P0's effort ahead of the tap (§375), read only while he works.
         "ahead_effort": settings.ei_ahead_effort,
         "timeout_seconds": settings.ei_timeout_seconds,
         "max_tokens": settings.ei_max_tokens,

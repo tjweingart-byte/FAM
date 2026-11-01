@@ -519,7 +519,7 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
 
     extra["origin"] = "dailyfam"
     extra["voice"] = voice_bank.random_slug()
-    # Nando's node, confirmed after the writer (§367), only when he filed it.
+    # Nando's node, confirmed after the writer (§371), only when he filed it.
     from agents import categorizer
 
     node = categorizer.settle(notes, query)

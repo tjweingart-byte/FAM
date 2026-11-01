@@ -446,13 +446,13 @@ class CategoryStore:
                        keywords       TEXT NOT NULL DEFAULT ''
                    )"""
             )
-            # §367: Nando's two decisions beside the others - the node at
+            # §371: Nando's two decisions beside the others - the node at
             # the request and how it was found, the node after the writer
             # and how (`agents.categorizer.confirm`). '' for an episode he
             # did not file.
-            # §369: how sure the request's placement was, and any name in it
+            # §373: how sure the request's placement was, and any name in it
             # that means two things and was left undecided.
-            # §377: the episode's cache key, so the answer key can read the
+            # §381: the episode's cache key, so the answer key can read the
             # script it grades.
             for column in ("nando_request", "nando_request_how", "nando", "nando_how",
                            "nando_confidence", "nando_ambiguous", "key"):

@@ -4,7 +4,7 @@
     python tools/nando_eval.py --json
     python tools/nando_eval.py --with-brief # each question through the real brief first (needs a key)
     AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1 python tools/nando_eval.py --with-brief
-                                            # ... with C3P0's call choosing Nando's node (§371)
+                                            # ... with C3P0's call choosing Nando's node (§375)
 
 §346 measured the tree's code placement on forty hand-labelled questions -
 17 right, 1 wrong, 22 unplaced - but did not commit them. This is the set
@@ -95,12 +95,12 @@ QUESTIONS = (
 )
 
 
-#: Taps that carry context (§368): (question, how it was tapped, the
+#: Taps that carry context (§372): (question, how it was tapped, the
 #: context, the node it is truly about). `tile` is a live story in the pool
 #: with that category; `bank` and `dailyfam` are FAM's own questions,
 #: recognised from their words; `deeper` is a Go Deeper with the title of
 #: the episode it follows. Labelled by hand, like the forty. **The tile taps
-#: are circular** (review, §372): the story's category is the label, so they
+#: are circular** (review, §376): the story's category is the label, so they
 #: show the episode keeps its tile's filing - not that the composer's
 #: category was right.
 DATE = "Saturday, October 31, 2026"
@@ -124,8 +124,8 @@ CONTEXT_TAPS = (
 
 
 #: Twenty questions about names that mean two things, written and labelled
-#: after the clash table (§369) and not used to tune it. **Not independent**
-#: (review, §372): the same session wrote both, in the same commit, and the
+#: after the clash table (§373) and not used to tune it. **Not independent**
+#: (review, §376): the same session wrote both, in the same commit, and the
 #: questions use the table's own cue words ("landfall", "power play"), so
 #: they show the table works on the words it lists, not that it covers what
 #: listeners say. The independent set is piece 9's, labelled by a judge over
@@ -183,7 +183,7 @@ def score(tree, label: str, placed: str) -> str:
     # Under the label: more specific than the hand label - true when the
     # label was ("United cancels flights" filed under `flights`, under
     # `airlines`), but a wrong team under a broad label (`nfl`) lands here
-    # too (review, §372). Counted on its own, never as right, and every one
+    # too (review, §376). Counted on its own, never as right, and every one
     # is printed for a person to read.
     if label in set(tree.ancestors(placed)):
         return "narrower"
@@ -248,7 +248,7 @@ def run_context() -> dict:
         try:
             today = stories.resolve_category(question)
             prior = categorizer.prior_for(question, context if how == "deeper" else "")
-            nando = categorizer.place(None, question, prior=prior).node   # files (§375)
+            nando = categorizer.place(None, question, prior=prior).node   # files (§379)
         finally:
             if added is not None:
                 stories.pool().stories.remove(added)
@@ -277,14 +277,14 @@ def code_places() -> dict:
 
 def brief_places() -> dict:
     """Each question through the real brief - with C3P0's call carrying
-    Nando's candidates when the agents are switched on (§371) - then
+    Nando's candidates when the agents are switched on (§375) - then
     placed as at the request."""
     import episode_intelligence
     import script_generator
     from agents import categorizer, netenyahu
 
     # One event loop for every question: the model clients are shared, and a
-    # connection reused after `asyncio.run` closed its loop fails (§384).
+    # connection reused after `asyncio.run` closed its loop fails (§388).
     loop = asyncio.new_event_loop()
 
     def with_brief(question: str) -> str:

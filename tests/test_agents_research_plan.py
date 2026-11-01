@@ -1,5 +1,5 @@
 """C3P0's `ResearchPlan`, built in code from the brief and the code routes
-(§366): the plan describes what the episode already asks, in one written
+(§370): the plan describes what the episode already asks, in one written
 decision, before any model improves it; and how often an empty search had
 the archive holding something is counted, never waited for.
 """

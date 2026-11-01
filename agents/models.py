@@ -81,7 +81,7 @@ STATUSES = (OK, OFF, MALFORMED, HELD, NO_MODEL, MISCONFIGURED, CONSENT,
 
 #: The tags material may arrive in (Guardrails and prompting). Anything a
 #: model reads that is not the owner's rule books arrives inside one.
-#: `teaching` (§380) carries worked examples, graded past requests and
+#: `teaching` (§384) carries worked examples, graded past requests and
 #: code's hints: material for learning the task, never evidence about the
 #: world - so model wording is never passed on as evidence (every-agent.md,
 #: never 2).
@@ -357,7 +357,7 @@ def _malformed(request: AgentRequest) -> str:
 UNSENT = frozenset({OFF, MALFORMED, HELD, NO_MODEL, MISCONFIGURED, CONSENT, UNPRICED,
                     STAGING})
 
-#: Write the ledger row off the event loop (§372): an agent working while a
+#: Write the ledger row off the event loop (§376): an agent working while a
 #: listener waits must not hold the loop on a database commit - on Postgres a
 #: network round trip. Rows are written in order by one worker thread. Tests
 #: turn it off (`tests/conftest.py`) so a row can be read the moment `ask`
@@ -394,7 +394,7 @@ async def ask(request: AgentRequest, *, notes=None, client=None) -> AgentResult:
     except asyncio.CancelledError:
         # Cancelled by its caller (a tie call nobody needs any more, a
         # listener who left): still a row, because a request that was sent
-        # may have been billed (review, §372). Then the cancel goes on.
+        # may have been billed (review, §376). Then the cancel goes on.
         _write(request, AgentResult(FAILED, getattr(request, "agent", ""),
                                     getattr(request, "task", ""), "cancelled by its caller",
                                     seconds=time.monotonic() - started, sent=sent[0]))
@@ -402,7 +402,7 @@ async def ask(request: AgentRequest, *, notes=None, client=None) -> AgentResult:
     except Exception as exc:  # noqa: BLE001 - an agent never costs an episode
         log.exception("agent layer failed for %r", getattr(request, "agent", "?"))
         # `sent` says whether it left the machine before the failure, so a
-        # caller never sends a second request for one it already made (§372).
+        # caller never sends a second request for one it already made (§376).
         result = AgentResult(FAILED, getattr(request, "agent", ""),
                              getattr(request, "task", ""),
                              f"the agent layer failed: {type(exc).__name__}",
@@ -603,7 +603,7 @@ def health() -> dict:
     try:
         from agents import contextualizer
 
-        # C3P0's code plan and what empty searches found in the archive (§366).
+        # C3P0's code plan and what empty searches found in the archive (§370).
         out["contextualizer"] = contextualizer.report()
     except Exception:  # noqa: BLE001
         out["contextualizer"] = None

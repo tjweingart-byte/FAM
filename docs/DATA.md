@@ -147,7 +147,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
   `query`, `sentences`, `minutes`, `title`, `summary`, `category` (the
   writer's `<<CATEGORY:>>`), `category_node` (Nando's one tree node, placed at
   the request and confirmed after the writer, read first by
-  `app._episode_category`; '' when he did not file it, §367), `thread` (the `<<NEXT:>>` prediction),
+  `app._episode_category`; '' when he did not file it, §371), `thread` (the `<<NEXT:>>` prediction),
   `sources`, `bucket` and `vector` (float32 blob, the near-match index),
   `author` (the first writer's listener id, provenance only), `origin`
   (`search`, a browse surface, or `archive`), `voice`, `sourced_at`,
@@ -267,13 +267,13 @@ none of the material. Append-only and never wiped, like `usage`.
 finished run (so a re-run with nothing new is refused), attempts and claim
 times - and `holds`, an agent held with why and when until the owner
 releases it. Ids and hashes only: no listener and no material. Created by
-the first task. `nando_labels` (§377): the answer key's grade of each
+the first task. `nando_labels` (§381): the answer key's grade of each
 written episode - its cache key, question, node, confidence, reason and the
 judge's model; never a listener id, never a private search's episode.
 Each grade also keeps the node's path when graded and, once the tree
 prunes its node, when it was retired and the nearest ancestor it points at
-(§383) - never deleted by the tree, only marked. `nando_tree`: the tree as
-the last nightly look saw it (node and parent). `nando_model` (§381): one
+(§387) - never deleted by the tree, only marked. `nando_tree`: the tree as
+the last nightly look saw it (node and parent). `nando_model` (§385): one
 row, Nando's trained classifier's weights and how it measured itself.
 
 **attachments.db**: extracted text of attached documents (≤ 24,000 chars),

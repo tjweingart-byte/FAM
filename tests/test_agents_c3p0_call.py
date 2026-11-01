@@ -1,4 +1,4 @@
-"""C3P0 and Nando in the brief's call (§371): the brief's search half, sent
+"""C3P0 and Nando in the brief's call (§375): the brief's search half, sent
 through the agent layer as C3P0's one call when he works on the episode,
 carrying Nando's candidate list; the answer held to the rules in code; a
 request never sent runs the brief's own search half; with the agents off the
@@ -220,7 +220,7 @@ def test_nandos_node_only_from_the_candidates():
 def test_candidates_hold_every_reading_and_their_parents(tree):
     nodes, tie = categorizer.candidates_for("United flights after the match")
     assert tie and {"airlines", "premier league", "business", "football"} <= set(nodes)
-    # The cap is on code's own matches; the facets and the tree follow (§385).
+    # The cap is on code's own matches; the facets and the tree follow (§389).
     # Code's matches come first, then the facets it did not match, in order.
     def facets_after(k):
         rest = sorted(set(topics.FACETS) - set(nodes[:k]))
@@ -231,13 +231,13 @@ def test_candidates_hold_every_reading_and_their_parents(tree):
 
 
 def test_with_nothing_found_the_facets_then_the_tree_are_offered(tree, monkeypatch):
-    """Measured (§384): the facets alone left the model eight broad answers;
+    """Measured (§388): the facets alone left the model eight broad answers;
     with the whole tree on the list, 36 of 40 were right instead of 20."""
     nodes, tie = categorizer.candidates_for("zqxv blorp")
     facets = sorted(topics.FACETS)
     assert list(nodes[:len(facets)]) == facets and not tie
     assert set(nodes) == set(facets) | set(tree.nodes())
-    # Code's matches first, and the whole tree still after them (§385).
+    # Code's matches first, and the whole tree still after them (§389).
     found, _tie = categorizer.candidates_for("Stanley Cup odds")
     assert found[0] != facets[0] and set(found) >= set(tree.nodes())
     # A tree too big to read cheaply: only the level under the facets.

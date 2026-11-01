@@ -354,26 +354,26 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     layer is reachable from the health report only."""
     # Which agent modules each file outside `agents/` may import. Only the
     # health report reaches the model layer; on the listener's path an agent
-    # is code until its phase sends a call (§365-§367). `demo_data.py` is the
+    # is code until its phase sends a call (§369-§371). `demo_data.py` is the
     # wipe, emptying the agents' queue (§349); `pipeline.py` and
     # `script_generator.py` carry Netenyahu's answer (§350), the second for
-    # episodes written ahead of the tap (§365); C3P0's code plan (§366) and
-    # Nando's placement (§367) are pure code, and every write path settles
-    # Nando's node (§367).
+    # episodes written ahead of the tap (§369); C3P0's code plan (§370) and
+    # Nando's placement (§371) are pure code, and every write path settles
+    # Nando's node (§371).
     allowed = {
         "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster", "training"},
-        # The wipe also forgets Nando's answer-key labels (§377).
+        # The wipe also forgets Nando's answer-key labels (§381).
         "demo_data.py": {"tasks", "training", "nando_model"},
         "pipeline.py": {"netenyahu", "categorizer"},
         "script_generator.py": {"netenyahu", "contextualizer", "categorizer"},
         "prefetch.py": {"categorizer"},
         "daily_edition.py": {"categorizer"},
         "trending_bank.py": {"categorizer"},
-        # C3P0 rides in the brief's search half (§371).
+        # C3P0 rides in the brief's search half (§375).
         "episode_intelligence.py": {"contextualizer", "categorizer"},
-        # Nando's worked examples read his paths (§376).
+        # Nando's worked examples read his paths (§380).
         "category_examples.py": {"categorizer"},
-        # The audit report reads the answer key's agreement (§377); the
+        # The audit report reads the answer key's agreement (§381); the
         # judge itself is a background task, never on the listener's path.
         "category_audit.py": {"training"},
     }
@@ -392,7 +392,7 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         assert mods <= allowed[name], (name, mods)
     # The listener's path reaches the model layer in exactly two places:
     # C3P0's call, which is the brief's search half, and Nando's tie call
-    # beside it (§371). Each sends one request.
+    # beside it (§375). Each sends one request.
     for name, where in (("contextualizer", "async def search_half("),
                         ("categorizer", "async def ask_tie(")):
         agent_src = (ROOT / "agents" / f"{name}.py").read_text(encoding="utf-8")
