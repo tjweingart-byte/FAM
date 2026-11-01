@@ -24619,6 +24619,578 @@ What they found, and what was done:
 **Numbering.** Main merged its own §341 and §345 while this branch was open;
 this branch's sections moved to §346-§352, and every reference with them.
 
+## 354. May FAM keep what its providers return? The terms could not be read (2026-10-29)
+
+The owner asked, per provider, whether FAM may store what it returns, for
+how long, reuse it for another listener's episode, speak it to the public,
+and what must be credited - quoting each provider's own pages. GDELT,
+Tiingo and BALLDONTLIE were settled and not reopened; Finnhub and
+API-Sports are being removed.
+
+**Every page of the four open providers was refused by this session's
+network policy** (parallel.ai, perplexity.ai, gnews.io, polymarket.com and
+their docs sites): no clause was quoted, and none was filled in from memory
+or search snippets. So Parallel, Perplexity, GNews and Polymarket stay
+**unclear** on every question and Consuela keeps none of their material.
+`docs/PROVIDER_TERMS.md` holds the table, the safest shape per provider
+(links, titles and dates, never passages, for the two search providers), the
+publishers' copyright kept apart from the providers' terms with a list for a
+lawyer, four unsent emails for the owner, and the domains to allow so a
+later session can quote the pages.
+
+Two findings for the owner: `history_archive` intake (§308) **already
+keeps** up to eight Parallel and Perplexity passages per article, and it
+**does not record which provider** supplied them, so build-prompt item 8's
+per-provider switch could not delete them per provider. Nothing in code
+changed here; the agents guide, its build prompt and the rule books carry
+the decision once the owner makes it.
+
+## 355. Provider terms, read: Parallel forbids reuse across listeners; Perplexity and GNews allow storage (2026-10-29)
+
+§354 could not open a single provider page. With the network now allowing
+them, `docs/PROVIDER_TERMS.md` quotes the deciding clauses word for word from
+Parallel's Customer Terms (effective 2026-10-17), Perplexity's API Terms and
+Search addendum, GNews's Terms of Service (2026-10-18) and Polymarket's Terms
+of Use (2026-08-11), all read on 2026-10-29, and re-marks the table.
+
+- **Parallel:** output "shall not be copied, cached, stored, or made available
+  to other End Customers" (§2(b)(i)), nor made available "from previous
+  queries for future uses" (§2(c)(xi)). So intake's Parallel passages, kept to
+  write other listeners' episodes, are outside the standard terms. Whether
+  FAM's cached script (a derivative work FAM wrote) may be replayed to the next
+  listener is unclear; email 1 asks, and asks the price of an agreement.
+- **Perplexity:** no restriction on storing or reusing Search API results (its
+  docs say "filter, store, or hand to a model"), no credit; but FAM "does not
+  own" them and gets no IP indemnity, so the publishers' copyright is the only
+  limit. No personal data may be sent without written permission (addendum
+  §2.3) - email 2 asks about queries naming public figures.
+- **GNews:** storage allowed and kept after a plan ends; no credit required;
+  **only a paid plan may be used commercially**, and production counts. The
+  Free plan also runs 12 hours late. No email - a subscription (Essential,
+  €49.99 a month).
+- **Polymarket:** the Terms bind API use, grant a "personal" licence and bar
+  only capital-markets firms and market data distributors; nothing on storing
+  or quoting odds. Email 3 to hello@polymarket.com.
+
+The first pass's leads were checked: five confirmed, one corrected, two
+struck (a Google Cloud Marketplace agreement for Parallel; an "API Usage
+Policy" for Polymarket). Contact addresses come from each provider's own
+pages. The provider-terms note was numbered §340 on its branch, beside the
+agents guide's §340; merged here it is §354. Nothing in code changed; the
+agents guide, build prompt and rule books are left to the branch that owns
+them.
+
+## 356. Parallel against Perplexity, measured on one brief (2026-10-30)
+
+The owner asked how much worse Perplexity is than Parallel: Perplexity's
+terms let FAM keep what it returns and Parallel's do not (§355), so making
+it the primary search would let the archive keep its passages. Nobody had
+measured it - §258 chose both on price, and `tools/compare_search.py`
+measures the deleted model web search, not these two.
+
+`tools/compare_backends.py` runs both on the same questions. **One brief per
+question**, written once by EI and handed to both, so the two searches ask
+the same thing with the same window and the same `must_establish`; the second
+look is pinned to the same index (`RESEARCH_SECOND_LOOK=same`) so neither run
+is rescued by the other; the archive's recall is off so earlier passages
+reach neither packet. Settings are set on the one shared `settings` object
+and put back after each run. A backend that fails outright still falls back
+so an episode can be written, and the row says `fell_back`.
+
+Per question and backend it records sources, distinct outlets, dated sources
+and their age, source types, evidence size, which `must_establish` items the
+packet missed (the pipeline's own token test), search time and cost; with
+`--write`, the script and the six code proxies (§309); with `--grade`, the
+grader's 1-5. **It does not decide which is better**: `--write` saves both
+scripts as A and B in a random order with the key apart (`key.json`), to be
+read or heard blind. Output goes to `backend_comparison/<time>/` (ignored):
+`report.md`, `results.csv`, `packets/`, `blind/`.
+
+The default 25 questions (`tools/compare_backends_questions.txt`) spread over
+news, sports, markets, politics, tech, niche and local subjects; real
+listeners' searches from `/admin`, passed with `--queries`, are better.
+Not run here: this environment has neither search key. Next: run it with
+both keys, `--write`, on 20-30 real searches; about $1.
+
+Also: email 3 in `docs/PROVIDER_TERMS.md` now asks Polymarket
+(hello@polymarket.com, the address its Terms give) for written permission,
+since its Terms reserve anything beyond them for what is "otherwise agreed to
+in writing by us".
+
+Tests: `tests/test_compare_backends_356.py` (one brief for both, each index
+pinned and the settings restored, the blind files and the report; the packet
+reader; the dry run spends nothing).
+
+## 357. Perplexity is the primary search; Parallel the second look (2026-10-30)
+
+The owner, after the §356 comparison: switch the primary search to
+Perplexity. On 25 questions, one brief each, Perplexity missed 20
+must-establish items to Parallel's 22, every source it returned was dated,
+the grader scored it within 0.1 of Parallel on all six measures, and it
+searched in 0.69 s to Parallel's 1.39 s; Parallel's sources were about two
+days fresher (median 4.1 days against 6.1). And Perplexity's terms let FAM
+keep what it returns, where Parallel's forbid reusing it for another
+listener (§355).
+
+**What changed.**
+
+* `DEFAULT_RESEARCH_BACKEND` is `perplexity`; `RESEARCH_SECOND_LOOK`
+  defaults to `parallel`. A retired `RESEARCH_BACKEND` (`claude`, `exa`)
+  now runs as `perplexity`.
+* `FALLBACK_RUNGS` is `("perplexity", "parallel", "gdelt")` and `ladder()`
+  skips the configured backend, so the other web index always comes next
+  whichever is primary (`test_the_ladder_tries_the_other_index_then_gdelt`).
+* `.env.example`, `render.yaml`'s comment, the startup and health wording,
+  the cost table, the "no sources" explanation and the local-news docs say
+  Perplexity, then Parallel. CLAUDE.md's `[always-researched]` line and a
+  `Current` note in `docs/claude/constraints.md` record it.
+
+**For the owner.** `render.yaml` does not set `RESEARCH_BACKEND`, so
+production follows the new default on deploy - **unless the Render
+dashboard sets `RESEARCH_BACKEND=parallel` (or `RESEARCH_SECOND_LOOK`)
+itself**; a dashboard value wins, so remove it there. `/api/health` reports
+which backend runs. Parallel still runs as the second look and the backup,
+so `history_archive` intake can still receive Parallel passages, and it
+still does not record which provider a passage came from (§355's findings
+1 and 2) - storing Perplexity's passages only needs that recorded first.
+
+Tests: `tests/test_research.py` (the new default, the ladder either way
+round), `tests/test_search_backends_258.py` (Perplexity's second look on
+Parallel; the §258 tests pin their Parallel-first shape).
+
+## 358. The archive records which search supplied each passage (2026-10-30)
+
+The owner: make intake record which provider each passage came from. §355
+found that `history_archive` intake kept search passages with no provider on
+them, so Parallel's - which its terms forbid reusing for another listener -
+could not be told from Perplexity's, which its terms let FAM keep.
+
+**What changed.**
+
+* `Finding.provider` - "perplexity", "parallel" or "gdelt" - set where the
+  search ran: `research._retrieve_blocking` (the configured backend, the
+  second look and every fallback rung), the tapped story's outlets
+  (`_merge_story_look`, the configured backend), and both GDELT paths.
+* Intake keeps each provider's passages apart in `by_provider`
+  (`{"perplexity": [...], "parallel": [...]}`); `passages` stays the union
+  every reader already reads, so nothing downstream changes. One article
+  seen through both searches holds both lists.
+* SQLite (and Postgres through `db.connect`) widens an existing `intake`
+  table with `by_provider TEXT NOT NULL DEFAULT '{}'`; Atlas adds
+  `by_provider.<name>` with `$addToSet`, no migration.
+* `counts()` reports `intake_by_provider`: articles holding each provider's
+  passages, and `unknown` - articles with no attributed passage (kept before
+  this deployed, or kept with no passages).
+
+**Not done here.** Nothing is deleted or dropped: the owner decides what
+happens to Parallel's passages (§355, finding 1). Passages kept before this
+deploys stay `unknown` for good - the provider was never recorded, and it
+cannot be recovered from the text.
+
+Tests: `tests/test_intake_provider_358.py` (each web search names itself;
+one article from both keeps them apart; an old table is widened and its rows
+read as unknown; Atlas adds per provider).
+
+## 359. The whole script before the tap: the rails edition, dormant mixes, no ceilings (2026-10-31)
+
+The owner: write the whole script for myFAM and DailyFAM episodes before
+anybody taps, at the batched times, so a tap pays only for the voice. In the
+owner's words "myFAM" is the mixes screen and "dailyFAM" the rails (the
+listener's names, §185); the code keeps the old ones, so below the *mixes'*
+edition is `daily_edition.py` and the *rails'* is `rails_edition.py`. The
+owner's contingencies: the mixes once a day, the rails at 05:00 and 17:00
+Eastern; a mix not played in 48 hours is not written ahead, and is written
+when its owner goes back into it (the owner chose: **on opening it**); an
+episode a dormant mix shares with an active one is written because of the
+shared cache, without waking the rest of the dormant mix; **lift the cap**.
+Then, mid-build: sports stories last longer once written for the rails, and
+a game in progress keeps its title and direction, with a new episode once
+it is outside the old window.
+
+**What it costs, estimated before building** (no key here; every figure an
+estimate from the code's prices and prompt sizes). An episode is now about
+30k tokens (brief ~12.6k in / 3.6k out over three Haiku parts; writer
+~12.2k in / 2k out, its instructions measured at 32.9k characters) - about
+**$0.005 written on a tap, $0.0044 ahead** with the writer batched, plus the
+same ~$0.0037 of GPU on first play either way. `docs/FINANCIAL.md`'s $0.06 is
+the Sonnet writer's and Exa's. Because the key has no listener in it, the
+rails' bill is the pool's (≤ 96 stories), not the audience's: ~$20/month at
+any size. Net against the old code, at 100 / 1k / 10k / 100k monthly
+listeners: about +$11 / ±$0 / +$65 / +$267 a month, the large-scale rise all
+from lifting the mixes' 300-a-day ceiling (the long tail used to be written
+on the tap). Latency, estimated: a first tap on a Made for you story goes
+from ~10-26 s (brief, retrieval, the Haiku writer's first sentence) to the
+voice's ~1-2 s on a warm card. Two costs that are not tokens: once nothing
+is left to write, a cold GPU worker is the whole wait (the wake on app open,
+§329, is what hides it now; one active worker is ~$343/month); and an
+uncapped 05:00 edition at scale is thousands of episodes, so the editions
+now write `EDITION_CONCURRENCY` (6) at once rather than 3.
+
+**The rails edition** (`rails_edition.py`). At `RAILS_EDITION_HOURS` (5,17)
+on `DAILY_EDITION_TIMEZONE`, one episode for every story the pool *holds*
+(`Pool.held` - Made for you ranks every held story, §187, not only the forty
+offered), at `BROWSE_MINUTES`, under the key a tap computes, origin
+`"myfam"`. It is the mixes' edition's loop, not a copy: `daily_edition.build`
+was split into `run_slot` (the claim, ceilings, batch and report) and the
+rails call it with their own subjects, hours, slots (`rails@<time>` in the
+same table) and origin. Its boot catch-up waits for the story pool's first
+sweep. `/api/health` → `rails_edition`. A story that arrives between
+editions, and a heard story's "what's new" follow-up, are still the tap's.
+
+**Sports stories last longer once written** (`stories.hold_until`,
+`HELD_FOR_EDITION`). A sports story's shelf is eight hours; written at 05:00
+it would leave the rails at 13:00 with its episode current until 18:00. After
+the rails edition writes one, its shelf life is lengthened to the next rails
+edition plus the grace hour. Only lengthened, sports only, `first_seen`
+untouched, saved with the pool.
+
+**A game in progress** (`daily_edition._finish`, both editions). It was
+written, kept and never current, so the tile's next tap wrote it again. Now it
+is current for `EDITION_IN_PROGRESS_SECONDS` (1800) and its title, hook and
+category stay on the tile (the cache's title reads by how long a row is
+kept, not how long it is current); a tap after the window writes a new
+episode. `ttl_for` is untouched, so an episode a tap writes of a live game is
+still never current. `0` restores the old behaviour. Rule `ttl-from-evidence`
+carries the note.
+
+**Dormant mixes** (`Mix.played_at`, `Mix.is_active`,
+`daily_edition.subjects`). A mix not played, made or edited in
+`DAILY_EDITION_ACTIVE_HOURS` (48) is skipped by the edition; made and edited
+count so a new mix is never dormant before it could be played. Plays are
+stamped in a column of their own, never `updated_at` (the public list is
+ordered by edits). `POST /api/mixes/{id}/open` is sent when a mix's screen
+opens (`noteMixOpen`) and again with `{"played": true}` when an episode of it
+starts: opening a dormant mix writes all of it in the background
+(`schedule_open`, `schedule_mix`'s path, so each subject once per edition and
+anything current for the price of a lookup); a play makes it active again.
+The edition's report counts `dormant_mixes`.
+
+**The ceilings are lifted**: `DAILY_EDITION_MAX_EPISODES` / `_MAX_DOLLARS`
+default to 0 (none), and the rails' are 0. Both remain settable.
+
+**Reviewed before the pull request**, by an independent read of the diff;
+four findings, all fixed:
+- *A live game's thirty minutes could become a day.* A second edition
+  writer in the same slot - a dormant mix opened, a forced re-run, the other
+  edition on the same words - found the in-progress episode current and
+  extended it to the edition's window. Keys written in progress are now held
+  in `_IN_PROGRESS` until their window ends and never extended.
+- *A dormant mix still got "your mix is ready"* (`push.py` asks only whether
+  the slot is built). A mix with a listen time is now never dormant: its
+  owner asked to be told daily, and going quiet would be the same broken
+  promise.
+- *A hold could be lost to a refresh composing at the same moment*, which
+  installs the copies it took before; and a held subject pushed out of the
+  store and reported again was retired on the domain's clock. Holds are kept
+  apart (`stories._HELD`), re-applied by every refresh and read by
+  `_admissible`.
+- *A hold made a story louder*: `push` halves on `shelf_life / 2`. It now uses
+  the domain's half-life.
+And two small ones: a story the other edition was writing (`in_flight`) is
+still held, and `_BUILDING` is set only once the claim is won, as before.
+
+Rules: `rails-edition` (new, `product.md`), `mix-dormancy` (new,
+`open-problems.md`); Current notes on `myfam-warms-briefs`, `dec-prefetch`
+and `ttl-from-evidence`. Tests: `tests/test_editions_359.py`;
+`tests/test_daily_edition_143.py`'s in-progress test now pins the window.
+
+## 360. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31)
+
+The owner, from screenshots: on YourFAM and a friend's profile the gold
+wash started under a dark band - the status bar - and should extend to the
+top. Then, once it did: "the header should be attached to the rest of the
+app. When the main screen changes, a lot of the time the header doesn't
+change with it and it is evident."
+
+**Why.** `.statusbar` is one empty strip of the frame, above every screen.
+Colouring it per screen (the first fix, a `.frame:has(...)` rule) made it
+change colour the instant the screen became active, while Motion (§292) was
+still sliding or fading the page under it - the bar visibly detached.
+
+**What changed.**
+- Every `<section class="screen">` starts with `<div class="screen-top">`, a
+  strip `height:var(--sb-h)` with `margin-top:calc(-1 * var(--sb-h))`, so it
+  covers the frame's bar and moves with its own screen: push and pop carry
+  it with the screen; tab and step changes fade it with the content
+  (`contentOf`). Default colour `var(--bg)`, so the private-search charcoal
+  reaches the top too; Explore's is the reel's `#121016`.
+- Explore and the player clipped with `overflow:hidden`, which cut the strip
+  off; they clip with `clip-path:inset(calc(-1 * var(--sb-h)) 0 0 0)` now -
+  sides and bottom as before, top left open.
+- The profile and a friend's profile paint their strip (and the friend's
+  back-arrow bar) the wash's first colour, mixed opaque onto `--bg` because
+  the strip slides over the screen it replaces.
+- A comment in the stylesheet said `<body>`; the preview builders split the
+  document on that tag, so the published preview printed the CSS as text
+  (Main's `fam-live-artifact.html` had 3 `<style>` and 4 `</style>`). Reworded.
+
+`tests/test_screen_top.py` pins all of it, including that no screen is added
+without its strip. Checked in a browser mid-animation (push, pop, tab) at
+phone and framed widths.
+
+## 361. Main's Postgres job was red from §358's intake tests (2026-10-31)
+
+After PR #202 merged, CI's `postgres` job failed on `Main` (and on every PR
+from it) in `tests/test_intake_provider_358.py`: two tests wrote through
+`history_archive.SQLiteBackend` - which goes to Postgres when `DATABASE_URL`
+is set (§243) - then read the result back with raw `sqlite3` from a file that
+never got the table (`no such table: intake`, `assert 0 == 1`). The `test`
+job, with no `DATABASE_URL`, passed.
+
+- `test_one_article_from_two_providers_keeps_their_passages_apart` now reads
+  through the store's own connection, so it runs on both backends and is the
+  one test of the `by_provider` column under Postgres. That database is shared
+  by the whole run and not emptied between tests, so the URL is the test's
+  own and the provider counts are compared before and after, not as totals.
+- `test_an_archive_from_before_is_widened_and_its_rows_read_as_unknown` builds
+  an old SQLite file by hand - a test of the SQLite file itself - so it takes
+  `@pytest.mark.sqlite_file` and is skipped in the Postgres job, like the
+  others of its kind.
+- Main fixed the same failure while this branch was open (#204) by marking
+  both tests `sqlite_file`. The merge keeps this version: skipping both left
+  `by_provider` untested under Postgres, the backend production runs on.
+
+Reproduced and checked against a local Postgres 16: before, 2 failed; after,
+3 passed and 1 skipped, the same on repeated runs over the same database.
+
+## 362. A §359 edition test failed by the clock, half of every day (2026-10-31)
+
+`tests/test_editions_359.py::test_a_written_sports_story_is_held_until_the_next_edition`
+(from #205) failed in CI on #203 and on `Main` itself when run at 03:17 UTC.
+Not a product bug: the test's sports story was 1 hour into an 8-hour shelf
+life, so it was already on the shelf until now + 7 h. The edition holds a
+written story until the next edition plus the grace hour, and `hold_until`
+only lengthens - so whenever the next edition was under 7 hours away, the
+hold rightly changed nothing and the test's equality failed. Run with the
+clock moved to each half hour of a day, `Main`'s version failed at 24 of 48
+points (roughly 23:00-05:00 and 11:00-17:00 Eastern); #205's CI ran in a
+passing window.
+
+The story is now 7.5 hours old: its own shelf ends within half an hour and
+`until` is always at least the grace hour away, so the hold applies at any
+hour. The same sweep passes at all 48 points.
+
+## 363. The 10.31 notebook: lower-case headings, more on View more, friends listened, the best picture, All (2026-10-31)
+
+A page of the owner's notebook, photographed. Six items; one crossed out
+("FAM" before Messages) and one boxed - a new loading screen for exploreFAM's
+episodes - which the owner said not to do. The other five:
+
+- **"Make the Daily, my, Your all the same font (make them all look like
+  my); make D and Y lower case. Centring those at the top of the pages? ✓"**
+  The headings read `daily`, `my`, `your` beside the drawn FAM. They were not
+  one style: `.myfam-header h2` (500, 28px) outranked `.wordmark`'s 400 on
+  DailyFAM and myFAM, while YourFAM's sat in `.yf-head` at 400, 23px. One rule
+  now sets all three as "my" was drawn (`.myfam-header h2, .yf-head
+  .wordmark`), and the word is centred over the page with the header's
+  buttons kept at the right. `aria-label`s follow the words. The §250 note
+  that called these 400 described `.wordmark`, not what the headers drew;
+  `rule:typefaces` has a Current note. exploreFAM's word was already centred.
+- **"When you click on view more, can more be displayed?"** Sixteen a page
+  (`SECTION_PAGE`, `topics.VIEW_MORE_PAGE`), and Refresh deals the next
+  sixteen. Made for you's first page is still the rail's own tiles then
+  written episodes (§286). The server already allowed 40.
+- **"On DailyFAM, do we display how many friends listened to the episode
+  (social proof)?"** We did not. Now `topics.friends_listened` counts, per
+  tile, the friends (mutual follows) who played it in `FRIENDS_WINDOW`, by
+  person and by question as well as tile id; `/api/myfam` and
+  `/api/myfam/section` put `friends_listened` on the tiles that have any, and
+  the card draws "7 friends listened" bottom-right of the picture, as
+  sketched. A count only - no name, no id - and no field rather than a 0.
+  `rule:friends-listened` (new).
+- **"NEED Nando to be good at assigning THE BEST available thumbnail."**
+  Nando's rule book (rule 6) already says the picture is the category's or
+  the named subject's. Where it fell short is the borrow: when the deepest
+  subject the words name was unpainted, `pick_for_player` walked up *that
+  subject's* branch and stopped, even when another subject the words name
+  had its own picture - "Seahawks fans at a Lakers game" wore the NBA's
+  picture while the Seahawks' was painted. Without a category it now takes
+  the most specific painted picture any named node reaches (ties to the
+  deeper-named one); with a category, the category's branch still goes first
+  (§209). Tiles borrow through the same function, so they agree.
+- **"For filter choices at the top of exploreFAM, add an All or shuffle
+  option to get a mix of everything."** **All**, first in the dropdown:
+  `/api/explore?feed=all` (`_explore_all_entries`) takes an equal share of
+  `limit` from Made for you, Trending, What people are searching and Most
+  recent, tops up from the catalogue, one card per episode, shuffled; the
+  client shuffles it again and goes round like the catalogue. Shared cache
+  only, never the listener's own, moderation applied.
+
+Tests: `tests/test_notebook_1031.py`; the old pins on "Daily"/"Your", eight
+a page and the five dropdown labels were updated.
+
+## 364. Explore names the wait in front of a card's first word (2026-10-31)
+
+**The problem.** An Explore card opened, sat silent for a few seconds while
+its kept audio was asked for, downloaded and decoded, and then started with
+no warning (the owner's 10.31 notebook page). Nothing said anything was
+happening.
+
+**The choice.** Five options were mocked side by side on one simulated wait
+(start the next card earlier, a ring on the play button, named steps, a
+buffer bar with a seconds count, the opening line as a caption). The owner
+picked **C, named steps**. This is the boxed item of the 10.31 notebook
+page that §363 left out: it was done on its own branch, at the owner's
+direction, after the options were compared.
+
+**What it does.** Under the reel's title, three lines: *Finding the episode*,
+*Downloading audio*, *Starting*. Each is ticked from a real event, never a
+timer: `fam-audio.js` now calls `handlers.onStage("found")` when the server
+answers with the episode and `onStage("arriving")` when its first audio
+bytes reach the device - on the PCM and Opus streams, the R2 link read as it
+arrives, and the whole-file link once it has downloaded. `onFirstAudio`
+clears them. Each stage is said once per play, and only for the play that
+is current.
+
+**What it does not do.** Search's steps (§148) hold the audio until the
+fifth and give each two seconds; these hold nothing and have no minimum, so
+`latency-start-earlier` and `motion` stand. The only clock is
+`REEL_STEPS_AFTER_MS` (250 ms): a card that starts sooner never shows them,
+so a fast start does not flash three lines. A stopped card, a new card, or
+another play taking the audio clears them; reopening Explore on a card
+still loading redraws the card and keeps its steps.
+
+**Pinned by** `tests/test_explore_loading_364.py`. Heard on no device yet:
+the stages' real proportions on a phone network are unmeasured.
+
+## 365. The player's source circles show the publishers' logos (2026-10-31)
+
+The three overlapped circles beside the title drew initials ("CN", "BB",
+"BB") and made no network request, so a listener saw abbreviations where the
+Sources popup showed CNBC's and the BBC's own marks. At the owner's direction
+the circles now carry the logo too: `srcMark(item, size, withLogo)` lays the
+publisher's `/favicon.ico` over the drawn initials, transparent until it
+loads, `referrerpolicy="no-referrer"` as in the popup, and removed on error so
+a missing icon leaves the initials rather than a blank circle. Only the three
+shown are asked for. This reverses the strip's "no network request" note
+(the popup's reason - no referrer, nothing about the episode - is what now
+holds for both); the popup is unchanged.
+
+## 366. The archive keeps nothing Parallel returns (2026-10-31)
+
+The owner: Parallel stays as the backup search, but nothing it returns is
+stored. Its Customer Terms say output "shall not be copied, cached, stored,
+or made available to other End Customers" (§2(b); `docs/PROVIDER_TERMS.md`),
+and the archive exists to reuse what one episode found for later ones.
+
+`history_archive.NEVER_KEPT = ("parallel",)`, and `_write` - the one path
+into intake and the episode's links - drops those findings first, so no store
+sees them. An article both searches found keeps only Perplexity's passages;
+an episode written from Parallel alone adds nothing. The count is
+`never_kept` in the archive's stats on `/api/health`. This rests on §358,
+which tagged every finding with its provider.
+
+Not changed: the episode Parallel helped write is still cached and replayed
+to listeners asking the same thing, with its sources on the player - the
+open question in email 1 of `docs/PROVIDER_TERMS.md`, rewritten here for
+backup-only use. Passages kept before §358 carry no provider and stay; what
+happens to them is the owner's call.
+
+Tests: `tests/test_intake_provider_358.py` (Parallel's passages and links
+never reach intake or the episode's links, and are counted; an episode from
+Parallel alone keeps nothing). Reviewed before the PR: `reset()` now zeroes
+`never_kept` with the other counters, and email 1 says the archive (not FAM)
+keeps nothing and asks again about episodes written ahead for everyone.
+
+## 367. Go Deeper on LinkedIn is removed (2026-10-31)
+
+At the owner's direction the LinkedIn outreach engine is gone: `/admin/linkedin`
+and its four `/api/admin/linkedin/*` routes, `linkedin_posts.py`, its page
+(`admin_ui/linkedin.html`), its link in the tracker's "Other admin pages",
+`LINKEDIN_POSTS_DB` and the `LINKEDIN_*` settings (`config.py`,
+`.env.example`, both Dockerfiles), and its tests. `outreach_intelligence.py`
+(§337) keeps the read and X's voice; LinkedIn's voice and the `LINKEDIN`
+platform are deleted, so `/admin/x` is the one engine it serves. The
+`linkedin` rule in `docs/claude/constraints.md` is removed and its line in
+`CLAUDE.md` folded into `no-social-posting`.
+
+**What stays.** The listener's LinkedIn share target (`sharing.py`, the share
+sheet, the landing page's preview card) is a separate feature and is
+untouched. A deployment that already has `linkedin_posts.db` on its disk keeps
+the file; nothing opens or reports it any more, and it can be deleted by hand.
+§322 and §327 above are history.
+
+## 368. The X agent adds to conversations instead of distributing episodes (2026-10-31)
+
+(Written as §366 on its branch; renumbered at the merge with Main, where §366 and §367 had landed.)
+
+The owner's brief, *FAM / X Marketing Agent: Updated Instructions &
+Guardrails*: "FAM doesn't interrupt the conversation. FAM adds to it." The
+agent's question is not "where can I share an episode?" but "where is an
+interesting conversation FAM could make more interesting?" Measured against
+it, `/admin/x` (§321, §326, §337) already did a lot: it read original posts
+only (`-is:reply`), screened grief and flame wars, checked subject in code
+(`on_subject`) and in the read, dropped an episode that did not answer the
+post, never posted, and opened X's own compose box for a person. Kept, all of
+it. What it lacked, rule by rule:
+
+- **Original post anchors; replies are context** (rules 1-2). Replies were
+  not read at all, so the read could not tell what the thread debates.
+  Now up to `X_THREADS_REPLY_READS` (10, X's least) replies are read under a
+  card about to be drafted - only when the post has replies, inside the
+  per-run and daily ceilings, billed and counted like any read, a failure
+  reported never fatal - and shown to the read under "secondary context
+  only; they never set the subject". The five most engaged are kept on the
+  card and shown collapsed.
+- **The original-author test and a 1-5 score with hard gates** (rules 1, 6).
+  The read now answers, before the reply: `central` (what the author means),
+  `author_would_see_it`, `relevance` 1-5 on the brief's scale, `relevance_why`
+  and `recommendation`. `apply_verdict` enforces it in code: author test false
+  or relevance 1-2 or "skip" sets the post aside with the reason; 3, or a
+  read that recommends a comment, is a comment only - no link, no proposal;
+  only 4-5 may link. A read in code (no key, or the call failed) is worth
+  `CODE_RELEVANCE` = 3: code cannot apply the author test, so code never puts
+  an episode under a stranger's post on its own word. That changes the no-key
+  path, which used to link the best match with "We explored this in a short
+  episode".
+- **Specific episodes, and proposing one** (rules 3, 8). Only kept episodes
+  could be offered; a post whose question no kept episode answered got a
+  question at best. Now at 4-5 with no kept episode chosen, the read may
+  propose a specific one (title on the author's actual point, scope, the
+  question to type into FAM). The card shows it, never claims it (the reply
+  is told not to mention it), offers "Copy the question" and "Match again":
+  `find_written` matches the proposal's question exactly, else - because a
+  search is corrected at send - the closest kept episode at
+  `WRITTEN_MATCH` 0.6 that is on the post's subject. The attached episode
+  starts unheard.
+- **Conversational comments** (rule 4). The prompt carries the brief's weak
+  and better examples and its asks (acknowledge something concrete, useful
+  with no click). In code: `promotional` catches pitch phrases, generic
+  praise, urgency, hashtags, emoji and exclamation - a model reply that has
+  any goes back to the code's words, said on the card; `anchored` flags a
+  reply that shares no content word with the post ("talks past the post").
+- **Human approval at both gates** (rules 7, 9). Approve now refuses without
+  `verified` (a person ticked that every claim was checked) and, for a
+  linked card, until `listened_at` - set by Listen first, which opens the
+  very share link the reply will carry, so hearing it also tests the link.
+  "No link" still lets the comment go alone.
+- **Required output** (rule 8): every card shows original post (author, text,
+  link), central message, opportunity (the read's angle), episode (kept,
+  proposed or none), comment, relevance with why, recommendation, and
+  "pending human review". Waiting cards sort 5 before 4 before 3 within a run.
+  Rejections are a tab ("Rejected by the agent"), read-only, for audit.
+- **Before deployment** (rule 10): `tools/x_agent_eval.py` runs the same
+  read and gates over posts a person supplies (`--posts`, no X reads) or ones
+  X's search finds (`--from-x 10`), writing one side-by-side page - post,
+  central message / opportunity, episode, comment, relevance /
+  recommendation, and an empty reviewer column. Nothing stored or posted.
+
+Not done here, and why: this container has no ANTHROPIC_API_KEY and no
+X_BEARER_TOKEN, so the 10-real-post comparison the brief asks for has not
+been run; the tool ran in code mode on the brief's own example post only.
+`outreach_intelligence`'s shared `READ_RULES` are unchanged; the new fields
+are X's own (`DRAFT_RULES`, `DRAFT_SCHEMA`).
+
+A review of the branch before its PR found and fixed: a card with no link
+could keep a reply naming an episode when the read chose one too far from
+the post (the run's check now fires on any unlinked card); the ad filter
+caught ordinary words ("fine-tune in", "don't miss the old rules", "our
+episode"), now narrowed; the relevance gate was the card's kind alone at
+approval, now also `relevance >= 4` on the server; a written proposal stayed
+"proposed" once linked; a code read recorded the author test as passed (now
+"not run"); Match again could change an approved reply (refused); and the
+eval tool did not rewrite code fallback words as a run does.
+
 ## 369. Phase 1, piece 1: nothing of the agents' bookkeeping in front of the first word, and the ahead surface asked (2026-10-30)
 
 Phase 1 (C3P0 and Nando at the request) was planned with the owner first,

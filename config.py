@@ -173,14 +173,15 @@ def _env_float(name: str, default: float) -> float:
 
 #: How a researched episode gets its facts.
 #:
-#: **`parallel` is the default since §258**, at the owner's direction:
-#: Parallel's Search API retrieves first and hands the writer an evidence
-#: packet to read, with `perplexity` - a second, independent index - as the
-#: second look and the first rung below it, and GDELT as the free floor. The
-#: retrieval is a bounded, timed step this codebase can measure.
+#: **`perplexity` is the default since §357**, at the owner's direction
+#: (`parallel` was, from §258): Perplexity's Search API retrieves first and
+#: hands the writer an evidence packet to read, with `parallel` - a second,
+#: independent index - as the second look and the first rung below it, and
+#: GDELT as the free floor. The retrieval is a bounded, timed step this
+#: codebase can measure.
 #:
-#: The default needs a credential (PARALLEL_API_KEY), and a deployment
-#: without one falls to Perplexity, then GDELT (when `GDELT=1`). The app says
+#: The default needs a credential (PERPLEXITY_API_KEY), and a deployment
+#: without one falls to Parallel, then GDELT (when `GDELT=1`). The app says
 #: so at startup and on every /api/health, because a missing credential
 #: discovered on a listener's first researched question is the shape of
 #: failure this project has paid for most.
@@ -213,7 +214,11 @@ WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, for the same reason as DEFAULT_PIPELINE.
-DEFAULT_RESEARCH_BACKEND = "parallel"
+#: Perplexity since §357, at the owner's direction: on the §356 comparison it
+#: matched Parallel's evidence and grades at half the search time, and its
+#: terms let FAM keep what it returns (docs/PROVIDER_TERMS.md); Parallel's do
+#: not. Parallel is now the second look.
+DEFAULT_RESEARCH_BACKEND = "perplexity"
 
 #: How long an episode is when nobody has said. A minute and a half (§332,
 #: the owner's: "2 minutes feels too long and 1 minute feels too short"); it
@@ -494,7 +499,7 @@ class Settings:
     # way, so a deployment with only one search key loses nothing.
     research_second_look: str = field(
         default_factory=lambda: os.environ.get(
-            "RESEARCH_SECOND_LOOK", "").strip().lower() or "perplexity")
+            "RESEARCH_SECOND_LOOK", "").strip().lower() or "parallel")
     # How long one search request may take before it counts as failed and
     # the ladder moves on. A search sits in front of the first word.
     search_timeout_seconds: float = _env_float("SEARCH_TIMEOUT_SECONDS", 8.0)
@@ -1201,8 +1206,36 @@ class Settings:
         "EDITION_BATCH_WAIT_SECONDS", 3600.0)
     edition_batch_poll_seconds: float = _env_float(
         "EDITION_BATCH_POLL_SECONDS", 30.0)
-    daily_edition_max_episodes: int = _env_int("DAILY_EDITION_MAX_EPISODES", 300)
-    daily_edition_max_dollars: float = _env_float("DAILY_EDITION_MAX_DOLLARS", 15.0)
+    # Lifted at the owner's direction (§359): 0 is no ceiling, so every
+    # subject an active mix follows is written ahead. Settable again here.
+    daily_edition_max_episodes: int = _env_int("DAILY_EDITION_MAX_EPISODES", 0)
+    daily_edition_max_dollars: float = _env_float("DAILY_EDITION_MAX_DOLLARS", 0.0)
+    # A mix nobody has played (or made, or edited) in this many hours is
+    # dormant (§359): the edition skips it, and opening it writes it. A
+    # subject an active mix also follows is written all the same. 0 writes
+    # every mix every morning, as before.
+    daily_edition_active_hours: float = _env_float("DAILY_EDITION_ACTIVE_HOURS", 48.0)
+    # Episodes an edition writes at once (§359), both editions. With the
+    # ceilings lifted an edition can be thousands of episodes.
+    edition_concurrency: int = _env_int("EDITION_CONCURRENCY", 6)
+    # How long an edition episode about a game in progress stays current
+    # (§359, at the owner's direction): its title, hook and category stay on
+    # the tile, and a tap after this writes a new one. 0 is never current.
+    edition_in_progress_seconds: float = _env_float("EDITION_IN_PROGRESS_SECONDS", 1800.0)
+    # --- the myFAM rails edition (§359, `rails_edition.py`) ---------------
+    # Every story the live pool holds - what Made for you ranks - written
+    # whole at these hours on `DAILY_EDITION_TIMEZONE`'s clock, so a tap on
+    # a rail tile is a cache hit and only the voice is left. A sports story
+    # it wrote is held on the shelf until the next rails edition. No
+    # ceiling by default (0); `RAILS_EDITION=0` leaves the rails to the tap.
+    rails_edition: bool = field(
+        default_factory=lambda: os.environ.get("RAILS_EDITION", "1")
+        not in ("0", "false", "False", ""))
+    rails_edition_hours: str = field(
+        default_factory=lambda: os.environ.get(
+            "RAILS_EDITION_HOURS", "5,17").strip())
+    rails_edition_max_episodes: int = _env_int("RAILS_EDITION_MAX_EPISODES", 0)
+    rails_edition_max_dollars: float = _env_float("RAILS_EDITION_MAX_DOLLARS", 0.0)
     # How long to wait before trying a failed edition again.
     daily_edition_retry_seconds: float = _env_float(
         "DAILY_EDITION_RETRY_SECONDS", 1800.0)
@@ -1263,25 +1296,13 @@ class Settings:
     # High engagement is the target (§337): a post with fewer interactions
     # (likes, replies, reposts and quotes together) is not a card.
     x_threads_min_engagement: int = max(0, _env_int("X_THREADS_MIN_ENGAGEMENT", 25))
+    # The replies read under each card as context for the read (§368): the
+    # original post sets the subject, replies only say what is debated. X's
+    # least is 10 a request; 0 reads none. Counted inside the ceilings above.
+    x_threads_reply_reads: int = max(0, _env_int("X_THREADS_REPLY_READS", 10))
     # Drafts the replies a person approves. A short call; the small model.
     x_threads_model: str = field(
         default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
-
-    # --- Go Deeper on LinkedIn (`/admin/linkedin`, linkedin_posts.py, §322) -
-    # Nothing reads LinkedIn: a person pastes a post. This drafts the comment
-    # a person approves and posts. A short call; the small model.
-    linkedin_model: str = field(
-        default_factory=lambda: os.environ.get("LINKEDIN_MODEL") or SMALL_MODEL)
-    # "Find posts" (§327): one search a kept episode, through the research
-    # vendors FAM already pays for, restricted to linkedin.com. A run and a
-    # day are both capped; only posts this recent are looked for.
-    linkedin_seeds: int = _env_int("LINKEDIN_SEEDS", 10)
-    linkedin_daily_searches: int = _env_int("LINKEDIN_DAILY_SEARCHES", 40)
-    linkedin_window_days: int = max(1, min(_env_int("LINKEDIN_WINDOW_DAYS", 7), 30))
-    # High engagement is the target (§337): a found post whose reactions and
-    # comments the search shows, and number fewer than this, is not a card.
-    # A post whose counts the search does not show is not refused for it.
-    linkedin_min_engagement: int = max(0, _env_int("LINKEDIN_MIN_ENGAGEMENT", 20))
 
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.

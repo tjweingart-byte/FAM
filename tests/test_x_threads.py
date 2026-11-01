@@ -424,6 +424,8 @@ def _card(kind=None):
     [cand] = X.shortlist([(_post("4242"), _seed())], NOW, window_hours=6)
     cand.kind = kind or X.THREAD_TO_EPISODE
     cand.draft = "Depth is the real question here. Who steps up first?"
+    # Scored 4 against the post (§368): what a card needs to carry a link.
+    cand.assess = {"relevance": 4}
     X.store().add(cand, time.time())
     return cand
 
@@ -445,8 +447,10 @@ def test_the_page_is_served_to_a_configured_admin(client):
 
 def test_approve_hands_back_xs_reply_box_with_the_words_and_the_episode(client):
     _card()
+    client.post("/api/admin/x/listen", headers=ADMIN, json={"post_id": "4242"})
     r = client.post("/api/admin/x/decide", headers=ADMIN, json={
-        "post_id": "4242", "action": "approve", "text": "My edited reply. Thoughts?"})
+        "post_id": "4242", "action": "approve", "text": "My edited reply. Thoughts?",
+        "verified": True})
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == X.APPROVED
@@ -460,8 +464,9 @@ def test_approve_hands_back_xs_reply_box_with_the_words_and_the_episode(client):
 
 def test_approving_a_reply_too_long_for_x_is_refused(client):
     _card()
+    client.post("/api/admin/x/listen", headers=ADMIN, json={"post_id": "4242"})
     r = client.post("/api/admin/x/decide", headers=ADMIN, json={
-        "post_id": "4242", "action": "approve", "text": "w" * 270})
+        "post_id": "4242", "action": "approve", "text": "w" * 270, "verified": True})
     body = r.json()
     assert r.status_code == 422 and "X allows 280" in (body.get("detail") or body.get("error"))
     [card] = client.get("/api/admin/x", headers=ADMIN).json()["cards"]
@@ -471,7 +476,7 @@ def test_approving_a_reply_too_long_for_x_is_refused(client):
 def test_a_question_only_card_carries_no_link(client):
     _card(X.QUESTION_ONLY)
     body = client.post("/api/admin/x/decide", headers=ADMIN, json={
-        "post_id": "4242", "action": "approve"}).json()
+        "post_id": "4242", "action": "approve", "verified": True}).json()
     assert body["share_url"] == "" and "/s/" not in body["text"]
 
 
@@ -479,7 +484,7 @@ def test_listen_first_gives_the_same_link_approve_will(client):
     _card()
     heard = client.post("/api/admin/x/listen", headers=ADMIN, json={"post_id": "4242"}).json()
     body = client.post("/api/admin/x/decide", headers=ADMIN, json={
-        "post_id": "4242", "action": "approve"}).json()
+        "post_id": "4242", "action": "approve", "verified": True}).json()
     assert heard["url"] == body["share_url"]
 
 

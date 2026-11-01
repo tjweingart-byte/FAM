@@ -713,6 +713,25 @@ window.FamAudio = (function () {
     var streamUrl = "";
     var ctl = controller;
     var linkedOpus = true;
+    // What the wait in front of the first sample is waiting on, said as it
+    // happens (`handlers.onStage`): "found" when the server has answered
+    // with the episode, "arriving" when its first audio bytes reach this
+    // device. Each is said once per play, from the real event - Explore
+    // shows them as its loading steps and holds nothing for them.
+    var said = {};
+    function stage(name) {
+      if (said[name] || myToken !== token) return;
+      said[name] = true;
+      if (handlers.onStage) handlers.onStage(name);
+    }
+    function arriving(reader) {
+      return { read: function () {
+        return reader.read().then(function (r) {
+          if (!r.done) stage("arriving");
+          return r;
+        });
+      } };
+    }
     ctx.resume().then(canDecodeOpus).then(function (opus) {
       if (opus) return { opus: true, whole: false };
       return canDecodeOggFile().then(function (whole) {
@@ -752,6 +771,7 @@ window.FamAudio = (function () {
         });
       }
       sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
+      stage("found");
       var cacheState = res.headers.get("X-FAM-Cache") || "";
       keepable = res.headers.get("X-FAM-Keepable") === "1";
       episodeId = res.headers.get("X-FAM-Episode") || "";
@@ -790,7 +810,7 @@ window.FamAudio = (function () {
         // site, an object gone), the episode is streamed instead and the
         // server is told, so the fallback is counted rather than invisible.
         return res.json().then(function (body) {
-          return (linkedOpus ? playLinked : playWhole)(body, deliver, myToken, ctl);
+          return (linkedOpus ? playLinked : playWhole)(body, deliver, myToken, ctl, arriving, stage);
         }).catch(function (err) {
           if ((err && err.name === "AbortError") || myToken !== token || !first) throw err;
           return fetch(streamUrl, { signal: ctl.signal }).catch(function (e) {
@@ -800,7 +820,7 @@ window.FamAudio = (function () {
         });
       }
 
-      var reader = res.body.getReader();
+      var reader = arriving(res.body.getReader());
       if (res.headers.get("X-FAM-Audio-Format") === "opus") {
         return pumpOpus(reader, Number(res.headers.get("X-FAM-Opus-Preskip")) || 0,
                         deliver, myToken);
@@ -945,10 +965,10 @@ window.FamAudio = (function () {
 
   /* A replay's kept audio, read from the bucket by the link the server signed
      (§252), and decoded by `pumpOpus` like the stream. */
-  function playLinked(body, deliver, myToken, ctl) {
+  function playLinked(body, deliver, myToken, ctl, arriving, stage) {
     return fetch(body.link, { signal: ctl.signal }).then(function (file) {
       if (!file.ok) throw new Error("The kept audio answered " + file.status + ".");
-      return oggOpus(file.body.getReader(), Number(body.frames) || 0);
+      return oggOpus(arriving(file.body.getReader()), Number(body.frames) || 0);
     }).then(function (opened) {
       return pumpOpus(opened.reader, opened.preskip, deliver, myToken);
     });
@@ -959,12 +979,14 @@ window.FamAudio = (function () {
      length and handed over as one buffer - what `playStored` plays. A
      failure before that buffer streams the episode instead, as a link that
      will not play does. */
-  function playWhole(body, deliver, myToken, ctl) {
+  function playWhole(body, deliver, myToken, ctl, arriving, stage) {
     return fetch(body.link, { signal: ctl.signal }).then(function (file) {
       if (!file.ok) throw new Error("The kept audio answered " + file.status + ".");
       return file.arrayBuffer();
     }).then(function (bytes) {
       if (myToken !== token) return null;
+      // Whole, so the bytes have arrived only once all of them have.
+      stage("arriving");
       return decodeWhole(bytes, sampleRate);
     }).then(function (buf) {
       if (!buf || myToken !== token) return;

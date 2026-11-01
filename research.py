@@ -2,10 +2,10 @@
 
 The retrievers, and **all of them finish before the first word is written**:
 
-* **parallel** - the default since §258: Parallel's Search API
-  retrieves, this module builds an evidence packet, and the packet goes into
-  the prompt as context.
-* **perplexity** - Perplexity's Search API, a second, independent index. It is
+* **perplexity** - the default since §357 (Parallel was, from §258):
+  Perplexity's Search API retrieves, this module builds an evidence packet,
+  and the packet goes into the prompt as context.
+* **parallel** - Parallel's Search API, a second, independent index. It is
   the second look on a thin packet and the first rung below the configured
   backend, so one vendor's blind spot is not the episode's.
 * **gdelt** - a keyless article index. Thinner than the others - titles,
@@ -1194,7 +1194,8 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
         # from passages the writer never saw.
         provenance=provenance_mod.from_results(
             list(results)[:packet_sources], retriever=backend),
-        findings=_findings(results, packet_sources, highlights_per_source),
+        findings=_findings(results, packet_sources, highlights_per_source,
+                           backend),
         searches=1,
         seconds=elapsed,
         cost=float(cost),
@@ -1291,7 +1292,7 @@ async def _story_look(*args) -> Optional[tuple]:
 
 
 def _merge_story_look(packet: "Packet", found: tuple, packet_sources: int,
-                      highlights_per_source: int) -> int:
+                      highlights_per_source: int, provider: str = "") -> int:
     """Add the story look's results the main packet does not already hold.
 
     Appended after the main packet, numbered as the GDELT cross-check's are,
@@ -1311,7 +1312,8 @@ def _merge_story_look(packet: "Packet", found: tuple, packet_sources: int,
     if not fresh or not extra.strip():
         return 0
     packet.context = (packet.context or "") + "\n" + extra
-    packet.findings.extend(_findings(fresh, len(fresh), highlights_per_source))
+    packet.findings.extend(_findings(fresh, len(fresh), highlights_per_source,
+                                     provider))
     for host in domains(fresh):
         if host not in packet.sources:
             packet.sources.append(host)
@@ -1324,14 +1326,16 @@ def _merge_story_look(packet: "Packet", found: tuple, packet_sources: int,
     return len(fresh)
 
 
-def _findings(results, packet_sources: int, highlights_per_source: int) -> list:
+def _findings(results, packet_sources: int, highlights_per_source: int,
+              provider: str = "") -> list:
     """`history_archive.findings_from`, never raising: an archive that cannot
-    read a result never costs the packet."""
+    read a result never costs the packet. `provider` is the search that
+    returned `results` (§358)."""
     try:
         import history_archive
 
         return history_archive.findings_from(results, packet_sources,
-                                             highlights_per_source)
+                                             highlights_per_source, provider)
     except Exception:  # noqa: BLE001 - see docstring
         log.warning("could not note a packet's articles for the archive",
                     exc_info=True)
@@ -1783,7 +1787,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
             if extra.strip():
                 packet.context = (packet.context or "") + "\n" + extra
                 packet.findings.extend(_findings(ranked, packet_sources,
-                                                 highlights_per_source))
+                                                 highlights_per_source, "gdelt"))
                 packet.searches += 1
                 for host in domains(ranked):
                     if host not in packet.sources:
@@ -1803,7 +1807,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
         if story_look.done() and not story_look.cancelled() \
                 and story_look.result() is not None:
             added = _merge_story_look(packet, story_look.result(),
-                                      packet_sources, highlights_per_source)
+                                      packet_sources, highlights_per_source,
+                                      chosen)
             if added:
                 # What the brief still lacks, now the outlets' passages are in.
                 _, packet.missing = packet_covers(packet.context, must_establish)
@@ -1880,7 +1885,7 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
                                   settings.search_highlights_per_source)
     packet.sources = domains(ranked)
     packet.findings = _findings(ranked, settings.search_packet_sources,
-                                settings.search_highlights_per_source)
+                                settings.search_highlights_per_source, "gdelt")
     packet.results_returned = len(results or [])
     packet.searches = 1 if results else 0
     packet.seconds = time.perf_counter() - started
@@ -1909,7 +1914,10 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #: Polymarket), and nowhere else. A question that finds nothing on any index
 #: is still written (§256 deleted the §109 refusal).
 #:
-FALLBACK_RUNGS = ("perplexity", "gdelt")
+#: Whichever web index is not the configured one comes first (`ladder` skips
+#: the configured backend), so the order holds whichever is primary - Perplexity
+#: since §357, Parallel before.
+FALLBACK_RUNGS = ("perplexity", "parallel", "gdelt")
 
 
 def second_look_backend(primary: str) -> str:

@@ -35,9 +35,10 @@ def test_every_wordmark_word_is_set_like_explore():
     # Daily / my / Your match it rather than the old 500.
     assert "font-weight" not in reel
     assert "font-weight:400" in wordmark and "letter-spacing" not in wordmark
-    for word in ('aria-label="DailyFAM">Daily<', 'aria-label="myFAM">my<'):
+    # Lower case, like "my" (the owner's 10.31 notebook).
+    for word in ('aria-label="dailyFAM">daily<', 'aria-label="myFAM">my<'):
         assert '<h2 class="wordmark" ' + word in INDEX, word
-    assert '<h2 class="wordmark" aria-label="YourFAM">Your' in INDEX
+    assert '<h2 class="wordmark" aria-label="yourFAM">your' in INDEX
 
 
 def test_the_mini_players_x_stops_the_episode():

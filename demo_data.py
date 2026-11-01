@@ -177,8 +177,12 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         try:
             import daily_edition
 
+            # The rails edition's slots are rows of the same table (§359).
             report["daily_editions_dropped"] = daily_edition.store().clear()
             daily_edition.reset()
+            import rails_edition
+
+            rails_edition.reset()
         except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
             log.exception("could not drop the DailyFAM edition")
             report["daily_editions_dropped"] = 0

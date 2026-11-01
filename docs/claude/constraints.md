@@ -217,6 +217,7 @@
   goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
   the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
+> **Current (PROBLEMS.md §357, at the owner's direction):** the configured backend is **Perplexity** (`RESEARCH_BACKEND=perplexity`), and **Parallel** is the second look and the first rung below it (`RESEARCH_SECOND_LOOK=parallel`); GDELT stays the floor. `FALLBACK_RUNGS` lists both web backends and `ladder()` skips the configured one, so the other index always comes next. Chosen on the §356 comparison (equal evidence and grades, half the search time) and because Perplexity's terms let FAM keep what it returns and Parallel's do not (`docs/PROVIDER_TERMS.md`). A retired `RESEARCH_BACKEND` (`claude`, `exa`) now runs as `perplexity`. Wherever the notes below name Parallel as the configured backend and Perplexity as the second look, read them the other way round.
 > **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed from the code entirely; BALLDONTLIE (`balldontlie_scores`, `balldontlie`) is the only sports source. Wherever the text below lists API-Sports among an episode's sources, read BALLDONTLIE.
 > **Current (PROBLEMS.md §279, §281):** `RESEARCH_BACKEND=exa` still runs as `parallel` and says so (`research.backend_replaced`), and `RESEARCH_SECOND_LOOK=exa` runs as `same`, so a dashboard that still names the vendor boots; nothing reads or warns about `EXA_*` names. Remove them from any environment that still sets them.
 > **Current (PROBLEMS.md §274, at the owner's direction):** Exa is deleted, not kept selectable: its backend, fallback rung, `exa_py` requirement, `setup_key.py --exa` and `EXA_API_KEY` are gone. `RESEARCH_BACKEND=exa` runs as `parallel` and says so, as `claude` does (§135); the packet sizes are `SEARCH_NUM_RESULTS`, `SEARCH_PACKET_SOURCES`, `SEARCH_HIGHLIGHTS_PER_SOURCE` and `SEARCH_DATED_PACKET` (the old `EXA_*` names are no longer read and say so at startup). Wherever the text below says Exa, read Parallel, then Perplexity.
@@ -1120,6 +1121,7 @@
   `AUDIO_CACHE_MAX_MB`; past it a heard episode replays its same script in
   its same voice, synthesised once more.
 <!-- rule:ttl-from-evidence -->
+> **Current (PROBLEMS.md §359, at the owner's direction):** an **edition's** episode about a game in progress (DailyFAM's or the rails', `daily_edition._finish`) is current for `EDITION_IN_PROGRESS_SECONDS` (1800) instead of never, keeping its title, hook and category on the tile; a tap after the window writes a new one. `0` restores never current. `ttl_for` is unchanged, so a tap's own episode of a live game is still never current, and the rails edition joins DailyFAM's as the stated exception to "prefetch never warms an outcome-dependent script".
 > **Current (PROBLEMS.md §320):** the one place question words touch the window: EI's gate removes a window **longer than a week** from a question nothing marks as a moment (`time_bound`), so such an episode is kept as long as any evergreen one. A window of a week or less - EI saying "a moment" - is never removed, so the volatile TTL is never lost to a word list.
 - **How long a script stays current comes from what it was built on, never
   from the words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
@@ -1592,37 +1594,31 @@
   > script opening, not its title), the angle - stored and shown on the
   > card, then writes in X's voice (curiosity, part of the conversation). A
   > figure neither the post nor the episode states sends the words back to
-  > the code's. LinkedIn shares the read in its own voice (context, Go
-  > Deeper) and `LINKEDIN_MIN_ENGAGEMENT` (20) where the search shows counts.
-<!-- rule:linkedin -->
-- **Go Deeper on LinkedIn is found and posted by a person** (§322,
-  `linkedin_posts.py`, `/admin/linkedin`). A LinkedIn post meant to teach or
-  inform gets a comment linking the kept episode that goes deeper.
-  > **Current:** since §327 code finds them: **Find posts** asks the search
-  > vendor FAM's research already uses (Parallel, else Perplexity),
-  > restricted to linkedin.com, for last week's public posts about the
-  > episodes `/admin/x` seeds from - still never a request to linkedin.com,
-  > never a LinkedIn credential. A button, never a timer; capped per press
-  > (`LINKEDIN_SEEDS`) and per day (`LINKEDIN_DAILY_SEARCHES`); staging has
-  > no search key. Only a post an episode is the subject of becomes a card:
-  > X's §326 checks hold here too - the episode's subject words in the
-  > search, `x_threads.on_subject` on every episode a post is ranked
-  > against, and the drafting call judging first (an off-subject found post
-  > is set aside, unseen and not re-read; a pasted one loses its link).
-  > Pasting stays for the ones a person finds. LinkedIn
-  has no API that reads others' posts and forbids scraping and automated
-  comments, so **nothing here reads LinkedIn and FAM holds no LinkedIn
-  credential**: the page builds LinkedIn search links from the same episodes
-  `/admin/x` seeds from, and a person pastes the post (address and words).
-  Code screens out announcements, hiring, promotion, grief and posts that do
-  not teach (a person may add one anyway; the card says so), keeps one
-  author a week (by profile or typed name; an approved card outlives
-  pruning for that week), refuses a post already on the page, and matches every kept non-explicit episode (`/admin/x`'s
-  embeddings and names). Below `LINK_FLOOR` there is no comment, only the Go
-  Deeper question to search in FAM, then "Match again". Approve copies the
-  comment - the person's words, then `Go Deeper: "<title>" (n min) <link>` -
-  and opens the post; the person pastes and posts. Only an approval writes
-  what was posted. Each card counts its drafting cost. Cards are kept a week.
+  > the code's.
+  > **Current:** the LinkedIn engine that shared this read (§322, §327,
+  > `/admin/linkedin`) was removed at the owner's direction (§367); X is
+  > the only outreach page. The listener's LinkedIn share button is a
+  > separate feature and stays ([share-link]).
+  > **Current:** since §368 (the owner's guardrails brief) **the original
+  > post anchors everything**: replies under a card are read as context
+  > (`X_THREADS_REPLY_READS`, inside the ceilings) and never set its
+  > subject. Before the reply the read states the author's central message
+  > and a **relevance score 1-5** against the original post, with why, and
+  > answers the **original-author test** (would they see at once why this
+  > relates to what they posted?) - false rejects the card whatever the
+  > score; 1-2 rejects; 3 is a comment only; only 4-5 may link a kept
+  > episode (checked again on the server at approval) or **propose** a
+  > specific one (title, scope, question), which is never mentioned until
+  > written and matched ("Match again"). Outcomes are episode + comment /
+  > comment only / skip; an episode is never required. A code read is worth
+  > 3 and its author test is "not run". A reply that sounds like an ad
+  > (`promotional`) goes back to the code's words, and a card with no link
+  > never keeps words saying FAM has an episode; one sharing no word with
+  > the post is flagged. Approve needs a person's tick that every claim was
+  > checked, and a link needs the episode heard through that link first
+  > (`listened_at`). Rejections are listed for audit, never actionable.
+  > `tools/x_agent_eval.py` is the before-deployment review: real posts
+  > beside FAM's episode and comment.
 <!-- rule:app-review-safety -->
 - **Report anything, block both ways, and ask before a listener's words go to
   the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,
@@ -1668,6 +1664,8 @@
   warmed script was nobody's tap, so it belongs to everybody, which is also
   what rows written before the column existed do.
 <!-- rule:typefaces -->
+> **Current (PROBLEMS.md §363, the owner 10.31):** the three tab headings are lower case - **daily**FAM, **my**FAM, **your**FAM - set by one rule (`.myfam-header h2, .yf-head .wordmark`: Bricolage Grotesque 500, 28px, which is how "my" was already drawn: `.myfam-header h2` outranked `.wordmark`'s 400) and centred over the page. The owner: "make them all look like my". exploreFAM's word on the reel is unchanged.
+
 > **Current (PROBLEMS.md §250):** the words beside the FAM mark ("Daily", "my", "Your", "explore") are all Bricolage Grotesque at its regular 400, matching exploreFAM's, at the owner's direction (the 10.10 packet's picture); they had been 500 with tightened spacing. And **light is the default theme**: dark is the choice in Settings ("Dark mode"), kept on the device under `fam.theme`; a device that cannot store it gets light. Fraunces, Space Grotesk and JetBrains Mono are gone (§204).
 - **The type is Bricolage Grotesque, Geist and Geist Mono.** *(§204.)* At the
   owner's direction, after a comparison of six type systems on every screen:

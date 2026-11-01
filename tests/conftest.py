@@ -141,16 +141,18 @@ FAM_ENVIRONMENT = (
     "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "MAIL_FROM",
     "DAILY_EDITION_MAX_EPISODES",
     "DAILY_EDITION_MAX_DOLLARS", "DAILY_EDITION_RETRY_SECONDS",
+    # Dormancy, concurrency, the in-progress window and the rails edition (§359).
+    "DAILY_EDITION_ACTIVE_HOURS", "EDITION_CONCURRENCY",
+    "EDITION_IN_PROGRESS_SECONDS", "RAILS_EDITION", "RAILS_EDITION_HOURS",
+    "RAILS_EDITION_MAX_EPISODES", "RAILS_EDITION_MAX_DOLLARS",
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
     # /admin/x (§321); its token is cleared by `isolated_x_threads`.
     "X_THREADS_MAX_READS",
     "X_THREADS_DAILY_READS", "X_THREADS_WINDOW_HOURS", "X_THREADS_SEEDS", "X_THREADS_MIN_ENGAGEMENT",
+    "X_THREADS_REPLY_READS",
     "X_THREADS_MODEL",
-    # /admin/linkedin (§322).
-    "LINKEDIN_MODEL", "LINKEDIN_SEEDS", "LINKEDIN_DAILY_SEARCHES",
-    "LINKEDIN_WINDOW_DAYS", "LINKEDIN_MIN_ENGAGEMENT",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
@@ -463,8 +465,9 @@ def isolated_trending_bank(tmp_path, monkeypatch):
     # The DailyFAM edition (§143) likewise: off, so a TestClient's startup
     # does not begin writing every mix's episodes in the background. Its own
     # tests turn it on.
+    # The rails edition (§359) the same way.
     off = dataclasses.replace(config.settings, trending_bank=False,
-                              daily_edition=False)
+                              daily_edition=False, rails_edition=False)
     monkeypatch.setattr(config, "settings", off)
     monkeypatch.setattr(trending_bank, "settings", off)
     trending_bank.reset()
@@ -780,17 +783,6 @@ def isolated_x_threads(tmp_path, monkeypatch):
     x_threads.reset()
     yield
     x_threads.reset()
-
-
-@pytest.fixture(autouse=True)
-def isolated_linkedin_posts(tmp_path, monkeypatch):
-    """`/admin/linkedin`'s cards (§322) per test, like `/admin/x`'s above."""
-    import linkedin_posts
-
-    monkeypatch.setenv("LINKEDIN_POSTS_DB", str(tmp_path / "stores" / "linkedin_posts.db"))
-    linkedin_posts.reset()
-    yield
-    linkedin_posts.reset()
 
 
 @pytest.fixture(autouse=True)

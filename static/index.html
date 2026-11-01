@@ -28,7 +28,7 @@
   /* Light mode: the default since §250 (the 10.10 packet); dark is the
      listener's choice in Settings ("Dark mode"), kept on the device under
      `fam.theme`. Set on <html> before the first paint by the script at the
-     top of <body>. Only the chrome changes. Everything
+     top of the body. Only the chrome changes. Everything
      drawn over a picture - the Explore reel, a story, the VIBE! editor, the
      player's artwork and the captions panel - stays dark in both, the way a
      photo viewer does, so their colours are deliberately not variables. */
@@ -168,6 +168,12 @@
 
   .screen{ display:none; flex-direction:column; flex:1; min-height:0; }
   .screen.active{ display:flex; }
+  /* Every screen paints its own status bar: a strip pulled up over the
+     frame's empty one, the first thing in the screen, so it slides and
+     fades with the page it belongs to. The frame's own bar stayed put and
+     changed colour at once while the page under it was still moving. */
+  .screen-top{ flex:none; height:var(--sb-h); margin-top:calc(-1 * var(--sb-h));
+    background:var(--bg); pointer-events:none; }
   .scroll{ flex:1; min-height:0; overflow-y:auto; padding:2px 18px 18px; }
   .home-hero{ display:flex; flex-direction:column; }
   #screen-home{ position:relative; background:var(--bg); }
@@ -381,7 +387,7 @@
      side padding plus its own that keeps it where it was, and a background of
      its own so rails scrolling under its edge do not show through. */
   .myfam-header-fixed{ flex:none; padding:8px 38px 6px; background:var(--bg);
-    position:relative; z-index:2; }
+    position:relative; z-index:2; justify-content:flex-end; min-height:48px; }
   .myfam-head-actions{ display:flex; align-items:center; gap:10px; }
   /* DailyFAM's header without its bookshelf (moved to search, 10.12 #3)
      keeps the height the circle gave it, so the rails do not jump. */
@@ -391,7 +397,12 @@
     border:none; font-size:20px; font-weight:600; display:flex; align-items:center; justify-content:center;
     cursor:pointer; line-height:1; padding:0 0 2px;
   }
-  .myfam-header h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:28px; margin:0; }
+  /* daily / my / your, one rule (the owner's 10.31 notebook: "make them all
+     look like my"): YourFAM's heading had a smaller size of its own. */
+  .myfam-header h2, .yf-head .wordmark{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:28px; margin:0; }
+  /* Centred over the page (10.31 notebook); the header's buttons keep the
+     right-hand edge. */
+  .myfam-header-fixed .wordmark, .yf-head .wordmark{ position:absolute; left:50%; transform:translateX(-50%); }
   .search-bar{ margin:12px 18px 0; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:11px 14px; display:flex; align-items:center; gap:9px; color:var(--text-muted); font-size:13px; }
   .search-bar input{ flex:1; min-width:0; background:none; border:none; outline:none;
     color:var(--text); font-family:'Geist',sans-serif; font-size:13px; }
@@ -762,6 +773,17 @@
     color:rgba(244,239,228,0.72); }
   .reel-count:not(:empty)::before{ content:"\00b7"; margin:0 5px 0 4px; }
   .reel-count{ font-family:inherit; font-size:inherit; letter-spacing:0; color:inherit; }
+  /* The wait in front of a card's first word, named (option C, 10.31): three
+     steps under the title, each ticked when FamAudio says it really
+     happened. Nothing is held for them and none has a minimum time. */
+  .reel-steps{ list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column;
+    gap:3px; font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.04em;
+    color:#F4EFE4; text-shadow:0 1px 6px rgba(0,0,0,0.5); }
+  .reel-steps[hidden]{ display:none; }
+  .reel-steps li{ display:flex; gap:6px; opacity:0.45; }
+  .reel-steps li.now{ opacity:1; }
+  .reel-steps li.done{ opacity:0.8; }
+  .reel-steps .tick{ width:10px; flex:none; color:var(--copper); }
   .reel-transport{ display:flex; align-items:center; gap:12px; margin-top:11px;
     flex-wrap:wrap; }
   .reel-body .go-deeper-pill{ margin:0; }
@@ -912,7 +934,10 @@
   /* The whole page turns, not just the words on it (10.2 packet #3): the
      stage follows the finger and slides out as the next one slides in. The
      tab bar stays put above it, and the screen clips what is off it. */
-  #screen-explore{ overflow:hidden; position:relative; }
+  /* Clipped at the sides and bottom only, so the screen's status-bar
+     strip above it is not cut off (overflow would clip it too). */
+  #screen-explore{ clip-path:inset(calc(-1 * var(--sb-h)) 0 0 0); position:relative; }
+  #screen-explore > .screen-top{ background:#121016; }
   #screen-explore .tabbar{ z-index:3; background:var(--bg); }
   .reel-stage{ will-change:transform; }/* playFAM: a mix is a folder. The card shows what is inside without
      needing to be opened, because a folder you cannot see into is a guess. */
@@ -922,7 +947,7 @@
     display:flex; align-items:center; justify-content:center; color:var(--ink); }
   .mix-card-body{ flex:1; min-width:0; }
   .mix-name{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:14px; color:var(--text);
-    margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    margin-bottom:3px; line-height:1.25; overflow-wrap:break-word; }
   .mix-meta{ font-family:'Geist Mono', monospace; font-size:8.5px; letter-spacing:0.05em;
     text-transform:uppercase; color:var(--text-muted); margin-bottom:3px; }
   .mix-preview{ font-size:10px; line-height:1.35; color:var(--text-muted);
@@ -1433,7 +1458,13 @@
   .src-marks .src-mark:first-child{ margin-left:0; }
   .src-mark{ display:inline-flex; align-items:center; justify-content:center;
     border-radius:50%; color:var(--ink); font-family:'Geist', sans-serif;
-    font-weight:700; letter-spacing:0; text-transform:uppercase; flex:none; }
+    font-weight:700; letter-spacing:0; text-transform:uppercase; flex:none;
+    position:relative; overflow:hidden; }
+  /* The publisher's logo over the initials, transparent until it loads, so a
+     slow or missing icon leaves the mark rather than a blank circle. */
+  .src-mark img{ position:absolute; inset:0; width:100%; height:100%;
+    border-radius:50%; object-fit:cover; background:var(--paper);
+    opacity:0; transition:opacity 160ms ease; }
   .src-count{ flex:none; color:var(--copper); font-weight:700; }
 
   /* The popup. */
@@ -1477,7 +1508,7 @@
   .progress-wrap{ flex:none; padding:12px 20px 4px; }
 
   /* -------- the player, in Spotify's layout (§190) -------- */
-  #screen-player{ position:relative; overflow:hidden; }
+  #screen-player{ position:relative; clip-path:inset(calc(-1 * var(--sb-h)) 0 0 0); }
   #screen-player > *{ position:relative; z-index:1; }
   /* The episode's picture, fading into the page at its edges so the
      controls over it stay readable. Empty, it is the page's own colour.
@@ -1810,6 +1841,15 @@
     background:rgba(237,230,214,0.92); color:#2A2530; padding:3px 6px 2px;
     border-radius:4px; }
   .seed-thumb .sec-ready{ z-index:1; }
+  /* "7 friends listened" (10.31 notebook): the subject chip's twin, bottom
+     right, so the picture keeps its subject on the left. */
+  .seed-card .seed-friends{ position:absolute; right:8px; bottom:8px; z-index:1;
+    font-family:'Geist', sans-serif; font-size:9px; line-height:1.2;
+    white-space:nowrap; background:var(--copper); color:var(--ink);
+    padding:2px 6px; border-radius:4px; font-weight:600; }
+  /* Room for both on a narrow card: the subject gives way, never the count. */
+  .seed-thumb.has-friends .seed-tag{ max-width:calc(100% - 112px); overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
   /* Two lines, clamped, so a rail's cards are one height whatever their
      hooks are. `startup.MAX_HOOK` is the other half of this: a clamp is the
      one failure that hides itself, so the budget is asserted on the strings
@@ -2636,6 +2676,14 @@
   .sv-art{ width:38px; height:38px; flex:0 0 38px; border-radius:10px;
     background:var(--surface-2); color:var(--copper);
     display:flex; align-items:center; justify-content:center; }
+  /* Search DailyFAM's rows wear the episode's picture (the owner, 10.31):
+     the play glyph stays underneath, shown only if there is none or it
+     fails to load. */
+  #mfsBody .sv-art{ width:56px; height:42px; flex:0 0 56px; position:relative;
+    overflow:hidden; }
+  #mfsBody .sv-art img{ position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; }
+  #mfsBody .sv-art.has-img svg{ display:none; }
   .sv-main{ flex:1; min-width:0; }
   .sv-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:12.5px;
     color:var(--text); margin-bottom:3px; overflow:hidden; text-overflow:ellipsis;
@@ -2650,6 +2698,9 @@
      while its run scrolls under it. */
   /* The whole title in Search DailyFAM, wrapped rather than cut (10.5 #5). */
   #mfsBody .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
+    line-height:1.3; overflow-wrap:anywhere; }
+  /* And in Saved for Later. */
+  #svBody .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
     line-height:1.3; overflow-wrap:anywhere; }
   .mfs-letter{ position:sticky; top:0; z-index:1; padding:14px 18px 6px;
     background:var(--bg); color:var(--copper);
@@ -2720,9 +2771,8 @@
      messages, and what you show. Drawn with the app's own tokens and
      type - Bricolage Grotesque, Geist, Geist Mono - at the frame's scale,
      which is about four-fifths of the 390px the designs were drawn at. */
-  .yf-head{ flex:1; display:flex; align-items:center; justify-content:space-between;
-    padding:6px 0 2px; }
-  .yf-head .wordmark{ font-size:23px; margin:0; }
+  .yf-head{ flex:1; display:flex; align-items:center; justify-content:flex-end;
+    padding:6px 0 2px; position:relative; min-height:40px; }
   .yf-head-acts{ display:flex; gap:8px; }
   .yf-round{ width:36px; height:36px; border-radius:50%; flex:none;
     border:1px solid var(--border-strong); background:none; color:var(--text);
@@ -2789,6 +2839,13 @@
   /* The same row at the top of the rails screen (10.2 packet #1). */
   .myfam-circle{ margin:2px 0 16px; }
   .myfam-circle[hidden]{ display:none; }
+  /* The first rail sits close under the faces (the owner, after the
+     Saturday screenshot): the row's margin, the section's and the
+     heading's own stacked into a ~48px gap. Only when nothing (Go deeper)
+     sits between them. */
+  .myfam-circle:not([hidden]){ margin-bottom:0; }
+  .myfam-circle:not([hidden]) + #goDeeperBlock:empty ~ #myfamFeed > .feed-section:first-child{ margin-top:0; }
+  .myfam-circle:not([hidden]) + #goDeeperBlock:empty ~ #myfamFeed > .feed-section:first-child .feed-title{ margin-top:8px; }
   .myfam-circle .yf-friends{ margin-top:4px; gap:14px; }
   /* Instagram's row (§297, the Birthday packet): big round pictures, a
      gradient ring round anybody with a story you have not watched, a thin
@@ -3062,6 +3119,13 @@
   #screen-profile .scroll, #screen-person .scroll{ background:linear-gradient(180deg,
       color-mix(in srgb, var(--copper) 24%, transparent), transparent 290px) no-repeat;
     background-attachment:local; }
+  /* The wash reaches the top of the screen: the page's status-bar strip,
+     and a friend's back-arrow bar, take its first colour, so the gradient
+     starts at the frame's edge rather than under a dark band. Opaque, the
+     wash already laid on the page's colour, because the strip slides over
+     the screen it is replacing. */
+  #screen-profile > .screen-top, #screen-person > .screen-top,
+  #screen-person .yf-bar{ background:color-mix(in srgb, var(--copper) 24%, var(--bg)); }
   .yf-hero{ display:flex; flex-direction:column; align-items:center; text-align:center;
     margin-top:8px; }
   .yf-hero .yf-photo{ width:92px; height:92px; font-size:28px; }
@@ -3092,10 +3156,10 @@
     display:flex; align-items:flex-end; text-align:left; font-family:inherit; }
   .yf-pic-img{ position:absolute; inset:0; background-size:cover; background-position:center; }
   .yf-pic::after{ content:""; position:absolute; inset:0;
-    background:linear-gradient(180deg, transparent 45%, rgba(15,14,18,.82)); }
+    background:linear-gradient(180deg, transparent 25%, rgba(15,14,18,.88)); }
+  /* The whole title, never clamped: a vibe tile is read by its words. */
   .yf-pic-t{ position:relative; z-index:1; padding:7px; font-size:10.5px; font-weight:600;
-    line-height:1.2; color:#F4EFE4; display:-webkit-box; -webkit-line-clamp:3;
-    -webkit-box-orient:vertical; overflow:hidden; }
+    line-height:1.2; color:#F4EFE4; overflow-wrap:break-word; hyphens:auto; }
   /* A friend's mix tile carries the (+) that adds it to your own. */
   .yf-pic-wrap{ position:relative; display:flex; }
   .yf-pic-wrap .yf-pic{ flex:1; }
@@ -3361,6 +3425,7 @@
            what makes the rest of the guest rules readable (the profile tab
            asks for an account, and every gate's buttons lead here). -->
       <section class="screen" id="screen-welcome">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="scroll">
           <div class="entry-wrap">
             <div class="fam-logo" aria-label="FAM" style="padding:0 0 18px;">
@@ -3395,6 +3460,7 @@
       </section>
 
       <section class="screen" id="screen-auth">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="backToWelcome()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="authTitle">Sign up</h2>
@@ -3510,6 +3576,7 @@
            A primary action you have to go looking for is not a primary
            action. -->
       <section class="screen" id="screen-intro">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Opened from Settings, this screen is an editor rather than the
              first run, and an editor needs a way out that goes back where it
              came from. Hidden during the actual first run, which has Next and
@@ -3573,6 +3640,7 @@
            password change on it - is hidden during the first run, where there
            is no password to change yet. -->
       <section class="screen" id="screen-identity">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="intro-top" id="identityTop" hidden>
           <button class="sheet-close" onclick="closeIdentity()"
                   aria-label="Back"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -3700,6 +3768,7 @@
            has existed and been tested since myFAM was built and has been
            shown nowhere since its shelf came off that page. -->
       <section class="screen" id="screen-explorenew">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Explore New</h2>
@@ -3717,6 +3786,7 @@
            sheet inside the player - which is three places to look for one
            thing. -->
       <section class="screen" id="screen-settings">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Settings</h2>
@@ -3736,6 +3806,7 @@
            text because there is no list of the world's towns both complete
            and short enough to ship. See `preferences.Location`. -->
       <section class="screen" id="screen-location">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="intro-top">
           <button class="sheet-close" onclick="closeLocation()"
                   aria-label="Back"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -3779,6 +3850,7 @@
            tapping one plays it - the script already exists, so it costs
            nothing but the audio. -->
       <section class="screen" id="screen-myvibe">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>My Vibe</h2>
@@ -3792,6 +3864,7 @@
            case, derived rather than stored - so there is no pending state and
            nothing to accept. -->
       <section class="screen" id="screen-friends">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Friends</h2>
@@ -3817,6 +3890,7 @@
            already held these, and the ones whose script is already written
            are marked and sorted to the front. -->
       <section class="screen" id="screen-section">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="sectionTitle">Section</h2>
@@ -3836,6 +3910,7 @@
            cached episodes other listeners made that are most like it come
            up (`/api/myfam/search`). Replay only - a result never writes. -->
       <section class="screen" id="screen-myfamsearch">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Search DailyFAM</h2>
@@ -3850,6 +3925,7 @@
       </section>
 
       <section class="screen" id="screen-saved">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Save for Later</h2>
@@ -3863,6 +3939,7 @@
            direction: it replays other people's episodes, and a feed you swipe
            through is not a list of things you chose. Reached from Settings. -->
       <section class="screen" id="screen-history">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Recent listening history</h2>
@@ -3910,6 +3987,7 @@
 
       <!-- ============ HOME ============ -->
       <section class="screen" id="screen-home">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Explore from search (10.2 packet #5): a button in the top right,
              and a swipe from right to left that pulls this page away to show
              Explore underneath it. Since the 10.5 packet (#7) the button is
@@ -3997,13 +4075,14 @@
            everybody without an account. The splash covers the gap instead and
            `bootToFirstScreen` is the only thing that opens a screen. -->
       <section class="screen" id="screen-myfam">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Outside the scroller, so the wordmark, messages and the episode
              length stay put while the rails move under them (§127). The
              length control moved up here from the "Pick up where you left
              off" heading, which is not drawn at all until there is
              something to pick up. -->
         <div class="myfam-header myfam-header-fixed">
-            <h2 class="wordmark" aria-label="DailyFAM">Daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
+            <h2 class="wordmark" aria-label="dailyFAM">daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
         </div>
         <div class="scroll">
           <!-- The friends row from YourFAM, first thing on the page (10.2
@@ -4052,6 +4131,7 @@
       <!-- ============ PLAYFAM (past playlists) ============ -->
       <!-- ============ PLAYFAM (daily mixes) ============ -->
       <section class="screen" id="screen-playfam">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Outside the scroller, like DailyFAM's (§232), so the wordmark and
              the (+) sit exactly where DailyFAM's do and stay put. -->
         <div class="myfam-header myfam-header-fixed">
@@ -4113,6 +4193,7 @@
 
       <!-- ============ PLAYFAM — inside one mix ============ -->
       <section class="screen" id="screen-mixdetail">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="openPlayFAM()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="mixTitle">Mix</h2>
@@ -4126,6 +4207,7 @@
            cache only: nothing on this page writes an episode. Sorted and
            searched by the server (`/api/categories/episodes`). -->
       <section class="screen" id="screen-category">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="catTitle">Category</h2>
@@ -4157,6 +4239,7 @@
            a shared /m/ link. It can be played as it is, and the (+) adds a
            copy to this listener's own DailyFAM. -->
       <section class="screen" id="screen-publicmix">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="closePublicMix()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="publicMixTitle">Mix</h2>
@@ -4166,6 +4249,7 @@
 
       <!-- ============ DAILYFAM — name a new mix ============ -->
       <section class="screen" id="screen-newmix">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="cancelNewMix()" aria-label="Cancel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
           <h2 class="nm-step">Step 1 of 2 &middot; Name</h2>
@@ -4196,6 +4280,7 @@
 
       <!-- ============ PLAYFAM — choose topics ============ -->
       <section class="screen" id="screen-mixpicker">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="cancelMixPicker()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="pickerTitle">Choose topics</h2>
@@ -4215,6 +4300,7 @@
 
       <!-- ============ DETAIL (branch topic list) ============ -->
       <section class="screen" id="screen-detail">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="detail-title">Market Watch</h2>
@@ -4225,6 +4311,7 @@
 
       <!-- ============ PLAYER ============ -->
       <section class="screen" id="screen-player">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Spotify's layout (§190, the owner's): a down arrow top left that
              minimises (never stops, §142), the episode's picture behind its
              title, the title and the sources on one line, the transport,
@@ -4311,6 +4398,7 @@
 
       <!-- ============ PLAY ALL (segmented continuous player) ============ -->
       <section class="screen" id="screen-playall">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="player-top"><span class="kicker" id="pa-kicker">Playing all</span><span class="demo-badge" title="No API key: a built-in sample script is standing in for Claude">not your episode</span><span class="x" onclick="goBack()">✕</span></div>
         <button class="go-deeper-pill" onclick="openGoDeeper('playall')">GO DEEPER</button>
         <div class="segbar" id="paSegbar"></div>
@@ -4352,6 +4440,7 @@
            bottom as they do on the player. The ±15 and the draggable bar
            stay (`transport`), small, under the title. -->
       <section class="screen" id="screen-explore">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="reel-stage" id="reelStage">
           <div class="reel-bg" id="reelBg" aria-hidden="true"></div>
           <div class="reel-head">
@@ -4384,6 +4473,7 @@
               <!-- Where a reel puts the account's name, the episode's title. -->
               <div class="reel-title" id="reelTitle">Loading…</div>
               <div class="reel-sub"><span id="reelSub"></span><span class="reel-count" id="reelCount"></span></div>
+              <ul class="reel-steps" id="reelSteps" aria-live="polite" hidden></ul>
               <div class="reel-transport">
                 <button class="go-deeper-pill" id="reelDeeper" onclick="openGoDeeperOnReel()">GO DEEPER</button>
                 <div class="reel-controls">
@@ -4501,6 +4591,7 @@
            them before `loadProfile` replaced it. Two pages sharing one
            container is not a routing bug with four fixes, it is one bug. -->
       <section class="screen" id="screen-person">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="yf-bar" id="personTop"></div>
         <div class="scroll"><div class="yf-person" id="personBody"></div></div>
       </section>
@@ -4512,6 +4603,7 @@
            pool, and the length pill is myFAM's own - it sets how long a
            tapped episode is written, it does not filter by duration. -->
       <section class="screen" id="screen-topic">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="yf-bar">
           <button class="yf-back" onclick="goBack()" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
           <span class="yf-kicker">INTEREST</span>
@@ -4520,6 +4612,7 @@
       </section>
 
       <section class="screen" id="screen-profile">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="scroll">
           <div class="pf-top" id="pfTop"></div>
           <div id="profileBody"></div>
@@ -4542,6 +4635,7 @@
            Explore's place on the tab bar, and Explore moved into myFAM as
            the "What users are searching" rail. -->
       <section class="screen" id="screen-messages">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="yf-bar">
           <h2 class="yf-title">Messages</h2>
           <button class="yf-round gold" onclick="openNewChatModal()" aria-label="New message"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -4569,6 +4663,7 @@
            open on purpose. Sending is just sending: the old VIBE! button in
            this composer mixed a direct share up with a public vibe. -->
       <section class="screen" id="screen-thread">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="yf-thread-head">
           <div class="yf-thread-top">
             <button class="yf-back" onclick="goBack()" aria-label="Back to messages"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
@@ -11684,6 +11779,7 @@
     }
     renderMixBody(m);
     navigate("mixdetail");
+    noteMixOpen(m.id, false);
     if(!pushState) loadPushState(repaintMixWhen);
     // The recommendations are drawn from the catalogue; if it has not
     // arrived yet, draw them when it does rather than leaving the space empty.
@@ -11691,6 +11787,20 @@
       var again = mixById(currentMixId);
       if(again && again.id === id) rerenderMixKeepScroll(again);
     });
+  }
+
+  // Tells the server the mix was opened, or one of its episodes started
+  // (§359). Opening a mix nobody has played for 48 hours writes its episodes
+  // while the list is read; a play keeps it in the morning edition. Never
+  // waited on: the screen and the player go on whatever it answers.
+  function noteMixOpen(id, played){
+    if(!id) return;
+    try {
+      fetch("/api/mixes/" + encodeURIComponent(id) + "/open", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ played: !!played })
+      }).catch(function(){});
+    } catch(e) {}
   }
 
   function renderMixBody(m){
@@ -12301,6 +12411,7 @@
       endMixQueue();
     } else if(mixPlay){
       mixPlay.key = key;
+      noteMixOpen(mixPlay.id, true);
     }
     generate(key);
   }
@@ -13572,7 +13683,10 @@
   }
   function myFamSearchRow(ep, i){
     return '<div class="sv-row" onclick="playMyFamSearch(' + i + ')">'
-      + '<div class="sv-art"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></div>'
+      + '<div class="sv-art' + (ep.thumb ? ' has-img' : '') + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+      + (ep.thumb ? '<img src="' + escapeHtml(ep.thumb) + '" alt="" loading="lazy" decoding="async"'
+        + ' onerror="this.parentNode.classList.remove(\'has-img\'); this.remove()">' : '')
+      + '</div>'
       + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
       + escapeHtml(ep.title || ep.query) + '</div>'
       + '<div class="sv-meta">' + (ep.minutes || BROWSE_MINUTES) + ' MIN'
@@ -13609,8 +13723,18 @@
       ? '<img class="seed-img" src="' + escapeHtml(t.thumb) + '" alt="" loading="lazy"'
         + ' decoding="async" data-drawn="' + Date.now() + '" onerror="seedImgFailed(this)">'
       : '';
-    return '<div class="seed-thumb' + (img ? ' has-img' : '') + '">'
+    return '<div class="seed-thumb' + (img ? ' has-img' : '')
+      + (t && t.friends_listened > 0 ? ' has-friends' : '') + '">'
       + seedThumbSVG(t && t.icon) + img;
+  }
+  // "7 friends listened" (the owner's 10.31 notebook): social proof, bottom
+  // right of the picture, opposite the subject. The server counts mutual
+  // follows only and sends nothing for none, so a card never says "0".
+  function seedFriendsHtml(t){
+    var n = Math.floor(Number(t && t.friends_listened)) || 0;
+    if(!n || n < 1) return '';
+    return '<span class="seed-friends">' + n + (n === 1 ? ' friend' : ' friends')
+      + ' listened</span>';
   }
   function seedImgFailed(el){
     var box = el.parentNode;
@@ -13921,6 +14045,7 @@
           + seedThumbOpen(t)
           + seedActsHtml(t)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
+          + seedFriendsHtml(t)
           // Already written, so it starts instantly and costs nothing to
           // serve. The same marker the "view more" screen uses, and the same
           // class - two spellings of "ready" is how one of them stops being
@@ -13999,12 +14124,13 @@
   // fill this screen - the rail was showing six of something that already had
   // twenty-eight.
   var sectionTopics = {};
-  // The "View more" screen shows eight of the rail's ranking at a time, and
-  // Refresh deals the next eight (§165). `seen` is every tile this screen has
+  // The "View more" screen shows a page of the rail's ranking at a time, and
+  // Refresh deals the next page (§165). `seen` is every tile this screen has
   // shown since it opened, which is what "new" means - the server returns the
-  // first eight of the same ranking not in it, and starts again from the top
-  // once there are none.
-  var SECTION_PAGE = 8;
+  // first page of the same ranking not in it, and starts again from the top
+  // once there are none. Sixteen since the owner's 10.31 notebook ("when you
+  // click on view more, can more be displayed?"); it was eight.
+  var SECTION_PAGE = 16;
   var sectionState = { key: "", seen: [], busy: false, req: 0, head: [] };
   // Each rail's tiles as the page drew them, so Made for you's View more
   // opens on exactly the episodes the rail showed (§286): the rail and the
@@ -14150,6 +14276,7 @@
       return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startSectionTopic(\'' + t.id + '\')">'
         + seedThumbOpen(t) + seedActsHtml(t)
         + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
+        + seedFriendsHtml(t)
         + (t.cached ? '<span class="sec-ready">ready</span>' : '')
         + '</div>'
         + '<div class="seed-card-body">'
@@ -14289,15 +14416,14 @@
   // because a domain in the packet is a domain the voice can read out. This is
   // the display channel. Showing sources in the app is not a reason to let the
   // model cite them aloud.
-  // A publisher's mark, drawn rather than fetched.
+  // A publisher's mark: drawn initials, with the publisher's own icon laid
+  // over them when it loads.
   //
-  // The strip renders one of these per source, and it makes **no network
-  // request**: an episode's source list is a list of what somebody just
-  // listened to, and pinging five publishers to decorate it would tell each
-  // of them that, for every episode, whether or not anyone ever looked. The
-  // real favicon is loaded inside the popup, which only opens when the
-  // listener has asked to see the sources - and with no referrer, so it says
-  // nothing about which episode it was for.
+  // The strip used to make no network request at all and showed initials
+  // only; at the owner's direction it now shows the logos too (PROBLEMS.md
+  // §365). It asks only for the three it shows, with no referrer, so the
+  // request still says nothing about which episode it was for; a failure
+  // leaves the initials it was drawn on.
   //
   // The colour is a hash of the hostname, so one publisher is the same colour
   // every time and two adjacent ones are almost never the same.
@@ -14322,11 +14448,19 @@
     return SRC_HUES[sum % SRC_HUES.length];
   }
 
-  function srcMark(item, size){
+  function srcMark(item, size, withLogo){
     var px = size || 22;
+    var origin = withLogo && item.url ? originOf(item.url) : "";
+    if (!/^https?:\/\//.test(origin)) origin = "";
     return '<span class="src-mark" style="width:' + px + 'px;height:' + px
       + 'px;background:' + srcHue(item.label) + ';font-size:' + Math.round(px * 0.4)
-      + 'px;">' + escapeHtml(srcInitials(item.label)) + '</span>';
+      + 'px;">' + escapeHtml(srcInitials(item.label))
+      + (origin
+          ? '<img src="' + escapeHtml(origin) + '/favicon.ico" alt=""'
+            + ' referrerpolicy="no-referrer"'
+            + ' onload="this.style.opacity=1" onerror="this.remove()">'
+          : "")
+      + '</span>';
   }
 
   var sourcesNow = [];
@@ -14372,7 +14506,7 @@
     // that at this size is a row of dots nobody can tell apart, and the whole
     // list is one tap away.
     marks.innerHTML = sourcesNow.slice(0, 3).map(function(item){
-      return srcMark(item, 20);
+      return srcMark(item, 20, true);
     }).join("");
     count.textContent = sourcesNow.length > 3
       ? "+" + (sourcesNow.length - 3) : String(sourcesNow.length);
@@ -15488,9 +15622,9 @@
     return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" '
       + 'fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
   }
-  // The "Your" + FAM mark, the same three glyphs every other tab heading sets.
+  // The "your" + FAM mark, the same three glyphs every other tab heading sets.
   function yfWordmark(){
-    return '<h2 class="wordmark" aria-label="YourFAM">Your'
+    return '<h2 class="wordmark" aria-label="yourFAM">your'
       + '<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" '
       + 'fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" '
       + 'stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/>'
@@ -20122,7 +20256,10 @@
   // out, and then the reel shuffles the whole cached catalogue by itself;
   // What people are searching and Explore go round again. Every one is the
   // shared cache only (`/api/explore?feed=`), so none can write an episode.
+  // All (the owner's 10.31 notebook) is a mix of every other feed in one
+  // shuffled deal, and goes round again like the catalogue.
   var EXPLORE_FEEDS = [
+    { id: "all", label: "All", shuffled: true },
     { id: "made_for_you", label: "Made for you", runsOut: true },
     { id: "trending", label: "Trending", runsOut: true },
     { id: "recent", label: "Most recent", runsOut: true },
@@ -20440,6 +20577,9 @@
     drawReelStats();
     paintReelAsk();
     drawReelPicture(ep);
+    // Another card's steps go; this card's stay, since coming back to
+    // Explore redraws a card whose audio may still be on its way.
+    if(reelStepsRun && reelStepsRun.ep !== ep) reelStepsRun.done();
     resetReelCaptions();
     document.getElementById("reelHint").style.visibility = "visible";
   }
@@ -20654,8 +20794,11 @@
     setTimeout(refreshSavedState, 0);
     markPlaying();
     audioOwner = "reel";
+    var steps = startReelSteps(ep);
     FamAudio.play(ep.query, ep.minutes, {
+      onStage: steps.mark,
       onFirstAudio: function(){
+        steps.done();
         reelFailures = 0;          // a card that plays clears the streak
         startReelProgress(ep.minutes * 60);
         // The server counted this play before the first sample left it, so
@@ -20671,6 +20814,7 @@
         nextReel();
       },
       onError: function(err){
+        steps.done();
         // A card can expire between the feed loading and this play. The
         // server refuses rather than generating, so this costs nothing -
         // drop the dud and deal the next one.
@@ -20699,6 +20843,56 @@
         nextReel();
       }
     }, "", null, { cachedOnly: true });   // its own voice (§147)
+  }
+
+  // **The wait in front of a card's first word is named** (option C of the
+  // 10.31 loading options): Finding the episode until the server answers,
+  // Downloading audio until its first bytes arrive, Starting until the first
+  // sample plays - each from FamAudio's own `onStage` marks, never a timer.
+  // Unlike search's steps (§148) the audio is not held for them and no step
+  // has a minimum time (`latency-start-earlier`, `motion`). They appear only
+  // once a start has taken REEL_STEPS_AFTER_MS, so a card that starts at
+  // once never flashes them.
+  var REEL_STEPS = ["Finding the episode", "Downloading audio", "Starting"];
+  var REEL_STEPS_AFTER_MS = 250;
+  var reelStepsRun = null;
+  function startReelSteps(ep){
+    if(reelStepsRun) reelStepsRun.done();
+    var el = document.getElementById("reelSteps");
+    var at = 0, over = false, shown = false;
+    function draw(){
+      if(over || !shown || !el) return;
+      el.innerHTML = REEL_STEPS.map(function(name, i){
+        var state = i < at ? "done" : i === at ? "now" : "";
+        return '<li class="' + state + '"><span class="tick" aria-hidden="true">'
+          + (state === "done" ? "\u2713" : state === "now" ? "\u203a" : "")
+          + '</span>' + name + '</li>';
+      }).join("");
+      el.hidden = false;
+    }
+    var timer = setTimeout(function(){
+      // Another play took the audio meanwhile: this card waits on nothing.
+      if(over || reelCurrent !== ep || audioOwner !== "reel"){ run.done(); return; }
+      shown = true;
+      draw();
+    }, REEL_STEPS_AFTER_MS);
+    var run = {
+      ep: ep,
+      mark: function(stage){
+        if(audioOwner !== "reel"){ run.done(); return; }
+        var i = stage === "found" ? 1 : stage === "arriving" ? 2 : at;
+        if(i > at){ at = i; draw(); }
+      },
+      done: function(){
+        if(over) return;
+        over = true;
+        clearTimeout(timer);
+        if(reelStepsRun === run) reelStepsRun = null;
+        if(el){ el.hidden = true; el.innerHTML = ""; }
+      }
+    };
+    reelStepsRun = run;
+    return run;
   }
 
   // ---- Explore as a reel (10.5 packet #8) ----
@@ -21151,6 +21345,7 @@
     reelTimer = setInterval(refreshReelProgress, 200);
   }
   function stopReelProgress(){
+    if(reelStepsRun) reelStepsRun.done();   // a stopped card waits on nothing
     if(reelTimer){ clearInterval(reelTimer); reelTimer = null; }
     document.getElementById("reelFill").style.width = "0%";
   }

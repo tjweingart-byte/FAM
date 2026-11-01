@@ -115,6 +115,8 @@ myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
 
 <!-- rule:explore-reel -->
+> **Current (PROBLEMS.md §363, the owner 10.31):** the feed dropdown's first choice is **All** - every other feed (Made for you, Trending, What people are searching, Most recent, the catalogue) in one shuffled deal, an equal share of each, one card per episode (`app._explore_all_entries`); still the shared cache only.
+
 > **Current (PROBLEMS.md §255):** the back arrow top left is the Home logo (DailyFAM's house), and the feed dropdown sits under the wordmark (see `three-surfaces`).
 **Explore is a reel, with comments (§203, the 10.5 packet), at the owner's
 direction.** The episode's picture fills the page (`/api/episode/card`,
@@ -373,6 +375,7 @@ and where a speculative script is far more likely to be used than one triggered
 by a keystroke pause. That is where to spend it.
 
 <!-- rule:myfam-warms-briefs -->
+> **Current (PROBLEMS.md §359):** the rails no longer wait for a tap to be written. The rails edition (`rails_edition.py`, rule `rails-edition` below) writes every story the pool holds, whole, at 05:00 and 17:00 Eastern; the draw-scheduled cycle below still warms briefs, and finds a written story already cached.
 **The framework for spending it there is now built, and myFAM now drives it**
 *(PROBLEMS.md §83 for the framework, §105 for the driving).* Drawing the page
 schedules a cycle - never awaited - and what it warms is the **brief**: the one
@@ -382,6 +385,36 @@ above is honoured where it said it would be: search pays EI, myFAM does not.
 Warming whole *scripts* is a separate level and stays opt-in, because a
 speculative brief costs a fraction of a cent and a speculative episode costs an
 episode. See the settled constraint below.
+
+<!-- rule:rails-edition -->
+**The rails edition** *(PROBLEMS.md §359, at the owner's direction).* The
+rails (myFAM in code, "DailyFAM" on the listener's screen) are written whole
+before anybody taps, so a rail tap pays only for the voice:
+
+- **Twice a day**, at `RAILS_EDITION_HOURS` (05:00 and 17:00) on
+  `DAILY_EDITION_TIMEZONE`'s clock, one episode per story the live pool
+  **holds** (`stories.Pool.held` - what Made for you ranks, not just the
+  forty it offers), at `BROWSE_MINUTES`, into the shared cache under the
+  key a tap computes. The loop is the mixes' edition's
+  (`daily_edition.run_slot`): the claim, EI, the live lookup, the batch.
+- **Per story, never per listener**: the key holds no listener, so the bill
+  is bounded by the pool (`stories.POOL_STORE`), whatever the audience.
+- **No ceiling** by default (`RAILS_EDITION_MAX_EPISODES` /
+  `_MAX_DOLLARS` = 0, settable). `EDITION_CONCURRENCY` (6) writes at once.
+- **A sports story it wrote stays on the shelf** until the next rails
+  edition plus the grace hour (`stories.hold_until`, `HELD_FOR_EDITION`):
+  eight hours ended before the next edition with its episode still current.
+  Other domains already outlive the gap and are untouched. Holds are kept
+  apart (`_HELD`) and re-applied by every refresh; a held story fades on its
+  domain's half-life, so it stays offered without getting louder.
+- **A game in progress** is written, keeps its title, hook and category on
+  the tile, and is current `EDITION_IN_PROGRESS_SECONDS` (30 min); a tap
+  after that writes a new one (rule `ttl-from-evidence`). Nothing stretches
+  that window: an edition writer that finds it current leaves it alone
+  (`daily_edition._IN_PROGRESS`).
+- Not written ahead: a heard story's "what's new" follow-up (its words are
+  the listener's history) and a story that arrives between editions - the
+  tap writes those until the next edition. `RAILS_EDITION=0` turns it off.
 
 ## What makes a FAM episode different
 
@@ -744,6 +777,8 @@ to the writer is judged.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §363, the owner 10.31):** when the words name several subjects and the deepest is unpainted, the borrowed picture is the **most specific** painted one any of them reaches (a painted team beats another subject's league); an episode's category still walks its own branch first (§209).
+
 > **Current (PROBLEMS.md §282, the owner 10.15):** a picture follows the category **unless the words name a specific subject on another branch** - a league, team or person at `thumbnails.SUBJECT_DEPTH` or deeper (`_named_subject`): a Seahawks odds episode filed under sports betting wore the betting node's poker chips. Then the subject's picture (or its branch's, borrowed) is drawn, on the tile, the player and the vibe alike; the category is still the episode's for everything else (`one-category`). Words naming only a facet or a sport never outrank it (§209's boxing case).
 > **Current (PROBLEMS.md §255, the owner 10.12):** the down arrow top left is the **Home logo** - DailyFAM's tab glyph, the house - doing exactly what the arrow did: it minimises and never stops.
 > **Current (PROBLEMS.md §247, the owner 10.10):** a searched or Go Deeper episode's picture **follows its category, not the typed words**: EI's brief names a `category` before the first word, put on the live track beside its title (`live_captions.publish_category`), and the writer's replaces it; `/api/episode/card` draws from the written category, else the track's (`app._playing_category`), and says `placed`. The player asks again as each title lands and lets a placed picture replace a word match - never the picture of the tile that opened it.

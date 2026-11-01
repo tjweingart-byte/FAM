@@ -87,6 +87,7 @@ import stories as stories_mod
 import trending as trending_mod
 import trending_bank
 import daily_edition
+import rails_edition
 from live_facts import report as live_facts_report
 from research import NoEvidence, ResearchUnavailable, report as research_report
 import local_news as local_news_mod
@@ -99,7 +100,6 @@ import categories as categories_mod
 import topics as topics_mod
 import thumbnails as thumbnails_mod
 import x_threads
-import linkedin_posts
 import accounts as accounts_mod
 import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
@@ -292,7 +292,7 @@ def _say_where_a_key_could_come_from() -> None:
 def _announce_research() -> None:
     """Say at startup whether the configured research backend can actually run.
 
-    `parallel` is the default since §258 and needs a
+    `perplexity` is the default since §357 and needs a
     second credential. Without it a researched
     episode fails - it does not quietly search another way - and finding that
     out on a listener's first researched question is the shape of failure this
@@ -621,6 +621,28 @@ def _write_mix_ahead(mix, before=None) -> None:
         log.exception("daily edition: could not schedule a saved mix")
 
 
+def _rails_edition_report() -> dict:
+    """`rails_edition.report()`, never able to break the health page."""
+    try:
+        return rails_edition.report()
+    except Exception as exc:  # noqa: BLE001 - health must always answer
+        return {"enabled": bool(settings.rails_edition), "error": str(exc)}
+
+
+def _write_mix_on_open(mix) -> bool:
+    """A dormant mix was opened: write its episodes now, in the background
+    (§359). A mix the edition is keeping (played in the last 48 hours) is
+    already written and spends nothing. Never awaited, never raises."""
+    try:
+        if daily_edition.is_active(mix):
+            return False
+        return daily_edition.schedule_open(mix, generator=_EDITION_WRITER,
+                                           cache=SCRIPT_CACHE)
+    except Exception:  # noqa: BLE001 - opening a mix must not fail on a guess
+        log.exception("daily edition: could not schedule an opened mix")
+        return False
+
+
 def _trending_bank_report() -> dict:
     """`trending_bank.report()`, never able to break the health page."""
     try:
@@ -762,6 +784,13 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(daily_edition.run_forever(
             MIXES, generator=_EDITION_WRITER, cache=SCRIPT_CACHE,
             initial_delay=2 * settings.boot_stagger_seconds)))
+    # The rails edition (§359): every story the pool holds, written whole at
+    # 05:00 and 17:00 Eastern, so a rail tap is a cache hit. Started after
+    # the story sweep and the mixes' edition, so boot writes a full pool.
+    if settings.rails_edition:
+        _BACKGROUND.add(asyncio.create_task(rails_edition.run_forever(
+            generator=_EDITION_WRITER, cache=SCRIPT_CACHE,
+            initial_delay=3 * settings.boot_stagger_seconds)))
     # "Your mix is ready" at each mix's listen time, once its edition is
     # written (`push.py`). Started only where it can deliver; a server
     # without keys logs why once and keeps every listen time for later.
@@ -1112,13 +1141,6 @@ def _database_report() -> list[dict]:
     if x_threads._exists():
         try:
             stores.append(("x threads", "X_THREADS_DB", x_threads.store().path))
-        except Exception:  # pragma: no cover - a report is never load-bearing
-            pass
-    # Go Deeper on LinkedIn (§322): created by the first post pasted.
-    if linkedin_posts._exists():
-        try:
-            stores.append(("linkedin posts", "LINKEDIN_POSTS_DB",
-                           linkedin_posts.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
     # Requests per outside service per day (§179). Created by the first
@@ -2005,6 +2027,7 @@ async def health(request: Request) -> dict:
         # and how many pictures are live, waiting for a person, or failed.
         "thumbnails": thumbnails_mod.health(),
         "daily_edition": _daily_edition_report(),
+        "rails_edition": _rails_edition_report(),
         # The ranking vocabulary, and how much of it this deployment grew
         # rather than inherited. Worth reporting for the reason every other
         # optional layer here is: a tree that had stopped growing, or one
@@ -6366,6 +6389,33 @@ async def delete_mix(mix_id: str, request: Request):
     return {"ok": True}
 
 
+class MixOpenRequest(BaseModel):
+    #: True when an episode of the mix has started, not just its screen.
+    played: bool = False
+
+
+@app.post("/api/mixes/{mix_id}/open")
+async def open_mix(mix_id: str, request: Request,
+                   req: Optional[MixOpenRequest] = None):
+    """The mix's screen was opened, or one of its episodes started (§359).
+
+    Opening a **dormant** mix - not played, made or edited in
+    `DAILY_EDITION_ACTIVE_HOURS` - writes its episodes in the background, so
+    the seconds spent looking at the list are the writer's. A play stamps
+    the mix (`played_at`), which is what keeps it in the morning edition.
+    Never waits on a model call."""
+    _read_limit(request)
+    account = _require_account(request)
+    mix = MIXES.get(account, mix_id)
+    if mix is None:
+        raise HTTPException(status_code=404, detail="That mix no longer exists.")
+    dormant = not daily_edition.is_active(mix)
+    writing = _write_mix_on_open(mix) if dormant else False
+    if req is not None and req.played:
+        MIXES.note_played(account, mix_id)
+    return {"ok": True, "dormant": dormant, "writing": bool(writing)}
+
+
 def _may_be_notified(user_id: str) -> bool:
     """Whether "your mix is ready" may reach this account: always, unless the
     waitlist is running and they are not let in yet (WAITLIST.md)."""
@@ -7322,12 +7372,12 @@ async def myfam_section(request: Request,
     the rest of the first page and every Refresh - is an episode already
     written, on the listener's topics, so nothing on this screen past the
     rail can cause one to be written. When those run out the page is empty
-    and `caught_up`, never the first eight again. An installed client that
+    and `caught_up`, never the first page again. An installed client that
     sends no `cycle` gets what it always got.
 
-    With `page_size` (the app sends `topics.VIEW_MORE_PAGE`, eight) it is one
+    With `page_size` (the app sends `topics.VIEW_MORE_PAGE`, sixteen) it is one
     page of that length: the first tiles of the ranking not in `seen`, which
-    is how the screen's refresh deals eight new ones (§165). Without it, the
+    is how the screen's refresh deals a page of new ones (§165). Without it, the
     whole list, as before.
 
     Costs no model call and cannot cause one: this reorders the same fixed
@@ -7404,11 +7454,33 @@ async def myfam_section(request: Request,
     # impression below: a tile nobody was shown was not passed over.
     topics_mod.page_section(body, _seen_ids(seen), page_size,
                             wrap=not cycling)
+    _mark_friends_listened(user, body["topics"])
     if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
     body["algo"] = EVENTS.algo_stamp()
     return body
+
+
+def _mark_friends_listened(user: str, tiles: list[dict]) -> None:
+    """"7 friends listened" on a DailyFAM card (the owner's 10.31 notebook):
+    `friends_listened` on each tile at least one friend - a mutual follow,
+    `topics.friends_listened` - played in the last fortnight. A count and
+    never a name or an id, so it says nothing a friend's own profile would
+    not; a tile nobody listened to carries no field rather than a 0. Never
+    raises: social proof is never worth a page."""
+    if not user or not tiles:
+        return
+    try:
+        friends = [p["user_id"] for p in SOCIAL.friends(user)]
+        counts = topics_mod.friends_listened(EVENTS, friends, tiles)
+    except Exception:  # noqa: BLE001 - the cards draw without it
+        log.exception("could not count friends' listens")
+        return
+    for tile in tiles:
+        n = counts.get(tile.get("id") or "")
+        if n:
+            tile["friends_listened"] = n
 
 
 def _cycles_cached(key: str, cycle: str) -> bool:
@@ -7712,7 +7784,19 @@ async def myfam_search(request: Request,
                 0.0, now - (entry.get("sourced_at") or entry.get("created") or now)),
             "explicit": bool(entry.get("explicit")),
         })
+    await asyncio.to_thread(_picture_episodes, episodes)
     return {"episodes": episodes}
+
+
+def _picture_episodes(episodes: list[dict]) -> None:
+    """Give each Search DailyFAM row the picture the player would draw for
+    it (`thumb`), so the list shows what each episode is about rather than a
+    column of identical play buttons. Local reads only; "" when nothing is
+    approved, and the row keeps its play glyph."""
+    for episode in episodes:
+        episode["thumb"] = _picture_url(episode.get("query", ""),
+                                        episode.get("title", ""),
+                                        episode.get("minutes", 0))
 
 
 #: How far back the A to Z catalogue reads (10.2 feedback): every row kept
@@ -7777,6 +7861,7 @@ async def myfam_catalog(request: Request) -> dict:
     for episode in ordered:
         letter = _catalog_sort_key(episode["title"])[0]
         episode["letter"] = "#" if letter == "~" else letter
+    await asyncio.to_thread(_picture_episodes, ordered)
     return {"episodes": ordered}
 
 
@@ -7896,7 +7981,10 @@ def _mix_counts() -> dict:
     """How many mixes follow each of today's DailyFAM questions, by the
     words - the words are an edition episode's cache key (§143)."""
     try:
-        return {s["query"]: s["mixes"] for s in daily_edition.subjects(MIXES)}
+        # Every mix, dormant ones included (§359): this counts followers,
+        # not what the edition writes.
+        return {s["query"]: s["mixes"]
+                for s in daily_edition.subjects(MIXES, include_dormant=True)}
     except Exception:  # noqa: BLE001 - a count is never worth a failure
         log.exception("could not count mixes for the category pages")
         return {}
@@ -8383,6 +8471,8 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         for topic in section["topics"]:
             topic["cached"] = written(topic.get("query", ""))
         _name_written_tiles(section["topics"], minutes)
+    _mark_friends_listened(
+        user, [t for sec in feed["sections"] for t in sec["topics"]])
     feed["minutes"] = minutes
     # Logged here rather than inside build_feed, which stays a pure function of
     # the log - the whole ranking design is "computed on read, never stored",
@@ -9422,7 +9512,8 @@ async def trending_searches(request: Request) -> dict:
 
 #: What exploreFAM's dropdown can deal (10.12 packet #2), the first the
 #: default an installed client that sends no `feed` still gets.
-EXPLORE_FEEDS = ("searching", "made_for_you", "trending", "recent", "catalog")
+EXPLORE_FEEDS = ("searching", "made_for_you", "trending", "recent", "catalog",
+                 "all")
 #: How far back "Explore" (the whole cached catalogue) is read; `limit` of
 #: it, chosen at random, is sent.
 EXPLORE_CATALOG_SCAN = 400
@@ -9486,6 +9577,48 @@ def _explore_rail_entries(request: Request, listener: str, feed: str,
     return out
 
 
+def _explore_all_entries(request: Request, listener: str, store,
+                         limit: int) -> list[dict]:
+    """exploreFAM's **All**: Made for you, Trending, What people are
+    searching, Most recent and the catalogue, one deal (10.31 notebook).
+
+    An equal share of `limit` from each, so no one feed crowds the others
+    out, then whatever is left topped up from the catalogue; one card per
+    episode (by cache key), shuffled. Never raises - a source that fails
+    adds nothing and the rest still deal."""
+    share = max(1, limit // 5)
+    sources = []
+    for rail in _EXPLORE_RAILS:
+        sources.append(_explore_rail_entries(request, listener, rail, store))
+    try:
+        sources.append(store.recent(share, exclude_author=listener,
+                                    origin="search"))
+        sources.append(store.recent(share, exclude_author=listener))
+        catalog = store.recent(EXPLORE_CATALOG_SCAN, exclude_author=listener)
+    except Exception:  # noqa: BLE001 - the rails alone still deal
+        log.exception("could not read the cache for exploreFAM's All")
+        catalog = []
+    catalog = random.sample(catalog, len(catalog))
+    out: list[dict] = []
+    keys: set[str] = set()
+
+    def take(entries, room):
+        for entry in _visible_episodes(listener, entries):
+            if room <= 0 or len(out) >= limit:
+                return
+            if entry["key"] in keys:
+                continue
+            keys.add(entry["key"])
+            out.append(entry)
+            room -= 1
+
+    for entries in sources:
+        take(entries, share)
+    take(catalog, limit)
+    random.shuffle(out)
+    return out
+
+
 @app.get("/api/explore")
 async def explore(request: Request, limit: int = Query(30, ge=1, le=60),
                   feed: str = Query("searching", max_length=16)):
@@ -9512,7 +9645,9 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60),
     `recent` (every surface's cached episodes, newest first) and `catalog`
     (Explore: the whole cached catalogue, which the client shuffles). Every
     feed is the shared cache and nothing else - none can cause an episode
-    to be written - and none holds the listener's own.
+    to be written - and none holds the listener's own. `all` (10.31
+    notebook) is every one of them in one shuffled deal
+    (`_explore_all_entries`).
 
     **And searched episodes only** (§147). Every surface writes into the one
     shared cache, and Explore is what other listeners *searched* - never a
@@ -9558,6 +9693,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60),
         entries = await asyncio.to_thread(
             _explore_rail_entries, request, listener, feed, store)
         entries = _visible_episodes(listener, entries)[:limit]
+    elif feed == "all":
+        # **All** (the owner's 10.31 notebook): a mix of everything - every
+        # other feed's cards in one deal, each episode once, shuffled. Each
+        # source is the shared cache only, so the mix is too.
+        entries = await asyncio.to_thread(
+            _explore_all_entries, request, listener, store, limit)
     else:
         # The catalogue: a random `limit` of everything kept (the client
         # shuffles it again), so a card is never built for rows not sent.
@@ -11204,11 +11345,15 @@ async def admin_x(request: Request, status: str = "") -> dict:
     _require_admin(request)
     if status and status not in x_threads.STATUSES:
         raise HTTPException(status_code=422, detail="Unknown status.")
-    cards = []
+    cards, rejected = [], []
     if x_threads._exists():
         cards = await asyncio.to_thread(x_threads.store().all, status)
+        # What the agent turned away and why (§368), for a person to audit:
+        # never actionable, never shown as a card.
+        rejected = await asyncio.to_thread(x_threads.store().all,
+                                           x_threads.SET_ASIDE, "", 40)
     return {"health": x_threads.health(), "running": bool(_X_RUNNING),
-            "cards": cards, "kinds": x_threads.KINDS}
+            "cards": cards, "rejected": rejected, "kinds": x_threads.KINDS}
 
 
 @app.post("/api/admin/x/run")
@@ -11275,7 +11420,27 @@ async def admin_x_listen(req: XCard, request: Request) -> dict:
     link = _x_episode_link(card, request)
     if not link:
         raise HTTPException(status_code=404, detail="This card has no episode.")
+    # Heard through the very link the reply will carry: listening is also
+    # testing the link (§368). Approve with a link waits for this.
+    await asyncio.to_thread(x_threads.store().listened, req.post_id, time.time())
     return {"url": link}
+
+
+@app.post("/api/admin/x/match")
+async def admin_x_match(req: XCard, request: Request) -> dict:
+    """A card's proposed episode, once a person has written it in FAM: the
+    kept episode that answers the proposal goes on the card, unheard (§368)."""
+    _require_admin(request)
+    if not x_threads._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    try:
+        card = await asyncio.to_thread(x_threads.attach_written, SCRIPT_CACHE,
+                                       req.post_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"card": card}
 
 
 class XDecision(BaseModel):
@@ -11285,6 +11450,8 @@ class XDecision(BaseModel):
     text: str = Field("", max_length=1000)
     #: Leave the episode's link off this reply even when it has one.
     no_link: bool = False
+    #: The person checked every claim in the words (§368): no approval without.
+    verified: bool = False
 
 
 @app.post("/api/admin/x/decide")
@@ -11308,8 +11475,22 @@ async def admin_x_decide(req: XDecision, request: Request) -> dict:
     words = " ".join((req.text or card["draft"] or "").split())
     if not words:
         raise HTTPException(status_code=422, detail="There is no reply to post.")
+    if not req.verified:
+        raise HTTPException(status_code=422, detail=(
+            "Check every claim in the reply first, then tick that you did."))
     link = ""
     if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
+        if card.get("relevance", 0) < x_threads.EPISODE_RELEVANCE:
+            # Only a 4 or 5 against the original post carries an episode
+            # (§368); a card read in code, or from before the scale, does not.
+            raise HTTPException(status_code=409, detail=(
+                "Only a card scored 4 or 5 against the original post may link "
+                "an episode. Tick no link to send the comment alone."))
+        if not card.get("listened_at"):
+            # Nobody vouches for audio they have not heard (§368).
+            raise HTTPException(status_code=409, detail=(
+                "Listen to the episode through its link before linking it "
+                "(Listen first), or untick the link."))
         link = _x_episode_link(card, request)
     try:
         text = x_threads.compose(words, link)
@@ -11321,207 +11502,6 @@ async def admin_x_decide(req: XDecision, request: Request) -> dict:
             "share_url": link,
             "intent_url": x_threads.intent_url(req.post_id, text),
             "post_url": card["post"]["url"]}
-
-
-# --- Go Deeper on LinkedIn (§322, linkedin_posts.py) ---------------------------
-# LinkedIn posts that teach something, and the kept episode that goes deeper.
-# Nothing here reads LinkedIn: the page builds search links a person opens,
-# and a person pastes the posts worth commenting on. A person approves each
-# comment and posts it in LinkedIn ([no-social-posting]).
-
-
-@app.get("/admin/linkedin", include_in_schema=False)
-async def admin_linkedin_page(request: Request):
-    """The review page, `/admin/x`'s shape."""
-    if not _admin_configured():
-        raise HTTPException(status_code=404, detail="Not found")
-    page = PROJECT_ROOT / "admin_ui" / "linkedin.html"
-    return HTMLResponse(page.read_text(encoding="utf-8"),
-                        headers={"Cache-Control": "no-store",
-                                 "X-Robots-Tag": "noindex"})
-
-
-@app.get("/api/admin/linkedin")
-async def admin_linkedin(request: Request, status: str = "") -> dict:
-    """Every card, and the LinkedIn searches built from today's episodes."""
-    _require_admin(request)
-    if status and status not in linkedin_posts.STATUSES:
-        raise HTTPException(status_code=422, detail="Unknown status.")
-    cards = []
-    if linkedin_posts._exists():
-        cards = await asyncio.to_thread(lambda: linkedin_posts.store().all(status))
-    # The Trending edition and the cache are read off the loop.
-    searches = await asyncio.to_thread(lambda: linkedin_posts.search_links(
-        SCRIPT_CACHE, trending=x_threads.trending_now(),
-        limit=settings.x_threads_seeds))
-    health = await asyncio.to_thread(linkedin_posts.health)
-    return {"health": health, "cards": cards, "searches": searches,
-            "running": bool(_LINKEDIN_RUNNING),
-            "comment_chars": linkedin_posts.COMMENT_CHARS}
-
-
-#: One "Find posts" at a time: a second press while one runs would pay for
-#: the same searches twice.
-_LINKEDIN_RUNNING: list = []
-
-
-@app.post("/api/admin/linkedin/run")
-async def admin_linkedin_run(request: Request) -> dict:
-    """Find posts now (§327), in the background, inside the search ceilings:
-    public LinkedIn posts about FAM's kept episodes, through the research
-    vendor FAM already uses. Returns at once; the page polls while it runs."""
-    _require_admin(request)
-    ok, why = linkedin_posts.available()
-    if not ok:
-        raise HTTPException(status_code=409, detail=f"Cannot search for posts: {why}.")
-    if _LINKEDIN_RUNNING:
-        raise HTTPException(status_code=409, detail="A search is already running.")
-
-    async def _run() -> None:
-        try:
-            report = await linkedin_posts.run(SCRIPT_CACHE)
-            log.info("linkedin (admin run): %s",
-                     {k: v for k, v in report.items() if k != "seeds"})
-        except Exception:  # noqa: BLE001 - recorded, never raised into nothing
-            log.exception("linkedin: the run failed")
-        finally:
-            _LINKEDIN_RUNNING.clear()
-
-    _LINKEDIN_RUNNING.append(time.time())
-    _BACKGROUND.add(asyncio.create_task(_run()))
-    return {"started": True}
-
-
-class LinkedInPaste(BaseModel):
-    url: str = Field(..., min_length=1, max_length=600)
-    text: str = Field(..., min_length=1, max_length=6000)
-    author_name: str = Field("", max_length=120)
-    #: Add it although the screen turned it away; the card says why.
-    anyway: bool = False
-
-
-@app.post("/api/admin/linkedin/add")
-async def admin_linkedin_add(req: LinkedInPaste, request: Request) -> dict:
-    """A post a person found and pasted: screened, matched against every
-    kept episode, its comment drafted. A refusal says why, and the page
-    offers to add it anyway."""
-    _require_admin(request)
-    try:
-        card = await linkedin_posts.add(SCRIPT_CACHE, url=req.url, text=req.text,
-                                        author_name=req.author_name, anyway=req.anyway)
-    except linkedin_posts.NotAPost as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except linkedin_posts.Refused as exc:
-        # The page offers "Add it anyway" only for a refusal that may be
-        # overruled - never for a post that already has a card.
-        raise HTTPException(status_code=409, detail=str(exc),
-                            headers={"X-FAM-Overrule": "anyway"}) from exc
-    except linkedin_posts.OnThePage as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {"card": card}
-
-
-class LinkedInCard(BaseModel):
-    post_id: str = Field(..., min_length=1, max_length=40,
-                         pattern=r"^(activity|share|ugcPost):[0-9]+$")
-
-
-@app.post("/api/admin/linkedin/match")
-async def admin_linkedin_match(req: LinkedInCard, request: Request) -> dict:
-    """Match a card again: after the Go Deeper episode it needed was made."""
-    _require_admin(request)
-    if not linkedin_posts._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    try:
-        card = await linkedin_posts.rematch(SCRIPT_CACHE, req.post_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="No card for that post") from exc
-    return {"card": card}
-
-
-def _linkedin_episode(card: dict, chosen: Optional[int]) -> dict:
-    """The offered episode the person chose, only one that is the post's
-    subject: no episode, no link."""
-    episodes = card.get("episodes") or []
-    index = card.get("chosen", 0) if chosen is None else chosen
-    if not 0 <= index < len(episodes) or not linkedin_posts.linked(episodes[index]):
-        raise HTTPException(status_code=409, detail=(
-            "No kept episode is this post's subject. Make one: search its Go "
-            "Deeper question in FAM, then press Match again."))
-    return episodes[index]
-
-
-def _linkedin_link(episode: dict, request: Request) -> str:
-    """The episode as a share link FAM owns: one per episode, like `/admin/x`'s."""
-    try:
-        share = SHARES.create(linkedin_posts.SHARER, episode["query"],
-                              as_minutes(episode.get("minutes") or 1),
-                              episode.get("title") or "")
-    except sharing.ShareError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    link, public = _share_url(share["id"], request)
-    if not public:
-        raise HTTPException(status_code=409, detail=(
-            "This server does not know its public address, so the episode "
-            "link would not open on LinkedIn. Set PUBLIC_BASE_URL."))
-    return link
-
-
-class LinkedInListen(LinkedInCard):
-    chosen: Optional[int] = Field(None, ge=0, le=linkedin_posts.OFFERED - 1)
-
-
-@app.post("/api/admin/linkedin/listen")
-async def admin_linkedin_listen(req: LinkedInListen, request: Request) -> dict:
-    """The episode's link, to hear it before vouching for it."""
-    _require_admin(request)
-    if not linkedin_posts._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    card = await asyncio.to_thread(lambda: linkedin_posts.store().get(req.post_id))
-    if card is None:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    episode = _linkedin_episode(card, req.chosen)
-    return {"url": await asyncio.to_thread(_linkedin_link, episode, request)}
-
-
-class LinkedInDecision(LinkedInCard):
-    action: str = Field(..., pattern="^(approve|skip|reopen)$")
-    #: The comment as the person edited it on the card; the draft if empty.
-    text: str = Field("", max_length=2000)
-    #: Which offered episode goes in the Go Deeper line.
-    chosen: Optional[int] = Field(None, ge=0, le=linkedin_posts.OFFERED - 1)
-
-
-@app.post("/api/admin/linkedin/decide")
-async def admin_linkedin_decide(req: LinkedInDecision, request: Request) -> dict:
-    """A person's verdict on one card. Approve makes the episode's share
-    link, puts the comment together and hands it back with the post's
-    address; the page copies the words and opens the post. LinkedIn has no
-    prefilled comment box, so the person pastes. Nothing is posted here."""
-    _require_admin(request)
-    if not linkedin_posts._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    held = await asyncio.to_thread(linkedin_posts.store)
-    card = await asyncio.to_thread(held.get, req.post_id)
-    if card is None:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    now = time.time()
-    if req.action != "approve":
-        status = (linkedin_posts.SKIPPED if req.action == "skip"
-                  else linkedin_posts.WAITING)
-        await asyncio.to_thread(held.decide, req.post_id, status, now)
-        return {"post_id": req.post_id, "status": status}
-    episode = _linkedin_episode(card, req.chosen)
-    link = await asyncio.to_thread(_linkedin_link, episode, request)
-    try:
-        text = linkedin_posts.compose(req.text or card["draft"], episode, link)
-    except linkedin_posts.TooLong as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    chosen = card["chosen"] if req.chosen is None else req.chosen
-    await asyncio.to_thread(held.decide, req.post_id, linkedin_posts.APPROVED, now,
-                            posted=text, share_url=link, chosen=chosen)
-    return {"post_id": req.post_id, "status": linkedin_posts.APPROVED,
-            "text": text, "share_url": link, "post_url": card["url"]}
 
 
 @app.exception_handler(HTTPException)
