@@ -367,5 +367,5 @@ and `limit` = Lines.
 | 25022 | 34 | 364. Explore names the wait in front of a card's first word (2026-10-31) |
 | 25056 | 13 | 365. The player's source circles show the publishers' logos (2026-10-31) |
 | 25069 | 26 | 366. The archive keeps nothing Parallel returns (2026-10-31) |
-| 25095 | 17 | 367. A card shows the friends who listened, not a count (2026-10-31) |
-| 25112 | 21 | 368. Tapping a card's faces opens who listened (2026-10-31) |
+| 25095 | 17 | 393. A card shows the friends who listened, not a count (2026-10-31) |
+| 25112 | 21 | 394. Tapping a card's faces opens who listened (2026-10-31) |

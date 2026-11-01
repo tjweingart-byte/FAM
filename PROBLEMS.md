@@ -25092,7 +25092,7 @@ Parallel alone keeps nothing). Reviewed before the PR: `reset()` now zeroes
 `never_kept` with the other counters, and email 1 says the archive (not FAM)
 keeps nothing and asks again about episodes written ahead for everyone.
 
-## 367. A card shows the friends who listened, not a count (2026-10-31)
+## 393. A card shows the friends who listened, not a count (2026-10-31)
 
 §363 put "N friends listened" on DailyFAM's cards as a count, never a name.
 At the owner's direction a card now shows *who*: the friends' faces, drawn
@@ -25107,11 +25107,11 @@ cards - which `/api/myfam` and `/api/myfam/section` send. Never a user id:
 the faces are what a friend's profile already shows a friend. The client
 resolves them in `attachFriendFaces` (feed, remembered feed, View more); a
 response without faces still draws the words. Rule `friends-listened` is
-rewritten. **Pinned by** `tests/test_friend_faces_367.py`.
+rewritten. **Pinned by** `tests/test_friend_faces_393.py`.
 
-## 368. Tapping a card's faces opens who listened (2026-10-31)
+## 394. Tapping a card's faces opens who listened (2026-10-31)
 
-At the owner's direction the faces on a DailyFAM card (§367) are a button:
+At the owner's direction the faces on a DailyFAM card (§393) are a button:
 tapping them opens a sheet in the Sources popup's shape, titled "N friends
 listened", listing every friend who listened, newest first, each row their
 face, name and @handle and opening their profile (`openPersonProfile`). The
@@ -25119,9 +25119,9 @@ tap stops at the faces, so the card underneath does not play. To list
 everyone, `_mark_friends_listened` now gives each tile every friend's index
 rather than the first three (`FRIEND_FACES` is gone); the card still draws
 three and "+N". The indexes are small; each picture is still listed once per
-response. **Pinned by** `tests/test_friends_listened_sheet_368.py`.
+response. **Pinned by** `tests/test_friends_listened_sheet_394.py`.
 
-**Found reviewing §367-8 before the merge.** The faces opened only to a tap;
+**Found reviewing §393-4 before the merge.** The faces opened only to a tap;
 Enter and Space now open them too (`tabindex="0"` had promised a keyboard).
 A face now carries `explicit`, so a name that swears keeps its E in the sheet
 as it does on every other list of people (§224). `rememberFeed` drops the

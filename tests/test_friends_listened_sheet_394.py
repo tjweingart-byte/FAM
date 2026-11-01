@@ -1,4 +1,4 @@
-"""§368: tapping a card's faces opens who listened - every friend, newest
+"""§394: tapping a card's faces opens who listened - every friend, newest
 first, each row their profile - and never plays the card."""
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""§367: a DailyFAM card shows the faces of the friends who listened, drawn
+"""§393: a DailyFAM card shows the faces of the friends who listened, drawn
 the way the player's sources are - three overlapped, then "+N" - in place of
 "N friends listened", at the owner's direction."""
 from __future__ import annotations
@@ -49,7 +49,7 @@ def test_every_friend_listed_each_picture_once(monkeypatch, tmp_path):
     tiles = [{"id": "a", "query": "x"}, {"id": "b", "query": "y"}]
     faces = appmod._mark_friends_listened("me", tiles)
     assert tiles[0]["friends_listened"] == 5
-    # Every friend since §368 (tapping the faces lists them); the card
+    # Every friend since §394 (tapping the faces lists them); the card
     # draws the first three.
     assert [faces[i]["handle"] for i in tiles[0]["friends_faces"]] == [
         "h4", "h3", "h2", "h1", "h0"]

@@ -227,7 +227,7 @@ def load_fixtures() -> dict:
         if row["key"] == "most_played":
             for index, tile in enumerate(row["topics"]):
                 tile["cached"] = index < 3
-        # Friends' faces (§363, §367) on a few cards, as `/api/myfam` marks
+        # Friends' faces (§363, §393) on a few cards, as `/api/myfam` marks
         # them: a count and up to three face indexes on the tiles a friend
         # played, no field on the rest.
         if row["key"] in ("from_history", "followers"):

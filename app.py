@@ -7446,7 +7446,7 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     notebook; faces in place of "N friends listened" at the owner's
     direction): `friends_listened` (the count, kept for installed clients)
     and `friends_faces` - indexes into the returned list, newest listen first,
-    every friend, because tapping the faces lists who listened (§368); the
+    every friend, because tapping the faces lists who listened (§394); the
     card draws three and "+N" - on each tile at least one friend (a mutual
     follow, `topics.friends_who_listened`) played in the last fortnight.
 

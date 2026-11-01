@@ -94,7 +94,7 @@ def test_the_feed_marks_tiles_with_a_count_only(monkeypatch, tmp_path):
     faces = appmod._mark_friends_listened("me", tiles)
     assert tiles[0]["friends_listened"] == 1
     assert "friends_listened" not in tiles[1]
-    # Faces since §367: an index into the response's list, and nobody's id
+    # Faces since §393: an index into the response's list, and nobody's id
     # rides along - a name, a handle and a picture, never a user id.
     assert tiles[0]["friends_faces"] == [0]
     assert set(tiles[0]) == {"id", "query", "friends_listened", "friends_faces"}

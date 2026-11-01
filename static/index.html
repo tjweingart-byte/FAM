@@ -4930,7 +4930,7 @@
         </div>
       </div>
 
-      <!-- Who listened (§368): tapping a card's faces. -->
+      <!-- Who listened (§394): tapping a card's faces. -->
       <div class="modal-overlay" id="friendsListenedOverlay"
            onclick="if(event.target===this) closeFriendsListened()">
         <div class="modal-card src-card">
@@ -9535,7 +9535,7 @@
   // (faded, apart from the ones on this device). A per-device convenience,
   // emptied on log-out with the shelf.
   function rememberFeed(data){
-    // Friends' pictures (§368) are left out of the copy: each is up to
+    // Friends' pictures (§394) are left out of the copy: each is up to
     // 96 KB, a page can carry dozens, and a copy over the storage quota is
     // no copy at all. Offline, a face falls back to its initials.
     try {
@@ -13818,7 +13818,7 @@
     }
     var label = n === 1 ? (faces[0].name || faces[0].handle || "A friend") + " listened"
                         : n + " friends listened";
-    // Tapping the faces lists everyone who listened (§368), and never
+    // Tapping the faces lists everyone who listened (§394), and never
     // plays the card underneath.
     return '<span class="seed-friends has-faces" role="button" tabindex="0"'
       + ' aria-label="' + escapeHtml(label) + '" data-topic="' + escapeHtml(t.id || "") + '"'
@@ -13829,7 +13829,7 @@
       + (n > faces.length ? '<span class="src-count">+' + (n - faces.length) + '</span>' : '')
       + '</span>';
   }
-  // **Who listened** (§368): the faces' own sheet, the Sources popup's
+  // **Who listened** (§394): the faces' own sheet, the Sources popup's
   // shape - every friend who listened, newest first, each row their profile.
   function openFriendsListened(topicId){
     var t = myFamTopics[topicId];
