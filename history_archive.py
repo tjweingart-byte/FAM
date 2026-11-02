@@ -1869,6 +1869,15 @@ def as_sources(facts: list, first_number: int, now: Optional[datetime] = None) -
     return "\n".join(parts)
 
 
+def _tag_sync_report() -> dict:
+    try:
+        import tag_sync
+
+        return tag_sync.report()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _retag_report() -> dict:
     try:
         import category_tag
@@ -1918,6 +1927,8 @@ def report() -> dict:
             "retriever": _retriever_report(),
             # Re-files of written episodes, everywhere at once (§404).
             "retags": _retag_report(),
+            # The last check that the tag agrees everywhere (§405).
+            "tag_sync": _tag_sync_report(),
             "approved_providers": [p for p in settings.housekeeper_approved_providers
                                    if p not in REFUSED],
             **stats}

@@ -164,7 +164,7 @@ def test_a_bucket_failure_is_recorded_and_the_rest_still_moves(bucket, scripts, 
 
     _write(scripts, "k1")
     recorded = []
-    monkeypatch.setattr(pipeline_errors, "record", lambda *a: recorded.append(a))
+    monkeypatch.setattr(pipeline_errors, "record", lambda *a, **k: recorded.append(a))
 
     def refuse(name, metadata):
         raise audio_store.AudioStoreError("HTTP 503")

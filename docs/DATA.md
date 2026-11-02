@@ -106,7 +106,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 
 | File (env var) | Owner module(s) | Main tables | Per-listener? | Retention | Erase / Wipe |
 |---|---|---|---|---|---|
-| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; with R2 the audio is in the bucket only (§293), else capped at 512 MB. Nando's node (`category_node`) travels to the bucket: each audio object carries `x-amz-meta-category-node` and `x-amz-meta-episode` when he filed it (§404), and `category_tag.retag` moves row, objects and archive together | `author` cleared on erase (§208) · **Wiped** |
+| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; with R2 the audio is in the bucket only (§293), else capped at 512 MB. Nando's node (`category_node`) travels to the bucket: each audio object carries `x-amz-meta-category-node` and `x-amz-meta-episode` when he filed it (§404), and `category_tag.retag` moves row, objects and archive together; `tag_sync` checks nightly that they agree (§405) | `author` cleared on erase (§208) · **Wiped** |
 | **myfam.db** (`MYFAM_DB`) | `topics.py`, `learned_rank.py` | `events`, `learned_rank` | Yes | Forever (impressions 30 days) | Erased · **Wiped** (events and the model) |
 | **preferences.db** (`PREFS_DB`) | `preferences.py` | `preferences` | Yes | 1 row per listener | Erased · kept |
 | **accounts.db** (`ACCOUNTS_DB`) | `accounts.py`, `waitlist.py` | `accounts`, `sessions`, `identities`, `waitlist_settings`, `waitlist_outbox` | Yes | Sessions 90 days | Erased · **never wiped** |

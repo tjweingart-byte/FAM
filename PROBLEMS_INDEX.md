@@ -405,3 +405,4 @@ and `limit` = Lines.
 | 27180 | 61 | 402. Phase 2, piece 5: Consuela re-files, folds at 90 days and combs the whole archive (2026-11-02) |
 | 27241 | 62 | 403. Phase 2, piece 6: Sonic reads the archive, read-only, and brings back one dated packet (2026-11-02) |
 | 27303 | 46 | 404. Phase 2, piece 7: one category tag, everywhere, moved by one function (2026-11-02) |
+| 27349 | 38 | 405. Phase 2, piece 8: the nightly check that an episode's tag agrees everywhere (2026-11-02) |

@@ -385,6 +385,8 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # her consolidation on Netenyahu's loop and reports it (§399). Her
         # model call is made there, never on the archive's write thread.
         "history_archive.py": {"roster", "housekeeper", "retriever"},
+        # Keith's tag check (§405) reads his lock and registers his task.
+        "tag_sync.py": {"roster", "netenyahu"},
     }
     found = {}
     for p in ROOT.glob("*.py"):

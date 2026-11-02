@@ -361,7 +361,10 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    # Her longer jobs (§402): the full comb (every
                    # HOUSEKEEPER_COMB_DAYS, a page a night) and the 90-day pass.
                    ("housekeeper", "comb", 3, "housekeeper"),
-                   ("housekeeper", "second", 4, "housekeeper"))
+                   ("housekeeper", "second", 4, "housekeeper"),
+                   # Keith's first check (§405): the tag agrees everywhere.
+                   # Observe and report only.
+                   ("it", "tag_sync", 5, "it_agent"))
 _QUEUED_DAYS: set = set()
 
 

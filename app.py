@@ -694,6 +694,11 @@ async def lifespan(_: FastAPI):
         from agents import housekeeper as agent_housekeeper
 
         agent_housekeeper.register(SCRIPT_CACHE)
+        # Keith's nightly check that an episode's tag agrees everywhere
+        # (§405): only while IT_AGENT is on; it reports, never repairs.
+        import tag_sync
+
+        tag_sync.register(SCRIPT_CACHE)
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.

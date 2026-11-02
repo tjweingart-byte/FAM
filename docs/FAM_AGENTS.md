@@ -1206,7 +1206,9 @@ link and combs the whole archive weekly (§402, `agents/housekeeping.py`).
 Purging stored opinion and blog pieces waits for Mclovin's source screen
 (Phase 3). One function, `category_tag.retag`, moves an episode's node on
 its script row, its R2 objects and the archive together, and her re-files
-of a pruned node move its episodes with its facts (§404).
+of a pruned node move its episodes with its facts (§404). Keith's nightly
+check (`tag_sync.py`, `it:tag_sync`) reports where the three disagree; the
+owner repairs with `python tools/tag_sync.py --repair` (§405).
 
 **Purpose.** Keep the archive organised, trustworthy and free of repetition,
 filed so Sonic always knows where to go - and keep what will be valuable to

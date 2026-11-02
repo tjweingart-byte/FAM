@@ -27345,3 +27345,41 @@ without it, R2's copy in place keeping the class and signing the metadata,
 the episode record's node, retag moving all three, the dry run, an unfiled
 episode left alone, a bucket failure recorded while the rest moves, never
 raises, a pruned node's episodes moving, the cache handed over at startup).
+
+## 405. Phase 2, piece 8: the nightly check that an episode's tag agrees everywhere (2026-11-02)
+
+Decided item 5's reconciliation job: "checks every episode id and node id
+agree between MongoDB, the script cache and R2's objects; Keith reports
+drift". `tag_sync.py`.
+
+- **The script row is the record** (§371, §404). For every episode Nando
+  filed (`SqliteScriptCache.tagged`, by key), the check reads each audio
+  object's metadata with `head` - a read - and the archive's record of the
+  episode, and names each disagreement: `dead node` (the row names a node
+  the tree no longer holds), `object missing`, `r2 untagged` (uploaded
+  before §404), `r2 node drift`, `r2 episode drift`, `archive untagged`
+  (written before §404), `archive node drift`. An episode with no archive
+  record - written from live data alone - is not drift.
+- **It reports; it repairs nothing on its own.** Keith's fixes are
+  observe-only until the owner switches each on (build prompt, Phase 4), so
+  the check writes nothing: drift goes to /admin (`pipeline_errors`,
+  "episode", a notice - nobody heard less) and `/api/health` → `archive` →
+  `tag_sync`. The owner repairs with `python tools/tag_sync.py --repair`
+  (`--dry-run` first), which pushes the row's node to the bucket and the
+  archive (`category_tag.push`). A dead node is listed, never repaired
+  there: which node replaces it is a re-file, Consuela's (§402).
+- **Keith's first task**: `it:tag_sync`, nightly at 05:00 Eastern
+  (`netenyahu.SCHEDULE`), only while `IT_AGENT` is on and his rule book is
+  signed; 2,000 episodes a night by a cursor that comes round again. Keith
+  is otherwise Phase 4; this is the one check of his the build prompt puts
+  in Phase 2. The tool runs the same check over everything at any time.
+- Staging has no bucket; the check reads the row and the archive there.
+
+**Fixed with it**: §404's `category_tag` recorded a failed step under a
+stage /admin does not count ("archive" is not one of `pipeline_errors`'
+stages); it is now "episode", a notice, like the check's.
+
+Tests: `tests/test_tag_sync_405.py` (agreement is not drift, every kind of
+drift named, a pre-§404 record untagged, no record not drift, nothing
+repaired and /admin told, the owner's repair pushing the row out and leaving
+a dead node alone, the cursor, no bucket, Keith's observe-only task).

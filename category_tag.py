@@ -22,7 +22,8 @@ script store on every call (§376), so the row is the invalidation.
 
 A step that fails does not stop the others; it is recorded (`failed`, and
 `pipeline_errors` where /admin shows it), and the nightly sync check (§405)
-finds and repairs the drift. Never raises. An episode with no node written
+finds the drift; `push` - run by the owner, `tools/tag_sync.py --repair` -
+repairs it from the script row. Never raises. An episode with no node written
 (Nando never filed it) is left as it is: the writer's words still place it.
 """
 from __future__ import annotations
@@ -110,9 +111,11 @@ def retag(cache, key: str, node: str, *, reason: str = "",
             try:
                 import pipeline_errors
 
-                pipeline_errors.record("archive", "re-file incomplete",
+                # "episode", a notice: nobody heard less (§405).
+                pipeline_errors.record("episode", "re-file incomplete",
                                        f"{key[:60]}: {'; '.join(out['failed'])[:240]}"
-                                       " - the nightly sync check repairs it")
+                                       " - the nightly sync check finds it",
+                                       severity=pipeline_errors.NOTICE)
             except Exception:  # noqa: BLE001
                 pass
         log.info("re-filed %r from %r to %r (%s): %s", key[:60], old, node, reason,
@@ -122,6 +125,49 @@ def retag(cache, key: str, node: str, *, reason: str = "",
         _count("failed")
         out["failed"].append(f"{type(exc).__name__}: {exc}")
         log.exception("could not re-file %r", key[:60])
+        return out
+
+
+def push(cache, key: str, dry_run: bool = False) -> dict:
+    """Make the bucket and the archive agree with the script row, which is
+    the record (§405): the repair for drift `tag_sync` found. Never raises."""
+    import cache as cache_mod
+
+    out = {"key": key, "node": "", "objects": 0, "archive": {}, "failed": []}
+    try:
+        node = cache.category_node(key)
+        out["node"] = node
+        if not node:
+            return out
+        episode = cache_mod.episode_id(key, cache.sourced_at(key))
+        if dry_run:
+            return {**out, "would": True}
+        try:
+            import history_archive as ha
+
+            store = ha.backend()
+            if store is not None and episode:
+                held = store.episode_node(episode)
+                if held is not None and held != node:
+                    out["archive"] = store.tag_episode(episode, held, node)
+        except Exception as exc:  # noqa: BLE001
+            out["failed"].append(f"archive: {type(exc).__name__}: {exc}")
+        objects = list(getattr(cache, "audio_objects", lambda _k: [])(key))
+        if objects:
+            import audio_store
+
+            bucket = audio_store.get_store()
+            for name in objects:
+                try:
+                    if bucket is None:
+                        raise audio_store.AudioStoreError("no bucket here")
+                    bucket.set_metadata(name, metadata(node, episode))
+                    out["objects"] += 1
+                except Exception as exc:  # noqa: BLE001
+                    out["failed"].append(f"r2 {name}: {exc}")
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out["failed"].append(f"{type(exc).__name__}: {exc}")
         return out
 
 
