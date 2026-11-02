@@ -237,8 +237,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
   length once the player has it, else the minutes) and finished episodes'
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
-- Follows asymmetric; friend = mutual, derived; cards say "N friends
-  listened" (§363). [op-follow-graph] [friends-listened]
+- Follows asymmetric; friend = mutual, derived; cards show the
+  friends' faces (§393). [op-follow-graph] [friends-listened]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
   only what they published: place (§219), friend count, friends to friends (§285) (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),

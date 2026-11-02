@@ -4221,21 +4221,23 @@ def rank_friends(
     return out[:limit]
 
 
-def friends_listened(store: EventStore, friends: Iterable[str],
-                     tiles: Iterable[dict], now: Optional[float] = None,
-                     window: float = FRIENDS_WINDOW) -> dict[str, int]:
-    """**How many of your friends listened to each tile** - the social proof
-    on DailyFAM's cards ("7 friends listened", the owner's 10.31 notebook).
+def friends_who_listened(store: EventStore, friends: Iterable[str],
+                         tiles: Iterable[dict], now: Optional[float] = None,
+                         window: float = FRIENDS_WINDOW
+                         ) -> dict[str, list[str]]:
+    """**Which of your friends listened to each tile**, most recent first -
+    the faces on DailyFAM's cards (the owner's 10.31 notebook, then their
+    faces in place of the count at the owner's direction).
 
     `friends` is the mutual case only (`social.friends`), never the wider
-    `circle_of`: the card says *friends*, and somebody you follow who does
-    not follow back is not one. Counted by person, not by play - a friend who
-    played it three times is one friend - inside `FRIENDS_WINDOW`, by the
-    normalised question like every other listen count (`_tally_listens`), so
-    a friend's search of the same question counts.
+    `circle_of`: the card shows *friends*, and somebody you follow who does
+    not follow back is not one. By person, not by play - a friend who played
+    it three times is one face - inside `FRIENDS_WINDOW`, by the normalised
+    question like every other listen count (`_tally_listens`), so a friend's
+    search of the same question counts.
 
-    Returns tile id -> count, with tiles nobody listened to left out: a card
-    that said "0 friends listened" would be a number with nothing behind it.
+    Returns tile id -> friend ids, newest listen first, with tiles nobody
+    listened to left out: a card never shows an empty row of faces.
     """
     friends = {u for u in friends if u}
     tiles = [t for t in tiles if t.get("id")]
@@ -4243,25 +4245,37 @@ def friends_listened(store: EventStore, friends: Iterable[str],
         return {}
     now = time.time() if now is None else now
     known = known_topics(now)
-    by_question: dict[str, set[str]] = {}
-    by_id: dict[str, set[str]] = {}
-    for user, topic_id, text, _at, *_kind in store.listens_between(
+    by_question: dict[str, dict[str, float]] = {}
+    by_id: dict[str, dict[str, float]] = {}
+    for user, topic_id, text, at, *_kind in store.listens_between(
             now - window, now + 1):
         if user not in friends:
             continue
         query = text or (known[topic_id].query if topic_id in known else "")
         norm = _norm_question(query)
-        if norm:
-            by_question.setdefault(norm, set()).add(user)
-        if topic_id:
-            by_id.setdefault(topic_id, set()).add(user)
-    out: dict[str, int] = {}
+        for book, key in ((by_question, norm), (by_id, topic_id)):
+            if key:
+                seen = book.setdefault(key, {})
+                seen[user] = max(at, seen.get(user, 0.0))
+    out: dict[str, list[str]] = {}
     for tile in tiles:
-        who = set(by_id.get(tile["id"], ()))
-        who |= by_question.get(_norm_question(tile.get("query") or ""), set())
+        who = dict(by_id.get(tile["id"], {}))
+        for user, at in by_question.get(
+                _norm_question(tile.get("query") or ""), {}).items():
+            who[user] = max(at, who.get(user, 0.0))
         if who:
-            out[tile["id"]] = len(who)
+            out[tile["id"]] = sorted(who, key=lambda u: (-who[u], u))
     return out
+
+
+def friends_listened(store: EventStore, friends: Iterable[str],
+                     tiles: Iterable[dict], now: Optional[float] = None,
+                     window: float = FRIENDS_WINDOW) -> dict[str, int]:
+    """**How many of your friends listened to each tile** - the count behind
+    the faces (`friends_who_listened`), and the "+N" past the third. Tiles
+    nobody listened to are left out, never a 0."""
+    return {tid: len(who) for tid, who in friends_who_listened(
+        store, friends, tiles, now, window).items()}
 
 
 #: How many Explore New shows. Six, and deliberately not `SECTION_SIZE`: that

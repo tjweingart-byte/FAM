@@ -4,7 +4,7 @@
 `consent.py` and the app are unchanged. Nothing asks for or collects a date of
 birth, location or gender until the owner approves this wording
 (`docs/AGENTS_BUILD_PROMPT.md`, Phase 2, the activation step; decided items 2
-and 11; PROBLEMS.md §393). Delete this file once the approved wording is in
+and 11; PROBLEMS.md §395). Delete this file once the approved wording is in
 `pages/privacy.html` and the app.
 
 Not legal advice. The Terms already name the points a lawyer should confirm

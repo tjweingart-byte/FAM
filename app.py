@@ -7456,7 +7456,7 @@ async def myfam_section(request: Request,
     # impression below: a tile nobody was shown was not passed over.
     topics_mod.page_section(body, _seen_ids(seen), page_size,
                             wrap=not cycling)
-    _mark_friends_listened(user, body["topics"])
+    body["friend_faces"] = _mark_friends_listened(user, body["topics"])
     if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
@@ -7464,25 +7464,47 @@ async def myfam_section(request: Request,
     return body
 
 
-def _mark_friends_listened(user: str, tiles: list[dict]) -> None:
-    """"7 friends listened" on a DailyFAM card (the owner's 10.31 notebook):
-    `friends_listened` on each tile at least one friend - a mutual follow,
-    `topics.friends_listened` - played in the last fortnight. A count and
-    never a name or an id, so it says nothing a friend's own profile would
-    not; a tile nobody listened to carries no field rather than a 0. Never
-    raises: social proof is never worth a page."""
+def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
+    """Who of your friends listened, on a DailyFAM card (the owner's 10.31
+    notebook; faces in place of "N friends listened" at the owner's
+    direction): `friends_listened` (the count, kept for installed clients)
+    and `friends_faces` - indexes into the returned list, newest listen first,
+    every friend, because tapping the faces lists who listened (§394); the
+    card draws three and "+N" - on each tile at least one friend (a mutual
+    follow, `topics.friends_who_listened`) played in the last fortnight.
+
+    The faces are listed once per response rather than per tile, because a
+    picture is up to `social.MAX_AVATAR` and one friend may be on a dozen
+    cards. Name, handle, picture and the E mark (`explicit`, §224) only -
+    what a friend's own profile already shows a friend - and never an id. A tile nobody listened to
+    carries no field. Never raises: social proof is never worth a page."""
     if not user or not tiles:
-        return
+        return []
     try:
-        friends = [p["user_id"] for p in SOCIAL.friends(user)]
-        counts = topics_mod.friends_listened(EVENTS, friends, tiles)
+        people = {p["user_id"]: p for p in SOCIAL.friends(user)}
+        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles)
     except Exception:  # noqa: BLE001 - the cards draw without it
-        log.exception("could not count friends' listens")
-        return
+        log.exception("could not read friends' listens")
+        return []
+    faces: list[dict] = []
+    index: dict[str, int] = {}
     for tile in tiles:
-        n = counts.get(tile.get("id") or "")
-        if n:
-            tile["friends_listened"] = n
+        who = listened.get(tile.get("id") or "")
+        if not who:
+            continue
+        tile["friends_listened"] = len(who)
+        shown = []
+        for uid in who:
+            if uid not in index:
+                person = people.get(uid) or {}
+                index[uid] = len(faces)
+                faces.append({"name": person.get("name") or "",
+                              "handle": person.get("handle") or "",
+                              "avatar": person.get("avatar") or "",
+                              "explicit": bool(person.get("explicit"))})
+            shown.append(index[uid])
+        tile["friends_faces"] = shown
+    return faces
 
 
 def _cycles_cached(key: str, cycle: str) -> bool:
@@ -8473,7 +8495,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         for topic in section["topics"]:
             topic["cached"] = written(topic.get("query", ""))
         _name_written_tiles(section["topics"], minutes)
-    _mark_friends_listened(
+    feed["friend_faces"] = _mark_friends_listened(
         user, [t for sec in feed["sections"] for t in sec["topics"]])
     feed["minutes"] = minutes
     # Logged here rather than inside build_feed, which stays a pure function of

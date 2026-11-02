@@ -1847,6 +1847,19 @@
     font-family:'Geist', sans-serif; font-size:9px; line-height:1.2;
     white-space:nowrap; background:var(--copper); color:var(--ink);
     padding:2px 6px; border-radius:4px; font-weight:600; }
+  /* Faces, the sources pill in miniature: the same dark pill, overlapped
+     marks and a copper "+N". */
+  .seed-card .seed-friends.has-faces{ display:flex; align-items:center; gap:5px;
+    background:rgba(42,37,48,0.88); color:var(--copper); padding:3px 7px 3px 3px;
+    border-radius:999px; font-family:'Geist Mono', monospace; font-size:10px;
+    border:1px solid rgba(237,230,214,0.18); }
+  .seed-friends.has-faces .friend-face{ width:22px; height:22px; font-size:9px; }
+  .seed-friends.has-faces .src-marks .src-mark{ border-color:rgba(42,37,48,0.88); }
+  .seed-friends.has-faces .src-mark img{ opacity:0; }
+  .seed-card .seed-friends.has-faces{ cursor:pointer; }
+  /* The sheet's rows draw the same face at the logo's size. */
+  #flList .friend-face{ width:30px; height:30px; font-size:12px; }
+  .seed-friends.has-faces:not(:has(.src-count)){ padding-right:3px; }
   /* Room for both on a narrow card: the subject gives way, never the count. */
   .seed-thumb.has-friends .seed-tag{ max-width:calc(100% - 112px); overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
@@ -4914,6 +4927,20 @@
             </button>
           </div>
           <div class="src-list" id="srcList"></div>
+        </div>
+      </div>
+
+      <!-- Who listened (§394): tapping a card's faces. -->
+      <div class="modal-overlay" id="friendsListenedOverlay"
+           onclick="if(event.target===this) closeFriendsListened()">
+        <div class="modal-card src-card">
+          <div class="src-card-top">
+            <div class="modal-title" id="flTitle" style="margin:0;">Friends who listened</div>
+            <button class="sheet-close" onclick="closeFriendsListened()" aria-label="Close">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+          <div class="src-list" id="flList"></div>
         </div>
       </div>
 
@@ -9508,7 +9535,18 @@
   // (faded, apart from the ones on this device). A per-device convenience,
   // emptied on log-out with the shelf.
   function rememberFeed(data){
-    try { localStorage.setItem("famLastFeed", JSON.stringify(data)); } catch(e){}
+    // Friends' pictures (§394) are left out of the copy: each is up to
+    // 96 KB, a page can carry dozens, and a copy over the storage quota is
+    // no copy at all. Offline, a face falls back to its initials.
+    try {
+      var copy = data;
+      if(data && data.friend_faces && data.friend_faces.length){
+        copy = Object.assign({}, data, { friend_faces: data.friend_faces.map(function(f){
+          return Object.assign({}, f, { avatar: "" });
+        }) });
+      }
+      localStorage.setItem("famLastFeed", JSON.stringify(copy));
+    } catch(e){}
   }
   function rememberedFeed(){
     try { return JSON.parse(localStorage.getItem("famLastFeed") || "null"); } catch(e){ return null; }
@@ -13727,14 +13765,103 @@
       + (t && t.friends_listened > 0 ? ' has-friends' : '') + '">'
       + seedThumbSVG(t && t.icon) + img;
   }
-  // "7 friends listened" (the owner's 10.31 notebook): social proof, bottom
-  // right of the picture, opposite the subject. The server counts mutual
-  // follows only and sends nothing for none, so a card never says "0".
+  // **Who of your friends listened** (the owner's 10.31 notebook; faces in
+  // place of "N friends listened" at the owner's direction): social proof,
+  // bottom right of the picture, opposite the subject, drawn the way the
+  // player's sources are - three overlapped faces, then "+N". The server
+  // lists each friend's face once per response (`friend_faces`) and a tile
+  // carries indexes into it; they are resolved into `FRIEND_FACE_BOOK` here so
+  // a picture rides once however many cards it is on. Mutual follows only,
+  // and nothing for none, so a card never shows an empty row.
+  var FRIEND_FACE_BOOK = {};
+  function attachFriendFaces(data){
+    var faces = (data && data.friend_faces) || [];
+    var keys = faces.map(function(f, i){
+      // A handle names one person; without one, the name and picture do,
+      // so two handle-less friends of one name keep their own faces.
+      var k = f.handle ? "@" + f.handle
+        : "~" + (f.name || "") + "~" + String(f.avatar || "").slice(-32) + "~" + i;
+      FRIEND_FACE_BOOK[k] = f;
+      return k;
+    });
+    function mark(t){
+      if(!t || !Array.isArray(t.friends_faces)) return;
+      t.friendKeys = t.friends_faces.map(function(i){ return keys[i]; })
+        .filter(function(k){ return k && FRIEND_FACE_BOOK[k]; });
+    }
+    ((data && data.sections) || []).forEach(function(sec){
+      (sec.topics || []).forEach(mark);
+    });
+    ((data && data.topics) || []).forEach(mark);
+    ((data && data.groups) || []).forEach(function(g){ (g.topics || []).forEach(mark); });
+  }
+  function friendFaceHtml(f){
+    var label = (f.name || f.handle || "a friend") + " listened";
+    return '<span class="src-mark friend-face" title="' + escapeHtml(label) + '"'
+      + ' style="background:' + personHue(f.handle || f.name) + ';">'
+      + escapeHtml(deriveInitials(f.name || f.handle || "?"))
+      + (f.avatar ? '<img src="' + escapeHtml(f.avatar) + '" alt=""'
+          + ' onload="this.style.opacity=1" onerror="this.remove()">' : '')
+      + '</span>';
+  }
   function seedFriendsHtml(t){
     var n = Math.floor(Number(t && t.friends_listened)) || 0;
     if(!n || n < 1) return '';
-    return '<span class="seed-friends">' + n + (n === 1 ? ' friend' : ' friends')
-      + ' listened</span>';
+    var faces = ((t && t.friendKeys) || []).map(function(k){
+      return FRIEND_FACE_BOOK[k];
+    }).filter(Boolean).slice(0, 3);
+    // An installed copy of a response without faces (an older server, a
+    // remembered page) keeps the words rather than drawing nothing.
+    if(!faces.length){
+      return '<span class="seed-friends">' + n + (n === 1 ? ' friend' : ' friends')
+        + ' listened</span>';
+    }
+    var label = n === 1 ? (faces[0].name || faces[0].handle || "A friend") + " listened"
+                        : n + " friends listened";
+    // Tapping the faces lists everyone who listened (§394), and never
+    // plays the card underneath.
+    return '<span class="seed-friends has-faces" role="button" tabindex="0"'
+      + ' aria-label="' + escapeHtml(label) + '" data-topic="' + escapeHtml(t.id || "") + '"'
+      + ' onclick="event.stopPropagation(); openFriendsListened(this.dataset.topic)"'
+      + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();'
+      + ' event.stopPropagation(); openFriendsListened(this.dataset.topic);}">'
+      + '<span class="src-marks">' + faces.map(friendFaceHtml).join("") + '</span>'
+      + (n > faces.length ? '<span class="src-count">+' + (n - faces.length) + '</span>' : '')
+      + '</span>';
+  }
+  // **Who listened** (§394): the faces' own sheet, the Sources popup's
+  // shape - every friend who listened, newest first, each row their profile.
+  function openFriendsListened(topicId){
+    var t = myFamTopics[topicId];
+    var faces = ((t && t.friendKeys) || []).map(function(k){
+      return FRIEND_FACE_BOOK[k];
+    }).filter(Boolean);
+    if(!faces.length) return;
+    var list = document.getElementById("flList");
+    list.innerHTML = faces.map(function(f){
+      return '<div class="src-row' + (f.handle ? ' openable' : '') + '"'
+        + (f.handle ? ' onclick="openListenedFriend(this.dataset.handle)"'
+          + ' data-handle="' + escapeHtml(f.handle) + '"' : '') + '>'
+        + '<span class="src-logo">' + friendFaceHtml(f) + '</span>'
+        + '<span class="src-body">'
+        + '<span class="src-name' + (f.explicit ? ' is-explicit' : '') + '">'
+        + escapeHtml(f.name || f.handle || "A friend") + '</span>'
+        + (f.handle ? '<span class="src-meta">@' + escapeHtml(f.handle) + '</span>' : '')
+        + '</span>'
+        + (f.handle ? '<svg class="src-go" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>' : '')
+        + '</div>';
+    }).join("");
+    var n = Math.max(faces.length, Math.floor(Number(t.friends_listened)) || 0);
+    document.getElementById("flTitle").textContent =
+      n === 1 ? "1 friend listened" : n + " friends listened";
+    document.getElementById("friendsListenedOverlay").classList.add("active");
+  }
+  function closeFriendsListened(){
+    document.getElementById("friendsListenedOverlay").classList.remove("active");
+  }
+  function openListenedFriend(handle){
+    closeFriendsListened();
+    openPersonProfile(handle);
   }
   function seedImgFailed(el){
     var box = el.parentNode;
@@ -14199,6 +14326,7 @@
           if(sectionState.seen.indexOf(t.id) < 0) sectionState.seen.push(t.id);
         });
         d.cycles = cycles;
+        attachFriendFaces(d);
         renderSection(d);
         document.getElementById("sectionScroll").scrollTop = 0;
       })
@@ -14786,6 +14914,7 @@
         myfamTasteSource = data.taste_source || "taste";
         myfamSampleNote = data.sample ? (data.sample_note || "") : "";
         if(famOffline) setOffline(false);
+        attachFriendFaces(data);
         renderMyFamFeed(data.sections);
         // Remembered only once it has drawn, so a page that fails to draw
         // is never the one an offline open falls back to.
@@ -14800,6 +14929,7 @@
           setOffline(true);
           myfamTasteSource = last.taste_source || "taste";
           myfamSampleNote = "";
+          attachFriendFaces(last);
           renderMyFamFeed(last.sections);
           return;
         }

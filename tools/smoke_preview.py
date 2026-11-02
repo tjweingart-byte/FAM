@@ -2464,11 +2464,21 @@ def main() -> int:
                 " return n + sec.topics.filter(function(t){"
                 " return t.friends_listened > 0; }).length; }, 0)")
             chips = page.eval_on_selector_all(
-                "#myfamFeed .seed-friends", "e => e.map(x => x.textContent.trim())")
+                "#myfamFeed .seed-friends",
+                "e => e.map(x => ({faces: x.querySelectorAll('.src-mark').length,"
+                " text: x.textContent.trim()}))")
             if marked is not None:
                 assert len(chips) == marked, f"{len(chips)} chips for {marked} marked cards"
+            # Faces like the sources pill (§393): at most three, then "+N";
+            # the words only for a response that sent no faces.
             for chip in chips:
-                assert re.fullmatch(r"[1-9]\d* friends? listened", chip), chip
+                if chip["faces"]:
+                    assert 1 <= chip["faces"] <= 3, chip
+                    assert re.fullmatch(r"[^+]{0,6}(\+[1-9]\d*)?", chip["text"]), chip
+                else:
+                    assert re.fullmatch(r"[1-9]\d* friends? listened", chip["text"]), chip
+            if marked:
+                assert any(c["faces"] for c in chips), chips
 
         def voice_search_counts_down_to_search_now():
             # Whatever happens, leave no overlay over the checks after this.

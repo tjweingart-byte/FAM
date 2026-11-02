@@ -91,16 +91,20 @@ def test_the_feed_marks_tiles_with_a_count_only(monkeypatch, tmp_path):
                         lambda user, limit=500: [{"user_id": "ana"}])
     _play(store, "ana", "a")
     tiles = [{"id": "a", "query": "x"}, {"id": "b", "query": "y"}]
-    appmod._mark_friends_listened("me", tiles)
+    faces = appmod._mark_friends_listened("me", tiles)
     assert tiles[0]["friends_listened"] == 1
     assert "friends_listened" not in tiles[1]
-    # Nobody's id rides along: a number, never a person.
-    assert set(tiles[0]) == {"id", "query", "friends_listened"}
+    # Faces since §393: an index into the response's list, and nobody's id
+    # rides along - a name, a handle and a picture, never a user id.
+    assert tiles[0]["friends_faces"] == [0]
+    assert set(tiles[0]) == {"id", "query", "friends_listened", "friends_faces"}
+    assert faces == [{"name": "", "handle": "", "avatar": "", "explicit": False}]
 
 
 def test_both_card_shapes_draw_the_chip_and_never_a_zero():
     chip = _fn("seedFriendsHtml")
     assert "if(!n || n < 1) return '';" in chip
+    # The words survive only as the fallback for a response without faces.
     assert "' friend'" in chip and "' friends'" in chip and "listened" in chip
     assert "seedFriendsHtml(t)" in _fn("renderSection")
     assert INDEX.count("+ seedFriendsHtml(t)") == 2
