@@ -27053,6 +27053,12 @@ oldest and keeps what is worth keeping.
 - The live switch-over: `HOUSEKEEPER_DRY_RUN=0` is the owner's setting,
   after reading the dry run's report on real articles.
 
+**The new store is on the disk every other one is** (`housekeeper.db`,
+`HOUSEKEEPER_DB`): in both Dockerfiles, `.env.example`, `/api/health`'s
+storage report once her first run creates it, and `tests/test_data_paths.py`
+(a lazy store, like the task table's). The full check caught it missing -
+§101's guard doing its job.
+
 Tests: `tests/test_consuela_consolidates_399.py` (the answer check and its
 retry, the status rule, approved passages only, held articles and the
 queue behind them, the dry run writes nothing and asks once, live facts

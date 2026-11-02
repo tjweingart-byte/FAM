@@ -422,13 +422,18 @@ def register() -> None:
     netenyahu.HANDLERS[(AGENT, TASK)] = handler
 
 
+def exists() -> bool:
+    """Whether her report has been created (never created by being asked)."""
+    return store_db.has_tables(data_path("HOUSEKEEPER_DB", "housekeeper.db"))
+
+
 def report() -> dict:
     """For `/api/health`. Never opens a store that does not exist."""
     out = {"dry_run": bool(settings.housekeeper_dry_run),
            "batch_articles": int(settings.housekeeper_batch_articles),
            "batches_per_run": int(settings.housekeeper_batches_per_run)}
     try:
-        if store_db.has_tables(data_path("HOUSEKEEPER_DB", "housekeeper.db")):
+        if exists():
             out["consolidations"] = store().counts()
     except Exception:  # noqa: BLE001
         pass

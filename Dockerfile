@@ -109,6 +109,7 @@ ENV CACHE_PATH=/data/scripts.db \
     PIPELINE_ERRORS_DB=/data/pipeline_errors.db \
     EPISODE_QUALITY_DB=/data/episode_quality.db \
     AGENTS_DB=/data/agents.db \
+    HOUSEKEEPER_DB=/data/housekeeper.db \
     X_THREADS_DB=/data/x_threads.db \
     LOCAL_NEWS_DB=/data/local_news.db \
     GDELT_EXPORT_DB=/data/gdelt_export.db \

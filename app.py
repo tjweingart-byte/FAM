@@ -1135,6 +1135,15 @@ def _database_report() -> list[dict]:
             stores.append(("agent tasks", "AGENTS_DB", agent_tasks.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
+    # Consuela's report (§399), once her first run creates it.
+    try:
+        from agents import housekeeper as agent_housekeeper
+
+        if agent_housekeeper.exists():
+            stores.append(("consolidation report", "HOUSEKEEPER_DB",
+                           agent_housekeeper.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     # Tile pictures (§160). Reported once the first picture has been painted,
     # like the trending bank: a health page must not be what creates the
     # database on a machine that never made one.
