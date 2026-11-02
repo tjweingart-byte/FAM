@@ -27408,3 +27408,58 @@ with Phase 3; **S6** hybrid search or a reranker only if order matters.
 Suggested order: measures first (C1, S1 - no cost, no rule change), then
 tuning, then the answer keys once signed. Sonic's training needs Consuela
 writing real facts first (`HOUSEKEEPER_DRY_RUN=0`).
+
+## 407. Training C1 and S1: Consuela's dedupe eval grows, Sonic is measured (2026-11-02)
+
+The first two pieces of `docs/AGENTS_TRAINING_PLAN.md` (§406), at the
+owner's direction: measures, from real material, no labels, no rule change.
+
+**C1 - the dedupe eval grows** (`agents/dedupe_cases.py`). Real sentences -
+from Consuela's report (her dry run's choices included) and the archive,
+six words or more, a fixed order by hash, at most 40 - are each changed in
+code in one known way: a number changed, a hedge added, a day or month
+moved, a speaker swapped, a named subject swapped for another kept name
+(all *different*), or ", according to reports" added (*same*). And every
+pair her two models disagreed on in a night's dedupe is now recorded
+(`merges`, verdict `disputed` - the dedupe kept them apart and did not
+record them before) and becomes a case, answered *different*, the safe way.
+`dedupe_eval.run` runs the core 21 and up to 80 grown cases, scored by
+origin; it still passes only with no wrong merge and no fallback.
+
+**Measured with the key**, on twelve news-style sentences standing in for
+material this container does not have (a scratch database): 63 cases,
+**0 wrong merges, no fallback, passed**. Code settled most grown pairs
+(changed numbers flagged as conflicts, hedges, quotes); Haiku answered
+"different" to every moved moment and swapped subject it saw. **Six
+"missed" repeats, all one change**: Haiku answered "unsure" to every
+", according to reports" pair. That is arguably right - "X happened" and
+"X happened, according to reports" differ in how sure the source is - so
+the case's label, not the model, is the question; it goes to C2 (a neutral
+rewording instead, or the label changed), and a miss keeps both, the safe
+direction.
+
+**S1 - Sonic's recall eval** (`agents/retriever_eval.py`,
+`tools/sonic_recall_eval.py`). For up to 50 stored facts code writes the
+question each answers ("Eagles in February 2025"), filed under its node,
+with the listener's clock a month after it and a week's window; for up to
+20 live readings, a result question between the day before and the day.
+Each goes through Sonic's own `retrieve` and read-only connection. Counted:
+found (the recall rate), **leaks** (anything from inside the window) and
+**order errors** - the two hard rules, which must be 0 to pass - items
+beyond the node's family, empties, fallbacks, time, and which lookup was
+chosen and by whom. A result question is asked as C3P0 would name it;
+facts' questions go through the router, so both paths are measured - the
+first run of the tests found exactly that difference: the router sent a
+result question to background and missed the reading. No model is called.
+Results are kept in `housekeeper.db` (`recall_evals`).
+
+**Not measured on real data yet**: there are no filed facts until Consuela
+leaves her dry run. Run on a deployment then:
+`python tools/sonic_recall_eval.py` and `python tools/consuela_dedupe_eval.py`.
+
+Tests: `tests/test_agents_training_407.py` (each change and its answer,
+disputes kept apart, material from the report and the archive, the eval by
+origin, a reckless model caught by the grown cases, a night's dispute
+recorded and turned into a case; Sonic measured on facts and readings, a
+leak and an order error each failing, nothing to ask, no read-only
+connection, no model ever called).

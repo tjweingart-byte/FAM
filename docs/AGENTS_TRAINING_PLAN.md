@@ -1,6 +1,6 @@
 # Training Consuela and Sonic - a plan
 
-**Status: a plan for the owner, nothing built.** Written 2026-11-02 at the
+**Status: C1 and S1 built (§407); the rest is a plan for the owner.** Written 2026-11-02 at the
 owner's request, after Phase 2 built Consuela (the housekeeper, §399-§402)
 and Sonic (the retriever, §403). PROBLEMS.md §406 records it. Each piece
 below says what it needs from the owner before it starts.
@@ -44,7 +44,8 @@ a short summary. Everything is off by default.
 ### Consuela
 
 **C1. A dedupe eval that grows by itself.** *First, because it is what
-lets her dedupe leave its dry run.*
+lets her dedupe leave its dry run.* **Built (§407)**: `agents/dedupe_cases.py`;
+`tools/consuela_dedupe_eval.py` runs the core and the grown cases.
 - Code makes new never-duplicates from real material, taken from her report
   and the archive: the same sentence with a number changed, a date moved, a
   hedge added ("won" → "is expected to win"), a speaker swapped, a subject
@@ -103,7 +104,8 @@ setup on the eval, as §385 did for Nando.
 ### Sonic
 
 **S1. A recall eval built from the archive itself.** *First, because nothing
-about Sonic is measured yet.* Code takes a stored fact and writes the
+about Sonic is measured yet.* **Built (§407)**: `agents/retriever_eval.py`,
+`tools/sonic_recall_eval.py`. Code takes a stored fact and writes the
 question it answers from what is stored with it - its subject, its node, its
 date ("what happened with the Eagles in February 2025") - then checks that
 Sonic brings it back, in date order, without facts from the wrong node, and

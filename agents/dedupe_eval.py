@@ -115,17 +115,25 @@ def _fact(label: str, side: str, text: str, day: int, kind: str, vector) -> dict
             "corroborations": []}
 
 
-async def run(embed: Optional[Callable] = None, record: bool = True) -> dict:
-    """Run every case through `dedupe.decide`. Returns the score and each
-    case's verdict; with `record`, kept for `eval_passed`."""
-    from agents import dedupe, housekeeper
+def _origin(label: str) -> str:
+    return label.split(":", 1)[0] if label.startswith(("grown:", "disputed:")) else "core"
 
+
+async def run(embed: Optional[Callable] = None, record: bool = True,
+              grown: Optional[list] = None) -> dict:
+    """Run every case - the core, and the cases grown from real material
+    (§407, `dedupe_cases.grow`) - through `dedupe.decide`. Returns the score,
+    by origin, and each case's verdict; with `record`, kept for
+    `eval_passed`."""
+    from agents import dedupe, dedupe_cases, housekeeper
+
+    cases = tuple(CASES) + tuple(dedupe_cases.grow() if grown is None else grown)
     if embed is None:
         import history_archive as ha
 
         embed = ha._embed
     pairs, rows = [], []
-    for label, expected, (text_a, day_a, kind_a), (text_b, day_b, kind_b), *forced in CASES:
+    for label, expected, (text_a, day_a, kind_a), (text_b, day_b, kind_b), *forced in cases:
         vec_a, _ = embed(text_a)
         vec_b, _ = embed(text_b)
         if vec_a is None or vec_b is None:
@@ -143,13 +151,21 @@ async def run(embed: Optional[Callable] = None, record: bool = True) -> dict:
             wrong += 1
         if not merged and expected == SAME:
             missed += 1
-        details.append({"case": label, "expected": expected, "verdict": d.verdict,
-                        "why": d.why, "first": d.first, "review": d.review,
-                        "similarity": round(similarity, 3)})
-    result = {"ran": True, "models": dedupe.models_key(), "total": len(CASES),
+        details.append({"case": label, "origin": _origin(label), "expected": expected,
+                        "verdict": d.verdict, "why": d.why, "first": d.first,
+                        "review": d.review, "similarity": round(similarity, 3)})
+    by_origin: dict = {}
+    for row in details:
+        o = by_origin.setdefault(row["origin"], {"total": 0, "wrong_merges": 0, "missed": 0})
+        o["total"] += 1
+        merged = row["verdict"] == dedupe.SAME
+        o["wrong_merges"] += int(merged and row["expected"] == DIFFERENT)
+        o["missed"] += int(not merged and row["expected"] == SAME)
+    result = {"ran": True, "models": dedupe.models_key(), "total": len(cases),
               "wrong_merges": wrong, "missed": missed, "fell_back": fell_back,
-              "passed": wrong == 0 and not fell_back, "details": details}
+              "passed": wrong == 0 and not fell_back, "by_origin": by_origin,
+              "details": details}
     if record:
-        housekeeper.store().note_eval(result["models"], len(CASES), wrong, missed,
+        housekeeper.store().note_eval(result["models"], len(cases), wrong, missed,
                                       fell_back, details)
     return result

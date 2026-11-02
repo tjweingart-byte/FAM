@@ -737,6 +737,18 @@ class SQLiteBackend:
                  reading.node_id or "", now))
         return rid
 
+    def readings_page(self, limit: int) -> list:
+        """Stored readings in a fixed order - the recall eval's sample (§407)."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, subject, metric, as_of, value, unit, text, status, source, "
+                "domain, node_id FROM live_series ORDER BY id LIMIT ?",
+                (max(1, int(limit)),)).fetchall()
+        return [Reading(id=r[0], subject=r[1], metric=r[2],
+                        as_of=datetime.fromisoformat(r[3]), value=r[4], unit=r[5],
+                        text=r[6], status=r[7], source=r[8], domain=r[9],
+                        node_id=r[10]) for r in rows]
+
     def readings(self, subject: str, metric: str, start: datetime,
                  end: datetime, limit: int) -> list:
         """One subject's readings between two moments, oldest first."""
@@ -1168,6 +1180,15 @@ class AtlasBackend:
         # The first reading of a moment stays (SQLite's DO NOTHING).
         self.series_c.update_one({"_id": rid}, {"$setOnInsert": doc}, upsert=True)
         return rid
+
+    def readings_page(self, limit: int) -> list:
+        return [Reading(id=str(d.get("_id", "")), subject=d.get("subject", ""),
+                        metric=d.get("metric", ""), as_of=d.get("as_of"),
+                        value=d.get("value"), unit=d.get("unit", ""),
+                        text=d.get("text", ""), status=d.get("status", ""),
+                        source=d.get("source", ""), domain=d.get("domain", ""),
+                        node_id=d.get("node_id", ""))
+                for d in self.series_c.find({}).sort("_id", 1).limit(max(1, int(limit)))]
 
     def readings(self, subject: str, metric: str, start: datetime,
                  end: datetime, limit: int) -> list:

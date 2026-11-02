@@ -42,6 +42,9 @@ def main(argv=None) -> int:
         asked = f" [first: {row['first'] or '-'}, review: {row['review'] or '-'}]"
         print(f"  {mark:11} {row['case']:40} sim {row['similarity']:.2f}  "
               f"{row['verdict']:9} {row['why']}{asked if row['first'] else ''}")
+    for origin, o in sorted(result.get("by_origin", {}).items()):
+        print(f"  {origin:9} {o['total']:4} cases, {o['wrong_merges']} wrong merge(s), "
+              f"{o['missed']} missed")
     print(f"\n{result['total']} cases: {result['wrong_merges']} wrong merge(s), "
           f"{result['missed']} missed repeat(s), calls fell back: {result['fell_back']}")
     print("PASSED: the dedupe may leave its dry run once HOUSEKEEPER_DEDUPE_DRY_RUN=0"

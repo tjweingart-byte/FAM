@@ -407,3 +407,4 @@ and `limit` = Lines.
 | 27303 | 46 | 404. Phase 2, piece 7: one category tag, everywhere, moved by one function (2026-11-02) |
 | 27349 | 38 | 405. Phase 2, piece 8: the nightly check that an episode's tag agrees everywhere (2026-11-02) |
 | 27387 | 25 | 406. A plan for training Consuela and Sonic (2026-11-02) |
+| 27412 | 55 | 407. Training C1 and S1: Consuela's dedupe eval grows, Sonic is measured (2026-11-02) |

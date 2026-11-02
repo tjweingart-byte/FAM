@@ -273,6 +273,12 @@ class ReportStore:
                        " from_path TEXT NOT NULL, to_path TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS state ("
                        " key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            # Sonic's recall eval (§407): the agents' measures live together.
+            db.execute("CREATE TABLE IF NOT EXISTS recall_evals ("
+                       " id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL,"
+                       " total INTEGER NOT NULL, found INTEGER NOT NULL,"
+                       " leaks INTEGER NOT NULL, order_errors INTEGER NOT NULL,"
+                       " summary TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS evals ("
                        " id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL,"
                        " models TEXT NOT NULL, total INTEGER NOT NULL,"
@@ -399,6 +405,21 @@ class ReportStore:
         with self._lock, closing(self._connect()) as db, db:
             db.execute("INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key)"
                        " DO UPDATE SET value = excluded.value", (key, value))
+
+    def note_recall_eval(self, summary: dict, now: float = 0.0) -> None:
+        """One run of Sonic's recall eval (§407), its details included."""
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("INSERT INTO recall_evals (at, total, found, leaks, order_errors,"
+                       " summary) VALUES (?, ?, ?, ?, ?, ?)",
+                       (now or time.time(), int(summary.get("total") or 0),
+                        int(summary.get("found") or 0), int(summary.get("leaks") or 0),
+                        int(summary.get("order_errors") or 0), json.dumps(summary)))
+
+    def latest_recall_eval(self) -> Optional[dict]:
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT at, summary FROM recall_evals ORDER BY id DESC"
+                             " LIMIT 1").fetchone()
+        return None if row is None else {"at": row[0], **json.loads(row[1] or "{}")}
 
     def latest_eval(self, models: str) -> Optional[dict]:
         with closing(self._connect()) as db:

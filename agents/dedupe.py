@@ -66,6 +66,9 @@ SAME = "same"
 DIFFERENT = "different"
 CONFLICT = "conflict"
 ASK = "ask"
+#: Recorded only: a pair the first look called the same and the second
+#: opinion did not - kept apart, and a case for the growing eval (§407).
+DISPUTED = "disputed"
 
 #: Sources, best first (`research.credibility`).
 GRADE_RANK = {"primary": 0, "established": 1, "unverified": 2}
@@ -385,9 +388,15 @@ async def run(now: Optional[float] = None, facts: Optional[list] = None) -> dict
                         archive.supersede, repeat["id"], keeper["id"], d.why, now):
                     summary["marked"] += 1
                 gone.add(repeat["id"])
-            if d.verdict in (SAME, CONFLICT):
+            # A pair the two models disagreed on is kept apart, and kept on
+            # record: it becomes a case of her growing eval (§407).
+            disputed = d.first == "same" and d.review and d.review != "same"
+            if disputed:
+                summary["disputed"] = summary.get("disputed", 0) + 1
+            if d.verdict in (SAME, CONFLICT) or disputed:
                 await asyncio.to_thread(
-                    housekeeper.store().note_merge, keeper, repeat, d.verdict, d.why,
+                    housekeeper.store().note_merge, keeper, repeat,
+                    DISPUTED if disputed else d.verdict, d.why,
                     summary["mode"], d.first, d.review, now)
         if live:
             before = now - float(settings.housekeeper_superseded_days) * 86400.0
