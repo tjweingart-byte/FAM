@@ -1455,9 +1455,11 @@ Answered: a repeating article is a link and a count, no text (2026-10-24).
 
 **Sonic, the retriever** (named by the owner, 2026-10-28). **Works in:**
 **strictly within MongoDB** - the background, called from the listener's
-path. It **only reads, never writes**. **Status:** planned (§340). Today its
-job is `history_archive.look` (nearest facts by meaning before the search's
-window), which stays as its fallback.
+path. It **only reads, never writes**. **Status:** built (§403,
+`agents/retriever.py`), off by default (`RETRIEVER=0`); on Atlas he needs his
+own read-only user (`MONGODB_READ_URI`, `ARCHIVE.md` step 7).
+`history_archive.look` (nearest facts by meaning before the search's
+window) stays as his fallback.
 
 **Purpose.** Bring back **one consolidated packet** of history from MongoDB
 - the history this question needs, organised so the writer can use it - and
@@ -1592,7 +1594,8 @@ shared preamble:
 | Setting | What it is |
 |---|---|
 | `ARCHIVE_RECALL`, `ARCHIVE_RECALL_LIMIT`, `ARCHIVE_MIN_SIMILARITY`, `ARCHIVE_GRACE_SECONDS` | Built (§308): on, 6, 0.45, 0.5 s |
-| `RETRIEVER` | `0` / `1` (proposed): off = today's `look` |
+| `RETRIEVER` | `0` / `1`, built (§403): off = today's `look` |
+| `MONGODB_READ_URI` | Built (§403): Sonic's read-only Atlas user (`read` role only); never the writer's `MONGODB_URI`. Without it he does not run on Atlas |
 | `RETRIEVER_MODEL` | Empty: the embedding router, no model (decided 2026-10-30) |
 
 Open: whether the contextualizer names the lookup itself (one call) or the

@@ -1803,6 +1803,15 @@ def as_sources(facts: list, first_number: int, now: Optional[datetime] = None) -
     return "\n".join(parts)
 
 
+def _retriever_report() -> dict:
+    try:
+        from agents import retriever
+
+        return retriever.report()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _consolidation_report() -> dict:
     try:
         from agents import housekeeper
@@ -1831,6 +1840,7 @@ def report() -> dict:
             # Whose material Consuela may store (§397), and whether she runs.
             "housekeeper": consuela_runs(),
             "consolidation": _consolidation_report(),
+            "retriever": _retriever_report(),
             "approved_providers": [p for p in settings.housekeeper_approved_providers
                                    if p not in REFUSED],
             **stats}

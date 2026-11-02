@@ -367,7 +367,9 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # The wipe also forgets Nando's answer-key labels (§381).
         "demo_data.py": {"tasks", "training", "nando_model", "memory"},
         "pipeline.py": {"netenyahu", "categorizer"},
-        "script_generator.py": {"netenyahu", "contextualizer", "categorizer"},
+        # Sonic replaces the recall when Netenyahu lets him run (§403): code
+        # and read-only lookups, no model.
+        "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever"},
         "prefetch.py": {"categorizer"},
         "daily_edition.py": {"categorizer"},
         "trending_bank.py": {"categorizer"},
@@ -382,7 +384,7 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # lock, read only, no model (§397) - and, only while she may, queues
         # her consolidation on Netenyahu's loop and reports it (§399). Her
         # model call is made there, never on the archive's write thread.
-        "history_archive.py": {"roster", "housekeeper"},
+        "history_archive.py": {"roster", "housekeeper", "retriever"},
     }
     found = {}
     for p in ROOT.glob("*.py"):

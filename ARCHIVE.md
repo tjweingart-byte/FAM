@@ -102,6 +102,24 @@ climbing, with `errors` at 0.
 If `enabled` is false, `reason` says why, in one sentence. Most often it's a
 missing `MONGODB_URI`, or an address Atlas refused (step 3).
 
+### 7. A second, read-only user for Sonic (§403)
+
+Sonic, the retriever agent, reads the archive and must never be able to
+write it, so he connects as his own user rather than the one above.
+
+1. **Security → Database Access → Add New Database User**: password
+   authentication, a generated password, and under **Database User
+   Privileges → Specific Privileges** the built-in role **`read`** on the
+   database **`fam`** (the `ARCHIVE_DB_NAME`) - nothing else.
+2. Copy its connection string as in step 4, with this user's password.
+3. On the **fam** service's **Environment** page add `MONGODB_READ_URI`
+   with that string (or put it in `FAM_SECRETS`). Never reuse the
+   `MONGODB_URI` value here.
+
+`/api/health` → `archive` → `retriever` → `connection` then says
+`atlas read-only user`. Without it Sonic does not run on Atlas and the
+recall is the one described above, whatever `RETRIEVER` says.
+
 ## Settings
 
 All of them are in `.env.example`, with the defaults that `config.py` uses:

@@ -27237,3 +27237,65 @@ per article, figures and quotes untouched, no vector, reversible, the
 recall never returns a link; the comb's pages, cursor and week, repeats the
 nightly look misses, re-filing what a lost task left; Nando handed a
 two-node article; registration and schedule).
+
+## 403. Phase 2, piece 6: Sonic reads the archive, read-only, and brings back one dated packet (2026-11-02)
+
+`agents/retriever.py` (sonic.md; docs/FAM_AGENTS.md, Retriever). When
+Netenyahu lets the retriever work on an episode (`AGENTS=1`, `RETRIEVER=1`,
+his rule book signed), Sonic replaces today's recall beside the search
+(`script_generator`, where the recall starts) and is merged exactly as it
+was - within `ARCHIVE_GRACE_SECONDS` of the packet or dropped
+(`research.finish_history_look`, unchanged). Otherwise the call is today's,
+and the byte-identical test still holds.
+
+- **Read-only by construction** (never 1, 2): `ReadOnlySQL` and
+  `ReadOnlyAtlas` have no method that writes - a test lists their methods -
+  and every statement passes `_gate`, which refuses anything but one
+  SELECT. The file is opened `mode=ro`; where the archive lives in Postgres
+  (§243) the gate is the guarantee. **On Atlas he connects as his own user
+  with only the `read` role** (`MONGODB_READ_URI`; `ARCHIVE.md` step 7),
+  never the writer's `MONGODB_URI`; without it he does not run there and the
+  recall is today's. He reads `facts` and `live_series` only, never `intake`
+  (never 4). `MONGODB_READ_URI` is a paid credential to `spend_guard`, in
+  `.env.example` and `render.yaml`, cleared in tests.
+- **The lookup is chosen, never written** (always 2, 4): C3P0's named lookup
+  when his call named one (§375); else the embedding router - labelled
+  examples in code, embedded once, decided by the owner 2026-10-30 - when
+  the question is within 0.55 of one; else code's mapping from the brief
+  (markets → series, an outcome-dependent sports question → results,
+  otherwise background). This settles the plan's question 4 the way it
+  proposed. No model is asked (`RETRIEVER_MODEL` stays empty).
+- **Where he looks** (always 3): the node, then its parent and children when
+  it holds fewer than two facts, then by meaning (within the family first
+  for `by_meaning`), then nothing. Results, a value on a day and a series
+  come from the live series (§396) and live facts first; a subject is
+  matched by containment ("Eagles" finds "Eagles vs Giants"), dates come
+  from the plan or a year back, and a period wholly after the search's
+  window is dropped. Links (§402) are never offered.
+- **History, never now** (never 6): every lookup reads only what was true
+  before the search's recency window - the same rule as today's recall.
+- **The packet** (always 5): oldest first into `as_sources` (dated, graded,
+  labelled earlier reporting), and a validated `ArchivePacket` on the
+  episode's notes (`notes.archive_packet`, `notes.archive_lookup`) for
+  Shakespeare. Packet one's articles are dropped where the packets meet.
+- **Any failure is today's recall** (always 7): no read-only connection, a
+  store error, anything raised - counted (`fell_back`) and reported on
+  `/api/health` → `archive` → `retriever` with the connection he has, runs,
+  items, empties and how each lookup was chosen.
+
+**Measured: not yet.** Sonic needs real filed facts to be judged, and the
+archive has none until Consuela leaves her dry run. His recall eval -
+questions built in code from stored facts, checking he brings them back -
+is one of the training items proposed to the owner the same day.
+
+**Known limits**: containment matches a short name inside a longer one
+("Apple" in "Apple Hospitality"); the router's examples are few and in
+English; an Atlas vector index built before §396's `node_id` filter needs
+`tools/archive_setup.py` once more before the family search by meaning works.
+
+Tests: `tests/test_sonic_retrieves_403.py` (no write method, the gate, the
+file read-only, never intake, only the read-only user on Atlas; C3P0 then
+the router then code; node, family, meaning, nothing; nothing from inside
+the window; results from the series oldest first; a future period dropped;
+the packet; today's recall as the fallback; never weather or a town's news;
+the search uses him only when Netenyahu says so; Atlas's queries).

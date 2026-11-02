@@ -403,3 +403,4 @@ and `limit` = Lines.
 | 27068 | 30 | 400. The owner's answer: an article's passages are cleared the moment it is consolidated (2026-11-02) |
 | 27098 | 82 | 401. Phase 2, piece 4: Consuela's dedupe, and the eval that lets it leave its dry run (2026-11-02) |
 | 27180 | 61 | 402. Phase 2, piece 5: Consuela re-files, folds at 90 days and combs the whole archive (2026-11-02) |
+| 27241 | 62 | 403. Phase 2, piece 6: Sonic reads the archive, read-only, and brings back one dated packet (2026-11-02) |

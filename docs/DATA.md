@@ -355,7 +355,10 @@ Nando did not file the episode, which with `AGENTS=0` is always. While
 Consuela runs (§397) only an approved provider's material is stored
 (`HOUSEKEEPER_APPROVED_PROVIDERS`; Parallel, Finnhub and API-Sports never),
 and the sweeps' scores and prices become readings of `live_series`. Never a
-private search or an attachment. A fact Consuela's dedupe marks a repeat
+private search or an attachment. **Sonic reads it read-only** (§403):
+`facts` and `live_series` only, never `intake`, through his own read-only
+Atlas user (`MONGODB_READ_URI`) or the file opened `mode=ro`, every
+statement gated to a read. A fact Consuela's dedupe marks a repeat
 (§401) stays, inactive, with `superseded_by`, `superseded_at` and
 `superseded_why`, for `HOUSEKEEPER_SUPERSEDED_DAYS` (30) before it is
 deleted; the keeper holds its link and count in `corroborations`. After 90
