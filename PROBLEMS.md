@@ -27463,3 +27463,39 @@ origin, a reckless model caught by the grown cases, a night's dispute
 recorded and turned into a case; Sonic measured on facts and readings, a
 leak and an order error each failing, nothing to ask, no read-only
 connection, no model ever called).
+
+## 408. The owner's walkthrough: what is waiting on them, and the next training branch (2026-11-02)
+
+Written at the owner's request; the steps were given in the session's reply,
+and the essentials are kept here.
+
+1. **The activation questions** (`docs/ACTIVATION_PRIVACY_DRAFT.md`,
+   section 5): answered in a message - under-13 handling, counting opt-in or
+   on, which location, the self-describe words, whether totals may shape
+   what FAM offers. Nothing is collected before the wording is approved.
+2. **Signing `consuela.md`** on the owner's Mac, from a clone of this branch
+   (or Main once merged): the commands in
+   `docs/agent_rule_proposals/README.md`, the key from a file deleted
+   straight after (§392), then `consuela.md`, `MANIFEST.json`, its `.sig` and
+   the proposal's removal committed together.
+3. **Nando and an article two nodes claim**: an answer in a message - the
+   tree's nearest common parent in code (cheaper, may be broader), or his
+   model call (truer, a call per article).
+4. **Sonic on Atlas**: only once the archive is on Atlas (`ARCHIVE.md`
+   steps 1-6); then step 7 - a second database user with only `read` on
+   `fam`, its string as `MONGODB_READ_URI` on Render, checked on
+   `/api/health` → `archive` → `retriever` → `connection`.
+5. **The training plan's next decisions** wait for material: Consuela on
+   production in her dry run (`AGENTS=1`, `HOUSEKEEPER=1`, both dry runs at
+   their default `1`) for some nights; then, in the Render shell,
+   `python tools/consuela_dedupe_eval.py` and
+   `python tools/consuela_report.py --merges`; once the owner sets
+   `HOUSEKEEPER_DRY_RUN=0` and facts are filed, `python
+   tools/sonic_recall_eval.py`. A new session starts from
+   `docs/TRAINING_NEXT_BRANCH.md` with those outputs pasted in.
+
+**Decisions to bring to that branch**: whether a dedupe threshold may move
+when the measures say so (each still shown first); the attribution label
+(a neutral rewording, or "unsure" accepted); the grading model for C3 and
+S4 (proposed Opus 5.5) and how many a night; whether searched questions may
+become Sonic's router examples (S2, later).
