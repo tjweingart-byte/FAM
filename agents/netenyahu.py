@@ -357,7 +357,11 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    # intake, beside the runs each new article asks for (§399).
                    ("housekeeper", "consolidate", 1, "housekeeper"),
                    # Her dedupe, after the night's consolidation (§401).
-                   ("housekeeper", "dedupe", 2, "housekeeper"))
+                   ("housekeeper", "dedupe", 2, "housekeeper"),
+                   # Her longer jobs (§402): the full comb (every
+                   # HOUSEKEEPER_COMB_DAYS, a page a night) and the 90-day pass.
+                   ("housekeeper", "comb", 3, "housekeeper"),
+                   ("housekeeper", "second", 4, "housekeeper"))
 _QUEUED_DAYS: set = set()
 
 

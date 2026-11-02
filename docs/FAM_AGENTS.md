@@ -1200,7 +1200,11 @@ the archive is filed by node and keeps live readings as a series (§396),
 only an approved provider's material is stored (§397), and she consolidates
 each article as it enters, as a dry run first (§399, `agents/housekeeper.py`),
 clearing its passages once she has (§400), and deduplicates nightly behind
-her automated eval (§401, `agents/dedupe.py`, `agents/dedupe_eval.py`).
+her automated eval (§401, `agents/dedupe.py`, `agents/dedupe_eval.py`); she
+re-files on tree changes, folds 90-day-old sentences into their article's
+link and combs the whole archive weekly (§402, `agents/housekeeping.py`).
+Purging stored opinion and blog pieces waits for Mclovin's source screen
+(Phase 3).
 
 **Purpose.** Keep the archive organised, trustworthy and free of repetition,
 filed so Sonic always knows where to go - and keep what will be valuable to
@@ -1408,6 +1412,7 @@ languages). Every hole is closed by "uncertain = not compared".
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_COMB_DAYS` | Batch size; how often the full duplicate comb runs (proposed) |
 | `HOUSEKEEPER_DEDUPE_DRY_RUN` | Built (§401): `1` until the automated eval shows no wrong merge (decided 2026-10-29: no hand-checked sample); with `0` she still marks nothing until `tools/consuela_dedupe_eval.py` has passed for the models set |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | Built (§401): 30 - a marked repeat is deleted for good this long after the mark |
+| `HOUSEKEEPER_COMB_DAYS` | Built (§402): 7 - the whole archive combed for duplicates every week, a page of 1,000 facts a night until through |
 | `HOUSEKEEPER_DEDUPE_PAIRS` | Built (§401): 200 - pairs asked of the models per night, at most |
 | `HOUSEKEEPER_DRY_RUN` | Built (§399): `1` - she chooses and `tools/consuela_report.py` shows it, nothing is written - until the owner sets `0` |
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_BATCHES_PER_RUN` | Built (§399): 8 articles per call, 5 calls per run of her task |

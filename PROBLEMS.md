@@ -27176,3 +27176,64 @@ the eval passes a careful model, catches a reckless one and refuses to pass
 on fallbacks, belongs to its models, the dry run marks nothing, live waits
 for the eval, the mark is reversible and purged only after 30 days, a
 conflict keeps both, Atlas's mark, restore and purge).
+
+## 402. Phase 2, piece 5: Consuela re-files, folds at 90 days and combs the whole archive (2026-11-02)
+
+`agents/housekeeping.py` (consuela.md, always 4, 5, 10, 11; decided items
+3, 5 and 18), three of Netenyahu's tasks, each only while Consuela may run.
+
+- **Re-filing on tree changes** (`housekeeper:refile:<node>`, queued by
+  Nando's tree follower, §387). The task carries only the node - the task
+  table keeps a hash of its input, not the input - so the change is read
+  from the tree as it is now: a node still there (minted or moved) has every
+  fact under or beneath it re-pathed; a node gone has its facts moved to the
+  nearest ancestor still in the tree, read from **the fact's own stored
+  path**, or unfiled when none survives - never left on a dead node - and
+  intake records and readings that name it follow (`replace_node`). Each
+  re-file is recorded with its old node and path (`refiles`), so it can be
+  undone.
+- **The 90-day pass** (`second`, nightly 04:00 Eastern): a plain sentence
+  kept more than 90 days ago is folded into its article's one `link` fact -
+  the publisher's title, link, date, grade and node, no vector so the
+  recall never offers a headline as evidence - and marked superseded by it
+  (reversible, deleted 30 days later). Figures, quotes and live records are
+  never touched: "important figures, quotes, trends and article links" are
+  what stays, chosen by kind in code, because a number is never dropped on a
+  model's judgment. `supersede` no longer lists an article as corroborating
+  itself (a sentence folded into its own link).
+- **The full comb** (`comb`, nightly 03:00 Eastern; decided item 18): every
+  `HOUSEKEEPER_COMB_DAYS` (7) the whole archive, a page of 1,000 facts a
+  night by a cursor until through, through the dedupe's own code, models,
+  dry run and eval lock (§401) - so repeats kept long apart, which the
+  nightly two-day look never pairs, are found. It also re-files any fact
+  whose node or path is out of date, so a re-file task a dry run only
+  reported, or that was lost, is made later rather than never.
+- **An article two nodes claim** is held, as §399 built, and now handed to
+  Nando - `categorizer:settle:<intake id>` in Netenyahu's task table
+  (consuela.md, always 1: check with Nando; every-agent.md, always 2: never
+  do another agent's work). **Nando has no handler for it yet**, so it waits
+  there, visible in the task counts: how he settles one (his tree's nearest
+  common ancestor in code, or his model call) is the owner's question.
+
+**Dry runs**: re-filing and the 90-day pass follow `HOUSEKEEPER_DRY_RUN` -
+reported in `housekeeper.db` (`jobs`, `refiles`), nothing changed; the comb
+follows the dedupe's. Every run's summary is in `jobs`.
+
+**Found while testing**: the comb's pages of facts did not carry each
+fact's stored path (`_DEDUPE_COLUMNS`), so a fact whose node was pruned
+would have been unfiled instead of moved to its parent. The dedupe rows now
+carry `node_path` on both backends; a test pins it.
+
+**Not here: purging stored opinion and blog pieces** (consuela.md, never 6).
+No screen for them exists - `research.screen_results` screens simulated
+leagues and unknown sports outlets only - and the screen is Mclovin's
+(decided items 6 and 13; Phase 3). Consuela applies it to what is stored
+once it exists, rather than inventing a second one here.
+
+Tests: `tests/test_consuela_longer_jobs_402.py` (the nearest survivor from
+the fact's own path, a pruned node's facts, intake and readings follow, a
+moved node re-pathed, dry runs change nothing, never a dead node; one link
+per article, figures and quotes untouched, no vector, reversible, the
+recall never returns a link; the comb's pages, cursor and week, repeats the
+nightly look misses, re-filing what a lost task left; Nando handed a
+two-node article; registration and schedule).

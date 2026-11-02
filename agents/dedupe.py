@@ -322,11 +322,11 @@ def eval_passed() -> tuple:
     return True, ""
 
 
-def _pairs(archive, now: float) -> list:
-    """(a, b, similarity) for each new fact and each earlier one near it."""
+def _pairs(archive, facts: list) -> list:
+    """(a, b, similarity) for each of `facts` and each fact near it."""
     out, seen = [], set()
     window = WINDOW_DAYS * 86400.0
-    for fact in archive.dedupe_facts(now - NEW_FACTS_DAYS * 86400.0, MAX_NEW_FACTS):
+    for fact in facts:
         if not fact.get("vector") or not fact.get("published_ts"):
             continue
         ts = float(fact["published_ts"])
@@ -344,8 +344,9 @@ def _pairs(archive, now: float) -> list:
     return out
 
 
-async def run(now: Optional[float] = None) -> dict:
-    """One night's dedupe. Returns what it did. Never raises."""
+async def run(now: Optional[float] = None, facts: Optional[list] = None) -> dict:
+    """One night's dedupe over the facts kept in the last two days - or, for
+    the full comb (§402), over `facts`. Returns what it did. Never raises."""
     import history_archive as ha
     from agents import housekeeper
 
@@ -364,7 +365,10 @@ async def run(now: Optional[float] = None) -> dict:
             if not passed:
                 live = False
                 summary.update(mode="dry_run", why=f"kept to the dry run: {why}")
-        pairs = await asyncio.to_thread(_pairs, archive, now)
+        if facts is None:
+            facts = await asyncio.to_thread(
+                archive.dedupe_facts, now - NEW_FACTS_DAYS * 86400.0, MAX_NEW_FACTS)
+        pairs = await asyncio.to_thread(_pairs, archive, facts)
         decisions, fell_back = await decide(pairs)
         summary.update(pairs=len(pairs), fell_back=fell_back,
                        asked=sum(1 for d in decisions if d.first))

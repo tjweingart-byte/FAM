@@ -348,11 +348,11 @@ def test_the_dedupe_is_registered_and_scheduled_after_the_consolidation():
         hk.register()
         assert netenyahu.HANDLERS[("housekeeper", "dedupe")] is dedupe.handler
     finally:
-        netenyahu.HANDLERS.pop(("housekeeper", "dedupe"), None)
-        netenyahu.HANDLERS.pop(("housekeeper", "consolidate"), None)
+        for kind in ("consolidate", "dedupe", "refile", "second", "comb"):
+            netenyahu.HANDLERS.pop(("housekeeper", kind), None)
     hours = {kind: hour for agent, kind, hour, _s in netenyahu.SCHEDULE
              if agent == "housekeeper"}
-    assert hours == {"consolidate": 1, "dedupe": 2}
+    assert (hours["consolidate"], hours["dedupe"]) == (1, 2)
 
 
 def test_atlas_marks_restores_and_purges():

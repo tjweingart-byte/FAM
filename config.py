@@ -2150,6 +2150,9 @@ class Settings:
         not in ("0", "false", "False"))
     housekeeper_superseded_days: float = _env_float("HOUSEKEEPER_SUPERSEDED_DAYS", 30.0)
     housekeeper_dedupe_pairs: int = _env_int("HOUSEKEEPER_DEDUPE_PAIRS", 200)
+    # **Her full comb** (§402, decided item 18): the whole archive combed for
+    # duplicates every this-many days, a page a night until it is through.
+    housekeeper_comb_days: float = _env_float("HOUSEKEEPER_COMB_DAYS", 7.0)
     # **Whose material Consuela may store** (§397, decided items 8 and 25;
     # consuela.md, never 8): the providers the owner has approved - GDELT
     # (with its citation), Tiingo, BALLDONTLIE (2026-10-28) and Perplexity

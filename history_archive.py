@@ -530,8 +530,11 @@ class SQLiteBackend:
         return fid
 
     # -------------------------------------------------- Consuela's dedupe (§401)
+    # `node_path` too: the comb re-files from it (§402) - without it, a fact
+    # whose node was pruned would be unfiled instead of moved to its parent.
     _DEDUPE_COLUMNS = ("id, url, host, grade, published, published_ts, kind, text, "
-                       "subject, figure, node_id, created, embedding, corroborations")
+                       "subject, figure, node_id, created, embedding, corroborations, "
+                       "node_path")
 
     @staticmethod
     def _dedupe_row(r) -> dict:
@@ -542,7 +545,8 @@ class SQLiteBackend:
                 "subject": r[8], "figure": json.loads(r[9] or "{}"), "node_id": r[10],
                 "created": r[11],
                 "vector": embeddings.unpack(r[12]) if r[12] else None,
-                "corroborations": json.loads(r[13] or "[]")}
+                "corroborations": json.loads(r[13] or "[]"),
+                "node_path": json.loads(r[14] or "[]")}
 
     def dedupe_facts(self, created_since: float, limit: int) -> list:
         """Active facts kept since `created_since`, never a live record."""
@@ -575,15 +579,18 @@ class SQLiteBackend:
         with self._lock, closing(self._connect()) as db, db:
             row = db.execute("SELECT url, host, grade, published FROM facts "
                              "WHERE id = ? AND active = 1", (loser,)).fetchone()
-            kept = db.execute("SELECT corroborations FROM facts WHERE id = ? "
+            kept = db.execute("SELECT corroborations, url FROM facts WHERE id = ? "
                               "AND active = 1", (keeper,)).fetchone()
             if row is None or kept is None or loser == keeper:
                 return False
-            links = json.loads(kept[0] or "[]")
-            links.append({"url": row[0], "host": row[1], "grade": row[2],
-                          "published": row[3], "fact": loser})
-            db.execute("UPDATE facts SET corroborations = ? WHERE id = ?",
-                       (json.dumps(links), keeper))
+            # Another article is a corroboration; the same article (a
+            # sentence folded into its own link, §402) is not.
+            if row[0] != kept[1]:
+                links = json.loads(kept[0] or "[]")
+                links.append({"url": row[0], "host": row[1], "grade": row[2],
+                              "published": row[3], "fact": loser})
+                db.execute("UPDATE facts SET corroborations = ? WHERE id = ?",
+                           (json.dumps(links), keeper))
             db.execute("UPDATE facts SET active = 0, superseded_by = ?, "
                        "superseded_at = ?, superseded_why = ? WHERE id = ?",
                        (keeper, now, why, loser))
@@ -606,6 +613,62 @@ class SQLiteBackend:
             db.execute("UPDATE facts SET active = 1, superseded_by = '', "
                        "superseded_at = 0, superseded_why = '' WHERE id = ?", (fact_id,))
         return True
+
+    # -------------------------------------------------- her longer jobs (§402)
+    def facts_under(self, node: str, limit: int) -> list:
+        """Active facts filed under `node` or anywhere beneath it."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, node_id, node_path FROM facts WHERE active = 1 AND "
+                "(node_id = ? OR node_path LIKE ?) LIMIT ?",
+                (node, f'%{json.dumps(node)}%', max(1, int(limit)))).fetchall()
+        return [{"id": r[0], "node_id": r[1], "node_path": json.loads(r[2] or "[]")}
+                for r in rows]
+
+    def set_node(self, fact_id: str, node_id: str, node_path: list) -> bool:
+        with self._lock, closing(self._connect()) as db, db:
+            cur = db.execute("UPDATE facts SET node_id = ?, node_path = ? WHERE id = ?",
+                             (node_id, json.dumps(list(node_path)), fact_id))
+            return bool(cur.rowcount)
+
+    def replace_node(self, old: str, new: str) -> dict:
+        """`old` becomes `new` on intake records and readings (a re-file)."""
+        changed = {"intake": 0, "readings": 0}
+        with self._lock, closing(self._connect()) as db, db:
+            for rid, nodes in db.execute("SELECT id, nodes FROM intake WHERE nodes LIKE ?",
+                                         (f'%{json.dumps(old)}%',)).fetchall():
+                listed = [new if n == old else n for n in json.loads(nodes or "[]")]
+                listed = [n for i, n in enumerate(listed) if n and n not in listed[:i]]
+                db.execute("UPDATE intake SET nodes = ? WHERE id = ?",
+                           (json.dumps(listed), rid))
+                changed["intake"] += 1
+            cur = db.execute("UPDATE live_series SET node_id = ? WHERE node_id = ?",
+                             (new, old))
+            changed["readings"] = cur.rowcount or 0
+        return changed
+
+    def aging_sentences(self, created_before: float, limit: int) -> list:
+        """Active plain sentences kept before `created_before` - what the
+        90-day consolidation folds into their article's link (§402)."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, url, title, host, grade, published, subject, category, "
+                "node_id, node_path FROM facts WHERE active = 1 AND kind = 'sentence' "
+                "AND created < ? ORDER BY created LIMIT ?",
+                (created_before, max(1, int(limit)))).fetchall()
+        keys = ("id", "url", "title", "host", "grade", "published", "subject",
+                "category", "node_id", "node_path")
+        return [{**dict(zip(keys, r)), "node_path": json.loads(r[9] or "[]")}
+                for r in rows]
+
+    def facts_page(self, after: str, limit: int) -> list:
+        """Active facts by id after `after` - the full comb's pages."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                f"SELECT {self._DEDUPE_COLUMNS} FROM facts WHERE active = 1 "
+                "AND kind != 'live' AND id > ? ORDER BY id LIMIT ?",
+                (after, max(1, int(limit)))).fetchall()
+        return [self._dedupe_row(r) for r in rows]
 
     def purge_superseded(self, before: float) -> int:
         """Delete for good what was marked a repeat before `before` (30 days
@@ -929,7 +992,8 @@ class AtlasBackend:
                 "node_id": doc.get("node_id", ""),
                 "created": created.timestamp() if isinstance(created, datetime) else 0.0,
                 "vector": list(doc.get("embedding") or []) or None,
-                "corroborations": list(doc.get("corroborations") or [])}
+                "corroborations": list(doc.get("corroborations") or []),
+                "node_path": list(doc.get("node_path") or [])}
 
     def dedupe_facts(self, created_since: float, limit: int) -> list:
         since = datetime.fromtimestamp(created_since, timezone.utc)
@@ -953,14 +1017,16 @@ class AtlasBackend:
         if loser == keeper:
             return False
         doc = self.facts_c.find_one({"_id": loser, "active": True})
-        if doc is None or self.facts_c.find_one({"_id": keeper, "active": True}) is None:
+        kept = self.facts_c.find_one({"_id": keeper, "active": True})
+        if doc is None or kept is None:
             return False
         published = doc.get("published")
-        self.facts_c.update_one({"_id": keeper}, {"$push": {"corroborations": {
-            "url": doc.get("url", ""), "host": doc.get("host", ""),
-            "grade": doc.get("grade", ""),
-            "published": published.strftime("%Y-%m-%d")
-            if isinstance(published, datetime) else "", "fact": loser}}})
+        if doc.get("url", "") != kept.get("url", ""):   # as SQLite's (§402)
+            self.facts_c.update_one({"_id": keeper}, {"$push": {"corroborations": {
+                "url": doc.get("url", ""), "host": doc.get("host", ""),
+                "grade": doc.get("grade", ""),
+                "published": published.strftime("%Y-%m-%d")
+                if isinstance(published, datetime) else "", "fact": loser}}})
         self.facts_c.update_one({"_id": loser}, {"$set": {
             "active": False, "superseded_by": keeper,
             "superseded_at": datetime.fromtimestamp(now, timezone.utc),
@@ -977,6 +1043,47 @@ class AtlasBackend:
             "$set": {"active": True, "superseded_by": ""},
             "$unset": {"superseded_at": "", "superseded_why": ""}})
         return True
+
+    # -------------------------------------------------- her longer jobs (§402)
+    def facts_under(self, node: str, limit: int) -> list:
+        return [{"id": str(d["_id"]), "node_id": d.get("node_id", ""),
+                 "node_path": list(d.get("node_path") or [])}
+                for d in self.facts_c.find(
+                    {"active": True, "$or": [{"node_id": node}, {"node_path": node}]},
+                    {"node_id": 1, "node_path": 1}).limit(max(1, int(limit)))]
+
+    def set_node(self, fact_id: str, node_id: str, node_path: list) -> bool:
+        result = self.facts_c.update_one({"_id": fact_id}, {"$set": {
+            "node_id": node_id, "node_path": list(node_path)}})
+        return bool(getattr(result, "modified_count", 1))
+
+    def replace_node(self, old: str, new: str) -> dict:
+        intake = self.intake_c.update_many({"nodes": old}, {"$set": {"nodes.$": new}})
+        series = self.series_c.update_many({"node_id": old}, {"$set": {"node_id": new}})
+        return {"intake": int(getattr(intake, "modified_count", 0) or 0),
+                "readings": int(getattr(series, "modified_count", 0) or 0)}
+
+    def aging_sentences(self, created_before: float, limit: int) -> list:
+        before = datetime.fromtimestamp(created_before, timezone.utc)
+        out = []
+        for d in self.facts_c.find({"active": True, "kind": "sentence",
+                                    "created": {"$lt": before}}).sort(
+                                        "created", 1).limit(max(1, int(limit))):
+            published = d.get("published")
+            out.append({"id": str(d["_id"]), "url": d.get("url", ""),
+                        "title": d.get("title", ""), "host": d.get("host", ""),
+                        "grade": d.get("grade", ""),
+                        "published": published.strftime("%Y-%m-%d")
+                        if isinstance(published, datetime) else "",
+                        "subject": d.get("subject", ""), "category": d.get("category", ""),
+                        "node_id": d.get("node_id", ""),
+                        "node_path": list(d.get("node_path") or [])})
+        return out
+
+    def facts_page(self, after: str, limit: int) -> list:
+        return [self._dedupe_doc(d) for d in self.facts_c.find(
+            {"active": True, "kind": {"$ne": "live"}, "_id": {"$gt": after}}
+        ).sort("_id", 1).limit(max(1, int(limit)))]
 
     def purge_superseded(self, before: float) -> int:
         result = self.facts_c.delete_many({

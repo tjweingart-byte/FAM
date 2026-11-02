@@ -261,6 +261,18 @@ class ReportStore:
                        " keeper TEXT NOT NULL, repeat TEXT NOT NULL,"
                        " keeper_text TEXT NOT NULL, repeat_text TEXT NOT NULL,"
                        " first TEXT NOT NULL, review TEXT NOT NULL)")
+            # Her longer jobs (§402): each run's summary, each re-file with
+            # where it came from (so it can be undone), and the comb's place.
+            db.execute("CREATE TABLE IF NOT EXISTS jobs ("
+                       " id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL,"
+                       " job TEXT NOT NULL, mode TEXT NOT NULL, summary TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS refiles ("
+                       " id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL,"
+                       " mode TEXT NOT NULL, fact TEXT NOT NULL,"
+                       " from_node TEXT NOT NULL, to_node TEXT NOT NULL,"
+                       " from_path TEXT NOT NULL, to_path TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS state ("
+                       " key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS evals ("
                        " id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL,"
                        " models TEXT NOT NULL, total INTEGER NOT NULL,"
@@ -348,6 +360,46 @@ class ReportStore:
                        (now or time.time(), models, int(total), int(wrong_merges),
                         int(missed), 1 if fell_back else 0, json.dumps(details)))
 
+    # -------------------------------------------------- her longer jobs (§402)
+    def note_job(self, job: str, mode: str, summary: dict, now: float = 0.0) -> None:
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("INSERT INTO jobs (at, job, mode, summary) VALUES (?, ?, ?, ?)",
+                       (now or time.time(), job, mode, json.dumps(summary)))
+
+    def last_job(self, job: str) -> Optional[dict]:
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT at, mode, summary FROM jobs WHERE job = ? "
+                             "ORDER BY id DESC LIMIT 1", (job,)).fetchone()
+        return None if row is None else {"at": row[0], "mode": row[1],
+                                         "summary": json.loads(row[2] or "{}")}
+
+    def note_refile(self, fact: str, mode: str, from_node: str, to_node: str,
+                    from_path: list, to_path: list, now: float = 0.0) -> None:
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("INSERT INTO refiles (at, mode, fact, from_node, to_node,"
+                       " from_path, to_path) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                       (now or time.time(), mode, fact, from_node, to_node,
+                        json.dumps(from_path), json.dumps(to_path)))
+
+    def refiles(self, limit: int = 50) -> list:
+        with closing(self._connect()) as db:
+            rows = db.execute("SELECT at, mode, fact, from_node, to_node, from_path,"
+                              " to_path FROM refiles ORDER BY id DESC LIMIT ?",
+                              (max(1, int(limit)),)).fetchall()
+        return [{"at": r[0], "mode": r[1], "fact": r[2], "from_node": r[3],
+                 "to_node": r[4], "from_path": json.loads(r[5]),
+                 "to_path": json.loads(r[6])} for r in rows]
+
+    def get_state(self, key: str, default: str = "") -> str:
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT value FROM state WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else default
+
+    def set_state(self, key: str, value: str) -> None:
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key)"
+                       " DO UPDATE SET value = excluded.value", (key, value))
+
     def latest_eval(self, models: str) -> Optional[dict]:
         with closing(self._connect()) as db:
             row = db.execute("SELECT at, total, wrong_merges, missed, fell_back, details"
@@ -423,6 +475,8 @@ async def run() -> dict:
             why = held_why(record, sentences)
             if why:
                 summary["held"] += 1
+                if why.startswith("two nodes"):
+                    _ask_nando(record)
                 await asyncio.to_thread(store().note, record["id"], record["url"],
                                         mode, "held", why)
                 continue
@@ -456,6 +510,20 @@ async def run() -> dict:
         return {**summary, "why": f"{type(exc).__name__}: {exc}"}
 
 
+def _ask_nando(record: dict) -> None:
+    """An article two nodes claim looks misfiled: Consuela checks with Nando
+    before filing it (consuela.md, always 1) - through Netenyahu's task
+    table, never by doing his work (every-agent.md, always 2). The task
+    waits there until Nando has a handler for it (§402). Never raises."""
+    try:
+        from agents import tasks
+
+        tasks.store().add("categorizer", "settle", record["id"],
+                          {"nodes": sorted(set(record.get("nodes") or []))})
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not hand a misfiled article to Nando: %s", exc)
+
+
 # ------------------------------------------------------------------ Netenyahu's task
 def queue() -> str:
     """Ask for a run soon: one queued task at a time, a fresh one each minute
@@ -482,6 +550,13 @@ def register() -> None:
     netenyahu.HANDLERS[(AGENT, TASK)] = handler
     # Her nightly dedupe (§401).
     netenyahu.HANDLERS[(AGENT, dedupe.TASK)] = dedupe.handler
+    # Her longer jobs (§402): re-filing on tree changes, the 90-day pass and
+    # the full comb.
+    from agents import housekeeping
+
+    netenyahu.HANDLERS[(AGENT, "refile")] = housekeeping.refile_handler
+    netenyahu.HANDLERS[(AGENT, "second")] = housekeeping.second_handler
+    netenyahu.HANDLERS[(AGENT, "comb")] = housekeeping.comb_handler
 
 
 def exists() -> bool:
