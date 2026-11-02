@@ -395,11 +395,12 @@ def _keep_prices(rows: list, is_open, source: str) -> None:
     try:
         import history_archive
 
-        kept = []
+        kept, prices = [], []
         for symbol, data in rows:
             price = (data or {}).get("c")
             if not price:
                 continue
+            prices.append(float(price))
             stamp = (data or {}).get("t")
             as_of = (datetime.fromtimestamp(float(stamp), timezone.utc)
                      if isinstance(stamp, (int, float)) and stamp > 0
@@ -408,6 +409,12 @@ def _keep_prices(rows: list, is_open, source: str) -> None:
                 symbol, WATCHLIST.get(symbol, symbol), float(price),
                 (data or {}).get("dp"), as_of, is_open, source))
         history_archive.keep_swept(kept)
+        # Every quote as a reading of Consuela's series (§397): one per
+        # symbol and provider time. `keep_readings` keeps only an approved
+        # provider's - Tiingo's, never Finnhub's (decided item 41).
+        history_archive.keep_readings([r for r in (
+            history_archive.reading_from(dict(record, value=price, unit="USD"))
+            for record, price in zip(kept, prices)) if r is not None])
     except Exception as exc:  # noqa: BLE001 - the archive never costs a sweep
         log.warning("sweep prices were not archived: %s", exc)
 

@@ -26921,3 +26921,54 @@ this §396 (§386's lesson).
 Tests: `tests/test_archive_nodes_396.py` (nodes on intake and facts, the
 migration, with the agents off no node, the series and its refusals, the
 Atlas indexes and vector-index update against a fake).
+
+## 397. Phase 2, piece 2: whose material Consuela may store, and the sweeps' readings (2026-11-02)
+
+**The owner approved Perplexity for storage** (2026-11-02), beside GDELT,
+Tiingo and BALLDONTLIE (decided items 8 and 25). `docs/PROVIDER_TERMS.md`
+had found its terms do not restrict storing or reusing Search API results
+(§355); the publishers' copyright section there still applies.
+
+**The switch** (`history_archive.approved`): `HOUSEKEEPER_APPROVED_PROVIDERS`,
+default `fam,gdelt,tiingo,balldontlie,perplexity` (`config.py`,
+`.env.example`, `/api/health` > `archive.approved_providers`), matched
+through `provider_id`, which turns every spelling FAM uses ("BALLDONTLIE
+scores", "API-Sports", a finding's `provider`) into one id; an unknown
+provider is never approved. **`REFUSED` cannot be approved by the setting**:
+Parallel (its terms, §366) and Finnhub and API-Sports (decided item 41:
+treated as not approved until they are removed).
+
+**Read only while Consuela runs** (`consuela_runs`: `AGENTS`, `HOUSEKEEPER`
+and her rule book's lock, `agents.roster.status`). With her off the intake
+keeps exactly what it kept before her - as the plan proposed (its
+question 2) - so `AGENTS=0` changes nothing. With her on, `_kept` also drops
+what an unapproved or unknown provider returned (`not_approved`).
+
+**The sweeps reach her series through it** (`keep_readings`,
+`reading_from`), as piece 1 left for here:
+- the sports sweep (`balldontlie_scores._keep_readings`): every game under
+  way is a reading at the sweep's time - scores through a game are a
+  series - and a final one reading per game, kept at the first sweep that
+  saw it (`reading_id` from provider, league and game);
+- the markets sweep (`story_sources._keep_prices`): every quote, one per
+  symbol and provider time, with its value - Tiingo's kept, Finnhub's
+  refused;
+- an episode's own live records (`_write`), filed under Nando's node.
+
+**Found on the way:** the sports sweep named every league's finals
+"BALLDONTLIE" (`_keep_finals(..., self.name)`), including leagues API-Sports
+answered for (§290's router). It now passes the provider that answered
+(`client.source_for`), as `ScoreBoard._source` already did for episodes, so
+the archive - and the switch - can tell them apart. BALLDONTLIE's own
+leagues are named as before.
+
+**For the owner: `consuela.md`'s list is now out of date.** Its never 8
+reads "approved so far: GDELT, with its citation; Tiingo; BALLDONTLIE". The
+rule - store only what the owner approved - is unchanged and the code
+honours it; only the "so far" list misses Perplexity. Updating it is the
+owner's signature, not a code change; a proposal under
+`docs/agent_rule_proposals/` on request.
+
+Tests: `tests/test_provider_switch_397.py` (the default list, refusals no
+setting can lift, intake with Consuela off and on, readings let through and
+refused, both sweeps, an episode's live record under its node).

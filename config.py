@@ -2131,6 +2131,17 @@ class Settings:
     supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
     housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
     housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
+    # **Whose material Consuela may store** (§397, decided items 8 and 25;
+    # consuela.md, never 8): the providers the owner has approved - GDELT
+    # (with its citation), Tiingo, BALLDONTLIE (2026-10-28) and Perplexity
+    # (2026-11-02) - and FAM's own records. Read only while Consuela runs;
+    # `history_archive.REFUSED` (Parallel's terms; Finnhub and API-Sports,
+    # item 41) cannot be approved here.
+    housekeeper_approved_providers: tuple = field(
+        default_factory=lambda: tuple(
+            p.strip().lower() for p in os.environ.get(
+                "HOUSEKEEPER_APPROVED_PROVIDERS",
+                "fam,gdelt,tiingo,balldontlie,perplexity").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
     # **Netenyahu's background loop** (§350): how often it claims due agent

@@ -350,7 +350,10 @@ score or price, one record per subject, metric and moment (empty until
 Consuela writes it). Filed by node (§396): a fact carries Nando's node id
 and its path (`node_id`, `node_path`), an intake record the nodes of the
 episodes that used it (`nodes`), a reading its node id - all empty when
-Nando did not file the episode, which with `AGENTS=0` is always. Never a
+Nando did not file the episode, which with `AGENTS=0` is always. While
+Consuela runs (§397) only an approved provider's material is stored
+(`HOUSEKEEPER_APPROVED_PROVIDERS`; Parallel, Finnhub and API-Sports never),
+and the sweeps' scores and prices become readings of `live_series`. Never a
 private search or an attachment.
 
 **x_threads.db** (`x_threads.Store`, §321): `/admin/x`'s cards. `candidates`,

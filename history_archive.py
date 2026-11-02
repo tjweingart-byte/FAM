@@ -163,6 +163,52 @@ PROVIDERS = ("perplexity", "parallel", "gdelt")
 #: backup search, and nothing it returned is kept (docs/PROVIDER_TERMS.md).
 NEVER_KEPT = ("parallel",)
 
+#: Providers Consuela may never store, whatever `HOUSEKEEPER_APPROVED_PROVIDERS`
+#: says (§397): Parallel's terms forbid it (§366); Finnhub and API-Sports must
+#: be treated as not approved until they are removed (decided item 41).
+REFUSED = ("parallel", "finnhub", "api-sports")
+
+#: How a provider is spelled wherever FAM names it (a sweep's `name`, a
+#: live lookup's `source`, a finding's `provider`), to the one id the
+#: approval list uses. First match wins; anything else is "" - unknown, so
+#: never approved.
+_PROVIDER_WORDS = (("balldontlie", "balldontlie"), ("api-sports", "api-sports"),
+                   ("api sports", "api-sports"), ("tiingo", "tiingo"),
+                   ("finnhub", "finnhub"), ("gdelt", "gdelt"),
+                   ("perplexity", "perplexity"), ("parallel", "parallel"),
+                   ("polymarket", "polymarket"), ("gnews", "gnews"))
+
+
+def provider_id(name: str) -> str:
+    """`name` as the approval list spells it, or "" when it is not known."""
+    low = (name or "").strip().lower()
+    if low == "fam":
+        return "fam"
+    for word, pid in _PROVIDER_WORDS:
+        if word in low:
+            return pid
+    return ""
+
+
+def consuela_runs() -> bool:
+    """Whether Consuela may work now: `AGENTS`, `HOUSEKEEPER` and her rule
+    book's lock (`agents.roster.status`). Never raises."""
+    try:
+        from agents import roster
+
+        return bool(roster.status("housekeeper")["may_run"])
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def approved(provider: str) -> bool:
+    """Whether Consuela may store what `provider` returned (§397; decided
+    items 8 and 25; consuela.md, never 8): on the owner's list and not
+    refused. An unknown provider is never approved."""
+    pid = provider_id(provider)
+    return bool(pid) and pid not in REFUSED and pid in tuple(
+        settings.housekeeper_approved_providers or ())
+
 
 @dataclass
 class Fact:
@@ -817,7 +863,8 @@ STATS: dict = {"intake_articles": 0, "episodes_linked": 0, "recalls": 0,
                "recalled_facts": 0, "recall_late": 0, "errors": 0,
                "last_error": "", "last_recall_ms": None, "live_facts": 0,
                "live_skipped": 0, "swept_facts": 0, "swept_skipped": 0,
-               "never_kept": 0}
+               "never_kept": 0, "not_approved": 0, "readings_kept": 0,
+               "readings_not_approved": 0}
 _STATS_LOCK = threading.Lock()
 _BACKOFF_UNTIL = [0.0]
 _SINCE_PRUNE = [0]
@@ -888,7 +935,8 @@ def reset() -> None:
                       "recalled_facts": 0, "recall_late": 0, "errors": 0,
                       "last_error": "", "last_recall_ms": None,
                       "live_facts": 0, "live_skipped": 0, "swept_facts": 0,
-                      "swept_skipped": 0, "never_kept": 0})
+                      "swept_skipped": 0, "never_kept": 0, "not_approved": 0,
+                      "readings_kept": 0, "readings_not_approved": 0})
     _SWEPT_SEEN.clear()
     _BACKOFF_UNTIL[0] = 0.0
     _SINCE_PRUNE[0] = 0
@@ -1087,6 +1135,69 @@ def swept_price(symbol: str, label: str, price: float, change, as_of: datetime,
                       f"UTC on {day}{state}."]}
 
 
+#: A live record's domain, as the series' metric.
+_METRIC_OF = {"sports": "score", "markets": "price", "elections": "count"}
+
+
+def reading_from(record: dict, node: str = "") -> Optional[Reading]:
+    """A `live_records` / sweep record as one reading of the series, or None
+    when it is not one (no moment, no line, a domain the series does not
+    keep). The provider's own line and time - never a model's words."""
+    try:
+        metric = _METRIC_OF.get(str(record.get("domain", "") or ""))
+        text = " ".join(str(x) for x in record.get("lines") or () if str(x).strip())
+        subject = str(record.get("subject") or record.get("entity") or "").strip()
+        as_of = datetime.fromisoformat(str(record.get("as_of", "")))
+        if not (metric and text and subject) or as_of.tzinfo is None:
+            return None
+        value = record.get("value")
+        return Reading(subject=subject, metric=metric, as_of=as_of, text=text,
+                       value=float(value) if isinstance(value, (int, float)) else None,
+                       unit=str(record.get("unit", "") or ""),
+                       status=str(record.get("status", "") or ""),
+                       source=str(record.get("source", "") or ""),
+                       domain=str(record.get("domain", "")), node_id=node,
+                       id=str(record.get("reading_id", "") or ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def keep_readings(items: list, wait: bool = False) -> int:
+    """Put readings in the series (§397): only while Consuela runs, only from
+    an approved provider. Queued on the archive's thread unless `wait` (the
+    caller already is that thread). Returns how many were let through.
+    Never raises, never costs a sweep."""
+    try:
+        if not items or not consuela_runs() or not enabled():
+            return 0
+        allowed = [r for r in items if approved(r.source)]
+        if len(allowed) < len(items):
+            _count("readings_not_approved", len(items) - len(allowed))
+        if allowed:
+            if wait:
+                _write_readings(allowed)
+            else:
+                EXECUTOR.submit(_write_readings, allowed)
+        return len(allowed)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not queue readings for the archive: %s", exc)
+        return 0
+
+
+def _write_readings(items: list) -> None:
+    if _backing_off() or backend() is None:
+        return
+    for reading in items:
+        try:
+            add_reading(reading)
+        except ValueError:
+            continue
+        except Exception as exc:  # noqa: BLE001 - see `_failed`
+            _failed("reading", exc)
+            return
+        _count("readings_kept")
+
+
 def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:
     """Queue the episode's articles for the archive. Never raises, never
     waits: the work is submitted to `EXECUTOR`.
@@ -1125,6 +1236,13 @@ def _kept(findings: list) -> list:
     dropped = len(findings or ()) - len(kept)
     if dropped:
         _count("never_kept", dropped)
+    # While Consuela runs, only what an approved provider returned (§397).
+    # With her off, the intake keeps what it kept before her.
+    if kept and consuela_runs():
+        allowed = [f for f in kept if approved(f.provider)]
+        if len(allowed) < len(kept):
+            _count("not_approved", len(kept) - len(allowed))
+        kept = allowed
     return kept
 
 
@@ -1154,6 +1272,9 @@ def _write(findings: list, subject: str, category: str, episode: str,
         except Exception as exc:  # noqa: BLE001 - see `_failed`
             _failed("live fact", exc)
             break
+    # And as readings in the series, while Consuela runs (§397).
+    keep_readings([r for r in (reading_from(record, node) for record in live or ())
+                   if r is not None], wait=True)
     if not findings:
         return
     try:
@@ -1359,4 +1480,9 @@ def report() -> dict:
             "reason": why, "recall": bool(settings.archive_recall),
             "embedder": embedder,
             "backing_off": _backing_off(),
-            "grace_seconds": float(settings.archive_grace_seconds), **stats}
+            "grace_seconds": float(settings.archive_grace_seconds),
+            # Whose material Consuela may store (§397), and whether she runs.
+            "housekeeper": consuela_runs(),
+            "approved_providers": [p for p in settings.housekeeper_approved_providers
+                                   if p not in REFUSED],
+            **stats}

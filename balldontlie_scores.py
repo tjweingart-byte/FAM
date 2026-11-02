@@ -1008,6 +1008,41 @@ def _keep_finals(league: League, rows: list, catalogue: dict, source: str) -> No
         log.warning("sweep finals were not archived: %s", exc)
 
 
+def _keep_readings(league: League, rows: list, catalogue: dict, source: str,
+                   now: datetime) -> None:
+    """Every game under way or finished in one league's sweep, as readings
+    of Consuela's series (§397): scores through a game are a series, each
+    kept with the sweep's time; a final is one reading, kept at the first
+    sweep that saw it. `history_archive.keep_readings` decides whether
+    Consuela runs and the provider is approved. Never raises."""
+    try:
+        import history_archive
+
+        records = []
+        for row in rows:
+            status = status_of(row)
+            if status not in (live_facts.IN_PROGRESS, live_facts.FINAL):
+                continue
+            lines = game_facts(league, row, status, catalogue)
+            home, away = sides(row, catalogue)
+            if not lines or row.get("id") is None:
+                continue
+            records.append({
+                "domain": "sports", "status": status, "source": source,
+                "subject": f"{team_said(home) or 'the home side'} vs "
+                           f"{team_said(away) or 'the away side'}",
+                "as_of": now.isoformat(),
+                "lines": [f"{league.label}: " + " ".join(lines)],
+                # One final per game, whenever it is first seen.
+                "reading_id": (history_archive.url_id(
+                    f"final:{source}:{league.key}:{row.get('id')}")
+                    if status == live_facts.FINAL else "")})
+        history_archive.keep_readings(
+            [r for r in map(history_archive.reading_from, records) if r is not None])
+    except Exception as exc:  # noqa: BLE001 - the archive never costs a sweep
+        log.warning("sweep scores were not kept as readings: %s", exc)
+
+
 def make_signals():
     """`Signals` is built lazily: `stories` imports `story_sources`, which
     names this class in its registry."""
@@ -1165,8 +1200,14 @@ def make_signals():
                     if signal is not None:
                         out.append(signal)
                 # Every final the sweep saw, for the history archive (§315):
-                # no request of its own, never awaited.
-                _keep_finals(league, rows, catalogue, self.name)
+                # no request of its own, never awaited. Named by the provider
+                # that answered for the league (§290), so the archive can
+                # tell BALLDONTLIE's from API-Sports' (§397).
+                source = (getattr(self.client, "source_for", lambda k: "")(key)
+                          or self.name)
+                _keep_finals(league, rows, catalogue, source)
+                # Every score the sweep saw, as Consuela's series (§397).
+                _keep_readings(league, rows, catalogue, source, now)
             for key, exc in failures:
                 log.warning("stories: BALLDONTLIE %s failed: %s", key, exc)
             if failures and not out:

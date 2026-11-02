@@ -1404,6 +1404,7 @@ languages). Every hole is closed by "uncertain = not compared".
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_COMB_DAYS` | Batch size; how often the full duplicate comb runs (proposed) |
 | `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until the automated eval shows no wrong merge (decided 2026-10-29: no hand-checked sample) |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | 30 |
+| `HOUSEKEEPER_APPROVED_PROVIDERS` | Built (§397): `fam,gdelt,tiingo,balldontlie,perplexity`; Parallel, Finnhub and API-Sports refused in code (`history_archive.REFUSED`) |
 
 **May FAM keep what the providers return?** The owner's use (2026-10-28):
 an internal, chronological history of what FAM searched with its own keys,
@@ -1415,7 +1416,7 @@ session could not open the providers' own pages; not legal advice):
 |---|---|---|---|
 | **GDELT** | Article titles, links, dates, themes | Open for any purpose, commercial included, rehost and republish allowed; **must cite GDELT and link to gdeltproject.org** | Yes, with the citation |
 | **Parallel** (Search API) | Key sentences and links from its excerpts | Customer Terms (a cached copy, possibly outdated): Output is "primarily for the exclusive use of the Authorized User who submitted the corresponding query"; restrictions on copying, caching or storing Output for other end customers; no "AI and Data Selling Services"; the FAQ says the customer owns the output | **Unclear** - an archive reused for other listeners' episodes may be "storing Output for other End Customers". Ask Parallel in writing |
-| **Perplexity** (Search API, which FAM uses) | Key sentences and links | The Search Addendum says the customer does **not** own Search API Output (it is public web content); the display and storage clauses could not be read | **Unclear** - ask Perplexity in writing |
+| **Perplexity** (Search API, which FAM uses) | Key sentences and links | The Search Addendum says the customer does **not** own Search API Output (it is public web content); its terms do not restrict storing or reusing results (`docs/PROVIDER_TERMS.md`, §355) | **Approved** - the owner, 2026-11-02 (§397) |
 | **GNews** (Trending) | Titles, links, dates | Free plan is non-commercial only; storage terms could not be read | **Needs a paid plan** before commercial launch; storage unconfirmed |
 | **Tiingo** (prices) | Daily prices for trends | Standard plans are internal use; redistribution needs a licence | **Approved** - the owner has agreed redistribution with Tiingo (2026-10-28) |
 | **BALLDONTLIE** (scores) | Every final and in-game score | - | **Approved** - the owner has agreed redistribution with BALLDONTLIE (2026-10-28) |
@@ -1430,8 +1431,9 @@ Decided (2026-10-28): consolidation on entry and again at 90 days;
 consolidated records kept indefinitely, reviewed at two years, the archive
 combed for duplicates from time to time; aggregate demographics with a
 minimum group of 100; date of birth (required, 13+), location and gender
-(optional) asked at activation; the age bands above. Open: which providers
-the owner approves for storage (above).
+(optional) asked at activation; the age bands above. Approved for storage
+(§397): GDELT, Tiingo, BALLDONTLIE, Perplexity (2026-11-02). Still open:
+GNews and Polymarket (above).
 Answered: a repeating article is a link and a count, no text (2026-10-24).
 
 ## 6. Retriever (Sonic)
