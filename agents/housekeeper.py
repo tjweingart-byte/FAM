@@ -543,16 +543,19 @@ async def handler(_task: str) -> None:
         raise RuntimeError(f"no batch could be consolidated: {summary}")
 
 
-def register() -> None:
-    """Give Netenyahu Consuela's task (app startup, only with `AGENTS=1`)."""
-    from agents import dedupe, netenyahu
+def register(script_cache=None) -> None:
+    """Give Netenyahu Consuela's task (app startup, only with `AGENTS=1`),
+    and her re-files the script cache (§404)."""
+    from agents import dedupe, housekeeping, netenyahu
+
+    if script_cache is not None:
+        housekeeping.SCRIPT_CACHE[0] = script_cache
 
     netenyahu.HANDLERS[(AGENT, TASK)] = handler
     # Her nightly dedupe (§401).
     netenyahu.HANDLERS[(AGENT, dedupe.TASK)] = dedupe.handler
     # Her longer jobs (§402): re-filing on tree changes, the 90-day pass and
     # the full comb.
-    from agents import housekeeping
 
     netenyahu.HANDLERS[(AGENT, "refile")] = housekeeping.refile_handler
     netenyahu.HANDLERS[(AGENT, "second")] = housekeeping.second_handler

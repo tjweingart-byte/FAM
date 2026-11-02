@@ -27299,3 +27299,49 @@ the router then code; node, family, meaning, nothing; nothing from inside
 the window; results from the series oldest first; a future period dropped;
 the packet; today's recall as the fallback; never weather or a town's news;
 the search uses him only when Netenyahu says so; Atlas's queries).
+
+## 404. Phase 2, piece 7: one category tag, everywhere, moved by one function (2026-11-02)
+
+Decided item 5: Nando's node travels with the episode - script row, R2
+metadata, every MongoDB record from it, every surface - and a re-file or a
+tree change updates them together.
+
+- **Written everywhere when the episode is.** The script row already held
+  it (§371). Now the audio's upload carries it as R2 metadata
+  (`x-amz-meta-category-node`, with `x-amz-meta-episode`, the episode id),
+  read from the row by `_tag_metadata`; the archive's `episode_sources`
+  record carries it (`node`, a migrated SQLite column; on Atlas only when
+  there is one); intake records already did (§396). With no node - every
+  episode while `AGENTS=0` - the upload and the record are exactly as before.
+- **`category_tag.retag(cache, key, node)`**, the one function that moves
+  it: the archive (the episode's record, and on each of its articles the
+  old node replaced by the new), then every audio object of the episode by
+  a **copy in place** (`R2AudioStore.set_metadata`: `x-amz-metadata-directive:
+  REPLACE`, the type and the storage class restated - a kept episode stays
+  Infrequent Access), then the script row last (`set_category_node`), so no
+  surface shows a node the rest does not hold yet. A failing step does not
+  stop the others; it is recorded (`failed`, `pipeline_errors` on /admin)
+  for the sync check (§405) to repair. A dry run reports, an episode Nando
+  never filed is left to the writer's words, and it never raises.
+- **No app cache to invalidate**: `_episode_category` reads the script store
+  on every call (§376), so the row is the invalidation. Looked for, not
+  assumed: no module caches an episode's category.
+- **A tree change moves the episodes too**: Consuela's re-file of a pruned
+  node (§402) now retags every episode filed under it, to the node its facts
+  moved to, or to none - the writer's words then place it, as for any
+  episode whose node has gone (§371). Startup hands her the script cache
+  (`housekeeper.register(SCRIPT_CACHE)`).
+- Metadata values are percent-encoded (an S3 header is ASCII; a node id may
+  not be) and signed with the request; `head` reads them back decoded.
+- `/api/health` → `archive` → `retags` counts re-files, objects moved and
+  failures.
+
+Not here: the nightly check that the three agree (§405, piece 8), and the
+Phase 1 item that re-files episodes written before Nando, which will call
+this function.
+
+Tests: `tests/test_category_tag_404.py` (the node on upload and none
+without it, R2's copy in place keeping the class and signing the metadata,
+the episode record's node, retag moving all three, the dry run, an unfiled
+episode left alone, a bucket failure recorded while the rest moves, never
+raises, a pruned node's episodes moving, the cache handed over at startup).

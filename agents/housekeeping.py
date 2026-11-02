@@ -54,6 +54,10 @@ log = logging.getLogger("fam.agents.housekeeping")
 #: The owner's number (decided item 3): a plain sentence is folded into its
 #: article's link this long after it was kept.
 SECOND_PASS_DAYS = 90
+#: The script cache, handed in at startup (`housekeeper.register`), so a
+#: re-file moves the episodes as well as the facts (§404).
+SCRIPT_CACHE: list = [None]
+
 #: Sentences folded per run, facts re-filed per node, facts combed per night.
 SECOND_PASS_LIMIT = 500
 REFILE_LIMIT = 5000
@@ -135,15 +139,27 @@ def refile(node: str, now: Optional[float] = None) -> dict:
         if mode == "live":
             for old, new in out["moved_nodes"].items():
                 archive.replace_node(old, new)
-        if _tree().get(node) is None and mode == "live":
-            # Intake and readings that named a node no fact named.
-            new = out["moved_nodes"].get(node)
-            if new is None:
-                new = ""
-            archive.replace_node(node, new)
+        episodes = 0
+        if _tree().get(node) is None:
+            new = out["moved_nodes"].get(node, "")
+            if mode == "live":
+                # Intake and readings that named a node no fact named.
+                archive.replace_node(node, new)
+            # The episodes filed under it move with it, everywhere at once
+            # (§404): script row, bucket, archive. To "" when no fact told
+            # where - the writer's words then place them, as for any episode
+            # whose node has gone (§371).
+            cache = SCRIPT_CACHE[0]
+            if cache is not None:
+                import category_tag
+
+                for key in cache.keys_with_node(node):
+                    category_tag.retag(cache, key, new, reason=f"tree: {node!r} gone",
+                                       dry_run=mode != "live")
+                    episodes += 1
         summary = {"node": node, "mode": mode,
                    **{k: v for k, v in out.items() if k != "moved_nodes"},
-                   "moved": out["moved_nodes"]}
+                   "moved": out["moved_nodes"], "episodes": episodes}
         housekeeper.store().note_job("refile", mode, summary, now)
         return summary
     except Exception as exc:  # noqa: BLE001

@@ -693,7 +693,7 @@ async def lifespan(_: FastAPI):
         # a dry run until HOUSEKEEPER_DRY_RUN=0.
         from agents import housekeeper as agent_housekeeper
 
-        agent_housekeeper.register()
+        agent_housekeeper.register(SCRIPT_CACHE)
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.

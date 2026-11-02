@@ -146,6 +146,22 @@ def presign(method: str, host: str, path: str, access_key: str,
 # -- stores -----------------------------------------------------------------
 
 
+def meta_headers(metadata: Optional[dict]) -> dict:
+    """`x-amz-meta-*` headers for `metadata` (§404). Values are
+    percent-encoded: an S3 header is ASCII, and a node id may not be."""
+    from urllib.parse import quote
+
+    return {f"x-amz-meta-{str(k).lower()}": quote(str(v), safe=" -_.:/")
+            for k, v in (metadata or {}).items() if v is not None}
+
+
+def storage_class_of(name: str) -> str:
+    """The class an object was put in, read from its prefix: `kept/` is
+    Infrequent Access (§237), everything else Standard. A copy in place must
+    keep it, or a metadata update would move a kept episode back."""
+    return INFREQUENT if name.startswith(KEPT) else ""
+
+
 class MemoryAudioStore:
     """The bucket's shape in a dict. Tests, and nothing else."""
 
@@ -153,12 +169,24 @@ class MemoryAudioStore:
 
     def __init__(self) -> None:
         self.objects: dict[str, tuple[bytes, str]] = {}
+        self.metadata: dict[str, dict] = {}
         self.calls: list[tuple[str, str]] = []
 
     def put(self, name: str, data: bytes, storage_class: str = "",
-            content_type: str = "") -> None:
+            content_type: str = "", metadata: Optional[dict] = None) -> None:
         self.calls.append(("put", name))
         self.objects[name] = (bytes(data), storage_class or "STANDARD")
+        self.metadata[name] = dict(metadata or {})
+
+    def set_metadata(self, name: str, metadata: dict) -> None:
+        self.calls.append(("set_metadata", name))
+        if name not in self.objects:
+            raise AudioStoreError(f"no such object: {name}")
+        self.metadata[name] = dict(metadata)
+
+    def head(self, name: str) -> Optional[dict]:
+        self.calls.append(("head", name))
+        return dict(self.metadata.get(name, {})) if name in self.objects else None
 
     def get(self, name: str) -> Optional[bytes]:
         self.calls.append(("get", name))
@@ -233,12 +261,38 @@ class R2AudioStore:
             raise AudioStoreError(f"{what}: HTTP {resp.status_code} {resp.text[:200]}")
 
     def put(self, name: str, data: bytes, storage_class: str = "",
-            content_type: str = "") -> None:
+            content_type: str = "", metadata: Optional[dict] = None) -> None:
         # Audio unless told otherwise: pictures share the bucket (§330).
-        headers = {"content-type": content_type or "audio/ogg"}
+        headers = {"content-type": content_type or "audio/ogg",
+                   **meta_headers(metadata)}
         if storage_class:
             headers["x-amz-storage-class"] = storage_class
         self._check(self._request("PUT", name, bytes(data), headers), f"PUT {name}")
+
+    def set_metadata(self, name: str, metadata: dict) -> None:
+        """Replace an object's metadata by copying it onto itself (§404,
+        decided item 5: "a copy-in-place update when it changes"). Its type
+        and storage class are restated, because REPLACE drops what is not."""
+        headers = {"x-amz-copy-source": _quote(f"/{self.bucket}/{name}"),
+                   "x-amz-metadata-directive": "REPLACE",
+                   "content-type": "audio/ogg", **meta_headers(metadata)}
+        if storage_class_of(name):
+            headers["x-amz-storage-class"] = storage_class_of(name)
+        resp = self._request("PUT", name, b"", headers)
+        self._check(resp, f"RETAG {name}")
+        if b"<Error>" in resp.content[:200]:
+            raise AudioStoreError(f"RETAG {name}: {resp.text[:200]}")
+
+    def head(self, name: str) -> Optional[dict]:
+        """An object's metadata (lower-case keys, decoded), or None if gone."""
+        from urllib.parse import unquote
+
+        resp = self._request("HEAD", name)
+        if resp.status_code == 404:
+            return None
+        self._check(resp, f"HEAD {name}")
+        return {k[len("x-amz-meta-"):]: unquote(v) for k, v in resp.headers.items()
+                if k.lower().startswith("x-amz-meta-")}
 
     def get(self, name: str) -> Optional[bytes]:
         resp = self._request("GET", name)

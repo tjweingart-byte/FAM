@@ -106,7 +106,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 
 | File (env var) | Owner module(s) | Main tables | Per-listener? | Retention | Erase / Wipe |
 |---|---|---|---|---|---|
-| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; with R2 the audio is in the bucket only (§293), else capped at 512 MB | `author` cleared on erase (§208) · **Wiped** |
+| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; with R2 the audio is in the bucket only (§293), else capped at 512 MB. Nando's node (`category_node`) travels to the bucket: each audio object carries `x-amz-meta-category-node` and `x-amz-meta-episode` when he filed it (§404), and `category_tag.retag` moves row, objects and archive together | `author` cleared on erase (§208) · **Wiped** |
 | **myfam.db** (`MYFAM_DB`) | `topics.py`, `learned_rank.py` | `events`, `learned_rank` | Yes | Forever (impressions 30 days) | Erased · **Wiped** (events and the model) |
 | **preferences.db** (`PREFS_DB`) | `preferences.py` | `preferences` | Yes | 1 row per listener | Erased · kept |
 | **accounts.db** (`ACCOUNTS_DB`) | `accounts.py`, `waitlist.py` | `accounts`, `sessions`, `identities`, `waitlist_settings`, `waitlist_outbox` | Yes | Sessions 90 days | Erased · **never wiped** |
@@ -343,7 +343,8 @@ MongoDB Atlas in production once `ARCHIVE_BACKEND=atlas`, else
 categories of the episodes that used it, first and last seen, how often) -
 the raw material Consuela, the housekeeper agent, will digest
 (`docs/FAM_AGENTS.md`), kept until then, at most `ARCHIVE_INTAKE_MAX`;
-`episode_sources`, each written episode's article links keyed by its
+`episode_sources`, each written episode's article links (and, when Nando
+filed it, its node - §404) keyed by its
 `cache.episode_id`, for a sources view on the episode screen; `facts`, the
 key sentences and figures the agent keeps, each with a 384-number vector,
 recalled beside the search; `live_series` (§396), every reading of a live

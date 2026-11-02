@@ -387,7 +387,9 @@ class SQLiteBackend:
                                     ("facts", "superseded_at", "REAL NOT NULL DEFAULT 0"),
                                     ("facts", "superseded_why", "TEXT NOT NULL DEFAULT ''"),
                                     ("facts", "node_path", "TEXT NOT NULL DEFAULT '[]'"),
-                                    ("intake", "nodes", "TEXT NOT NULL DEFAULT '[]'")):
+                                    ("intake", "nodes", "TEXT NOT NULL DEFAULT '[]'"),
+                                    # The episode's own node (§404).
+                                    ("episode_sources", "node", "TEXT NOT NULL DEFAULT ''")):
             try:
                 with closing(self._connect()) as alter, alter:
                     alter.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
@@ -488,7 +490,16 @@ class SQLiteBackend:
             return cur.rowcount or 0
 
     def link_episode(self, episode: str, key: str, sourced_at: float,
-                     links: list, now: float) -> None:
+                     links: list, now: float, node: str = "") -> None:
+        if node:
+            with self._lock, closing(self._connect()) as db, db:
+                db.execute("INSERT INTO episode_sources (episode, key, sourced_at, "
+                           "links, created, node) VALUES (?, ?, ?, ?, ?, ?) "
+                           "ON CONFLICT(episode) DO UPDATE SET links = excluded.links, "
+                           "node = excluded.node",
+                           (episode, key, float(sourced_at or 0), json.dumps(links), now,
+                            node))
+            return
         with self._lock, closing(self._connect()) as db, db:
             db.execute("INSERT INTO episode_sources (episode, key, sourced_at, "
                        "links, created) VALUES (?, ?, ?, ?, ?) "
@@ -500,6 +511,37 @@ class SQLiteBackend:
             row = db.execute("SELECT links FROM episode_sources WHERE episode = ?",
                              (episode,)).fetchone()
         return json.loads(row[0]) if row else []
+
+    def episode_node(self, episode: str) -> Optional[str]:
+        """The node an episode's record carries; None when there is no record."""
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT node FROM episode_sources WHERE episode = ?",
+                             (episode,)).fetchone()
+        return None if row is None else (row[0] or "")
+
+    def tag_episode(self, episode: str, old: str, new: str) -> dict:
+        """Re-file one episode in the archive (§404): its record's node, and
+        on each of its articles `old` replaced by `new` (added when absent)."""
+        out = {"episode": False, "articles": 0}
+        with self._lock, closing(self._connect()) as db, db:
+            row = db.execute("SELECT links FROM episode_sources WHERE episode = ?",
+                             (episode,)).fetchone()
+            if row is None:
+                return out
+            db.execute("UPDATE episode_sources SET node = ? WHERE episode = ?",
+                       (new, episode))
+            out["episode"] = True
+            for link in json.loads(row[0] or "[]"):
+                hit = db.execute("SELECT nodes FROM intake WHERE id = ?",
+                                 (url_id(link.get("url", "")),)).fetchone()
+                if hit is None:
+                    continue
+                nodes = [new if n == old else n for n in json.loads(hit[0] or "[]")]
+                nodes = _union([n for n in nodes if n], [new] if new else [])
+                db.execute("UPDATE intake SET nodes = ? WHERE id = ?",
+                           (json.dumps(nodes), url_id(link.get("url", ""))))
+                out["articles"] += 1
+        return out
 
     def add_fact(self, fact: Fact, vector: Optional[list], space: str,
                  now: float) -> str:
@@ -946,16 +988,37 @@ class AtlasBackend:
         return int(getattr(result, "modified_count", 0) or 0)
 
     def link_episode(self, episode: str, key: str, sourced_at: float,
-                     links: list, now: float) -> None:
-        self.episodes_c.replace_one(
-            {"_id": episode},
-            {"_id": episode, "key": key, "sourced_at": float(sourced_at or 0),
-             "links": links, "created": datetime.fromtimestamp(now, timezone.utc)},
-            upsert=True)
+                     links: list, now: float, node: str = "") -> None:
+        doc = {"_id": episode, "key": key, "sourced_at": float(sourced_at or 0),
+               "links": links, "created": datetime.fromtimestamp(now, timezone.utc)}
+        if node:
+            doc["node"] = node
+        self.episodes_c.replace_one({"_id": episode}, doc, upsert=True)
 
     def episode_links(self, episode: str) -> list:
         doc = self.episodes_c.find_one({"_id": episode})
         return list(doc.get("links", [])) if doc else []
+
+    def episode_node(self, episode: str) -> Optional[str]:
+        doc = self.episodes_c.find_one({"_id": episode})
+        return None if doc is None else (doc.get("node") or "")
+
+    def tag_episode(self, episode: str, old: str, new: str) -> dict:
+        out = {"episode": False, "articles": 0}
+        doc = self.episodes_c.find_one({"_id": episode})
+        if doc is None:
+            return out
+        self.episodes_c.update_one({"_id": episode}, {"$set": {"node": new}})
+        out["episode"] = True
+        for link in doc.get("links") or []:
+            rid = url_id(link.get("url", ""))
+            if old and old != new:
+                self.intake_c.update_one({"_id": rid}, {"$pull": {"nodes": old}})
+            if new:
+                result = self.intake_c.update_one({"_id": rid},
+                                                  {"$addToSet": {"nodes": new}})
+                out["articles"] += int(getattr(result, "matched_count", 1) or 0)
+        return out
 
     def add_fact(self, fact: Fact, vector: Optional[list], space: str,
                  now: float) -> str:
@@ -1611,8 +1674,11 @@ def _write(findings: list, subject: str, category: str, episode: str,
                                                 node=node) if node else
                                    store.intake(findings, subject, category, now)))
         if episode:
-            store.link_episode(episode, key, sourced_at,
-                               [f.as_link() for f in findings], now)
+            links = [f.as_link() for f in findings]
+            if node:   # Nando's node on the episode's record too (§404)
+                store.link_episode(episode, key, sourced_at, links, now, node=node)
+            else:
+                store.link_episode(episode, key, sourced_at, links, now)
             _count("episodes_linked")
         # Consuela consolidates what just entered (§399), on Netenyahu's
         # loop, minutes from now - never on this thread.
@@ -1803,6 +1869,15 @@ def as_sources(facts: list, first_number: int, now: Optional[datetime] = None) -
     return "\n".join(parts)
 
 
+def _retag_report() -> dict:
+    try:
+        import category_tag
+
+        return category_tag.report()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _retriever_report() -> dict:
     try:
         from agents import retriever
@@ -1841,6 +1916,8 @@ def report() -> dict:
             "housekeeper": consuela_runs(),
             "consolidation": _consolidation_report(),
             "retriever": _retriever_report(),
+            # Re-files of written episodes, everywhere at once (§404).
+            "retags": _retag_report(),
             "approved_providers": [p for p in settings.housekeeper_approved_providers
                                    if p not in REFUSED],
             **stats}
