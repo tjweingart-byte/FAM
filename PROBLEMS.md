@@ -26969,6 +26969,10 @@ honours it; only the "so far" list misses Perplexity. Updating it is the
 owner's signature, not a code change; a proposal under
 `docs/agent_rule_proposals/` on request.
 
+`tests/test_agents_model_layer.py`'s import map now lets `history_archive.py`
+read `agents.roster` (the switches and the lock, no model): the full check
+caught the new import, as it is meant to.
+
 Tests: `tests/test_provider_switch_397.py` (the default list, refusals no
 setting can lift, intake with Consuela off and on, readings let through and
 refused, both sweeps, an episode's live record under its node).

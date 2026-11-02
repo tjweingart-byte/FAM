@@ -376,6 +376,9 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # The audit report reads the answer key's agreement (§381); the
         # judge itself is a background task, never on the listener's path.
         "category_audit.py": {"training"},
+        # The archive asks whether Consuela may run - her switches and her
+        # lock, read only, no model (§397).
+        "history_archive.py": {"roster"},
     }
     found = {}
     for p in ROOT.glob("*.py"):
