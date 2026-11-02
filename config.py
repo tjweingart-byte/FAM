@@ -2139,6 +2139,17 @@ class Settings:
         not in ("0", "false", "False"))
     housekeeper_batch_articles: int = _env_int("HOUSEKEEPER_BATCH_ARTICLES", 8)
     housekeeper_batches_per_run: int = _env_int("HOUSEKEEPER_BATCHES_PER_RUN", 5)
+    # **Consuela's dedupe** (§401): a dry run - the merges she would make are
+    # reported, nothing is marked - until the owner sets 0, and even then
+    # only once her automated eval shows no wrong merge for the models set
+    # (decided item 33). A repeat she marks is kept this many days before it
+    # is deleted for good (consuela.md, always 11). Pairs asked of the model
+    # per run, at most.
+    housekeeper_dedupe_dry_run: bool = field(
+        default_factory=lambda: os.environ.get("HOUSEKEEPER_DEDUPE_DRY_RUN", "1")
+        not in ("0", "false", "False"))
+    housekeeper_superseded_days: float = _env_float("HOUSEKEEPER_SUPERSEDED_DAYS", 30.0)
+    housekeeper_dedupe_pairs: int = _env_int("HOUSEKEEPER_DEDUPE_PAIRS", 200)
     # **Whose material Consuela may store** (§397, decided items 8 and 25;
     # consuela.md, never 8): the providers the owner has approved - GDELT
     # (with its citation), Tiingo, BALLDONTLIE (2026-10-28) and Perplexity

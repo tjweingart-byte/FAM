@@ -383,6 +383,9 @@ class SQLiteBackend:
         # Filed by node (§396). Each column on its own connection, for the
         # same reason as `by_provider`'s.
         for table, column, kind in (("facts", "node_id", "TEXT NOT NULL DEFAULT ''"),
+                                    # Consuela's reversible marks (§401).
+                                    ("facts", "superseded_at", "REAL NOT NULL DEFAULT 0"),
+                                    ("facts", "superseded_why", "TEXT NOT NULL DEFAULT ''"),
                                     ("facts", "node_path", "TEXT NOT NULL DEFAULT '[]'"),
                                     ("intake", "nodes", "TEXT NOT NULL DEFAULT '[]'")):
             try:
@@ -525,6 +528,92 @@ class SQLiteBackend:
                  embeddings.pack(vector) if vector else None, now,
                  fact.node_id or "", json.dumps(list(fact.node_path or []))))
         return fid
+
+    # -------------------------------------------------- Consuela's dedupe (§401)
+    _DEDUPE_COLUMNS = ("id, url, host, grade, published, published_ts, kind, text, "
+                       "subject, figure, node_id, created, embedding, corroborations")
+
+    @staticmethod
+    def _dedupe_row(r) -> dict:
+        import embeddings
+
+        return {"id": r[0], "url": r[1], "host": r[2], "grade": r[3],
+                "published": r[4], "published_ts": r[5], "kind": r[6], "text": r[7],
+                "subject": r[8], "figure": json.loads(r[9] or "{}"), "node_id": r[10],
+                "created": r[11],
+                "vector": embeddings.unpack(r[12]) if r[12] else None,
+                "corroborations": json.loads(r[13] or "[]")}
+
+    def dedupe_facts(self, created_since: float, limit: int) -> list:
+        """Active facts kept since `created_since`, never a live record."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                f"SELECT {self._DEDUPE_COLUMNS} FROM facts WHERE active = 1 "
+                "AND kind != 'live' AND created >= ? ORDER BY created LIMIT ?",
+                (created_since, max(1, int(limit)))).fetchall()
+        return [self._dedupe_row(r) for r in rows]
+
+    def facts_near(self, node_id: str, subject: str, start_ts: float, end_ts: float,
+                   limit: int) -> list:
+        """Active facts under one node (or, with none, one subject) published
+        between two moments - where a duplicate of a fact could be."""
+        field, value = ("node_id", node_id) if node_id else ("subject", subject)
+        if not value:
+            return []
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                f"SELECT {self._DEDUPE_COLUMNS} FROM facts WHERE active = 1 "
+                f"AND kind != 'live' AND {field} = ? AND published_ts >= ? "
+                "AND published_ts <= ? ORDER BY published_ts LIMIT ?",
+                (value, start_ts, end_ts, max(1, int(limit)))).fetchall()
+        return [self._dedupe_row(r) for r in rows]
+
+    def supersede(self, loser: str, keeper: str, why: str, now: float) -> bool:
+        """Mark `loser` a repeat of `keeper` (reversible, consuela.md always
+        11): inactive, never deleted here; `keeper` gains its link and count,
+        never its text (always 8)."""
+        with self._lock, closing(self._connect()) as db, db:
+            row = db.execute("SELECT url, host, grade, published FROM facts "
+                             "WHERE id = ? AND active = 1", (loser,)).fetchone()
+            kept = db.execute("SELECT corroborations FROM facts WHERE id = ? "
+                              "AND active = 1", (keeper,)).fetchone()
+            if row is None or kept is None or loser == keeper:
+                return False
+            links = json.loads(kept[0] or "[]")
+            links.append({"url": row[0], "host": row[1], "grade": row[2],
+                          "published": row[3], "fact": loser})
+            db.execute("UPDATE facts SET corroborations = ? WHERE id = ?",
+                       (json.dumps(links), keeper))
+            db.execute("UPDATE facts SET active = 0, superseded_by = ?, "
+                       "superseded_at = ?, superseded_why = ? WHERE id = ?",
+                       (keeper, now, why, loser))
+        return True
+
+    def restore(self, fact_id: str) -> bool:
+        """Undo `supersede`: the fact active again, its link off the keeper."""
+        with self._lock, closing(self._connect()) as db, db:
+            row = db.execute("SELECT superseded_by FROM facts WHERE id = ? "
+                             "AND active = 0", (fact_id,)).fetchone()
+            if row is None or not row[0]:
+                return False
+            kept = db.execute("SELECT corroborations FROM facts WHERE id = ?",
+                              (row[0],)).fetchone()
+            if kept is not None:
+                links = [c for c in json.loads(kept[0] or "[]")
+                         if c.get("fact") != fact_id]
+                db.execute("UPDATE facts SET corroborations = ? WHERE id = ?",
+                           (json.dumps(links), row[0]))
+            db.execute("UPDATE facts SET active = 1, superseded_by = '', "
+                       "superseded_at = 0, superseded_why = '' WHERE id = ?", (fact_id,))
+        return True
+
+    def purge_superseded(self, before: float) -> int:
+        """Delete for good what was marked a repeat before `before` (30 days
+        after the mark, always 11). Its link stays on the keeper."""
+        with self._lock, closing(self._connect()) as db, db:
+            cur = db.execute("DELETE FROM facts WHERE active = 0 AND superseded_by != '' "
+                             "AND superseded_at > 0 AND superseded_at < ?", (before,))
+            return cur.rowcount or 0
 
     def add_reading(self, reading: "Reading", now: float) -> str:
         """Keep one reading. The same subject, metric and moment again is
@@ -680,6 +769,8 @@ class AtlasBackend:
         # Filed by node (§396): Sonic reads a node's facts by date, and
         # Consuela finds what a tree change touches.
         self.facts_c.create_index([("node_id", 1), ("published", 1)])
+        # Consuela's nightly dedupe reads the newest facts (§401).
+        self.facts_c.create_index([("active", 1), ("created", 1)])
         self.intake_c.create_index("nodes")
         # A subject's readings in time order (§396). An ordinary collection
         # keyed by subject, metric and moment, not a MongoDB time-series
@@ -821,6 +912,77 @@ class AtlasBackend:
             doc["embedding"] = [float(x) for x in vector]
         self.facts_c.replace_one({"_id": fid}, {"_id": fid, **doc}, upsert=True)
         return fid
+
+    # -------------------------------------------------- Consuela's dedupe (§401)
+    @staticmethod
+    def _dedupe_doc(doc: dict) -> dict:
+        published = doc.get("published")
+        created = doc.get("created")
+        return {"id": str(doc.get("_id", "")), "url": doc.get("url", ""),
+                "host": doc.get("host", ""), "grade": doc.get("grade", ""),
+                "published": published.strftime("%Y-%m-%d")
+                if isinstance(published, datetime) else "",
+                "published_ts": published.timestamp()
+                if isinstance(published, datetime) else 0.0,
+                "kind": doc.get("kind", "sentence"), "text": doc.get("text", ""),
+                "subject": doc.get("subject", ""), "figure": dict(doc.get("figure") or {}),
+                "node_id": doc.get("node_id", ""),
+                "created": created.timestamp() if isinstance(created, datetime) else 0.0,
+                "vector": list(doc.get("embedding") or []) or None,
+                "corroborations": list(doc.get("corroborations") or [])}
+
+    def dedupe_facts(self, created_since: float, limit: int) -> list:
+        since = datetime.fromtimestamp(created_since, timezone.utc)
+        return [self._dedupe_doc(d) for d in self.facts_c.find(
+            {"active": True, "kind": {"$ne": "live"}, "created": {"$gte": since}}
+        ).sort("created", 1).limit(max(1, int(limit)))]
+
+    def facts_near(self, node_id: str, subject: str, start_ts: float, end_ts: float,
+                   limit: int) -> list:
+        field, value = ("node_id", node_id) if node_id else ("subject", subject)
+        if not value:
+            return []
+        start = datetime.fromtimestamp(start_ts, timezone.utc)
+        end = datetime.fromtimestamp(end_ts, timezone.utc)
+        return [self._dedupe_doc(d) for d in self.facts_c.find(
+            {"active": True, "kind": {"$ne": "live"}, field: value,
+             "published": {"$gte": start, "$lte": end}}
+        ).sort("published", 1).limit(max(1, int(limit)))]
+
+    def supersede(self, loser: str, keeper: str, why: str, now: float) -> bool:
+        if loser == keeper:
+            return False
+        doc = self.facts_c.find_one({"_id": loser, "active": True})
+        if doc is None or self.facts_c.find_one({"_id": keeper, "active": True}) is None:
+            return False
+        published = doc.get("published")
+        self.facts_c.update_one({"_id": keeper}, {"$push": {"corroborations": {
+            "url": doc.get("url", ""), "host": doc.get("host", ""),
+            "grade": doc.get("grade", ""),
+            "published": published.strftime("%Y-%m-%d")
+            if isinstance(published, datetime) else "", "fact": loser}}})
+        self.facts_c.update_one({"_id": loser}, {"$set": {
+            "active": False, "superseded_by": keeper,
+            "superseded_at": datetime.fromtimestamp(now, timezone.utc),
+            "superseded_why": why}})
+        return True
+
+    def restore(self, fact_id: str) -> bool:
+        doc = self.facts_c.find_one({"_id": fact_id, "active": False})
+        if doc is None or not doc.get("superseded_by"):
+            return False
+        self.facts_c.update_one({"_id": doc["superseded_by"]},
+                                {"$pull": {"corroborations": {"fact": fact_id}}})
+        self.facts_c.update_one({"_id": fact_id}, {
+            "$set": {"active": True, "superseded_by": ""},
+            "$unset": {"superseded_at": "", "superseded_why": ""}})
+        return True
+
+    def purge_superseded(self, before: float) -> int:
+        result = self.facts_c.delete_many({
+            "active": False, "superseded_by": {"$ne": ""},
+            "superseded_at": {"$lt": datetime.fromtimestamp(before, timezone.utc)}})
+        return int(getattr(result, "deleted_count", 0) or 0)
 
     def add_reading(self, reading: "Reading", now: float) -> str:
         self.ensure_indexes()

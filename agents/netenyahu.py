@@ -355,7 +355,9 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    ("categorizer", "train", 4, "categorizer"),
                    # Consuela's nightly pass over what is still waiting in
                    # intake, beside the runs each new article asks for (§399).
-                   ("housekeeper", "consolidate", 1, "housekeeper"))
+                   ("housekeeper", "consolidate", 1, "housekeeper"),
+                   # Her dedupe, after the night's consolidation (§401).
+                   ("housekeeper", "dedupe", 2, "housekeeper"))
 _QUEUED_DAYS: set = set()
 
 

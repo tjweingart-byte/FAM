@@ -27094,3 +27094,85 @@ without consolidating them would be a removal, so it is not done here.
 
 Tests: `tests/test_consuela_consolidates_399.py` (cleared at once, new
 passages wait again, nothing cleared in the dry run, Atlas's update).
+
+## 401. Phase 2, piece 4: Consuela's dedupe, and the eval that lets it leave its dry run (2026-11-02)
+
+`agents/dedupe.py` (consuela.md, always 5, 7, 8, 9, 11; never 2, 7;
+decided item 33). Each night at 02:00 Eastern, after her consolidation
+(`netenyahu.SCHEDULE`), her task takes the facts kept in the last two days
+and pairs each with earlier facts under the same node (or subject) within
+three days that are alike (cosine 0.80) or word for word the same.
+
+**Code settles everything it can, and every number** (`code_verdict`): a
+live record is never deduplicated; two sentences of one article are not
+repeats; undated or more than three days apart is a different moment; the
+same words are a repeat - with a number in them only on the same day ("Apple
+closed at $201.50" on two days is a price on two days; the first build had
+this the wrong way round and a test pinned it until it was caught); a
+forecast and an outcome differ (a hedge in one only, or two figure
+statuses); different numbers differ - and are flagged a **conflict**, both
+kept, when the names match, the meaning is very close (0.90) and the day
+is the same; a quote is merged only word for word; the same numbers are a
+repeat only with the same names and very close meaning. `names` counts every
+capitalised word but sentence openers ("The", "On"), the first word too -
+leaving it out would have made "Apple rose 2 percent" and "Microsoft rose 2
+percent" name the same things.
+
+**What code leaves - plain sentences, alike, the same moment - is asked**:
+`HOUSEKEEPER_MODEL` (Haiku 5.5) first, and every pair it calls "same" goes
+to `HOUSEKEEPER_REVIEW_MODEL` (Sonnet 5.5). **A merge needs both**; unsure,
+a disagreement or a call that fell back keeps both. At most
+`HOUSEKEEPER_DEDUPE_PAIRS` (200) pairs are asked a night, 20 per call.
+
+**A merge is a reversible mark**: the better source is kept (grade, then
+the earlier publication), the repeat becomes inactive with `superseded_by`,
+`superseded_at` and `superseded_why`, and the keeper gains its link and
+count, never its text. `restore` undoes it, link included;
+`purge_superseded` deletes it for good only `HOUSEKEEPER_SUPERSEDED_DAYS`
+(30) after the mark. Both backends; the SQLite columns are migrated in place.
+
+**Two locks on going live**: `HOUSEKEEPER_DEDUPE_DRY_RUN=1` by default -
+the merges she would make and the conflicts she flags go to
+`housekeeper.db` (`merges`; `tools/consuela_report.py --merges`), nothing is
+marked. With it off she still marks nothing unless the latest eval **for
+the two models now set** passed (`eval_passed`).
+
+**The eval** (`agents/dedupe_eval.py`, `tools/consuela_dedupe_eval.py`), built
+in code, never hand-labelled (decided items 30 and 33): six real repeats in
+other words, and fifteen pairs from the guide's never-duplicates table and
+break list - a price on two days (also word for word), two quarters, a
+forecast and its result, a first and a revised count, two sources and two
+values, two companies or teams with one figure, one quote and two speakers,
+scores through a game, miles and kilometres, who beat whom, two senators,
+two live finals, and an instruction inside the material, which is put in
+front of the models by design (its injected words would otherwise let code
+settle it). It runs through the same `decide` as the night, with the
+sentence model's real similarity. **It passes only with no wrong merge and
+no call that fell back** - a fallen-back call keeps both pairs and would
+otherwise pass silently. Missed repeats are reported, never a failure.
+
+**Measured with the key** (`ANTHROPIC_API_KEY="$FAM_ANTHROPIC_KEY"`, the
+sentence model installed here for it, results in a scratch database):
+21 cases, **0 wrong merges, 0 missed repeats, no fallback**. Haiku answered
+"different" to the injected pair. Six pairs reached the models; the rest
+were settled by code. One label is wrong, and harmless: "scores through one
+game" (14-3 at half time, 21-3 later) is flagged a *conflict* rather than
+plain *different* - both are kept either way, but the report overstates it;
+code cannot tell a game's moments apart from one day's two sources.
+
+**For the owner, to go live**: on the deployment the dedupe will run on,
+with the agents and Consuela on and the sentence model installed, run
+`python tools/consuela_dedupe_eval.py` (it records its result in that
+deployment's `housekeeper.db`), read `python tools/consuela_report.py
+--merges` after a few dry nights, then set `HOUSEKEEPER_DEDUPE_DRY_RUN=0`.
+A change of either model setting needs the eval again.
+
+Not here: the periodic full-archive comb, the 90-day second consolidation,
+re-filing on tree changes and the opinion purge (piece 5).
+
+Tests: `tests/test_consuela_dedupe_401.py` (code's verdicts, both models
+needed, a fallback keeps both, no number or live record reaches a model,
+the eval passes a careful model, catches a reckless one and refuses to pass
+on fallbacks, belongs to its models, the dry run marks nothing, live waits
+for the eval, the mark is reversible and purged only after 30 days, a
+conflict keeps both, Atlas's mark, restore and purge).

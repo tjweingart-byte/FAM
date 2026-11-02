@@ -136,7 +136,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
 | **story_pool.db** (`STORY_POOL_DB`, §267) | `story_store.py` (`StoryStore`), `stories.py` | `snapshots` | No, shared | One row each for the pool (≤ 96 stories) and its ledgers, rewritten every refresh | n/a · **Emptied** |
 | **archive.db** (`ARCHIVE_DB`, §308) | `history_archive.py` (`SQLiteBackend`) | `intake`, `episode_sources`, `facts`, `live_series` | No, shared | The history archive when it is not on MongoDB Atlas (tests, staging, a fresh clone; production until `ARCHIVE_BACKEND=atlas`). Intake's passages kept until Consuela consolidates the article, then cleared at once (§400) - the record keeps its link, title, outlet, grade, date and nodes; at most `ARCHIVE_INTAKE_MAX` = 500,000 articles, oldest dropped; links and facts kept | n/a · kept |
-| **housekeeper.db** (`HOUSEKEEPER_DB`, §399) | `agents/housekeeper.py` (`ReportStore`) | `consolidations` | No, shared | What Consuela chose for each intake article - the chosen sentences and each figure's status, or why it was held - in her dry run and her live runs (`tools/consuela_report.py`). No listener, no passage beyond the chosen sentences | n/a · kept |
+| **housekeeper.db** (`HOUSEKEEPER_DB`, §399) | `agents/housekeeper.py` (`ReportStore`) | `consolidations`, `merges`, `evals` | No, shared | What Consuela chose for each intake article - the chosen sentences and each figure's status, or why it was held - in her dry run and her live runs; every merge her dedupe made or would make and every conflict it flagged, with both texts and both models' answers (§401); every run of her dedupe eval (`tools/consuela_report.py`, `--merges`). No listener, no passage beyond the chosen sentences | n/a · kept |
 | **wikimedia.db** (`WIKIMEDIA_DB`, §278) | `wikimedia.py` (`ReferenceStore`) | `answers`, `enterprise` | No, shared | Each name's reference answer for 24 hours (read as a miss after that, overwritten on the next look); one Enterprise request count per month | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
@@ -355,7 +355,10 @@ Nando did not file the episode, which with `AGENTS=0` is always. While
 Consuela runs (§397) only an approved provider's material is stored
 (`HOUSEKEEPER_APPROVED_PROVIDERS`; Parallel, Finnhub and API-Sports never),
 and the sweeps' scores and prices become readings of `live_series`. Never a
-private search or an attachment.
+private search or an attachment. A fact Consuela's dedupe marks a repeat
+(§401) stays, inactive, with `superseded_by`, `superseded_at` and
+`superseded_why`, for `HOUSEKEEPER_SUPERSEDED_DAYS` (30) before it is
+deleted; the keeper holds its link and count in `corroborations`.
 
 **x_threads.db** (`x_threads.Store`, §321): `/admin/x`'s cards. `candidates`,
 one row per public X post a search found worth replying to - its text, the

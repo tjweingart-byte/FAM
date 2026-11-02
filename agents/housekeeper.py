@@ -253,6 +253,19 @@ class ReportStore:
                        " kept TEXT NOT NULL)")
             db.execute("CREATE INDEX IF NOT EXISTS consolidations_at"
                        " ON consolidations(at)")
+            # Her dedupe (§401): every merge she made or would make, every
+            # conflict she flagged, and every run of her eval.
+            db.execute("CREATE TABLE IF NOT EXISTS merges ("
+                       " pair TEXT PRIMARY KEY, at REAL NOT NULL, mode TEXT NOT NULL,"
+                       " verdict TEXT NOT NULL, why TEXT NOT NULL,"
+                       " keeper TEXT NOT NULL, repeat TEXT NOT NULL,"
+                       " keeper_text TEXT NOT NULL, repeat_text TEXT NOT NULL,"
+                       " first TEXT NOT NULL, review TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS evals ("
+                       " id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL,"
+                       " models TEXT NOT NULL, total INTEGER NOT NULL,"
+                       " wrong_merges INTEGER NOT NULL, missed INTEGER NOT NULL,"
+                       " fell_back INTEGER NOT NULL, details TEXT NOT NULL)")
 
     def _connect(self) -> sqlite3.Connection:
         return store_db.connect(self.path, timeout=10)
@@ -297,7 +310,53 @@ class ReportStore:
         with closing(self._connect()) as db:
             rows = db.execute("SELECT mode, outcome, COUNT(*) FROM consolidations "
                               "GROUP BY mode, outcome").fetchall()
-        return {f"{m}:{o}": n for m, o, n in rows}
+            merges = db.execute("SELECT mode, verdict, COUNT(*) FROM merges "
+                                "GROUP BY mode, verdict").fetchall()
+        return {**{f"{m}:{o}": n for m, o, n in rows},
+                **{f"dedupe:{m}:{v}": n for m, v, n in merges}}
+
+    # -------------------------------------------------- her dedupe (§401)
+    def note_merge(self, keeper: dict, repeat: dict, verdict: str, why: str,
+                   mode: str, first: str = "", review: str = "",
+                   now: float = 0.0) -> None:
+        pair = "|".join(sorted((keeper["id"], repeat["id"])))
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute(
+                "INSERT INTO merges (pair, at, mode, verdict, why, keeper, repeat,"
+                " keeper_text, repeat_text, first, review)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pair) DO UPDATE"
+                " SET at = excluded.at, mode = excluded.mode, verdict = excluded.verdict,"
+                " why = excluded.why, first = excluded.first, review = excluded.review",
+                (pair, now or time.time(), mode, verdict, why, keeper["id"],
+                 repeat["id"], keeper.get("text", ""), repeat.get("text", ""),
+                 first, review))
+
+    def recent_merges(self, limit: int = 50) -> list:
+        with closing(self._connect()) as db:
+            rows = db.execute("SELECT at, mode, verdict, why, keeper, repeat,"
+                              " keeper_text, repeat_text, first, review FROM merges"
+                              " ORDER BY at DESC LIMIT ?", (max(1, int(limit)),)).fetchall()
+        keys = ("at", "mode", "verdict", "why", "keeper", "repeat", "keeper_text",
+                "repeat_text", "first", "review")
+        return [dict(zip(keys, r)) for r in rows]
+
+    def note_eval(self, models: str, total: int, wrong_merges: int, missed: int,
+                  fell_back: bool, details: list, now: float = 0.0) -> None:
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("INSERT INTO evals (at, models, total, wrong_merges, missed,"
+                       " fell_back, details) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                       (now or time.time(), models, int(total), int(wrong_merges),
+                        int(missed), 1 if fell_back else 0, json.dumps(details)))
+
+    def latest_eval(self, models: str) -> Optional[dict]:
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT at, total, wrong_merges, missed, fell_back, details"
+                             " FROM evals WHERE models = ? ORDER BY id DESC LIMIT 1",
+                             (models,)).fetchone()
+        if row is None:
+            return None
+        return {"at": row[0], "total": row[1], "wrong_merges": row[2], "missed": row[3],
+                "fell_back": bool(row[4]), "details": json.loads(row[5] or "[]")}
 
 
 _STORE: list = [None]
@@ -418,9 +477,11 @@ async def handler(_task: str) -> None:
 
 def register() -> None:
     """Give Netenyahu Consuela's task (app startup, only with `AGENTS=1`)."""
-    from agents import netenyahu
+    from agents import dedupe, netenyahu
 
     netenyahu.HANDLERS[(AGENT, TASK)] = handler
+    # Her nightly dedupe (§401).
+    netenyahu.HANDLERS[(AGENT, dedupe.TASK)] = dedupe.handler
 
 
 def exists() -> bool:
@@ -431,6 +492,7 @@ def exists() -> bool:
 def report() -> dict:
     """For `/api/health`. Never opens a store that does not exist."""
     out = {"dry_run": bool(settings.housekeeper_dry_run),
+           "dedupe_dry_run": bool(settings.housekeeper_dedupe_dry_run),
            "batch_articles": int(settings.housekeeper_batch_articles),
            "batches_per_run": int(settings.housekeeper_batches_per_run)}
     try:

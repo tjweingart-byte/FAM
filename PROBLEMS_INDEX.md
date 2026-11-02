@@ -401,3 +401,4 @@ and `limit` = Lines.
 | 26980 | 16 | 398. A proposed consuela.md: Perplexity joins never 8's list (2026-11-02) |
 | 26996 | 72 | 399. Phase 2, piece 3: Consuela consolidates each article as it enters, as a dry run (2026-11-02) |
 | 27068 | 30 | 400. The owner's answer: an article's passages are cleared the moment it is consolidated (2026-11-02) |
+| 27098 | 82 | 401. Phase 2, piece 4: Consuela's dedupe, and the eval that lets it leave its dry run (2026-11-02) |
