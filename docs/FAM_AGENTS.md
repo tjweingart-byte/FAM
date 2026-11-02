@@ -1195,7 +1195,8 @@ Database inventory specialist, §307; consolidated with the archive intake,
 2026-10-26). **Works in:** the background, **inside the backend database
 (MongoDB)** - its only writer. A listener reaches its work only through Sonic
 and packet two. **Status:** planned; the archive is built (§308,
-`history_archive.py`, `ARCHIVE.md`), so Consuela is next.
+`history_archive.py`, `ARCHIVE.md`), so Consuela is next. Phase 2 has begun:
+the archive is filed by node and keeps live readings as a series (§396).
 
 **Purpose.** Keep the archive organised, trustworthy and free of repetition,
 filed so Sonic always knows where to go - and keep what will be valuable to

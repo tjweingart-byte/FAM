@@ -22,6 +22,19 @@ behind the same interface:
 * **facts** - the key sentences and figures the agent will keep, one record
   each, with the vector the recall searches. Empty until the agent exists.
   `add_fact` is how it (and the tests) will write one.
+* **live_series** - every reading of a live score or price, one record per
+  subject, metric and moment (§396): scores through a game are a series,
+  never duplicates, so each reading is its own record keyed by when it was
+  true, and the same reading written twice is still one. Empty until
+  Consuela writes it (`add_reading`); nothing calls that yet.
+
+**Filed by node** (§396, decided item 5): a fact carries Nando's node id and
+its path from the root as it stood when written (`node_id`, `node_path`), an
+intake record the node ids of the episodes that used it (`nodes`), a reading
+its node id. They are empty when Nando did not file the episode - which,
+with `AGENTS=0`, is always - so nothing written before him or without him
+changes shape on SQLite, and Atlas documents gain the fields only when
+there is a node to write.
 
 **The recall** (`look` / `add_to_packet`) runs beside the web search, like
 the reference look (§278): it is started first, given `ARCHIVE_GRACE_SECONDS`
@@ -95,6 +108,8 @@ VECTOR_INDEX_DEFINITION = {
         {"type": "filter", "path": "active"},
         {"type": "filter", "path": "published"},
         {"type": "filter", "path": "space"},
+        # Sonic searches by meaning within a node before going wider (§396).
+        {"type": "filter", "path": "node_id"},
     ],
 }
 #: After a failed call, nothing more is sent to the backend for this long.
@@ -170,6 +185,64 @@ class Fact:
     id: str = ""
     #: Cosine similarity to the recall's question, when it came from one.
     score: float = 0.0
+    #: Nando's node, and its path from the root when it was filed (§396).
+    #: "" and [] when Nando did not file it.
+    node_id: str = ""
+    node_path: list = field(default_factory=list)
+
+
+#: The metrics a live reading may be. A score is the game's state at a
+#: moment; a price a symbol's last trade; a count an election's tally.
+METRICS = ("score", "price", "count")
+
+
+@dataclass
+class Reading:
+    """One live score or price, as a provider said it at one moment (§396).
+
+    Never a model's words: `text` is the provider's line, `value` the number
+    code read from the provider's own field (None when there is not one
+    number - a score has two, which stay in `text`)."""
+
+    subject: str
+    metric: str
+    as_of: datetime
+    text: str
+    value: Optional[float] = None
+    unit: str = ""
+    #: The provider's own status word: in_progress, final, scheduled, "".
+    status: str = ""
+    #: Which provider said it ("balldontlie", "tiingo").
+    source: str = ""
+    #: "sports", "markets" or "elections".
+    domain: str = ""
+    node_id: str = ""
+    id: str = ""
+
+    def key(self) -> str:
+        """The reading's id: the subject, metric and moment, so the same
+        reading written twice is one record and two moments are two."""
+        return self.id or reading_id(self.subject, self.metric, self.as_of)
+
+
+def reading_id(subject: str, metric: str, as_of: datetime) -> str:
+    when = as_of.astimezone(timezone.utc).isoformat() if as_of.tzinfo else as_of.isoformat()
+    return url_id(f"live:{(subject or '').strip().lower()}:{metric}:{when}")
+
+
+def node_path(node_id: str) -> list:
+    """`node_id`'s path from the root, ending with itself; [] without a
+    node or a tree. Never raises - a fact is kept without its path rather
+    than not kept."""
+    if not node_id:
+        return []
+    try:
+        import topics
+
+        tree = topics.category_tree()
+        return list(reversed(tree.ancestors(node_id))) + [node_id]
+    except Exception:  # noqa: BLE001
+        return [node_id]
 
 
 def url_id(url: str) -> str:
@@ -261,42 +334,66 @@ class SQLiteBackend:
                               "TEXT NOT NULL DEFAULT '{}'")
         except Exception:  # noqa: BLE001 - already there
             pass
+        # Filed by node (§396). Each column on its own connection, for the
+        # same reason as `by_provider`'s.
+        for table, column, kind in (("facts", "node_id", "TEXT NOT NULL DEFAULT ''"),
+                                    ("facts", "node_path", "TEXT NOT NULL DEFAULT '[]'"),
+                                    ("intake", "nodes", "TEXT NOT NULL DEFAULT '[]'")):
+            try:
+                with closing(self._connect()) as alter, alter:
+                    alter.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+            except Exception:  # noqa: BLE001 - already there
+                pass
+        with closing(self._connect()) as db, db:
+            db.execute("CREATE INDEX IF NOT EXISTS facts_node"
+                       " ON facts(node_id, published_ts)")
+            db.execute("CREATE TABLE IF NOT EXISTS live_series ("
+                       " id TEXT PRIMARY KEY, subject TEXT NOT NULL,"
+                       " metric TEXT NOT NULL, as_of TEXT NOT NULL,"
+                       " as_of_ts REAL NOT NULL, value REAL, unit TEXT NOT NULL,"
+                       " text TEXT NOT NULL, status TEXT NOT NULL,"
+                       " source TEXT NOT NULL, domain TEXT NOT NULL,"
+                       " node_id TEXT NOT NULL, created REAL NOT NULL)")
+            db.execute("CREATE INDEX IF NOT EXISTS live_series_subject"
+                       " ON live_series(subject, metric, as_of_ts)")
 
     def _connect(self) -> sqlite3.Connection:
         return store_db.connect(self.path, timeout=10)
 
     def intake(self, findings: list, subject: str, category: str,
-               now: float) -> int:
+               now: float, node: str = "") -> int:
         written = 0
         with self._lock, closing(self._connect()) as db, db:
             for f in findings:
                 row = db.execute("SELECT passages, subjects, categories, "
-                                 "by_provider FROM intake WHERE id = ?",
+                                 "by_provider, nodes FROM intake WHERE id = ?",
                                  (url_id(f.url),)).fetchone()
                 if row is None:
                     db.execute(
                         "INSERT INTO intake (id, url, title, host, grade, "
                         "published, passages, subjects, categories, first_seen, "
-                        "last_seen, seen, digested, by_provider) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?)",
+                        "last_seen, seen, digested, by_provider, nodes) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)",
                         (url_id(f.url), f.url, f.title, f.host, f.grade,
                          f.published, json.dumps(list(f.passages)[:MAX_PASSAGES]),
                          json.dumps([subject] if subject else []),
                          json.dumps([category] if category else []), now, now,
-                         json.dumps(_by_provider({}, f))))
+                         json.dumps(_by_provider({}, f)),
+                         json.dumps([node] if node else [])))
                 else:
                     passages = _union(json.loads(row[0]), f.passages, MAX_PASSAGES)
                     subjects = _union(json.loads(row[1]), [subject] if subject else [])
                     categories = _union(json.loads(row[2]),
                                         [category] if category else [])
                     by_provider = _by_provider(json.loads(row[3] or "{}"), f)
+                    nodes = _union(json.loads(row[4] or "[]"), [node] if node else [])
                     db.execute(
                         "UPDATE intake SET passages = ?, subjects = ?, "
-                        "categories = ?, by_provider = ?, last_seen = ?, "
+                        "categories = ?, by_provider = ?, nodes = ?, last_seen = ?, "
                         "seen = seen + 1 WHERE id = ?",
                         (json.dumps(passages), json.dumps(subjects),
-                         json.dumps(categories), json.dumps(by_provider), now,
-                         url_id(f.url)))
+                         json.dumps(categories), json.dumps(by_provider),
+                         json.dumps(nodes), now, url_id(f.url)))
                 written += 1
         return written
 
@@ -334,16 +431,56 @@ class SQLiteBackend:
             db.execute(
                 "INSERT INTO facts (id, url, title, host, grade, published, "
                 "published_ts, kind, text, subject, category, figure, "
-                "corroborations, active, superseded_by, space, embedding, created) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?) "
+                "corroborations, active, superseded_by, space, embedding, created, "
+                "node_id, node_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET text = excluded.text, "
-                "corroborations = excluded.corroborations",
+                "corroborations = excluded.corroborations, "
+                # A write that knows no node never forgets the one filed.
+                "node_id = CASE WHEN excluded.node_id != '' THEN excluded.node_id "
+                "ELSE facts.node_id END, "
+                "node_path = CASE WHEN excluded.node_id != '' THEN excluded.node_path "
+                "ELSE facts.node_path END",
                 (fid, fact.url, fact.title, fact.host, fact.grade, fact.published,
                  when.timestamp() if when else 0.0, fact.kind, fact.text,
                  fact.subject, fact.category, json.dumps(fact.figure),
                  json.dumps(fact.corroborations), space,
-                 embeddings.pack(vector) if vector else None, now))
+                 embeddings.pack(vector) if vector else None, now,
+                 fact.node_id or "", json.dumps(list(fact.node_path or []))))
         return fid
+
+    def add_reading(self, reading: "Reading", now: float) -> str:
+        """Keep one reading. The same subject, metric and moment again is
+        the same record: the first stays (§396)."""
+        rid = reading.key()
+        as_of = reading.as_of
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute(
+                "INSERT INTO live_series (id, subject, metric, as_of, as_of_ts, "
+                "value, unit, text, status, source, domain, node_id, created) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(id) DO NOTHING",
+                (rid, reading.subject, reading.metric, as_of.isoformat(),
+                 as_of.timestamp(), reading.value, reading.unit, reading.text,
+                 reading.status, reading.source, reading.domain,
+                 reading.node_id or "", now))
+        return rid
+
+    def readings(self, subject: str, metric: str, start: datetime,
+                 end: datetime, limit: int) -> list:
+        """One subject's readings between two moments, oldest first."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, subject, metric, as_of, value, unit, text, status, "
+                "source, domain, node_id FROM live_series WHERE subject = ? "
+                "AND metric = ? AND as_of_ts >= ? AND as_of_ts <= ? "
+                "ORDER BY as_of_ts LIMIT ?",
+                (subject, metric, start.timestamp(), end.timestamp(),
+                 max(1, int(limit)))).fetchall()
+        return [Reading(id=r[0], subject=r[1], metric=r[2],
+                        as_of=datetime.fromisoformat(r[3]), value=r[4], unit=r[5],
+                        text=r[6], status=r[7], source=r[8], domain=r[9],
+                        node_id=r[10]) for r in rows]
 
     def recall(self, vector: list, space: str, before: datetime, limit: int,
                min_similarity: float, exclude_urls: set) -> list:
@@ -352,7 +489,8 @@ class SQLiteBackend:
         with closing(self._connect()) as db:
             rows = db.execute(
                 "SELECT id, url, title, host, grade, published, kind, text, "
-                "subject, category, figure, corroborations, embedding FROM facts "
+                "subject, category, figure, corroborations, embedding, node_id, "
+                "node_path FROM facts "
                 "WHERE active = 1 AND space = ? AND published_ts > 0 "
                 "AND published_ts < ? AND embedding IS NOT NULL",
                 (space, before.timestamp())).fetchall()
@@ -375,7 +513,9 @@ class SQLiteBackend:
                             published=r[5], kind=r[6], text=r[7], subject=r[8],
                             category=r[9], figure=json.loads(r[10] or "{}"),
                             corroborations=json.loads(r[11] or "[]"),
-                            score=round(float(scores[i]), 4)))
+                            score=round(float(scores[i]), 4),
+                            node_id=r[13] or "",
+                            node_path=json.loads(r[14] or "[]")))
         return out
 
     def counts(self) -> dict:
@@ -388,6 +528,10 @@ class SQLiteBackend:
                                        "episode_sources").fetchone()[0],
                 "facts": db.execute("SELECT COUNT(*) FROM facts "
                                     "WHERE active = 1").fetchone()[0],
+                "facts_filed": db.execute("SELECT COUNT(*) FROM facts WHERE "
+                                          "active = 1 AND node_id != ''").fetchone()[0],
+                "readings": db.execute("SELECT COUNT(*) FROM "
+                                       "live_series").fetchone()[0],
                 # Articles holding each provider's passages (§358); "unknown"
                 # holds no attributed passage - written before the provider
                 # was recorded, or kept with no passages at all.
@@ -444,6 +588,7 @@ class AtlasBackend:
         self.intake_c = database["intake"]
         self.episodes_c = database["episode_sources"]
         self.facts_c = database["facts"]
+        self.series_c = database["live_series"]
         self._indexed = False
 
     def ensure_indexes(self) -> None:
@@ -455,6 +600,15 @@ class AtlasBackend:
         self.intake_c.create_index("digested")
         self.facts_c.create_index("url")
         self.facts_c.create_index([("active", 1), ("published", 1)])
+        # Filed by node (§396): Sonic reads a node's facts by date, and
+        # Consuela finds what a tree change touches.
+        self.facts_c.create_index([("node_id", 1), ("published", 1)])
+        self.intake_c.create_index("nodes")
+        # A subject's readings in time order (§396). An ordinary collection
+        # keyed by subject, metric and moment, not a MongoDB time-series
+        # collection: those take no unique key, so a sweep repeated after a
+        # restart would store the same reading twice.
+        self.series_c.create_index([("subject", 1), ("metric", 1), ("as_of", 1)])
         self._indexed = True
 
     def vector_index_status(self) -> str:
@@ -465,6 +619,15 @@ class AtlasBackend:
             return str(index.get("status", "building")).lower()
         return "missing"
 
+    def vector_index_current(self) -> bool:
+        """Whether the index filters on every field the definition names -
+        an index made before `node_id` was a filter (§396) is not."""
+        wanted = {f["path"] for f in VECTOR_INDEX_DEFINITION["fields"]}
+        for index in self.facts_c.list_search_indexes(VECTOR_INDEX):
+            have = (index.get("latestDefinition") or {}).get("fields") or []
+            return wanted <= {f.get("path") for f in have}
+        return False
+
     def ensure_vector_index(self) -> str:
         status = self.vector_index_status()
         if status == "missing":
@@ -474,10 +637,13 @@ class AtlasBackend:
                 definition=VECTOR_INDEX_DEFINITION, name=VECTOR_INDEX,
                 type="vectorSearch"))
             return "building"
+        if not self.vector_index_current():
+            self.facts_c.update_search_index(VECTOR_INDEX, VECTOR_INDEX_DEFINITION)
+            return "building"
         return status
 
     def intake(self, findings: list, subject: str, category: str,
-               now: float) -> int:
+               now: float, node: str = "") -> int:
         self.ensure_indexes()
         seen = datetime.fromtimestamp(now, timezone.utc)
         written = 0
@@ -500,6 +666,8 @@ class AtlasBackend:
                 add["subjects"] = subject
             if category:
                 add["categories"] = category
+            if node:
+                add["nodes"] = node
             if add:
                 update["$addToSet"] = add
             self.intake_c.update_one({"_id": url_id(f.url)}, update, upsert=True)
@@ -540,10 +708,44 @@ class AtlasBackend:
                "corroborations": fact.corroborations, "active": True,
                "superseded_by": "", "space": space,
                "created": datetime.fromtimestamp(now, timezone.utc)}
+        if fact.node_id:
+            doc["node_id"] = fact.node_id
+            doc["node_path"] = list(fact.node_path or [])
         if vector:
             doc["embedding"] = [float(x) for x in vector]
         self.facts_c.replace_one({"_id": fid}, {"_id": fid, **doc}, upsert=True)
         return fid
+
+    def add_reading(self, reading: "Reading", now: float) -> str:
+        self.ensure_indexes()
+        rid = reading.key()
+        doc = {"subject": reading.subject, "metric": reading.metric,
+               "as_of": reading.as_of, "value": reading.value,
+               "unit": reading.unit, "text": reading.text,
+               "status": reading.status, "source": reading.source,
+               "domain": reading.domain,
+               "created": datetime.fromtimestamp(now, timezone.utc)}
+        if reading.node_id:
+            doc["node_id"] = reading.node_id
+        # The first reading of a moment stays (SQLite's DO NOTHING).
+        self.series_c.update_one({"_id": rid}, {"$setOnInsert": doc}, upsert=True)
+        return rid
+
+    def readings(self, subject: str, metric: str, start: datetime,
+                 end: datetime, limit: int) -> list:
+        out = []
+        for doc in self.series_c.find(
+                {"subject": subject, "metric": metric,
+                 "as_of": {"$gte": start, "$lte": end}}).sort(
+                    "as_of", 1).limit(max(1, int(limit))):
+            out.append(Reading(
+                id=str(doc.get("_id", "")), subject=doc.get("subject", ""),
+                metric=doc.get("metric", ""), as_of=doc.get("as_of"),
+                value=doc.get("value"), unit=doc.get("unit", ""),
+                text=doc.get("text", ""), status=doc.get("status", ""),
+                source=doc.get("source", ""), domain=doc.get("domain", ""),
+                node_id=doc.get("node_id", "")))
+        return out
 
     def recall(self, vector: list, space: str, before: datetime, limit: int,
                min_similarity: float, exclude_urls: set) -> list:
@@ -578,7 +780,8 @@ class AtlasBackend:
                 subject=doc.get("subject", ""), category=doc.get("category", ""),
                 figure=dict(doc.get("figure") or {}),
                 corroborations=list(doc.get("corroborations") or []),
-                score=round(similarity, 4)))
+                score=round(similarity, 4), node_id=doc.get("node_id", ""),
+                node_path=list(doc.get("node_path") or [])))
             if len(out) >= limit:
                 break
         return out
@@ -589,6 +792,9 @@ class AtlasBackend:
             "undigested": self.intake_c.count_documents({"digested": False}),
             "episodes": self.episodes_c.estimated_document_count(),
             "facts": self.facts_c.count_documents({"active": True}),
+            "facts_filed": self.facts_c.count_documents(
+                {"active": True, "node_id": {"$exists": True}}),
+            "readings": self.series_c.estimated_document_count(),
             # As SQLite's (§358).
             "intake_by_provider": {
                 **{p: self.intake_c.count_documents(
@@ -771,7 +977,8 @@ def live_records(*lookups) -> list:
     return out
 
 
-def _live_fact(record: dict, subject: str, category: str) -> Fact:
+def _live_fact(record: dict, subject: str, category: str, node: str = "",
+               path: Optional[list] = None) -> Fact:
     """One live record as an archive fact: dated by the provider's own
     `as_of`, graded primary, its lines verbatim."""
     day = str(record.get("as_of", ""))[:10]
@@ -788,7 +995,8 @@ def _live_fact(record: dict, subject: str, category: str) -> Fact:
         host=str(record.get("source", "")), grade="primary", published=day,
         kind="live", subject=subject, category=category,
         figure={"domain": record.get("domain"), "status": record.get("status"),
-                "as_of": record.get("as_of"), "kind": record.get("kind")})
+                "as_of": record.get("as_of"), "kind": record.get("kind")},
+        node_id=node, node_path=list(path or []))
 
 
 # --------------------------------------------------------------------------
@@ -899,8 +1107,12 @@ def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:
         episode = cache_mod.episode_id(key, sourced_at)
         subject = str(carried.get("subject", "") or "")
         category = str(getattr(notes, "category", "") or "")
+        # Nando's node, when he filed the episode (§371, §396); "" otherwise,
+        # and always with AGENTS=0.
+        settled = getattr(notes, "category_settled", None)
+        node = str((settled or {}).get("node", "") or "") if isinstance(settled, dict) else ""
         EXECUTOR.submit(_write, findings, subject, category, episode, key,
-                        float(sourced_at or 0), live)
+                        float(sourced_at or 0), live, node)
     except Exception as exc:  # noqa: BLE001 - never costs the episode
         log.warning("could not queue an episode for the archive: %s", exc)
 
@@ -917,7 +1129,7 @@ def _kept(findings: list) -> list:
 
 
 def _write(findings: list, subject: str, category: str, episode: str,
-           key: str, sourced_at: float, live: list = ()) -> None:
+           key: str, sourced_at: float, live: list = (), node: str = "") -> None:
     # Before anything else, so no store - intake, the episode's links - ever
     # sees what may not be kept.
     findings = _kept(findings)
@@ -927,11 +1139,12 @@ def _write(findings: list, subject: str, category: str, episode: str,
     if store is None:
         return
     now = time.time()
+    path = node_path(node)
     # The live providers' data (§313): kept as facts at once, in code - a
     # score or a price needs no agent to decide what it says.
     for record in live or ():
         try:
-            add_fact(_live_fact(record, subject, category))
+            add_fact(_live_fact(record, subject, category, node, path))
             _count("live_facts")
         except RuntimeError:
             # No embedder installed: a fact that cannot be recalled is not
@@ -944,7 +1157,9 @@ def _write(findings: list, subject: str, category: str, episode: str,
     if not findings:
         return
     try:
-        _count("intake_articles", store.intake(findings, subject, category, now))
+        _count("intake_articles", (store.intake(findings, subject, category, now,
+                                                node=node) if node else
+                                   store.intake(findings, subject, category, now)))
         if episode:
             store.link_episode(episode, key, sourced_at,
                                [f.as_link() for f in findings], now)
@@ -984,6 +1199,36 @@ def episode_links(episode: str) -> list:
         return store.episode_links(episode)
     except Exception as exc:  # noqa: BLE001
         _failed("read an episode's sources", exc)
+        return []
+
+
+def add_reading(reading: Reading) -> str:
+    """Keep one live reading (§396). For Consuela and the tests; nothing on
+    a listener's path calls it. Raises when there is no archive or the
+    reading is not one the series keeps."""
+    store = backend()
+    if store is None:
+        raise RuntimeError(f"no archive: {diagnose()[1]}")
+    if reading.metric not in METRICS:
+        raise ValueError(f"{reading.metric!r} is not a live metric")
+    if not isinstance(reading.as_of, datetime) or reading.as_of.tzinfo is None:
+        raise ValueError("a reading needs the moment it was true, with its zone")
+    if not (reading.subject or "").strip() or not (reading.text or "").strip():
+        raise ValueError("a reading needs a subject and the provider's line")
+    return store.add_reading(reading, time.time())
+
+
+def readings(subject: str, metric: str, start: datetime, end: datetime,
+             limit: int = 200) -> list:
+    """A subject's readings between two moments, oldest first. [] on any
+    failure - history is never worth an error."""
+    store = backend()
+    if store is None or _backing_off() or not subject or end < start:
+        return []
+    try:
+        return store.readings(subject, metric, start, end, limit)
+    except Exception as exc:  # noqa: BLE001
+        _failed("read a series", exc)
         return []
 
 

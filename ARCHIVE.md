@@ -18,6 +18,13 @@ it is described in `docs/FAM_AGENTS.md` (Consuela, the housekeeper).
 - **`facts` is empty until the housekeeper agent (Consuela) is built.** That agent will
   digest `intake` into key sentences and figures. Until then the recall finds
   nothing, and the intake keeps every article so nothing is lost.
+- **Filed by node** (§396): facts, intake records and live readings carry
+  Nando's node id when he filed the episode. `live_series` holds every
+  reading of a live score or price, one per subject, metric and moment; it
+  stays empty until Consuela writes it. `python tools/archive_setup.py`
+  creates their indexes and, on an archive set up before §396, updates the
+  vector index to filter by `node_id` (Atlas rebuilds it; the search keeps
+  working meanwhile).
 
 Without Atlas, the same thing runs on a local file (`/data/archive.db`).
 Production uses that file until you switch it over. Staging always uses its

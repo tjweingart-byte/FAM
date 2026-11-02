@@ -26868,3 +26868,56 @@ self-describe words, and whether the totals may ever shape what FAM offers.
 
 Also decided this session: `pymongo` may be added (piece 1); no other new
 dependency - `dateparser`, `quantulum3` and `datasketch` are not added.
+
+## 396. Phase 2, piece 1: the archive filed by node, live readings as a series, and /admin's read-only stores on any SQLite (2026-11-02)
+
+The schema Phase 2 builds on (`docs/AGENTS_BUILD_PROMPT.md`, Phase 2,
+"Schema"). `history_archive.py`, both backends:
+
+- **Filed by node.** A fact carries Nando's node id and its path from the
+  root as it stood when written (`node_id`, `node_path`, from
+  `topics.category_tree().ancestors`); an intake record the node ids of the
+  episodes that used it (`nodes`, a union like `categories`). The node comes
+  from `notes.category_settled["node"]` (§371), set only when Nando filed the
+  episode - so with `AGENTS=0` it is always "" and nothing changes shape:
+  SQLite's new columns default to empty, and an Atlas document gains the
+  fields only when there is a node to write. A later write that knows no
+  node never forgets the filed one. An archive made before this is migrated
+  in place (`ALTER TABLE`, each on its own connection, as §358's).
+- **Indexes.** Facts on `(node_id, published)`, intake on `nodes`, and the
+  live readings on `(subject, metric, as_of)`. The Atlas vector index gains a
+  `node_id` filter so Sonic can search by meaning inside a node;
+  `ensure_vector_index` updates an index made before it
+  (`vector_index_current`), and `tools/archive_setup.py` already calls it.
+- **Live readings as a series** (`live_series`, `Reading`, `add_reading`,
+  `readings`): one record per subject, metric (`score`, `price`, `count`) and
+  moment, keyed by those three, so scores through a game are a series and the
+  same reading sent twice is one record (the first stays). **An ordinary
+  collection, not a MongoDB time-series collection**: those take no unique
+  key, so a sweep repeated after a restart would store a reading twice; the
+  compound index gives the same time-ordered reads. The owner may prefer
+  the time-series layout's compression later; it is a change of storage
+  only.
+- **Nothing writes a reading yet.** The sweeps' prices come from Finnhub
+  and some scores from API-Sports, which Consuela must treat as not approved
+  (decided item 41), so the sweeps are connected to `live_series` in piece 2,
+  together with the per-provider storage switch - never before it.
+
+**pymongo was already a dependency.** The plan said it was missing from
+`requirements.txt`; it is in `requirements-archive.txt`, which the
+Dockerfile installs (§308). Nothing was added.
+
+**`/admin`'s query page on SQLite 3.53** (`admin_tracker._open`): it
+attached each store read-only as `file:...?mode=ro` to a plain `:memory:`
+connection. SQLite builds without URI filenames on by default (this
+container's 3.53.1) refuse that, and all 16 `test_admin_tracker` tests failed
+here while CI's build passed. The in-memory connection is now opened as a URI
+(`file::memory:`, `uri=True`), which makes the attachments URIs on every
+build.
+
+Main took §393-§394 while piece 0 was being written; piece 0 is §395 and
+this §396 (§386's lesson).
+
+Tests: `tests/test_archive_nodes_396.py` (nodes on intake and facts, the
+migration, with the agents off no node, the series and its refusals, the
+Atlas indexes and vector-index update against a fake).

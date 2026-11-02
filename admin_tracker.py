@@ -166,7 +166,10 @@ def _blob_columns(conn: sqlite3.Connection, alias: str) -> set[tuple[str, str, s
 
 def _open(stores: list[Store], deadline: float) -> sqlite3.Connection:
     """An in-memory connection with `stores` attached read-only and locked."""
-    conn = sqlite3.connect(":memory:", check_same_thread=False)
+    # Opened as a URI so the read-only `file:...?mode=ro` attachments below
+    # are read as URIs on every SQLite build, not only those compiled with
+    # URI filenames on by default (§396: SQLite 3.53 refuses them otherwise).
+    conn = sqlite3.connect("file::memory:", uri=True, check_same_thread=False)
     secret = set(SECRET_COLUMNS)
     for store in stores:
         uri = "file:" + Path(store.path).as_posix() + "?mode=ro"

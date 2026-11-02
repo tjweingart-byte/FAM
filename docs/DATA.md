@@ -135,7 +135,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
 | **story_pool.db** (`STORY_POOL_DB`, §267) | `story_store.py` (`StoryStore`), `stories.py` | `snapshots` | No, shared | One row each for the pool (≤ 96 stories) and its ledgers, rewritten every refresh | n/a · **Emptied** |
-| **archive.db** (`ARCHIVE_DB`, §308) | `history_archive.py` (`SQLiteBackend`) | `intake`, `episode_sources`, `facts` | No, shared | The history archive when it is not on MongoDB Atlas (tests, staging, a fresh clone; production until `ARCHIVE_BACKEND=atlas`). Intake kept until digested, at most `ARCHIVE_INTAKE_MAX` = 500,000 articles, oldest dropped; links and facts kept | n/a · kept |
+| **archive.db** (`ARCHIVE_DB`, §308) | `history_archive.py` (`SQLiteBackend`) | `intake`, `episode_sources`, `facts`, `live_series` | No, shared | The history archive when it is not on MongoDB Atlas (tests, staging, a fresh clone; production until `ARCHIVE_BACKEND=atlas`). Intake kept until digested, at most `ARCHIVE_INTAKE_MAX` = 500,000 articles, oldest dropped; links and facts kept | n/a · kept |
 | **wikimedia.db** (`WIKIMEDIA_DB`, §278) | `wikimedia.py` (`ReferenceStore`) | `answers`, `enterprise` | No, shared | Each name's reference answer for 24 hours (read as a miss after that, overwritten on the next look); one Enterprise request count per month | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
@@ -336,7 +336,7 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
 
 **The history archive** (`history_archive.py`, §308; `ARCHIVE.md`): in
 MongoDB Atlas in production once `ARCHIVE_BACKEND=atlas`, else
-**archive.db**. Three collections (tables), no listener in any of them:
+**archive.db**. Four collections (tables), no listener in any of them:
 `intake`, one record per article URL that entered a written episode's packet
 (title, outlet, grade, publish date, up to 8 passages, the subjects and
 categories of the episodes that used it, first and last seen, how often) -
@@ -345,7 +345,13 @@ the raw material Consuela, the housekeeper agent, will digest
 `episode_sources`, each written episode's article links keyed by its
 `cache.episode_id`, for a sources view on the episode screen; `facts`, the
 key sentences and figures the agent keeps, each with a 384-number vector,
-recalled beside the search. Never a private search or an attachment.
+recalled beside the search; `live_series` (§396), every reading of a live
+score or price, one record per subject, metric and moment (empty until
+Consuela writes it). Filed by node (§396): a fact carries Nando's node id
+and its path (`node_id`, `node_path`), an intake record the nodes of the
+episodes that used it (`nodes`), a reading its node id - all empty when
+Nando did not file the episode, which with `AGENTS=0` is always. Never a
+private search or an attachment.
 
 **x_threads.db** (`x_threads.Store`, §321): `/admin/x`'s cards. `candidates`,
 one row per public X post a search found worth replying to - its text, the

@@ -396,3 +396,4 @@ and `limit` = Lines.
 | 26803 | 17 | 393. A card shows the friends who listened, not a count (2026-10-31) |
 | 26820 | 21 | 394. Tapping a card's faces opens who listened (2026-10-31) |
 | 26841 | 31 | 395. Phase 2, piece 0: the activation step's Privacy Policy and consent wording, drafted for the owner (2026-11-01) |
+| 26872 | 53 | 396. Phase 2, piece 1: the archive filed by node, live readings as a series, and /admin's read-only stores on any SQLite (2026-11-02) |

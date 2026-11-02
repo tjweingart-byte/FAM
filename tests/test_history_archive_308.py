@@ -436,7 +436,7 @@ def test_the_vector_index_is_sized_for_the_installed_model():
     assert vector["numDimensions"] == ha.DIMS == 384
     assert vector["similarity"] == "cosine"
     assert {f["path"] for f in ha.VECTOR_INDEX_DEFINITION["fields"]
-            if f["type"] == "filter"} == {"active", "published", "space"}
+            if f["type"] == "filter"} == {"active", "published", "space", "node_id"}
 
 
 # --- staging and health ----------------------------------------------------
