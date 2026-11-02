@@ -433,13 +433,17 @@ class SQLiteBackend:
                                         [category] if category else [])
                     by_provider = _by_provider(json.loads(row[3] or "{}"), f)
                     nodes = _union(json.loads(row[4] or "[]"), [node] if node else [])
+                    # New passages make a consolidated article waiting again
+                    # (§400): they are cleared once Consuela has read them.
                     db.execute(
                         "UPDATE intake SET passages = ?, subjects = ?, "
                         "categories = ?, by_provider = ?, nodes = ?, last_seen = ?, "
-                        "seen = seen + 1 WHERE id = ?",
+                        "seen = seen + 1, digested = CASE WHEN ? THEN 0 "
+                        "ELSE digested END WHERE id = ?",
                         (json.dumps(passages), json.dumps(subjects),
                          json.dumps(categories), json.dumps(by_provider),
-                         json.dumps(nodes), now, url_id(f.url)))
+                         json.dumps(nodes), now, 1 if f.passages else 0,
+                         url_id(f.url)))
                 written += 1
         return written
 
@@ -469,14 +473,15 @@ class SQLiteBackend:
                  "nodes": json.loads(r[10] or "[]")} for r in rows]
 
     def mark_digested(self, ids: list) -> int:
-        """Mark intake records consolidated. Their passages stay: clearing
-        them waits on the owner (§399)."""
+        """Mark intake records consolidated and clear their passages at once
+        (§400, the owner: consolidation itself, not a removal kept 30 days).
+        The record keeps its link, title, outlet, grade, date and nodes."""
         if not ids:
             return 0
         with self._lock, closing(self._connect()) as db, db:
             marks = ",".join("?" for _ in ids)
-            cur = db.execute(f"UPDATE intake SET digested = 1 WHERE id IN ({marks})",
-                             list(ids))
+            cur = db.execute(f"UPDATE intake SET digested = 1, passages = '[]', "
+                             f"by_provider = '{{}}' WHERE id IN ({marks})", list(ids))
             return cur.rowcount or 0
 
     def link_episode(self, episode: str, key: str, sourced_at: float,
@@ -723,8 +728,12 @@ class AtlasBackend:
             update: dict = {
                 "$setOnInsert": {"url": f.url, "title": f.title, "host": f.host,
                                  "grade": f.grade, "published": f.published,
-                                 "first_seen": seen, "digested": False},
-                "$set": {"last_seen": seen},
+                                 "first_seen": seen,
+                                 **({} if f.passages else {"digested": False})},
+                # New passages make it waiting again (§400); without any, a
+                # new record waits and an old one keeps its state.
+                "$set": ({"last_seen": seen, "digested": False} if f.passages
+                         else {"last_seen": seen}),
                 "$inc": {"seen": 1},
             }
             add: dict = {}
@@ -775,8 +784,11 @@ class AtlasBackend:
     def mark_digested(self, ids: list) -> int:
         if not ids:
             return 0
-        result = self.intake_c.update_many({"_id": {"$in": list(ids)}},
-                                           {"$set": {"digested": True}})
+        # As SQLite's (§400): the passages go at once.
+        result = self.intake_c.update_many(
+            {"_id": {"$in": list(ids)}},
+            {"$set": {"digested": True, "passages": []},
+             "$unset": {"by_provider": ""}})
         return int(getattr(result, "modified_count", 0) or 0)
 
     def link_episode(self, episode: str, key: str, sourced_at: float,

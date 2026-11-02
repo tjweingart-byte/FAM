@@ -27064,3 +27064,33 @@ retry, the status rule, approved passages only, held articles and the
 queue behind them, the dry run writes nothing and asks once, live facts
 verbatim under the node, a fallen-back call writes nothing, Consuela off
 sends nothing, the task's registration, schedule and queueing).
+
+## 400. The owner's answer: an article's passages are cleared the moment it is consolidated (2026-11-02)
+
+§399 asked whether clearing an article's passages after consolidation is
+the consolidation itself (consuela.md, always 3: never store a whole
+packet) or a removal kept 30 days (always 11). **The owner: clear them at
+once** - it is the consolidation, not a removal.
+
+`mark_digested` (both backends) now marks the record consolidated and
+empties its `passages` and `by_provider` in the same write. The record
+keeps its link, title, outlet, grade, date, subjects and nodes - the
+"link and count" every later corroboration needs. A later episode that uses
+the same article brings new passages, which make it wait again (`digested`
+back to 0 on SQLite, `$set` on Atlas) and are cleared the same way; the
+facts it yields upsert onto the same ids, so nothing doubles.
+
+So the intake is now the build prompt's "short-lived queue": with the dry
+run off, an article's passages last from its episode to Consuela's next
+run (minutes, `housekeeper:consolidate`). The intake already stored is
+consolidated and cleared by the same runs, oldest first. In the dry run
+nothing is cleared - nothing is consolidated.
+
+**Left as it is, for the owner if it matters:** an article kept before
+providers were recorded (§358) has passages from no known provider, so
+Consuela never consolidates it (§397, never 8) and its passages are never
+cleared by her; `ARCHIVE_INTAKE_MAX` still drops the oldest. Clearing those
+without consolidating them would be a removal, so it is not done here.
+
+Tests: `tests/test_consuela_consolidates_399.py` (cleared at once, new
+passages wait again, nothing cleared in the dry run, Atlas's update).

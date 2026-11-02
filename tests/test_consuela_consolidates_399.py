@@ -8,7 +8,7 @@ Pinned here, against a fake model (no key, no network):
 * only an approved provider's passages are read; no hostname is shown;
 * the dry run reports and writes nothing to the archive, and asks once;
 * live, the chosen sentences become facts verbatim and the intake record is
-  marked consolidated, its passages kept until the owner decides (§399);
+  marked consolidated, its passages cleared at once (§400);
 * with Consuela off nothing runs and nothing is sent.
 """
 from __future__ import annotations
@@ -218,10 +218,7 @@ def test_live_the_chosen_sentences_become_facts_verbatim_under_the_node(archive,
     # The newsletter line was not chosen and is not kept.
     assert SENTENCES[4] not in by_text
     assert _digested(archive) == {"https://espn.com/a": 1}
-    # Its passages stay until the owner decides (§399).
     assert archive.undigested(5) == []
-    with closing(sqlite3.connect(archive.path)) as db:
-        assert json.loads(db.execute("SELECT passages FROM intake").fetchone()[0])
 
 
 def test_a_figure_code_cannot_read_is_kept_as_a_sentence(archive, monkeypatch):
@@ -311,3 +308,52 @@ def test_her_settings_default_to_a_dry_run():
     assert "HOUSEKEEPER_DRY_RUN=1" in text
     assert f"HOUSEKEEPER_BATCH_ARTICLES={settings.housekeeper_batch_articles}" in text
     assert f"HOUSEKEEPER_BATCHES_PER_RUN={settings.housekeeper_batches_per_run}" in text
+
+
+# --- §400: the passages are cleared at once ------------------------------------
+
+def test_live_the_passages_are_cleared_the_moment_the_article_is_consolidated(
+        archive, monkeypatch):
+    _settings(monkeypatch, housekeeper_dry_run=False)
+    monkeypatch.setattr(models, "ask", _FakeModel(hk.Picks(articles=[_pick(1)])))
+    _intake(archive, "https://espn.com/a")
+    _run()
+    with closing(sqlite3.connect(archive.path)) as db:
+        row = db.execute("SELECT passages, by_provider, digested, title, nodes "
+                         "FROM intake").fetchone()
+    assert row == ("[]", "{}", 1, "Eagles top Giants", '["eagles"]')
+
+
+def test_new_passages_for_a_consolidated_article_make_it_wait_again(archive, monkeypatch):
+    _settings(monkeypatch, housekeeper_dry_run=False)
+    monkeypatch.setattr(models, "ask", _FakeModel(hk.Picks(articles=[_pick(1)])))
+    _intake(archive, "https://espn.com/a")
+    _run()
+    assert archive.undigested(5) == []
+    _intake(archive, "https://espn.com/a")
+    waiting = archive.undigested(5)
+    assert [r["url"] for r in waiting] == ["https://espn.com/a"]
+    assert waiting[0]["by_provider"]["perplexity"]
+
+
+def test_in_the_dry_run_nothing_is_cleared(archive, monkeypatch):
+    monkeypatch.setattr(models, "ask", _FakeModel(hk.Picks(articles=[_pick(1)])))
+    _intake(archive, "https://espn.com/a")
+    _run()
+    assert archive.undigested(5)[0]["passages"]
+
+
+def test_atlas_clears_the_passages_with_the_mark():
+    calls = []
+
+    class _Intake:
+        def update_many(self, query, update):
+            calls.append((query, update))
+            return SimpleNamespace(modified_count=1)
+
+    store = ha.AtlasBackend(database={"intake": _Intake(), "episode_sources": None,
+                                      "facts": None, "live_series": None})
+    assert store.mark_digested(["a"]) == 1
+    assert calls == [({"_id": {"$in": ["a"]}},
+                      {"$set": {"digested": True, "passages": []},
+                       "$unset": {"by_provider": ""}})]

@@ -400,3 +400,4 @@ and `limit` = Lines.
 | 26925 | 55 | 397. Phase 2, piece 2: whose material Consuela may store, and the sweeps' readings (2026-11-02) |
 | 26980 | 16 | 398. A proposed consuela.md: Perplexity joins never 8's list (2026-11-02) |
 | 26996 | 72 | 399. Phase 2, piece 3: Consuela consolidates each article as it enters, as a dry run (2026-11-02) |
+| 27068 | 30 | 400. The owner's answer: an article's passages are cleared the moment it is consolidated (2026-11-02) |

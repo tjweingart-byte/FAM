@@ -395,7 +395,8 @@ def test_atlas_intake_is_one_upsert_per_article():
     kind, query, update, upsert = [c for c in store.intake_c.calls
                                    if c[0] == "update_one"][0]
     assert upsert and query == {"_id": ha.url_id("https://www.reuters.com/a")}
-    assert update["$setOnInsert"]["digested"] is False
+    # An article with passages waits for Consuela, new or not (§400).
+    assert update["$set"]["digested"] is False
     assert update["$addToSet"] == {"passages": {"$each": ["One.", "Two."]},
                                    "subjects": "Eagles", "categories": "nfl"}
     assert update["$inc"] == {"seen": 1}

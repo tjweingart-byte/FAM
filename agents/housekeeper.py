@@ -31,10 +31,11 @@ chooses, and what she would keep is written to her report
 (`housekeeper.db`, `tools/consuela_report.py`) - nothing reaches the
 archive, and an article reported once is not asked about again. With the
 dry run off, the chosen sentences become facts (`history_archive.add_fact`)
-and the intake record is marked consolidated. Its passages are **not**
-cleared yet: whether clearing them is a removal that keeps 30 days
-(always 11) or the consolidation itself (always 3) is the owner's question
-(§399).
+and the intake record is marked consolidated **and its passages cleared at
+once** (§400, the owner: clearing is the consolidation itself - always 3 -
+not a removal kept 30 days). The record keeps its link, title, outlet,
+grade, date and nodes; new passages for it from a later episode make it
+wait again, and are cleared the same way.
 
 Nothing here is on a listener's path: it runs only as Netenyahu's task,
 only while Consuela may run (`history_archive.consuela_runs`), and with
