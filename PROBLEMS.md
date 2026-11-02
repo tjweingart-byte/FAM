@@ -26976,3 +26976,85 @@ caught the new import, as it is meant to.
 Tests: `tests/test_provider_switch_397.py` (the default list, refusals no
 setting can lift, intake with Consuela off and on, readings let through and
 refused, both sweeps, an episode's live record under its node).
+
+## 398. A proposed consuela.md: Perplexity joins never 8's list (2026-11-02)
+
+At the owner's request (2026-11-02), after approving Perplexity for storage
+(§397): `docs/agent_rule_proposals/consuela.md` is the signed `consuela.md`
+with one line changed - never 8's "approved so far: GDELT, with its
+citation; Tiingo; BALLDONTLIE" gains "; Perplexity". The rule itself is
+unchanged. `tests/test_consuela_proposal_398.py` holds the proposal to
+exactly that difference and, once the owner signs, fails until the
+proposal is deleted - the pattern §384 used for `nando.md` rule 12. It also
+checks the list against what `history_archive.approved` lets through.
+
+The proposals README says what is waiting and how to sign it, and now
+repeats §392's lesson: sign from a key file deleted straight after, never
+with the key pasted into a terminal. Nothing was signed here; no key was
+generated, held or asked for. The signed manifest still verifies (version 2).
+
+## 399. Phase 2, piece 3: Consuela consolidates each article as it enters, as a dry run (2026-11-02)
+
+`agents/housekeeper.py` (consuela.md, always 1-3, never 1-3; decided items 3
+and 35). An article that entered an episode's packet waits in intake;
+Consuela's task (`housekeeper:consolidate`) on Netenyahu's loop takes the
+oldest and keeps what is worth keeping.
+
+- **The model gives sentence numbers only**: per article, `key`, `quotes`,
+  and `figures` with `happened` / `expected` / `unsure`
+  (`Picks`, extra fields forbidden), on `HOUSEKEEPER_MODEL` (Haiku 5.5, low)
+  through `agents/models.py` - rule-book lock, staging, pricing and the
+  ledger as for every agent. Several articles per call
+  (`HOUSEKEEPER_BATCH_ARTICLES`, 8), a bounded number of calls per run
+  (`HOUSEKEEPER_BATCHES_PER_RUN`, 5).
+- **Code does the rest**: numbers the sentences
+  (`evidence_digest.split_sentences`, at most 40 per article); refuses an
+  answer with a number out of range, an article twice or missing, a
+  sentence twice in one list - retried once, then the batch is left for the
+  next run (`failed`); reads each figure with `figure_guard.figures_in` - a
+  sentence whose figure it cannot read (a score like "24-17") is kept as a
+  sentence, never a figure; a figure is an `outcome` only when the model
+  says it happened and the sentence carries no hedge ("expected", "will",
+  "could"...), else `forecast` or `unsure`; a "quote" needs a quotation mark.
+- **Filed under Nando's one node**: an article no episode's node vouches
+  for, that two nodes claim, or whose node the tree does not know is
+  **held**, reported, and looked at again a day later - never filed by
+  guess, and never blocking the articles behind it.
+- **Only approved providers' passages** (§397), read from `by_provider`; an
+  article kept before providers were recorded (§358) has none and is held.
+  The model is never shown a hostname.
+- **Dry run first** (`HOUSEKEEPER_DRY_RUN=1`, the default): she chooses and
+  `housekeeper.db` records it (`tools/consuela_report.py`); nothing reaches
+  the archive, and an article already reported is not asked about again,
+  so a dry run does not spend twice on one article. With it off, the chosen
+  sentences become facts verbatim (`history_archive.add_fact`, under the
+  node and its path) and the intake record is marked consolidated.
+- **When she runs**: a task is queued by each intake write while she may run
+  (one queued at a time, a fresh one each minute something enters), and
+  nightly at 01:00 Eastern for anything still waiting
+  (`netenyahu.SCHEDULE`). App startup registers the handler only with
+  `AGENTS=1`; `history_archive.consuela_runs` gates every step, so with
+  `AGENTS=0` nothing here is called. `/api/health` > `archive` >
+  `consolidation` reports the settings and counts.
+
+**Not built here, on purpose:**
+- **Clearing the passages.** The build prompt says passages "wait only in a
+  short-lived queue ... and are never kept", and consuela.md always 3 says
+  never store a whole packet; always 11 and every-agent.md always 8 say every
+  removal is marked, kept 30 days and reversible. Whether clearing an
+  article's passages once it is consolidated is a removal (30 days) or the
+  consolidation itself (at once) is a disagreement between the rules, so it
+  is the owner's question. Until answered, a consolidated record keeps its
+  passages and is only marked; the old intake is not cleared either.
+- **The Message Batches API.** "Batched" (decided item 35) is met here by
+  several articles per call; the half-price batch endpoint needs the model
+  layer to submit and collect batches, a change to `agents/models.py` of its
+  own.
+- The live switch-over: `HOUSEKEEPER_DRY_RUN=0` is the owner's setting,
+  after reading the dry run's report on real articles.
+
+Tests: `tests/test_consuela_consolidates_399.py` (the answer check and its
+retry, the status rule, approved passages only, held articles and the
+queue behind them, the dry run writes nothing and asks once, live facts
+verbatim under the node, a fallen-back call writes nothing, Consuela off
+sends nothing, the task's registration, schedule and queueing).

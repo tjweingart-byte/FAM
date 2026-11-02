@@ -1196,7 +1196,9 @@ Database inventory specialist, §307; consolidated with the archive intake,
 (MongoDB)** - its only writer. A listener reaches its work only through Sonic
 and packet two. **Status:** planned; the archive is built (§308,
 `history_archive.py`, `ARCHIVE.md`), so Consuela is next. Phase 2 has begun:
-the archive is filed by node and keeps live readings as a series (§396).
+the archive is filed by node and keeps live readings as a series (§396),
+only an approved provider's material is stored (§397), and she consolidates
+each article as it enters, as a dry run first (§399, `agents/housekeeper.py`).
 
 **Purpose.** Keep the archive organised, trustworthy and free of repetition,
 filed so Sonic always knows where to go - and keep what will be valuable to
@@ -1404,6 +1406,8 @@ languages). Every hole is closed by "uncertain = not compared".
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_COMB_DAYS` | Batch size; how often the full duplicate comb runs (proposed) |
 | `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until the automated eval shows no wrong merge (decided 2026-10-29: no hand-checked sample) |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | 30 |
+| `HOUSEKEEPER_DRY_RUN` | Built (§399): `1` - she chooses and `tools/consuela_report.py` shows it, nothing is written - until the owner sets `0` |
+| `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_BATCHES_PER_RUN` | Built (§399): 8 articles per call, 5 calls per run of her task |
 | `HOUSEKEEPER_APPROVED_PROVIDERS` | Built (§397): `fam,gdelt,tiingo,balldontlie,perplexity`; Parallel, Finnhub and API-Sports refused in code (`history_archive.REFUSED`) |
 
 **May FAM keep what the providers return?** The owner's use (2026-10-28):

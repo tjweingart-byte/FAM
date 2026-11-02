@@ -2131,6 +2131,14 @@ class Settings:
     supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
     housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
     housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
+    # **Consuela's consolidation** (§399): a dry run until the owner turns
+    # it off - she chooses and the choice is reported, nothing is written.
+    # Articles per call, and calls per run of her task.
+    housekeeper_dry_run: bool = field(
+        default_factory=lambda: os.environ.get("HOUSEKEEPER_DRY_RUN", "1")
+        not in ("0", "false", "False"))
+    housekeeper_batch_articles: int = _env_int("HOUSEKEEPER_BATCH_ARTICLES", 8)
+    housekeeper_batches_per_run: int = _env_int("HOUSEKEEPER_BATCHES_PER_RUN", 5)
     # **Whose material Consuela may store** (§397, decided items 8 and 25;
     # consuela.md, never 8): the providers the owner has approved - GDELT
     # (with its citation), Tiingo, BALLDONTLIE (2026-10-28) and Perplexity

@@ -259,6 +259,8 @@ FAM_ENVIRONMENT = (
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
     # §397: whose material Consuela may store.
     "HOUSEKEEPER_APPROVED_PROVIDERS",
+    # §399: her consolidation's dry run and batch sizes.
+    "HOUSEKEEPER_DRY_RUN", "HOUSEKEEPER_BATCH_ARTICLES", "HOUSEKEEPER_BATCHES_PER_RUN",
     # §381: Nando's answer key.
     "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", "CATEGORIZER_JUDGE_MAX_TOKENS",
     "NANDO_JUDGE_PER_RUN",

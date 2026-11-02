@@ -453,6 +453,32 @@ class SQLiteBackend:
                        "ORDER BY first_seen LIMIT ?)", (over,))
             return over
 
+    def undigested(self, limit: int) -> list:
+        """The oldest intake records Consuela has not consolidated (§399)."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, url, title, host, grade, published, passages, "
+                "subjects, categories, by_provider, nodes FROM intake "
+                "WHERE digested = 0 ORDER BY first_seen LIMIT ?",
+                (max(1, int(limit)),)).fetchall()
+        return [{"id": r[0], "url": r[1], "title": r[2], "host": r[3], "grade": r[4],
+                 "published": r[5], "passages": json.loads(r[6] or "[]"),
+                 "subjects": json.loads(r[7] or "[]"),
+                 "categories": json.loads(r[8] or "[]"),
+                 "by_provider": json.loads(r[9] or "{}"),
+                 "nodes": json.loads(r[10] or "[]")} for r in rows]
+
+    def mark_digested(self, ids: list) -> int:
+        """Mark intake records consolidated. Their passages stay: clearing
+        them waits on the owner (§399)."""
+        if not ids:
+            return 0
+        with self._lock, closing(self._connect()) as db, db:
+            marks = ",".join("?" for _ in ids)
+            cur = db.execute(f"UPDATE intake SET digested = 1 WHERE id IN ({marks})",
+                             list(ids))
+            return cur.rowcount or 0
+
     def link_episode(self, episode: str, key: str, sourced_at: float,
                      links: list, now: float) -> None:
         with self._lock, closing(self._connect()) as db, db:
@@ -730,6 +756,28 @@ class AtlasBackend:
         if oldest:
             self.intake_c.delete_many({"_id": {"$in": oldest}})
         return len(oldest)
+
+    def undigested(self, limit: int) -> list:
+        out = []
+        for doc in self.intake_c.find({"digested": False}).sort(
+                "first_seen", 1).limit(max(1, int(limit))):
+            out.append({"id": str(doc.get("_id", "")), "url": doc.get("url", ""),
+                        "title": doc.get("title", ""), "host": doc.get("host", ""),
+                        "grade": doc.get("grade", ""),
+                        "published": doc.get("published", ""),
+                        "passages": list(doc.get("passages") or []),
+                        "subjects": list(doc.get("subjects") or []),
+                        "categories": list(doc.get("categories") or []),
+                        "by_provider": dict(doc.get("by_provider") or {}),
+                        "nodes": list(doc.get("nodes") or [])})
+        return out
+
+    def mark_digested(self, ids: list) -> int:
+        if not ids:
+            return 0
+        result = self.intake_c.update_many({"_id": {"$in": list(ids)}},
+                                           {"$set": {"digested": True}})
+        return int(getattr(result, "modified_count", 0) or 0)
 
     def link_episode(self, episode: str, key: str, sourced_at: float,
                      links: list, now: float) -> None:
@@ -1285,6 +1333,15 @@ def _write(findings: list, subject: str, category: str, episode: str,
             store.link_episode(episode, key, sourced_at,
                                [f.as_link() for f in findings], now)
             _count("episodes_linked")
+        # Consuela consolidates what just entered (§399), on Netenyahu's
+        # loop, minutes from now - never on this thread.
+        if consuela_runs():
+            try:
+                from agents import housekeeper
+
+                housekeeper.queue()
+            except Exception as exc:  # noqa: BLE001 - never costs the write
+                log.warning("could not queue Consuela's consolidation: %s", exc)
         _SINCE_PRUNE[0] += len(findings)
         if _SINCE_PRUNE[0] >= PRUNE_EVERY:
             _SINCE_PRUNE[0] = 0
@@ -1465,6 +1522,15 @@ def as_sources(facts: list, first_number: int, now: Optional[datetime] = None) -
     return "\n".join(parts)
 
 
+def _consolidation_report() -> dict:
+    try:
+        from agents import housekeeper
+
+        return housekeeper.report()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def report() -> dict:
     """For `/api/health`. Sends nothing and never opens a store."""
     ok, why = diagnose()
@@ -1483,6 +1549,7 @@ def report() -> dict:
             "grace_seconds": float(settings.archive_grace_seconds),
             # Whose material Consuela may store (§397), and whether she runs.
             "housekeeper": consuela_runs(),
+            "consolidation": _consolidation_report(),
             "approved_providers": [p for p in settings.housekeeper_approved_providers
                                    if p not in REFUSED],
             **stats}

@@ -689,6 +689,11 @@ async def lifespan(_: FastAPI):
         # `script` reads without counting a hit: grading is not a replay (§391).
         agent_training.register(
             lambda key: getattr(SCRIPT_CACHE, "script", lambda _k: [])(key) or [])
+        # Consuela's consolidation (§399): run only while HOUSEKEEPER is on,
+        # a dry run until HOUSEKEEPER_DRY_RUN=0.
+        from agents import housekeeper as agent_housekeeper
+
+        agent_housekeeper.register()
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.

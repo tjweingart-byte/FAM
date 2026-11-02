@@ -361,7 +361,9 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     # Nando's placement (§371) are pure code, and every write path settles
     # Nando's node (§371).
     allowed = {
-        "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster", "training"},
+        # App startup also registers Consuela's task (§399).
+        "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster", "training",
+                   "housekeeper"},
         # The wipe also forgets Nando's answer-key labels (§381).
         "demo_data.py": {"tasks", "training", "nando_model", "memory"},
         "pipeline.py": {"netenyahu", "categorizer"},
@@ -377,8 +379,10 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # judge itself is a background task, never on the listener's path.
         "category_audit.py": {"training"},
         # The archive asks whether Consuela may run - her switches and her
-        # lock, read only, no model (§397).
-        "history_archive.py": {"roster"},
+        # lock, read only, no model (§397) - and, only while she may, queues
+        # her consolidation on Netenyahu's loop and reports it (§399). Her
+        # model call is made there, never on the archive's write thread.
+        "history_archive.py": {"roster", "housekeeper"},
     }
     found = {}
     for p in ROOT.glob("*.py"):
