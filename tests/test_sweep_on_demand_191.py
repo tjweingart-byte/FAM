@@ -11,7 +11,8 @@ on any tile):
 * A followed league's card is read once a day, then again only while a
   followed game is on or about to start - and only if somebody drew myFAM
   recently.
-* Finnhub is asked every two hours, round the clock.
+* Markets (Finnhub then, Tiingo since §395) are asked every two hours,
+  round the clock.
 * An endpoint the provider refused is not asked again that day.
 """
 from __future__ import annotations
@@ -194,11 +195,11 @@ def test_an_idle_source_is_skipped_and_said(provider):
 
 
 # --------------------------------------------------------------------------
-# Finnhub and the refused endpoint
+# Markets (Tiingo since §395) and the refused endpoint
 # --------------------------------------------------------------------------
-def test_finnhub_is_asked_every_two_hours():
+def test_markets_are_asked_every_two_hours():
     assert config.settings.stories_markets_interval_seconds == 7200.0
-    assert story_sources.FinnhubSignals().min_interval_seconds == 7200.0
+    assert story_sources.TiingoSignals().min_interval_seconds == 7200.0
 
 
 def test_a_refused_endpoint_is_not_asked_again_that_day(monkeypatch):

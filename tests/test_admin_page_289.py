@@ -8,9 +8,8 @@
    and read whether or not it is still current.
 4. GDELT: a failing file is written off, the quick looks are capped, failing
    syncs back off, and the requests are counted by what they fetched.
-5. Finnhub: a ticker named with its exchange is looked up; indices, futures
-   and foreign listings are never chosen; a refused symbol is not asked again
-   that day.
+5. Markets: a ticker named with its exchange is looked up, and used only on
+   an exact match (Finnhub's refusal checks went with Finnhub, §395).
 6. How names are said, checked against Wikipedia.
 """
 from __future__ import annotations
@@ -292,7 +291,7 @@ def test_gdelt_requests_are_counted_by_what_they_fetched(gdelt_on):
     assert parts["GKG file"]["label"] == "GKG file"
 
 
-# --- 5. Finnhub --------------------------------------------------------------
+# --- 5. Markets (Tiingo since §395) --------------------------------------------------------------
 
 def test_a_ticker_named_with_its_exchange_is_read():
     assert live_sources.ticker_named("Oracle Corporation (NYSE: ORCL)") == "ORCL"
@@ -301,31 +300,23 @@ def test_a_ticker_named_with_its_exchange_is_read():
     assert live_sources.ticker_named("Nasdaq Composite") == ""
 
 
-def test_indices_futures_and_refused_symbols_are_never_chosen():
-    assert live_sources.quotable({"symbol": "AAPL", "type": "Common Stock"})
-    assert not live_sources.quotable({"symbol": "^IXIC", "type": "Index"})
-    assert not live_sources.quotable({"symbol": "SB1!", "type": "Commodity Future"})
-    assert not live_sources.quotable({"symbol": "BINANCE:BTCUSDT", "type": "Crypto"})
-    live_sources.note_refused("ZZZT")
-    try:
-        assert not live_sources.quotable({"symbol": "ZZZT", "type": "Common Stock"})
-    finally:
-        live_sources._REFUSED.clear()
-
-
 def test_a_named_ticker_is_resolved_only_on_an_exact_match(monkeypatch):
+    import tiingo
+
     async def fake(url, headers, params, timeout):
-        return {"result": [{"symbol": "ORCL", "type": "Common Stock",
-                            "description": "ORACLE CORP"},
-                           {"symbol": "ORCL.MX", "type": "Common Stock"}]}
+        return [{"ticker": "ORCLX", "name": "Oracle fund", "assetType": "Stock",
+                 "countryCode": "US"},
+                {"ticker": "ORCL", "name": "ORACLE CORP", "assetType": "Stock",
+                 "countryCode": "US"}]
 
     monkeypatch.setattr(live_sources, "_json", fake)
+    monkeypatch.setattr(tiingo, "RATION", tiingo.Ration())
 
     class Brief:
         live_entity = "Oracle Corporation (NYSE: ORCL)"
         subject = query = "what is oracle trading at"
 
-    entity = asyncio.run(live_sources.FinnhubSource().resolve(Brief()))
+    entity = asyncio.run(tiingo.TiingoSource().resolve(Brief()))
     assert entity is not None and entity.id == "ORCL"
 
 
@@ -431,23 +422,26 @@ def test_an_exchange_name_alone_names_no_ticker():
     assert live_sources.ticker_named("NYSE American: IMO") == "IMO"
 
 
-def test_a_ticker_finnhub_does_not_have_falls_through_to_the_search(monkeypatch):
+def test_a_ticker_the_search_does_not_have_falls_through_to_the_search(monkeypatch):
+    import tiingo
+
     asked = []
 
     async def fake(url, headers, params, timeout):
-        asked.append(params["q"])
-        if params["q"] == "ORCL":
-            return {"result": []}
-        return {"result": [{"symbol": "ORCL", "type": "Common Stock",
-                            "description": "ORACLE CORP"}]}
+        asked.append(params["query"])
+        if params["query"] == "ORCL":
+            return []
+        return [{"ticker": "ORCL", "name": "ORACLE CORP", "assetType": "Stock",
+                 "countryCode": "US"}]
 
     monkeypatch.setattr(live_sources, "_json", fake)
+    monkeypatch.setattr(tiingo, "RATION", tiingo.Ration())
 
     class Brief:
         live_entity = "ticker ORCL"
         subject = query = "oracle"
 
-    entity = asyncio.run(live_sources.FinnhubSource().resolve(Brief()))
+    entity = asyncio.run(tiingo.TiingoSource().resolve(Brief()))
     assert asked[0] == "ORCL" and len(asked) == 2
     assert entity is not None and entity.id == "ORCL"
 

@@ -26837,3 +26837,69 @@ pictures from the offline copy, because a page of friends' pictures can pass
 the storage quota and the copy is written inside a `catch` that would have
 lost it silently; offline, a face is its initials. Two friends with no handle
 and the same name no longer share one entry in `FRIEND_FACE_BOOK`.
+
+## 395. API-Sports and Finnhub are removed; BALLDONTLIE and Tiingo are paid for (2026-11-02)
+
+The owner (11.02): "We have paid for Tiingo and BALLDONTLIE. We want to
+completely remove API-sports and Finnhub from the pipeline." §290 had brought
+API-Sports and Tiingo in as free plans while developing, each in one file and
+removable by deleting it; Finnhub had stayed as the markets provider Tiingo
+subclassed. Now BALLDONTLIE is the only sports provider and Tiingo the only
+markets provider.
+
+**API-Sports.** `api_sports.py` is deleted, and every call site with it: the
+`Router` under the scoreboard (`ScoreBoard` and the sweep take
+`balldontlie.shared_client()` again), `SHADOW_TEAMS`, the `aps:` id filter in
+the player reports, `sweepable`'s API-Sports leagues, `ScoreBoard._source`
+(provenance is "BALLDONTLIE" again), the `api_sports_key` row of
+`DERIVED_FROM_KEY`, `_usage_detail`'s per-sport count, the /admin row and
+breakdown, and every `API_SPORTS_*` setting (`config.py`, `.env.example`,
+`render.yaml`, `spend_guard`, `tests/conftest.py`).
+
+**Finnhub.** `FinnhubSource` is gone; what Tiingo used of it - the sentences
+by session, the freshness and the closed-market rule (§267) - is
+`live_sources.MarketsSource`, which `tiingo.TiingoSource` subclasses. Gone
+with it: Finnhub's search, quote and market-status requests, `quotable`,
+`_UNQUOTABLE_TYPES` and the refused-symbol day (`note_refused`,
+`refused_today`; Tiingo's `pick_listing` is its own filter), the `finnhub`
+builder and its `DERIVED_FROM_KEY` row. `FinnhubSignals` and `MARKET_SWEEPS`
+are folded into one `story_sources.TiingoSignals`, swept only while Tiingo is
+the markets provider. Settings: `FINNHUB_KEY` and `FINNHUB_PLAN` are gone,
+and `FINNHUB_WATCHLIST` is renamed `MARKETS_WATCHLIST`. The finance workbook's
+Finnhub row is a Tiingo row; its launch purchase is Tiingo's redistribution
+licence. /admin, the privacy page, the tracker and the error explanations
+name Tiingo.
+
+**The plan sets the stops.** `TIINGO_PLAN` (free | power | commercial |
+redistribution; anything else refuses to boot, as `BALLDONTLIE_TIER` does)
+sets FAM's ration at 95% of the plan's published limits
+(`tiingo.PLAN_LIMITS`: free 50/hour and 1,000/day, Power 10,000 and 100,000,
+Commercial 20,000 and 150,000; redistribution is taken at Commercial's).
+`TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` now default to 0, "from
+the plan", and override it when set. `/api/health`'s `live_sources.free_plans`
+is `live_sources.rations` (a shallow contract: only top-level keys are held).
+
+**The licence is not the plan.** Tiingo's Power and Commercial plans are
+internal use; a price said to a listener is redistribution. The owner's
+agreement records redistribution with Tiingo and BALLDONTLIE
+(docs/PROVIDER_TERMS.md, 10.28), so `provider_usage.licences` counts Tiingo
+as commercial only at `TIINGO_PLAN=redistribution`; any other plan is red on
+/admin.
+
+**On deploy.** Remove `API_SPORTS_KEY`, `FINNHUB_KEY`, `FINNHUB_PLAN` and
+`FINNHUB_WATCHLIST` from Render's dashboard (nothing reads them); set
+`BALLDONTLIE_TIER` to the plan bought and `TIINGO_PLAN=redistribution`.
+`LIVE_MARKETS_PROVIDER=finnhub` or `STORIES_SOURCES=...,finnhub` is reported
+as a provider this build does not know (`[failures-visible]`). The kept web
+release `releases/web/2026.09.29/` still names both in comments; it is
+hashed and left as shipped (§280).
+
+Tests: `test_free_plans_290.py` (mostly API-Sports internals) is replaced by
+`test_tiingo_395.py` - its Tiingo tests kept, plus the plan's stops, an
+unknown plan refused, only redistribution commercial, and the removed
+modules, classes, settings and `.env.example` lines asserted gone. Converted
+to Tiingo: `test_story_sources`, `test_live_providers`,
+`test_provider_failures_144`, `test_admin_page_289`, `test_licences_207`,
+`test_provider_usage_179`, `test_trending_135`, `test_financials` and four
+more. Notes at `sports-balldontlie`, `sweep-on-demand`, `live-facts` and
+`always-researched`.

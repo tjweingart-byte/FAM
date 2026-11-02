@@ -549,8 +549,8 @@ EXPLAIN = (
          "The episode was written from the web search alone - no live score or "
          "price in it.",
          "Most often the plan's limit: BALLDONTLIE's free plan allows 5 "
-         "requests a minute, and Finnhub's free plan refuses indices, futures "
-         "and foreign listings with HTTP 403.",
+         "requests a minute, and Tiingo's plan sets an hourly and daily "
+         "allowance (TIINGO_PLAN).",
          "See Outside service requests for the plan and what the next one raises.")),
     ("live", r":\s*timeout",
      _ex("A live data provider was too slow",
@@ -615,7 +615,7 @@ EXPLAIN = (
          "The writer said a market figure that no source gave; the guard "
          "removed it before it was spoken.",
          "Nothing wrong was said; that sentence was missing.",
-         "No live price reached the writer (often a Finnhub refusal), so it "
+         "No live price reached the writer (often a Tiingo refusal or a spent allowance), so it "
          "estimated one.",
          "Look at live errors at the same time.")),
     ("writer", r"^ran out of room",
@@ -708,8 +708,7 @@ HINTS = (
     (r"RateLimited|\b429\b|minute's are spent",
      "Rate limited: the service's per-minute allowance was spent."),
     (r"\b403\b|don't have access|not have access",
-     "Refused (403): the plan does not include this - for Finnhub, an index, "
-     "future or foreign listing."),
+     "Refused (403): the plan does not include this."),
     (r"\b401\b|refused the key",
      "The key was refused (401): wrong key, or a plan the account does not have."),
     (r"Timeout|timed out",

@@ -1,7 +1,7 @@
 """Requests per outside service per day, beside each one's limit (§179).
 
 The admin page shows how often BALLDONTLIE, Parallel, Perplexity, GDELT,
-Polymarket, GNews and Finnhub are called, today and on average, with the limit in force and - in
+Polymarket, GNews and Tiingo are called, today and on average, with the limit in force and - in
 parentheses - what the next paid plan would raise it to. Pinned: a request is
 counted where it goes out (so every provider behind `live_sources._json` is
 counted once, by host), a failed request still counts, counting never costs a
@@ -32,9 +32,9 @@ def test_every_provider_the_owner_named_is_reported_in_order():
     rows = provider_usage.report(NOON)
     assert [r["label"] for r in rows] == [
         # §258: the search and its second look.
-        # §290: API-Sports and Tiingo, the free plans while developing.
-        "BALLDONTLIE", "API-Sports", "Parallel", "Perplexity", "GDELT",
-        "Polymarket", "GNews", "Finnhub", "Tiingo",
+        # §395: Tiingo is the markets provider; API-Sports and Finnhub gone.
+        "BALLDONTLIE", "Parallel", "Perplexity", "GDELT",
+        "Polymarket", "GNews", "Tiingo",
         # §278: the reference look.
         "Wikidata", "Wikipedia", "Wikimedia Enterprise",
         # §194: weather and the local news collector.
@@ -77,9 +77,10 @@ def test_the_rationed_limits_are_read_from_the_settings_in_force(monkeypatch):
 
 @pytest.mark.parametrize("host, provider", [
     ("api.balldontlie.io", "balldontlie"),
-    ("finnhub.io", "finnhub"),
+    ("api.tiingo.com", "tiingo"),
     ("gamma-api.polymarket.com", "polymarket"),
-    ("evil-finnhub.io", ""),
+    ("evil-tiingo.com", ""),
+    ("finnhub.io", ""),
 ])
 def test_a_request_is_counted_against_the_host_it_went_to(host, provider):
     assert provider_usage.provider_for_host(host) == provider
@@ -100,9 +101,9 @@ def _serve(monkeypatch, status):
 
 def test_a_live_provider_request_is_counted_once_where_it_goes_out(monkeypatch):
     _serve(monkeypatch, 200)
-    asyncio.run(live_sources._json("https://finnhub.io/api/v1/quote", {}, {}, 2.0))
+    asyncio.run(live_sources._json("https://api.tiingo.com/iex/", {}, {}, 2.0))
     rows = {r["provider"]: r for r in provider_usage.report()}
-    assert rows["finnhub"]["today"] == 1 and rows["finnhub"]["failed_today"] == 0
+    assert rows["tiingo"]["today"] == 1 and rows["tiingo"]["failed_today"] == 0
 
 
 def test_a_refused_request_still_counts_against_the_allowance(monkeypatch):

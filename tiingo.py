@@ -1,19 +1,14 @@
-"""Tiingo's free plan for market prices - while developing (§290).
+"""Tiingo: FAM's market prices (§290; the only markets provider since §395).
 
-**Temporary, at the owner's direction (10.16)**, like `api_sports`: a free
-plan to use the app on while FAM is built, deleted when FAM goes commercial.
-Tiingo's free plan is 50 requests an hour, 1,000 a day and 500 different
-tickers a month, for personal use only (`provider_usage.licences` flags it).
-
-It is a markets provider in Finnhub's place, not beside it: `TiingoSource`
-is `live_sources.FinnhubSource` with Tiingo's requests, so the sentences, the
+Bought at the owner's direction (11.02), and Finnhub removed: Tiingo is
+the markets provider, not one beside another. `TiingoSource` is
+`live_sources.MarketsSource` with Tiingo's requests, so the sentences, the
 freshness check, the closed-market rule (§267) and the sweep's quotes
-(`live_sources.QUOTES`) are Finnhub's own. A quote is translated into
-Finnhub's shape (`c`, `pc`, `dp`, `t`) at the boundary.
+(`live_sources.QUOTES`) are the shared ones. A quote is translated into that
+shape (`c`, `pc`, `dp`, `t`) at the boundary.
 
 * **One request for the whole watchlist**: IEX's top of book takes a list of
-  tickers, so the myFAM sweep (`story_sources.TiingoSignals`) is one request
-  where Finnhub's is thirteen.
+  tickers, so the myFAM sweep (`story_sources.TiingoSignals`) is one request.
 * **The price is IEX's last sale**, real time, from one exchange's trades;
   it is said as the price, never as a consolidated close.
 * **The session is computed, never asked** - Tiingo has no market-status
@@ -21,8 +16,13 @@ Finnhub's shape (`c`, `pc`, `dp`, `t`) at the boundary.
   inside it, it is open only when IEX's last sale is minutes old. A holiday
   or an early close therefore reads as "unknown", never "trading at".
 * **Ticker from Tiingo's own search, never a guess** (§88).
-* **Rationed here** (`TIINGO_HOURLY_REQUESTS`, `TIINGO_DAILY_REQUESTS`) below
-  the plan's own limits, so a busy hour costs answers, never the account.
+* **Rationed here** below the plan's own limits (`TIINGO_PLAN` sets them,
+  `TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` override), so a busy
+  hour costs answers, never the account.
+* **The licence is not the plan.** Power and Commercial are internal use;
+  speaking a price to listeners is redistribution, which Tiingo licenses
+  separately (`TIINGO_PLAN=redistribution`); `provider_usage.licences`
+  flags every other plan red.
 
 Written from Tiingo's documented shapes; **never run against the live API
 from this repository** (the host is blocked here).
@@ -50,6 +50,35 @@ EASTERN = ZoneInfo("America/New_York")
 #: A last sale older than this during the session is not "trading now".
 LIVE_SALE_SECONDS = 15 * 60
 
+#: Each plan's published (requests an hour, requests a day), and FAM's stop
+#: just below them. Redistribution is a licence on Commercial's limits.
+PLAN_LIMITS = {
+    "free": (50, 1_000),
+    "power": (10_000, 100_000),
+    "commercial": (20_000, 150_000),
+    "redistribution": (20_000, 150_000),
+}
+#: FAM stops at this share of a plan's limit, so its count and Tiingo's can
+#: disagree a little without the account being refused.
+HEADROOM = 0.95
+
+
+def plan() -> str:
+    named = (settings.tiingo_plan or "free").strip().lower()
+    return named if named in PLAN_LIMITS else "free"
+
+
+def hourly_limit() -> int:
+    if int(settings.tiingo_hourly_requests or 0) > 0:
+        return int(settings.tiingo_hourly_requests)
+    return int(PLAN_LIMITS[plan()][0] * HEADROOM) - (2 if plan() == "free" else 0)
+
+
+def daily_limit() -> int:
+    if int(settings.tiingo_daily_requests or 0) > 0:
+        return int(settings.tiingo_daily_requests)
+    return int(PLAN_LIMITS[plan()][1] * HEADROOM)
+
 
 class Rationed(RuntimeError):
     """FAM's own hourly or daily stop for Tiingo is reached."""
@@ -75,11 +104,11 @@ class Ration:
             self._hour.popleft()
         day, count = self._day
         count = count if day == self._today(now) else 0
-        if len(self._hour) >= int(settings.tiingo_hourly_requests):
-            raise Rationed(f"Tiingo: this hour's {settings.tiingo_hourly_requests} "
+        if len(self._hour) >= hourly_limit():
+            raise Rationed(f"Tiingo: this hour's {hourly_limit()} "
                            "requests are spent (TIINGO_HOURLY_REQUESTS)")
-        if count >= int(settings.tiingo_daily_requests):
-            raise Rationed(f"Tiingo: today's {settings.tiingo_daily_requests} "
+        if count >= daily_limit():
+            raise Rationed(f"Tiingo: today's {daily_limit()} "
                            "requests are spent (TIINGO_DAILY_REQUESTS)")
         self._hour.append(now)
         self._day = (self._today(now), count + 1)
@@ -89,8 +118,9 @@ class Ration:
         day, count = self._day
         return {"hour": sum(1 for at in self._hour if now - at < 3600.0),
                 "today": count if day == self._today(now) else 0,
-                "hourly_limit": int(settings.tiingo_hourly_requests),
-                "daily_limit": int(settings.tiingo_daily_requests)}
+                "hourly_limit": hourly_limit(),
+                "daily_limit": daily_limit(),
+                "plan": plan()}
 
 
 #: One ration for the account: the sweep and the lookups share it.
@@ -117,7 +147,8 @@ def _stamp(value) -> Optional[float]:
 
 
 def to_quote(row: dict) -> Optional[dict]:
-    """IEX top of book -> Finnhub's quote shape, or None without a price."""
+    """IEX top of book -> the quote shape (`c`, `pc`, `dp`, `t`), or None
+    without a price."""
     row = row or {}
     price = row.get("last") or row.get("tngoLast")
     try:
@@ -157,7 +188,7 @@ def session(now: Optional[float] = None,
 
 
 async def iex(symbols: list, timeout: Optional[float] = None) -> dict:
-    """symbol -> Finnhub-shaped quote, every symbol in one request."""
+    """symbol -> quote, every symbol in one request."""
     if not symbols:
         return {}
     data = await get("/iex/", {"tickers": ",".join(s.lower() for s in symbols)},
@@ -187,8 +218,8 @@ def pick_listing(rows: list, subject: str) -> Optional[dict]:
     return None
 
 
-class TiingoSource(live_sources.FinnhubSource):
-    """Finnhub's markets source, answered from Tiingo (see the docstring)."""
+class TiingoSource(live_sources.MarketsSource):
+    """The markets source, answered from Tiingo (see the docstring)."""
 
     name = NAME
     cost_per_call = 0.0
@@ -199,7 +230,7 @@ class TiingoSource(live_sources.FinnhubSource):
         if not settings.tiingo_api_key:
             return False, "TIINGO_API_KEY is not set"
         used = RATION.report()
-        return True, (f"TIINGO_API_KEY present (free plan, temporary, §290): "
+        return True, (f"TIINGO_API_KEY present ({plan()} plan): "
                       f"{used['hour']}/{used['hourly_limit']} this hour, "
                       f"{used['today']}/{used['daily_limit']} today; not "
                       "verified from this machine")
@@ -218,7 +249,7 @@ class TiingoSource(live_sources.FinnhubSource):
         if not subject:
             return None
         # "Oracle Corporation (NYSE: ORCL)" names its own listing (§289's
-        # 10.16 #5, as Finnhub reads it): looked up, never trusted - only a
+        # 10.16 #5): looked up, never trusted - only a
         # row with exactly that ticker is used. Tiingo spells BRK.B "BRK-B".
         named = live_sources.ticker_named(subject).replace(".", "-")
         if named:

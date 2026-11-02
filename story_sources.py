@@ -1,7 +1,7 @@
 """The four live sources behind myFAM's story pool.
 
     GDELT        what the world's press is writing about   (keyless)
-    Finnhub      what moved in the market today            (free key)
+    Tiingo       what moved in the market today            (paid key)
     Polymarket   what people are betting on                (keyless)
     BALLDONTLIE  what is being played today                (flat-rate key;
                  `balldontlie_scores.make_signals`, §277, §280)
@@ -66,7 +66,7 @@ log = logging.getLogger(__name__)
 
 async def _json(url: str, headers: dict, params: dict, timeout: float):
     # The live providers' helper, so an HTTP error here carries no URL and
-    # therefore no key either (§144) - Finnhub's token is a query parameter.
+    # therefore no key either (§144).
     import live_sources
 
     return await live_sources._json(url, headers, params, timeout)
@@ -367,15 +367,14 @@ class TrendingRegistrySignals(stories.StorySource):
 
 
 # --------------------------------------------------------------------------
-# Finnhub - what moved today
+# Tiingo - what moved today
 # --------------------------------------------------------------------------
 #: The default watchlist, and why it is a list rather than a screen.
 #:
-#: Finnhub's free tier has no "biggest movers" endpoint - that is a paid
-#: screener - so the honest cheap version is to quote a fixed, named set and
-#: report the ones that actually moved. A fixed list is also the thing a
-#: deployment most obviously wants to change, which is what
-#: `FINNHUB_WATCHLIST` is for.
+#: The honest cheap version of "biggest movers" is to quote a fixed, named
+#: set and report the ones that actually moved. A fixed list is also the
+#: thing a deployment most obviously wants to change, which is what
+#: `MARKETS_WATCHLIST` is for.
 #:
 #: The names are here so a tile can say "Nvidia" rather than "NVDA". Looking
 #: each one up through `/stock/profile2` would be one more request per symbol
@@ -412,8 +411,8 @@ def _keep_prices(rows: list, is_open, source: str) -> None:
         log.warning("sweep prices were not archived: %s", exc)
 
 
-class FinnhubSignals(stories.StorySource):
-    """One quote per watchlist symbol; a signal for whatever actually moved.
+class TiingoSignals(stories.StorySource):
+    """The watchlist quoted in one request; a signal for whatever moved.
 
     **A price is a measurement and never a verdict**, which is the whole
     reason this is safe to put on a tile: "Nvidia is down about six percent
@@ -421,88 +420,53 @@ class FinnhubSignals(stories.StorySource):
     The threshold is what keeps it interesting - a market where nothing moved
     more than a percent has no story in it, and offering one anyway is how a
     browse page fills up with tiles nobody wants.
-
-    Delayed by about twenty minutes on the free tier. That is fine here and is
-    not fine in `live_sources.FinnhubSource`, which says so out loud: a browse
-    tile about a move is not a claim about the price this second.
     """
 
-    name = "Finnhub"
+    name = "Tiingo"
     domain = stories.MARKETS
-    #: Free tier; $0 and 60 requests a minute. The watchlist is a dozen.
     cost_per_refresh = 0.0
-    #: Fifteen minutes since §156, at the owner's direction (it was half an
-    #: hour): a market move reaches its card on the same clock as a score.
-    #: One request per watchlist symbol per sweep, far inside 60 a minute.
+    #: Two hours since §191, round the clock: large moves are what matter.
     @property
     def min_interval_seconds(self) -> float:
         return float(settings.stories_markets_interval_seconds)
 
-    BASE = "https://finnhub.io/api/v1"
+    #: How the observation describes the price's timing.
+    timing = "from IEX's last sale"
 
     def diagnose(self) -> tuple[bool, str]:
-        if not settings.finnhub_key:
-            return False, "FINNHUB_KEY is not set, so market stories are off"
+        if not settings.tiingo_api_key:
+            return False, "TIINGO_API_KEY is not set, so market stories are off"
         if self.active():
             return False, self.active()
-        return True, "FINNHUB_KEY present (not verified from this machine)"
+        return True, ("TIINGO_API_KEY present: the watchlist in one request "
+                      "per sweep (not verified from this machine)")
 
     async def verify(self) -> tuple[bool, str]:
-        import live_sources
+        import tiingo
 
-        return await live_sources.FinnhubSource().verify()
+        return await tiingo.TiingoSource().verify()
 
     def watchlist(self) -> list:
-        raw = (settings.finnhub_watchlist or "").strip()
+        raw = (settings.markets_watchlist or "").strip()
         if not raw:
             return list(WATCHLIST)
         return [s.strip().upper() for s in raw.split(",") if s.strip()][:24]
 
     def active(self) -> str:
-        """"" when this is the markets provider, else why it is not (§290):
-        one sweep, from the provider the episodes read."""
+        """"" when Tiingo is the markets provider, else why it is not: the
+        sweep reads the provider the episodes read."""
         import live_sources
 
         provider = live_sources.configured().get("markets") or ""
-        if provider in MARKET_SWEEPS and provider != self.provider:
-            return f"markets are on another provider ({provider})"
-        if self.provider != "finnhub" and provider != self.provider:
+        if provider != "tiingo":
             return f"markets are not on {self.name} ({provider or 'none'})"
         return ""
 
-    #: The `live_sources.configured()["markets"]` name this sweep belongs to.
-    provider = "finnhub"
-    #: How the observation describes the price's timing.
-    timing = "on a roughly twenty-minute delay"
-
     async def quotes(self, symbols: list, timeout: float) -> tuple:
-        """`([(symbol, Finnhub-shaped quote or None)], session open?)`."""
-        async def quote(symbol: str):
-            try:
-                return symbol, await _json(
-                    f"{self.BASE}/quote", {},
-                    {"symbol": symbol, "token": settings.finnhub_key}, timeout)
-            except Exception as exc:  # noqa: BLE001 - one symbol is not the sweep
-                log.debug("stories/finnhub: %s failed: %s", symbol, exc)
-                return symbol, None
+        """`([(symbol, quote or None)], session open?)` in one request."""
+        import tiingo
 
-        # The session beside the quotes, so a tap can reuse them (§267):
-        # one more request per sweep, and the quotes are kept for every
-        # watchlist symbol, moved or not - a tap asks about any of them.
-        async def session():
-            try:
-                data = await _json(f"{self.BASE}/stock/market-status", {},
-                                   {"exchange": "US",
-                                    "token": settings.finnhub_key}, timeout)
-            except Exception as exc:  # noqa: BLE001 - unknown, never a guess
-                log.debug("stories/finnhub: market status failed: %s", exc)
-                return None
-            value = (data or {}).get("isOpen")
-            return value if isinstance(value, bool) else None
-
-        rows, is_open = await asyncio.gather(
-            asyncio.gather(*(quote(s) for s in symbols)), session())
-        return list(rows), is_open
+        return await tiingo.sweep_quotes(symbols, timeout)
 
     async def collect(self, limit: int) -> list:
         if self.active():
@@ -553,39 +517,6 @@ class FinnhubSignals(stories.StorySource):
                 as_of=now,
             ))
         return out
-
-
-class TiingoSignals(FinnhubSignals):
-    """The same watchlist and the same threshold, from Tiingo's free plan
-    while developing (§290, temporary): the whole list in one request, and
-    only while Tiingo is the markets provider."""
-
-    name = "Tiingo"
-    provider = "tiingo"
-    timing = "from IEX's last sale"
-
-    def diagnose(self) -> tuple[bool, str]:
-        if not settings.tiingo_api_key:
-            return False, "TIINGO_API_KEY is not set, so Tiingo market stories are off"
-        if self.active():
-            return False, self.active()
-        return True, ("TIINGO_API_KEY present: the watchlist in one request "
-                      "per sweep (not verified from this machine)")
-
-    async def verify(self) -> tuple[bool, str]:
-        import tiingo
-
-        return await tiingo.TiingoSource().verify()
-
-    async def quotes(self, symbols: list, timeout: float) -> tuple:
-        import tiingo
-
-        return await tiingo.sweep_quotes(symbols, timeout)
-
-
-#: Markets providers with a sweep of their own: only the one episodes read
-#: is swept (§290).
-MARKET_SWEEPS = ("finnhub", "tiingo")
 
 
 # --------------------------------------------------------------------------
@@ -703,9 +634,6 @@ def _first_price(row: dict) -> Optional[float]:
 BUILDERS = {
     "gdelt": GdeltSignals,
     "trending": TrendingRegistrySignals,
-    "finnhub": FinnhubSignals,
-    # §290: Tiingo's free plan while developing; swept only when it is the
-    # markets provider, as Finnhub is only when it is.
     "tiingo": TiingoSignals,
     "polymarket": PolymarketSignals,
     # §277: the sports sweep on BALLDONTLIE, built lazily (it imports this).

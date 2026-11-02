@@ -395,3 +395,4 @@ and `limit` = Lines.
 | 26772 | 31 | 392. The owner signed nando.md rule 12, and a stray file came with it (2026-11-01) |
 | 26803 | 17 | 393. A card shows the friends who listened, not a count (2026-10-31) |
 | 26820 | 21 | 394. Tapping a card's faces opens who listened (2026-10-31) |
+| 26841 | 66 | 395. API-Sports and Finnhub are removed; BALLDONTLIE and Tiingo are paid for (2026-11-02) |

@@ -4,7 +4,7 @@ Four instructions from the owner, one file:
 
 1. **The model never searches.** Everything an episode is written from comes
    from the web search backends (Parallel, Perplexity), GDELT, BALLDONTLIE
-   (§280), Finnhub and Polymarket - pinned in
+   (§280), Tiingo (§395) and Polymarket - pinned in
    `test_research.py` and `test_no_evidence.py`; here only the one rule that
    crosses modules: a live provider with a key is switched on by the key.
 2. **The sports sweep carries the score** - pinned in `test_story_sources.py`;
@@ -328,11 +328,11 @@ def test_the_trending_row_never_takes_the_bank_even_by_geography(store):
 # --------------------------------------------------------------------------
 def test_a_live_provider_with_a_key_is_switched_on_by_the_key(monkeypatch):
     monkeypatch.setattr(live_sources, "settings", dataclasses.replace(
-        config.settings, balldontlie_api_key="k", finnhub_key="f",
+        config.settings, balldontlie_api_key="k", tiingo_api_key="t",
         live_sports_provider="", live_markets_provider="",
         live_elections_provider="polymarket"))
     assert live_sources.configured() == {
-        "sports": "balldontlie", "markets": "finnhub", "elections": "polymarket"}
+        "sports": "balldontlie", "markets": "tiingo", "elections": "polymarket"}
     assert live_sources.report()["derived_from_key"] == ["markets", "sports"]
 
 
@@ -344,7 +344,7 @@ def test_none_still_switches_a_domain_off(monkeypatch):
 
 def test_no_key_no_provider(monkeypatch):
     monkeypatch.setattr(live_sources, "settings", dataclasses.replace(
-        config.settings, balldontlie_api_key="", finnhub_key="",
+        config.settings, balldontlie_api_key="", tiingo_api_key="",
         live_sports_provider="", live_markets_provider=""))
     assert live_sources.configured()["sports"] == ""
     assert live_sources.configured()["markets"] == ""
