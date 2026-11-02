@@ -27383,3 +27383,28 @@ Tests: `tests/test_tag_sync_405.py` (agreement is not drift, every kind of
 drift named, a pre-§404 record untagged, no record not drift, nothing
 repaired and /admin told, the owner's repair pushing the row out and leaving
 a dead node alone, the cursor, no bucket, Keith's observe-only task).
+
+## 406. A plan for training Consuela and Sonic (2026-11-02)
+
+At the owner's request: `docs/AGENTS_TRAINING_PLAN.md`, nothing built. It
+carries Nando's training loop (§381-§387) over to the two Phase 2 agents,
+under the same rules - no hand labels (decided item 30), grades teach and
+measure and never change the archive or an episode, nothing about a
+listener, every change measured before it is trusted.
+
+Consuela: **C1** a dedupe eval that grows by itself from real material
+(code-made never-duplicates; pairs the two models disagreed on); **C2**
+thresholds tuned on it; **C3** an answer key grading her choices nightly
+(needs a signed `consuela.md` rule, like `nando.md` rule 12; ~5 cents a
+batch on Opus 5.5); **C4** corrected mistakes as worked examples and a
+memory of grades; **C5** learning from what Sonic and the writer use;
+**C6** a small model or a self-hosted checker only if the numbers ask.
+Sonic: **S1** a recall eval built from stored facts; **S2** the router
+learning from C3P0's named lookups (searched questions as examples - the
+owner's call); **S3** tuning; **S4** an answer key for his packets (a
+signed `sonic.md` rule; ~1 cent an episode); **S5** what the writer used,
+with Phase 3; **S6** hybrid search or a reranker only if order matters.
+
+Suggested order: measures first (C1, S1 - no cost, no rule change), then
+tuning, then the answer keys once signed. Sonic's training needs Consuela
+writing real facts first (`HOUSEKEEPER_DRY_RUN=0`).
