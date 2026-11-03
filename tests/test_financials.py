@@ -93,7 +93,7 @@ def test_every_service_the_code_calls_has_a_row(stores):
     vendors = {r["vendor"] for r in financials.catalogue()}
     for needed in ("Render", "RunPod", "Anthropic", "Parallel and Perplexity",
                    "GNews", "BALLDONTLIE",
-                   "Finnhub", "Open-Meteo", "Polymarket", "GDELT",
+                   "Tiingo", "Open-Meteo", "Polymarket", "GDELT",
                    "National Weather Service", "Google AI Studio", "Viral Loops",
                    "Apple"):
         assert needed in vendors, needed

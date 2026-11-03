@@ -291,7 +291,7 @@ configured and returning them.
 
 **A key is the switch** (§135). With `LIVE_SPORTS_PROVIDER` unset and
 `BALLDONTLIE_API_KEY` present, sports is served by BALLDONTLIE; the same for
-`FINNHUB_KEY` and markets (`live_sources.DERIVED_FROM_KEY`). `none` switches a
+`TIINGO_API_KEY` and markets (`live_sources.DERIVED_FROM_KEY`). `none` switches a
 domain off. `/api/health` lists which were derived under
 `live_sources.derived_from_key`.
 
@@ -321,7 +321,7 @@ recorded payloads in `tests/test_live_providers.py`. Run
 | domain | name | provider | credential | notes |
 |---|---|---|---|---|
 | sports | `balldontlie` | BALLDONTLIE | `BALLDONTLIE_API_KEY` (+ `BALLDONTLIE_TIER`) | one flat plan, every league; paced per minute |
-| markets | `finnhub` | Finnhub | `FINNHUB_KEY` | ~20 min delayed; knows if the market is open |
+| markets | `tiingo` | Tiingo | `TIINGO_API_KEY` (+ `TIINGO_PLAN`) | IEX last sale, real time; the session is computed (§418: Finnhub removed) |
 | elections | `polymarket` | Polymarket | none | **forecast, never a result**; since §211 also asked beside every outcome-dependent question |
 | elections | `ap` | AP Elections | — | declared, unimplemented: quote-only |
 | elections | `ddhq` | Decision Desk HQ | — | declared, unimplemented: quote-only |

@@ -27834,6 +27834,141 @@ reproduced before it was fixed, and each fix is pinned in
   be answered there.
 - Settings shows counting as "Off" until `/api/activation` has loaded.
 
+## 418. API-Sports and Finnhub are removed; BALLDONTLIE and Tiingo are paid for (2026-11-02)
+
+The owner (11.02): "We have paid for Tiingo and BALLDONTLIE. We want to
+completely remove API-sports and Finnhub from the pipeline." §290 had brought
+API-Sports and Tiingo in as free plans while developing, each in one file and
+removable by deleting it; Finnhub had stayed as the markets provider Tiingo
+subclassed. Now BALLDONTLIE is the only sports provider and Tiingo the only
+markets provider.
+
+**API-Sports.** `api_sports.py` is deleted, and every call site with it: the
+`Router` under the scoreboard (`ScoreBoard` and the sweep take
+`balldontlie.shared_client()` again), `SHADOW_TEAMS`, the `aps:` id filter in
+the player reports, `sweepable`'s API-Sports leagues, `ScoreBoard._source`
+(provenance is "BALLDONTLIE" again), the `api_sports_key` row of
+`DERIVED_FROM_KEY`, `_usage_detail`'s per-sport count, the /admin row and
+breakdown, and every `API_SPORTS_*` setting (`config.py`, `.env.example`,
+`render.yaml`, `spend_guard`, `tests/conftest.py`).
+
+**Finnhub.** `FinnhubSource` is gone; what Tiingo used of it - the sentences
+by session, the freshness and the closed-market rule (§267) - is
+`live_sources.MarketsSource`, which `tiingo.TiingoSource` subclasses. Gone
+with it: Finnhub's search, quote and market-status requests, `quotable`,
+`_UNQUOTABLE_TYPES` and the refused-symbol day (`note_refused`,
+`refused_today`; Tiingo's `pick_listing` is its own filter), the `finnhub`
+builder and its `DERIVED_FROM_KEY` row. `FinnhubSignals` and `MARKET_SWEEPS`
+are folded into one `story_sources.TiingoSignals`, swept only while Tiingo is
+the markets provider. Settings: `FINNHUB_KEY` and `FINNHUB_PLAN` are gone,
+and `FINNHUB_WATCHLIST` is renamed `MARKETS_WATCHLIST`. The finance workbook's
+Finnhub row is a Tiingo row; its launch purchase is Tiingo's redistribution
+licence. /admin, the privacy page, the tracker and the error explanations
+name Tiingo.
+
+**The plan sets the stops.** `TIINGO_PLAN` (free | power | commercial |
+redistribution; anything else refuses to boot, as `BALLDONTLIE_TIER` does)
+sets FAM's ration at 95% of the plan's published limits
+(`tiingo.PLAN_LIMITS`: free 50/hour and 1,000/day, Power 10,000 and 100,000,
+Commercial 20,000 and 150,000; redistribution is taken at Commercial's).
+`TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` now default to 0, "from
+the plan", and override it when set. `/api/health`'s `live_sources.free_plans`
+is `live_sources.rations` (a shallow contract: only top-level keys are held).
+
+**The licence is not the plan.** Tiingo's Power and Commercial plans are
+internal use; a price said to a listener is redistribution. The owner's
+agreement records redistribution with Tiingo and BALLDONTLIE
+(docs/PROVIDER_TERMS.md, 10.28), so `provider_usage.licences` counts Tiingo
+as commercial only at `TIINGO_PLAN=redistribution`; any other plan is red on
+/admin.
+
+**On deploy.** Remove `API_SPORTS_KEY`, `FINNHUB_KEY`, `FINNHUB_PLAN` and
+`FINNHUB_WATCHLIST` from Render's dashboard (nothing reads them); set
+`BALLDONTLIE_TIER` to the plan bought and `TIINGO_PLAN=redistribution`.
+`LIVE_MARKETS_PROVIDER=finnhub` or `STORIES_SOURCES=...,finnhub` is reported
+as a provider this build does not know (`[failures-visible]`). The kept web
+release `releases/web/2026.09.29/` still names both in comments; it is
+hashed and left as shipped (§280).
+
+Tests: `test_free_plans_290.py` (mostly API-Sports internals) is replaced by
+`test_tiingo_418.py` - its Tiingo tests kept, plus the plan's stops, an
+unknown plan refused, only redistribution commercial, and the removed
+modules, classes, settings and `.env.example` lines asserted gone. Converted
+to Tiingo: `test_story_sources`, `test_live_providers`,
+`test_provider_failures_144`, `test_admin_page_289`, `test_licences_207`,
+`test_provider_usage_179`, `test_trending_135`, `test_financials` and four
+more. Notes at `sports-balldontlie`, `sweep-on-demand`, `live-facts` and
+`always-researched`.
+
+## 419. BALLDONTLIE's plan is ALL-ACCESS (2026-11-03)
+
+The owner (11.03), with a screenshot of the BALLDONTLIE dashboard: the plan
+is **ALL-ACCESS**, $299.99 a month - "All sports, all endpoints, BDL Lab,
+Webhooks, and StoryStats access ... No need to manage individual sport
+subscriptions". §290's "BALLDONTLIE is priced per sport" is not how this
+account is bought, so one plan for every league (`BALLDONTLIE_TIER`, §280)
+stands, and `all-access` is now one of its values.
+
+`balldontlie.TIER_ORDER` ends in `all-access`, so it reaches everything GOAT
+does (`ENDPOINT_TIERS` asks for nothing higher). Its per-minute limit is not
+published where this container can read it; `PER_MINUTE["all-access"]` is
+GOAT's 600, the highest published, and a 429 still reads as `RateLimited`.
+`config.py` accepts the value (anything else still refuses to boot), /admin's
+limit line reads `balldontlie.PER_MINUTE` rather than its own copy, and the
+finance workbook prices the row at $299.99 ("Paying"). The dashboard showed a
+trial ending 11.04 08:38; the plan must be upgraded there for the key to keep
+answering. **Pinned by** `tests/test_balldontlie_all_access_419.py`.
+
+## 420. Tiingo is credited on the Terms page (2026-11-03)
+
+The owner (11.03) shared FAM's signed-for market data agreement with Tiingo.
+**It is not in this repository and must not be:** the repository is public
+and the agreement's terms are confidential, so it is kept where the owner
+keeps contracts, and no figure from it (fee, limits) is written here. The
+limits are set on Render (`TIINGO_HOURLY_REQUESTS`, `TIINGO_DAILY_REQUESTS`,
+`sync: false`); `TIINGO_PLAN=redistribution`'s defaults stay at Commercial's
+published limits.
+
+Tiingo is credited on the Terms page, beside the other live data (section 5):
+"Market data from Tiingo.com", linked. The Terms already forbid copying,
+re-hosting, selling or distributing anything from FAM and training a model
+on it (section 10), which is what a listener may not do with a price either;
+nothing a listener agreed to changed, so `TERMS_VERSION` is not bumped.
+
+## 421. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03)
+
+The owner (11.03): "Remove those code caps from Tiingo, it is now paid for."
+FAM's own hourly and daily stops now apply on the free plan only
+(`tiingo.FREE_STOPS`, 45 and 950); on `power`, `commercial` or
+`redistribution` there is none (`hourly_limit()`/`daily_limit()` are 0),
+though every request is still counted for /admin. `TIINGO_HOURLY_REQUESTS` /
+`TIINGO_DAILY_REQUESTS` still set a stop on any plan, should one be wanted.
+`PLAN_LIMITS` and `HEADROOM` are gone. At today's volume (a dozen sweep
+requests a day, one or two per markets episode) no plan's limit is near.
+
+GNews (the owner: paid for, or about to be): `render.yaml` sets production's
+`GNEWS_DAILY_REQUESTS` to 950 (was 90) and `GNEWS_MAX_ARTICLES` to 25, the
+Essential plan's allowance; `GNEWS_PLAN=essential` is set on the dashboard.
+Until Essential is active, requests past the free plan's 100 a day are
+refused by GNews and said on /admin.
+
+**Pinned by** `tests/test_tiingo_418.py` (the free plan's stops; a paid plan
+asked 200 times with no stop, and /admin saying so).
+
+## 422. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03)
+
+The owner (11.03): all four are "officially paid for and ready to go". Each
+is configured by what the deploy says, so nothing in code changes: GNews by
+`GNEWS_PLAN=essential` with §421's 950 requests and 25 articles, BALLDONTLIE
+by `BALLDONTLIE_TIER=all-access` (§419; `goat` until this branch reaches
+`Main`, which refuses the new value), Tiingo by `TIINGO_PLAN=redistribution`
+(§418, no stop in code since §421), Open-Meteo by `OPEN_METEO_API_KEY`
+(§194; the key is the plan, and the keyless endpoint stays off). With all
+four, `provider_usage.licences()` reports `commercial_ready`. Production's
+dashboard was read the same day: `ANSWER_FIRST` and `GDELT_TIMEOUT_SECONDS`
+are set there and read by nothing (§108 deleted the first; GDELT is read
+from its export files since §211).
+
 ## 423. Finishing Phase 1, piece 1: facts, never advice (2026-11-03)
 
 Decided item 17 (every-agent.md never 10, c3p0.md never 7). C3P0 has set
