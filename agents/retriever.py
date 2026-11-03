@@ -168,9 +168,10 @@ class ReadOnlySQL:
         import json
 
         marks = ",".join("?" for _ in nodes)
-        also = " OR ".join("also_nodes LIKE ?" for _ in nodes)
+        # instr, never LIKE: `_` in a node id is a LIKE wildcard (§417).
+        also = " OR ".join("instr(also_nodes, ?) > 0" for _ in nodes)
         return (f"(node_id IN ({marks}) OR {also})",
-                (*nodes, *(f"%{json.dumps(n)}%" for n in nodes)))
+                (*nodes, *(json.dumps(n) for n in nodes)))
 
     def node_facts(self, nodes: list, before: datetime, limit: int) -> list:
         """The latest facts filed under `nodes`, published before `before`."""

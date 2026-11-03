@@ -164,9 +164,10 @@ def code_verdict(a: dict, b: dict, similarity: float) -> tuple:
     if _QUOTE.search(text_a) or _QUOTE.search(text_b):
         return DIFFERENT, "a quote is merged only word for word"
     if num_a:
-        if same_names and similarity >= FIGURE_SIMILARITY:
-            return SAME, "the same figures, names and moment"
-        return DIFFERENT, "a figure is never merged on a model's say"
+        # Same numbers, same names and alike is not enough (§417): "the
+        # Eagles beat the Giants 24-17" and its swap, "rose 3%" and "fell
+        # 3%", share all three. A figure is merged only word for word (above).
+        return DIFFERENT, "a figure is merged only word for word"
     if similarity < CANDIDATE_SIMILARITY:
         return DIFFERENT, "not alike"
     return ASK, ""

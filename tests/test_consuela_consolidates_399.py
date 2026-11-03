@@ -168,7 +168,7 @@ def test_the_dry_run_reports_what_it_would_keep_and_writes_nothing(archive, monk
     fake = _FakeModel(hk.Picks(articles=[_pick(1)]))
     monkeypatch.setattr(models, "ask", fake)
     _intake(archive, "https://espn.com/a")
-    _intake(archive, "https://espn.com/unfiled", node="")
+    _intake(archive, "https://espn.com/unfiled", node="bears")   # not in the tree
     summary = _run()
     assert (summary["chosen"], summary["held"], summary["kept_facts"]) == (1, 1, 0)
     assert summary["dry_run"] is True
@@ -270,7 +270,7 @@ def test_held_articles_never_block_the_queue_behind_them(archive, monkeypatch):
     _settings(monkeypatch, housekeeper_batch_articles=1, housekeeper_batches_per_run=1)
     fake = _FakeModel(hk.Picks(articles=[_pick(1)]))
     monkeypatch.setattr(models, "ask", fake)
-    _intake(archive, "https://espn.com/held", node="")
+    _intake(archive, "https://espn.com/held", node="bears")
     _run()
     _intake(archive, "https://espn.com/fileable")
     _run()
@@ -360,3 +360,12 @@ def test_atlas_clears_the_passages_with_the_mark():
     assert calls == [({"_id": {"$in": ["a"]}},
                       {"$set": {"digested": True, "passages": []},
                        "$unset": {"by_provider": ""}})]
+
+
+def test_an_article_held_for_good_never_fills_the_window(archive, monkeypatch):
+    """No node, or no provider recorded (§358), never changes by waiting:
+    left in intake but out of what she reads, so 160 of them cannot stand
+    in front of everything newer (§417)."""
+    _intake(archive, "https://espn.com/unfiled", node="")
+    _intake(archive, "https://espn.com/a")
+    assert [r["url"] for r in archive.undigested(10)] == ["https://espn.com/a"]

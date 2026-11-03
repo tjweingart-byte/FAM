@@ -27753,3 +27753,83 @@ category tag in its metadata; the routes gain `/api/activation`, the
 `demographics` consent, `activation_needed` and `/api/admin/totals`; the
 health table gains the `archive` and `totals` keys, in the order the
 report gives them.
+
+## 417. The review before the pull request (2026-11-03)
+
+Before the pull request into Main, two independent reviews read the whole
+branch: one the archive and the agents, one the accounts, the activation
+step, the Privacy Policy and the web app. Every finding below was
+reproduced before it was fixed, and each fix is pinned in
+`tests/test_review_fixes_417.py` or `tests/test_activation_411.py`.
+
+**Fixed:**
+
+- **Intake on Postgres.** `digested = CASE WHEN ? THEN 0` sends an integer
+  where Postgres wants a boolean, so every intake write after the first
+  failed there. That would have stopped intake and recall even with
+  `AGENTS=0`. It is now `CASE WHEN ? = 1`.
+- **Contradictory figures merged by code.** `code_verdict` merged two
+  figure sentences that had the same numbers, the same names and similarity
+  ≥ 0.90. These pairs all meet that test, and all three were marked SAME:
+  - "the Eagles beat the Giants 24-17" and its swap;
+  - "Eagles 24, Giants 17" and "Eagles 17, Giants 24";
+  - "rose 3 percent" and "fell 3 percent".
+
+  A figure is now merged only word for word, the branch above it. The eval
+  gains these three as DIFFERENT. "One quarter's revenue, reworded" stays
+  SAME in the key and is now counted as missed: a missed repeat costs bytes,
+  a wrong merge loses a fact (consuela.md).
+- **A re-read wiped what was gathered.** When new passages make an article
+  wait again (§400), consolidation adds its facts again. SQLite's upsert
+  replaced the fact's corroborations. Atlas's `replace_one` also reset
+  `active` and `superseded_by`, which brought a repeat back. Both backends
+  now keep corroborations, marks and `created`. On Atlas this is
+  `update_one` with `$setOnInsert`.
+- **Held for good, at the front of the queue.** An intake record with no
+  node, or with no provider recorded (§358), cannot change by waiting. Yet
+  it stayed oldest-first in the 160-record window, so enough of them would
+  have stopped consolidation. `undigested` now leaves them out on both
+  backends. They stay in intake, and come back when a node is added
+  (`tag_episode`).
+- **Supersede chains.** When B was superseded by A after C had been folded
+  into B, A lost C. The loser's corroborations now move to the keeper,
+  marked `via`, so `restore` takes them back.
+- **Refused providers' live records.** `_write`'s live loop and the sweeps'
+  `_write_swept` kept Finnhub's and API-Sports' records as facts even while
+  Consuela ran. Those providers are refused, decided item 41. Once she runs,
+  `kept_live` keeps only an approved provider's records. Before she runs,
+  nothing changes (§313).
+- **Smaller fixes:**
+  - Node matches use `instr`, never `LIKE`, where `_` is a wildcard. This
+    covers the archive's `facts_under` and `replace_node`, and Sonic's
+    `_under`.
+  - Atlas `replace_node` no longer duplicates a node or writes `""`.
+  - Atlas `link_episode` no longer forgets a node when a later write has
+    none.
+  - A failed re-file now raises, so the task queue shows it, instead of
+    logging "done".
+- **The activation step scrambled a place with no town.** The screen joined
+  the stored place into one box and the server split it again. Region
+  "Ontario" with country "Canada" came back as town "Ontario" with region
+  "Canada", on every save, including a Settings change to gender only. The
+  place is now sent only when its box was changed.
+- **An empty date of birth through `/api/activation`.** It erased the kept
+  date, owed the step again, and on a new account recorded a yes with no
+  date. It is now refused (400), as `/api/account` already refused it.
+- **Smaller activation fixes:**
+  - "Change it" after the under-13 question re-enables Continue.
+  - `consent.DEMOGRAPHICS_VERSION` now says what a bump does: it stops
+    counting until a new yes is given.
+
+**Left for the owner** (said in the pull request):
+
+- The Privacy Policy says the totals are kept by "region and time of day".
+  The code keeps no time of day, so it holds less than stated, but the
+  approved wording should be corrected by the owner, not here.
+- It also says someone under 13 "cannot enter the app". The server refuses
+  nothing ([old-clients]), and a supported older client never shows the
+  step.
+- The waitlist page's profile shows the under-13 question as a plain error,
+  with no Yes or Change it. Nothing is saved, so it is safe, but it cannot
+  be answered there.
+- Settings shows counting as "Off" until `/api/activation` has loaded.

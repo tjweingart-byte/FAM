@@ -7417,6 +7417,9 @@
       .then(function(d){ if(d) ACTIVATION = d; return ACTIVATION; })
       .catch(function(){ return ACTIVATION; });
   }
+  // The place as the box showed it: sent back only when it was changed, so
+  // a place kept as town / region / country is never re-split (§417).
+  var actPlaceShown = "";
   function placeText(loc){
     return [loc && loc.city, loc && loc.region, loc && loc.country]
       .filter(function(p){ return p; }).join(", ");
@@ -7447,7 +7450,8 @@
       actEditing ? "Your details" : ACTIVATION.title;
     document.getElementById("actBirth").value = ACTIVATION.birth_date || "";
     document.getElementById("actBirth").max = new Date().toISOString().slice(0, 10);
-    document.getElementById("actPlace").value = placeText(ACTIVATION.location);
+    actPlaceShown = placeText(ACTIVATION.location);
+    document.getElementById("actPlace").value = actPlaceShown;
     var help = ACTIVATION.help || {};
     document.getElementById("actBirthHelp").textContent = help.birth_date || "";
     document.getElementById("actPlaceHelp").textContent = help.location || "";
@@ -7473,14 +7477,15 @@
     document.getElementById("actConfirm").hidden = true;
     document.getElementById("actForm").hidden = false;
     document.getElementById("actBirth").focus();
+    activationReady();
   }
   function submitActivation(confirmed){
     var birth = document.getElementById("actBirth").value;
     if(!birth) return;
     // One box for the place; the server splits "Town, State, Country".
     var place = document.getElementById("actPlace").value.trim();
-    var body = { birth_date: birth, gender: actGender, city: place,
-                 region: null, country: null };
+    var body = { birth_date: birth, gender: actGender };
+    if(place !== actPlaceShown){ body.city = place; body.region = null; body.country = null; }
     if(confirmed) body.confirm_under_13 = true;
     document.getElementById("actGo").disabled = true;
     fetch("/api/activation", { method: "POST", headers: { "Content-Type": "application/json" },

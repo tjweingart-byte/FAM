@@ -246,6 +246,20 @@ class _Cursor(list):
         return _Cursor(self[:n])
 
 
+
+def _apply_upsert(docs, query, update, upsert):
+    """What Mongo's update_one does with $setOnInsert/$set/$addToSet $each (§417)."""
+    doc = docs.get(query["_id"])
+    if doc is None:
+        if not upsert:
+            return
+        doc = docs[query["_id"]] = {"_id": query["_id"], **update.get("$setOnInsert", {})}
+    doc.update(update.get("$set", {}))
+    for field, value in (update.get("$addToSet") or {}).items():
+        items = value["$each"] if isinstance(value, dict) and "$each" in value else [value]
+        listed = doc.setdefault(field, [])
+        listed.extend(v for v in items if v not in listed)
+
 class _Collection:
     def __init__(self):
         self.calls = []
@@ -257,8 +271,7 @@ class _Collection:
 
     def update_one(self, query, update, upsert=False):
         self.calls.append(("update_one", query, update, upsert))
-        if "$setOnInsert" in update and query["_id"] not in self.docs:
-            self.docs[query["_id"]] = {"_id": query["_id"], **update["$setOnInsert"]}
+        _apply_upsert(self.docs, query, update, upsert)
 
     def replace_one(self, query, doc, upsert=False):
         self.docs[query["_id"]] = doc

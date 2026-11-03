@@ -179,6 +179,26 @@ def test_once_in_a_date_of_birth_is_corrected_never_removed(world):
     assert c.post("/api/account", json={"birth_date": "1991-05-04"}).status_code == 200
     assert c.post("/api/account", json={"gender": "prefer-not-to-say"}).json()[
         "gender"] == "prefer-not-to-say"
+    # Nor through the step itself (§417): an empty date is refused, the
+    # kept one stays, and the step is not owed again.
+    assert c.post("/api/activation", json={"birth_date": ""}).status_code == 400
+    assert c.get("/api/account").json()["birth_date"] == "1991-05-04"
+    assert c.get("/api/auth/me").json()["activation_needed"] is False
+
+
+def test_a_place_without_a_town_survives_a_save_that_leaves_it_alone(world):
+    """§417: the screen sends the place only when its box was changed, so a
+    region and country with no town are never re-split into a town."""
+    c = _member()
+    c.post("/api/activation", json={"birth_date": "1990-05-04", "region": "Ontario",
+                                    "country": "Canada"})
+    body = c.post("/api/activation", json={"birth_date": "1990-05-04",
+                                           "gender": "woman"}).json()
+    assert (body["location"]["city"], body["location"]["region"]) == ("", "Ontario")
+    import pathlib
+
+    page = pathlib.Path(__file__).resolve().parent.parent / "static" / "index.html"
+    assert "if(place !== actPlaceShown)" in page.read_text()
 
 
 def test_deleting_the_account_removes_the_new_answers(world):

@@ -171,6 +171,10 @@ async def refile_handler(task: str) -> None:
     node = task.split(":", 2)[2] if task.count(":") >= 2 else ""
     summary = await asyncio.to_thread(refile, node)
     log.info("consuela re-filed %r: %s", node, summary)
+    # A re-file that did not happen is a failed task, so the queue shows it
+    # and tries again (§417) - never a quiet "done".
+    if summary.get("why") and summary["why"] not in ("Consuela may not run", "no archive"):
+        raise RuntimeError(f"re-file of {node!r} failed: {summary['why']}")
 
 
 # ------------------------------------------------------------------ the 90-day pass

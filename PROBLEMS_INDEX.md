@@ -417,3 +417,4 @@ and `limit` = Lines.
 | 27660 | 38 | 414. The activation step, part 2: the screen, and Settings' rows (2026-11-03) |
 | 27698 | 46 | 415. Totals about groups of listeners: groups of 100 or more, never a person (2026-11-03) |
 | 27744 | 13 | 416. docs/BACKEND.md brought up to Phase 2 (2026-11-03) |
+| 27757 | 80 | 417. The review before the pull request (2026-11-03) |

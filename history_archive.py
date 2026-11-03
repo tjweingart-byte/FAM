@@ -210,6 +210,16 @@ def approved(provider: str) -> bool:
         settings.housekeeper_approved_providers or ())
 
 
+def kept_live(records) -> list:
+    """The live records the archive may keep as facts (§417): every one
+    before Consuela runs (§313); once she runs, only an approved provider's,
+    as for everything else she stores (§397) - never a refused one's."""
+    records = list(records or ())
+    if not records or not consuela_runs():
+        return records
+    return [r for r in records if approved(str(r.get("source", "") or ""))]
+
+
 @dataclass
 class Fact:
     """One kept sentence or figure (the agent's output; §307)."""
@@ -293,6 +303,20 @@ def node_path(node_id: str) -> list:
         return list(reversed(tree.ancestors(node_id))) + [node_id]
     except Exception:  # noqa: BLE001
         return [node_id]
+
+
+def _carried(links: list, loser: str, keeper_url: str, already: list) -> list:
+    """The corroborations a superseded fact passes to its keeper (§417):
+    not the keeper's own article, none it already has, each marked `via`."""
+    have = {c.get("url") for c in already}
+    out = []
+    for c in links:
+        url = c.get("url", "")
+        if not url or url == keeper_url or url in have:
+            continue
+        have.add(url)
+        out.append({**c, "via": loser})
+    return out
 
 
 def url_id(url: str) -> str:
@@ -449,7 +473,7 @@ class SQLiteBackend:
                     db.execute(
                         "UPDATE intake SET passages = ?, subjects = ?, "
                         "categories = ?, by_provider = ?, nodes = ?, last_seen = ?, "
-                        "seen = seen + 1, digested = CASE WHEN ? THEN 0 "
+                        "seen = seen + 1, digested = CASE WHEN ? = 1 THEN 0 "
                         "ELSE digested END WHERE id = ?",
                         (json.dumps(passages), json.dumps(subjects),
                          json.dumps(categories), json.dumps(by_provider),
@@ -474,7 +498,11 @@ class SQLiteBackend:
             rows = db.execute(
                 "SELECT id, url, title, host, grade, published, passages, "
                 "subjects, categories, by_provider, nodes FROM intake "
-                "WHERE digested = 0 ORDER BY first_seen LIMIT ?",
+                # One with no node or no provider recorded is held for
+                # good (§417): left out, so it never fills the window.
+                "WHERE digested = 0 AND COALESCE(nodes, '') NOT IN ('', '[]') "
+                "AND COALESCE(by_provider, '') NOT IN ('', '{}') "
+                "ORDER BY first_seen LIMIT ?",
                 (max(1, int(limit)),)).fetchall()
         return [{"id": r[0], "url": r[1], "title": r[2], "host": r[3], "grade": r[4],
                  "published": r[5], "passages": json.loads(r[6] or "[]"),
@@ -563,7 +591,11 @@ class SQLiteBackend:
                 "node_id, node_path, also_nodes) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET text = excluded.text, "
-                "corroborations = excluded.corroborations, "
+                # A fact read again keeps its corroborations and its
+                # marks (§417): nothing gathered is reset by a re-read.
+                "corroborations = CASE WHEN COALESCE(facts.corroborations, '') "
+                "IN ('', '[]') THEN excluded.corroborations "
+                "ELSE facts.corroborations END, "
                 # A write that knows no node never forgets the one filed.
                 "node_id = CASE WHEN excluded.node_id != '' THEN excluded.node_id "
                 "ELSE facts.node_id END, "
@@ -628,18 +660,25 @@ class SQLiteBackend:
         11): inactive, never deleted here; `keeper` gains its link and count,
         never its text (always 8)."""
         with self._lock, closing(self._connect()) as db, db:
-            row = db.execute("SELECT url, host, grade, published FROM facts "
-                             "WHERE id = ? AND active = 1", (loser,)).fetchone()
+            row = db.execute("SELECT url, host, grade, published, corroborations "
+                             "FROM facts WHERE id = ? AND active = 1",
+                             (loser,)).fetchone()
             kept = db.execute("SELECT corroborations, url FROM facts WHERE id = ? "
                               "AND active = 1", (keeper,)).fetchone()
             if row is None or kept is None or loser == keeper:
                 return False
             # Another article is a corroboration; the same article (a
             # sentence folded into its own link, §402) is not.
+            links = json.loads(kept[0] or "[]")
+            before = len(links)
             if row[0] != kept[1]:
-                links = json.loads(kept[0] or "[]")
                 links.append({"url": row[0], "host": row[1], "grade": row[2],
                               "published": row[3], "fact": loser})
+            # The loser's own corroborations move with it (§417), each
+            # remembered as arriving through it so `restore` takes them back.
+            links.extend(_carried(json.loads(row[4] or "[]"), loser,
+                                  kept[1], links))
+            if len(links) != before:
                 db.execute("UPDATE facts SET corroborations = ? WHERE id = ?",
                            (json.dumps(links), keeper))
             db.execute("UPDATE facts SET active = 0, superseded_by = ?, "
@@ -658,7 +697,7 @@ class SQLiteBackend:
                               (row[0],)).fetchone()
             if kept is not None:
                 links = [c for c in json.loads(kept[0] or "[]")
-                         if c.get("fact") != fact_id]
+                         if c.get("fact") != fact_id and c.get("via") != fact_id]
                 db.execute("UPDATE facts SET corroborations = ? WHERE id = ?",
                            (json.dumps(links), row[0]))
             db.execute("UPDATE facts SET active = 1, superseded_by = '', "
@@ -671,8 +710,9 @@ class SQLiteBackend:
         with closing(self._connect()) as db:
             rows = db.execute(
                 "SELECT id, node_id, node_path FROM facts WHERE active = 1 AND "
-                "(node_id = ? OR node_path LIKE ? OR also_nodes LIKE ?) LIMIT ?",
-                (node, f'%{json.dumps(node)}%', f'%{json.dumps(node)}%',
+                "(node_id = ? OR instr(node_path, ?) > 0 OR instr(also_nodes, ?) > 0) "
+                "LIMIT ?",
+                (node, json.dumps(node), json.dumps(node),
                  max(1, int(limit)))).fetchall()
         return [{"id": r[0], "node_id": r[1], "node_path": json.loads(r[2] or "[]")}
                 for r in rows]
@@ -687,8 +727,9 @@ class SQLiteBackend:
         """`old` becomes `new` on intake records and readings (a re-file)."""
         changed = {"intake": 0, "readings": 0}
         with self._lock, closing(self._connect()) as db, db:
-            for rid, nodes in db.execute("SELECT id, nodes FROM intake WHERE nodes LIKE ?",
-                                         (f'%{json.dumps(old)}%',)).fetchall():
+            for rid, nodes in db.execute("SELECT id, nodes FROM intake WHERE "
+                                         "instr(nodes, ?) > 0",
+                                         (json.dumps(old),)).fetchall():
                 listed = [new if n == old else n for n in json.loads(nodes or "[]")]
                 listed = [n for i, n in enumerate(listed) if n and n not in listed[:i]]
                 db.execute("UPDATE intake SET nodes = ? WHERE id = ?",
@@ -699,8 +740,8 @@ class SQLiteBackend:
             changed["readings"] = cur.rowcount or 0
             # A fact's other nodes follow too (§413).
             for fid, also in db.execute("SELECT id, also_nodes FROM facts WHERE "
-                                        "also_nodes LIKE ?",
-                                        (f'%{json.dumps(old)}%',)).fetchall():
+                                        "instr(also_nodes, ?) > 0",
+                                        (json.dumps(old),)).fetchall():
                 listed = [new if n == old else n for n in json.loads(also or "[]")]
                 listed = [n for i, n in enumerate(listed) if n and n not in listed[:i]]
                 db.execute("UPDATE facts SET also_nodes = ? WHERE id = ?",
@@ -996,7 +1037,9 @@ class AtlasBackend:
 
     def undigested(self, limit: int) -> list:
         out = []
-        for doc in self.intake_c.find({"digested": False}).sort(
+        for doc in self.intake_c.find({
+                "digested": False, "nodes.0": {"$exists": True},
+                "by_provider": {"$exists": True, "$ne": {}}}).sort(
                 "first_seen", 1).limit(max(1, int(limit))):
             out.append({"id": str(doc.get("_id", "")), "url": doc.get("url", ""),
                         "title": doc.get("title", ""), "host": doc.get("host", ""),
@@ -1025,7 +1068,8 @@ class AtlasBackend:
                "links": links, "created": datetime.fromtimestamp(now, timezone.utc)}
         if node:
             doc["node"] = node
-        self.episodes_c.replace_one({"_id": episode}, doc, upsert=True)
+        # A write that knows no node never forgets the one filed (§417).
+        self.episodes_c.update_one({"_id": episode}, {"$set": doc}, upsert=True)
 
     def episode_links(self, episode: str) -> list:
         doc = self.episodes_c.find_one({"_id": episode})
@@ -1059,10 +1103,11 @@ class AtlasBackend:
         doc = {"url": fact.url, "title": fact.title, "host": fact.host,
                "grade": fact.grade, "published": _day(fact.published),
                "kind": fact.kind, "text": fact.text, "subject": fact.subject,
-               "category": fact.category, "figure": fact.figure,
-               "corroborations": fact.corroborations, "active": True,
-               "superseded_by": "", "space": space,
-               "created": datetime.fromtimestamp(now, timezone.utc)}
+               "category": fact.category, "figure": fact.figure, "space": space}
+        # Set only when the fact is new (§417): a re-read keeps its marks,
+        # its corroborations and when it was first kept.
+        first = {"active": True, "superseded_by": "",
+                 "created": datetime.fromtimestamp(now, timezone.utc)}
         if fact.node_id:
             doc["node_id"] = fact.node_id
             doc["node_path"] = list(fact.node_path or [])
@@ -1070,7 +1115,12 @@ class AtlasBackend:
                 doc["also_nodes"] = [n for n in fact.also_nodes if n]
         if vector:
             doc["embedding"] = [float(x) for x in vector]
-        self.facts_c.replace_one({"_id": fid}, {"_id": fid, **doc}, upsert=True)
+        update = {"$set": doc, "$setOnInsert": first}
+        if fact.corroborations:
+            update["$addToSet"] = {"corroborations": {"$each": list(fact.corroborations)}}
+        else:
+            first["corroborations"] = []
+        self.facts_c.update_one({"_id": fid}, update, upsert=True)
         return fid
 
     # -------------------------------------------------- Consuela's dedupe (§401)
@@ -1124,6 +1174,11 @@ class AtlasBackend:
                 "grade": doc.get("grade", ""),
                 "published": published.strftime("%Y-%m-%d")
                 if isinstance(published, datetime) else "", "fact": loser}}})
+        carried = _carried(list(doc.get("corroborations") or []), loser,
+                           kept.get("url", ""), list(kept.get("corroborations") or []))
+        if carried:
+            self.facts_c.update_one({"_id": keeper},
+                                    {"$push": {"corroborations": {"$each": carried}}})
         self.facts_c.update_one({"_id": loser}, {"$set": {
             "active": False, "superseded_by": keeper,
             "superseded_at": datetime.fromtimestamp(now, timezone.utc),
@@ -1136,6 +1191,9 @@ class AtlasBackend:
             return False
         self.facts_c.update_one({"_id": doc["superseded_by"]},
                                 {"$pull": {"corroborations": {"fact": fact_id}}})
+        # And what it carried there (§417).
+        self.facts_c.update_one({"_id": doc["superseded_by"]},
+                                {"$pull": {"corroborations": {"via": fact_id}}})
         self.facts_c.update_one({"_id": fact_id}, {
             "$set": {"active": True, "superseded_by": ""},
             "$unset": {"superseded_at": "", "superseded_why": ""}})
@@ -1156,7 +1214,14 @@ class AtlasBackend:
         return bool(getattr(result, "modified_count", 1))
 
     def replace_node(self, old: str, new: str) -> dict:
-        intake = self.intake_c.update_many({"nodes": old}, {"$set": {"nodes.$": new}})
+        # Added then pulled, so a record already under `new` holds it
+        # once, and "" (a node unfiled) is never written (§417).
+        intake_ids = [d["_id"] for d in self.intake_c.find({"nodes": old}, {"_id": 1})]
+        if new and intake_ids:
+            self.intake_c.update_many({"_id": {"$in": intake_ids}},
+                                      {"$addToSet": {"nodes": new}})
+        intake = self.intake_c.update_many({"_id": {"$in": intake_ids}},
+                                           {"$pull": {"nodes": old}})
         series = self.series_c.update_many({"node_id": old}, {"$set": {"node_id": new}})
         # A fact's other nodes follow too (§413).
         if new:
@@ -1524,6 +1589,7 @@ def keep_swept(records: list) -> None:
 def _write_swept(records: list) -> None:
     if _backing_off() or backend() is None:
         return
+    records = kept_live(records)
     for index, record in enumerate(records):
         try:
             add_fact(_live_fact(record, str(record.get("subject", "") or ""),
@@ -1701,7 +1767,8 @@ def _write(findings: list, subject: str, category: str, episode: str,
     path = node_path(node)
     # The live providers' data (§313): kept as facts at once, in code - a
     # score or a price needs no agent to decide what it says.
-    for record in live or ():
+    live = kept_live(live)
+    for record in live:
         try:
             add_fact(_live_fact(record, subject, category, node, path))
             _count("live_facts")

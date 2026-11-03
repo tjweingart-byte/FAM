@@ -49,6 +49,9 @@ DEMOGRAPHICS = "demographics"
 SCOPES = (AI, TERMS, DEMOGRAPHICS)
 
 #: Bump when `DEMOGRAPHICS_NOTICE` changes what is counted or what for.
+#: A bump stops counting everyone whose yes is to the old wording until they
+#: say yes again: the activation step is not shown again and records a yes
+#: only when none is held (§417). Showing the new notice is work of its own.
 DEMOGRAPHICS_VERSION = 1
 
 #: The activation screen's notice (docs/ACTIVATION_PRIVACY_DRAFT.md, the

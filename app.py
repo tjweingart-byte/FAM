@@ -2882,6 +2882,10 @@ async def activation_write(req: ActivationRequest, request: Request) -> dict:
     counted, which Settings can turn off (decision 2)."""
     _rate_limit(request)
     user = _require_account(request)
+    # Required here, and corrected, never removed (§411, §417): an empty
+    # date would erase the one kept and record a yes with no date.
+    if not (req.birth_date or "").strip():
+        raise HTTPException(status_code=400, detail="Your date of birth is needed.")
     gone = _under_age_gate(user, req.birth_date, req.confirm_under_13, request)
     if gone is not None:
         return gone
