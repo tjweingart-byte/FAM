@@ -57,14 +57,21 @@ log = logging.getLogger("fam.agents")
 CHECKS = ("quote", "quote_length", "website", "advice", "superlative", "figures",
           "dates", "mixed")
 #: Which checks send a failing sentence back by default. The rest count.
-#: Superlatives count only (the owner, 2026-11-03, §435); the one-sentence
-#: quote limit counts until the owner signs the mclovin.md that names it.
-DEFAULT_ENFORCED = ("quote", "website", "advice")
+#: Set by the planted-mistake eval (§439, step 2: `tools/mclovin_eval.py`):
+#: a check enforces once it catches 90% of its planted mistakes and flags
+#: at most 1% of clean sentences. Figures (85%, 1.5%) still count. The
+#: one-sentence quote limit passes too but counts until the owner signs
+#: the mclovin.md that names it (§435).
+DEFAULT_ENFORCED = ("quote", "website", "advice", "superlative", "dates", "mixed")
 #: Named failures the proposed mclovin.md adds (the owner, 2026-11-03, §435);
 #: they join `agents.handoffs.FAILURES` once the owner signs it.
 PROPOSED_FAILURES = ("quote_too_long",)
 #: The named failure (agents.handoffs.FAILURES) each check reports.
+#: The grounding checker's check (§439, step 5), run only when one is
+#: plugged in (`agents.grounding`); none is yet.
+SUPPORT = "support"
 FAILURE_OF = {
+    "support": "unsupported_changing_fact",
     "quote_length": "quote_too_long", "website": "website_named", "advice": "advice",
     "superlative": "unsupported_superlative", "figures": "number_not_in_packets",
     "dates": "wrong_date", "mixed": "stories_joined",
@@ -85,7 +92,7 @@ def enforced() -> frozenset:
     from config import settings
 
     raw = str(getattr(settings, "supervisor_enforce", "") or "")
-    return frozenset(c.strip() for c in raw.split(",") if c.strip() in CHECKS)
+    return frozenset(c.strip() for c in raw.split(",") if c.strip() in CHECKS + (SUPPORT,))
 
 
 # ------------------------------------------------------------------ the packets
@@ -100,6 +107,8 @@ class Block:
     folded: str = ""
     words: frozenset = frozenset()
     names: frozenset = frozenset()
+    #: Every number the source states, digits and words, read once (§439).
+    values: tuple = ()
 
 
 def _fold(text: str) -> str:
@@ -139,7 +148,14 @@ def _blocks(plan) -> list:
     for block in out:
         block.folded = _fold(block.text)
         block.words = news_clusters.tokens(block.text)
-        block.names = news_clusters.names(block.text)
+        # Names from the source's own text, never the packet's labels
+        # ("Title", "Published", "Source type", "Key evidence") or a
+        # title-case headline, where every word is capitalised: with them
+        # every source shared names and two stories read as one (§439).
+        body = block.text.split("Key evidence:", 1)[1] if "Key evidence:" in block.text \
+            else block.text
+        block.names = news_clusters.names(body)
+        block.values = _material_values(block.text)
     return out
 
 
@@ -171,6 +187,12 @@ class SentenceVerdict:
     def failing(self) -> list:
         """The enforced failures - what sends the sentence back."""
         return [c for c in self.checks if c.result == "fail" and c.enforced]
+
+    @property
+    def unsure(self) -> list:
+        """Enforced checks that could not decide - the grounding checker's
+        middle band, which takes the small model's second look."""
+        return [c for c in self.checks if c.result == "unsure" and c.enforced]
 
     @property
     def counted(self) -> list:
@@ -217,10 +239,14 @@ def check_quote(sentence: str, blocks: list) -> tuple:
             last = _fold(speaker).split()[-1]
             near = False
             for block in holders:
-                at = block.folded.find(folded)
-                window = block.folded[max(0, at - 400): at + len(folded) + 400]
-                if re.search(r"\b" + re.escape(last) + r"\b", window):
-                    near = True
+                # Beside any place the quote appears, never only the first
+                # (§439, step 3: a quote repeated in a headline lost its speaker).
+                for at in [m.start() for m in re.finditer(re.escape(folded), block.folded)]:
+                    window = block.folded[max(0, at - 400): at + len(folded) + 400]
+                    if re.search(r"\b" + re.escape(last) + r"\b", window):
+                        near = True
+                        break
+                if near:
                     break
             if not near:
                 return "fail", (f"the packets do not give \"{span[:60]}\" to "
@@ -292,16 +318,30 @@ def check_advice(sentence: str, _blocks: list, advice_request: bool = False) -> 
     return "fail", f"advises the listener ({m.group(0)})"
 
 
+#: A claim that something is unprecedented - claim-shaped, never ordinary
+#: English (§439, step 3: "the most recent", "October the first", "the
+#: first week" and "the record matters" were flagged on clean scripts):
+#: "for the first time", "first-ever", "the first ... to / since / ever",
+#: "the only ... to", "a / new / all-time record", "record high", "the
+#: biggest ... since / ever / on record / in history", "unprecedented",
+#: "never before".
+_CLAIM_TAIL = r"(?:[\w'-]+\s+){0,5}?(?:to|since|ever|in history|on record|of all time|anywhere)\b"
 _SUPERLATIVE = re.compile(
-    r"\b(?:the|its|their|his|her|a|an)\s+(?:(?:first|only|biggest|largest|highest|"
-    r"lowest|fastest|youngest|oldest|longest|most|fewest|worst|best)\b)"
-    r"|\b(?:record|all-time|unprecedented|never before|ever)\b", re.I)
+    r"\bfor the first time\b|\bfirst-ever\b|\bnever before\b|\bunprecedented\b"
+    r"|\b(?:a|new|an all-time|all-time)\s+record\b|\brecord[- ](?:high|low|number|level|levels)\b"
+    r"|\b(?:the|its|their|his|her)\s+(?:first|only)\s+" + _CLAIM_TAIL +
+    r"|\b(?:the|its|their|his|her)\s+(?:biggest|largest|highest|lowest|fastest|youngest|"
+    r"oldest|longest|shortest|most|fewest|worst|best|smallest|deadliest)\s+" + _CLAIM_TAIL,
+    re.I)
 #: The family each superlative's support may use.
+#: The words a packet may use for the same claim: "biggest" is "largest",
+#: never any "most" or "highest" (§439, step 3: a packet's "highest since
+#: May" vouched for a planted "biggest ever").
 _FAMILIES = (("first",), ("only",), ("record", "all-time", "all time", "ever", "unprecedented",
                                      "never before"),
-             ("biggest", "largest", "most", "highest", "best", "longest", "fastest",
-              "oldest", "youngest"),
-             ("lowest", "fewest", "worst", "smallest"))
+             ("biggest", "largest"), ("most",), ("highest", "high"), ("lowest", "low"),
+             ("best",), ("worst",), ("longest",), ("shortest",), ("fastest",),
+             ("oldest",), ("youngest",), ("fewest",), ("smallest",), ("deadliest",))
 
 
 def _family(word: str) -> tuple:
@@ -322,7 +362,15 @@ def check_superlative(sentence: str, blocks: list) -> tuple:
     m = _SUPERLATIVE.search(_QUOTED.sub(" ", sentence))
     if not m:
         return "pass", ""
-    word = m.group(0).split()[-1].lower()
+    said = m.group(0).lower()
+    word = next((w for w in ("first", "only", "record", "never before", "unprecedented",
+                             "ever") if w in said), said.split()[1] if len(said.split()) > 1
+                else said)
+    for w in ("biggest", "largest", "highest", "lowest", "fastest", "youngest", "oldest",
+              "longest", "shortest", "most", "fewest", "worst", "best", "smallest",
+              "deadliest"):
+        if re.search(r"\b" + w + r"\b", said):
+            word = w
     family = _family(word)
     names = news_clusters.names(sentence)
     words = news_clusters.tokens(sentence)
@@ -345,58 +393,123 @@ def check_figures(sentence: str, blocks: list, values=None) -> tuple:
     import score_guard
 
     text = " ".join(sentence.split())
-    if score_guard._PAST.search(text) or score_guard._years_other_than_now(text):
-        return "pass", ""
     fresh, archived = values
     approx = bool(figure_guard._APPROX.search(text))
-    dated = bool(figure_guard._DATED.search(text))
+    # History is checked too (§439, step 3): a sentence about another year
+    # or an earlier period may be vouched for by the archive as well.
+    dated = bool(figure_guard._DATED.search(text) or score_guard._PAST.search(text)
+                 or score_guard._years_other_than_now(text))
     said = _numbers(text)
+    if not said:
+        return "pass", ""
+    # The same subject (mclovin.md "always" 3): a number is vouched for by
+    # the sources about what the sentence is about, not by any number
+    # anywhere in the packets. With no source like it, all of them.
+    near = _near_values(sentence, blocks)
+    if near is not None:
+        fresh, archived = near
     for value, decimals in said:
         if figure_guard.vouched(value, decimals, approx, fresh):
             continue
         if dated and figure_guard.vouched(value, decimals, approx, archived):
             continue
-        return "fail", f"the number {value:g} is not in the packets"
+        return "fail", f"the number {value:g} is not in the packets about this"
     return "pass", ""
+
+
+#: A source is about the sentence's subject when it shares this much with it
+#: (a name counts twice), as the dates check reads it.
+SUBJECT_SCORE = 3
+
+
+def _near_values(sentence: str, blocks: list):
+    """`(fresh, archived)` numbers of the sources about this sentence's
+    subject - and the live block always - or None when no source is."""
+    import figure_guard
+    import news_clusters
+
+    names = news_clusters.names(sentence)
+    words = news_clusters.tokens(sentence)
+    near = [b for b in blocks
+            if b.live or 2 * len(names & b.names) + len(words & b.words) >= SUBJECT_SCORE]
+    if not any(not b.live for b in near):
+        return None
+    fresh = sorted({v for b in near if not b.archive for v in b.values})
+    old = sorted({v for b in near if b.archive for v in b.values})
+    return fresh, old
+
+
+def _material_values(text: str) -> tuple:
+    """What a source states: `figure_guard`'s reading of printed figures,
+    and the same word-number reader the script is read with - "one hundred
+    and seventy-eight" in a source vouches for 178 (§439, step 3)."""
+    import figure_guard
+
+    values = set(figure_guard.material_values(text))
+    values |= {v for v, _d in _numbers(text)}
+    return tuple(sorted(values))
 
 
 _DIGITS = re.compile(r"(?<![\w.])\$?(\d[\d,]*(?:\.\d+)?)(?![\w])")
 
 
+_ORDINAL_WORDS = re.compile(
+    r"\b(?:(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]+)?"
+    r"(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|"
+    r"twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|"
+    r"nineteenth|twentieth|thirtieth|fortieth|fiftieth|hundredth|thousandth)\b", re.I)
+
+
 def _numbers(text: str) -> list:
-    """`(value, decimals)` for each number said - word numbers through
-    `figure_guard`'s reader, digits directly; never a year, a time, an
-    ordinal, or a small count in words."""
+    """`(value, decimals)` for each number said, read by `figure_guard`'s own
+    reader on its own tokens - "four hundred and eighty-five thousand" is
+    one number, "a hundred and forty" another - and never a year, a date, a
+    clock time, cents beside dollars, a word with digits in it ("COP28"), or
+    a count of things up to twelve said as one word."""
     import figure_guard
 
     out = []
     scrubbed = figure_guard._without_scaffolding(text)
-    for value, decimals, _unit in figure_guard.figures_in(scrubbed):
-        out.append((value, decimals))
-    if out:
-        return out
-    tokens = re.findall(r"\$?\d[\d,]*(?:\.\d+)?|[a-z]+(?:-[a-z]+)?", scrubbed.lower())
+    # A word with digits in it is a name, never a figure.
+    scrubbed = re.sub(r"\b[A-Za-z]+[\w-]*\d[\w-]*\b", " ", scrubbed)
+    # Ordinals said as words are dates and places in a list - "the
+    # twenty-eighth of October" - never figures.
+    scrubbed = _ORDINAL_WORDS.sub(" ", scrubbed)
+    # "The hundred and seventy-eight exclusions" is a hundred and seventy-eight.
+    scrubbed = re.sub(r"\bthe hundred\b", "one hundred", scrubbed, flags=re.I)
+    tokens = figure_guard._TOKEN.findall(scrubbed)
     i = 0
     while i < len(tokens):
-        token = tokens[i]
-        if re.match(r"^\$?\d", token):
-            try:
-                value = float(token.lstrip("$").replace(",", ""))
-            except ValueError:
+        low = tokens[i].lower()
+        if figure_guard._DIGIT.match(tokens[i]) or low in figure_guard._UNITS \
+                or low in figure_guard._TENS or (low == "a" and i + 1 < len(tokens)
+                                                 and tokens[i + 1].lower() == "hundred"):
+            value, decimals, j = figure_guard._read_number(tokens, i)
+            if value is None or j <= i:
                 i += 1
                 continue
-            decimals = len(token.split(".")[1]) if "." in token else 0
-            out.append((value, decimals))
-            i += 1
+            words = [t.lower() for t in tokens[i:j]]
+            nxt = ""
+            # "Eighteen and a half", "three and three-quarters".
+            tail = [t.lower() for t in tokens[j:j + 3]]
+            for said, part in ((["and", "a", "half"], 0.5), (["and", "a", "quarter"], 0.25),
+                               (["and", "three", "quarter"], 0.75),
+                               (["and", "three", "quarters"], 0.75)):
+                if tail == said:
+                    value, decimals, j = value + part, 2, j + 3
+                    break
+            nxt = tokens[j].lower() if j < len(tokens) else ""
+            # A count of things up to twelve is not a figure - "two teams" -
+            # but "eight percent" and "five dollars" are (§439, step 3).
+            small_count = (value <= 12 and len(words) == 1
+                           and not figure_guard._DIGIT.match(tokens[i])
+                           and nxt not in ("percent", "%", "points", "point", "dollars",
+                                           "pounds", "euros", "cents", "per", "basis",
+                                           "million", "billion", "trillion", "thousand"))
+            if nxt != "cents" and not small_count:
+                out.append((value, decimals))
+            i = j
             continue
-        parts = token.split("-")
-        if figure_guard._is_word_number(parts[0]):
-            value, decimals, j = figure_guard._read_number(tokens, i)
-            if value is not None and j > i:
-                if not (value <= 12 and j == i + 1):
-                    out.append((value, decimals))
-                i = j
-                continue
         i += 1
     return out
 
@@ -410,6 +523,16 @@ _RELATIVE = (
 )
 
 
+#: "Today" as an event's day needs an event: a past-tense verb. "Today is
+#: the third", "today's tariffs" and "trains toward today" mean now, and
+#: were flagged on clean scripts (§439, step 3).
+_NOW_ONLY = re.compile(r"\btoday(?:'s|’s)|\btoday\s+(?:is|are|was the)\b|\b(?:toward|until|"
+                       r"to|as of|from|than|through)\s+today\b", re.I)
+_EVENT = re.compile(r"\b(?:said|says|told|gave|won|lost|beat|held|met|named|voted|signed|"
+                    r"announced|approved|reported|rose|fell|closed|opened|launched|"
+                    r"\w{3,}ed)\b", re.I)
+
+
 def check_dates(sentence: str, blocks: list, now: Optional[datetime] = None) -> tuple:
     import news_clusters
 
@@ -419,15 +542,22 @@ def check_dates(sentence: str, blocks: list, now: Optional[datetime] = None) -> 
         if m:
             phrase, limit = m.group(0), days
             break
+    if phrase is not None and limit == 1 and phrase.lower() in ("today", "tonight") and (
+            _NOW_ONLY.search(sentence) or not _EVENT.search(sentence)):
+        return "pass", ""
     if phrase is None:
         return "pass", ""
     names = news_clusters.names(sentence)
     words = news_clusters.tokens(sentence)
     scored = []
     for block in blocks:
-        if block.live:
-            return "pass", ""      # a live block is now by definition
         score = 2 * len(names & block.names) + len(words & block.words)
+        if block.live:
+            # The live block is now by definition - but only vouches for a
+            # sentence about it (§439, step 3: any live block passed all).
+            if score >= 3:
+                return "pass", ""
+            continue
         if score >= 3 and block.published is not None:
             scored.append((score, block))
     if not scored:
@@ -446,36 +576,72 @@ def check_dates(sentence: str, blocks: list, now: Optional[datetime] = None) -> 
                     f"{oldest_needed} days old")
 
 
+#: Capitalised words that name no one: months, days, titles and roles,
+#: parties and the words a sentence starts with. Left in, "Representative
+#: Nancy Mace, a Republican" read as four names and "on November the
+#: ninth" joined any two stories (§439, step 3).
+NOT_ENTITIES = frozenset("""
+january february march april may june july august september october november
+december monday tuesday wednesday thursday friday saturday sunday representative
+senator president minister prime secretary governor mayor chief chair chairman
+judge justice general director officer spokesman spokeswoman spokesperson leader
+republican democrat democratic party house senate congress committee court
+government state states department office council union analyst lawmaker official
+officials people reports report
+""".split())
+
+#: Two sources are one story when they share at least this many names.
+SAME_STORY_NAMES = 3
+
+
+def _stories(blocks: list) -> list:
+    """Which story each source is: sources sharing `SAME_STORY_NAMES` names
+    are one story (grouped transitively), so two outlets' different
+    headlines on one event are never two stories."""
+    group = list(range(len(blocks)))
+
+    def find(i):
+        while group[i] != i:
+            group[i] = group[group[i]]
+            i = group[i]
+        return i
+    for i in range(len(blocks)):
+        for j in range(i + 1, len(blocks)):
+            shared = (blocks[i].names & blocks[j].names) - NOT_ENTITIES
+            if len(shared) >= SAME_STORY_NAMES:
+                group[find(i)] = find(j)
+    return [find(i) for i in range(len(blocks))]
+
+
 def check_mixed(sentence: str, blocks: list) -> tuple:
-    """A sentence whose names come from two different stories and are held
-    together by no one source."""
+    """A sentence joining two stories with no source for the link: a name
+    only one story's sources hold, and a name only another story's sources
+    hold, that no single source holds together. A name many stories share
+    ("Israel") is context, never one side of a join."""
     import news_clusters
 
+    words = sentence.split()
+    opener = news_clusters.names(words[0]) if words else frozenset()
     names = {n for n in news_clusters.names(sentence)
-             if any(n in b.names for b in blocks)}
+             if n not in NOT_ENTITIES and n not in opener}
     if len(names) < 2:
         return "pass", ""
-    if any(names <= b.names for b in blocks):
-        return "pass", ""
-    holders = [b for b in blocks if names & b.names]
-    stories: list = []
-    for block in holders:
-        title = re.search(r"^Title:\s*(.*)$", block.text, re.M)
-        fingerprint = news_clusters.tokens(title.group(1) if title else block.text[:200])
-        for story in stories:
-            if news_clusters.same_story(story[0], fingerprint):
-                story[1].append(block)
-                break
-        else:
-            stories.append((fingerprint, [block]))
-    if len(stories) < 2:
-        return "pass", ""
-    # Two stories each hold part of the sentence's names, and none holds all.
-    covered = [set().union(*(b.names for b in story[1])) & names for story in stories]
-    if any(names <= c for c in covered):
-        return "pass", ""
-    return "fail", ("joins " + " and ".join(sorted(names)[:4])
-                    + " from two different stories, linked by no one source")
+    texts = [b for b in blocks if not b.live]
+    story_of = _stories(texts)
+    owner: dict = {}
+    for n in names:
+        stories = {story_of[i] for i, b in enumerate(texts) if n in b.names}
+        if len(stories) == 1:
+            owner[n] = stories.pop()
+    for a in owner:
+        for b in owner:
+            if owner[a] == owner[b] or a >= b:
+                continue
+            if any(a in blk.names and b in blk.names for blk in texts):
+                continue
+            return "fail", (f"joins {a} and {b} from two different stories, "
+                            "linked by no one source")
+    return "pass", ""
 
 
 # ------------------------------------------------------------------ one episode
@@ -496,10 +662,8 @@ class Checker:
                               "enforced": sorted(self.enforce)}
         try:
             self.blocks = _blocks(plan)
-            fresh = "\n".join(b.text for b in self.blocks if not b.archive)
-            old = "\n".join(b.text for b in self.blocks if b.archive)
-            self.values = (figure_guard.material_values(fresh),
-                           figure_guard.material_values(old))
+            self.values = (sorted({v for b in self.blocks if not b.archive for v in b.values}),
+                           sorted({v for b in self.blocks if b.archive for v in b.values}))
         except Exception:  # noqa: BLE001
             log.warning("Mclovin could not read the packets; sentences play unchecked",
                         exc_info=True)
@@ -533,6 +697,9 @@ class Checker:
             except Exception as exc:  # noqa: BLE001
                 result, why = "unchecked", f"the check failed: {type(exc).__name__}"
             verdict.checks.append(Check(name, result, why, name in self.enforce))
+        support = self._support(sentence)
+        if support is not None:
+            verdict.checks.append(support)
         verdict.seconds = time.perf_counter() - started
         for c in verdict.checks:
             _count(f"{c.check}_{c.result}")
@@ -548,6 +715,39 @@ class Checker:
                     "enforced": c.enforced, "failure": c.failure, "why": c.why,
                     "text": sentence[:240]})
         return verdict
+
+    def _support(self, sentence: str) -> Optional["Check"]:
+        """The grounding checker's verdict, or None when none is plugged in."""
+        from agents import grounding
+        from config import settings
+
+        if grounding.scorer() is None or self.blocks is None:
+            return None
+        enforced = SUPPORT in self.enforce
+        sources = "\n\n".join(b.text for b in self.nearest(sentence))
+        import episode_quality
+
+        if not sources.strip():
+            # No source is about it: a settled fact with no name, number or
+            # date may stay (decided item 12); anything else is unsure, and
+            # takes the second look while `support` is enforced.
+            if not episode_quality._has_particular(sentence):
+                return Check(SUPPORT, "pass", "settled, no particular, no source near",
+                             enforced)
+            return Check(SUPPORT, "unsure", "no source is about it", enforced)
+        score = grounding.score(sources, sentence)
+        if score is None:
+            return Check(SUPPORT, "unchecked", "the grounding checker did not answer", enforced)
+        if score >= float(settings.supervisor_grounding_high):
+            return Check(SUPPORT, "pass", f"supported ({score:.2f})", enforced)
+        if score <= float(settings.supervisor_grounding_low):
+            # Decided item 12: a settled fact with no name, number or date may stay.
+            if not episode_quality._has_particular(sentence):
+                return Check(SUPPORT, "pass", f"settled, no particular ({score:.2f})", enforced)
+            return Check(SUPPORT, "fail", f"the sources do not support it ({score:.2f})",
+                         enforced)
+        return Check(SUPPORT, "unsure", f"the grounding checker is unsure ({score:.2f})",
+                     enforced)
 
     def nearest(self, sentence: str, n: int = 3) -> list:
         """The packet sources most like a sentence, for the writer's rewrite."""

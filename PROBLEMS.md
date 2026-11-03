@@ -28872,3 +28872,138 @@ with long quotes is the check.
 Tests: `tests/test_provider_inputs_320.py` (no `search_mode` on a filings or
 an academic question; the country still sent); the writer's prompt tests
 unchanged and passing.
+
+## 439. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03)
+
+The owner (2026-11-03): "Do all of this for mclovin. Set Shakespeare to
+haiku high effort" - the five training steps proposed after §438.
+
+**Shakespeare ahead of the tap is Haiku 5.5 at high effort**
+(`EDITOR_MODEL=anthropic:claude-haiku-5-5`, `EDITOR_EFFORT=high`), the
+owner's choice on §436's comparison: no arm measurably better, Haiku the
+cheapest editor and the one clear gain (repetition). `tools/editor_eval.py`
+pins Sonnet for its own Sonnet arm, so the comparison stays the same one.
+
+**Step 1 - labelled cases built in code** (`agents/supervisor_cases.py`,
+decided item 30). Into copies of the 150 real scripts of §436, against each
+episode's own frozen packets: a number changed (never a date, a year, a
+label or a count up to twelve); a packet quote given to someone the packets
+never put beside it, or with a word changed; two clean packet sentences
+quoted as one; "Yesterday" on a story whose every close source is two
+weeks old; "for the first time" and "the biggest ... ever" where no packet
+line claims anything of the kind; a person or place only another story's
+sources name, joined on; advice; a website. Controls the check must pass: a
+packet quote given to its own speaker; "Yesterday" on a story the best
+source dates today or yesterday. An edition's packet is nearly always one
+story, so mixed stories are planted into a packet made of two episodes'
+packets, whose unaltered sentences are the controls.
+
+**Step 2 - two numbers per check** (`tools/mclovin_eval.py`, no key, no
+network, deterministic): planted mistakes caught, and false flags - flags on
+the 2,438 unaltered sentences (an upper bound: some may be real) plus failed
+controls. A check enforces once it catches 90% and flags at most 1%, over
+at least 20 planted cases. Final:
+
+| check | planted | caught | false flags | enforced now |
+|---|---|---|---|---|
+| quote | 117 | 97% | 0.00% | yes |
+| quote_length | 141 | 100% | 0.00% | counted until mclovin.md v2 is signed (§435) |
+| website | 150 | 100% | 0.04% | yes |
+| advice | 150 | 100% | 0.00% | yes |
+| superlative | 34 | 100% | 0.21% | yes |
+| figures | 114 | 85% | 1.48% | **no - still counted** |
+| dates | 50 | 96% | 0.08% | yes |
+| mixed | 114 | 100% | 0.02% | yes |
+
+`SUPERVISOR_ENFORCE` is now `quote,website,advice,superlative,dates,mixed`.
+Superlatives were "count only" by the owner's §435 answer; they pass the bar
+the owner's step 2 sets, and the signed mclovin.md v1 ("never" 1: no
+unsupported first or record) asks for them, so they enforce. The one-sentence
+quote limit passes too and waits for the signature that names it.
+
+**Step 3 - tighten the rule, never the model.** The first run read
+quote 90% / 0.32%, superlative 2.4% false flags, figures 67% / 1.9%, dates
+81%, mixed 66% / 2.4%. Each miss and false flag was read and the rule fixed:
+
+- *superlatives* are claim-shaped only: "for the first time", "first-ever",
+  "the first / only ... to / since / ever", "a / new / all-time record",
+  "record high", "the biggest ... since / ever / on record", "unprecedented",
+  "never before" - never "the most recent", "October the first", "the first
+  week", "the record matters"; and "biggest" is vouched for only by
+  "biggest" or "largest", never any "most" or "highest";
+- *quotes*: the speaker is looked for beside every place the quote appears,
+  not the first (a quote repeated in a headline lost its speaker);
+- *figures*: read by `figure_guard`'s own reader on its own tokens ("four
+  hundred and eighty-five thousand" is one number, "a hundred and forty"
+  another, "eighteen and a half" 18.5); never a word with digits ("COP28"),
+  a spelled-out ordinal ("the twenty-eighth of October"), cents beside
+  dollars, or a count up to twelve - but "eight percent" is a figure; a
+  number is vouched for only by the sources about the same subject (the
+  rule book's "same subject"), whose numbers include those written in words;
+  and history is checked too, against the archive as well (it was skipped);
+- *dates*: a live block vouches only for a sentence about it (any live block
+  passed every sentence); "today" counts only when the sentence reports an
+  event - never "today is", "today's", "toward today";
+- *mixed stories*: names come from the sources' own text, never the packet's
+  labels or a title-case headline (with them every source shared names and
+  two stories read as one); months, days, titles, roles and parties are not
+  names, nor a sentence's first word; sources sharing three names are one
+  story whatever their headlines; a join is two names each held by only one
+  story, held together by no source.
+
+Tried and reverted: vouching figures by single source *sentences* (93%
+caught, but 3.5% false flags - true numbers in a neighbouring sentence).
+Figures stay counted: what is left is mostly figures the writer worked out
+from two the sources gave (a gap, an age), which a pattern cannot tell from
+recall (§269's own note) - the grounding checker's question. Every case is
+pinned in `tests/test_mclovin_training_439.py`, written for the test, never
+provider text.
+
+**Step 4 - real episodes, reviewed nightly** (`agents/supervisor_training.py`).
+When an episode Mclovin checked is cached, `episode_quality.note` keeps every
+sentence he did not simply pass in the agents' store (`AGENTS_DB`): key,
+check, result, enforced, why, the sentence - never a listener id. The nightly
+task `supervisor:review` (Netenyahu's schedule, 03:00, only while
+`SUPERVISOR` is on) sends up to `SUPERVISOR_REVIEW_PER_RUN` (40) sentences -
+half his flags, half a sample of what he passed - each alone with the packet
+sources most like it from the quality record's evidence (never the whole
+script, mclovin.md "always" 6), to `SUPERVISOR_JUDGE_MODEL` (Opus 5.5) under
+his signed rule book, which names the failure or "none". Each sentence once.
+`report` gives per check how often it agreed with his flags and what he
+missed; `disagreements` lists the cases for step 3, printed by
+`python tools/mclovin_eval.py --reviewed`. A wipe forgets it. It reads only
+one sentence and its sources, as his own checks do - his job, under his own
+book; if the owner wants a rule naming it, as nando.md rule 12 names Nando's
+answer key, that is a proposal for the owner to sign.
+
+**Step 5 - the grounding checker only for "does the source say this?"**
+(`agents/grounding.py`). Its place is built and nothing is installed (§437:
+the owner decides which checker and where; huggingface.co is refused here).
+With one plugged in, Mclovin's `support` check scores a sentence against its
+nearest sources: at or above `SUPERVISOR_GROUNDING_HIGH` (0.8) it passes; at
+or below `SUPERVISOR_GROUNDING_LOW` (0.2) it fails as an unsupported fact -
+unless it has no name, number or date (decided item 12); in between it is
+unsure, and only then, while `support` is enforced, Haiku 5.5
+(`SUPERVISOR_MODEL`) takes one look with the source sentences beside it:
+supported plays, unsupported goes back to the writer once, unsure or out of
+`SUPERVISOR_TIMEOUT_SECONDS` plays unchecked and is recorded (items 26, 32).
+With `SUPERVISOR_GROUNDING` empty - the default - the check does not run.
+
+**Off changes nothing**: every piece is under `SUPERVISOR` (and `AGENTS`);
+`tests/test_agents_off.py` passes unchanged.
+
+Settings (new): `SUPERVISOR_JUDGE_MODEL`, `SUPERVISOR_JUDGE_TIMEOUT_SECONDS`,
+`SUPERVISOR_JUDGE_MAX_TOKENS`, `SUPERVISOR_REVIEW_PER_RUN`,
+`SUPERVISOR_GROUNDING`, `SUPERVISOR_GROUNDING_HIGH`, `SUPERVISOR_GROUNDING_LOW`;
+changed: `SUPERVISOR_ENFORCE`, `EDITOR_MODEL`. In `config.py`, `.env.example`,
+`tests/conftest.py`, `agents/names.py` (the judge model) and the roster (his
+background ceiling).
+
+Tests: `tests/test_mclovin_training_439.py` (the enforced set; every
+tightened rule; the planting deterministic and caught), and
+`tests/test_mclovin_review_439.py` (kept only when he checked; beside the
+quality record; one sentence and its sources reviewed once; agreement and
+disagreements; scheduled; wiped; no checker no change; pass, fail, unsure;
+settled facts stay; a failing checker leaves it unchecked; only the unsure
+band takes the second look, and only while enforced). §434's tests updated
+for superlatives, history and mixed stories enforced and read anew.

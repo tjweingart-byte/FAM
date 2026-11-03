@@ -23,7 +23,7 @@ AGENTS: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
     "editor": ("Shakespeare", "shakespeare.md", "editor_agent",
                ("editor_model", "editor_search_model")),
     "supervisor": ("Mclovin", "mclovin.md", "supervisor",
-                   ("supervisor_model", "supervisor_screen_model")),
+                   ("supervisor_model", "supervisor_screen_model", "supervisor_judge_model")),
     "housekeeper": ("Consuela", "consuela.md", "housekeeper",
                     ("housekeeper_model", "housekeeper_review_model")),
     "it": ("Keith Wong", "keith.md", "it_agent", ("it_model", "it_summary_model")),

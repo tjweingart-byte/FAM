@@ -11,7 +11,8 @@ frozen**, then written three ways with the same writer:
 
 * `none` - no editor; the writer reads the packets, as today;
 * `haiku` - Shakespeare on `EDITOR_SEARCH_MODEL` (Haiku 5.5) at high effort;
-* `sonnet` - Shakespeare on `EDITOR_MODEL` (Sonnet 5.5) at high effort.
+* `sonnet` - Shakespeare on Sonnet 5.5 at high effort (pinned here: since
+  §439 `EDITOR_MODEL` is Haiku).
 
 Each script is scored on what needs no person (decided item 30):
 `episode_quality.measure`'s six code measures; Mclovin's sentence checks
@@ -101,6 +102,10 @@ QUESTIONS = [
 ARMS = ("none", "haiku", "sonnet")
 #: Each arm's model setting for Shakespeare (always at high effort, ahead).
 ARM_SETTING = {"haiku": "editor_search_model", "sonnet": "editor_model"}
+#: The model each arm runs, whatever the deployment's defaults are now: the
+#: owner chose Haiku for `EDITOR_MODEL` on this comparison (§439), so the
+#: Sonnet arm pins its own model to stay the same comparison.
+ARM_MODEL = {"haiku": "anthropic:claude-haiku-5-5", "sonnet": "anthropic:claude-sonnet-5-5"}
 MINUTES = 1.5
 
 
@@ -160,7 +165,17 @@ async def write_arm(generator, frozen: dict, arm: str) -> dict:
     editor_seconds = 0.0
     if arm != "none":
         t = time.perf_counter()
-        block = await editor.outline(plan, notes, ahead=True, model_setting=ARM_SETTING[arm])
+        import dataclasses as _dc
+
+        from agents import models as agent_models
+
+        kept = agent_models.settings
+        agent_models.settings = _dc.replace(kept, **{ARM_SETTING[arm]: ARM_MODEL[arm]})
+        try:
+            block = await editor.outline(plan, notes, ahead=True,
+                                         model_setting=ARM_SETTING[arm])
+        finally:
+            agent_models.settings = kept
         editor_seconds = time.perf_counter() - t
         plan = dataclasses.replace(plan, editor_outline=block)
         if not block:

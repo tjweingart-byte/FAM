@@ -290,6 +290,16 @@ def _forget_what_the_log_taught() -> dict:
     except Exception:  # noqa: BLE001 - see the docstring
         log.exception("could not clear nando's training material")
         out.setdefault("nando_labels_dropped", 0)
+    # Mclovin's kept verdicts and their reviews (§439) were read off episodes
+    # the wipe has just emptied.
+    try:
+        from agents import supervisor_training
+
+        out["mclovin_flags_dropped"] = (supervisor_training.store().forget()
+                                        if supervisor_training.exists() else 0)
+    except Exception:  # noqa: BLE001 - see the docstring
+        log.exception("could not clear Mclovin's training material")
+        out.setdefault("mclovin_flags_dropped", 0)
     # The totals about groups of listeners (§415) were counted from the log.
     try:
         import demographic_totals

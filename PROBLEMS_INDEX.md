@@ -439,3 +439,4 @@ and `limit` = Lines.
 | 28633 | 117 | 436. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03) |
 | 28750 | 93 | 437. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03) |
 | 28843 | 33 | 438. Perplexity's refused field taken out, and one sentence of anyone's words in every episode (2026-11-03) |
+| 28876 | 135 | 439. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03) |

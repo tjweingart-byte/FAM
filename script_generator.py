@@ -1732,6 +1732,9 @@ class Repair:
     why: str
     #: The reader that failed it, whose guards and checks judge the rewrite.
     reader: object = None
+    #: True when no check failed it but the grounding checker was unsure
+    #: (§439): the small model's second look decides before any rewrite.
+    second_look: bool = False
 
 
 async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
@@ -1819,9 +1822,12 @@ class _ScriptReader:
         if self.mclovin is None:
             return sentence
         verdict = self.mclovin.check(sentence)
-        if not verdict.failing:
-            return sentence
-        return Repair(sentence, verdict.reasons(), self)
+        if verdict.failing:
+            return Repair(sentence, verdict.reasons(), self)
+        if verdict.unsure:
+            return Repair(sentence, "; ".join(c.why for c in verdict.unsure), self,
+                          second_look=True)
+        return sentence
 
     def recheck(self, text: str) -> bool:
         """Whether the writer's rewrite may be spoken: the same guards (not
@@ -3107,6 +3113,21 @@ class ScriptGenerator:
             return ""
         if checker is None:
             return item.sentence
+        if item.second_look:
+            # Only the grounding checker's unsure band (§439, step 5): the
+            # small model's one look, with the sources beside the sentence.
+            from agents import grounding
+
+            sources = "\n\n".join(b.text.strip()[:2500] for b in checker.nearest(item.sentence))
+            answer = await grounding.second_look(item.sentence, sources,
+                                                 ahead=bool(getattr(notes, "ahead", False)))
+            summary.setdefault("second_looks", []).append(
+                {"text": item.sentence[:240], "answer": answer or "unchecked"})
+            if answer != "no":
+                # Supported - or out of time or unsure: it plays, recorded
+                # (decided item 32).
+                return item.sentence
+            item = Repair(item.sentence, "the sources do not support it", reader)
         if checker.repairs >= max(0, int(settings.supervisor_max_repairs)):
             return dropped("past the episode's rewrites")
         checker.repairs += 1
