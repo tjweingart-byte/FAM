@@ -412,3 +412,4 @@ and `limit` = Lines.
 | 27503 | 14 | 409. The activation draft as a PDF, its decisions spelled out (2026-11-03) |
 | 27517 | 37 | 410. The owner approved the activation wording: counted by default (2026-11-03) |
 | 27554 | 59 | 411. The activation step, part 1: the API, and the Privacy Policy with it (2026-11-03) |
+| 27613 | 18 | 412. The owner signed consuela.md: Perplexity approved (2026-11-03) |

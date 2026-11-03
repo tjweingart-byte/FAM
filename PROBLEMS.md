@@ -27609,3 +27609,21 @@ Settings' no survives finishing again; a guest never counted; under 13
 confirmed then deleted, 13 today let in, a correction under 13 the same; a
 date corrected never removed; deletion takes the answers; an old client
 refused nothing; the policy's words and date).
+
+## 412. The owner signed consuela.md: Perplexity approved (2026-11-03)
+
+The owner signed manifest version 3 (574ee68): `consuela.md` is the §398
+proposal byte for byte - never 8's "approved so far" list gains Perplexity -
+and `MANIFEST.json` is the pending manifest the session wrote, in which only
+`consuela.md`'s fingerprint changed. `python tools/rulebook_manifest.py
+--verify`: every agent may run, signed with the same `owner.pub`.
+
+This time the session wrote the pending manifest itself (the proposal put in
+place on a scratch copy, `--write`, the signed book restored), so signing
+needed no clone: the owner downloaded the proposal and the pending manifest,
+signed in the `famsign` environment from a key file saved from TextEdit and
+deleted with `rm -P` straight after (§392's lesson), and uploaded the three
+files in one commit through GitHub's web page - no stray file this time.
+The proposals README now gives that route. The proposal and the pending
+manifest are deleted; `tests/test_consuela_proposal_398.py` takes its
+signed branch. The owner updates the copy held outside Claude.

@@ -7,13 +7,9 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-- **`consuela.md`** (PROBLEMS.md §398): never 8's list of approved
-  providers gains Perplexity, which the owner approved on 2026-11-02. The
-  rule itself - keep a provider's material only once the owner has
-  approved it - is unchanged; only the "so far" list is brought up to date.
-  Nothing else in the file changes.
-
-`nando.md` rule 12, the answer key, was signed on 2026-11-01 (§392).
+Nothing. `consuela.md` with Perplexity in never 8's list was signed on
+2026-11-03 (PROBLEMS.md §412, manifest version 3); `nando.md` rule 12 on
+2026-11-01 (§392).
 
 ## Signing it (on the owner's Mac, with the owner's key)
 
