@@ -28034,3 +28034,33 @@ launch, and the audience totals about $20 lower. `provider_usage.py`, the
 `sports-balldontlie` rule and its note keep Main's wording.
 
 **Pinned by** `tests/test_financials.py::test_tiingo_s_licence_is_priced_and_the_episode_is_haiku_s`.
+
+## 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03)
+
+CI's `postgres` job failed on the merges of #217 and #218 (and earlier on
+#202, #212 and #213) while the `test` job passed, so each merge went in red.
+Reproduced on a local Postgres 16 the way `ci.yml` runs it (`DATABASE_URL`
+set, the same tuning): 22 failures in seven files written for §396-§415,
+none in the code they test.
+
+**The cause.** Each read the store it had just written with
+`sqlite3.connect(store.path)`. With `DATABASE_URL` set every store is a
+schema in Postgres (§243), so the file at that path was empty and the read
+said `no such table`. Older tests that must read the file carry
+`@pytest.mark.sqlite_file`, which skips them on Postgres; these had neither
+the marker nor a read that follows the backend.
+
+**The fix.** A test that only reads what the code wrote now reads through
+`db.connect` (imported as `store_db`), the same door the stores use, so it
+reads the file under SQLite and the schema under Postgres and keeps running
+in both jobs: `test_archive_nodes_396`, `test_category_tag_404`,
+`test_consuela_consolidates_399`, `test_consuela_dedupe_401`,
+`test_consuela_longer_jobs_402`, `test_demographic_totals_415`,
+`test_tag_sync_405`. The one test that builds an archive in the pre-§394
+SQLite shape to watch it migrate is a test of the file, and is marked
+`sqlite_file`. No product code changed.
+
+**For the next new test:** read a store with `db.connect(store.path)`, not
+`sqlite3.connect`; reach for `sqlite_file` only when the file itself is the
+subject. A separate `close_all()` pool race has been named as a source of
+flaky Postgres runs; it is not this, and is not touched here.

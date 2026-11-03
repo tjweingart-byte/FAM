@@ -26,6 +26,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import db  # noqa: E402
 import history_archive as ha  # noqa: E402
 
 NOW = datetime(2026, 11, 2, 12, tzinfo=timezone.utc)
@@ -59,8 +60,10 @@ def _finding(url="https://www.reuters.com/a"):
 
 
 def _row(store, sql, *args):
-    with closing(sqlite3.connect(store.path)) as db:
-        return db.execute(sql, args).fetchone()
+    """Read the store the code wrote - its file, or its schema in Postgres
+    when DATABASE_URL is set (§243)."""
+    with closing(db.connect(store.path)) as conn:
+        return conn.execute(sql, args).fetchone()
 
 
 # --- node ids on intake and facts -------------------------------------------
@@ -93,16 +96,17 @@ def test_a_write_that_knows_no_node_never_forgets_the_filed_one(archive):
         "eagles", json.dumps(["nfl", "eagles"]))
 
 
+@pytest.mark.sqlite_file
 def test_an_archive_made_before_394_is_migrated_in_place(tmp_path):
     path = str(tmp_path / "old.db")
-    with closing(sqlite3.connect(path)) as db, db:
-        db.execute("CREATE TABLE intake (id TEXT PRIMARY KEY, url TEXT NOT NULL,"
+    with closing(sqlite3.connect(path)) as old, old:
+        old.execute("CREATE TABLE intake (id TEXT PRIMARY KEY, url TEXT NOT NULL,"
                    " title TEXT NOT NULL, host TEXT NOT NULL, grade TEXT NOT NULL,"
                    " published TEXT NOT NULL, passages TEXT NOT NULL,"
                    " subjects TEXT NOT NULL, categories TEXT NOT NULL,"
                    " first_seen REAL NOT NULL, last_seen REAL NOT NULL,"
                    " seen INTEGER NOT NULL, digested INTEGER NOT NULL DEFAULT 0)")
-        db.execute("INSERT INTO intake VALUES ('a', 'https://x.com/a', 't', 'x.com',"
+        old.execute("INSERT INTO intake VALUES ('a', 'https://x.com/a', 't', 'x.com',"
                    " 'primary', '', '[]', '[]', '[]', 1, 1, 1, 0)")
     store = ha.SQLiteBackend(path)
     assert _row(store, "SELECT nodes, by_provider FROM intake") == ("[]", "{}")

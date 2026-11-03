@@ -424,3 +424,4 @@ and `limit` = Lines.
 | 27938 | 20 | 421. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03) |
 | 27958 | 14 | 422. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03) |
 | 27972 | 66 | 423. The costs on the Haiku writer, the launch plans for sports and markets, and the batched writer test (2026-11-03) |
+| 28038 | 30 | 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03) |

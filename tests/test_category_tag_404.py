@@ -9,7 +9,6 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
-import sqlite3
 import sys
 from contextlib import closing
 from types import SimpleNamespace
@@ -18,6 +17,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import db as store_db  # noqa: E402  (a store's file, or its schema in Postgres, §243)
 import audio_store  # noqa: E402
 import category_tag  # noqa: E402
 import history_archive as ha  # noqa: E402
@@ -139,7 +139,7 @@ def test_retag_moves_the_script_row_the_bucket_and_the_archive_together(bucket, 
     name, = scripts.audio_objects("k1")
     assert bucket.metadata[name]["category-node"] == "nfl"
     assert archive.episode_node(episode) == "nfl"
-    with closing(sqlite3.connect(archive.path)) as db:
+    with closing(store_db.connect(archive.path)) as db:
         assert json.loads(db.execute("SELECT nodes FROM intake").fetchone()[0]) == ["nfl"]
     assert category_tag.report()["retagged"] == 1
 
