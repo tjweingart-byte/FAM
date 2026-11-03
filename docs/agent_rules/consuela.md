@@ -62,4 +62,5 @@ what will be valuable to FAM over time.
 7. Delete anything for good on a first pass.
 8. Keep anything from a provider in a way its terms do not allow. Keep a
    provider's material only once the owner has approved that provider
-   (approved so far: GDELT, with its citation; Tiingo; BALLDONTLIE).
+   (approved so far: GDELT, with its citation; Tiingo; BALLDONTLIE;
+   Perplexity).
