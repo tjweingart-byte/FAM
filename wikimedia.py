@@ -830,6 +830,47 @@ def lookup(name: str, context: str = "",
     return _reference(body, today) if body else None
 
 
+def known(name: str) -> str:
+    """Whether Wikidata knows a person by this name (public figures only,
+    decided item 16, §431): "known" when an item's English label or the
+    alias the search matched on is exactly `name` (any of several), "unknown"
+    when none is, and "unchecked" when the look is off or did not answer -
+    which establishes nothing ([missed-not-absent]). One request, its answer
+    kept a day. Never raises."""
+    name = " ".join(str(name or "").split())
+    target = normalise(name)
+    if not target or not enabled():
+        return "unchecked"
+    key = "known|" + target
+    held = None
+    try:
+        held = store()
+        found, body = held.get(key)
+        if found:
+            return "known" if body == "1" else "unknown"
+        # An entry the reference look already kept is a known name.
+        found, body = held.get(target)
+        if found and body:
+            return "known"
+    except Exception:  # noqa: BLE001 - a broken cache is a miss
+        log.warning("wikimedia: the cache could not be read", exc_info=True)
+    try:
+        hits = _wikidata({"action": "wbsearchentities", "search": name,
+                          "language": "en", "type": "item", "limit": "7"})
+    except Exception as exc:  # noqa: BLE001
+        log.warning("wikimedia: the public-figure look did not answer (%s)", exc)
+        return "unchecked"
+    exact = any(isinstance(h, dict) and target in (
+        normalise(h.get("label", "")), normalise((h.get("match") or {}).get("text", "")))
+        for h in hits.get("search") or [])
+    if held is not None:
+        try:
+            held.put(key, "1" if exact else "0")
+        except Exception:  # noqa: BLE001
+            log.warning("wikimedia: the answer could not be kept", exc_info=True)
+    return "known" if exact else "unknown"
+
+
 def report() -> dict:
     """For `/api/health`. Never creates the store, never sends anything."""
     cap = int(getattr(settings, "wikimedia_monthly_requests", 45000))

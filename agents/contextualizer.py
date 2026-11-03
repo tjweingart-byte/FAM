@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import logging
+import re
 import threading
 from typing import Optional
 
@@ -149,6 +150,45 @@ def note_empty_search(look) -> None:
         log.warning("could not note an empty search", exc_info=True)
 
 
+#: A recommendation in FAM's own voice (decided item 17, §425). Checked on
+#: the finished script of an advice request and only counted and logged -
+#: never a block on an episode (every-agent.md always 1). A quoted
+#: authority ("doctors say you should") is counted too: the count is a
+#: prompt to listen, not a verdict.
+RECOMMENDS = re.compile(
+    # Not "whether you should" or "if you should": that is the question, not
+    # an answer to it (review, §432).
+    r"(?<!whether )(?<!if )"
+    r"\b(?:you should|you shouldn't|you ought to|you'd be better off|"
+    r"i(?:'d| would) (?:recommend|suggest|advise)|we (?:recommend|suggest|advise)|"
+    r"my advice|our advice|your best (?:bet|option|move)|"
+    r"the (?:best|smart) (?:thing|move) (?:is|would be|to do))\b", re.I)
+
+
+def advice_audit(notes, script) -> Optional[str]:
+    """After the writer: whether an advice request's script recommended.
+
+    Counts `advice_planned` for every advice request C3P0 flagged and
+    `advice_recommended` when the script still says what to do, logging the
+    phrase (never the request). Returns the phrase or None. Never raises."""
+    try:
+        plan = getattr(notes, "research_plan", None)
+        if plan is None or not getattr(plan, "advice_request", False):
+            return None
+        _count("advice_planned")
+        text = " ".join(script) if isinstance(script, (list, tuple)) else str(script or "")
+        found = RECOMMENDS.search(text)
+        if not found:
+            return None
+        _count("advice_recommended")
+        log.warning("C3P0: an advice request's script recommended (%r)",
+                    found.group(0))
+        return found.group(0)
+    except Exception:  # noqa: BLE001
+        log.warning("the advice audit failed; the episode is unaffected", exc_info=True)
+        return None
+
+
 def report() -> dict:
     from config import settings
 
@@ -176,7 +216,7 @@ def reset() -> None:
 # moment the brief's search half was always asked: nothing new in series.
 # With Nando working too, the same call picks his node from a candidate list
 # code built from the tree (Nando's choice, §346: folded into the brief).
-import re  # noqa: E402
+
 
 from pydantic import BaseModel, ConfigDict, Field  # noqa: E402
 from typing import Literal  # noqa: E402
@@ -461,10 +501,11 @@ def instructions() -> str:
             + "\n\n" + C3P0_INSTRUCTIONS)
 
 
-def _moment(query: str, minutes: int, context: str, now: str, covered: tuple) -> str:
+def _moment(query: str, minutes: int, context: str, now: str, covered: tuple,
+            reading: str = "") -> str:
     import episode_intelligence as ei
 
-    text = ei.build_ei_prompt(query, minutes, context, now, covered, ())
+    text = ei.build_ei_prompt(query, minutes, context, now, covered, (), reading=reading)
     # The request goes in its own tag; what remains is the moment, the
     # length and any follow-up - the brief's own wording of them. What to
     # work out is in the instructions, so the empty heading goes.
@@ -473,7 +514,8 @@ def _moment(query: str, minutes: int, context: str, now: str, covered: tuple) ->
 
 
 async def search_half(query: str, minutes: int, context: str, now: str, covered: tuple,
-                      ahead: bool, notes, candidates: tuple, fallback) -> tuple:
+                      ahead: bool, notes, candidates: tuple, fallback,
+                      reading: str = "") -> tuple:
     """The brief's search half as C3P0's call: `(kind, data, reason)` in the
     shape `episode_intelligence._ask` returns, `data` carrying the search
     fields and `_c3p0` beside them. A request that was never sent (held,
@@ -485,7 +527,7 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
 
     try:
         material = [("request", query), ("evidence", _moment(query, minutes, context, now,
-                                                             covered))]
+                                                             covered, reading))]
         if candidates:
             from agents import categorizer
 

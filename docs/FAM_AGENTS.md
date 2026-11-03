@@ -783,6 +783,26 @@ latency matters more here than for any other agent.
   choices are recorded and compared with the code routes
   (`plugins_agree`/`plugins_differ`), not yet followed. His title is the
   episode's (`CONTEXTUALIZER_TITLES`).
+- **Built (§425): `advice_request` is acted on** - the writer reads
+  `episode_intelligence.ADVICE_NOTE` (the facts around the decision, never a
+  recommendation) and `contextualizer.advice_audit` counts any recommendation
+  left in the finished script; never a block.
+- **Built (§426-§427): `ambiguous` asks the listener.** A client that sends
+  `ask_reading=1` (any tap that may write an episode) is stopped after the brief,
+  before any plugin or Sonic: `/api/audio` answers 300 with the readings and
+  `/api/progress` carries them; the choice returns as `reading=` and joins
+  the question ("how did United do (Manchester United)", §432), so the key,
+  saves, shares, history and the offline copy all carry it. Every tap that
+  may write an episode can ask; older clients get the likeliest reading
+  (kept, never current); prefetch and the editions leave it unwritten.
+  Nando's tie call never picks between the readings of an undecided name.
+- **Built (§431): `private_person` acted on** (public figures only, decided
+  item 16). Before any search, Wikidata is asked whether it knows the name
+  (`wikimedia.known`); after the search, a name Wikidata did not know is
+  refused unless the reporting names them (`PrivatePerson`, a `NoEvidence`:
+  no episode, a plain sentence that names nobody, logged and counted). A look
+  that did not answer establishes nothing. Built on stubs; the first real
+  answers are production's.
 
 ### Settings and open questions
 
@@ -1423,7 +1443,7 @@ languages). Every hole is closed by "uncertain = not compared".
 | `HOUSEKEEPER_DEDUPE_PAIRS` | Built (§401): 200 - pairs asked of the models per night, at most |
 | `HOUSEKEEPER_DRY_RUN` | Built (§399): `1` - she chooses and `tools/consuela_report.py` shows it, nothing is written - until the owner sets `0` |
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_BATCHES_PER_RUN` | Built (§399): 8 articles per call, 5 calls per run of her task |
-| `HOUSEKEEPER_APPROVED_PROVIDERS` | Built (§397): `fam,gdelt,tiingo,balldontlie,perplexity`; Parallel, Finnhub and API-Sports refused in code (`history_archive.REFUSED`) |
+| `HOUSEKEEPER_APPROVED_PROVIDERS` | Built (§397): `fam,gdelt,tiingo,balldontlie,perplexity,gnews` (GNews 2026-11-03, Polymarket pending); applied to the whole archive whether or not Consuela runs (§429); Parallel, Finnhub and API-Sports refused in code (`history_archive.REFUSED`) |
 
 **May FAM keep what the providers return?** The owner's use (2026-10-28):
 an internal, chronological history of what FAM searched with its own keys,

@@ -163,6 +163,10 @@ PROVIDERS = ("perplexity", "parallel", "gdelt")
 #: backup search, and nothing it returned is kept (docs/PROVIDER_TERMS.md).
 NEVER_KEPT = ("parallel",)
 
+#: The series' columns, in order: what a withdrawn reading keeps (§430).
+SERIES_COLUMNS = ("id", "subject", "metric", "as_of", "as_of_ts", "value", "unit",
+                  "text", "status", "source", "domain", "node_id", "created")
+
 #: Providers Consuela may never store, whatever `HOUSEKEEPER_APPROVED_PROVIDERS`
 #: says (§397): Parallel's terms forbid it (§366); Finnhub and API-Sports must
 #: be treated as not approved until they are removed (decided item 41).
@@ -211,13 +215,16 @@ def approved(provider: str) -> bool:
 
 
 def kept_live(records) -> list:
-    """The live records the archive may keep as facts (§417): every one
-    before Consuela runs (§313); once she runs, only an approved provider's,
-    as for everything else she stores (§397) - never a refused one's."""
+    """The live records the archive may keep as facts (§417): only an
+    approved provider's, whether or not Consuela runs (the owner, §429) -
+    never a refused or unknown one's."""
     records = list(records or ())
-    if not records or not consuela_runs():
+    if not records:
         return records
-    return [r for r in records if approved(str(r.get("source", "") or ""))]
+    allowed = [r for r in records if approved(str(r.get("source", "") or ""))]
+    if len(allowed) < len(records):
+        _count("not_approved", len(records) - len(allowed))
+    return allowed
 
 
 @dataclass
@@ -437,6 +444,11 @@ class SQLiteBackend:
                        " node_id TEXT NOT NULL, created REAL NOT NULL)")
             db.execute("CREATE INDEX IF NOT EXISTS live_series_subject"
                        " ON live_series(subject, metric, as_of_ts)")
+            # Readings taken out of the series and held for a grace period
+            # before they are deleted for good (§430, always 8).
+            db.execute("CREATE TABLE IF NOT EXISTS withdrawn ("
+                       " id TEXT PRIMARY KEY, store TEXT NOT NULL,"
+                       " doc TEXT NOT NULL, why TEXT NOT NULL, at REAL NOT NULL)")
 
     def _connect(self) -> sqlite3.Connection:
         return store_db.connect(self.path, timeout=10)
@@ -779,6 +791,89 @@ class SQLiteBackend:
                              "AND superseded_at > 0 AND superseded_at < ?", (before,))
             return cur.rowcount or 0
 
+    # -------------------------------------------------- withdrawing a provider (§430)
+    def provider_rows(self, providers: tuple) -> list:
+        """Active live facts and readings a provider in `providers` supplied."""
+        out = []
+        with self._lock, closing(self._connect()) as db:
+            for fid, host, title, published in db.execute(
+                    "SELECT id, host, title, published FROM facts "
+                    "WHERE kind = 'live' AND active = 1"):
+                if provider_id(host) in providers:
+                    out.append({"store": "facts", "id": fid, "provider": host,
+                                "title": title, "when": published})
+            for rid, source, subject, as_of in db.execute(
+                    "SELECT id, source, subject, as_of FROM live_series"):
+                if provider_id(source) in providers:
+                    out.append({"store": "live_series", "id": rid, "provider": source,
+                                "title": subject, "when": as_of})
+        return out
+
+    def withdraw(self, rows: list, why: str, now: float) -> int:
+        """Take `rows` out of every reader's sight, kept for undoing: a fact
+        marked inactive (no keeper), a reading moved to `withdrawn`."""
+        done = 0
+        with self._lock, closing(self._connect()) as db, db:
+            for row in rows:
+                if row["store"] == "facts":
+                    cur = db.execute(
+                        "UPDATE facts SET active = 0, superseded_by = '', superseded_at = ?, "
+                        "superseded_why = ? WHERE id = ? AND active = 1",
+                        (now, why, row["id"]))
+                    done += cur.rowcount or 0
+                elif row["store"] == "live_series":
+                    found = db.execute(f"SELECT {', '.join(SERIES_COLUMNS)} FROM "
+                                       "live_series WHERE id = ?", (row["id"],)).fetchone()
+                    if found is None:
+                        continue
+                    doc = dict(zip(SERIES_COLUMNS, found))
+                    db.execute("INSERT INTO withdrawn (id, store, doc, why, at) "
+                               "VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+                               (row["id"], "live_series", json.dumps(doc), why, now))
+                    db.execute("DELETE FROM live_series WHERE id = ?", (row["id"],))
+                    done += 1
+        return done
+
+    def restore_withdrawn(self, why: str) -> int:
+        """Undo `withdraw` for everything withdrawn for `why`."""
+        done = 0
+        with self._lock, closing(self._connect()) as db, db:
+            cur = db.execute("UPDATE facts SET active = 1, superseded_at = 0, "
+                             "superseded_why = '' WHERE active = 0 AND superseded_by = '' "
+                             "AND superseded_why = ?", (why,))
+            done += cur.rowcount or 0
+            for rid, doc in db.execute("SELECT id, doc FROM withdrawn WHERE why = ?",
+                                       (why,)).fetchall():
+                row = json.loads(doc)
+                cols = ", ".join(row)
+                marks = ", ".join("?" for _ in row)
+                db.execute(f"INSERT INTO live_series ({cols}) VALUES ({marks}) "
+                           "ON CONFLICT(id) DO NOTHING", tuple(row.values()))
+                db.execute("DELETE FROM withdrawn WHERE id = ?", (rid,))
+                done += 1
+        return done
+
+    def purge_withdrawn(self, why: str, before: float) -> int:
+        """Delete for good what was withdrawn for `why` before `before`."""
+        with self._lock, closing(self._connect()) as db, db:
+            a = db.execute("DELETE FROM facts WHERE active = 0 AND superseded_by = '' "
+                           "AND superseded_why = ? AND superseded_at > 0 "
+                           "AND superseded_at < ?", (why, before)).rowcount or 0
+            b = db.execute("DELETE FROM withdrawn WHERE why = ? AND at < ?",
+                           (why, before)).rowcount or 0
+        return a + b
+
+    def withdrawn_count(self, why: str) -> dict:
+        with self._lock, closing(self._connect()) as db:
+            facts = db.execute("SELECT COUNT(*), MIN(superseded_at) FROM facts "
+                               "WHERE active = 0 AND superseded_by = '' "
+                               "AND superseded_why = ?", (why,)).fetchone()
+            held = db.execute("SELECT COUNT(*), MIN(at) FROM withdrawn WHERE why = ?",
+                              (why,)).fetchone()
+        firsts = [t for t in (facts[1], held[1]) if t]
+        return {"facts": facts[0] or 0, "readings": held[0] or 0,
+                "since": min(firsts) if firsts else None}
+
     def add_reading(self, reading: "Reading", now: float) -> str:
         """Keep one reading. The same subject, metric and moment again is
         the same record: the first stays (§396)."""
@@ -931,6 +1026,7 @@ class AtlasBackend:
         self.episodes_c = database["episode_sources"]
         self.facts_c = database["facts"]
         self.series_c = database["live_series"]
+        self._database = database
         self._indexed = False
 
     def ensure_indexes(self) -> None:
@@ -1258,6 +1354,84 @@ class AtlasBackend:
             "active": False, "superseded_by": {"$ne": ""},
             "superseded_at": {"$lt": datetime.fromtimestamp(before, timezone.utc)}})
         return int(getattr(result, "deleted_count", 0) or 0)
+
+    # -------------------------------------------------- withdrawing a provider (§430)
+    @property
+    def held_c(self):
+        """Readings withdrawn and held for a grace period (§430). Opened
+        when first used, so nothing else ever touches it."""
+        return self._database["withdrawn"]
+
+    def provider_rows(self, providers: tuple) -> list:
+        out = []
+        for d in self.facts_c.find({"kind": "live", "active": True},
+                                   {"host": 1, "title": 1, "published": 1}):
+            if provider_id(d.get("host", "")) in providers:
+                out.append({"store": "facts", "id": d["_id"], "provider": d.get("host", ""),
+                            "title": d.get("title", ""), "when": d.get("published", "")})
+        for d in self.series_c.find({}, {"source": 1, "subject": 1, "as_of": 1}):
+            if provider_id(d.get("source", "")) in providers:
+                when = d.get("as_of", "")
+                out.append({"store": "live_series", "id": d["_id"],
+                            "provider": d.get("source", ""), "title": d.get("subject", ""),
+                            "when": when.isoformat() if hasattr(when, "isoformat") else str(when)})
+        return out
+
+    def withdraw(self, rows: list, why: str, now: float) -> int:
+        done = 0
+        at = datetime.fromtimestamp(now, timezone.utc)
+        held = self.held_c
+        for row in rows:
+            if row["store"] == "facts":
+                result = self.facts_c.update_one(
+                    {"_id": row["id"], "active": True},
+                    {"$set": {"active": False, "superseded_by": "",
+                              "superseded_at": at, "superseded_why": why}})
+                done += int(getattr(result, "modified_count", 1) or 0)
+            elif row["store"] == "live_series":
+                doc = self.series_c.find_one({"_id": row["id"]})
+                if doc is None or held is None:
+                    continue
+                held.update_one({"_id": row["id"]},
+                                {"$setOnInsert": {"store": "live_series", "doc": doc,
+                                                  "why": why, "at": at}}, upsert=True)
+                self.series_c.delete_one({"_id": row["id"]})
+                done += 1
+        return done
+
+    def restore_withdrawn(self, why: str) -> int:
+        result = self.facts_c.update_many(
+            {"active": False, "superseded_by": "", "superseded_why": why},
+            {"$set": {"active": True}, "$unset": {"superseded_at": "", "superseded_why": ""}})
+        done = int(getattr(result, "modified_count", 0) or 0)
+        held = self.held_c
+        if held is not None:
+            for d in list(held.find({"why": why})):
+                # `_id` comes from the filter; MongoDB refuses it in the update.
+                doc = {k: v for k, v in (d.get("doc") or {}).items() if k != "_id"}
+                self.series_c.update_one({"_id": d["_id"]}, {"$setOnInsert": doc},
+                                         upsert=True)
+                held.delete_one({"_id": d["_id"]})
+                done += 1
+        return done
+
+    def purge_withdrawn(self, why: str, before: float) -> int:
+        cut = datetime.fromtimestamp(before, timezone.utc)
+        a = self.facts_c.delete_many({"active": False, "superseded_by": "",
+                                      "superseded_why": why, "superseded_at": {"$lt": cut}})
+        done = int(getattr(a, "deleted_count", 0) or 0)
+        held = self.held_c
+        if held is not None:
+            b = held.delete_many({"why": why, "at": {"$lt": cut}})
+            done += int(getattr(b, "deleted_count", 0) or 0)
+        return done
+
+    def withdrawn_count(self, why: str) -> dict:
+        facts = self.facts_c.count_documents({"active": False, "superseded_by": "",
+                                              "superseded_why": why})
+        held = self.held_c
+        readings = held.count_documents({"why": why}) if held is not None else 0
+        return {"facts": facts, "readings": readings, "since": None}
 
     def add_reading(self, reading: "Reading", now: float) -> str:
         self.ensure_indexes()
@@ -1743,9 +1917,10 @@ def _kept(findings: list) -> list:
     dropped = len(findings or ()) - len(kept)
     if dropped:
         _count("never_kept", dropped)
-    # While Consuela runs, only what an approved provider returned (§397).
-    # With her off, the intake keeps what it kept before her.
-    if kept and consuela_runs():
+    # Only what an approved provider returned (§397) - whether or not
+    # Consuela runs (the owner, §429): the approval list is a rule about
+    # what FAM may keep, not about who keeps it.
+    if kept:
         allowed = [f for f in kept if approved(f.provider)]
         if len(allowed) < len(kept):
             _count("not_approved", len(kept) - len(allowed))

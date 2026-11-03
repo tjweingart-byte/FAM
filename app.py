@@ -94,7 +94,7 @@ from research import NoEvidence, ResearchUnavailable, report as research_report
 import local_news as local_news_mod
 import weather as weather_mod
 from pipeline import GenerationStats, NotCached, PodcastPipeline
-from script_generator import ScriptGenerator, ScriptNotes, plan_episode, writer_for
+from script_generator import ReadingNeeded, ScriptGenerator, ScriptNotes, plan_episode, writer_for
 import attachments as attachments_mod
 import autocorrect as autocorrect_mod
 import categories as categories_mod
@@ -1835,7 +1835,7 @@ def _cache_holds(key: str) -> bool:
 
 
 def _validated_plan(q: str, minutes: int, context: str = "", search: bool | None = None,
-                    cached_only: bool = False, attachments: tuple = ()):
+                    cached_only: bool = False, attachments: tuple = (), reading: str = ""):
     q = (q or "").strip()
     if not q:
         raise HTTPException(status_code=400, detail="Ask a question first.")
@@ -1846,8 +1846,20 @@ def _validated_plan(q: str, minutes: int, context: str = "", search: bool | None
             status_code=400,
             detail=f"Length must be {settings.min_minutes}-{settings.max_minutes} minutes.",
         )
-    return plan_episode(q, minutes, (context or "").strip()[:300], search, cached_only,
+    plan = plan_episode(q, minutes, (context or "").strip()[:300], search, cached_only,
                         attachments)
+    # The reading the listener chose (§426), only when there is one. It
+    # becomes part of the question - "how did United do (Manchester United)"
+    # - so the episode's key, its saves, shares, history and offline copy all
+    # name it the way they name any question (review, §432); the client asks
+    # with those words already, and they are never added twice.
+    reading = " ".join(str(reading or "").split())[:200]
+    if not reading:
+        return plan
+    asked = plan.query
+    if not asked.rstrip().endswith(f"({reading})"):
+        asked = f"{asked.rstrip()} ({reading})"[:500]
+    return dataclasses.replace(plan, query=asked, reading=reading)
 
 
 class ScriptRequest(BaseModel):
@@ -10129,6 +10141,9 @@ async def episode_sources(
     # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
     search: bool | None = Query(None),
+    # The reading the listener chose for a shared name (§426): part of the
+    # episode's key, so every key-shaped request carries it.
+    reading: str = Query("", max_length=200),
 ):
     """Who this episode's facts came from.
 
@@ -10143,7 +10158,7 @@ async def episode_sources(
     cite them aloud. See `provenance.py`.
     """
     _read_limit(request)
-    plan = _validated_plan(q, minutes, context, search)
+    plan = _validated_plan(q, minutes, context, search, reading=reading)
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
@@ -10168,6 +10183,9 @@ async def episode_transcript(
     # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
     search: bool | None = Query(None),
+    # The reading the listener chose for a shared name (§426): part of the
+    # episode's key, so every key-shaped request carries it.
+    reading: str = Query("", max_length=200),
 ):
     """The sentences this episode is made of, for live captions.
 
@@ -10201,7 +10219,7 @@ async def episode_transcript(
     transcript at all.
     """
     _read_limit(request)
-    plan = _validated_plan(q, minutes, context, search)
+    plan = _validated_plan(q, minutes, context, search, reading=reading)
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
@@ -10232,6 +10250,9 @@ async def progress(
     # so this has to as well or it asks about a different key.
     surface: str = Query("", max_length=16),
     topic_id: str = Query("", max_length=64),
+    # The reading the listener chose for a shared name (§426): part of the
+    # episode's key, so every key-shaped request carries it.
+    reading: str = Query("", max_length=200),
 ):
     """Which of the loading screen's steps the episode being made has finished.
 
@@ -10253,7 +10274,7 @@ async def progress(
     _read_limit(request)
     if _play_surface(surface, False, topic_id, context) in BROWSE_SURFACES:
         minutes = BROWSE_MINUTES
-    plan = _validated_plan(q, minutes, context, search)
+    plan = _validated_plan(q, minutes, context, search, reading=reading)
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
@@ -10274,6 +10295,9 @@ async def next_thread(
     # details; anything else plays a current one, and past its window the
     # kept row is the previous episode under this key (§143).
     cached_only: bool = Query(False),
+    # The reading the listener chose for a shared name (§426): part of the
+    # episode's key, so every key-shaped request carries it.
+    reading: str = Query("", max_length=200),
 ):
     """The follow-up this listener is most likely to want, and the episode's
     own title.
@@ -10299,7 +10323,7 @@ async def next_thread(
     it had.
     """
     _read_limit(request)
-    plan = _validated_plan(q, minutes, context, search)
+    plan = _validated_plan(q, minutes, context, search, reading=reading)
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
@@ -10348,6 +10372,12 @@ async def audio(
                                              "incognito, §282): the play is not "
                                              "recorded and what it writes is on "
                                              "no feed and names no author"),
+    # The reading the listener chose for a shared name (§426): part of the
+    # episode's key, so every key-shaped request carries it.
+    reading: str = Query("", max_length=200),
+    # A client that can ask which reading of a shared name the listener
+    # means (§426). An older client never sends it and gets the likeliest.
+    ask_reading: bool = Query(False),
 ):
     """Stream the episode.
 
@@ -10376,7 +10406,9 @@ async def audio(
     minutes = min(minutes, entitlements.max_minutes(_tier(request),
                                                     settings.max_minutes))
     plan = _validated_plan(q, minutes, context, search, cached_only,
-                           _attachments_for(user, attach))
+                           _attachments_for(user, attach), reading=reading)
+    if ask_reading:
+        plan = dataclasses.replace(plan, ask_reading=True)
     # A reviewer took this episode down (moderation.py, §226): it plays for
     # nobody - not from a share, a rail, a replay, or written again.
     if _episode_target(q, minutes) in MODERATION.hidden_episodes():
@@ -10535,6 +10567,19 @@ async def audio(
             if sum(audio_codec_mod.pcm_len(c) for c in primed) - WAV_HEADER_BYTES >= preroll_bytes:
                 preroll_at = time.monotonic() - started
                 break
+    except ReadingNeeded as exc:
+        # A name that means two things (decided item 15, §426): stopped after
+        # the brief, before anything was searched. Nothing was heard, so the
+        # episode is not charged - the brief was FAM's spend, as with
+        # `NoEvidence` - and the readings go back to be asked. 300, Multiple
+        # Choices, and only to a client that sent `ask_reading=1`.
+        _record_usage(user, stats.usage,
+                      surface=_surface(cached_only, topic_id, context),
+                      minutes=plan.minutes, audio_seconds=0.0, cache_hit=False)
+        _refund(reserved, user)
+        return JSONResponse(status_code=300, content={
+            "detail": str(exc), "readings": list(exc.readings),
+            "likeliest": exc.likeliest})
     except NotCached as exc:
         # Expected, not a fault: the entry expired between listing and tapping.
         # The interface drops the card and moves on.

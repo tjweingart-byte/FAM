@@ -356,6 +356,10 @@ class Brief:
     #: exactly what it was. Kept on the brief so a brief warmed before the
     #: tap carries it.
     contextualized: dict = field(default_factory=dict)
+    #: Which thing a name that means two things is (§426): the reading the
+    #: listener chose, or C3P0's likeliest for a client that cannot ask. ""
+    #: otherwise, and the writer then reads exactly what it did before.
+    reading: str = ""
     #: True when the model call did not happen or could not be used, and this
     #: brief was assembled from the raw query. Reported, never hidden: an EI
     #: layer that silently degrades is the "quietly worse than intended"
@@ -1323,7 +1327,7 @@ FORMATS = {
 
 
 def build_ei_prompt(query: str, minutes: int, context: str = "",
-                    now: str = "", covered=(), fields=None) -> str:
+                    now: str = "", covered=(), fields=None, reading: str = "") -> str:
     """The brief's user turn: the request, the moment, and what to work out.
 
     `fields` names the entries of `FIELD_GUIDE` to ask for, in its order;
@@ -1332,8 +1336,16 @@ def build_ei_prompt(query: str, minutes: int, context: str = "",
     """
     depth_name, depth_mix = depth_for(minutes)
     follow_up = ""
+    if reading:
+        # The listener was asked which thing a shared name means and chose
+        # (decided item 15, §426). Only when they did, so every other
+        # brief's prompt is the text it always was.
+        follow_up += (
+            f"\nA name in it means more than one thing, so they were asked "
+            f"which they meant and chose: {reading}. Take that meaning; the "
+            "request is not ambiguous.\n")
     if context:
-        follow_up = (
+        follow_up += (
             f"\nThis is a follow-up. They have already heard a briefing on: "
             f"{context}\nThe search must find what is *new* relative to that, "
             "not the same ground again.\n")
@@ -1573,15 +1585,17 @@ def _count(kind: str, path: str) -> None:
 
 async def _ask(client, part: str, query: str, minutes: int, context: str,
                now: str, covered: tuple, timeout: float, notes,
-               path: str = "") -> tuple:
+               path: str = "", reading: str = "") -> tuple:
     """One brief call: `(kind, data, reason)`, `kind` "ok" or why it failed.
     Never raises."""
     if part == "outline":
-        content = (build_ei_prompt(query, minutes, context, now, covered, ())
+        content = (build_ei_prompt(query, minutes, context, now, covered, (),
+                                   reading=reading)
                    + OUTLINE_GUIDE)
     else:
         content = build_ei_prompt(query, minutes, context, now, covered,
-                                  None if part == "whole" else PARTS[part])
+                                  None if part == "whole" else PARTS[part],
+                                  reading=reading)
     try:
         response = await asyncio.wait_for(
             client.messages.create(
@@ -1657,7 +1671,7 @@ def _search_fields(data: dict, query: str) -> dict:
 
 async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
                      notes=None, now: str | None = None, covered=(),
-                     ahead: bool = False) -> Brief:
+                     ahead: bool = False, reading: str = "") -> Brief:
     """Work out what this request is, before anything is retrieved.
 
     Never raises. Every failure path returns `fallback_brief`, which searches
@@ -1722,7 +1736,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         # ceiling ahead, where nobody waits), then the brief goes without it.
         def ask(part: str):
             own = _ask(client, part, query, minutes, context, now,
-                       tuple(covered or ()), timeout, notes, path)
+                       tuple(covered or ()), timeout, notes, path, reading=reading)
             if part != "search" or not c3p0:
                 return own
             from agents import contextualizer
@@ -1731,10 +1745,10 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
 
             def fallback():
                 return _ask(client, part, query, minutes, context, now,
-                            tuple(covered or ()), timeout, notes, path)
+                            tuple(covered or ()), timeout, notes, path, reading=reading)
             return contextualizer.search_half(query, minutes, context, now,
                                               tuple(covered or ()), ahead, notes,
-                                              candidates, fallback)
+                                              candidates, fallback, reading=reading)
 
         main = asyncio.gather(*(_timed(part, path, ask(part), notes) for part in parts))
         outline_task = None
@@ -1742,7 +1756,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
             outline_task = asyncio.ensure_future(_timed(
                 "outline", path,
                 _ask(client, "outline", query, minutes, context, now,
-                     tuple(covered or ()), timeout, notes, path)))
+                     tuple(covered or ()), timeout, notes, path, reading=reading)))
         try:
             answers = await main
         except BaseException:
@@ -1988,6 +2002,27 @@ def build_structure_note(brief: Brief) -> str:
     return note
 
 
+#: What the writer reads when C3P0 says a request asks for medical, legal or
+#: financial advice (decided item 17, §425). A test pins this wording.
+ADVICE_NOTE = (
+    "This asks for medical, legal or financial advice, and FAM never gives "
+    "it: do not tell them what to do, recommend anything, or choose for "
+    "them. Answer with the facts around the decision instead - what it is, "
+    "the options and what each involves, what is known about how they turn "
+    "out, what they cost or risk, and who decides and how. What a doctor, a "
+    "regulator or the law says is a fact when the evidence says it, and is "
+    "said as theirs. Land on the most concrete fact, never on a verdict and "
+    "never on telling them to go and ask someone.")
+
+
+#: What the writer reads when a name in the request means more than one thing
+#: and one meaning was taken (§426). A test pins this wording.
+READING_NOTE = (
+    "A name in the request means more than one thing; this episode is about "
+    "{reading}. Write about that and nothing else that shares the name, and "
+    "leave out evidence about the others.")
+
+
 def build_brief_block(brief: Brief, minutes: int) -> str:
     """Everything EI worked out, as the writer needs to read it.
 
@@ -2042,6 +2077,18 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
             "Earlier reporting from FAM's archive is never that result: it "
             "is an earlier game, an earlier close, an earlier vote, and is "
             "said as one, with its date.")
+
+    # C3P0's flag (decided item 17; every-agent.md never 10, c3p0.md never
+    # 7): an advice request is written as the facts around it. Only while he
+    # works on the episode - `contextualized` is empty otherwise, so with
+    # the agents off this block is exactly what it was.
+    if (brief.contextualized or {}).get("advice_request"):
+        lines.append(ADVICE_NOTE)
+
+    # Which of a shared name's meanings this is (§426): chosen by the
+    # listener, or C3P0's likeliest for a client that cannot ask.
+    if brief.reading:
+        lines.append(READING_NOTE.format(reading=brief.reading))
 
     if brief.cautions:
         lines.append("Be careful about this, and take the evidence over your "

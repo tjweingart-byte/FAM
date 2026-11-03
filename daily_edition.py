@@ -526,6 +526,17 @@ async def _start(query: str, generator, cache, length: int,
         # retrieval query, the recency window and the story shape all come
         # from this brief. A brief prefetch already warmed is taken instead.
         plan = await generator.understand(plan, notes)
+        # A name that means two things, which the mix's own context did not
+        # settle (decided item 15, §426): left unwritten until it is tapped.
+        import script_generator
+
+        if script_generator.ambiguous_readings(plan, notes)[0]:
+            _IN_FLIGHT.discard(query)
+            import prefetch
+
+            return {"status": "ambiguous", "key": key,
+                    "dollars": prefetch._dollars(notes),
+                    "detail": "a name in it means more than one thing; the tap asks"}
         pending = _Pending(query, plan, key, notes, origin)
         pending.since = since
         return pending
@@ -988,6 +999,8 @@ def _summarise(episodes: dict) -> dict:
         "cached": statuses.count("cached"),
         "no_evidence": statuses.count("no_evidence"),
         "failed": statuses.count("failed"),
+        # Left unwritten: a name in it means two things (§426).
+        "ambiguous": statuses.count("ambiguous"),
         # How many of the episodes written were built on a real brief. A
         # number below `written` is EI falling back, and this is where it
         # shows.

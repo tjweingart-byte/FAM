@@ -28071,3 +28071,358 @@ is.
 `sqlite3.connect`; reach for `sqlite_file` only when the file itself is the
 subject. A separate `close_all()` pool race has been named as a source of
 flaky Postgres runs; it is not this, and is not touched here.
+
+## 425. Finishing Phase 1, piece 1: facts, never advice (2026-11-03)
+
+Decided item 17 (every-agent.md never 10, c3p0.md never 7). C3P0 has set
+`advice_request` since §375, and nothing read it: an advice request was
+written like any other question, so nothing stopped "you should refinance
+now" from being spoken.
+
+**The writer is told.** When C3P0's answer on the brief says
+`advice_request`, `episode_intelligence.build_brief_block` adds one note,
+`ADVICE_NOTE`, said before the cautions with the other note that changes
+what the episode *is*: no recommendation, no choosing for them; the facts
+around the decision - the options and what each involves, what is known
+about how they turn out, cost and risk, who decides and how; what a
+doctor, a regulator or the law says is a fact when the evidence says it,
+and is said as theirs; land on the most concrete fact, never on a verdict
+and never on "go and ask someone". A test pins the wording.
+
+**Then it is checked, never blocked.** After the writer,
+`contextualizer.advice_audit` reads the finished script of a flagged
+request for a recommendation in FAM's own voice (`RECOMMENDS`: "you
+should", "I'd recommend", "your best bet", "the smart move is" ...),
+counting `advice_planned` and `advice_recommended` in the agents block of
+`/api/health` and logging the phrase - never the request. It never changes
+the episode (every-agent.md always 1); a quoted authority ("doctors say you
+should") is counted too, so the number is a prompt to listen, not a
+verdict.
+
+**Off changes nothing.** `contextualized` is empty unless C3P0 worked on
+the brief, so the block is byte for byte what it was; the audit returns
+before counting when there is no flagged plan; `tests/test_agents_off.py`
+passes unchanged.
+
+**Not done, deliberately.** No file in `examples/`: examples are shown to
+every writer call, so one would change episodes with the agents off. If the
+owner wants one anyway, it is a single file. Writing quality with the note
+is unmeasured here: a `write.py` run with C3P0 on is the listening test.
+
+Tests: `tests/test_advice_425.py` (the note pinned; in the brief only when
+flagged, before the cautions; a degraded brief still empty; C3P0's plan
+carries the flag; five recommendations counted and three facts not; no
+flag, no count; the check never raises; the real pipeline checks a
+finished script).
+
+## 426. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03)
+
+Decided item 15 (c3p0.md always 2: "say so and let FAM ask the listener
+which one they mean, before anything is searched. Never guess"). C3P0 has
+said `ambiguous` with two to four `readings` and a `likeliest` since §375,
+and nothing asked anyone: the episode was searched and written anyway, and
+Nando's own tie call could pick between the readings. The owner's answer on
+transport: `/api/progress` plus a `reading=` parameter, and the chosen
+reading re-asks as a new request (not a held-open one).
+
+**Where it stops.** `ScriptGenerator.prepare`, straight after the brief and
+before the live route, C3P0's plan, Nando's placement, any plugin, Sonic or
+the search (`_settle_reading`). It reads C3P0's answer on the brief only
+while he works on the episode (`ambiguous_readings`), so with him off -
+and with `AGENTS=0` - nothing here runs.
+
+- **A client that can ask** sends `ask_reading=1` on `/api/audio`. The
+  episode stops with `ReadingNeeded`; `/api/audio` answers **300** with
+  `{detail, readings, likeliest}`, nothing is charged (the brief was FAM's
+  spend, as with `NoEvidence`), and the live track keeps the readings so
+  `/api/progress` returns `readings` and `likeliest` too - only on an
+  episode that asked, so every other answer keeps its shape.
+- **The chosen reading** comes back as `reading=` on `/api/audio` and on
+  every key-shaped read (`/api/progress`, `/api/next`, `/api/transcript`,
+  `/api/sources`). It is in the cache key and the near-match bucket
+  (`cache.cache_key`/`key_bucket` through `pipeline.key_for`/`bucket_for`,
+  [prefetch-same-key]) **only when there is one**, so every key written
+  before is unchanged. A warmed brief is not used for it (that brief did not
+  know which was meant); the brief's prompt and C3P0's call are told "they
+  were asked which they meant and chose: X" (only then), and the writer
+  reads `READING_NOTE`: write about X and nothing else that shares the name.
+  It costs one more brief call - the price of searching for the right thing.
+- **An older client** never sends `ask_reading` and gets C3P0's likeliest
+  reading, told to the writer ([old-clients]). Its episode is kept for its
+  own replays but **never current** (ttl 0), so a client that can ask is
+  never served the guess under the plain key. With no likeliest it is
+  written as before, broader.
+- **Ahead of the tap** - prefetch, the DailyFAM edition, the Trending bank -
+  the tile's own context went to the brief; if C3P0 still says ambiguous the
+  episode is left unwritten (`"ambiguous"`, counted in the edition's summary)
+  until a tap asks.
+
+Counted in the agents block of `/api/health`: `reading_asked`,
+`reading_assumed`, `reading_unwritten`, `reading_none_likely`.
+
+**§377's open question, settled by the owner.** Nando's tie call no longer
+chooses between the readings of a name code left undecided ("how did United
+do"): his answer is dropped and the request is filed as if the call had not
+answered - broader, or nowhere - until a reading is chosen. A tie where no
+name is undecided is still his to answer, ahead of the tap as at the tap.
+`tests/test_agents_c3p0_call.py`'s old "takes the tie call" case for United
+was the old decision and now pins the new one.
+
+**Known gap.** A plain key written before this (or while C3P0 was off) is
+still served from the cache without asking: the cache is read before the
+brief. It ages out within the week.
+
+**Next (piece 2b):** the search and voice-search screens - the picker, and
+`reading` carried on every key-shaped request the player makes.
+
+Tests: `tests/test_reading_426.py` (the key unchanged without a reading and
+different with one, spacing and case folded, the bucket too; `ask_reading`
+not in the key; the brief's and C3P0's prompts name the reading only when
+there is one; the writer's note pinned; nothing ambiguous with C3P0 off; a
+chosen reading never asked again; a client that can ask stopped with the
+readings on `/api/progress`; ahead of the tap unwritten; an older client
+given the likeliest, and with none written as before; `/api/progress`'s
+shape unchanged otherwise; 300 over HTTP, refunded, and resumed with
+`reading=`; an older client never stopped; four key-shaped reads take the
+reading; the tie call and the ahead writers) and
+`tests/test_agents_c3p0_call.py`.
+
+## 427. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03)
+
+The client half of §426. A search - typed, trending or spoken (voice search
+ends in the same `sendSearch`) - plays with `askReading` (`ask_reading=1`),
+so the server may stop and ask. `FamAudio` turns a 300 into an error
+carrying `readings` and `likeliest`; `onGenerationFailed` hands it to
+`askReading`, which shows "Which one do you mean?" with the question and the
+server's readings as buttons (`#readingOverlay`, the consent card's shape)
+and a Cancel. Nothing is pre-selected: the readings are the server's words
+and the client guesses nothing. A choice sets the topic's `reading` and
+generates the same key again; Cancel leaves it unplayed.
+
+**The reading travels with the episode.** It is part of the key, so every
+request the player makes about that episode carries it: the audio
+(`listener.reading`), `/api/progress` (the loading steps), `/api/next`,
+`/api/transcript` and `/api/sources` (`readingParam`). `episodeStamp` gains
+a fourth field for it, and the one reader that split the stamp from the end
+(the feedback report) now takes three fields off, not two. The double-tap
+guard (`episodeSignature` / `awaitingFirstAudio`) includes it, so a choice
+is never mistaken for a re-tap of the stopped request.
+
+Every other surface - myFAM, DailyFAM, Explore, shares - does not ask: their
+episodes are written ahead or replayed, and an older client never asks
+either (§426). History, saves and shares replay by the episode's id, which
+already names the reading's key.
+
+Smoke check: "A shared name asks which one, then plays the choice" (a 300
+for a search that can ask, the picker with the two readings, the second
+chosen, the next `/api/audio` carrying `reading=Manchester%20United`, the
+episode's stamp ending in it).
+
+## 428. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03)
+
+Decided item 20 (nando.md always 10: "re-file episodes made before you existed
+only once, and only after the owner has reviewed a list of every change you
+would make"). `refile_old.py`, run by `tools/refile_old.py`.
+
+**Docs and code disagreed, and the owner was told.** The opening prompt said
+the re-file goes "through `category_tag.retag`", but `retag` skipped any
+episode with no node of its own ("Nando never filed it") - which is every
+episode written before him. `retag` now takes `first_filing=True` with `was`
+(the node the writer's words placed it under until now, replaced on its
+articles in the archive as an old node is); nothing else passes it, so every
+other caller is unchanged.
+
+**How Nando decides, the owner's answer.** Old rows keep only the question,
+title and the writer's `<<CATEGORY:>>`, not the brief he normally reads, so
+his code steps alone file almost none of them solidly (measured on the seed:
+"how did the Philadelphia Eagles do" places nothing, its suggestion only a
+clash). The owner chose **his own call**, as on a new episode: code's
+shortlist (`candidates_for`), his call choosing (`ask_tie`, ahead of the
+tap), never over a name that means two things (§426), then his check against
+the writer's words (`confirm`). One small call per episode code could not
+file, all on one event loop (§388), four at a time, through the agent layer -
+so only where he is switched on and his rule book signed, and never on
+zero-spend staging. `--no-model` makes the list in code alone, for nothing.
+
+**Two steps.** The dry run reads every kept row with no node
+(`ScriptCache.unfiled`, both stores), changes nothing and writes the list -
+JSON plus a Markdown table (question, title, writer's words, today's node,
+Nando's, how) - and prints its SHA-256. `--apply LIST --approve SHA256`
+refuses any other value, so the list applied is the list reviewed, byte for
+byte; each change goes through `retag` (archive, audio metadata, script row
+together). A row filed meanwhile, or whose words now place it elsewhere, is
+skipped and listed - never re-filed on a stale reading. Applying twice files
+once.
+
+Tests: `tests/test_refile_old_428.py` (only unfiled rows read, both stores;
+his call files what code could not, ahead; `--no-model` asks nothing; a
+shared name never asked; the dry run changes nothing and the Markdown names
+the approval; any other approval, or an edited list, refused; the approval
+applied through `retag` as a first filing, and a second apply skipped; a row
+changed since the review skipped; `retag` without `first_filing` unchanged).
+
+## 429. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03)
+
+The owner asked for the legal guardrails to be checked in the code (copyright,
+defamation, private people, data protection, provider terms). Found and fixed
+at the owner's direction:
+
+**What the archive may keep.** The approval list (`HOUSEKEEPER_APPROVED_PROVIDERS`,
+§397) applied only while Consuela runs; with her off - the default - the
+archive (`ARCHIVE=1`, on by default) kept every provider but Parallel, so
+scores and prices from API-Sports and Finnhub, both refused, could be kept as
+facts (`kept_live`). Now `_kept` and `kept_live` apply the list whether or not
+she runs: a refused or unknown provider's material is never kept, counted as
+`not_approved`. The owner approved **GNews** (2026-11-03); **Polymarket is
+pending**; API-Sports and Finnhub are no longer used and stay refused in code.
+A finding that names no provider is unknown and dropped - every real one names
+its search (`research._findings`). Already-stored rows from the refused two
+are not removed here: that is a reversible purge with a list first
+(every-agent.md always 8), the next piece.
+
+**The writer's rules, two additions** (every episode, agents on or off):
+
+- *An accusation is not a finding.* Say who accuses ("prosecutors say"),
+  where it stands and any denial; it is fact only once a verdict, ruling or
+  admission settles it. Naming the accuser is not mentioning the material -
+  so it sits beside "never mention your material", not against it.
+- *Private people* (victims, witnesses) are named only as the reporting
+  names them; a child accused of a crime, never.
+
+**The prompt's length guard held** (`test_the_prompt_stays_lean`, under
+7,800 characters): the additions were paid for by a dedup pass, not a raised
+bound - the closing paragraph's bait-and-switch sentence (said again by
+"Never tease"), the unresolved line's parting-hook clause, two accuracy
+bullets merged (invent / fill a gap), and the time bullet's "based on what I
+have" (said by "never mention your material"). Unheard: a `write.py` run on
+an accusation story is the listening test.
+
+**Found and left for the owner:** no limit on a real quote's length (Mclovin's
+quote check, Phase 3); no way to honour a removal request from someone named
+in episodes or the archive (a lawyer's question first).
+
+Tests: `tests/test_guardrails_429.py`; the provider and archive tests that
+pinned the old "keep everything while Consuela is off" now pin the new rule.
+
+## 430. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03)
+
+§429 found that, before it, the archive could keep API-Sports' and Finnhub's
+scores and prices (both refused, both no longer used) as live facts while
+Consuela was off. The owner asked for the purge list. `tools/withdraw_refused.py`:
+
+- **The list** (no flag): every active live fact (`facts`, kind `live`, its
+  provider in `host`) and every reading (`live_series`, in `source`) from the
+  two, as JSON and a Markdown table, with counts by store and provider and the
+  list's SHA-256. Nothing is changed.
+- **`--apply LIST --approve SHA256`**: refuses any other value, so the list
+  withdrawn is the list reviewed. **Withdrawing is reversible** (every-agent.md
+  always 8): a fact is marked inactive with no keeper and the mark
+  `withdrawn: refused provider (§430)` - every reader already ignores an
+  inactive fact, and Consuela's own purge of repeats never touches one without
+  a keeper - and a reading moves out of the series into a holding table
+  (`withdrawn`, both backends). Applying twice withdraws once.
+- **`--restore`** puts every one back; **`--status`** counts what is held;
+  **`--purge`** deletes for good only what was withdrawn more than 30 days ago.
+
+Both backends (`SQLiteBackend` and `AtlasBackend`: `provider_rows`, `withdraw`,
+`restore_withdrawn`, `purge_withdrawn`, `withdrawn_count`); the SQL path reads
+the series by its named columns (`SERIES_COLUMNS`), so it holds on Postgres
+too. The Atlas holding collection is opened only when first used. No model,
+no provider, no new dependency (the Atlas test uses a small fake collection).
+
+Tests: `tests/test_withdraw_refused_430.py` (only the refused two listed; the
+list changes nothing and names its approval; any other approval or an edited
+list refused; withdraw, restore, the grace period and the purge on SQLite;
+twice is once; the same on the Atlas backend).
+
+## 431. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03)
+
+Decided item 16 (the owner's answer 4a; c3p0.md never 6; every-agent.md never
+9). The owner asked for it on this branch rather than a new session, though
+this container cannot reach `en.wikipedia.org`, `www.wikidata.org` or
+`query.wikidata.org` (refused by the proxy all session, after the owner
+allowed them - a setting reaches only sessions started after it). So it is
+**built on stubs**, on the reference look that already asks those hosts in
+production (`wikimedia.py`, §278), and the first real answers are
+production's.
+
+**Before any search** (`_public_look`, in `prepare` beside the ambiguous-name
+stop): when C3P0 says the request is about a private person and names them
+(`private_person`, `entity`), `wikimedia.known` asks Wikidata's search once -
+"known" when an item's English label, or the alias it matched, is exactly the
+name; "unknown" when none is; "unchecked" when the look is off or did not
+answer. Kept a day. Off the loop, within the reference look's own time limit.
+
+**After the search** (`_refuse_private`, at `evidence_ready`): a name Wikidata
+did not know is public anyway when the reporting names them - the owner's
+rule (2026-11-03): an official, a coach, a business owner quoted in the
+news. The test is code's: the full name in the retrieved packet, which holds
+only dated, graded articles and the archive's earlier reporting. Otherwise
+`PrivatePerson` - a `research.NoEvidence`, so every path that declines an
+episode already declines this one: `/api/audio` 503 with the sentence and a
+refund, the editions' `no_evidence`, prefetch's skip. The sentence names
+nobody, and the log line holds no name (every-agent.md never 4).
+
+**A look that did not answer establishes nothing** ([missed-not-absent];
+every-agent.md always 1): "unchecked" never refuses. Only the request's
+subject is gated: a name inside an article is said as reporting says it
+(§429's writer rule). Not built: a provider's catalogue as a third witness -
+an athlete or a listed company's officer is in Wikidata or the reporting in
+practice; said here so it is not assumed. Counted in `/api/health`'s agents
+block: `private_known`, `private_unknown`, `private_unchecked`,
+`private_named_in_reporting`, `private_refused`. With C3P0 off nothing is
+asked.
+
+**Phase 1 is finished**: §425-§431 did the four items §390 left.
+`docs/PHASE1_NEXT_BRANCH.md` said to delete itself then, and is deleted.
+
+Tests: `tests/test_public_figures_431.py` (an exact label or alias known, a
+near name not; a failed or switched-off look unchecked; kept, so a second
+ask sends nothing; known goes ahead; unknown and unnamed refused, as a
+`NoEvidence` naming nobody; unknown but named in the reporting goes ahead;
+unchecked never refuses; with C3P0 off or nothing private, nothing asked;
+the look before the search and the refusal after it).
+
+## 432. The review before the pull request: the reading joins the question (2026-11-03)
+
+An independent review of the whole branch before the pull request found two
+real defects in §426-§427 and four small ones. Everything else it read -
+the keys, `AGENTS=0`, the tie task on every exception path, the 300's
+refund, the SQL on Postgres, both approval digests, `wikimedia.known` -
+held.
+
+**A chosen reading was lost everywhere but the live player.** §427 said
+history, saves and shares replay by the episode's id; saves, shares, vibes,
+the queue and the offline shelf name an episode by its question and length,
+and a history replay's captions, sources and Go Deeper looked up the plain
+key. Carrying a separate `reading` through every one of those (and the iOS
+contract) was the wrong size of fix. Instead **the choice joins the
+question**: `app._validated_plan` makes `how did United do` with
+`reading=Manchester United` into `how did United do (Manchester United)` -
+never twice - and the client sets the topic's prompt to the same words when
+the listener chooses. Every surface that names an episode by its question
+now names this one; a share or a save replays it with no reading at all.
+The owner's transport stands (`reading=` carries the choice, and still tells
+the brief and the writer which thing was meant); the separate `reading`
+field in `cache.cache_key`/`key_bucket` is gone, since the question carries
+it, so no key anywhere changed shape after all.
+
+**Tiles written ahead were never asked.** Prefetch and the editions leave an
+ambiguous episode "unwritten until a tap asks", but only a search asked, so a
+myFAM, DailyFAM or Trending tap took the older-client path - the likeliest
+reading, never current - and every tap by every listener wrote it again.
+Every tap that may write an episode now asks (`askReading: !t.cachedOnly &&
+!t.episode`); a replay never does. A guest still cannot play such a tile
+(guests play kept audio only) - the gate's existing answer.
+
+**Small:** Atlas's `restore_withdrawn` put `_id` inside `$setOnInsert`,
+which MongoDB refuses (the test's fake now refuses it too); the advice
+check counted "whether you should ..." (the question, not an answer); both
+tools printed the approve command with the list's bare file name, wrong
+whenever `--out` named another folder.
+
+Tests: `tests/test_reading_426.py` (the reading joins the question once, a
+saved question finds the chosen episode's key, the 300 resumes with the
+question rewritten), `tests/test_advice_425.py`, the Atlas fake in
+`tests/test_withdraw_refused_430.py`, and the smoke check now asserts the
+question carries the choice.
