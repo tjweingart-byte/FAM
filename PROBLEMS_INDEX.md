@@ -418,3 +418,4 @@ and `limit` = Lines.
 | 27698 | 46 | 415. Totals about groups of listeners: groups of 100 or more, never a person (2026-11-03) |
 | 27744 | 13 | 416. docs/BACKEND.md brought up to Phase 2 (2026-11-03) |
 | 27757 | 80 | 417. The review before the pull request (2026-11-03) |
+| 27837 | 43 | 418. Finishing Phase 1, piece 1: facts, never advice (2026-11-03) |

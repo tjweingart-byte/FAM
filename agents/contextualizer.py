@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import logging
+import re
 import threading
 from typing import Optional
 
@@ -149,6 +150,42 @@ def note_empty_search(look) -> None:
         log.warning("could not note an empty search", exc_info=True)
 
 
+#: A recommendation in FAM's own voice (decided item 17, §418). Checked on
+#: the finished script of an advice request and only counted and logged -
+#: never a block on an episode (every-agent.md always 1). A quoted
+#: authority ("doctors say you should") is counted too: the count is a
+#: prompt to listen, not a verdict.
+RECOMMENDS = re.compile(
+    r"\b(?:you should|you shouldn't|you ought to|you'd be better off|"
+    r"i(?:'d| would) (?:recommend|suggest|advise)|we (?:recommend|suggest|advise)|"
+    r"my advice|our advice|your best (?:bet|option|move)|"
+    r"the (?:best|smart) (?:thing|move) (?:is|would be|to do))\b", re.I)
+
+
+def advice_audit(notes, script) -> Optional[str]:
+    """After the writer: whether an advice request's script recommended.
+
+    Counts `advice_planned` for every advice request C3P0 flagged and
+    `advice_recommended` when the script still says what to do, logging the
+    phrase (never the request). Returns the phrase or None. Never raises."""
+    try:
+        plan = getattr(notes, "research_plan", None)
+        if plan is None or not getattr(plan, "advice_request", False):
+            return None
+        _count("advice_planned")
+        text = " ".join(script) if isinstance(script, (list, tuple)) else str(script or "")
+        found = RECOMMENDS.search(text)
+        if not found:
+            return None
+        _count("advice_recommended")
+        log.warning("C3P0: an advice request's script recommended (%r)",
+                    found.group(0))
+        return found.group(0)
+    except Exception:  # noqa: BLE001
+        log.warning("the advice audit failed; the episode is unaffected", exc_info=True)
+        return None
+
+
 def report() -> dict:
     from config import settings
 
@@ -176,7 +213,7 @@ def reset() -> None:
 # moment the brief's search half was always asked: nothing new in series.
 # With Nando working too, the same call picks his node from a candidate list
 # code built from the tree (Nando's choice, §346: folded into the brief).
-import re  # noqa: E402
+
 
 from pydantic import BaseModel, ConfigDict, Field  # noqa: E402
 from typing import Literal  # noqa: E402

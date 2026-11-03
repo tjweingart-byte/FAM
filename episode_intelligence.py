@@ -1988,6 +1988,19 @@ def build_structure_note(brief: Brief) -> str:
     return note
 
 
+#: What the writer reads when C3P0 says a request asks for medical, legal or
+#: financial advice (decided item 17, §418). A test pins this wording.
+ADVICE_NOTE = (
+    "This asks for medical, legal or financial advice, and FAM never gives "
+    "it: do not tell them what to do, recommend anything, or choose for "
+    "them. Answer with the facts around the decision instead - what it is, "
+    "the options and what each involves, what is known about how they turn "
+    "out, what they cost or risk, and who decides and how. What a doctor, a "
+    "regulator or the law says is a fact when the evidence says it, and is "
+    "said as theirs. Land on the most concrete fact, never on a verdict and "
+    "never on telling them to go and ask someone.")
+
+
 def build_brief_block(brief: Brief, minutes: int) -> str:
     """Everything EI worked out, as the writer needs to read it.
 
@@ -2042,6 +2055,13 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
             "Earlier reporting from FAM's archive is never that result: it "
             "is an earlier game, an earlier close, an earlier vote, and is "
             "said as one, with its date.")
+
+    # C3P0's flag (decided item 17; every-agent.md never 10, c3p0.md never
+    # 7): an advice request is written as the facts around it. Only while he
+    # works on the episode - `contextualized` is empty otherwise, so with
+    # the agents off this block is exactly what it was.
+    if (brief.contextualized or {}).get("advice_request"):
+        lines.append(ADVICE_NOTE)
 
     if brief.cautions:
         lines.append("Be careful about this, and take the evidence over your "

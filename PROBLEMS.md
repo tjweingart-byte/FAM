@@ -27833,3 +27833,46 @@ reproduced before it was fixed, and each fix is pinned in
   with no Yes or Change it. Nothing is saved, so it is safe, but it cannot
   be answered there.
 - Settings shows counting as "Off" until `/api/activation` has loaded.
+
+## 418. Finishing Phase 1, piece 1: facts, never advice (2026-11-03)
+
+Decided item 17 (every-agent.md never 10, c3p0.md never 7). C3P0 has set
+`advice_request` since §375, and nothing read it: an advice request was
+written like any other question, so nothing stopped "you should refinance
+now" from being spoken.
+
+**The writer is told.** When C3P0's answer on the brief says
+`advice_request`, `episode_intelligence.build_brief_block` adds one note,
+`ADVICE_NOTE`, said before the cautions with the other note that changes
+what the episode *is*: no recommendation, no choosing for them; the facts
+around the decision - the options and what each involves, what is known
+about how they turn out, cost and risk, who decides and how; what a
+doctor, a regulator or the law says is a fact when the evidence says it,
+and is said as theirs; land on the most concrete fact, never on a verdict
+and never on "go and ask someone". A test pins the wording.
+
+**Then it is checked, never blocked.** After the writer,
+`contextualizer.advice_audit` reads the finished script of a flagged
+request for a recommendation in FAM's own voice (`RECOMMENDS`: "you
+should", "I'd recommend", "your best bet", "the smart move is" ...),
+counting `advice_planned` and `advice_recommended` in the agents block of
+`/api/health` and logging the phrase - never the request. It never changes
+the episode (every-agent.md always 1); a quoted authority ("doctors say you
+should") is counted too, so the number is a prompt to listen, not a
+verdict.
+
+**Off changes nothing.** `contextualized` is empty unless C3P0 worked on
+the brief, so the block is byte for byte what it was; the audit returns
+before counting when there is no flagged plan; `tests/test_agents_off.py`
+passes unchanged.
+
+**Not done, deliberately.** No file in `examples/`: examples are shown to
+every writer call, so one would change episodes with the agents off. If the
+owner wants one anyway, it is a single file. Writing quality with the note
+is unmeasured here: a `write.py` run with C3P0 on is the listening test.
+
+Tests: `tests/test_advice_418.py` (the note pinned; in the brief only when
+flagged, before the cautions; a degraded brief still empty; C3P0's plan
+carries the flag; five recommendations counted and three facts not; no
+flag, no count; the check never raises; the real pipeline checks a
+finished script).

@@ -366,7 +366,8 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
                    "housekeeper"},
         # The wipe also forgets Nando's answer-key labels (§381).
         "demo_data.py": {"tasks", "training", "nando_model", "memory"},
-        "pipeline.py": {"netenyahu", "categorizer"},
+        # C3P0's advice check after the writer (§418): a regex, no model.
+        "pipeline.py": {"netenyahu", "categorizer", "contextualizer"},
         # Sonic replaces the recall when Netenyahu lets him run (§403): code
         # and read-only lookups, no model.
         "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever"},

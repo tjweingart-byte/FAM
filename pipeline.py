@@ -1617,6 +1617,12 @@ class PodcastPipeline:
         if getattr(notes, "category", ""):
             live_captions.publish_category(stats.caption_key, notes.category)
 
+        # An advice request planned as facts (§418): did the script still
+        # recommend? Counted for /api/health, never a block.
+        from agents import contextualizer
+
+        contextualizer.advice_audit(notes, stats.script)
+
         writes = bool(self.cache and self.cache_writes and shareable
                       and stats.script)
         ttl = 0
