@@ -668,6 +668,11 @@ class ScriptNotes:
     #: likeliest, "" otherwise. Such an episode is kept but never current,
     #: so a client that can ask is never served the guess under the plain key.
     reading_assumed: str = ""
+    #: Public figures only (§424): whether the reference look knew the person
+    #: C3P0 said the request is about ("known", "unknown", "unchecked"), and
+    #: the name it asked about. "" when he said nothing of the kind.
+    public_check: str = ""
+    public_name: str = ""
     #: Nando's tie call, running beside the brief (§375), or None. Read once
     #: at placement and never waited for.
     category_tie_task: object = None
@@ -800,6 +805,76 @@ class ReadingNeeded(Exception):
         self.readings = tuple(readings)
         self.likeliest = likeliest
         super().__init__("Which one do you mean? " + " or ".join(self.readings))
+
+
+class PrivatePerson(research_mod.NoEvidence):
+    """The request is about a person FAM cannot find in a public role
+    (decided item 16; c3p0.md never 6; every-agent.md never 9; §424): no
+    episode. A `NoEvidence`, so every path that already declines an episode
+    for want of evidence - `/api/audio`'s 503 and refund, the editions'
+    `no_evidence`, prefetch's skip - declines this one the same way. The
+    sentence names nobody: it is logged and shown, and the person is private."""
+
+    MESSAGE = ("FAM only makes episodes about public figures, and couldn't find "
+               "this person on Wikipedia or Wikidata or named in news reporting, "
+               "so there's no episode about them.")
+
+    def __init__(self):
+        super().__init__(self.MESSAGE)
+
+
+async def _public_look(plan: "EpisodePlan", notes) -> None:
+    """Before anything is searched (§424): when C3P0 says the request is
+    about a private person, ask whether Wikidata knows the name. Notes
+    `public_check` as "known", "unknown" or "unchecked" and the name in
+    `public_name`; never raises, never refuses - the refusal waits for the
+    search, since reporting naming them in a public role also makes them
+    public (c3p0.md never 6)."""
+    if notes is None or plan.brief is None or not _agent_runs(notes, "contextualizer"):
+        return
+    said = getattr(plan.brief, "contextualized", None) or {}
+    name = " ".join(str(said.get("entity") or "").split())
+    if not said.get("private_person") or not name:
+        return
+    from agents import contextualizer
+    import wikimedia
+
+    try:
+        status = await asyncio.wait_for(
+            asyncio.get_running_loop().run_in_executor(
+                wikimedia.EXECUTOR, wikimedia.known, name),
+            timeout=float(settings.wikipedia_timeout_seconds) + 1.0)
+    except Exception:  # noqa: BLE001 - a look that did not answer establishes nothing
+        status = "unchecked"
+    notes.public_check, notes.public_name = status, name
+    contextualizer._count(f"private_{status}")
+
+
+def _named_in_reporting(name: str, evidence: str) -> bool:
+    """Whether the retrieved reporting names this person in full. The
+    packet holds only dated, graded articles (and the archive's earlier
+    reporting); a full name found there is reporting naming them."""
+    import wikimedia
+
+    target = wikimedia.normalise(name)
+    return bool(target) and f" {target} " in f" {wikimedia.normalise(evidence)} "
+
+
+def _refuse_private(plan: "EpisodePlan", notes) -> None:
+    """After the search (§424): raises `PrivatePerson` when Wikidata did not
+    know the name and the reporting does not name them either."""
+    if getattr(notes, "public_check", "") != "unknown":
+        return
+    from agents import contextualizer
+
+    if _named_in_reporting(getattr(notes, "public_name", ""), plan.evidence or ""):
+        contextualizer._count("private_named_in_reporting")
+        return
+    contextualizer._count("private_refused")
+    # Logged without the name: the person is private (every-agent.md never 4).
+    log.info("no episode: the request is about a person FAM cannot find in a "
+             "public role (%d-character request)", len(plan.query))
+    raise PrivatePerson()
 
 
 def ambiguous_readings(plan: "EpisodePlan", notes) -> tuple:
@@ -2490,6 +2565,9 @@ class ScriptGenerator:
             # A name that means two things and nobody chose (decided item 15,
             # §419): asked before any plugin, Sonic included, is called.
             plan = _settle_reading(plan, notes)
+            # Public figures only (decided item 16, §424): is the person
+            # this is about known to the reference look? Before any search.
+            await _public_look(plan, notes)
             # A brief that named no live domain still asks a provider when the
             # question names something one covers (§265) - decided in code,
             # spending nothing, and changing nothing but who is asked.
@@ -2672,6 +2750,9 @@ class ScriptGenerator:
             evidence_digest=cut,
             thin_on=research_plan.thin_on, local=research_plan.local,
             forecast=forecast, players=players)
+        # Unknown to the reference look and not named in the reporting
+        # either: a private person, and no episode (§424).
+        _refuse_private(plan, notes)
 
         # The weather the local ladder fetched when the town had nothing
         # (§194) reaches the writer the way any live state does - one block,

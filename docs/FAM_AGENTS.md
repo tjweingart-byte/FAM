@@ -794,9 +794,13 @@ latency matters more here than for any other agent.
   cache key only when present. Older clients get the likeliest reading (kept,
   never current); prefetch and the editions leave it unwritten. Nando's tie
   call never picks between the readings of an undecided name.
-- **Not built: `private_person` acted on** (public figures only, decided item
-  16) - the next session, which needs `en.wikipedia.org`, `www.wikidata.org`
-  and `query.wikidata.org` (`docs/PHASE1_NEXT_BRANCH.md`).
+- **Built (§424): `private_person` acted on** (public figures only, decided
+  item 16). Before any search, Wikidata is asked whether it knows the name
+  (`wikimedia.known`); after the search, a name Wikidata did not know is
+  refused unless the reporting names them (`PrivatePerson`, a `NoEvidence`:
+  no episode, a plain sentence that names nobody, logged and counted). A look
+  that did not answer establishes nothing. Built on stubs; the first real
+  answers are production's.
 
 ### Settings and open questions
 

@@ -28096,3 +28096,51 @@ Tests: `tests/test_withdraw_refused_423.py` (only the refused two listed; the
 list changes nothing and names its approval; any other approval or an edited
 list refused; withdraw, restore, the grace period and the purge on SQLite;
 twice is once; the same on the Atlas backend).
+
+## 424. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03)
+
+Decided item 16 (the owner's answer 4a; c3p0.md never 6; every-agent.md never
+9). The owner asked for it on this branch rather than a new session, though
+this container cannot reach `en.wikipedia.org`, `www.wikidata.org` or
+`query.wikidata.org` (refused by the proxy all session, after the owner
+allowed them - a setting reaches only sessions started after it). So it is
+**built on stubs**, on the reference look that already asks those hosts in
+production (`wikimedia.py`, §278), and the first real answers are
+production's.
+
+**Before any search** (`_public_look`, in `prepare` beside the ambiguous-name
+stop): when C3P0 says the request is about a private person and names them
+(`private_person`, `entity`), `wikimedia.known` asks Wikidata's search once -
+"known" when an item's English label, or the alias it matched, is exactly the
+name; "unknown" when none is; "unchecked" when the look is off or did not
+answer. Kept a day. Off the loop, within the reference look's own time limit.
+
+**After the search** (`_refuse_private`, at `evidence_ready`): a name Wikidata
+did not know is public anyway when the reporting names them - the owner's
+rule (2026-11-03): an official, a coach, a business owner quoted in the
+news. The test is code's: the full name in the retrieved packet, which holds
+only dated, graded articles and the archive's earlier reporting. Otherwise
+`PrivatePerson` - a `research.NoEvidence`, so every path that declines an
+episode already declines this one: `/api/audio` 503 with the sentence and a
+refund, the editions' `no_evidence`, prefetch's skip. The sentence names
+nobody, and the log line holds no name (every-agent.md never 4).
+
+**A look that did not answer establishes nothing** ([missed-not-absent];
+every-agent.md always 1): "unchecked" never refuses. Only the request's
+subject is gated: a name inside an article is said as reporting says it
+(§422's writer rule). Not built: a provider's catalogue as a third witness -
+an athlete or a listed company's officer is in Wikidata or the reporting in
+practice; said here so it is not assumed. Counted in `/api/health`'s agents
+block: `private_known`, `private_unknown`, `private_unchecked`,
+`private_named_in_reporting`, `private_refused`. With C3P0 off nothing is
+asked.
+
+**Phase 1 is finished**: §418-§424 did the four items §390 left.
+`docs/PHASE1_NEXT_BRANCH.md` said to delete itself then, and is deleted.
+
+Tests: `tests/test_public_figures_424.py` (an exact label or alias known, a
+near name not; a failed or switched-off look unchecked; kept, so a second
+ask sends nothing; known goes ahead; unknown and unnamed refused, as a
+`NoEvidence` naming nobody; unknown but named in the reporting goes ahead;
+unchecked never refuses; with C3P0 off or nothing private, nothing asked;
+the look before the search and the refusal after it).
