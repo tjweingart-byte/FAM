@@ -27870,3 +27870,34 @@ did: the proposals put in place, `--write`, the signed books restored with
 from version 3. The proposals README gives the owner's route: download
 the two proposals and the pending manifest, sign, upload four files in one
 commit. Nothing runs differently until then; `AGENTS=0` changes nothing.
+
+## 419. The attribution case: a neutral rewording, at the owner's choice (2026-11-03)
+
+§407 found Haiku answering "unsure" to every grown pair that added
+", according to reports" - labelled *same*, arguably wrongly, since a
+reported claim is not an asserted one. Asked to choose (a neutral rewording
+that keeps the claim's certainty, or the label changed to *different*), the
+owner chose the rewording, so the grown cases keep testing real repeats in
+other words; relabelling would have left every grown case *different* and
+missed repeats measured on the core alone.
+
+`dedupe_cases._reword` replaces `_attribute`: the first of a fixed table of
+neutral swaps (`NEUTRAL_SWAPS`: after → following, began → started, bought
+→ purchased, despite → in spite of, nearly ↔ almost, ...) that the sentence
+holds, whole lowercase words only, and only when the names and the hedge
+are unchanged. No sentence with a quote, a number or an attribution is
+reworded: since §417 code keeps every reworded figure or quote apart, so
+such a pair would measure that rule, not the model. A sentence no swap fits
+makes no *same* case.
+
+**Measured with the key** on twelve news-style sentences standing in for
+production material (`dedupe_eval.run(grown=...)`, nothing recorded): 54
+cases, **0 wrong merges, no fallback, passed**. Every one of the 11 reworded
+pairs: Haiku and Sonnet both "same" - grown misses 6 → 0. The core's two
+misses are §417's by design (a reworded figure is merged only word for
+word).
+
+Tests: `tests/test_dedupe_reworded_419.py` (no swap adds a hedge, number,
+name or attribution; certainty kept; nothing reworded where code would keep
+the pair apart; lowercase whole words only; the grown *same* case is the
+rewording) and `tests/test_agents_training_407.py` updated.
