@@ -67,6 +67,7 @@ import apple_tokens
 import quotas
 import feedback as feedback_mod
 import consent as consent_mod
+import activation as activation_mod
 import image_check
 import moderation as moderation_mod
 import saved as saved_mod
@@ -2318,6 +2319,47 @@ class ProfileRequest(BaseModel):
     phone: Optional[str] = Field(None, max_length=accounts_mod.MAX_PHONE * 2)
     #: `YYYY-MM-DD`, from the waitlist's profile (10.2 packet).
     birth_date: Optional[str] = Field(None, max_length=10)
+    #: One of `accounts.GENDERS`, or "" to remove it (§411).
+    gender: Optional[str] = Field(None, max_length=24)
+    #: The listener said yes to "Is {date} right?" for a date under 13 - which
+    #: then deletes the account (§411, decision 1).
+    confirm_under_13: bool = False
+
+
+class ActivationRequest(BaseModel):
+    """The activation step (§411): date of birth required; the place and
+    gender optional, `None` leaving what is there."""
+
+    birth_date: str = Field(..., max_length=10)
+    gender: Optional[str] = Field(None, max_length=24)
+    city: Optional[str] = Field(None, max_length=80)
+    region: Optional[str] = Field(None, max_length=80)
+    country: Optional[str] = Field(None, max_length=80)
+    confirm_under_13: bool = False
+
+
+def _under_age_gate(user: str, birth_date: str, confirmed: bool, request: Request):
+    """Decision 1 (§410): a date of birth under 13 is asked to be confirmed
+    (409, `confirm`), then deletes the account and everything FAM holds about
+    the listener. None when the date is not under 13; otherwise what the
+    endpoint returns."""
+    try:
+        born = accounts_mod.clean_birth_date(birth_date)
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not accounts_mod.under_age(born):
+        return None
+    if not confirmed:
+        # The errors' own shape - `error`, a sentence every client shows -
+        # with what to send back to confirm beside it.
+        question = activation_mod.confirm_text(born)
+        return JSONResponse({"error": question, "confirm": question,
+                             "birth_date": born, "confirm_field": "confirm_under_13"},
+                            status_code=409)
+    removed = erase_listener(user)
+    request.state.set_session = ""
+    log.info("erased an under-13 listener at their date of birth: %s", removed)
+    return {"ok": True, "deleted": True, "message": activation_mod.UNDER_AGE}
 
 
 class NewPasswordRequest(BaseModel):
@@ -2363,7 +2405,24 @@ async def auth_me(request: Request) -> dict:
     # (§329). `/api/voice/wake` is the same for a return to the foreground.
     _wake_for(listener)
     return {**listener.as_dict(), "waitlist": settings.waitlist,
-            "home": settings.app_home_url}
+            "home": settings.app_home_url,
+            # Whether the activation step is still to do (§411): read here,
+            # because this is what every open asks first. An old client
+            # ignores it and keeps working.
+            "activation_needed": _activation_needed(listener)}
+
+
+def _activation_needed(listener) -> bool:
+    """Never raises: a guest, or a store that fails, is never asked."""
+    if listener is None or not listener.is_authenticated:
+        return False
+    try:
+        return activation_mod.needed(ACCOUNTS.account(listener.user_id),
+                                     CONSENT.get(listener.user_id,
+                                                 consent_mod.DEMOGRAPHICS))
+    except Exception:  # noqa: BLE001 - the open never fails on this
+        log.exception("could not read whether the activation step is needed")
+        return False
 
 
 def _wake_for(listener) -> bool:
@@ -2741,6 +2800,10 @@ async def account_read(request: Request) -> dict:
         "email": account.get("email", ""),
         "phone": account.get("phone", ""),
         "display_name": account.get("display_name", ""),
+        # The activation step's answers (§411): theirs, to them only.
+        "birth_date": account.get("birth_date", ""),
+        "gender": account.get("gender", ""),
+        "counted": CONSENT.given(user, consent_mod.DEMOGRAPHICS),
         "created": account.get("created", 0),
         "identities": ACCOUNTS.identities_for(user),
         "has_password": bool(ACCOUNTS.account(user) and _has_password(user)),
@@ -2759,13 +2822,68 @@ async def account_update(req: ProfileRequest, request: Request) -> dict:
     `/api/preferences`, they are not credentials, and they work without an
     account at all."""
     _rate_limit(request)
+    user = _require_account(request)
+    if req.birth_date == "":
+        # Once in the app, a date of birth is corrected, never removed
+        # (§411): it is what keeps FAM 13 and over.
+        held = ACCOUNTS.account(user) or {}
+        if held.get("birth_date") and held.get("status") != "waitlisted":
+            raise HTTPException(status_code=400, detail=(
+                "Your date of birth can be corrected, but not removed."))
+    if req.birth_date:
+        # A correction under 13 follows decision 1, wherever it is made -
+        # Settings, or the waitlist's profile (§411).
+        gone = _under_age_gate(user, req.birth_date, req.confirm_under_13, request)
+        if gone is not None:
+            return gone
     try:
         account = ACCOUNTS.update_profile(
-            _require_account(request), display_name=req.display_name,
-            email=req.email, phone=req.phone, birth_date=req.birth_date)
+            user, display_name=req.display_name,
+            email=req.email, phone=req.phone, birth_date=req.birth_date,
+            gender=req.gender)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return account
+
+
+@app.get("/api/activation")
+async def activation_read(request: Request) -> dict:
+    """The activation step (§411): whether it is needed, and what its screen
+    draws - the help lines, the gender choices, the counting notice - filled
+    with what the account already holds."""
+    _read_limit(request)
+    user = _require_account(request)
+    account = ACCOUNTS.account(user) or {}
+    return activation_mod.state(account, PREFS.get(user).location.as_dict(),
+                                CONSENT.get(user, consent_mod.DEMOGRAPHICS))
+
+
+@app.post("/api/activation")
+async def activation_write(req: ActivationRequest, request: Request) -> dict:
+    """Finish the activation step (§411): the date of birth (required; under
+    13 asked to be confirmed, then the account deleted), the place and gender
+    (optional), and - the screen having shown the notice - a yes to being
+    counted, which Settings can turn off (decision 2)."""
+    _rate_limit(request)
+    user = _require_account(request)
+    gone = _under_age_gate(user, req.birth_date, req.confirm_under_13, request)
+    if gone is not None:
+        return gone
+    try:
+        ACCOUNTS.update_profile(user, birth_date=req.birth_date, gender=req.gender)
+        if any(v is not None for v in (req.city, req.region, req.country)):
+            PREFS.save(user, city=req.city, region=req.region, country=req.country)
+    except (accounts_mod.AuthError, prefs_mod.PreferenceError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Counted by default: a yes is recorded the first time only, so finishing
+    # the step again (a new device) never undoes a no from Settings.
+    if CONSENT.get(user, consent_mod.DEMOGRAPHICS) is None:
+        CONSENT.record(user, True, scope=consent_mod.DEMOGRAPHICS,
+                       version=consent_mod.DEMOGRAPHICS_VERSION,
+                       client=request.headers.get(client_versions.HEADER, ""))
+    account = ACCOUNTS.account(user) or {}
+    return activation_mod.state(account, PREFS.get(user).location.as_dict(),
+                                CONSENT.get(user, consent_mod.DEMOGRAPHICS))
 
 
 @app.delete("/api/account")
@@ -4942,7 +5060,7 @@ LEGAL_PAGES = ("terms", "privacy", "support")
 _LEGAL_TEMPLATES = {name: (PROJECT_ROOT / "pages" / f"{name}.html").read_text(encoding="utf-8")
                     for name in LEGAL_PAGES}
 #: The privacy policy's date. Change it whenever pages/privacy.html changes.
-PRIVACY_UPDATED = "21 October 2026"
+PRIVACY_UPDATED = "3 November 2026"
 #: The terms' effective date. Change it with `consent.TERMS_VERSION` whenever
 #: pages/terms.html changes in a way people must agree to again.
 TERMS_UPDATED = "21 October 2026"
@@ -6916,7 +7034,10 @@ async def consent_read(request: Request) -> dict:
     _read_limit(request)
     user = _listener(request)
     return {"ai": consent_mod.describe(CONSENT.get(user)),
-            "terms": consent_mod.describe_terms(CONSENT.get(user, consent_mod.TERMS))}
+            "terms": consent_mod.describe_terms(CONSENT.get(user, consent_mod.TERMS)),
+            # Being counted in the totals (§411); on by default once asked.
+            "demographics": consent_mod.describe_demographics(
+                CONSENT.get(user, consent_mod.DEMOGRAPHICS))}
 
 
 class ConsentRequest(BaseModel):
@@ -6932,6 +7053,9 @@ class ConsentRequest(BaseModel):
 async def consent_write(req: ConsentRequest, request: Request) -> dict:
     """Record a yes or a no. Withdrawing is the same call with `allow: false`."""
     user = _require_listener(request)
+    if req.scope == consent_mod.DEMOGRAPHICS:
+        # Being counted is an account's (§411): a guest is never counted.
+        user = _require_account(request)
     if req.scope == consent_mod.TERMS and not req.allow:
         # Agreeing to the terms is what an account is; leaving is deleting it.
         raise HTTPException(status_code=400, detail=(
@@ -6945,7 +7069,10 @@ async def consent_write(req: ConsentRequest, request: Request) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ai": consent_mod.describe(CONSENT.get(user)),
-            "terms": consent_mod.describe_terms(CONSENT.get(user, consent_mod.TERMS))}
+            "terms": consent_mod.describe_terms(CONSENT.get(user, consent_mod.TERMS)),
+            # Being counted in the totals (§411); on by default once asked.
+            "demographics": consent_mod.describe_demographics(
+                CONSENT.get(user, consent_mod.DEMOGRAPHICS))}
 
 
 @app.get("/api/preferences")

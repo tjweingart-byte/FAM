@@ -27550,3 +27550,62 @@ Next, each its own piece: the activation step (an API before the screen,
 its old-client contract, the policy and consent going live with it, account
 deletion removing the new fields, a Settings row for gender and the counting
 switch), then the aggregate totals job.
+
+## 411. The activation step, part 1: the API, and the Privacy Policy with it (2026-11-03)
+
+The owner's approved wording (§410), built as an API before a screen
+([api-before-screen]). The Privacy Policy and consent go live in the same
+change, because from here the server can collect what they describe.
+
+- **`activation.py`**: when the step is needed - an account let into the
+  app (not `waitlisted`) with no date of birth, or never shown the counting
+  notice - and what the screen draws (titles, help lines, the five gender
+  choices, the minimum age, the counting notice), in one place so every
+  client says the same.
+- **`GET /api/activation`** - the screen's state, filled with what the
+  account holds. **`POST /api/activation`** - date of birth required; place
+  (the profile's, decision 3) and gender (a choice, decision 4) optional;
+  finishing it records a yes to the new `demographics` consent - counted by
+  default (decision 2) - **the first time only**, so finishing it again on a
+  new device never undoes a no.
+- **Every open is told** (`/api/auth/me` → `activation_needed`), since that
+  is what every open asks first. **Nothing is refused to an account that has
+  not done the step**: an old client never shows it and keeps working
+  ([old-clients]); its listener is simply never counted, because no yes is
+  ever recorded.
+- **Under 13** (decision 1): a date under 13 answers 409 in the errors' own
+  shape (`error` the question "Is {date} right?", `confirm`,
+  `confirm_field: confirm_under_13`); sent again confirmed, the account and
+  everything FAM holds about the listener are erased (`erase_listener`, as
+  Settings' delete) and the session dropped. The same gate covers a later
+  correction (`POST /api/account`, also the waitlist's profile). 13 today is
+  let in. Once in the app, a date of birth is corrected, never removed.
+- **Accounts**: a `gender` column (migrated in place), `clean_gender`,
+  `age_on`, `under_age`, `MIN_AGE`; `/api/account` reads back the date,
+  gender and whether they are counted. **Consent**: a third scope,
+  `demographics` (version 1, `DEMOGRAPHICS_NOTICE`), on `/api/consent` for
+  every client; a guest cannot be counted (401). `TERMS_VERSION` stays 2
+  (decision 6). Account deletion already erased every consent row and the
+  account row, so the new answers go with it - a test pins it.
+- **The Privacy Policy** (`pages/privacy.html`, dated 3 November 2026): the
+  approved sections - the short-version bullet, "About you", "Totals about
+  groups of listeners" with the off switch, nothing sent to the listed
+  companies, never shown, the retention rows, deletion, the new Children
+  paragraph. `docs/legal/privacy.pdf` is not regenerated here: it names the
+  support address, so it is the owner's run (`python tools/legal_pdfs.py
+  --email ... privacy`).
+
+**Ship with the screen.** The policy describes the screen and the Settings
+switch, which are part 2; this branch reaches production only when merged,
+so the two go out together.
+
+**For the owner, when it ships**: the App Store privacy labels gain date of
+birth and gender (and possibly coarse location) - `APP_STORE.md`.
+
+Tests: `tests/test_activation_411.py` (ages and genders; when the step is
+needed; every open told; the screen's state; the answers kept and counted by
+default; the date required, the rest optional, a bad gender refused;
+Settings' no survives finishing again; a guest never counted; under 13
+confirmed then deleted, 13 today let in, a correction under 13 the same; a
+date corrected never removed; deletion takes the answers; an old client
+refused nothing; the policy's words and date).

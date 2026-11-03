@@ -224,6 +224,40 @@ def clean_birth_date(value: str, today: Optional[datetime.date] = None) -> str:
     return born.isoformat()
 
 
+#: The activation step's gender choices (decided items 2 and 11; §410): a
+#: choice, never words - "self-describe" has no text box (decision 4).
+GENDERS = ("man", "woman", "non-binary", "self-describe", "prefer-not-to-say")
+
+#: FAM is for people 13 and older (decided item 11).
+MIN_AGE = 13
+
+
+def clean_gender(value: str) -> str:
+    """One of `GENDERS`, or "" to remove it. Anything else is refused."""
+    value = str(value or "").strip().lower()
+    if not value:
+        return ""
+    if value not in GENDERS:
+        raise AuthError("Choose one of: man, woman, non-binary, self-describe, "
+                        "prefer not to say.")
+    return value
+
+
+def age_on(birth_date: str, today: Optional[datetime.date] = None) -> Optional[int]:
+    """Whole years old on `today`, or None without a date of birth."""
+    if not birth_date:
+        return None
+    born = datetime.date.fromisoformat(birth_date[:10])
+    today = today or datetime.date.today()
+    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+
+
+def under_age(birth_date: str, today: Optional[datetime.date] = None) -> bool:
+    """Whether a date of birth says the listener is under 13 (§411)."""
+    age = age_on(birth_date, today)
+    return age is not None and age < MIN_AGE
+
+
 def check_password(password: str) -> str:
     password = str(password)
     if len(password) < MIN_PASSWORD:
@@ -375,6 +409,9 @@ class AccountStore:
                 # The waitlist's "personalize your experience" (10.2 packet):
                 # YYYY-MM-DD, or "" when not given.
                 "ALTER TABLE accounts ADD COLUMN birth_date TEXT NOT NULL DEFAULT ''",
+                # The activation step's gender (§411): one of `GENDERS`, or "".
+                # Never shown to anyone; counted only in groups of 100+.
+                "ALTER TABLE accounts ADD COLUMN gender TEXT NOT NULL DEFAULT ''",
             ):
                 try:
                     conn.execute(ddl)
@@ -541,7 +578,7 @@ class AccountStore:
         try:
             row = self._conn().execute(
                 "SELECT email, created, last_login, plan, display_name, phone,"
-                " status, birth_date FROM accounts WHERE user_id = ?",
+                " status, birth_date, gender FROM accounts WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
         except Exception:
@@ -553,7 +590,7 @@ class AccountStore:
                 "created": row[1], "last_login": row[2],
                 "plan": entitlements.normalise(row[3]),
                 "display_name": row[4], "phone": row[5], "status": row[6],
-                "birth_date": row[7] or ""}
+                "birth_date": row[7] or "", "gender": row[8] or ""}
 
     def plan_for(self, user_id: str) -> str:
         """Which plan to stamp on this listener's usage rows.
@@ -1058,7 +1095,8 @@ class AccountStore:
     def update_profile(self, user_id: str, *, display_name: Optional[str] = None,
                        email: Optional[str] = None,
                        phone: Optional[str] = None,
-                       birth_date: Optional[str] = None) -> dict:
+                       birth_date: Optional[str] = None,
+                       gender: Optional[str] = None) -> dict:
         """Change what the account says about itself.
 
         Only the fields that were passed. `None` means "leave it alone" and an
@@ -1082,6 +1120,9 @@ class AccountStore:
         if birth_date is not None:
             sets.append("birth_date = ?")
             values.append(clean_birth_date(birth_date))
+        if gender is not None:
+            sets.append("gender = ?")
+            values.append(clean_gender(gender))
         if not sets:
             return account
 

@@ -115,7 +115,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **saved.db** (`SAVED_DB`) | `saved.py` | `folders`, `items`, `vibe_files`, `progress`, `history`, `dismissed` | Yes | History 14 days | Erased · kept |
 | **shares.db** (`SHARES_DB`) | `sharing.py` | `shares` | Yes | Forever | Erased · kept |
 | **feedback.db** (`FEEDBACK_DB`) | `feedback.py` | `reports` | Account id only | Forever | **Anonymised** · kept |
-| **consent.db** (`CONSENT_DB`) | `consent.py` | `consents` | Yes | 1 row per listener per scope | Erased · kept |
+| **consent.db** (`CONSENT_DB`) | `consent.py` | `consents` | Yes | 1 row per listener per scope (`ai`, `terms`, and since §411 `demographics` - being counted in the totals, a yes recorded when the activation step is finished, a no from Settings) | Erased · kept |
 | **moderation.db** (`MODERATION_DB`) | `moderation.py` | `reports`, `blocks`, `suspended`, `hidden_episodes` | Yes | Forever | Erased (blocks, suspension) · reports **anonymised** · kept |
 | **mixes.db** (`MIXES_DB`) | `mixes.py`, `push.py`, `daily_edition.py` | `mixes`, `push_subscriptions`, `push_sent`, `daily_editions` | Yes (mixes, push) | ≤ 30 mixes per listener | Erased · `daily_editions` **wiped** |
 | **quotas.db** (`QUOTAS_DB`) | `quotas.py` | `counters`, `charges` | Yes | 60 days | Erased · kept |
@@ -197,7 +197,11 @@ live in page memory (§4).
   `display_name`, `birth_date`, and since §183 the waitlist columns:
   `status` (`waitlisted` / `active`), `referral_code`, `referred_by`,
   `vl_referral_code`, `vl_participant_id`, `waitlist_joined_at`,
-  `access_granted_at`.
+  `access_granted_at`; since §411 `gender` (one of `accounts.GENDERS`, or
+  ""). The activation step (`activation.py`, `/api/activation`) asks for the
+  date of birth (13 and over; under 13, confirmed, deletes the account), the
+  place (the profile's, in preferences) and the gender - never shown to
+  anyone; erased with the account.
 - `sessions`: the **hash** of each session token, `expires` (90 days,
   `accounts.SESSION_TTL`). `identities`: Google/Apple subject per account.
 - `waitlist_settings` (the admin's `access_cutoff`) and `waitlist_outbox`:
