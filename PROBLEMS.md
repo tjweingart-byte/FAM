@@ -28065,3 +28065,34 @@ in episodes or the archive (a lawyer's question first).
 
 Tests: `tests/test_guardrails_422.py`; the provider and archive tests that
 pinned the old "keep everything while Consuela is off" now pin the new rule.
+
+## 423. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03)
+
+§422 found that, before it, the archive could keep API-Sports' and Finnhub's
+scores and prices (both refused, both no longer used) as live facts while
+Consuela was off. The owner asked for the purge list. `tools/withdraw_refused.py`:
+
+- **The list** (no flag): every active live fact (`facts`, kind `live`, its
+  provider in `host`) and every reading (`live_series`, in `source`) from the
+  two, as JSON and a Markdown table, with counts by store and provider and the
+  list's SHA-256. Nothing is changed.
+- **`--apply LIST --approve SHA256`**: refuses any other value, so the list
+  withdrawn is the list reviewed. **Withdrawing is reversible** (every-agent.md
+  always 8): a fact is marked inactive with no keeper and the mark
+  `withdrawn: refused provider (§423)` - every reader already ignores an
+  inactive fact, and Consuela's own purge of repeats never touches one without
+  a keeper - and a reading moves out of the series into a holding table
+  (`withdrawn`, both backends). Applying twice withdraws once.
+- **`--restore`** puts every one back; **`--status`** counts what is held;
+  **`--purge`** deletes for good only what was withdrawn more than 30 days ago.
+
+Both backends (`SQLiteBackend` and `AtlasBackend`: `provider_rows`, `withdraw`,
+`restore_withdrawn`, `purge_withdrawn`, `withdrawn_count`); the SQL path reads
+the series by its named columns (`SERIES_COLUMNS`), so it holds on Postgres
+too. The Atlas holding collection is opened only when first used. No model,
+no provider, no new dependency (the Atlas test uses a small fake collection).
+
+Tests: `tests/test_withdraw_refused_423.py` (only the refused two listed; the
+list changes nothing and names its approval; any other approval or an edited
+list refused; withdraw, restore, the grace period and the purge on SQLite;
+twice is once; the same on the Atlas backend).

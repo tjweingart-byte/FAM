@@ -423,3 +423,4 @@ and `limit` = Lines.
 | 27952 | 31 | 420. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03) |
 | 27983 | 43 | 421. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03) |
 | 28026 | 43 | 422. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03) |
+| 28069 | 31 | 423. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03) |
