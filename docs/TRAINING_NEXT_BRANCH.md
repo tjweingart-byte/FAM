@@ -33,7 +33,7 @@ Read first: `CLAUDE.md` (and `docs/claude/*.md` for any rule you touch),
 Retriever), the signed rule books in `docs/agent_rules/` (`every-agent.md`,
 `consuela.md`, `sonic.md`, and `nando.md` - its rule 12 is the model for the
 new rules), `docs/agent_rule_proposals/README.md` (how a proposal is signed),
-and PROBLEMS.md §381-§387 and §396-§416 via `PROBLEMS_INDEX.md`. Check CI on
+and PROBLEMS.md §381-§387 and §396-§417 via `PROBLEMS_INDEX.md`. Check CI on
 Main before starting.
 
 The pieces, in order:
@@ -62,7 +62,9 @@ The pieces, in order:
    (0.90), `WINDOW_DAYS` (3) and the hedge list are right. Show me each
    proposed change as before and after - wrong merges, missed repeats,
    pairs sent to a model - and wait for my yes before changing a number.
-   No wrong merge, ever.
+   No wrong merge, ever: since §417 a figure is merged only word for word,
+   and any way back to merging reworded figures must pass the swapped-score
+   and rose/fell cases.
 4. **S3 - Sonic's thresholds, measured** - only once I paste
    `sonic_recall_eval.py`. `ENOUGH` (2), `ROUTER_FLOOR` (0.55),
    `ARCHIVE_MIN_SIMILARITY` (0.45), how often the grace window is missed,

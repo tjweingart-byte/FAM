@@ -17,7 +17,7 @@ not measure.
 Finish Phase 1 of FAM's agents ("C3P0 and Nando at the request"). The Phase 1
 branch built C3P0's research plan and Nando's filing and training
 (PROBLEMS.md §369-§392); Phase 2 then built Consuela, Sonic, the category tag
-everywhere and the activation step (§393-§416). Four Phase 1 items remain,
+everywhere and the activation step (§393-§417). Four Phase 1 items remain,
 listed in §390 and in `docs/AGENTS_BUILD_PROMPT.md` under "Phase 1 - C3P0 and
 Nando at the request".
 
