@@ -28022,3 +28022,46 @@ shared name never asked; the dry run changes nothing and the Markdown names
 the approval; any other approval, or an edited list, refused; the approval
 applied through `retag` as a first filing, and a second apply skipped; a row
 changed since the review skipped; `retag` without `first_filing` unchanged).
+
+## 422. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03)
+
+The owner asked for the legal guardrails to be checked in the code (copyright,
+defamation, private people, data protection, provider terms). Found and fixed
+at the owner's direction:
+
+**What the archive may keep.** The approval list (`HOUSEKEEPER_APPROVED_PROVIDERS`,
+§397) applied only while Consuela runs; with her off - the default - the
+archive (`ARCHIVE=1`, on by default) kept every provider but Parallel, so
+scores and prices from API-Sports and Finnhub, both refused, could be kept as
+facts (`kept_live`). Now `_kept` and `kept_live` apply the list whether or not
+she runs: a refused or unknown provider's material is never kept, counted as
+`not_approved`. The owner approved **GNews** (2026-11-03); **Polymarket is
+pending**; API-Sports and Finnhub are no longer used and stay refused in code.
+A finding that names no provider is unknown and dropped - every real one names
+its search (`research._findings`). Already-stored rows from the refused two
+are not removed here: that is a reversible purge with a list first
+(every-agent.md always 8), the next piece.
+
+**The writer's rules, two additions** (every episode, agents on or off):
+
+- *An accusation is not a finding.* Say who accuses ("prosecutors say"),
+  where it stands and any denial; it is fact only once a verdict, ruling or
+  admission settles it. Naming the accuser is not mentioning the material -
+  so it sits beside "never mention your material", not against it.
+- *Private people* (victims, witnesses) are named only as the reporting
+  names them; a child accused of a crime, never.
+
+**The prompt's length guard held** (`test_the_prompt_stays_lean`, under
+7,800 characters): the additions were paid for by a dedup pass, not a raised
+bound - the closing paragraph's bait-and-switch sentence (said again by
+"Never tease"), the unresolved line's parting-hook clause, two accuracy
+bullets merged (invent / fill a gap), and the time bullet's "based on what I
+have" (said by "never mention your material"). Unheard: a `write.py` run on
+an accusation story is the listening test.
+
+**Found and left for the owner:** no limit on a real quote's length (Mclovin's
+quote check, Phase 3); no way to honour a removal request from someone named
+in episodes or the archive (a lawyer's question first).
+
+Tests: `tests/test_guardrails_422.py`; the provider and archive tests that
+pinned the old "keep everything while Consuela is off" now pin the new rule.

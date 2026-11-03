@@ -92,12 +92,13 @@ def test_a_supersede_chain_keeps_every_corroboration(store):
     assert json.loads(_row(store, "a")[0]) == []
 
 
-def test_a_refused_provider_s_live_record_is_not_kept_once_consuela_runs(monkeypatch):
+def test_a_refused_provider_s_live_record_is_never_kept(monkeypatch):
     records = [{"source": "Finnhub", "lines": ["x"]}, {"source": "Tiingo", "lines": ["y"]},
                {"source": "API-Sports", "lines": ["z"]}]
-    monkeypatch.setattr(ha, "consuela_runs", lambda: False)
-    assert ha.kept_live(records) == records              # §313, unchanged
-    monkeypatch.setattr(ha, "consuela_runs", lambda: True)
+    # Whether or not Consuela runs (the owner, §422).
+    for runs in (False, True):
+        monkeypatch.setattr(ha, "consuela_runs", lambda runs=runs: runs)
+        assert [r["source"] for r in ha.kept_live(records)] == ["Tiingo"]
     import dataclasses
 
     monkeypatch.setattr(ha, "settings", dataclasses.replace(

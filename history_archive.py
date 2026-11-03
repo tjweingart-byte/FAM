@@ -211,13 +211,16 @@ def approved(provider: str) -> bool:
 
 
 def kept_live(records) -> list:
-    """The live records the archive may keep as facts (§417): every one
-    before Consuela runs (§313); once she runs, only an approved provider's,
-    as for everything else she stores (§397) - never a refused one's."""
+    """The live records the archive may keep as facts (§417): only an
+    approved provider's, whether or not Consuela runs (the owner, §422) -
+    never a refused or unknown one's."""
     records = list(records or ())
-    if not records or not consuela_runs():
+    if not records:
         return records
-    return [r for r in records if approved(str(r.get("source", "") or ""))]
+    allowed = [r for r in records if approved(str(r.get("source", "") or ""))]
+    if len(allowed) < len(records):
+        _count("not_approved", len(records) - len(allowed))
+    return allowed
 
 
 @dataclass
@@ -1743,9 +1746,10 @@ def _kept(findings: list) -> list:
     dropped = len(findings or ()) - len(kept)
     if dropped:
         _count("never_kept", dropped)
-    # While Consuela runs, only what an approved provider returned (§397).
-    # With her off, the intake keeps what it kept before her.
-    if kept and consuela_runs():
+    # Only what an approved provider returned (§397) - whether or not
+    # Consuela runs (the owner, §422): the approval list is a rule about
+    # what FAM may keep, not about who keeps it.
+    if kept:
         allowed = [f for f in kept if approved(f.provider)]
         if len(allowed) < len(kept):
             _count("not_approved", len(kept) - len(allowed))

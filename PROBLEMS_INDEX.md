@@ -422,3 +422,4 @@ and `limit` = Lines.
 | 27880 | 72 | 419. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03) |
 | 27952 | 31 | 420. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03) |
 | 27983 | 43 | 421. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03) |
+| 28026 | 43 | 422. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03) |

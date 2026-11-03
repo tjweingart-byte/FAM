@@ -1423,7 +1423,7 @@ languages). Every hole is closed by "uncertain = not compared".
 | `HOUSEKEEPER_DEDUPE_PAIRS` | Built (§401): 200 - pairs asked of the models per night, at most |
 | `HOUSEKEEPER_DRY_RUN` | Built (§399): `1` - she chooses and `tools/consuela_report.py` shows it, nothing is written - until the owner sets `0` |
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_BATCHES_PER_RUN` | Built (§399): 8 articles per call, 5 calls per run of her task |
-| `HOUSEKEEPER_APPROVED_PROVIDERS` | Built (§397): `fam,gdelt,tiingo,balldontlie,perplexity`; Parallel, Finnhub and API-Sports refused in code (`history_archive.REFUSED`) |
+| `HOUSEKEEPER_APPROVED_PROVIDERS` | Built (§397): `fam,gdelt,tiingo,balldontlie,perplexity,gnews` (GNews 2026-11-03, Polymarket pending); applied to the whole archive whether or not Consuela runs (§422); Parallel, Finnhub and API-Sports refused in code (`history_archive.REFUSED`) |
 
 **May FAM keep what the providers return?** The owner's use (2026-10-28):
 an internal, chronological history of what FAM searched with its own keys,
