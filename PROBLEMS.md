@@ -28056,9 +28056,16 @@ reads the file under SQLite and the schema under Postgres and keeps running
 in both jobs: `test_archive_nodes_396`, `test_category_tag_404`,
 `test_consuela_consolidates_399`, `test_consuela_dedupe_401`,
 `test_consuela_longer_jobs_402`, `test_demographic_totals_415`,
-`test_tag_sync_405`. The one test that builds an archive in the pre-§394
-SQLite shape to watch it migrate is a test of the file, and is marked
-`sqlite_file`. No product code changed.
+`test_tag_sync_405`. Two tests are of the file itself and are marked
+`sqlite_file`: the one that builds an archive in the pre-§394 SQLite shape to
+watch it migrate, and `test_sonic_retrieves_403`'s `mode=ro` check - on
+Postgres Sonic is held to reads by `retriever._gate`, which its own test
+pins on both backends. No product code changed.
+
+A full local run on Postgres then passed but for `test_spend_guard`'s staging
+boot, which failed only because earlier smoke runs had left `accounts.db` in
+the checkout (§254's guard, doing its job); a clean checkout passes, as CI's
+is.
 
 **For the next new test:** read a store with `db.connect(store.path)`, not
 `sqlite3.connect`; reach for `sqlite_file` only when the file itself is the

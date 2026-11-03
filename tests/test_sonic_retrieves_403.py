@@ -112,6 +112,10 @@ def test_the_gate_refuses_anything_but_a_read(sql):
         sonic._gate(sql)
 
 
+# The file's own `mode=ro`. On Postgres the archive is a schema and the gate
+# above is what holds Sonic to reads (agents/retriever.py, §243), so this is a
+# test of the SQLite file and is skipped there (§424).
+@pytest.mark.sqlite_file
 def test_the_file_is_opened_read_only(archive):
     _fact("The Eagles won.", "2025-01-10")
     with pytest.raises(sqlite3.OperationalError):
