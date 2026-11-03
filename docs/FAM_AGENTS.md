@@ -829,7 +829,10 @@ called Diana Russini, then Shakespear; renamed Shakespeare by the owner).
 plugin packet and Sonic's MongoDB packet), with Mclovin checking as the
 writer writes. On searchFAM a listener waits through its work; on myFAM,
 DailyFAM, Trending and the write-ahead it runs before the tap. **Status:**
-planned (§312).
+built ahead of the tap, off by default (`agents/editor.py`, §436): the
+outline by sentence number, checked in code; the comparison of item 37 in
+`tools/editor_eval.py`. searchFAM's hand-over waits on the first-chunk
+measurement (§437).
 
 **Purpose.** Be the journalist in the room. The writer today reads the
 packets raw and plans in its head; Shakespeare decides what matters, what the

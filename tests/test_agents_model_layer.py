@@ -375,7 +375,7 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # His sentence checks (§434) sit in the reader beside the guards:
         # code only; the one rewrite is the writer's own call, not his.
         "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever",
-                                "supervisor", "supervisor_checks"},
+                                "supervisor", "supervisor_checks", "editor"},
         # The screen itself, read inside `screen_results`, the packet's
         # opinion label and the archive's merge (§433): code only.
         "research.py": {"supervisor"},

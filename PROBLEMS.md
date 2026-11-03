@@ -28629,3 +28629,176 @@ Tests: `tests/test_supervisor_checks_434.py` (one sentence passes, two fail
 as `quote_too_long`, abbreviations are not sentence ends, counted not sent
 back; superlatives counted; the proposed failure is in the proposal and not
 in the signed list).
+
+## 436. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03)
+
+Decided items 28, 29, 30 and 37; shakespeare.md. The owner's answer (§433):
+built and measured ahead of the tap first; searchFAM's hand-over designed once
+the first chunk's wait is measured (§437).
+
+**Where.** `prepare`'s last step (`script_generator._with_editor`), once both
+packets are in: only when Netenyahu lets him work on the episode and it is
+written ahead of the tap (`notes.ahead`: the Trending, DailyFAM and rails
+editions and the write-ahead), never a prefetch warm (its script is not
+written from this plan) and not yet on searchFAM. The plan reaches the writer
+as `EpisodePlan.editor_outline`, after `</evidence>` in the prompt; "" when he
+did not plan, and then the prompt is byte for byte what it was. Never in the
+cache key. A batched edition gets the same, since `batch_request` runs
+`prepare`.
+
+**Extractive by construction** (`agents/editor.py`). `number_packets` numbers
+both packets sentence by sentence - `P2.3` the plugin packet's second source,
+third sentence; `A1.1` the archive's; the live block, when there is one, is
+`P1` - at most 12 sentences a source and 16 sources, so the call's size is
+bounded by the packet. His answer (`EditorAnswer`, structured output, extra
+fields forbidden) holds only numbers, a few words on what the episode
+answers, each beat's purpose, `thin` and `missing`: there is no field a fact
+could be written into. Code then (`to_outline`) checks every number exists
+and drops the rest, drops a beat left with nothing behind it ([depth-not-words]),
+drops a "now" beat resting only on the archive, trims every list, and builds
+the handoff `Outline`. `writer_block` shows the writer the sources' own
+sentences under each part - what to open on, each part's purpose (history
+marked, with its date), what to land on, and what was not found, for the
+writer only and never to be announced ([missed-not-absent]).
+
+**His prompt.** The shared preamble and his signed rule book with the
+journalism playbook (the lock adds it, §348), then the instructions from his
+tab in `docs/FAM_AGENTS.md`, then the material: the request, the plugin
+packet in `<evidence>`, the archive in `<archive>`, and `examples/` in
+`<teaching>` - the same worked episodes the writer is shown. Effort
+`EDITOR_EFFORT` (high, new) ahead of the tap; time limit
+`EDITOR_AHEAD_TIMEOUT_SECONDS` (60).
+
+**Measured on the first trial: his call size was too small.** At high effort
+Haiku 5.5 spent all of `EDITOR_MAX_TOKENS` (4,000, a placeholder since §349)
+thinking and was cut off before answering (`out_of_room`) on both trial
+questions; Sonnet fitted. The answer itself is a few hundred tokens, so the
+ceiling is now 16,000 - a bound on a runaway, not a budget.
+
+**Never costs an episode.** Off, held, late, refused, cut off, malformed,
+or a plan with no beat left: the writer reads the packets exactly as today.
+`/api/health`'s agents block counts his calls by outcome and every number or
+beat code dropped.
+
+**The comparison** (`tools/editor_eval.py`, decided item 37). Fifty fixed
+edition questions - 18 Trending-style news, 22 DailyFAM subjects across
+sports, money, tech, science, health and culture, 10 evergreen - each
+researched once as an edition is (ahead, at the edition's ceilings, no agent
+working) and frozen, then written three ways by the same writer (Haiku 5.5,
+`WRITER_MODEL`) at 1.5 minutes: no editor; Shakespeare on Haiku 5.5 high;
+Shakespeare on Sonnet 5.5 high. Each script is scored on
+`episode_quality.measure`'s six code measures; Mclovin's sentence checks
+(§434), every check counted and none enforced, so the arms are compared on
+what the writer wrote; a blind 1-5 grade per metric by Opus 5.5
+(`QUALITY_GRADER_MODEL`, so Sonnet never grades itself; it sees the question,
+the evidence and the script, never the arm), and its count of claims the
+evidence does not support; and cost and time per episode. The arms run in a
+shuffled order per question. Frozen packets and results stay outside the
+repository (they hold provider text). The two weeks of editions written each
+way, judged by listening, come after the owner reads this.
+
+**Results:** the run is in progress; the table is added here when it finishes.
+
+Settings: `EDITOR_EFFORT` (new), `EDITOR_MAX_TOKENS` 16,000 (was 4,000), in
+`config.py`, `.env.example` and `tests/conftest.py`.
+
+Tests: `tests/test_editor_436.py` (packets numbered by sentence; every
+number checked, bad ones and empty beats dropped and counted; a "now" beat on
+the archive alone dropped; the writer reads the sources' sentences, history
+marked, never a number; no beats no block; the call bounded, on his rule
+book, with the examples; anything but an answer leaves the writer as today;
+no packets no call; the prompt byte for byte without him; he plans only ahead
+of the tap, never a prefetch, never while off).
+
+## 437. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03)
+
+Decided items 14 and 34; the owner's direction: analyse on its own whether
+the grounding checker can run inside the current pipeline without a new
+machine (Vectara's HHEM-2.1-Open on a CPU first; never on the voice pod), and
+how a rejected sentence avoids delaying the writer; measure the first chunk's
+added wait; bring the analysis and the numbers before any new dependency or
+machine. **Nothing is built or installed here.**
+
+**Measured: what Mclovin's code checks cost the first word today**
+(`tools/supervisor_wait.py`, new; ten search questions, two trials, each
+prepared once on the search surface and written twice from the same packets,
+Mclovin off then on, with the key):
+
+| | Mclovin off | Mclovin on |
+|---|---|---|
+| first sentence, median | 1.29 s | 1.04 s |
+| second sentence, median | 1.87 s | 1.36 s |
+| code checks per sentence | - | median 0.28 ms, max 100 ms (the first call, cold imports), 321 sentences |
+| rewrites asked | - | 0 in 20 episodes (none before the first word) |
+
+The code checks add nothing a listener can hear: well under a millisecond a
+sentence. The off/on difference is the writer's own variance - both arms had
+first sentences of 6-11 s on some runs (5 of 20 off, 4 of 20 on), which is
+the writer's first token, not Mclovin; worth its own look (it is above the
+spec's second either way). A rewrite would wait up to
+`SUPERVISOR_REPAIR_TIMEOUT_SECONDS` (2 s) in front of the first word if the
+first sentence failed an enforced check; in these 20 episodes none did.
+`tools/stall_probe.py` (the browser's main thread): longest stall 0.07 s - the
+checks are on the server and do not reach the page.
+
+**HHEM-2.1-Open on a CPU: not measured, because this container cannot reach
+huggingface.co** (the environment's network policy refuses it; the weights
+live only there). What follows is from FAM's own numbers and Vectara's model
+card, which I could not open from here and is stated as the card states it:
+a flan-t5-base classifier scoring how far a premise supports a hypothesis,
+0 to 1, Apache 2.0, about 600 MB at 32-bit and about 1.5 s for a 2,000-token
+input on a modern x86 CPU. To measure it for real: allow `huggingface.co` in
+the environment's network settings, then a throwaway script in the
+scratchpad (never `requirements.txt`) times it on the frozen packets of
+`tools/editor_eval.py`.
+
+**Can it run without a new machine?** On the web instance itself
+(`render.yaml`: `standard`, 1 CPU, 2 GB; FAM holds about 400 MB, §339), by
+memory yes - and FAM already runs a CPU-only ONNX model there (the sentence
+embedder, `requirements-embed.txt`, ~10 ms a sentence, no torch), so the same
+route (an ONNX export of HHEM, `onnxruntime` already installed, int8 to about
+a quarter of the size) adds no package. By CPU, not safely: a sentence's
+premise is the three sources most like it (~600-900 tokens, as the rewrite
+uses), so by the card's figure about 0.5-0.7 s of one core per sentence, and
+an episode of 15-20 sentences is 8-14 s of CPU on the one core that also
+serves every request. One episode at a time is fine; several at once queue
+behind each other and slow every page. So:
+
+1. **In the web instance**: no new machine, ONNX through the embedder's
+   route, a one-thread executor so the event loop never waits; fine while
+   traffic is a few episodes at a time, and measured before trusted.
+2. **A small CPU worker of its own** (a Render private service), called over
+   the private network: a new machine and a monthly cost - the owner's
+   decision, if (1) measures too slow under load.
+3. A GPU only if searchFAM's first chunk is too slow even then (item 34).
+
+**How a rejected sentence avoids delaying the writer.** The writer is never
+paused: its stream keeps arriving into the SDK's buffer while a sentence is
+checked or rewritten, so a rejection costs the writer nothing; only the
+order in which sentences are handed to the voice waits. After the first
+sentence the check runs while earlier sentences are being voiced and played
+(each is several seconds of audio against well under a second of checking),
+so a rejection there is not heard. Only the first sentence - and the
+second, if the first is short - waits in front of the first word. For those:
+
+- the grounding check on the first sentence gets its own short deadline
+  (proposed 0.3 s, against `SUPERVISOR_TIMEOUT_SECONDS`' 1 s), with a premise
+  trimmed to the one best source's sentences (~250 tokens, ~0.2 s by the
+  card); past it the sentence plays unchecked and is recorded (item 32);
+- an "unsure" first sentence is not sent to Haiku (a second call, ~1 s) in
+  front of the first word: it plays, recorded as unsure, and only later
+  sentences take the Haiku second look;
+- a rejected first sentence takes the one rewrite as now (§434) - up to 2 s,
+  measured as zero times in 20 episodes - or, if the owner prefers the
+  spec, is left out on searchFAM's first sentence only.
+
+**Asked of the owner**: allow huggingface.co so HHEM can be measured; then
+choose (1) or (2); and the first-sentence rules above.
+
+**Also found, not fixed (outside Phase 3):** Perplexity's search API now
+answers `400 search_mode is not supported` whenever FAM sends `search_mode`
+(`research.PERPLEXITY_MODES`, §320: academic and SEC-filings questions), so
+every such question loses its Perplexity search and falls down the ladder to
+the next rung - seen on the science and evergreen questions of the editor
+eval and the wait probe. Dropping the field is one line; it changes what
+every listener's episode is researched from, so it is the owner's to say.

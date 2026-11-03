@@ -1110,6 +1110,12 @@ class EpisodePlan:
     #: other reader keep `evidence`. **Never in the cache key**, as
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
+    #: Shakespeare's plan for the writer (§436, `agents.editor.writer_block`):
+    #: what to open on, each part's purpose and the sources' own sentences
+    #: under it, what to land on. "" when he did not plan this episode - then
+    #: the prompt is byte for byte what it was. Never in the cache key: how
+    #: an episode is prepared, like `evidence_digest`.
+    editor_outline: str = ""
     #: The reading the listener chose when a name means two things (decided
     #: item 15, §426): "Manchester United" for "how did United do". It is
     #: also written into `query` ("how did United do (Manchester United)",
@@ -1416,7 +1422,7 @@ for the script.
 <evidence>
 {plan.evidence_digest or plan.evidence}
 </evidence>
-"""
+{plan.editor_outline}"""
 
     # A live state outranks everything, so it goes in front of the evidence it
     # outranks - the instructions that follow refer to it as already read.
@@ -1726,6 +1732,28 @@ class Repair:
     why: str
     #: The reader that failed it, whose guards and checks judge the rewrite.
     reader: object = None
+
+
+async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
+    """The plan with Shakespeare's outline for the writer (§436), when he
+    works on this episode and it is written ahead of the tap - an edition or
+    the write-ahead, never a prefetch warm (whose script is not written from
+    this plan) and not searchFAM yet (the owner, 2026-11-03: in tandem there,
+    designed once the first chunk's wait is measured). Otherwise the same
+    plan. Never raises."""
+    if (notes is None or not getattr(notes, "ahead", False)
+            or getattr(notes, "prefetch", False) or not plan.evidence
+            or not _agent_runs(notes, "editor")):
+        return plan
+    try:
+        from agents import editor
+
+        block = await editor.outline(plan, notes, ahead=True)
+    except Exception:  # noqa: BLE001 - the editor never costs an episode
+        log.warning("Shakespeare could not plan; the writer reads the packets",
+                    exc_info=True)
+        return plan
+    return dataclasses.replace(plan, editor_outline=block) if block else plan
 
 
 async def settle_repairs(generator, plan, notes, sentences: list) -> list:
@@ -2926,7 +2954,8 @@ class ScriptGenerator:
         # (§264), one row for /admin. In memory; written off this path.
         live_routing.record(plan.query, plan.brief,
                             routed_miss if plan.live is None else plan.live)
-        return plan
+        # Shakespeare's plan (§436), last: once both packets are in.
+        return await _with_editor(plan, notes)
 
     async def stream_sentences(
         self, plan: EpisodePlan, notes: ScriptNotes | None = None

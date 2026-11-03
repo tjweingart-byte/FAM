@@ -2109,7 +2109,13 @@ class Settings:
     nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 50)
     editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
     editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
-    editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 4000)
+    # Measured (§436): at high effort Haiku 5.5 spent 4,000 tokens thinking
+    # and was cut off before answering; the answer itself is a few hundred.
+    editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 16000)
+    # Shakespeare's effort ahead of the tap (§436): high, as the comparison
+    # runs both Haiku and Sonnet (decided item 37). On searchFAM: low.
+    editor_effort: str = field(
+        default_factory=lambda: os.environ.get("EDITOR_EFFORT", "high").strip())
     supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
     supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
     # **Mclovin's sentence checks** (§434): which ones send a failing

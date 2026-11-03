@@ -631,6 +631,13 @@ def health() -> dict:
             "max_per_episode": settings.supervisor_max_repairs}
     except Exception:  # noqa: BLE001
         out["supervisor"] = None
+    try:
+        from agents import editor
+
+        # Shakespeare's outlines: calls by outcome, numbers dropped (§436).
+        out["editor"] = editor.report()
+    except Exception:  # noqa: BLE001
+        out["editor"] = None
     out["overlord"] = {"loop": bool(settings.agents),
                        "tick_seconds": settings.overlord_tick_seconds,
                        "max_tasks_per_tick": settings.overlord_max_tasks_per_tick}
