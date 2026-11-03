@@ -11,7 +11,6 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import os
-import sqlite3
 import sys
 from contextlib import closing
 from types import SimpleNamespace
@@ -20,6 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import db as store_db  # noqa: E402  (a store's file, or its schema in Postgres, §243)
 import demographic_totals as dt  # noqa: E402
 
 WEEK = datetime.date(2026, 10, 26)          # a Monday
@@ -143,7 +143,7 @@ def test_only_cells_are_ever_written_never_a_person(tmp_path):
     store = dt.TotalsStore(str(tmp_path / "t.db"))
     result = _compute(world)
     store.replace_week(result["week"], result["cells"], AT)
-    with closing(sqlite3.connect(store.path)) as db:
+    with closing(store_db.connect(store.path)) as db:
         columns = [r[1] for r in db.execute("PRAGMA table_info(totals)")]
         rows = db.execute("SELECT * FROM totals").fetchall()
     assert columns == ["week", "story", "breakdown", "grp", "listeners", "searches",

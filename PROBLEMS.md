@@ -27969,6 +27969,109 @@ dashboard was read the same day: `ANSWER_FIRST` and `GDELT_TIMEOUT_SECONDS`
 are set there and read by nothing (§108 deleted the first; GDELT is read
 from its export files since §211).
 
+## 423. The costs on the Haiku writer, the launch plans for sports and markets, and the batched writer test (2026-11-03)
+
+The owner, drafting the pitch deck's backend slide: BALLDONTLIE is **EUR 299
+a month**; **Tiingo is in at $249 a month all in**; **Finnhub and API-Sports
+are out** once FAM is commercial; update the estimates now that the writer is
+on Haiku; and estimate the test to come between Haiku 5.5 at high effort and
+Sonnet 5.5 at medium for the writer on the batched episodes.
+
+**What was stale.** `docs/FINANCIAL.md` still priced a new episode at about
+$0.06 - the Sonnet writer's and Exa's - and the workbook (`financials.py`)
+used that $0.06 on Projections until recorded spend replaced it, listed
+Finnhub's commercial plan as a launch licence and had no price for
+BALLDONTLIE. On §359's prompt sizes (brief ~12.6k in / 3.6k out over three
+Haiku calls, writer ~12.2k in / 2k out) a new episode is about **$0.011** on
+demand - brief $0.003, search $0.0015, writer $0.002, first voicing $0.004 -
+and about $0.0096 batched with the writer at batch price.
+
+**Changed.**
+
+* `docs/FINANCIAL.md` gains section 0, the figures in force: one episode by
+  step, the writer test, fixed costs before and from launch, the background
+  writing, and the four audience sizes again (≈ $150 / $1,300 / $2,350 /
+  $9,700 a month at 100 / 1k / 10k / 100k listeners). Sections 2.1-6 keep
+  their figures as history, each with a `Current` note pointing at section 0.
+  The finding: with the writer on Haiku, **the data plans (~$655 a month at
+  launch) and the voice's active worker are most of the bill until about
+  10,000 listeners**.
+* `financials.py`: BALLDONTLIE's paid tier is priced (`BALLDONTLIE_EUR`, 299,
+  a EUR/month row) and its Projections rate cell defaults to it; a **Tiingo**
+  row ($249, `TIINGO_USD`, by `TIINGO_PLAN`) replaces Finnhub in the launch
+  purchases; Finnhub and API-Sports keep rows (the code still calls them while
+  developing) marked "Leaving at launch" at $0; the new-episode fallback is
+  `NEW_EPISODE_USD` (0.011); the background base is $60 (was $120).
+* `provider_usage.licences` names Tiingo's plan as the one to buy;
+  `docs/SCALING_TIMELINE.md`'s launch checklist and Finnhub's section say so;
+  the `sports-balldontlie` rule has a `Current` note and its core line.
+
+**The writer test, estimated** (FINANCIAL.md 0.2): per batched script the
+writer is $0.0011 on Haiku low (today), $0.0019 on Haiku high and
+$0.022-0.030 on Sonnet medium, assuming ~2k / ~5k / ~3.5k output tokens;
+Sonnet adds about $105-140 a month on the rails and Trending and $62-83 per
+100 active mix subjects. Estimates only - the test's `metering` rows replace
+them.
+
+Not changed: the Finnhub and API-Sports code (removed on purpose later, as
+§290 says), and `commercial_ready`, which already blocks a Finnhub key left
+on a free plan.
+
+**Merged after §418-§422 (2026-11-03).** This section was written as §395 on
+a branch cut before Main's §395-§422 and renumbered on merge. Main had by
+then removed Finnhub and API-Sports from the code (§418) and priced
+BALLDONTLIE's ALL-ACCESS at $299.99 a month from the owner's dashboard
+(§419), so those win over the EUR 299 figure and the "development only" rows
+above: `financials.py` keeps Main's BALLDONTLIE and Tiingo rows, with no
+Finnhub or API-Sports row. What this section adds is kept: the Haiku-era
+`NEW_EPISODE_USD` (0.011), the $60 background base, a priced BALLDONTLIE
+launch cell (`BALLDONTLIE_ALL_ACCESS_USD`), and the owner's $249 a month all
+in as the price of Tiingo's redistribution licence, which §418 had left
+quote-based (`TIINGO_REDISTRIBUTION_USD`: a launch purchase until
+`TIINGO_PLAN=redistribution`, then a "Paying" row). `docs/FINANCIAL.md`
+section 0 is restated on those figures: data plans about $632 a month at
+launch, and the audience totals about $20 lower. `provider_usage.py`, the
+`sports-balldontlie` rule and its note keep Main's wording.
+
+**Pinned by** `tests/test_financials.py::test_tiingo_s_licence_is_priced_and_the_episode_is_haiku_s`.
+
+## 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03)
+
+CI's `postgres` job failed on the merges of #217 and #218 (and earlier on
+#202, #212 and #213) while the `test` job passed, so each merge went in red.
+Reproduced on a local Postgres 16 the way `ci.yml` runs it (`DATABASE_URL`
+set, the same tuning): 22 failures in seven files written for §396-§415,
+none in the code they test.
+
+**The cause.** Each read the store it had just written with
+`sqlite3.connect(store.path)`. With `DATABASE_URL` set every store is a
+schema in Postgres (§243), so the file at that path was empty and the read
+said `no such table`. Older tests that must read the file carry
+`@pytest.mark.sqlite_file`, which skips them on Postgres; these had neither
+the marker nor a read that follows the backend.
+
+**The fix.** A test that only reads what the code wrote now reads through
+`db.connect` (imported as `store_db`), the same door the stores use, so it
+reads the file under SQLite and the schema under Postgres and keeps running
+in both jobs: `test_archive_nodes_396`, `test_category_tag_404`,
+`test_consuela_consolidates_399`, `test_consuela_dedupe_401`,
+`test_consuela_longer_jobs_402`, `test_demographic_totals_415`,
+`test_tag_sync_405`. Two tests are of the file itself and are marked
+`sqlite_file`: the one that builds an archive in the pre-§394 SQLite shape to
+watch it migrate, and `test_sonic_retrieves_403`'s `mode=ro` check - on
+Postgres Sonic is held to reads by `retriever._gate`, which its own test
+pins on both backends. No product code changed.
+
+A full local run on Postgres then passed but for `test_spend_guard`'s staging
+boot, which failed only because earlier smoke runs had left `accounts.db` in
+the checkout (§254's guard, doing its job); a clean checkout passes, as CI's
+is.
+
+**For the next new test:** read a store with `db.connect(store.path)`, not
+`sqlite3.connect`; reach for `sqlite_file` only when the file itself is the
+subject. A separate `close_all()` pool race has been named as a source of
+flaky Postgres runs; it is not this, and is not touched here.
+
 ## 425. Finishing Phase 1, piece 1: facts, never advice (2026-11-03)
 
 Decided item 17 (every-agent.md never 10, c3p0.md never 7). C3P0 has set

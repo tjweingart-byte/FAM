@@ -17,7 +17,6 @@ import asyncio
 import dataclasses
 import json
 import os
-import sqlite3
 import sys
 from contextlib import closing
 from types import SimpleNamespace
@@ -26,6 +25,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import db as store_db  # noqa: E402  (a store's file, or its schema in Postgres, §243)
 import history_archive as ha  # noqa: E402
 from agents import housekeeper as hk  # noqa: E402
 from agents import models  # noqa: E402
@@ -105,13 +105,13 @@ def _run():
 
 
 def _facts(store):
-    with closing(sqlite3.connect(store.path)) as db:
+    with closing(store_db.connect(store.path)) as db:
         return db.execute("SELECT kind, text, figure, node_id, node_path, url FROM facts "
                           "ORDER BY text").fetchall()
 
 
 def _digested(store):
-    with closing(sqlite3.connect(store.path)) as db:
+    with closing(store_db.connect(store.path)) as db:
         return dict(db.execute("SELECT url, digested FROM intake").fetchall())
 
 
@@ -321,7 +321,7 @@ def test_live_the_passages_are_cleared_the_moment_the_article_is_consolidated(
     monkeypatch.setattr(models, "ask", _FakeModel(hk.Picks(articles=[_pick(1)])))
     _intake(archive, "https://espn.com/a")
     _run()
-    with closing(sqlite3.connect(archive.path)) as db:
+    with closing(store_db.connect(archive.path)) as db:
         row = db.execute("SELECT passages, by_provider, digested, title, nodes "
                          "FROM intake").fetchone()
     assert row == ("[]", "{}", 1, "Eagles top Giants", '["eagles"]')
