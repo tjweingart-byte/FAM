@@ -28579,7 +28579,7 @@ rewrite - up to 2 s in front of the first word. P4 measures it with
 being slow (item 14). How often each check fails on real scripts is unknown
 until `write.py` runs with `AGENTS=1 SUPERVISOR=1` and the key.
 
-Settings: `SUPERVISOR_ENFORCE`, `SUPERVISOR_REPAIR_TIMEOUT_SECONDS`,
+Settings (cleared for the suite in `tests/conftest.py`): `SUPERVISOR_ENFORCE`, `SUPERVISOR_REPAIR_TIMEOUT_SECONDS`,
 `SUPERVISOR_MAX_REPAIRS` in `config.py`, `.env.example` and the health block.
 
 Tests: `tests/test_supervisor_checks_434.py` (each check passing and failing;
