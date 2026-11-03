@@ -2376,10 +2376,6 @@ class EventStore:
                     conn.execute(ddl)
                 except sqlite3.OperationalError:
                     pass  # already there
-            # The fitted ranking order (`learned_rank`, §131). One row, in
-            # this database rather than a file of its own, because it is
-            # *derived from* this log: it lives where the log lives, is on
-            # the same disk, and goes when the log is cleared.
             # Who heard which episode (§433): one row per listener and
             # normalised question, `at` the latest time a listen of it got
             # past `heard_threshold`. Its own table so nothing that reads
@@ -2394,6 +2390,10 @@ class EventStore:
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS heard_listens_at ON heard_listens(at)")
+            # The fitted ranking order (`learned_rank`, §131). One row, in
+            # this database rather than a file of its own, because it is
+            # *derived from* this log: it lives where the log lives, is on
+            # the same disk, and goes when the log is cleared.
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS learned_rank (
                        id    INTEGER PRIMARY KEY CHECK (id = 1),
@@ -3053,11 +3053,15 @@ class EventStore:
         try:
             cur = self._conn().execute("DELETE FROM events")
             removed = cur.rowcount or 0
-            # Derived from the plays it empties (§124, [wipe-derived]).
-            self._conn().execute("DELETE FROM heard_listens")
         except Exception:
             log.exception("could not clear the event log")
             return 0
+        # Derived from the plays it empties (§124, [wipe-derived]): who heard
+        # what goes with the log it was measured against.
+        try:
+            self._conn().execute("DELETE FROM heard_listens")
+        except Exception:
+            log.exception("could not clear the heard listens")
         # The fitted order goes with the log it was fitted to (§124's rule:
         # a wipe takes what is derived from what it empties).
         try:
