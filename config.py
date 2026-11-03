@@ -1376,9 +1376,9 @@ class Settings:
     # --- Tiingo: market prices (§290, §395) -------------------------------
     # Markets: a quote from IEX and a ticker search; the only markets
     # provider. With the key set it is the markets provider. TIINGO_PLAN is
-    # the plan bought: free | power | commercial | redistribution; it sets
-    # FAM's own stops just below the plan's limits (`tiingo.PLAN_LIMITS`).
-    # The two ceilings override that; 0 means "from the plan".
+    # the plan bought: free | power | commercial | redistribution. The free
+    # plan has FAM's own stops (45/hour, 950/day); a paid plan has none
+    # (§398). The two ceilings set a stop on any plan; 0 means "from the plan".
     tiingo_api_key: str = field(
         default_factory=lambda: os.environ.get("TIINGO_API_KEY", "").strip())
     tiingo_hourly_requests: int = _env_int("TIINGO_HOURLY_REQUESTS", 0)

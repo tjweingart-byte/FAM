@@ -352,17 +352,19 @@ services:
       # ahead of the tap, and GNews is the only thing it is built from - no
       # fallback source, and never the live pool. Unset, Trending is empty and
       # says so. Set the ceiling to the plan: 90 fits the free tier's
-      # 100/day, 900 fits Essential.
+      # 100/day, 950 fits Essential's 1,000 (§398: Essential, at the owner's
+      # direction - with GNEWS_PLAN=essential and 25 articles a request).
       - key: GNEWS_KEY
         sync: false
       - key: GNEWS_DAILY_REQUESTS
-        value: "90"
+        value: "950"
+      - key: GNEWS_MAX_ARTICLES
+        value: "25"
       # Which plan was bought on each provider's own dashboard (§207). The
       # free plan of GNews and every Tiingo plan short of redistribution are
       # not licensed for listeners,
       # and /admin and /api/health flag them in red until these say a paid
-      # one: GNEWS_PLAN=essential (then GNEWS_DAILY_REQUESTS=950 and
-      # GNEWS_MAX_ARTICLES=25), TIINGO_PLAN=redistribution. Unset means free.
+      # one: GNEWS_PLAN=essential, TIINGO_PLAN=redistribution. Unset means free.
       - key: GNEWS_PLAN
         sync: false
       # The live story pool's news source - what Made for you and What you

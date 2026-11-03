@@ -26938,3 +26938,23 @@ Tiingo is credited on the Terms page, beside the other live data (section 5):
 re-hosting, selling or distributing anything from FAM and training a model
 on it (section 10), which is what a listener may not do with a price either;
 nothing a listener agreed to changed, so `TERMS_VERSION` is not bumped.
+
+## 398. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03)
+
+The owner (11.03): "Remove those code caps from Tiingo, it is now paid for."
+FAM's own hourly and daily stops now apply on the free plan only
+(`tiingo.FREE_STOPS`, 45 and 950); on `power`, `commercial` or
+`redistribution` there is none (`hourly_limit()`/`daily_limit()` are 0),
+though every request is still counted for /admin. `TIINGO_HOURLY_REQUESTS` /
+`TIINGO_DAILY_REQUESTS` still set a stop on any plan, should one be wanted.
+`PLAN_LIMITS` and `HEADROOM` are gone. At today's volume (a dozen sweep
+requests a day, one or two per markets episode) no plan's limit is near.
+
+GNews (the owner: paid for, or about to be): `render.yaml` sets production's
+`GNEWS_DAILY_REQUESTS` to 950 (was 90) and `GNEWS_MAX_ARTICLES` to 25, the
+Essential plan's allowance; `GNEWS_PLAN=essential` is set on the dashboard.
+Until Essential is active, requests past the free plan's 100 a day are
+refused by GNews and said on /admin.
+
+**Pinned by** `tests/test_tiingo_395.py` (the free plan's stops; a paid plan
+asked 200 times with no stop, and /admin saying so).

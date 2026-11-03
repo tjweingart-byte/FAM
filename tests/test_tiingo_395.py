@@ -167,16 +167,23 @@ def test_the_watchlist_setting(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# The plan sets FAM's stops
+# FAM's stops: the free plan only (§398)
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("plan, hour, day", [
-    ("free", 45, 950), ("power", 9_500, 95_000),
-    ("commercial", 19_000, 142_500), ("redistribution", 19_000, 142_500)])
-def test_the_plan_sets_the_stops_below_its_limits(monkeypatch, plan, hour, day):
-    use(monkeypatch, tiingo_plan=plan, tiingo_hourly_requests=0, tiingo_daily_requests=0)
-    assert (tiingo.hourly_limit(), tiingo.daily_limit()) == (hour, day)
-    published = tiingo.PLAN_LIMITS[plan]
-    assert hour < published[0] and day < published[1]
+def test_the_free_plan_stops_below_its_limits(monkeypatch):
+    use(monkeypatch, tiingo_plan="free", tiingo_hourly_requests=0, tiingo_daily_requests=0)
+    assert (tiingo.hourly_limit(), tiingo.daily_limit()) == (45, 950)
+
+
+@pytest.mark.parametrize("plan", ["power", "commercial", "redistribution"])
+def test_a_paid_plan_has_no_stop_in_code(monkeypatch, wire, plan):
+    use(monkeypatch, tiingo_api_key="t", tiingo_plan=plan,
+        tiingo_hourly_requests=0, tiingo_daily_requests=0)
+    assert (tiingo.hourly_limit(), tiingo.daily_limit()) == (0, 0)
+    wire.routes[IEX] = [iex_row()]
+    for _ in range(200):
+        run(tiingo.iex(["AAPL"]))
+    assert tiingo.RATION.report()["hour"] == 200, "still counted for /admin"
+    assert "no FAM stop" in provider_usage._plans()["tiingo"][0]
 
 
 def test_a_stop_set_by_hand_wins(monkeypatch):

@@ -110,8 +110,7 @@ def _plans() -> dict:
             "(free plan: 100/day, 10 articles)",
             "Essential €49.99/mo: 1,000/day, 25 articles"),
         "tiingo": (
-            f"{_tiingo_plan()} plan: {_tiingo_limits()}; "
-            f"FAM stops at {_tiingo_stops()}",
+            f"{_tiingo_plan()} plan: {_tiingo_stops()}",
             "redistribution licence, quote-based (sales@tiingo.com)"),
         # §278: the reference look. Keyless routes are free; Wikimedia asks
         # identified clients to stay near 200 requests a minute.
@@ -149,17 +148,15 @@ def _tiingo_plan() -> str:
     return tiingo.plan()
 
 
-def _tiingo_limits() -> str:
-    import tiingo
-
-    hour, day = tiingo.PLAN_LIMITS[tiingo.plan()]
-    return f"{hour:,}/hour, {day:,}/day"
-
-
 def _tiingo_stops() -> str:
     import tiingo
 
-    return f"{tiingo.hourly_limit():,}/hour, {tiingo.daily_limit():,}/day"
+    hour, day = tiingo.hourly_limit(), tiingo.daily_limit()
+    if not hour and not day:
+        return "no FAM stop (paid plan)"
+    return ("FAM stops at "
+            f"{f'{hour:,}/hour' if hour else 'no hourly stop'}, "
+            f"{f'{day:,}/day' if day else 'no daily stop'}")
 
 
 def licences() -> dict:

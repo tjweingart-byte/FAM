@@ -16,9 +16,9 @@ shape (`c`, `pc`, `dp`, `t`) at the boundary.
   inside it, it is open only when IEX's last sale is minutes old. A holiday
   or an early close therefore reads as "unknown", never "trading at".
 * **Ticker from Tiingo's own search, never a guess** (§88).
-* **Rationed here** below the plan's own limits (`TIINGO_PLAN` sets them,
-  `TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` override), so a busy
-  hour costs answers, never the account.
+* **Rationed here on the free plan only** (§398): a paid plan has no stop in
+  code; `TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` set one on any
+  plan. Requests are counted either way, for /admin.
 * **The licence is not the plan.** Power and Commercial are internal use;
   speaking a price to listeners is redistribution, which Tiingo licenses
   separately (`TIINGO_PLAN=redistribution`); `provider_usage.licences`
@@ -50,34 +50,33 @@ EASTERN = ZoneInfo("America/New_York")
 #: A last sale older than this during the session is not "trading now".
 LIVE_SALE_SECONDS = 15 * 60
 
-#: Each plan's published (requests an hour, requests a day), and FAM's stop
-#: just below them. Redistribution is a licence on Commercial's limits.
-PLAN_LIMITS = {
-    "free": (50, 1_000),
-    "power": (10_000, 100_000),
-    "commercial": (20_000, 150_000),
-    "redistribution": (20_000, 150_000),
-}
-#: FAM stops at this share of a plan's limit, so its count and Tiingo's can
-#: disagree a little without the account being refused.
-HEADROOM = 0.95
+#: The plans `TIINGO_PLAN` may name.
+PLANS = ("free", "power", "commercial", "redistribution")
+#: FAM's own stops on the free plan (50 an hour and 1,000 a day published),
+#: just below them. A paid plan has no stop in code (§398, at the owner's
+#: direction): FAM's volume is a dozen sweep requests a day and one or two a
+#: markets episode. `TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` still
+#: set one on any plan.
+FREE_STOPS = (45, 950)
 
 
 def plan() -> str:
     named = (settings.tiingo_plan or "free").strip().lower()
-    return named if named in PLAN_LIMITS else "free"
+    return named if named in PLANS else "free"
 
 
 def hourly_limit() -> int:
+    """FAM's hourly stop, or 0 for none."""
     if int(settings.tiingo_hourly_requests or 0) > 0:
         return int(settings.tiingo_hourly_requests)
-    return int(PLAN_LIMITS[plan()][0] * HEADROOM) - (2 if plan() == "free" else 0)
+    return FREE_STOPS[0] if plan() == "free" else 0
 
 
 def daily_limit() -> int:
+    """FAM's daily stop, or 0 for none."""
     if int(settings.tiingo_daily_requests or 0) > 0:
         return int(settings.tiingo_daily_requests)
-    return int(PLAN_LIMITS[plan()][1] * HEADROOM)
+    return FREE_STOPS[1] if plan() == "free" else 0
 
 
 class Rationed(RuntimeError):
@@ -104,10 +103,10 @@ class Ration:
             self._hour.popleft()
         day, count = self._day
         count = count if day == self._today(now) else 0
-        if len(self._hour) >= hourly_limit():
+        if hourly_limit() and len(self._hour) >= hourly_limit():
             raise Rationed(f"Tiingo: this hour's {hourly_limit()} "
                            "requests are spent (TIINGO_HOURLY_REQUESTS)")
-        if count >= daily_limit():
+        if daily_limit() and count >= daily_limit():
             raise Rationed(f"Tiingo: today's {daily_limit()} "
                            "requests are spent (TIINGO_DAILY_REQUESTS)")
         self._hour.append(now)
