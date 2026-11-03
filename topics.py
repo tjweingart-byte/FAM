@@ -149,6 +149,54 @@ MISSED_QUIET = 3 * 86400
 #: screen's three samples are the top of this same ranking.
 MOST_PLAYED_WINDOW = 24 * 3600
 
+#: **A listen is something heard, not a tap** (§433, at the owner's
+#: direction). The server writes a `play` the moment it starts sending
+#: audio - before a word is heard, and even when the episode then fails -
+#: so a two-second tap counted on "What FAM can't stop playing", on "What
+#: your friends are listening to" and in the faces on a card, the same as an
+#: episode heard to the end. A listen counts on those rows only once its
+#: listener got `HEARD_SECONDS` in, or `HEARD_SHARE` of a shorter episode,
+#: or finished it (`counts_as_heard`).
+#:
+#: The position comes from the player's progress reports (`/api/progress`,
+#: every fifteen seconds), and it is held to the clock the server keeps:
+#: the time since it began serving the play must cover the threshold at the
+#: fastest speed the player offers (`MAX_PLAYBACK_SPEED`), so dragging the
+#: bar to the end in the first second is not a listen. The taste model
+#: still reads every `play` - a tap is a statement of curiosity - and
+#: nothing here changes it.
+HEARD_SECONDS = 30.0
+HEARD_SHARE = 0.30
+#: The player's fastest speed (`SPEED_OPTIONS` in static/index.html).
+MAX_PLAYBACK_SPEED = 2.0
+#: How long after the server began serving a play its progress may still
+#: make it heard. Longer than any episode at the slowest speed, paused.
+HEARD_PLAY_LOOKBACK = 6 * 3600
+#: The least time between a play and its `complete` for the completion to
+#: count: the shortest threshold any episode has (a one-minute episode's
+#: 30%) at the fastest speed. A `complete` sooner than this was scrubbed to.
+MIN_HEARD_ELAPSED = HEARD_SHARE * 60 / MAX_PLAYBACK_SPEED
+
+
+def heard_threshold(minutes: float, duration: float = 0.0) -> float:
+    """Seconds into an episode at which it counts as heard: `HEARD_SECONDS`,
+    or `HEARD_SHARE` of it when that is sooner. The real length once the
+    player has it, else the planned minutes (as the pick-up rail reads it)."""
+    length = float(duration or 0) or float(minutes or 0) * 60
+    if length <= 0:
+        return HEARD_SECONDS
+    return min(HEARD_SECONDS, HEARD_SHARE * length)
+
+
+def counts_as_heard(seconds: float, minutes: float, duration: float,
+                    elapsed: float) -> bool:
+    """Whether a reported position is a heard listen: far enough in, and no
+    further than the time since the server began serving it could carry a
+    listener at `MAX_PLAYBACK_SPEED`."""
+    need = heard_threshold(minutes, duration)
+    return (float(seconds or 0) >= need
+            and float(elapsed or 0) >= need / MAX_PLAYBACK_SPEED)
+
 #: No constant names the live feeds "What you missed last week" refuses, on
 #: purpose. The owner named Polymarket, the markets feed and the sports feed; the rule is
 #: every `provenance.LIVE` attribution, because any feed added later is the
@@ -2332,6 +2380,20 @@ class EventStore:
             # this database rather than a file of its own, because it is
             # *derived from* this log: it lives where the log lives, is on
             # the same disk, and goes when the log is cleared.
+            # Who heard which episode (§433): one row per listener and
+            # normalised question, `at` the latest time a listen of it got
+            # past `heard_threshold`. Its own table so nothing that reads
+            # `events` for taste ever sees it.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS heard_listens (
+                       user_id  TEXT NOT NULL,
+                       question TEXT NOT NULL,
+                       at       REAL NOT NULL,
+                       PRIMARY KEY (user_id, question)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS heard_listens_at ON heard_listens(at)")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS learned_rank (
                        id    INTEGER PRIMARY KEY CHECK (id = 1),
@@ -2668,6 +2730,78 @@ class EventStore:
         return [(r[0], r[1] or "", r[2] or "", float(r[3]), r[4])
                 for r in rows]
 
+    def last_play_at(self, user_id: str, query: str, since: float
+                     ) -> Optional[float]:
+        """When the server last began serving this listener this question
+        (`play`, written as the audio started), or None inside `since`."""
+        norm = _norm_question(query)
+        if not user_id or not norm:
+            return None
+        try:
+            rows = self._conn().execute(
+                "SELECT text, at FROM events WHERE user_id = ? AND kind = 'play'"
+                " AND at >= ? ORDER BY at DESC LIMIT 200",
+                (user_id, float(since)),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read plays")
+            return None
+        for text, at in rows:
+            if _norm_question(text) == norm:
+                return float(at)
+        return None
+
+    def note_progress(self, user_id: str, query: str, seconds: float,
+                      minutes: float, duration: float = 0.0,
+                      now: Optional[float] = None) -> bool:
+        """A position the player reported, kept as a heard listen when it is
+        one (`counts_as_heard`, §433) against the play the server served.
+        True when it was. Never raises: a position is never worth playback."""
+        now = time.time() if now is None else now
+        norm = _norm_question(query)
+        if not user_id or not norm:
+            return False
+        played = self.last_play_at(user_id, query, now - HEARD_PLAY_LOOKBACK)
+        if played is None or not counts_as_heard(seconds, minutes, duration,
+                                                 now - played):
+            return False
+        return self.mark_heard(user_id, query, now)
+
+    def mark_heard(self, user_id: str, query: str, at: float,
+                   topic_id: str = "") -> bool:
+        """Keep one heard listen. `note_progress` is the only caller on a
+        request path; a seed (`tools/seed_demo.py`) and tests call it to say
+        a listen they invented was heard. A bare tile id takes its tile's
+        question, as `_tally_listens` reads a play without one."""
+        if not query and topic_id:
+            known = known_topics(at)
+            query = known[topic_id].query if topic_id in known else ""
+        norm = _norm_question(query)
+        if not user_id or not norm:
+            return False
+        try:
+            self._conn().execute(
+                "INSERT INTO heard_listens (user_id, question, at) VALUES (?, ?, ?)"
+                " ON CONFLICT(user_id, question) DO UPDATE SET at = excluded.at",
+                (user_id[:64], norm[:300], float(at)))
+        except Exception:
+            log.exception("could not keep a heard listen")
+            return False
+        return True
+
+    def heard_since(self, since: float) -> set[tuple[str, str]]:
+        """(user_id, normalised question) for every listen heard past its
+        threshold since then (§433). Completions are read from `events`."""
+        try:
+            rows = self._conn().execute(
+                "SELECT user_id, question FROM heard_listens WHERE at >= ?",
+                (float(since),),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read heard listens")
+            return set()
+        return {(r[0], r[1]) for r in rows}
+
     def searches_since(self, since: float) -> list[tuple[str, str]]:
         """(user_id, question) for every search in the window (§190).
 
@@ -2919,6 +3053,8 @@ class EventStore:
         try:
             cur = self._conn().execute("DELETE FROM events")
             removed = cur.rowcount or 0
+            # Derived from the plays it empties (§124, [wipe-derived]).
+            self._conn().execute("DELETE FROM heard_listens")
         except Exception:
             log.exception("could not clear the event log")
             return 0
@@ -2943,7 +3079,7 @@ class EventStore:
         than that it tried.
         """
         removed = 0
-        for table in ('events',):
+        for table in ('events', 'heard_listens'):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
@@ -3604,7 +3740,8 @@ def rank_most_played(
     exclude = exclude or set()
     known = known_topics(now)
     tallies = _tally_listens(
-        store.listens_between(now - MOST_PLAYED_WINDOW, now + 1), known)
+        store.listens_between(now - MOST_PLAYED_WINDOW, now + 1), known,
+        store.heard_since(now - MOST_PLAYED_WINDOW))
     rows = _crowd_tiles(tallies, known, exclude, episode_info, heard,
                         limit=limit)
     return [topic for topic, _entry in rows]
@@ -3699,14 +3836,45 @@ class _Tally:
     ids: dict = field(default_factory=dict)
 
 
-def _tally_listens(rows, known: dict) -> dict[str, _Tally]:
-    """Listens grouped by episode, which is the normalised question.
+def _heard_pairs(rows, known: dict, heard: Iterable = ()) -> set[tuple[str, str]]:
+    """(user, normalised question) for every listen in `rows` that was heard
+    (§433): past its threshold (`heard`, from `EventStore.heard_since`), or
+    finished - a `complete` at least `MIN_HEARD_ELAPSED` after the play
+    before it, or with no play before it in the window (an episode heard
+    from the device). A play alone, or a play and a skip, is not one."""
+    out = {(u, n) for u, n in heard}
+    plays: dict[tuple[str, str], list[float]] = {}
+    completes: list[tuple[tuple[str, str], float]] = []
+    for user, topic_id, text, at, *rest in rows:
+        kind = rest[0] if rest else "play"
+        query = text or (known[topic_id].query if topic_id in known else "")
+        norm = _norm_question(query)
+        if not norm:
+            continue
+        if kind == "complete":
+            completes.append(((user, norm), float(at)))
+        else:
+            plays.setdefault((user, norm), []).append(float(at))
+    for pair, at in completes:
+        before = [p for p in plays.get(pair, ()) if p <= at]
+        if not before or at - max(before) >= MIN_HEARD_ELAPSED:
+            out.add(pair)
+    return out
+
+
+def _tally_listens(rows, known: dict, heard: Iterable = ()) -> dict[str, _Tally]:
+    """Heard listens grouped by episode, which is the normalised question.
 
     By question rather than by tile id because an episode is a question: the
     bank's question typed into search, replayed on Explore and tapped on a
     tile is one episode heard three times, and only one of those three
     carries an id. A row with no question takes its tile's.
+
+    **Only a heard listen counts** (§433, `_heard_pairs`): a listener who
+    tapped and left, or skipped before the threshold, is not on the tally at
+    all - not as a listener and not as a listen.
     """
+    qualified = _heard_pairs(rows, known, heard)
     out: dict[str, _Tally] = {}
     # (user, episode) -> [plays, completions]. A listen writes a `play` and,
     # if it reaches the end, a `complete` too - one listen, so each listener
@@ -3716,7 +3884,7 @@ def _tally_listens(rows, known: dict) -> dict[str, _Tally]:
         kind = rest[0] if rest else "play"
         query = text or (known[topic_id].query if topic_id in known else "")
         norm = _norm_question(query)
-        if not norm:
+        if not norm or (user, norm) not in qualified:
             continue
         entry = out.get(norm)
         if entry is None:
@@ -3730,6 +3898,50 @@ def _tally_listens(rows, known: dict) -> dict[str, _Tally]:
     for (_user, norm), (plays, completes) in per_user.items():
         out[norm].listens += max(plays, completes)
     return out
+
+
+#: How many questions the admin's listen report lists (§433).
+LISTEN_REPORT_ROWS = 20
+
+
+def listen_report(store: EventStore, now: Optional[float] = None,
+                  window: float = MOST_PLAYED_WINDOW) -> dict:
+    """**What the crowd rows can count, and what they refuse** (§433), for
+    /admin: per question, how many people the server began serving it to
+    (`tapped`), how many of them heard it (`heard`, what the rows count) and
+    how many finished it. Most tapped first. Never names a listener."""
+    now = time.time() if now is None else now
+    known = known_topics(now)
+    rows = store.listens_between(now - window, now + 1)
+    heard = _heard_pairs(rows, known, store.heard_since(now - window))
+    per: dict[str, dict] = {}
+    for user, topic_id, text, _at, *rest in rows:
+        kind = rest[0] if rest else "play"
+        query = text or (known[topic_id].query if topic_id in known else "")
+        norm = _norm_question(query)
+        if not norm:
+            continue
+        entry = per.setdefault(norm, {"question": query, "tapped": set(),
+                                      "heard": set(), "finished": set()})
+        if kind == "play":
+            entry["tapped"].add(user)
+        if (user, norm) in heard:
+            entry["heard"].add(user)
+            if kind == "complete":
+                entry["finished"].add(user)
+    listed = sorted(per.values(), key=lambda e: (-len(e["tapped"]),
+                                                 -len(e["heard"]), e["question"]))
+    tapped = {(u, n) for n, e in per.items() for u in e["tapped"]}
+    return {
+        "window_hours": round(window / 3600),
+        "threshold": {"seconds": HEARD_SECONDS, "share": HEARD_SHARE,
+                      "max_speed": MAX_PLAYBACK_SPEED},
+        "tapped": len(tapped),
+        "heard": len({p for p in heard if p in tapped}),
+        "questions": [{"question": e["question"], "tapped": len(e["tapped"]),
+                       "heard": len(e["heard"]), "finished": len(e["finished"])}
+                      for e in listed[:LISTEN_REPORT_ROWS]],
+    }
 
 
 def _tile_for(entry: _Tally, known: dict, by_question: dict) -> Topic:
@@ -3755,7 +3967,9 @@ def _cached_info(episode_info, query: str) -> Optional[CachedEpisode]:
 
 
 def _by_listens(entry: _Tally) -> tuple:
-    return (-entry.listens, -len(entry.users), -entry.last)
+    """People first, then listens (§433): one listener on repeat never
+    outranks two who each heard it."""
+    return (-len(entry.users), -entry.listens, -entry.last)
 
 
 def _crowd_tiles(tallies: dict, known: dict, exclude: set,
@@ -4145,7 +4359,7 @@ def rank_missed(store: EventStore, user_id: str, exclude: set[str],
     rows = [r for r in store.listens_between(now - MISSED_WINDOW,
                                              now - MISSED_QUIET)
             if r[0] != user_id]
-    tallies = _tally_listens(rows, static)
+    tallies = _tally_listens(rows, static, store.heard_since(now - MISSED_WINDOW))
     # A few past the limit, so affinity can still break a tie at the edge,
     # without a cache read per question listened to all week.
     picked = _crowd_tiles(tallies, static, exclude, episode_info, heard,
@@ -4174,12 +4388,14 @@ def rank_friends(
 
     Two ways onto the row, inside `FRIENDS_WINDOW`:
 
-    * **listened** - a friend's `play` of the episode, from any surface. By
-      question, like the crowd row, so a friend's search counts;
+    * **listened** - a friend's *heard* listen of the episode (§433: past
+      `heard_threshold`, or finished), from any surface. By question, like
+      the crowd row, so a friend's search counts. A tap is not a listen;
     * **created** - `authored`, the live cache rows whose first writer
-      (`scripts.author`, `ScriptCache.authored_by`) is in the circle. Making
-      an episode is choosing to hear it, and it keeps counting after the
-      play has aged out of the log.
+      (`scripts.author`, `ScriptCache.authored_by`) is in the circle - and
+      only when that friend heard it too (§433). Making an episode is asking
+      for it, not hearing it: a friend who searched and left at once used
+      to put it on this row as though they had listened.
 
     **Cached only**, checked through `episode_info` at the page's length, like
     the crowd row - a tile here never generates. `None` (no cache to ask)
@@ -4211,7 +4427,7 @@ def rank_friends(
         listened.add((author, _norm_question(query)))
         rows.append((author, "", query, float(row.get("created") or now),
                      "play"))
-    tallies = _tally_listens(rows, known)
+    tallies = _tally_listens(rows, known, store.heard_since(now - FRIENDS_WINDOW))
     # Visited in the rail's own order - most friends, then most listens - and
     # bounded like the crowd row, so a circle's month of searches is not a
     # cache read each. Fatigue only lowers a score, so a few spare cover it.
@@ -4246,7 +4462,8 @@ def friends_who_listened(store: EventStore, friends: Iterable[str],
 
     `friends` is the mutual case only (`social.friends`), never the wider
     `circle_of`: the card shows *friends*, and somebody you follow who does
-    not follow back is not one. By person, not by play - a friend who played
+    not follow back is not one. Only a friend who *heard* it (§433,
+    `_heard_pairs`). By person, not by play - a friend who played
     it three times is one face - inside `FRIENDS_WINDOW`, by the normalised
     question like every other listen count (`_tally_listens`), so a friend's
     search of the same question counts.
@@ -4262,12 +4479,15 @@ def friends_who_listened(store: EventStore, friends: Iterable[str],
     known = known_topics(now)
     by_question: dict[str, dict[str, float]] = {}
     by_id: dict[str, dict[str, float]] = {}
-    for user, topic_id, text, at, *_kind in store.listens_between(
-            now - window, now + 1):
-        if user not in friends:
-            continue
+    rows = [r for r in store.listens_between(now - window, now + 1)
+            if r[0] in friends]
+    # A face is a friend who heard it (§433), never one who only tapped it.
+    heard = _heard_pairs(rows, known, store.heard_since(now - window))
+    for user, topic_id, text, at, *_kind in rows:
         query = text or (known[topic_id].query if topic_id in known else "")
         norm = _norm_question(query)
+        if (user, norm) not in heard:
+            continue
         for book, key in ((by_question, norm), (by_id, topic_id)):
             if key:
                 seen = book.setdefault(key, {})
