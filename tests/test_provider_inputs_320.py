@@ -88,18 +88,21 @@ def test_no_country_no_location(wire, monkeypatch):
     assert "location" not in sent[0]["body"]["advanced_settings"]
 
 
-def test_perplexity_gets_its_sec_mode_and_its_country(wire, monkeypatch):
+def test_perplexity_gets_its_country_and_never_a_search_mode(wire, monkeypatch):
+    """§438: Perplexity's search API refuses `search_mode` (400 "search_mode
+    is not supported"), so it is never sent - a filings question is searched
+    like any other rather than losing its Perplexity search."""
     sent, _ = wire
     use(monkeypatch, research_backend="perplexity")
     run(research.retrieve("Meta 10-Q", brief=brief(source_kind="filings"),
                           country="GB"))
     body = sent[0]["body"]
-    assert body["search_mode"] == "sec"
+    assert "search_mode" not in body
     assert body["country"] == "GB"
     assert "objective" not in body
     sent.clear()
-    run(research.retrieve("Eagles Giants score", brief=brief(source_kind="news")))
-    assert "search_mode" not in sent[0]["body"], "news is the default web search"
+    run(research.retrieve("dark matter paper", brief=brief(source_kind="academic")))
+    assert "search_mode" not in sent[0]["body"]
 
 
 def test_a_country_is_only_ever_an_iso_code():

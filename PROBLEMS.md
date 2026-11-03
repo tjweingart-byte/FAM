@@ -28839,3 +28839,36 @@ every such question loses its Perplexity search and falls down the ladder to
 the next rung - seen on the science and evergreen questions of the editor
 eval and the wait probe. Dropping the field is one line; it changes what
 every listener's episode is researched from, so it is the owner's to say.
+
+## 438. Perplexity's refused field taken out, and one sentence of anyone's words in every episode (2026-11-03)
+
+The owner (2026-11-03), on §437's findings: "Fix number 2, and do number 3".
+
+**Perplexity's `search_mode` is no longer sent.** Its search API now answers
+`400 search_mode is not supported` (checked by hand: the same request without
+the field, and with a date filter, a domain filter or a country, all answer
+200). FAM sent it on every question EI marked `filings` or `academic` (§320),
+so each of those lost its Perplexity search and fell down the ladder - seen on
+the science and evergreen questions of §436's eval and §437's probe.
+`research.PERPLEXITY_MODES` is gone; the hint still reaches Parallel's
+objective, which is unaffected. This changes what those questions are
+researched from, for every listener, agents on or off.
+
+**A quote is at most one sentence, for every episode** - the owner's
+copyright limit (§435), now in the writer's own instructions as well as
+Mclovin's check: "Quote real words exactly, and never more than one sentence
+of them", beside the rule against inventing a quote. With the agents off it
+is the writer's rule alone; with Mclovin on, his `quote_length` check counts
+any that get through (enforced once the owner signs mclovin.md v2).
+
+**The prompt's length guard held** (`test_the_prompt_stays_lean`, under
+7,800; now 7,794): paid for by taking out what was said twice -
+"it was a cold morning in" from the banned openers (the ban on scene-setting
+for its own sake, one clause earlier, says it), "bullets" from the format
+line (markdown covers it), and the second of two number examples. Unheard, as
+every prompt change is until listened to; the next `write.py` run on a story
+with long quotes is the check.
+
+Tests: `tests/test_provider_inputs_320.py` (no `search_mode` on a filings or
+an academic question; the country still sent); the writer's prompt tests
+unchanged and passing.

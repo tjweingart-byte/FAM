@@ -870,12 +870,11 @@ def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
         body["search_after_date_filter"] = cutoff.strftime("%m/%d/%Y")
     if include_domains:
         body["search_domain_filter"] = list(include_domains)[:PERPLEXITY_MAX_DOMAINS]
-    # Perplexity's own modes for its own indexes (§320): SEC filings and
-    # academic papers, from EI's `source_kind`; its `country` on a town's
-    # question. Perplexity has no objective field - the query carries it.
-    mode = PERPLEXITY_MODES.get((hints or {}).get("source_kind", ""))
-    if mode:
-        body["search_mode"] = mode
+    # Its `country` on a town's question. Perplexity has no objective field -
+    # the query carries it. **No `search_mode`** (§438): its search API now
+    # answers `400 search_mode is not supported`, so every filings or
+    # academic question (§320) lost its Perplexity search and fell down the
+    # ladder. Those questions keep their hint in Parallel's objective.
     if (hints or {}).get("country"):
         body["country"] = hints["country"]
     data = _post(PERPLEXITY_URL, {"Authorization": f"Bearer {key}"}, body)
@@ -944,9 +943,6 @@ SOURCE_PREFERENCES = {
                 "institutions.",
     "local": "Prefer the town's own newspapers, broadcasters and official sites.",
 }
-#: EI's `source_kind` as Perplexity's `search_mode` (§320). Everything else
-#: is the default web search, which is not sent.
-PERPLEXITY_MODES = {"filings": "sec", "academic": "academic"}
 
 
 def hints_for(brief, country: str = "") -> dict:
