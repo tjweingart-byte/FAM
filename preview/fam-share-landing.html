@@ -703,7 +703,12 @@ window.FamAudio = (function () {
               (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "") +
               // One heard episode, replayed exactly (§173): the listening
               // history. Never generates - a 409 if it is no longer kept.
-              (listener && listener.episode ? "&episode=" + encodeURIComponent(listener.episode) : "");
+              (listener && listener.episode ? "&episode=" + encodeURIComponent(listener.episode) : "") +
+              // A name that means two things (§426): a client that can ask
+              // says so, and the reading the listener chose is part of the
+              // episode's key - sent on every request about this episode.
+              (listener && listener.askReading ? "&ask_reading=1" : "") +
+              (listener && listener.reading ? "&reading=" + encodeURIComponent(listener.reading) : "");
 
     keepable = false;
     episodeId = "";
@@ -767,6 +772,12 @@ window.FamAudio = (function () {
           // The listener has not said yes to their words going to the AI
           // provider (consent.py): the interface asks, then starts again.
           err.consent = res.headers.get("X-FAM-Consent") || "";
+          // 300: a name in the question means more than one thing (§426).
+          // The caller asks which, then plays again with `reading`.
+          if (res.status === 300 && body.readings) {
+            err.readings = body.readings;
+            err.likeliest = body.likeliest || "";
+          }
           throw err;
         });
       }
