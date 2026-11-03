@@ -124,6 +124,18 @@ def _gpu() -> tuple[float, bool]:
 #: 2026-09-25). A plan not listed is shown as paying with its price to enter.
 GNEWS_PLANS = {"essential": 49.99}
 
+#: The sports and markets plans FAM buys (§419, §423): BALLDONTLIE's
+#: ALL-ACCESS as the owner's dashboard shows it, and Tiingo's redistribution
+#: licence at the owner's $249 a month, all in.
+BALLDONTLIE_ALL_ACCESS_USD = 299.99
+TIINGO_REDISTRIBUTION_USD = 249
+
+#: The cost of one new episode before there is traffic: the Haiku brief
+#: (~$0.003), search (~$0.0015), the Haiku writer (~$0.002) and its first
+#: voicing (~$0.004) - docs/FINANCIAL.md 0.1 (§423). The Sonnet writer's $0.06
+#: was the figure until the writer moved to Haiku (§272, §286).
+NEW_EPISODE_USD = 0.011
+
 
 def _claude_plan(model: str) -> str:
     """The writer model's list price, from the table metering prices with."""
@@ -228,7 +240,7 @@ def catalogue() -> list[dict]:
     bdl_tier = str(_setting("balldontlie_tier", "free") or "free").lower()
     bdl_paid = bdl_tier not in ("", "free")
     # §419: ALL-ACCESS's list price, as the owner's dashboard shows it.
-    bdl_price = {"all-access": 299.99}.get(bdl_tier, 0)
+    bdl_price = {"all-access": BALLDONTLIE_ALL_ACCESS_USD}.get(bdl_tier, 0)
     rows.append(_row(
         DATA, "BALLDONTLIE", "Sports data (every league)",
         "Live scores, standings, story-card score lines, player and injury reports",
@@ -240,21 +252,23 @@ def catalogue() -> list[dict]:
         "BALLDONTLIE_TIER; balldontlie.io/pricing"))
 
     # §418: Tiingo is the only markets provider. Power and Commercial are
-    # internal use; prices said to listeners need the redistribution licence.
+    # internal use; prices said to listeners need the redistribution licence,
+    # $249 a month all in (the owner, §423).
     tiingo_plan = str(_setting("tiingo_plan", "free") or "free").lower()
-    tiingo_price = {"power": 30, "commercial": 50}.get(tiingo_plan, 0)
+    tiingo_price = {"power": 30, "commercial": 50,
+                    "redistribution": TIINGO_REDISTRIBUTION_USD}.get(tiingo_plan, 0)
     rows.append(_row(
         DATA, "Tiingo", "Market data",
         "Market facts and market-move story cards",
         {"free": "Free (personal use)", "power": "Power (internal use)",
          "commercial": "Commercial (internal use)",
          "redistribution": "Redistribution licence"}.get(tiingo_plan, tiingo_plan),
-        "Paying, enter price" if tiingo_plan == "redistribution" else
+        "Paying" if tiingo_plan == "redistribution" else
         "Paying, redistribution licence needed before launch" if tiingo_price else
         "Free tier, licence needed before launch",
         tiingo_price, "/month",
         "" if tiingo_plan == "redistribution"
-        else "Redistribution licence (quote-based, sales@tiingo.com)",
+        else f"Redistribution licence, ${TIINGO_REDISTRIBUTION_USD:g}/mo all in",
         "TIINGO_PLAN; tiingo.com/about/pricing"))
 
     meteo_paid = _has_key("OPEN_METEO_API_KEY")
@@ -322,10 +336,9 @@ def launch_purchases(rows: list[dict]) -> list[dict]:
     if ("GNews", "Paying") not in bought:
         out.append({"item": "GNews Essential (commercial licence)",
                     "price": 49.99, "unit": "EUR/month"})
-    if not any(r["vendor"] == "Tiingo" and r["status"] == "Paying, enter price"
-               for r in rows):
-        out.append({"item": "Tiingo redistribution licence (quote-based)",
-                    "price": 0, "unit": "/month"})
+    if ("Tiingo", "Paying") not in bought:
+        out.append({"item": "Tiingo redistribution licence (all in)",
+                    "price": TIINGO_REDISTRIBUTION_USD, "unit": "/month"})
     if ("Open-Meteo", "Paying") not in bought:
         out.append({"item": "Open-Meteo API Standard",
                     "price": 29, "unit": "/month"})
@@ -737,7 +750,7 @@ def build(now: Optional[float] = None) -> bytes:
         ("Share of searches that are sports", 0.40, PCT, "Raise it if sports leads the launch."),
         ("New episodes per search, general", 0.70, PCT, "The rest replay a kept episode for almost nothing."),
         ("New episodes per search, sports", 0.90, PCT, "Higher: a game in progress is never replayed from the cache."),
-        ("Cost of one new episode", None, MONEY, "Recorded average once there are episodes; $0.06 until then."),
+        ("Cost of one new episode", None, MONEY, f"Recorded average once there are episodes; ${NEW_EPISODE_USD} until then."),
     ]
     A = {}
     for i, (label, value, fmt, note) in enumerate(assumptions):
@@ -751,7 +764,7 @@ def build(now: Optional[float] = None) -> bytes:
                           # Costs; its per-episode share would count it twice.
                           f"({last30('C')}+{last30('D')}"
                           f"{'' if pod else '+' + last30('E')}+{last30('F')})"
-                          f"/SUMIFS({rng('B')},{rng('A')},\">\"&({AS_OF}-30)),0.06)")
+                          f"/SUMIFS({rng('B')},{rng('A')},\">\"&({AS_OF}-30)),{NEW_EPISODE_USD})")
             cell.font = f(color=GREEN)
             cell.number_format = fmt
         else:
@@ -772,10 +785,10 @@ def build(now: Optional[float] = None) -> bytes:
     purchases = launch_purchases(rows)
     licences = purchases
     rates = [
-        ("fallback", "Cost of one new episode before there is traffic", 0.06, MONEY,
-         "Estimate, docs/FINANCIAL.md 2.4"),
-        ("bdl_launch", "BALLDONTLIE plan from launch, per month", 0, MONEY,
-         "Enter the plan's price (balldontlie.io/pricing): one flat rate, every league"),
+        ("fallback", "Cost of one new episode before there is traffic", NEW_EPISODE_USD, MONEY,
+         "Estimate, docs/FINANCIAL.md 0.1: Haiku brief and writer, search, voice"),
+        ("bdl_launch", "BALLDONTLIE plan from launch, per month", BALLDONTLIE_ALL_ACCESS_USD,
+         MONEY, "ALL-ACCESS (§419): one flat rate, every league"),
         ("std_at", "Render Standard from this many listeners", 1000, COUNT,
          "docs/FINANCIAL.md 5.1"),
         ("std", "Render on Standard, per month", 32.5, MONEY,
@@ -785,8 +798,9 @@ def build(now: Optional[float] = None) -> bytes:
          "render.com: $80 production + $7 staging + disks"),
         ("bw", "Bandwidth per play", 0.0008, "$0.0000",
          "Estimate: 2 min at 2.65 MB/min, $0.15/GB (Render)"),
-        ("bg_base", "Background writing: base per month", 120, MONEY,
-         "Estimate, docs/FINANCIAL.md 3.3 and 4.2"),
+        ("bg_base", "Background writing: base per month", 60, MONEY,
+         "Estimate, docs/FINANCIAL.md 0.4: rails ~$20, Trending ~$4, pool and "
+         "categories ~$25-55 on the Haiku writer (§423)"),
         ("bg_per", "Background writing: per listener per month", 0.21, MONEY,
          "Estimate, docs/FINANCIAL.md 4.2"),
         ("bg_cap", "Background writing: ceiling per month", 700, MONEY,
@@ -822,7 +836,7 @@ def build(now: Optional[float] = None) -> bytes:
             proj.cell(row=rr, column=c).border = under
 
     ep_cell = proj[A["Cost of one new episode"].replace("$", "")]
-    ep_cell.value = ep_cell.value.replace(",0.06)", f",{t('fallback')})")
+    ep_cell.value = ep_cell.value.replace(f",{NEW_EPISODE_USD})", f",{t('fallback')})")
     prow("mau", "Listeners", lambda m, L: (
         f"=ROUND(IF({live(L)},{a('Listeners at launch')}*(1+{a('Listener growth per month')})"
         f"^((YEAR({L}${PH})-YEAR({lb}))*12+MONTH({L}${PH})-MONTH({lb})),"
