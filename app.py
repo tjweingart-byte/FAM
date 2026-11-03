@@ -2869,10 +2869,17 @@ async def activation_write(req: ActivationRequest, request: Request) -> dict:
     gone = _under_age_gate(user, req.birth_date, req.confirm_under_13, request)
     if gone is not None:
         return gone
+    city, region, country = req.city, req.region, req.country
+    if city and "," in city and region is None and country is None:
+        # The screen's one box: "Exton, PA" or "Exton, PA, United States"
+        # (§414), split the way a typed place is everywhere (`places`).
+        import places as places_mod
+
+        city, region, country = places_mod.split_name(city)
     try:
         ACCOUNTS.update_profile(user, birth_date=req.birth_date, gender=req.gender)
-        if any(v is not None for v in (req.city, req.region, req.country)):
-            PREFS.save(user, city=req.city, region=req.region, country=req.country)
+        if any(v is not None for v in (city, region, country)):
+            PREFS.save(user, city=city, region=region, country=country)
     except (accounts_mod.AuthError, prefs_mod.PreferenceError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Counted by default: a yes is recorded the first time only, so finishing

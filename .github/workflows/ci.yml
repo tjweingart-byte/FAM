@@ -91,6 +91,9 @@ jobs:
           # Opus to the browser (§242): one episode through FamAudio against a
           # real zero-spend server, compared sample for sample with PCM.
           python tools/smoke_opus.py
+          # The activation step (§414): shown when owed, held through
+          # sign-up, under 13 asked then deleted, Settings' rows and switch.
+          python tools/smoke_activation.py
 
       - name: Keep the preview build
         uses: actions/upload-artifact@v4

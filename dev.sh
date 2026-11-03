@@ -97,6 +97,11 @@ if command -v node >/dev/null 2>&1 && $PY -c "import playwright" 2>/dev/null; th
   # so one episode is played through FamAudio against a real server.
   $PY tools/smoke_opus.py \
     || { echo "  (Opus smoke test failed)"; smoke_failed=1; }
+  # The activation step (§414): shown when owed, held through sign-up,
+  # under 13 asked then deleted, Settings' rows and switch - a real browser
+  # against a zero-spend server.
+  $PY tools/smoke_activation.py \
+    || { echo "  (activation smoke test failed)"; smoke_failed=1; }
 else
   printf '  \033[1mSKIPPED: the browser smoke test did not run.\033[0m\n'
   printf '  Nothing below was checked in a browser. To fix:\n'

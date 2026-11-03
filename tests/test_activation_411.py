@@ -207,3 +207,25 @@ def test_the_privacy_policy_says_what_the_step_does():
         assert words in page, words
     assert appmod.PRIVACY_UPDATED == "3 November 2026"
     assert consent_mod.TERMS_VERSION == 2            # decision 6
+
+
+def test_the_screen_s_one_place_box_is_split_like_any_typed_place(world):
+    """§414: the activation screen has one box; "Exton, PA" is a town and a
+    state, as a typed place is everywhere (`places.split_name`)."""
+    c = _member()
+    body = c.post("/api/activation", json={"birth_date": "1990-05-04",
+                                           "city": "Exton, PA"}).json()
+    assert (body["location"]["city"], body["location"]["region"]) == ("Exton", "Pennsylvania")
+    body = c.post("/api/activation", json={"birth_date": "1990-05-04",
+                                           "city": "Lyon"}).json()
+    assert body["location"]["city"] == "Lyon"
+
+
+def test_the_web_app_draws_the_step_and_settings_rows():
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'id="activationOverlay"' in page
+    assert ".then(checkActivation)" in page                 # every open
+    assert "releaseActivation(id)" in page                  # held through sign-up
+    assert 'scope: "demographics"' in page                  # Settings' switch
+    assert "Count me in FAM\\u2019s totals" in page
+    assert '"Date of birth"' in page and '"Gender"' in page

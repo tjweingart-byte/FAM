@@ -2,7 +2,7 @@
 
 **Status: the wording the owner approved on 2026-11-03 (PROBLEMS.md §410).
 In `pages/privacy.html` and `consent.py` with the activation step's API
-(§411); the screen follows.** They changed with the step that uses them,
+(§411) and its web screen and Settings rows (§414).** They changed with the step that uses them,
 never before it. Nothing asks for or
 collects a date of birth, location or gender until then
 (`docs/AGENTS_BUILD_PROMPT.md`, Phase 2, the activation step; decided items 2

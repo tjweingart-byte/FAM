@@ -414,3 +414,4 @@ and `limit` = Lines.
 | 27554 | 59 | 411. The activation step, part 1: the API, and the Privacy Policy with it (2026-11-03) |
 | 27613 | 18 | 412. The owner signed consuela.md: Perplexity approved (2026-11-03) |
 | 27631 | 29 | 413. An article two nodes claim is filed under both (2026-11-03) |
+| 27660 | 38 | 414. The activation step, part 2: the screen, and Settings' rows (2026-11-03) |

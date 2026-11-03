@@ -27656,3 +27656,41 @@ two episodes gave it two.
 
 Tests: §399's and §402's tests rewritten for the rule (filed under both,
 found from either team, re-filed), Sonic's Atlas query.
+
+## 414. The activation step, part 2: the screen, and Settings' rows (2026-11-03)
+
+The web app's half of §411 (`static/index.html`), every word from
+`/api/activation` so an iOS client draws the same.
+
+- **The step** is an overlay like the Terms' (`activationOverlay`): date of
+  birth (Continue waits for it), one "Where you live" box (the server splits
+  "Exton, PA" the way a typed place is split everywhere, `places.split_name`),
+  the five gender choices as chips (tap again to clear), and the counting
+  notice with the Privacy Policy's link. Not closable the first time it is
+  owed; it opens on every open while `/api/auth/me` says
+  `activation_needed` (after the Terms, `checkTerms().then(checkActivation)`),
+  and after signing up or in.
+- **Held through sign-up's own steps** - found by driving it, not by
+  reading it: on a new account the step first opened on top of "Who are
+  you?", which asks for the place too. It now waits while a sign-up step is
+  on screen (`activationPending`, `releaseActivation` in `showScreen`) and
+  opens after them, reloaded, so the place just given is already in it.
+- **Under 13**: the server's 409 becomes "Is {date} right?" with Yes /
+  Change it; Yes deletes the account and the step says so, then OK reloads
+  the app signed out.
+- **Settings**: "Date of birth" and "Gender" rows beside "Where you are"
+  open the same form as an editor ("Your details", closable, the same
+  under-13 rule); "Count me in FAM's totals" under Privacy and safety, On by
+  default, posts the `demographics` consent.
+
+**Driven in a real browser** (`tools/smoke_activation.py`, in `dev.sh` and
+CI - a check added to one is added to the other by hand): a zero-spend
+server with every store in a temporary directory (`smoke_opus.py`'s way, so
+nothing lands in the working tree); 17 checks - held through sign-up then
+shown, not closable, Continue waits, the choices, the notice, the answers
+kept and counted, the place split, Settings' rows, the switch, the editor,
+under 13 asked then deleted and signed out, nothing thrown.
+
+With part 1 (§411) the step is complete on the web; it ships when the branch
+is merged. For the owner then: the privacy PDF
+(`python tools/legal_pdfs.py --email ... privacy`) and the App Store labels.

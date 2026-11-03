@@ -29,7 +29,7 @@ the week of the first submission.
 | Server | Load test before review traffic | Built (`tools/load_test.py`) |
 | Server + web | Report content and block a user, 1.2 | Built (`moderation.py`, §222); reviewer inbox on `/admin` |
 | Server + web | Consent before a listener's words go to a third-party AI, 5.1.2(i) | Built (`consent.py`, §222) |
-| Server | 13 and over: a date of birth asked once when an account is let in, under 13 deleted; location and gender optional (5.1.1: only the date is required) | API built (`activation.py`, §411); the screen follows. **App Privacy labels** gain date of birth and gender (linked to the user, not tracking) and possibly coarse location - update them in App Store Connect when it ships |
+| Server | 13 and over: a date of birth asked once when an account is let in, under 13 deleted; location and gender optional (5.1.1: only the date is required) | Built: API (`activation.py`, §411), the web screen and Settings rows (§414); the iOS screen draws the same `/api/activation`. **App Privacy labels** gain date of birth and gender (linked to the user, not tracking) and possibly coarse location - update them in App Store Connect when it ships |
 | Server | Terms, privacy policy, support page (`/terms`, `/privacy`, `/support`), agreed at sign-up | Built (§223); `SUPPORT_EMAIL` set; PDFs in `docs/legal/` (`tools/legal_pdfs.py`); a lawyer's read before launch |
 | iOS | The consent, report and block screens | Written as `ios/FAMSafety` (§223), not yet compiled - no Mac here |
 | iOS | Privacy manifest, current SDK, IPv6, network resilience, accessibility, no prototype wording | Part B, "What the iOS build must have" |
