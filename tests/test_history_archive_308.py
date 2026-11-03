@@ -63,9 +63,11 @@ def archive(monkeypatch, tmp_path):
 
 
 def _finding(url="https://www.reuters.com/a", passages=("One.", "Two."),
-             published="2026-10-20", grade="primary"):
+             published="2026-10-20", grade="primary", provider="perplexity"):
+    # A real finding always names its search (`research._findings`); one
+    # that names none is unknown, and never kept (§429).
     return ha.Finding(url=url, title="A title", host="reuters.com", grade=grade,
-                      published=published, passages=tuple(passages))
+                      published=published, passages=tuple(passages), provider=provider)
 
 
 # --- what a packet hands the archive --------------------------------------
@@ -359,6 +361,20 @@ def test_the_writer_is_told_what_earlier_reporting_is_for():
 
 # --- the Atlas backend, against a fake database ----------------------------
 
+
+def _apply_upsert(docs, query, update, upsert):
+    """What Mongo's update_one does with $setOnInsert/$set/$addToSet $each (§417)."""
+    doc = docs.get(query["_id"])
+    if doc is None:
+        if not upsert:
+            return
+        doc = docs[query["_id"]] = {"_id": query["_id"], **update.get("$setOnInsert", {})}
+    doc.update(update.get("$set", {}))
+    for field, value in (update.get("$addToSet") or {}).items():
+        items = value["$each"] if isinstance(value, dict) and "$each" in value else [value]
+        listed = doc.setdefault(field, [])
+        listed.extend(v for v in items if v not in listed)
+
 class _Collection:
     def __init__(self):
         self.calls = []
@@ -367,6 +383,8 @@ class _Collection:
 
     def update_one(self, query, update, upsert=False):
         self.calls.append(("update_one", query, update, upsert))
+        if "_id" in query and isinstance(query["_id"], str):
+            _apply_upsert(self.docs, query, update, upsert)
 
     def replace_one(self, query, doc, upsert=False):
         self.calls.append(("replace_one", query, doc, upsert))
@@ -391,11 +409,13 @@ class _Database(dict):
 
 def test_atlas_intake_is_one_upsert_per_article():
     store = ha.AtlasBackend(database=_Database())
-    store.intake([_finding()], "Eagles", "nfl", NOW.timestamp())
+    # No provider here: this test is about the upsert's shape, not §358's split.
+    store.intake([_finding(provider="")], "Eagles", "nfl", NOW.timestamp())
     kind, query, update, upsert = [c for c in store.intake_c.calls
                                    if c[0] == "update_one"][0]
     assert upsert and query == {"_id": ha.url_id("https://www.reuters.com/a")}
-    assert update["$setOnInsert"]["digested"] is False
+    # An article with passages waits for Consuela, new or not (§400).
+    assert update["$set"]["digested"] is False
     assert update["$addToSet"] == {"passages": {"$each": ["One.", "Two."]},
                                    "subjects": "Eagles", "categories": "nfl"}
     assert update["$inc"] == {"seen": 1}
@@ -436,7 +456,7 @@ def test_the_vector_index_is_sized_for_the_installed_model():
     assert vector["numDimensions"] == ha.DIMS == 384
     assert vector["similarity"] == "cosine"
     assert {f["path"] for f in ha.VECTOR_INDEX_DEFINITION["fields"]
-            if f["type"] == "filter"} == {"active", "published", "space"}
+            if f["type"] == "filter"} == {"active", "published", "space", "node_id"}
 
 
 # --- staging and health ----------------------------------------------------

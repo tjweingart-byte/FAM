@@ -862,7 +862,7 @@ async def collect(limit: int = MAX_PER_SOURCE,
     it, but a sweep that takes a minute is a sweep that overlaps the next one.
 
     Returns the signals and one `SourceReport` per provider, because "GDELT
-    served and Finnhub is not configured" is the sentence `/api/health` has to
+    served and Tiingo is not configured" is the sentence `/api/health` has to
     be able to say.
     """
     # The caller's clock, not the wall clock, so a test that moves time
@@ -1699,7 +1699,7 @@ def corroborate(signals: list) -> list:
 
     **Trending is ranked on everything FAM knows, not on each feed alone.**
     A game on BALLDONTLIE's card, a contract on Polymarket and a move on
-    Finnhub each measure one thing; the press measures how much the world
+    Tiingo each measure one thing; the press measures how much the world
     cares. So a structured signal whose subject the news sweep also found
     takes the news story's coverage, and its countries when it had none, and
     the news story itself is folded in rather than offered as a second tile

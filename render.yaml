@@ -52,7 +52,7 @@ services:
         sync: false
       # Deliberately absent: ANTHROPIC_API_KEY, PARALLEL_API_KEY,
       # PERPLEXITY_API_KEY, GNEWS_KEY,
-      # BALLDONTLIE_API_KEY, FINNHUB_KEY, GEMINI_API_KEY, RUNPOD_*, GDELT,
+      # BALLDONTLIE_API_KEY, TIINGO_API_KEY, GEMINI_API_KEY, RUNPOD_*, GDELT,
       # WIKIMEDIA_ENTERPRISE_USERNAME, WIKIMEDIA_ENTERPRISE_PASSWORD, WIKIPEDIA,
       # STORIES_POLYMARKET, LIVE_*_PROVIDER, FAM_SECRETS. Adding one here does
       # nothing (spend_guard removes it and health lists it under
@@ -111,6 +111,10 @@ services:
       - key: ARCHIVE_BACKEND
         sync: false
       - key: MONGODB_URI
+        sync: false
+      # Sonic's read-only Atlas user (§403); the retriever never uses the
+      # writer's MONGODB_URI.
+      - key: MONGODB_READ_URI
         sync: false
       - key: AUDIO_STORE
         sync: false
@@ -302,13 +306,13 @@ services:
         value: "1"
       # --- Where an episode's information comes from (§135) ----------------
       #
-      # Parallel and Perplexity, GDELT, BALLDONTLIE, Finnhub and Polymarket, and
+      # Parallel and Perplexity, GDELT, BALLDONTLIE, Tiingo and Polymarket, and
       # nothing else: the model never searches the web for FAM. The ones with credentials are
       # asked for once in the dashboard. A key is also the switch - with
       # BALLDONTLIE_API_KEY set, sports questions get live scores, and the story
       # pool sweeps only the followed leagues (balldontlie_scores.SWEPT),
       # only while one of their games is on and myFAM was drawn recently
-      # (§191) - every other league is looked up on demand; with FINNHUB_KEY
+      # (§191) - every other league is looked up on demand; with TIINGO_API_KEY
       # set, markets are swept every 2h. Neither needs a second line naming
       # its provider.
       # Search (§357): Perplexity first, Parallel as the second look and the
@@ -321,8 +325,11 @@ services:
         sync: false
       # Sports (§277, §280): the scoreboard, the myFAM sweep's live scores,
       # and player and team reports (§275). Set BALLDONTLIE_TIER to the plan
-      # bought: free reads rosters only.
+      # bought - all-access (every sport and endpoint, §419): free reads
+      # rosters only.
       - key: BALLDONTLIE_API_KEY
+        sync: false
+      - key: BALLDONTLIE_TIER
         sync: false
       # The reference look (§278): Wikipedia's summary and Wikidata's facts
       # for a named person or organisation. Without these it uses
@@ -332,15 +339,12 @@ services:
         sync: false
       - key: WIKIMEDIA_ENTERPRISE_PASSWORD
         sync: false
-      - key: FINNHUB_KEY
-        sync: false
-      # Free plans while developing (§290, temporary - removed before FAM
-      # goes commercial). API_SPORTS_KEY answers the team leagues while
-      # BALLDONTLIE is absent or on its free plan; TIINGO_API_KEY puts
-      # markets on Tiingo ahead of Finnhub. Never on staging, which scrubs both.
-      - key: API_SPORTS_KEY
-        sync: false
+      # Markets (§290, §418): Tiingo is the only markets provider. Set
+      # TIINGO_PLAN to the plan bought (power, commercial or redistribution);
+      # it sets FAM's request stops. Never on staging, which scrubs it.
       - key: TIINGO_API_KEY
+        sync: false
+      - key: TIINGO_PLAN
         sync: false
       # Weather and place names outside what NWS covers (§194): Open-Meteo's
       # API Standard plan, $29/month to 1M calls. NWS needs no key. Never on
@@ -352,19 +356,20 @@ services:
       # ahead of the tap, and GNews is the only thing it is built from - no
       # fallback source, and never the live pool. Unset, Trending is empty and
       # says so. Set the ceiling to the plan: 90 fits the free tier's
-      # 100/day, 900 fits Essential.
+      # 100/day, 950 fits Essential's 1,000 (§421: Essential, at the owner's
+      # direction - with GNEWS_PLAN=essential and 25 articles a request).
       - key: GNEWS_KEY
         sync: false
       - key: GNEWS_DAILY_REQUESTS
-        value: "90"
+        value: "950"
+      - key: GNEWS_MAX_ARTICLES
+        value: "25"
       # Which plan was bought on each provider's own dashboard (§207). The
-      # free plans of GNews and Finnhub are not licensed for commercial use,
+      # free plan of GNews and every Tiingo plan short of redistribution are
+      # not licensed for listeners,
       # and /admin and /api/health flag them in red until these say a paid
-      # one: GNEWS_PLAN=essential (then GNEWS_DAILY_REQUESTS=950 and
-      # GNEWS_MAX_ARTICLES=25), FINNHUB_PLAN=commercial. Unset means free.
+      # one: GNEWS_PLAN=essential, TIINGO_PLAN=redistribution. Unset means free.
       - key: GNEWS_PLAN
-        sync: false
-      - key: FINNHUB_PLAN
         sync: false
       # The live story pool's news source - what Made for you and What you
       # missed draw on (Trending is GNews since §139, above). GDELT is keyless

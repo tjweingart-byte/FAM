@@ -1617,6 +1617,12 @@ class PodcastPipeline:
         if getattr(notes, "category", ""):
             live_captions.publish_category(stats.caption_key, notes.category)
 
+        # An advice request planned as facts (§425): did the script still
+        # recommend? Counted for /api/health, never a block.
+        from agents import contextualizer
+
+        contextualizer.advice_audit(notes, stats.script)
+
         writes = bool(self.cache and self.cache_writes and shareable
                       and stats.script)
         ttl = 0
@@ -1633,6 +1639,11 @@ class PodcastPipeline:
                           recency_days=notes.recency_days,
                           live_domain=getattr(notes, "live_domain", ""),
                           intent=getattr(notes, "intent", ""))
+            # An older client's episode on the likeliest reading of a shared
+            # name (§426): kept for its own replays, never current, so a
+            # client that can ask is never served the guess under this key.
+            if getattr(notes, "reading_assumed", ""):
+                ttl = 0
         if writes and ttl <= 0 and settings.cache_life_seconds <= 0:
             # `CACHE_LIFE_SECONDS=0` is the pre-§143 cache: a never-current
             # episode is not written at all, and whatever the key held stays.

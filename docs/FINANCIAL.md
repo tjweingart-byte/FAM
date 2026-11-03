@@ -3,15 +3,15 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v1 |
-| **As of** | 2026-11-03 (section 0, §395: the Haiku writer, the launch plans for sports and markets, the batched writer test). Sections 1-6 are 2026-09-30 (code at `Main` after PR #81, plus §179) with `Current` notes where section 0 replaces them |
+| **As of** | 2026-11-03 (section 0, §423: the Haiku writer, the launch plans for sports and markets, the batched writer test). Sections 1-6 are 2026-09-30 (code at `Main` after PR #81, plus §179) with `Current` notes where section 0 replaces them |
 | **Audience** | Founders, anyone pricing a plan or approving spend |
 | **Companion docs** | [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md) (when to change each service, by stage), [`BACKEND.md`](BACKEND.md) (what calls what), [`DATA.md`](DATA.md) (what is stored), `METERING.md` (the per-listener ledger) |
 
 > **Current (PROBLEMS.md §274, §279, §280):** Exa and API-Sports are no longer in the code. Research is Parallel, then Perplexity, then GDELT; sports are BALLDONTLIE's (one plan, `BALLDONTLIE_TIER`); reference facts are Wikimedia Enterprise and Wikidata (§278). The metering column `exa_usd` is `web_search_usd`. Where the figures below name Exa or API-Sports, they are the history they were measured on.
 
-> **Current (PROBLEMS.md §395, the owner, 2026-11-03):** the brief and the writer are both on Haiku 5.5, so a new episode costs about **1.1¢**, not $0.06; sports are BALLDONTLIE's **EUR 299 a month** plan and markets **Tiingo's, $249 a month all in**, from launch; **Finnhub and API-Sports are out** once FAM is commercial (free plans while developing, §290). Section 0 has the figures in force; where sections 1-6 differ, section 0 wins.
+> **Current (PROBLEMS.md §423, the owner, 2026-11-03):** the brief and the writer are both on Haiku 5.5, so a new episode costs about **1.1¢**, not $0.06; sports are BALLDONTLIE's **ALL-ACCESS, $299.99 a month** (§419) and markets **Tiingo's redistribution licence, $249 a month all in**, from launch; **Finnhub and API-Sports are removed from the code** (§418) once FAM is commercial (free plans while developing, §290). Section 0 has the figures in force; where sections 1-6 differ, section 0 wins.
 
-## 0. The figures in force (2026-11-03, §395)
+## 0. The figures in force (2026-11-03, §423)
 
 Every figure here is an **Estimate** from **Code** prices and prompt sizes
 (`metering.PRICES`, `research.SEARCH_COSTS`, `metering.GPU_USD_PER_HOUR`,
@@ -74,11 +74,11 @@ Shakespeare (Sonnet ahead of the tap, not built) is not in these figures:
 | Cloudflare R2 | kept audio, pictures | < $1 | a few dollars; $0 egress |
 | MongoDB Atlas | the history archive | Flex $8-30 | M10 $57 from ~1,000 listeners |
 | RunPod | the voice | $0 idle, $0.69/h working; 20 GB volume ~$1.40 | an active worker ~$343 (`SCALING_TIMELINE.md`) |
-| **BALLDONTLIE** | scores, standings, players, every league | free tier | **EUR 299 (~$323)** |
-| **Tiingo** | market facts and cards | free (personal use) | **$249, all in** |
+| **BALLDONTLIE** | scores, standings, players, every league | free tier | **ALL-ACCESS $299.99** (§419) |
+| **Tiingo** | market facts and cards | free (personal use) | **$249 redistribution licence, all in** |
 | GNews | the Trending edition | free (development) | EUR 49.99 (~$54) |
 | Open-Meteo | weather outside the US | keyless (non-commercial) | $29 |
-| Finnhub, API-Sports | development only (§290) | free | **out**: $0 |
+| Finnhub, API-Sports | removed from the code (§418) | - | $0 |
 | Polymarket, GDELT, NWS, town RSS, Wikipedia, Wikidata | forecasts, discovery, weather, local, reference | free | free |
 
 **Search, by audience** (pay as you go, $1 per 1,000 requests each; about
@@ -92,7 +92,7 @@ Trending scripts plus 30 per active mix subject - about 7k / 19k / 118k /
 | Perplexity | $7 | $19 | $118 | $770 |
 | Parallel ($5 free credit a month) | $4 | $9 | $59 | $385 |
 
-**Claude, by audience** (the pitch deck's backend slide, §395). The same new
+**Claude, by audience** (the pitch deck's backend slide, §423). The same new
 episodes a month, split by how they are written: on demand (the search
 episodes of section 0.5) at ≈ $0.005 of Claude each (brief $0.003 + writer
 $0.002), and ahead (~5,100 rails and Trending scripts plus 30 per active mix
@@ -112,10 +112,10 @@ bill):
 
 | Monthly listeners | 100 | 1,000 | 10,000 | 100,000 |
 |---|---|---|---|---|
-| Data plans (from launch) | $655 | $655 | $655 | $655 |
+| Data plans (from launch) | $632 | $632 | $632 | $632 |
 | Search (Perplexity + Parallel) | $11 | $28 | $177 | $1,155 |
 | Claude | $69 | $125 | $593 | $3,795 |
-| **Total** | **$735** | **$808** | **$1,425** | **$5,605** |
+| **Total** | **$712** | **$785** | **$1,402** | **$5,582** |
 
 The assumptions behind both: 15 searches per listener a month; 85% / 70% /
 55% / 45% of them need a new episode (the rest replay a kept one); ~5,100
@@ -124,8 +124,8 @@ active mix subject at 20 / 100 / 1,000 / 3,000 subjects; ~1.5 search requests
 per new episode. Claude nearly matches the data plans at 10,000 listeners and
 is about two thirds of this total at 100,000.
 
-**Data plans at launch: EUR 349 + $278 a month, about $655** (EUR at 1.08,
-`financials.EUR_TO_USD`). That is the largest fixed line before the audience
+**Data plans at launch: $299.99 + $249 + $29 + EUR 49.99 a month, about $632**
+(EUR at 1.08, `financials.EUR_TO_USD`). That is the largest fixed line before the audience
 is large: at 1,000 listeners it is about half the bill.
 
 ### 0.4 Shared background writing a month
@@ -156,10 +156,10 @@ an upper bound. Plans from launch; the 100-listener column is before it.
 | Bandwidth | ~$0 | ~$2 | ~$18 | ~$180 |
 | Render (web, staging) | $32 | $32 | $92 | ~$300 (several instances) |
 | Postgres, R2, Atlas | ~$40 | ~$80 | ~$95 | ~$250 |
-| Data plans (0.3) | $0 (free tiers) | $655 | $655 | $655 |
+| Data plans (0.3) | $0 (free tiers) | $632 | $632 | $632 |
 | Voice: active worker | $0 | $343 | $343 | $343 + more flex workers (in the episode $) |
-| **Total (estimate)** | **≈ $150** | **≈ $1,300** | **≈ $2,350** | **≈ $9,700** |
-| **Per MAU** | **≈ $1.50** | **≈ $1.30** | **≈ $0.24** | **≈ $0.10** |
+| **Total (estimate)** | **≈ $150** | **≈ $1,280** | **≈ $2,330** | **≈ $9,680** |
+| **Per MAU** | **≈ $1.50** | **≈ $1.28** | **≈ $0.23** | **≈ $0.10** |
 
 What changed from section 4.2: the writer's move to Haiku cut the cost of a
 new episode about fivefold, so **fixed plans, not episodes, are most of the
@@ -239,7 +239,7 @@ the most important number in this report.
 
 ### 2.1 Claude (Anthropic)
 
-> **Current (§272, §286, §395):** the writer is Haiku 5.5 at low effort (`WRITER_MODEL`) and the brief Haiku 5.5 at medium; section 0.1 has the per-call figures. The Sonnet figures below are what the episode cost before.
+> **Current (§272, §286, §423):** the writer is Haiku 5.5 at low effort (`WRITER_MODEL`) and the brief Haiku 5.5 at medium; section 0.1 has the per-call figures. The Sonnet figures below are what the episode cost before.
 
 The production model is `claude-sonnet-5`. It is set in `render.yaml`
 (`MODEL`) and is the default in `config.py`, and the tile composer, category
@@ -333,7 +333,7 @@ rather than one per listener.
 
 ### 2.2 Exa (retrieval)
 
-> **Current (§274, §357, §395):** Exa is gone. Search is Perplexity, then Parallel as the second look, then GDELT; Perplexity and Parallel are $1 per 1,000 requests (`research.SEARCH_COSTS`), about $0.0015 an episode.
+> **Current (§274, §357, §423):** Exa is gone. Search is Perplexity, then Parallel as the second look, then GDELT; Perplexity and Parallel are $1 per 1,000 requests (`research.SEARCH_COSTS`), about $0.0015 an episode.
 
 - **How it is used:** every new episode is researched (`SEARCH_MODE=always`).
   Each search is `type="fast"`, `num_results=8`, with highlights
@@ -431,7 +431,7 @@ live: `/api/health` reports it.
 
 ### 2.4 Total cost of one episode
 
-> **Current (§395):** about **$0.011** a new episode on demand and **$0.0096** batched; section 0.1. The table below is the Sonnet writer's and Exa's.
+> **Current (§423):** about **$0.011** a new episode on demand and **$0.0096** batched; section 0.1. The table below is the Sonnet writer's and Exa's.
 
 | Event | Claude | Exa | GPU | Bandwidth | **Total (estimate)** |
 |---|---|---|---|---|---|
@@ -469,7 +469,7 @@ So cost per listener is almost entirely the cache-miss rate times $0.06.
 
 ### 3.2 Data providers
 
-> **Current (§395):** BALLDONTLIE's plan is EUR 299 a month and Tiingo's $249 a month all in, from launch; Finnhub and API-Sports are out once FAM is commercial. The launch licences are GNews Essential, Open-Meteo Standard, BALLDONTLIE and Tiingo, about $655 a month together (section 0.3).
+> **Current (§423):** BALLDONTLIE's plan is ALL-ACCESS, $299.99 a month (§419), and Tiingo's redistribution licence $249 a month all in, from launch; Finnhub and API-Sports are removed from the code (§418). The launch licences are GNews Essential, Open-Meteo Standard, BALLDONTLIE and Tiingo, about $632 a month together (section 0.3).
 
 | Provider | What FAM uses it for | Current plan in code | Free-tier ceiling | Next tier (list) |
 |---|---|---|---|---|
@@ -501,7 +501,7 @@ traffic is: about **$95-100/month** together at list price. Since §207
 
 ### 3.3 Background generation (shared by every listener)
 
-> **Current (§395):** on the Haiku writer, section 0.4: rails ~$25, Trending ~$4, $0.17 per active mix subject, a $60 base on Projections.
+> **Current (§423):** on the Haiku writer, section 0.4: rails ~$25, Trending ~$4, $0.17 per active mix subject, a $60 base on Projections.
 
 These run on timers with nobody tapping. Each has a ceiling written in code,
 so none of them can run away.
@@ -538,7 +538,7 @@ should be replaced from `usage_report.py` once there is traffic.
 
 ### 4.2 Monthly cost by audience size (estimate)
 
-> **Current (§395):** replaced by section 0.5 (≈ $150 / $1,300 / $2,350 / $9,700 a month). The table below is the Sonnet writer's.
+> **Current (§423):** replaced by section 0.5 (≈ $150 / $1,300 / $2,350 / $9,700 a month). The table below is the Sonnet writer's.
 
 | | **100 MAU** | **1,000 MAU** | **10,000 MAU** | **100,000 MAU** |
 |---|---|---|---|---|
@@ -682,7 +682,7 @@ forced by the one-instance ceiling, not by price.
 
 ### 5.7 API-Sports
 
-> **Current (§280, §290, §395):** a free plan while developing only; out once FAM is commercial. Sports are BALLDONTLIE's, EUR 299 a month.
+> **Current (§280, §290, §423):** removed from the code (§418). Sports are BALLDONTLIE's, ALL-ACCESS at $299.99 a month (§419).
 
 | Limit | Where it bites | Action |
 |---|---|---|
@@ -691,7 +691,7 @@ forced by the one-instance ceiling, not by price.
 
 ### 5.8 Finnhub
 
-> **Current (§395):** a free plan while developing only; out once FAM is commercial. Markets are Tiingo's from launch, $249 a month all in, which is also its commercial licence.
+> **Current (§423):** removed from the code (§418). Markets are Tiingo's, on its redistribution licence at $249 a month all in.
 
 | Limit | Where it bites | Action |
 |---|---|---|
@@ -722,9 +722,9 @@ the episode continues without the fact.
    $0-vs-$200-500/month fixed-cost question, and the repo describes both.
 3. **Run `usage_report.py` after the first real month** and replace §4's
    assumptions with measured miss rates and per-episode costs.
-5. **Buy the launch plans** before charging anyone (§395): GNews Essential,
-   Open-Meteo Standard, BALLDONTLIE (EUR 299/mo) and Tiingo ($249/mo all in).
-   Finnhub and API-Sports are not bought: they leave at launch.
+5. **Buy the launch plans** before charging anyone (§423): GNews Essential,
+   Open-Meteo Standard, BALLDONTLIE (ALL-ACCESS, $299.99/mo) and Tiingo's
+   redistribution licence ($249/mo all in). Finnhub and API-Sports are gone (§418).
 6. **Plan the Opus transport** before 10k MAU. Bandwidth is the line that
    grows fastest after Claude.
 7. **Plan the move off single-disk SQLite** before outgrowing one Render Pro

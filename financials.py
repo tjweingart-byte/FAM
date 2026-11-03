@@ -51,8 +51,8 @@ DAY = 86400
 LEDGER_MAX_DAYS = 365
 LEDGER_MIN_DAYS = 30
 
-#: EUR to USD, for GNews and BALLDONTLIE (priced in euros). An assumption written into the
-#: formulas (`=49.99*1.08`), so it shows where it is used; change it here.
+#: EUR to USD, for GNews (priced in euros). An assumption written into the
+#: GNews formulas (`=49.99*1.08`), so it shows where it is used; change it here.
 EUR_TO_USD = 1.08
 
 # --- the catalogue ----------------------------------------------------------
@@ -124,14 +124,15 @@ def _gpu() -> tuple[float, bool]:
 #: 2026-09-25). A plan not listed is shown as paying with its price to enter.
 GNEWS_PLANS = {"essential": 49.99}
 
-#: The sports and markets plans FAM buys at launch (§395, the owner,
-#: 2026-11-03): BALLDONTLIE in euros a month, Tiingo in dollars, all in.
-BALLDONTLIE_EUR = 299
-TIINGO_USD = 249
+#: The sports and markets plans FAM buys (§419, §423): BALLDONTLIE's
+#: ALL-ACCESS as the owner's dashboard shows it, and Tiingo's redistribution
+#: licence at the owner's $249 a month, all in.
+BALLDONTLIE_ALL_ACCESS_USD = 299.99
+TIINGO_REDISTRIBUTION_USD = 249
 
 #: The cost of one new episode before there is traffic: the Haiku brief
 #: (~$0.003), search (~$0.0015), the Haiku writer (~$0.002) and its first
-#: voicing (~$0.004) - docs/FINANCIAL.md 2.4 (§395). The Sonnet writer's $0.06
+#: voicing (~$0.004) - docs/FINANCIAL.md 0.1 (§423). The Sonnet writer's $0.06
 #: was the figure until the writer moved to Haiku (§272, §286).
 NEW_EPISODE_USD = 0.011
 
@@ -234,43 +235,41 @@ def catalogue() -> list[dict]:
         "GNEWS_PLAN; gnews.io/pricing (2026-09-25)"))
 
     # §277, §280: every league's scores, standings and player reports on one
-    # flat-rate plan, named by BALLDONTLIE_TIER. §395: the plan FAM buys is
-    # EUR 299 a month (the owner, 2026-11-03), so a paid tier is priced.
+    # flat-rate plan, named by BALLDONTLIE_TIER. Its price is not in the
+    # repository, so a paid plan asks for it rather than guessing one.
     bdl_tier = str(_setting("balldontlie_tier", "free") or "free").lower()
     bdl_paid = bdl_tier not in ("", "free")
+    # §419: ALL-ACCESS's list price, as the owner's dashboard shows it.
+    bdl_price = {"all-access": BALLDONTLIE_ALL_ACCESS_USD}.get(bdl_tier, 0)
     rows.append(_row(
         DATA, "BALLDONTLIE", "Sports data (every league)",
         "Live scores, standings, story-card score lines, player and injury reports",
-        f"{bdl_tier.upper()} plan, EUR {BALLDONTLIE_EUR:g}/mo flat" if bdl_paid
+        f"{bdl_tier.upper()} plan, flat rate" if bdl_paid
         else "Free (5 req/min: rosters and games only)",
-        "Paying" if bdl_paid else "Free tier",
-        BALLDONTLIE_EUR if bdl_paid else 0, "EUR/month" if bdl_paid else "/month",
-        "" if bdl_paid else f"EUR {BALLDONTLIE_EUR:g}/mo plan from launch",
-        "BALLDONTLIE_TIER; the owner, 2026-11-03 (§395)"))
+        ("Paying" if bdl_price else "Paying, enter price") if bdl_paid else "Free tier",
+        bdl_price, "/month",
+        "" if bdl_paid else "ALL-STAR for standings, injuries and season figures",
+        "BALLDONTLIE_TIER; balldontlie.io/pricing"))
 
-    # §395: markets are Tiingo's from launch, $249 a month all in (the owner,
-    # 2026-11-03); Finnhub and API-Sports are free plans while developing and
-    # are not used once FAM is commercial, so they carry no launch price.
-    tiingo_plan = str(_setting("tiingo_plan", "free") or "free")
-    tiingo_paid = tiingo_plan not in ("", "free")
+    # §418: Tiingo is the only markets provider. Power and Commercial are
+    # internal use; prices said to listeners need the redistribution licence,
+    # $249 a month all in (the owner, §423).
+    tiingo_plan = str(_setting("tiingo_plan", "free") or "free").lower()
+    tiingo_price = {"power": 30, "commercial": 50,
+                    "redistribution": TIINGO_REDISTRIBUTION_USD}.get(tiingo_plan, 0)
     rows.append(_row(
         DATA, "Tiingo", "Market data",
         "Market facts and market-move story cards",
-        f"{tiingo_plan.title()} plan, all in" if tiingo_paid
-        else "Free (personal use only, while developing)",
-        "Paying" if tiingo_paid else "Free tier, licence needed before launch",
-        TIINGO_USD if tiingo_paid else 0, "/month",
-        "" if tiingo_paid else f"${TIINGO_USD:g}/mo all in from launch",
-        "TIINGO_PLAN; the owner, 2026-11-03 (§395)"))
-    for vendor, item, purpose in (
-            ("Finnhub", "Market data (development only)",
-             "Markets while developing; replaced by Tiingo at launch"),
-            ("API-Sports", "Team scores (development only)",
-             "Scores under BALLDONTLIE's scoreboard while developing (§290)")):
-        rows.append(_row(DATA, vendor, item, purpose,
-                         "Free plan while developing", "Leaving at launch", 0,
-                         "/month", "Not used once FAM is commercial (§395)",
-                         "PROBLEMS.md §290, §395"))
+        {"free": "Free (personal use)", "power": "Power (internal use)",
+         "commercial": "Commercial (internal use)",
+         "redistribution": "Redistribution licence"}.get(tiingo_plan, tiingo_plan),
+        "Paying" if tiingo_plan == "redistribution" else
+        "Paying, redistribution licence needed before launch" if tiingo_price else
+        "Free tier, licence needed before launch",
+        tiingo_price, "/month",
+        "" if tiingo_plan == "redistribution"
+        else f"Redistribution licence, ${TIINGO_REDISTRIBUTION_USD:g}/mo all in",
+        "TIINGO_PLAN; tiingo.com/about/pricing"))
 
     meteo_paid = _has_key("OPEN_METEO_API_KEY")
     rows.append(_row(
@@ -330,8 +329,7 @@ def catalogue() -> list[dict]:
 
 #: The licences a paid launch needs that are not yet bought. Projections counts
 #: them from the launch month.
-#: BALLDONTLIE and Render are not here: the plan sizes those itself (the
-#: BALLDONTLIE rate cell). Finnhub is not: it leaves at launch (§395).
+#: BALLDONTLIE and Render are not here: the plan sizes those itself.
 def launch_purchases(rows: list[dict]) -> list[dict]:
     out = []
     bought = {(r["vendor"], r["status"]) for r in rows}
@@ -339,8 +337,8 @@ def launch_purchases(rows: list[dict]) -> list[dict]:
         out.append({"item": "GNews Essential (commercial licence)",
                     "price": 49.99, "unit": "EUR/month"})
     if ("Tiingo", "Paying") not in bought:
-        out.append({"item": "Tiingo (markets, all in)",
-                    "price": TIINGO_USD, "unit": "/month"})
+        out.append({"item": "Tiingo redistribution licence (all in)",
+                    "price": TIINGO_REDISTRIBUTION_USD, "unit": "/month"})
     if ("Open-Meteo", "Paying") not in bought:
         out.append({"item": "Open-Meteo API Standard",
                     "price": 29, "unit": "/month"})
@@ -387,9 +385,8 @@ def daily_ledger(now: Optional[float] = None) -> dict:
         return out.setdefault(d, {"episodes": 0, "hits": 0, "claude": 0.0,
                                   "search": 0.0, "gpu": 0.0, "images": 0.0})
 
-    # `live_usd` is left out on purpose: it prices Finnhub calls at its metered
-    # per-call rate, but FAM is on the free plan (and would be on a flat
-    # commercial one, a row of its own on Costs), so it is not money spent.
+    # `live_usd` is left out on purpose: market and sports data are flat-rate
+    # plans, rows of their own on Costs, so a per-call price is not money spent.
     for at, surface, hit, claude, search, gpu in _read(
             "METERING_DB", "metering.db",
             "SELECT at, surface, cache_hit, claude_usd, web_search_usd, gpu_usd"
@@ -788,11 +785,10 @@ def build(now: Optional[float] = None) -> bytes:
     purchases = launch_purchases(rows)
     licences = purchases
     rates = [
-        ("fallback", "Cost of one new episode before there is traffic", NEW_EPISODE_USD,
-         MONEY, "Estimate, docs/FINANCIAL.md 2.4: Haiku brief and writer, search, voice"),
-        ("bdl_launch", "BALLDONTLIE plan from launch, per month",
-         f"={BALLDONTLIE_EUR}*{EUR_TO_USD}", MONEY,
-         f"The owner, 2026-11-03: EUR {BALLDONTLIE_EUR} a month, one flat rate, every league"),
+        ("fallback", "Cost of one new episode before there is traffic", NEW_EPISODE_USD, MONEY,
+         "Estimate, docs/FINANCIAL.md 0.1: Haiku brief and writer, search, voice"),
+        ("bdl_launch", "BALLDONTLIE plan from launch, per month", BALLDONTLIE_ALL_ACCESS_USD,
+         MONEY, "ALL-ACCESS (§419): one flat rate, every league"),
         ("std_at", "Render Standard from this many listeners", 1000, COUNT,
          "docs/FINANCIAL.md 5.1"),
         ("std", "Render on Standard, per month", 32.5, MONEY,
@@ -803,8 +799,8 @@ def build(now: Optional[float] = None) -> bytes:
         ("bw", "Bandwidth per play", 0.0008, "$0.0000",
          "Estimate: 2 min at 2.65 MB/min, $0.15/GB (Render)"),
         ("bg_base", "Background writing: base per month", 60, MONEY,
-         "Estimate, docs/FINANCIAL.md 3.3: rails ~$20, Trending ~$4, pool and "
-         "categories ~$25-55 on the Haiku writer (§395)"),
+         "Estimate, docs/FINANCIAL.md 0.4: rails ~$20, Trending ~$4, pool and "
+         "categories ~$25-55 on the Haiku writer (§423)"),
         ("bg_per", "Background writing: per listener per month", 0.21, MONEY,
          "Estimate, docs/FINANCIAL.md 4.2"),
         ("bg_cap", "Background writing: ceiling per month", 700, MONEY,

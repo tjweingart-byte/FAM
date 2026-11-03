@@ -71,10 +71,9 @@ PAID_CREDENTIALS = (
     "BALLDONTLIE_API_KEY",
     # §278: Wikimedia Enterprise's account (a monthly allowance).
     "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
-    "FINNHUB_KEY",
-    # §290: the free plans used while developing - free, but outbound, and a
-    # day's allowance a staging sweep must not spend.
-    "API_SPORTS_KEY", "TIINGO_API_KEY",
+    # §290, §418: market prices - an hourly and daily allowance a staging
+    # sweep must not spend.
+    "TIINGO_API_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
     "GEMINI_API_KEY", "GOOGLE_API_KEY",
     "RUNPOD_API_KEY", "RUNPOD_ENDPOINT_ID", "RUNPOD_POD", "RUNPOD_POD_ID",
@@ -85,6 +84,8 @@ PAID_CREDENTIALS = (
     # outside the private network. Staging keeps its archive in its own
     # SQLite file (`ARCHIVE_BACKEND` is forced below).
     "MONGODB_URI",
+    # §403: Sonic's own read-only user on the same cluster.
+    "MONGODB_READ_URI",
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",

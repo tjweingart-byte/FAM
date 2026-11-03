@@ -26838,7 +26838,1138 @@ the storage quota and the copy is written inside a `catch` that would have
 lost it silently; offline, a face is its initials. Two friends with no handle
 and the same name no longer share one entry in `FRIEND_FACE_BOOK`.
 
-## 395. The costs on the Haiku writer, the launch plans for sports and markets, and the batched writer test (2026-11-03)
+## 395. Phase 2, piece 0: the activation step's Privacy Policy and consent wording, drafted for the owner (2026-11-01)
+
+Phase 2 ("MongoDB: Consuela and Sonic", `docs/AGENTS_BUILD_PROMPT.md`)
+starts with the one piece that waits on the owner: the activation step asks
+for date of birth (required, 13 and over), location and gender (optional),
+and decided item 2 says the Privacy Policy and consent must cover them first.
+Nothing collects any of them before the owner approves the wording.
+
+**The draft is `docs/ACTIVATION_PRIVACY_DRAFT.md`**: each changed section of
+`pages/privacy.html` as current and proposed text (a short-version bullet; the
+Profile row split so date of birth and gender sit in their own "About you"
+row, never shown; a new "Totals about groups of listeners" section - groups
+of 100 or more, age bands and region only, never guests or Private searches,
+never shared; retention, deletion and Children rewritten); a third consent
+scope, `demographics`, kept like `ai`, with its notice, and `TERMS_VERSION`
+left alone; the activation screen's words; the App Store privacy labels to
+update; and points for the lawyer's list. `pages/privacy.html`, `consent.py`
+and the app are unchanged.
+
+**Found while drafting, not fixed:** the "Where you are" screen says the place
+"is never shown on your profile", but §219 prints it on the profile and on
+`/api/person`, and the Privacy Policy lists it as visible. The draft asks the
+owner which is right (its question 3) rather than choosing.
+
+Waiting on the owner: the draft's five questions - an under-13 date of birth
+(delete, recommended), counting opt-in or on by default, which location, the
+self-describe words, and whether the totals may ever shape what FAM offers.
+
+Also decided this session: `pymongo` may be added (piece 1); no other new
+dependency - `dateparser`, `quantulum3` and `datasketch` are not added.
+
+## 396. Phase 2, piece 1: the archive filed by node, live readings as a series, and /admin's read-only stores on any SQLite (2026-11-02)
+
+The schema Phase 2 builds on (`docs/AGENTS_BUILD_PROMPT.md`, Phase 2,
+"Schema"). `history_archive.py`, both backends:
+
+- **Filed by node.** A fact carries Nando's node id and its path from the
+  root as it stood when written (`node_id`, `node_path`, from
+  `topics.category_tree().ancestors`); an intake record the node ids of the
+  episodes that used it (`nodes`, a union like `categories`). The node comes
+  from `notes.category_settled["node"]` (§371), set only when Nando filed the
+  episode - so with `AGENTS=0` it is always "" and nothing changes shape:
+  SQLite's new columns default to empty, and an Atlas document gains the
+  fields only when there is a node to write. A later write that knows no
+  node never forgets the filed one. An archive made before this is migrated
+  in place (`ALTER TABLE`, each on its own connection, as §358's).
+- **Indexes.** Facts on `(node_id, published)`, intake on `nodes`, and the
+  live readings on `(subject, metric, as_of)`. The Atlas vector index gains a
+  `node_id` filter so Sonic can search by meaning inside a node;
+  `ensure_vector_index` updates an index made before it
+  (`vector_index_current`), and `tools/archive_setup.py` already calls it.
+- **Live readings as a series** (`live_series`, `Reading`, `add_reading`,
+  `readings`): one record per subject, metric (`score`, `price`, `count`) and
+  moment, keyed by those three, so scores through a game are a series and the
+  same reading sent twice is one record (the first stays). **An ordinary
+  collection, not a MongoDB time-series collection**: those take no unique
+  key, so a sweep repeated after a restart would store a reading twice; the
+  compound index gives the same time-ordered reads. The owner may prefer
+  the time-series layout's compression later; it is a change of storage
+  only.
+- **Nothing writes a reading yet.** The sweeps' prices come from Finnhub
+  and some scores from API-Sports, which Consuela must treat as not approved
+  (decided item 41), so the sweeps are connected to `live_series` in piece 2,
+  together with the per-provider storage switch - never before it.
+
+**pymongo was already a dependency.** The plan said it was missing from
+`requirements.txt`; it is in `requirements-archive.txt`, which the
+Dockerfile installs (§308). Nothing was added.
+
+**`/admin`'s query page on SQLite 3.53** (`admin_tracker._open`): it
+attached each store read-only as `file:...?mode=ro` to a plain `:memory:`
+connection. SQLite builds without URI filenames on by default (this
+container's 3.53.1) refuse that, and all 16 `test_admin_tracker` tests failed
+here while CI's build passed. The in-memory connection is now opened as a URI
+(`file::memory:`, `uri=True`), which makes the attachments URIs on every
+build.
+
+Main took §393-§394 while piece 0 was being written; piece 0 is §395 and
+this §396 (§386's lesson).
+
+Tests: `tests/test_archive_nodes_396.py` (nodes on intake and facts, the
+migration, with the agents off no node, the series and its refusals, the
+Atlas indexes and vector-index update against a fake).
+
+## 397. Phase 2, piece 2: whose material Consuela may store, and the sweeps' readings (2026-11-02)
+
+**The owner approved Perplexity for storage** (2026-11-02), beside GDELT,
+Tiingo and BALLDONTLIE (decided items 8 and 25). `docs/PROVIDER_TERMS.md`
+had found its terms do not restrict storing or reusing Search API results
+(§355); the publishers' copyright section there still applies.
+
+**The switch** (`history_archive.approved`): `HOUSEKEEPER_APPROVED_PROVIDERS`,
+default `fam,gdelt,tiingo,balldontlie,perplexity` (`config.py`,
+`.env.example`, `/api/health` > `archive.approved_providers`), matched
+through `provider_id`, which turns every spelling FAM uses ("BALLDONTLIE
+scores", "API-Sports", a finding's `provider`) into one id; an unknown
+provider is never approved. **`REFUSED` cannot be approved by the setting**:
+Parallel (its terms, §366) and Finnhub and API-Sports (decided item 41:
+treated as not approved until they are removed).
+
+**Read only while Consuela runs** (`consuela_runs`: `AGENTS`, `HOUSEKEEPER`
+and her rule book's lock, `agents.roster.status`). With her off the intake
+keeps exactly what it kept before her - as the plan proposed (its
+question 2) - so `AGENTS=0` changes nothing. With her on, `_kept` also drops
+what an unapproved or unknown provider returned (`not_approved`).
+
+**The sweeps reach her series through it** (`keep_readings`,
+`reading_from`), as piece 1 left for here:
+- the sports sweep (`balldontlie_scores._keep_readings`): every game under
+  way is a reading at the sweep's time - scores through a game are a
+  series - and a final one reading per game, kept at the first sweep that
+  saw it (`reading_id` from provider, league and game);
+- the markets sweep (`story_sources._keep_prices`): every quote, one per
+  symbol and provider time, with its value - Tiingo's kept, Finnhub's
+  refused;
+- an episode's own live records (`_write`), filed under Nando's node.
+
+**Found on the way:** the sports sweep named every league's finals
+"BALLDONTLIE" (`_keep_finals(..., self.name)`), including leagues API-Sports
+answered for (§290's router). It now passes the provider that answered
+(`client.source_for`), as `ScoreBoard._source` already did for episodes, so
+the archive - and the switch - can tell them apart. BALLDONTLIE's own
+leagues are named as before.
+
+**For the owner: `consuela.md`'s list is now out of date.** Its never 8
+reads "approved so far: GDELT, with its citation; Tiingo; BALLDONTLIE". The
+rule - store only what the owner approved - is unchanged and the code
+honours it; only the "so far" list misses Perplexity. Updating it is the
+owner's signature, not a code change; a proposal under
+`docs/agent_rule_proposals/` on request.
+
+`tests/test_agents_model_layer.py`'s import map now lets `history_archive.py`
+read `agents.roster` (the switches and the lock, no model): the full check
+caught the new import, as it is meant to.
+
+Tests: `tests/test_provider_switch_397.py` (the default list, refusals no
+setting can lift, intake with Consuela off and on, readings let through and
+refused, both sweeps, an episode's live record under its node).
+
+## 398. A proposed consuela.md: Perplexity joins never 8's list (2026-11-02)
+
+At the owner's request (2026-11-02), after approving Perplexity for storage
+(§397): `docs/agent_rule_proposals/consuela.md` is the signed `consuela.md`
+with one line changed - never 8's "approved so far: GDELT, with its
+citation; Tiingo; BALLDONTLIE" gains "; Perplexity". The rule itself is
+unchanged. `tests/test_consuela_proposal_398.py` holds the proposal to
+exactly that difference and, once the owner signs, fails until the
+proposal is deleted - the pattern §384 used for `nando.md` rule 12. It also
+checks the list against what `history_archive.approved` lets through.
+
+The proposals README says what is waiting and how to sign it, and now
+repeats §392's lesson: sign from a key file deleted straight after, never
+with the key pasted into a terminal. Nothing was signed here; no key was
+generated, held or asked for. The signed manifest still verifies (version 2).
+
+## 399. Phase 2, piece 3: Consuela consolidates each article as it enters, as a dry run (2026-11-02)
+
+`agents/housekeeper.py` (consuela.md, always 1-3, never 1-3; decided items 3
+and 35). An article that entered an episode's packet waits in intake;
+Consuela's task (`housekeeper:consolidate`) on Netenyahu's loop takes the
+oldest and keeps what is worth keeping.
+
+- **The model gives sentence numbers only**: per article, `key`, `quotes`,
+  and `figures` with `happened` / `expected` / `unsure`
+  (`Picks`, extra fields forbidden), on `HOUSEKEEPER_MODEL` (Haiku 5.5, low)
+  through `agents/models.py` - rule-book lock, staging, pricing and the
+  ledger as for every agent. Several articles per call
+  (`HOUSEKEEPER_BATCH_ARTICLES`, 8), a bounded number of calls per run
+  (`HOUSEKEEPER_BATCHES_PER_RUN`, 5).
+- **Code does the rest**: numbers the sentences
+  (`evidence_digest.split_sentences`, at most 40 per article); refuses an
+  answer with a number out of range, an article twice or missing, a
+  sentence twice in one list - retried once, then the batch is left for the
+  next run (`failed`); reads each figure with `figure_guard.figures_in` - a
+  sentence whose figure it cannot read (a score like "24-17") is kept as a
+  sentence, never a figure; a figure is an `outcome` only when the model
+  says it happened and the sentence carries no hedge ("expected", "will",
+  "could"...), else `forecast` or `unsure`; a "quote" needs a quotation mark.
+- **Filed under Nando's one node**: an article no episode's node vouches
+  for, that two nodes claim, or whose node the tree does not know is
+  **held**, reported, and looked at again a day later - never filed by
+  guess, and never blocking the articles behind it.
+- **Only approved providers' passages** (§397), read from `by_provider`; an
+  article kept before providers were recorded (§358) has none and is held.
+  The model is never shown a hostname.
+- **Dry run first** (`HOUSEKEEPER_DRY_RUN=1`, the default): she chooses and
+  `housekeeper.db` records it (`tools/consuela_report.py`); nothing reaches
+  the archive, and an article already reported is not asked about again,
+  so a dry run does not spend twice on one article. With it off, the chosen
+  sentences become facts verbatim (`history_archive.add_fact`, under the
+  node and its path) and the intake record is marked consolidated.
+- **When she runs**: a task is queued by each intake write while she may run
+  (one queued at a time, a fresh one each minute something enters), and
+  nightly at 01:00 Eastern for anything still waiting
+  (`netenyahu.SCHEDULE`). App startup registers the handler only with
+  `AGENTS=1`; `history_archive.consuela_runs` gates every step, so with
+  `AGENTS=0` nothing here is called. `/api/health` > `archive` >
+  `consolidation` reports the settings and counts.
+
+**Not built here, on purpose:**
+- **Clearing the passages.** The build prompt says passages "wait only in a
+  short-lived queue ... and are never kept", and consuela.md always 3 says
+  never store a whole packet; always 11 and every-agent.md always 8 say every
+  removal is marked, kept 30 days and reversible. Whether clearing an
+  article's passages once it is consolidated is a removal (30 days) or the
+  consolidation itself (at once) is a disagreement between the rules, so it
+  is the owner's question. Until answered, a consolidated record keeps its
+  passages and is only marked; the old intake is not cleared either.
+- **The Message Batches API.** "Batched" (decided item 35) is met here by
+  several articles per call; the half-price batch endpoint needs the model
+  layer to submit and collect batches, a change to `agents/models.py` of its
+  own.
+- The live switch-over: `HOUSEKEEPER_DRY_RUN=0` is the owner's setting,
+  after reading the dry run's report on real articles.
+
+**The new store is on the disk every other one is** (`housekeeper.db`,
+`HOUSEKEEPER_DB`): in both Dockerfiles, `.env.example`, `/api/health`'s
+storage report once her first run creates it, and `tests/test_data_paths.py`
+(a lazy store, like the task table's). The full check caught it missing -
+§101's guard doing its job.
+
+Tests: `tests/test_consuela_consolidates_399.py` (the answer check and its
+retry, the status rule, approved passages only, held articles and the
+queue behind them, the dry run writes nothing and asks once, live facts
+verbatim under the node, a fallen-back call writes nothing, Consuela off
+sends nothing, the task's registration, schedule and queueing).
+
+## 400. The owner's answer: an article's passages are cleared the moment it is consolidated (2026-11-02)
+
+§399 asked whether clearing an article's passages after consolidation is
+the consolidation itself (consuela.md, always 3: never store a whole
+packet) or a removal kept 30 days (always 11). **The owner: clear them at
+once** - it is the consolidation, not a removal.
+
+`mark_digested` (both backends) now marks the record consolidated and
+empties its `passages` and `by_provider` in the same write. The record
+keeps its link, title, outlet, grade, date, subjects and nodes - the
+"link and count" every later corroboration needs. A later episode that uses
+the same article brings new passages, which make it wait again (`digested`
+back to 0 on SQLite, `$set` on Atlas) and are cleared the same way; the
+facts it yields upsert onto the same ids, so nothing doubles.
+
+So the intake is now the build prompt's "short-lived queue": with the dry
+run off, an article's passages last from its episode to Consuela's next
+run (minutes, `housekeeper:consolidate`). The intake already stored is
+consolidated and cleared by the same runs, oldest first. In the dry run
+nothing is cleared - nothing is consolidated.
+
+**Left as it is, for the owner if it matters:** an article kept before
+providers were recorded (§358) has passages from no known provider, so
+Consuela never consolidates it (§397, never 8) and its passages are never
+cleared by her; `ARCHIVE_INTAKE_MAX` still drops the oldest. Clearing those
+without consolidating them would be a removal, so it is not done here.
+
+Tests: `tests/test_consuela_consolidates_399.py` (cleared at once, new
+passages wait again, nothing cleared in the dry run, Atlas's update).
+
+## 401. Phase 2, piece 4: Consuela's dedupe, and the eval that lets it leave its dry run (2026-11-02)
+
+`agents/dedupe.py` (consuela.md, always 5, 7, 8, 9, 11; never 2, 7;
+decided item 33). Each night at 02:00 Eastern, after her consolidation
+(`netenyahu.SCHEDULE`), her task takes the facts kept in the last two days
+and pairs each with earlier facts under the same node (or subject) within
+three days that are alike (cosine 0.80) or word for word the same.
+
+**Code settles everything it can, and every number** (`code_verdict`): a
+live record is never deduplicated; two sentences of one article are not
+repeats; undated or more than three days apart is a different moment; the
+same words are a repeat - with a number in them only on the same day ("Apple
+closed at $201.50" on two days is a price on two days; the first build had
+this the wrong way round and a test pinned it until it was caught); a
+forecast and an outcome differ (a hedge in one only, or two figure
+statuses); different numbers differ - and are flagged a **conflict**, both
+kept, when the names match, the meaning is very close (0.90) and the day
+is the same; a quote is merged only word for word; the same numbers are a
+repeat only with the same names and very close meaning. `names` counts every
+capitalised word but sentence openers ("The", "On"), the first word too -
+leaving it out would have made "Apple rose 2 percent" and "Microsoft rose 2
+percent" name the same things.
+
+**What code leaves - plain sentences, alike, the same moment - is asked**:
+`HOUSEKEEPER_MODEL` (Haiku 5.5) first, and every pair it calls "same" goes
+to `HOUSEKEEPER_REVIEW_MODEL` (Sonnet 5.5). **A merge needs both**; unsure,
+a disagreement or a call that fell back keeps both. At most
+`HOUSEKEEPER_DEDUPE_PAIRS` (200) pairs are asked a night, 20 per call.
+
+**A merge is a reversible mark**: the better source is kept (grade, then
+the earlier publication), the repeat becomes inactive with `superseded_by`,
+`superseded_at` and `superseded_why`, and the keeper gains its link and
+count, never its text. `restore` undoes it, link included;
+`purge_superseded` deletes it for good only `HOUSEKEEPER_SUPERSEDED_DAYS`
+(30) after the mark. Both backends; the SQLite columns are migrated in place.
+
+**Two locks on going live**: `HOUSEKEEPER_DEDUPE_DRY_RUN=1` by default -
+the merges she would make and the conflicts she flags go to
+`housekeeper.db` (`merges`; `tools/consuela_report.py --merges`), nothing is
+marked. With it off she still marks nothing unless the latest eval **for
+the two models now set** passed (`eval_passed`).
+
+**The eval** (`agents/dedupe_eval.py`, `tools/consuela_dedupe_eval.py`), built
+in code, never hand-labelled (decided items 30 and 33): six real repeats in
+other words, and fifteen pairs from the guide's never-duplicates table and
+break list - a price on two days (also word for word), two quarters, a
+forecast and its result, a first and a revised count, two sources and two
+values, two companies or teams with one figure, one quote and two speakers,
+scores through a game, miles and kilometres, who beat whom, two senators,
+two live finals, and an instruction inside the material, which is put in
+front of the models by design (its injected words would otherwise let code
+settle it). It runs through the same `decide` as the night, with the
+sentence model's real similarity. **It passes only with no wrong merge and
+no call that fell back** - a fallen-back call keeps both pairs and would
+otherwise pass silently. Missed repeats are reported, never a failure.
+
+**Measured with the key** (`ANTHROPIC_API_KEY="$FAM_ANTHROPIC_KEY"`, the
+sentence model installed here for it, results in a scratch database):
+21 cases, **0 wrong merges, 0 missed repeats, no fallback**. Haiku answered
+"different" to the injected pair. Six pairs reached the models; the rest
+were settled by code. One label is wrong, and harmless: "scores through one
+game" (14-3 at half time, 21-3 later) is flagged a *conflict* rather than
+plain *different* - both are kept either way, but the report overstates it;
+code cannot tell a game's moments apart from one day's two sources.
+
+**For the owner, to go live**: on the deployment the dedupe will run on,
+with the agents and Consuela on and the sentence model installed, run
+`python tools/consuela_dedupe_eval.py` (it records its result in that
+deployment's `housekeeper.db`), read `python tools/consuela_report.py
+--merges` after a few dry nights, then set `HOUSEKEEPER_DEDUPE_DRY_RUN=0`.
+A change of either model setting needs the eval again.
+
+Not here: the periodic full-archive comb, the 90-day second consolidation,
+re-filing on tree changes and the opinion purge (piece 5).
+
+Tests: `tests/test_consuela_dedupe_401.py` (code's verdicts, both models
+needed, a fallback keeps both, no number or live record reaches a model,
+the eval passes a careful model, catches a reckless one and refuses to pass
+on fallbacks, belongs to its models, the dry run marks nothing, live waits
+for the eval, the mark is reversible and purged only after 30 days, a
+conflict keeps both, Atlas's mark, restore and purge).
+
+## 402. Phase 2, piece 5: Consuela re-files, folds at 90 days and combs the whole archive (2026-11-02)
+
+`agents/housekeeping.py` (consuela.md, always 4, 5, 10, 11; decided items
+3, 5 and 18), three of Netenyahu's tasks, each only while Consuela may run.
+
+- **Re-filing on tree changes** (`housekeeper:refile:<node>`, queued by
+  Nando's tree follower, §387). The task carries only the node - the task
+  table keeps a hash of its input, not the input - so the change is read
+  from the tree as it is now: a node still there (minted or moved) has every
+  fact under or beneath it re-pathed; a node gone has its facts moved to the
+  nearest ancestor still in the tree, read from **the fact's own stored
+  path**, or unfiled when none survives - never left on a dead node - and
+  intake records and readings that name it follow (`replace_node`). Each
+  re-file is recorded with its old node and path (`refiles`), so it can be
+  undone.
+- **The 90-day pass** (`second`, nightly 04:00 Eastern): a plain sentence
+  kept more than 90 days ago is folded into its article's one `link` fact -
+  the publisher's title, link, date, grade and node, no vector so the
+  recall never offers a headline as evidence - and marked superseded by it
+  (reversible, deleted 30 days later). Figures, quotes and live records are
+  never touched: "important figures, quotes, trends and article links" are
+  what stays, chosen by kind in code, because a number is never dropped on a
+  model's judgment. `supersede` no longer lists an article as corroborating
+  itself (a sentence folded into its own link).
+- **The full comb** (`comb`, nightly 03:00 Eastern; decided item 18): every
+  `HOUSEKEEPER_COMB_DAYS` (7) the whole archive, a page of 1,000 facts a
+  night by a cursor until through, through the dedupe's own code, models,
+  dry run and eval lock (§401) - so repeats kept long apart, which the
+  nightly two-day look never pairs, are found. It also re-files any fact
+  whose node or path is out of date, so a re-file task a dry run only
+  reported, or that was lost, is made later rather than never.
+- **An article two nodes claim** is held, as §399 built, and now handed to
+  Nando - `categorizer:settle:<intake id>` in Netenyahu's task table
+  (consuela.md, always 1: check with Nando; every-agent.md, always 2: never
+  do another agent's work). **Nando has no handler for it yet**, so it waits
+  there, visible in the task counts: how he settles one (his tree's nearest
+  common ancestor in code, or his model call) is the owner's question.
+
+**Dry runs**: re-filing and the 90-day pass follow `HOUSEKEEPER_DRY_RUN` -
+reported in `housekeeper.db` (`jobs`, `refiles`), nothing changed; the comb
+follows the dedupe's. Every run's summary is in `jobs`.
+
+**Found while testing**: the comb's pages of facts did not carry each
+fact's stored path (`_DEDUPE_COLUMNS`), so a fact whose node was pruned
+would have been unfiled instead of moved to its parent. The dedupe rows now
+carry `node_path` on both backends; a test pins it.
+
+**Not here: purging stored opinion and blog pieces** (consuela.md, never 6).
+No screen for them exists - `research.screen_results` screens simulated
+leagues and unknown sports outlets only - and the screen is Mclovin's
+(decided items 6 and 13; Phase 3). Consuela applies it to what is stored
+once it exists, rather than inventing a second one here.
+
+Tests: `tests/test_consuela_longer_jobs_402.py` (the nearest survivor from
+the fact's own path, a pruned node's facts, intake and readings follow, a
+moved node re-pathed, dry runs change nothing, never a dead node; one link
+per article, figures and quotes untouched, no vector, reversible, the
+recall never returns a link; the comb's pages, cursor and week, repeats the
+nightly look misses, re-filing what a lost task left; Nando handed a
+two-node article; registration and schedule).
+
+## 403. Phase 2, piece 6: Sonic reads the archive, read-only, and brings back one dated packet (2026-11-02)
+
+`agents/retriever.py` (sonic.md; docs/FAM_AGENTS.md, Retriever). When
+Netenyahu lets the retriever work on an episode (`AGENTS=1`, `RETRIEVER=1`,
+his rule book signed), Sonic replaces today's recall beside the search
+(`script_generator`, where the recall starts) and is merged exactly as it
+was - within `ARCHIVE_GRACE_SECONDS` of the packet or dropped
+(`research.finish_history_look`, unchanged). Otherwise the call is today's,
+and the byte-identical test still holds.
+
+- **Read-only by construction** (never 1, 2): `ReadOnlySQL` and
+  `ReadOnlyAtlas` have no method that writes - a test lists their methods -
+  and every statement passes `_gate`, which refuses anything but one
+  SELECT. The file is opened `mode=ro`; where the archive lives in Postgres
+  (§243) the gate is the guarantee. **On Atlas he connects as his own user
+  with only the `read` role** (`MONGODB_READ_URI`; `ARCHIVE.md` step 7),
+  never the writer's `MONGODB_URI`; without it he does not run there and the
+  recall is today's. He reads `facts` and `live_series` only, never `intake`
+  (never 4). `MONGODB_READ_URI` is a paid credential to `spend_guard`, in
+  `.env.example` and `render.yaml`, cleared in tests.
+- **The lookup is chosen, never written** (always 2, 4): C3P0's named lookup
+  when his call named one (§375); else the embedding router - labelled
+  examples in code, embedded once, decided by the owner 2026-10-30 - when
+  the question is within 0.55 of one; else code's mapping from the brief
+  (markets → series, an outcome-dependent sports question → results,
+  otherwise background). This settles the plan's question 4 the way it
+  proposed. No model is asked (`RETRIEVER_MODEL` stays empty).
+- **Where he looks** (always 3): the node, then its parent and children when
+  it holds fewer than two facts, then by meaning (within the family first
+  for `by_meaning`), then nothing. Results, a value on a day and a series
+  come from the live series (§396) and live facts first; a subject is
+  matched by containment ("Eagles" finds "Eagles vs Giants"), dates come
+  from the plan or a year back, and a period wholly after the search's
+  window is dropped. Links (§402) are never offered.
+- **History, never now** (never 6): every lookup reads only what was true
+  before the search's recency window - the same rule as today's recall.
+- **The packet** (always 5): oldest first into `as_sources` (dated, graded,
+  labelled earlier reporting), and a validated `ArchivePacket` on the
+  episode's notes (`notes.archive_packet`, `notes.archive_lookup`) for
+  Shakespeare. Packet one's articles are dropped where the packets meet.
+- **Any failure is today's recall** (always 7): no read-only connection, a
+  store error, anything raised - counted (`fell_back`) and reported on
+  `/api/health` → `archive` → `retriever` with the connection he has, runs,
+  items, empties and how each lookup was chosen.
+
+**Measured: not yet.** Sonic needs real filed facts to be judged, and the
+archive has none until Consuela leaves her dry run. His recall eval -
+questions built in code from stored facts, checking he brings them back -
+is one of the training items proposed to the owner the same day.
+
+**Known limits**: containment matches a short name inside a longer one
+("Apple" in "Apple Hospitality"); the router's examples are few and in
+English; an Atlas vector index built before §396's `node_id` filter needs
+`tools/archive_setup.py` once more before the family search by meaning works.
+
+Tests: `tests/test_sonic_retrieves_403.py` (no write method, the gate, the
+file read-only, never intake, only the read-only user on Atlas; C3P0 then
+the router then code; node, family, meaning, nothing; nothing from inside
+the window; results from the series oldest first; a future period dropped;
+the packet; today's recall as the fallback; never weather or a town's news;
+the search uses him only when Netenyahu says so; Atlas's queries).
+
+## 404. Phase 2, piece 7: one category tag, everywhere, moved by one function (2026-11-02)
+
+Decided item 5: Nando's node travels with the episode - script row, R2
+metadata, every MongoDB record from it, every surface - and a re-file or a
+tree change updates them together.
+
+- **Written everywhere when the episode is.** The script row already held
+  it (§371). Now the audio's upload carries it as R2 metadata
+  (`x-amz-meta-category-node`, with `x-amz-meta-episode`, the episode id),
+  read from the row by `_tag_metadata`; the archive's `episode_sources`
+  record carries it (`node`, a migrated SQLite column; on Atlas only when
+  there is one); intake records already did (§396). With no node - every
+  episode while `AGENTS=0` - the upload and the record are exactly as before.
+- **`category_tag.retag(cache, key, node)`**, the one function that moves
+  it: the archive (the episode's record, and on each of its articles the
+  old node replaced by the new), then every audio object of the episode by
+  a **copy in place** (`R2AudioStore.set_metadata`: `x-amz-metadata-directive:
+  REPLACE`, the type and the storage class restated - a kept episode stays
+  Infrequent Access), then the script row last (`set_category_node`), so no
+  surface shows a node the rest does not hold yet. A failing step does not
+  stop the others; it is recorded (`failed`, `pipeline_errors` on /admin)
+  for the sync check (§405) to repair. A dry run reports, an episode Nando
+  never filed is left to the writer's words, and it never raises.
+- **No app cache to invalidate**: `_episode_category` reads the script store
+  on every call (§376), so the row is the invalidation. Looked for, not
+  assumed: no module caches an episode's category.
+- **A tree change moves the episodes too**: Consuela's re-file of a pruned
+  node (§402) now retags every episode filed under it, to the node its facts
+  moved to, or to none - the writer's words then place it, as for any
+  episode whose node has gone (§371). Startup hands her the script cache
+  (`housekeeper.register(SCRIPT_CACHE)`).
+- Metadata values are percent-encoded (an S3 header is ASCII; a node id may
+  not be) and signed with the request; `head` reads them back decoded.
+- `/api/health` → `archive` → `retags` counts re-files, objects moved and
+  failures.
+
+Not here: the nightly check that the three agree (§405, piece 8), and the
+Phase 1 item that re-files episodes written before Nando, which will call
+this function.
+
+Tests: `tests/test_category_tag_404.py` (the node on upload and none
+without it, R2's copy in place keeping the class and signing the metadata,
+the episode record's node, retag moving all three, the dry run, an unfiled
+episode left alone, a bucket failure recorded while the rest moves, never
+raises, a pruned node's episodes moving, the cache handed over at startup).
+
+## 405. Phase 2, piece 8: the nightly check that an episode's tag agrees everywhere (2026-11-02)
+
+Decided item 5's reconciliation job: "checks every episode id and node id
+agree between MongoDB, the script cache and R2's objects; Keith reports
+drift". `tag_sync.py`.
+
+- **The script row is the record** (§371, §404). For every episode Nando
+  filed (`SqliteScriptCache.tagged`, by key), the check reads each audio
+  object's metadata with `head` - a read - and the archive's record of the
+  episode, and names each disagreement: `dead node` (the row names a node
+  the tree no longer holds), `object missing`, `r2 untagged` (uploaded
+  before §404), `r2 node drift`, `r2 episode drift`, `archive untagged`
+  (written before §404), `archive node drift`. An episode with no archive
+  record - written from live data alone - is not drift.
+- **It reports; it repairs nothing on its own.** Keith's fixes are
+  observe-only until the owner switches each on (build prompt, Phase 4), so
+  the check writes nothing: drift goes to /admin (`pipeline_errors`,
+  "episode", a notice - nobody heard less) and `/api/health` → `archive` →
+  `tag_sync`. The owner repairs with `python tools/tag_sync.py --repair`
+  (`--dry-run` first), which pushes the row's node to the bucket and the
+  archive (`category_tag.push`). A dead node is listed, never repaired
+  there: which node replaces it is a re-file, Consuela's (§402).
+- **Keith's first task**: `it:tag_sync`, nightly at 05:00 Eastern
+  (`netenyahu.SCHEDULE`), only while `IT_AGENT` is on and his rule book is
+  signed; 2,000 episodes a night by a cursor that comes round again. Keith
+  is otherwise Phase 4; this is the one check of his the build prompt puts
+  in Phase 2. The tool runs the same check over everything at any time.
+- Staging has no bucket; the check reads the row and the archive there.
+
+**Fixed with it**: §404's `category_tag` recorded a failed step under a
+stage /admin does not count ("archive" is not one of `pipeline_errors`'
+stages); it is now "episode", a notice, like the check's.
+
+Tests: `tests/test_tag_sync_405.py` (agreement is not drift, every kind of
+drift named, a pre-§404 record untagged, no record not drift, nothing
+repaired and /admin told, the owner's repair pushing the row out and leaving
+a dead node alone, the cursor, no bucket, Keith's observe-only task).
+
+## 406. A plan for training Consuela and Sonic (2026-11-02)
+
+At the owner's request: `docs/AGENTS_TRAINING_PLAN.md`, nothing built. It
+carries Nando's training loop (§381-§387) over to the two Phase 2 agents,
+under the same rules - no hand labels (decided item 30), grades teach and
+measure and never change the archive or an episode, nothing about a
+listener, every change measured before it is trusted.
+
+Consuela: **C1** a dedupe eval that grows by itself from real material
+(code-made never-duplicates; pairs the two models disagreed on); **C2**
+thresholds tuned on it; **C3** an answer key grading her choices nightly
+(needs a signed `consuela.md` rule, like `nando.md` rule 12; ~5 cents a
+batch on Opus 5.5); **C4** corrected mistakes as worked examples and a
+memory of grades; **C5** learning from what Sonic and the writer use;
+**C6** a small model or a self-hosted checker only if the numbers ask.
+Sonic: **S1** a recall eval built from stored facts; **S2** the router
+learning from C3P0's named lookups (searched questions as examples - the
+owner's call); **S3** tuning; **S4** an answer key for his packets (a
+signed `sonic.md` rule; ~1 cent an episode); **S5** what the writer used,
+with Phase 3; **S6** hybrid search or a reranker only if order matters.
+
+Suggested order: measures first (C1, S1 - no cost, no rule change), then
+tuning, then the answer keys once signed. Sonic's training needs Consuela
+writing real facts first (`HOUSEKEEPER_DRY_RUN=0`).
+
+## 407. Training C1 and S1: Consuela's dedupe eval grows, Sonic is measured (2026-11-02)
+
+The first two pieces of `docs/AGENTS_TRAINING_PLAN.md` (§406), at the
+owner's direction: measures, from real material, no labels, no rule change.
+
+**C1 - the dedupe eval grows** (`agents/dedupe_cases.py`). Real sentences -
+from Consuela's report (her dry run's choices included) and the archive,
+six words or more, a fixed order by hash, at most 40 - are each changed in
+code in one known way: a number changed, a hedge added, a day or month
+moved, a speaker swapped, a named subject swapped for another kept name
+(all *different*), or ", according to reports" added (*same*). And every
+pair her two models disagreed on in a night's dedupe is now recorded
+(`merges`, verdict `disputed` - the dedupe kept them apart and did not
+record them before) and becomes a case, answered *different*, the safe way.
+`dedupe_eval.run` runs the core 21 and up to 80 grown cases, scored by
+origin; it still passes only with no wrong merge and no fallback.
+
+**Measured with the key**, on twelve news-style sentences standing in for
+material this container does not have (a scratch database): 63 cases,
+**0 wrong merges, no fallback, passed**. Code settled most grown pairs
+(changed numbers flagged as conflicts, hedges, quotes); Haiku answered
+"different" to every moved moment and swapped subject it saw. **Six
+"missed" repeats, all one change**: Haiku answered "unsure" to every
+", according to reports" pair. That is arguably right - "X happened" and
+"X happened, according to reports" differ in how sure the source is - so
+the case's label, not the model, is the question; it goes to C2 (a neutral
+rewording instead, or the label changed), and a miss keeps both, the safe
+direction.
+
+**S1 - Sonic's recall eval** (`agents/retriever_eval.py`,
+`tools/sonic_recall_eval.py`). For up to 50 stored facts code writes the
+question each answers ("Eagles in February 2025"), filed under its node,
+with the listener's clock a month after it and a week's window; for up to
+20 live readings, a result question between the day before and the day.
+Each goes through Sonic's own `retrieve` and read-only connection. Counted:
+found (the recall rate), **leaks** (anything from inside the window) and
+**order errors** - the two hard rules, which must be 0 to pass - items
+beyond the node's family, empties, fallbacks, time, and which lookup was
+chosen and by whom. A result question is asked as C3P0 would name it;
+facts' questions go through the router, so both paths are measured - the
+first run of the tests found exactly that difference: the router sent a
+result question to background and missed the reading. No model is called.
+Results are kept in `housekeeper.db` (`recall_evals`).
+
+**Not measured on real data yet**: there are no filed facts until Consuela
+leaves her dry run. Run on a deployment then:
+`python tools/sonic_recall_eval.py` and `python tools/consuela_dedupe_eval.py`.
+
+Tests: `tests/test_agents_training_407.py` (each change and its answer,
+disputes kept apart, material from the report and the archive, the eval by
+origin, a reckless model caught by the grown cases, a night's dispute
+recorded and turned into a case; Sonic measured on facts and readings, a
+leak and an order error each failing, nothing to ask, no read-only
+connection, no model ever called).
+
+## 408. The owner's walkthrough: what is waiting on them, and the next training branch (2026-11-02)
+
+Written at the owner's request; the steps were given in the session's reply,
+and the essentials are kept here.
+
+1. **The activation questions** (`docs/ACTIVATION_PRIVACY_DRAFT.md`,
+   section 5): answered in a message - under-13 handling, counting opt-in or
+   on, which location, the self-describe words, whether totals may shape
+   what FAM offers. Nothing is collected before the wording is approved.
+2. **Signing `consuela.md`** on the owner's Mac, from a clone of this branch
+   (or Main once merged): the commands in
+   `docs/agent_rule_proposals/README.md`, the key from a file deleted
+   straight after (§392), then `consuela.md`, `MANIFEST.json`, its `.sig` and
+   the proposal's removal committed together.
+3. **Nando and an article two nodes claim**: an answer in a message - the
+   tree's nearest common parent in code (cheaper, may be broader), or his
+   model call (truer, a call per article).
+4. **Sonic on Atlas**: only once the archive is on Atlas (`ARCHIVE.md`
+   steps 1-6); then step 7 - a second database user with only `read` on
+   `fam`, its string as `MONGODB_READ_URI` on Render, checked on
+   `/api/health` → `archive` → `retriever` → `connection`.
+5. **The training plan's next decisions** wait for material: Consuela on
+   production in her dry run (`AGENTS=1`, `HOUSEKEEPER=1`, both dry runs at
+   their default `1`) for some nights; then, in the Render shell,
+   `python tools/consuela_dedupe_eval.py` and
+   `python tools/consuela_report.py --merges`; once the owner sets
+   `HOUSEKEEPER_DRY_RUN=0` and facts are filed, `python
+   tools/sonic_recall_eval.py`. A new session starts from
+   `docs/TRAINING_NEXT_BRANCH.md` with those outputs pasted in.
+
+**Decisions to bring to that branch**: whether a dedupe threshold may move
+when the measures say so (each still shown first); the attribution label
+(a neutral rewording, or "unsure" accepted); the grading model for C3 and
+S4 (proposed Opus 5.5) and how many a night; whether searched questions may
+become Sonic's router examples (S2, later).
+
+## 409. The activation draft as a PDF, its decisions spelled out (2026-11-03)
+
+At the owner's request: `docs/ACTIVATION_PRIVACY_DRAFT.md` opens with
+"Your decisions - answer these seven", each with its options and a
+recommendation - under-13 dates (delete), counting (opt-in), where the
+location is kept (the profile's place, with the "Where you are" screen's
+wrong sentence corrected), self-describe (the choice only, no text box),
+what the totals may be used for (counting only), asking everyone to agree
+to the Terms again (no), and the wording (approve with the answers filled
+in). Its old section 5 points there; notes in the wording now say
+"decision N". `docs/ACTIVATION_PRIVACY_DRAFT.pdf` is the same text, made with
+pandoc and Chromium's print; regenerate it the same way if the draft
+changes.
+
+## 410. The owner approved the activation wording: counted by default (2026-11-03)
+
+The owner answered the seven decisions of §409: **1A 2B 3A 4A 5A 6A 7A**.
+
+1. An under-13 date of birth deletes the account, after an "Is {date}
+   right?" check - at activation or when corrected later.
+2. **Counted by default** - the one answer that differs from the
+   recommendation (opt-in): the activation screen shows the notice, finishing
+   it records a yes in a new `demographics` consent scope, and a switch in
+   Settings, Privacy and safety ("Count me in FAM's totals") records a no.
+   The totals read only accounts whose answer is yes, so an account that
+   never saw the notice is never counted. The Privacy Policy says counting
+   is on and can be turned off; the lawyer's list now asks whether that holds
+   for EU and UK listeners (legitimate interest rather than consent).
+3. The location is the profile's existing place, shown on the profile.
+4. "Self-describe" is a choice only, no text box.
+5. The totals are only for counting.
+6. `TERMS_VERSION` stays 2.
+7. The wording is approved as drafted, with these answers.
+
+`docs/ACTIVATION_PRIVACY_DRAFT.md` (and its PDF) is now the approved wording
+with the answers written in; it goes live with the activation step that uses
+it - the Privacy Policy, `consent.py` and the app change together, never
+before the step collects anything.
+
+**Fixed now, from decision 3**: the app said, in two places, that the place
+"is never shown on your profile" - the sign-up identity step's note and the
+"Where you are" screen's lede - while since §219 the profile and
+`/api/person` show it, as the Privacy Policy says. Both now say it shows on
+the profile (and a code comment calling it private is corrected). Copy only;
+no behaviour changes.
+
+Next, each its own piece: the activation step (an API before the screen,
+its old-client contract, the policy and consent going live with it, account
+deletion removing the new fields, a Settings row for gender and the counting
+switch), then the aggregate totals job.
+
+## 411. The activation step, part 1: the API, and the Privacy Policy with it (2026-11-03)
+
+The owner's approved wording (§410), built as an API before a screen
+([api-before-screen]). The Privacy Policy and consent go live in the same
+change, because from here the server can collect what they describe.
+
+- **`activation.py`**: when the step is needed - an account let into the
+  app (not `waitlisted`) with no date of birth, or never shown the counting
+  notice - and what the screen draws (titles, help lines, the five gender
+  choices, the minimum age, the counting notice), in one place so every
+  client says the same.
+- **`GET /api/activation`** - the screen's state, filled with what the
+  account holds. **`POST /api/activation`** - date of birth required; place
+  (the profile's, decision 3) and gender (a choice, decision 4) optional;
+  finishing it records a yes to the new `demographics` consent - counted by
+  default (decision 2) - **the first time only**, so finishing it again on a
+  new device never undoes a no.
+- **Every open is told** (`/api/auth/me` → `activation_needed`), since that
+  is what every open asks first. **Nothing is refused to an account that has
+  not done the step**: an old client never shows it and keeps working
+  ([old-clients]); its listener is simply never counted, because no yes is
+  ever recorded.
+- **Under 13** (decision 1): a date under 13 answers 409 in the errors' own
+  shape (`error` the question "Is {date} right?", `confirm`,
+  `confirm_field: confirm_under_13`); sent again confirmed, the account and
+  everything FAM holds about the listener are erased (`erase_listener`, as
+  Settings' delete) and the session dropped. The same gate covers a later
+  correction (`POST /api/account`, also the waitlist's profile). 13 today is
+  let in. Once in the app, a date of birth is corrected, never removed.
+- **Accounts**: a `gender` column (migrated in place), `clean_gender`,
+  `age_on`, `under_age`, `MIN_AGE`; `/api/account` reads back the date,
+  gender and whether they are counted. **Consent**: a third scope,
+  `demographics` (version 1, `DEMOGRAPHICS_NOTICE`), on `/api/consent` for
+  every client; a guest cannot be counted (401). `TERMS_VERSION` stays 2
+  (decision 6). Account deletion already erased every consent row and the
+  account row, so the new answers go with it - a test pins it.
+- **The Privacy Policy** (`pages/privacy.html`, dated 3 November 2026): the
+  approved sections - the short-version bullet, "About you", "Totals about
+  groups of listeners" with the off switch, nothing sent to the listed
+  companies, never shown, the retention rows, deletion, the new Children
+  paragraph. `docs/legal/privacy.pdf` is not regenerated here: it names the
+  support address, so it is the owner's run (`python tools/legal_pdfs.py
+  --email ... privacy`).
+
+**Ship with the screen.** The policy describes the screen and the Settings
+switch, which are part 2; this branch reaches production only when merged,
+so the two go out together.
+
+**For the owner, when it ships**: the App Store privacy labels gain date of
+birth and gender (and possibly coarse location) - `APP_STORE.md`.
+
+Tests: `tests/test_activation_411.py` (ages and genders; when the step is
+needed; every open told; the screen's state; the answers kept and counted by
+default; the date required, the rest optional, a bad gender refused;
+Settings' no survives finishing again; a guest never counted; under 13
+confirmed then deleted, 13 today let in, a correction under 13 the same; a
+date corrected never removed; deletion takes the answers; an old client
+refused nothing; the policy's words and date).
+
+## 412. The owner signed consuela.md: Perplexity approved (2026-11-03)
+
+The owner signed manifest version 3 (574ee68): `consuela.md` is the §398
+proposal byte for byte - never 8's "approved so far" list gains Perplexity -
+and `MANIFEST.json` is the pending manifest the session wrote, in which only
+`consuela.md`'s fingerprint changed. `python tools/rulebook_manifest.py
+--verify`: every agent may run, signed with the same `owner.pub`.
+
+This time the session wrote the pending manifest itself (the proposal put in
+place on a scratch copy, `--write`, the signed book restored), so signing
+needed no clone: the owner downloaded the proposal and the pending manifest,
+signed in the `famsign` environment from a key file saved from TextEdit and
+deleted with `rm -P` straight after (§392's lesson), and uploaded the three
+files in one commit through GitHub's web page - no stray file this time.
+The proposals README now gives that route. The proposal and the pending
+manifest are deleted; `tests/test_consuela_proposal_398.py` takes its
+signed branch. The owner updates the copy held outside Claude.
+
+## 413. An article two nodes claim is filed under both (2026-11-03)
+
+The owner's answer to §402's question ("2"): an article that episodes filed
+under different nodes is filed under **all of them** - a Bengals-Giants game
+under both teams - never collapsed to their shared parent (the NFL) and
+never held for Nando. The episode itself keeps one category (decided item
+5); only the archive's facts can carry several. `consuela.md` always 1
+("file every packet under the category Nando gave it") is kept as read:
+two episodes gave it two.
+
+- `housekeeper.filing_nodes`: every node an episode that used the article
+  was filed under, in order, that the tree knows. The first is each fact's
+  `node_id` (its path as before); the rest are its new `also_nodes`. An
+  article none of whose nodes the tree knows is still held. The dry-run
+  report says where each article would be filed ("filed under eagles,
+  giants").
+- The hold for two nodes and the hand-off to Nando (`categorizer:settle`,
+  which had no handler) are gone.
+- `facts.also_nodes` (SQLite column migrated in place; Atlas field and
+  index); Sonic's node lookups match `node_id` or `also_nodes`
+  (`ReadOnlySQL._under`, Atlas `$or`), so the game is found from either
+  team; a re-file replaces a pruned node in `also_nodes` too
+  (`replace_node`), and `facts_under` counts it. Atlas Vector Search still
+  filters by `node_id` only - a search by meaning within a family finds a
+  fact through its first node.
+
+Tests: §399's and §402's tests rewritten for the rule (filed under both,
+found from either team, re-filed), Sonic's Atlas query.
+
+## 414. The activation step, part 2: the screen, and Settings' rows (2026-11-03)
+
+The web app's half of §411 (`static/index.html`), every word from
+`/api/activation` so an iOS client draws the same.
+
+- **The step** is an overlay like the Terms' (`activationOverlay`): date of
+  birth (Continue waits for it), one "Where you live" box (the server splits
+  "Exton, PA" the way a typed place is split everywhere, `places.split_name`),
+  the five gender choices as chips (tap again to clear), and the counting
+  notice with the Privacy Policy's link. Not closable the first time it is
+  owed; it opens on every open while `/api/auth/me` says
+  `activation_needed` (after the Terms, `checkTerms().then(checkActivation)`),
+  and after signing up or in.
+- **Held through sign-up's own steps** - found by driving it, not by
+  reading it: on a new account the step first opened on top of "Who are
+  you?", which asks for the place too. It now waits while a sign-up step is
+  on screen (`activationPending`, `releaseActivation` in `showScreen`) and
+  opens after them, reloaded, so the place just given is already in it.
+- **Under 13**: the server's 409 becomes "Is {date} right?" with Yes /
+  Change it; Yes deletes the account and the step says so, then OK reloads
+  the app signed out.
+- **Settings**: "Date of birth" and "Gender" rows beside "Where you are"
+  open the same form as an editor ("Your details", closable, the same
+  under-13 rule); "Count me in FAM's totals" under Privacy and safety, On by
+  default, posts the `demographics` consent.
+
+**Driven in a real browser** (`tools/smoke_activation.py`, in `dev.sh` and
+CI - a check added to one is added to the other by hand): a zero-spend
+server with every store in a temporary directory (`smoke_opus.py`'s way, so
+nothing lands in the working tree); 17 checks - held through sign-up then
+shown, not closable, Continue waits, the choices, the notice, the answers
+kept and counted, the place split, Settings' rows, the switch, the editor,
+under 13 asked then deleted and signed out, nothing thrown.
+
+With part 1 (§411) the step is complete on the web; it ships when the branch
+is merged. For the owner then: the privacy PDF
+(`python tools/legal_pdfs.py --email ... privacy`) and the App Store labels.
+
+## 415. Totals about groups of listeners: groups of 100 or more, never a person (2026-11-03)
+
+The last piece of Phase 2: decided item 2's "aggregate demographic
+signals", consuela.md never 4, and the Privacy Policy's "Totals about groups
+of listeners" (§410, §411). `demographic_totals.py`, Consuela's nightly task
+(`housekeeper:totals`, 00:00 ET; only while she may run).
+
+- **Who is counted**: an account let into the app (`accounts.demographic_rows`
+  - not waitlisted, with a date of birth) with a yes to the `demographics`
+  consent's current wording (`ConsentStore.allowed_users`). Never a guest and
+  never a Private search - neither is ever written to the event log
+  (`app._remembers`), and the totals read only the log
+  (`EventStore.between`: searches and plays; a finish is not a second play).
+- **What is kept** (`demographics.db`, `totals`): for a week, a kind of story
+  (the eight facets, "other", and "all") and one breakdown - none, the
+  owner's age groups, gender, or region (state or province and country,
+  never a city) - the listeners, searches and plays. Computed in memory from
+  the stores, read in place; **no row per person is ever written**, and a
+  test checks the table's columns and that no id is in it.
+- **Groups of 100 or more, and never by subtraction**: a cell under
+  `MIN_GROUP` (100) is never kept, and a breakdown is kept whole or not at
+  all - if one age group of a kind of story is under 100, none of that age
+  breakdown is kept, or the small group could be worked out by subtracting
+  the others from the kind's total. The kind's total itself, 100 or more,
+  stays.
+- **Recomputed, not added to**: each night this week and last are computed
+  again and replace what was there, so a deleted account, or one that turned
+  counting off, stops counting; earlier weeks stay, as the policy says.
+  Registered with the wipe (they came from the log, [wipe-derived]), the
+  data disk (both Dockerfiles, `.env.example`, `/api/health` → `storage`,
+  `tests/test_data_paths.py`), and the agents' import map.
+- **Shown**: `/api/health` → `totals`; `/api/admin/totals` (admin only, a
+  week at a time); `python tools/demographic_totals.py` (`--compute` runs it
+  now).
+
+With few listeners almost every group is under 100 and almost nothing is
+kept - the rule working. Turning it on is `AGENTS=1` and `HOUSEKEEPER=1`,
+with the rest of Consuela.
+
+Tests: `tests/test_demographic_totals_415.py` (the owner's bands, region
+never a city, 100 kept with its breakdowns, no group under 100 and never by
+subtraction, only counted accounts and none under 13, searches and plays
+apart, outside the week not counted, only cells written, recomputed so a no
+or a deletion stops counting, the wipe, the real stores' reads, the task
+and the admin-only endpoint).
+
+## 416. docs/BACKEND.md brought up to Phase 2 (2026-11-03)
+
+The build prompt asks each phase to keep `docs/BACKEND.md` true to the code;
+it still described the archive before Phase 2. Now: the history recall's row
+says Sonic replaces it when the retriever runs, and how; the background jobs
+gain Netenyahu's loop and each of Consuela's and Keith's tasks, and the
+sweeps' live series; the outside services gain Sonic's read-only Atlas user,
+the archive's new collections and fields, and Cloudflare R2 with the
+category tag in its metadata; the routes gain `/api/activation`, the
+`demographics` consent, `activation_needed` and `/api/admin/totals`; the
+health table gains the `archive` and `totals` keys, in the order the
+report gives them.
+
+## 417. The review before the pull request (2026-11-03)
+
+Before the pull request into Main, two independent reviews read the whole
+branch: one the archive and the agents, one the accounts, the activation
+step, the Privacy Policy and the web app. Every finding below was
+reproduced before it was fixed, and each fix is pinned in
+`tests/test_review_fixes_417.py` or `tests/test_activation_411.py`.
+
+**Fixed:**
+
+- **Intake on Postgres.** `digested = CASE WHEN ? THEN 0` sends an integer
+  where Postgres wants a boolean, so every intake write after the first
+  failed there. That would have stopped intake and recall even with
+  `AGENTS=0`. It is now `CASE WHEN ? = 1`.
+- **Contradictory figures merged by code.** `code_verdict` merged two
+  figure sentences that had the same numbers, the same names and similarity
+  ≥ 0.90. These pairs all meet that test, and all three were marked SAME:
+  - "the Eagles beat the Giants 24-17" and its swap;
+  - "Eagles 24, Giants 17" and "Eagles 17, Giants 24";
+  - "rose 3 percent" and "fell 3 percent".
+
+  A figure is now merged only word for word, the branch above it. The eval
+  gains these three as DIFFERENT. "One quarter's revenue, reworded" stays
+  SAME in the key and is now counted as missed: a missed repeat costs bytes,
+  a wrong merge loses a fact (consuela.md).
+- **A re-read wiped what was gathered.** When new passages make an article
+  wait again (§400), consolidation adds its facts again. SQLite's upsert
+  replaced the fact's corroborations. Atlas's `replace_one` also reset
+  `active` and `superseded_by`, which brought a repeat back. Both backends
+  now keep corroborations, marks and `created`. On Atlas this is
+  `update_one` with `$setOnInsert`.
+- **Held for good, at the front of the queue.** An intake record with no
+  node, or with no provider recorded (§358), cannot change by waiting. Yet
+  it stayed oldest-first in the 160-record window, so enough of them would
+  have stopped consolidation. `undigested` now leaves them out on both
+  backends. They stay in intake, and come back when a node is added
+  (`tag_episode`).
+- **Supersede chains.** When B was superseded by A after C had been folded
+  into B, A lost C. The loser's corroborations now move to the keeper,
+  marked `via`, so `restore` takes them back.
+- **Refused providers' live records.** `_write`'s live loop and the sweeps'
+  `_write_swept` kept Finnhub's and API-Sports' records as facts even while
+  Consuela ran. Those providers are refused, decided item 41. Once she runs,
+  `kept_live` keeps only an approved provider's records. Before she runs,
+  nothing changes (§313).
+- **Smaller fixes:**
+  - Node matches use `instr`, never `LIKE`, where `_` is a wildcard. This
+    covers the archive's `facts_under` and `replace_node`, and Sonic's
+    `_under`.
+  - Atlas `replace_node` no longer duplicates a node or writes `""`.
+  - Atlas `link_episode` no longer forgets a node when a later write has
+    none.
+  - A failed re-file now raises, so the task queue shows it, instead of
+    logging "done".
+- **The activation step scrambled a place with no town.** The screen joined
+  the stored place into one box and the server split it again. Region
+  "Ontario" with country "Canada" came back as town "Ontario" with region
+  "Canada", on every save, including a Settings change to gender only. The
+  place is now sent only when its box was changed.
+- **An empty date of birth through `/api/activation`.** It erased the kept
+  date, owed the step again, and on a new account recorded a yes with no
+  date. It is now refused (400), as `/api/account` already refused it.
+- **Smaller activation fixes:**
+  - "Change it" after the under-13 question re-enables Continue.
+  - `consent.DEMOGRAPHICS_VERSION` now says what a bump does: it stops
+    counting until a new yes is given.
+
+**Left for the owner** (said in the pull request):
+
+- The Privacy Policy says the totals are kept by "region and time of day".
+  The code keeps no time of day, so it holds less than stated, but the
+  approved wording should be corrected by the owner, not here.
+- It also says someone under 13 "cannot enter the app". The server refuses
+  nothing ([old-clients]), and a supported older client never shows the
+  step.
+- The waitlist page's profile shows the under-13 question as a plain error,
+  with no Yes or Change it. Nothing is saved, so it is safe, but it cannot
+  be answered there.
+- Settings shows counting as "Off" until `/api/activation` has loaded.
+
+## 418. API-Sports and Finnhub are removed; BALLDONTLIE and Tiingo are paid for (2026-11-02)
+
+The owner (11.02): "We have paid for Tiingo and BALLDONTLIE. We want to
+completely remove API-sports and Finnhub from the pipeline." §290 had brought
+API-Sports and Tiingo in as free plans while developing, each in one file and
+removable by deleting it; Finnhub had stayed as the markets provider Tiingo
+subclassed. Now BALLDONTLIE is the only sports provider and Tiingo the only
+markets provider.
+
+**API-Sports.** `api_sports.py` is deleted, and every call site with it: the
+`Router` under the scoreboard (`ScoreBoard` and the sweep take
+`balldontlie.shared_client()` again), `SHADOW_TEAMS`, the `aps:` id filter in
+the player reports, `sweepable`'s API-Sports leagues, `ScoreBoard._source`
+(provenance is "BALLDONTLIE" again), the `api_sports_key` row of
+`DERIVED_FROM_KEY`, `_usage_detail`'s per-sport count, the /admin row and
+breakdown, and every `API_SPORTS_*` setting (`config.py`, `.env.example`,
+`render.yaml`, `spend_guard`, `tests/conftest.py`).
+
+**Finnhub.** `FinnhubSource` is gone; what Tiingo used of it - the sentences
+by session, the freshness and the closed-market rule (§267) - is
+`live_sources.MarketsSource`, which `tiingo.TiingoSource` subclasses. Gone
+with it: Finnhub's search, quote and market-status requests, `quotable`,
+`_UNQUOTABLE_TYPES` and the refused-symbol day (`note_refused`,
+`refused_today`; Tiingo's `pick_listing` is its own filter), the `finnhub`
+builder and its `DERIVED_FROM_KEY` row. `FinnhubSignals` and `MARKET_SWEEPS`
+are folded into one `story_sources.TiingoSignals`, swept only while Tiingo is
+the markets provider. Settings: `FINNHUB_KEY` and `FINNHUB_PLAN` are gone,
+and `FINNHUB_WATCHLIST` is renamed `MARKETS_WATCHLIST`. The finance workbook's
+Finnhub row is a Tiingo row; its launch purchase is Tiingo's redistribution
+licence. /admin, the privacy page, the tracker and the error explanations
+name Tiingo.
+
+**The plan sets the stops.** `TIINGO_PLAN` (free | power | commercial |
+redistribution; anything else refuses to boot, as `BALLDONTLIE_TIER` does)
+sets FAM's ration at 95% of the plan's published limits
+(`tiingo.PLAN_LIMITS`: free 50/hour and 1,000/day, Power 10,000 and 100,000,
+Commercial 20,000 and 150,000; redistribution is taken at Commercial's).
+`TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` now default to 0, "from
+the plan", and override it when set. `/api/health`'s `live_sources.free_plans`
+is `live_sources.rations` (a shallow contract: only top-level keys are held).
+
+**The licence is not the plan.** Tiingo's Power and Commercial plans are
+internal use; a price said to a listener is redistribution. The owner's
+agreement records redistribution with Tiingo and BALLDONTLIE
+(docs/PROVIDER_TERMS.md, 10.28), so `provider_usage.licences` counts Tiingo
+as commercial only at `TIINGO_PLAN=redistribution`; any other plan is red on
+/admin.
+
+**On deploy.** Remove `API_SPORTS_KEY`, `FINNHUB_KEY`, `FINNHUB_PLAN` and
+`FINNHUB_WATCHLIST` from Render's dashboard (nothing reads them); set
+`BALLDONTLIE_TIER` to the plan bought and `TIINGO_PLAN=redistribution`.
+`LIVE_MARKETS_PROVIDER=finnhub` or `STORIES_SOURCES=...,finnhub` is reported
+as a provider this build does not know (`[failures-visible]`). The kept web
+release `releases/web/2026.09.29/` still names both in comments; it is
+hashed and left as shipped (§280).
+
+Tests: `test_free_plans_290.py` (mostly API-Sports internals) is replaced by
+`test_tiingo_418.py` - its Tiingo tests kept, plus the plan's stops, an
+unknown plan refused, only redistribution commercial, and the removed
+modules, classes, settings and `.env.example` lines asserted gone. Converted
+to Tiingo: `test_story_sources`, `test_live_providers`,
+`test_provider_failures_144`, `test_admin_page_289`, `test_licences_207`,
+`test_provider_usage_179`, `test_trending_135`, `test_financials` and four
+more. Notes at `sports-balldontlie`, `sweep-on-demand`, `live-facts` and
+`always-researched`.
+
+## 419. BALLDONTLIE's plan is ALL-ACCESS (2026-11-03)
+
+The owner (11.03), with a screenshot of the BALLDONTLIE dashboard: the plan
+is **ALL-ACCESS**, $299.99 a month - "All sports, all endpoints, BDL Lab,
+Webhooks, and StoryStats access ... No need to manage individual sport
+subscriptions". §290's "BALLDONTLIE is priced per sport" is not how this
+account is bought, so one plan for every league (`BALLDONTLIE_TIER`, §280)
+stands, and `all-access` is now one of its values.
+
+`balldontlie.TIER_ORDER` ends in `all-access`, so it reaches everything GOAT
+does (`ENDPOINT_TIERS` asks for nothing higher). Its per-minute limit is not
+published where this container can read it; `PER_MINUTE["all-access"]` is
+GOAT's 600, the highest published, and a 429 still reads as `RateLimited`.
+`config.py` accepts the value (anything else still refuses to boot), /admin's
+limit line reads `balldontlie.PER_MINUTE` rather than its own copy, and the
+finance workbook prices the row at $299.99 ("Paying"). The dashboard showed a
+trial ending 11.04 08:38; the plan must be upgraded there for the key to keep
+answering. **Pinned by** `tests/test_balldontlie_all_access_419.py`.
+
+## 420. Tiingo is credited on the Terms page (2026-11-03)
+
+The owner (11.03) shared FAM's signed-for market data agreement with Tiingo.
+**It is not in this repository and must not be:** the repository is public
+and the agreement's terms are confidential, so it is kept where the owner
+keeps contracts, and no figure from it (fee, limits) is written here. The
+limits are set on Render (`TIINGO_HOURLY_REQUESTS`, `TIINGO_DAILY_REQUESTS`,
+`sync: false`); `TIINGO_PLAN=redistribution`'s defaults stay at Commercial's
+published limits.
+
+Tiingo is credited on the Terms page, beside the other live data (section 5):
+"Market data from Tiingo.com", linked. The Terms already forbid copying,
+re-hosting, selling or distributing anything from FAM and training a model
+on it (section 10), which is what a listener may not do with a price either;
+nothing a listener agreed to changed, so `TERMS_VERSION` is not bumped.
+
+## 421. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03)
+
+The owner (11.03): "Remove those code caps from Tiingo, it is now paid for."
+FAM's own hourly and daily stops now apply on the free plan only
+(`tiingo.FREE_STOPS`, 45 and 950); on `power`, `commercial` or
+`redistribution` there is none (`hourly_limit()`/`daily_limit()` are 0),
+though every request is still counted for /admin. `TIINGO_HOURLY_REQUESTS` /
+`TIINGO_DAILY_REQUESTS` still set a stop on any plan, should one be wanted.
+`PLAN_LIMITS` and `HEADROOM` are gone. At today's volume (a dozen sweep
+requests a day, one or two per markets episode) no plan's limit is near.
+
+GNews (the owner: paid for, or about to be): `render.yaml` sets production's
+`GNEWS_DAILY_REQUESTS` to 950 (was 90) and `GNEWS_MAX_ARTICLES` to 25, the
+Essential plan's allowance; `GNEWS_PLAN=essential` is set on the dashboard.
+Until Essential is active, requests past the free plan's 100 a day are
+refused by GNews and said on /admin.
+
+**Pinned by** `tests/test_tiingo_418.py` (the free plan's stops; a paid plan
+asked 200 times with no stop, and /admin saying so).
+
+## 422. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03)
+
+The owner (11.03): all four are "officially paid for and ready to go". Each
+is configured by what the deploy says, so nothing in code changes: GNews by
+`GNEWS_PLAN=essential` with §421's 950 requests and 25 articles, BALLDONTLIE
+by `BALLDONTLIE_TIER=all-access` (§419; `goat` until this branch reaches
+`Main`, which refuses the new value), Tiingo by `TIINGO_PLAN=redistribution`
+(§418, no stop in code since §421), Open-Meteo by `OPEN_METEO_API_KEY`
+(§194; the key is the plan, and the keyless endpoint stays off). With all
+four, `provider_usage.licences()` reports `commercial_ready`. Production's
+dashboard was read the same day: `ANSWER_FIRST` and `GDELT_TIMEOUT_SECONDS`
+are set there and read by nothing (§108 deleted the first; GDELT is read
+from its export files since §211).
+
+## 423. The costs on the Haiku writer, the launch plans for sports and markets, and the batched writer test (2026-11-03)
 
 The owner, drafting the pitch deck's backend slide: BALLDONTLIE is **EUR 299
 a month**; **Tiingo is in at $249 a month all in**; **Finnhub and API-Sports
@@ -26886,9 +28017,420 @@ Not changed: the Finnhub and API-Sports code (removed on purpose later, as
 §290 says), and `commercial_ready`, which already blocks a Finnhub key left
 on a free plan.
 
+**Merged after §418-§422 (2026-11-03).** This section was written as §395 on
+a branch cut before Main's §395-§422 and renumbered on merge. Main had by
+then removed Finnhub and API-Sports from the code (§418) and priced
+BALLDONTLIE's ALL-ACCESS at $299.99 a month from the owner's dashboard
+(§419), so those win over the EUR 299 figure and the "development only" rows
+above: `financials.py` keeps Main's BALLDONTLIE and Tiingo rows, with no
+Finnhub or API-Sports row. What this section adds is kept: the Haiku-era
+`NEW_EPISODE_USD` (0.011), the $60 background base, a priced BALLDONTLIE
+launch cell (`BALLDONTLIE_ALL_ACCESS_USD`), and the owner's $249 a month all
+in as the price of Tiingo's redistribution licence, which §418 had left
+quote-based (`TIINGO_REDISTRIBUTION_USD`: a launch purchase until
+`TIINGO_PLAN=redistribution`, then a "Paying" row). `docs/FINANCIAL.md`
+section 0 is restated on those figures: data plans about $632 a month at
+launch, and the audience totals about $20 lower. `provider_usage.py`, the
+`sports-balldontlie` rule and its note keep Main's wording.
+
 **Added the same day, at the owner's request:** the slide's search row was
 Perplexity and Parallel alone, so FINANCIAL.md 0.3 now also has Claude by
 audience ($69 / $125 / $593 / $3,795 a month at 100 / 1k / 10k / 100k
 listeners: ≈ $0.005 an on-demand episode, ≈ $0.004 one written ahead, plus
-≈ $40 of shared background calls) and plugins and AI together ($735 / $808 /
-$1,425 / $5,605), with the assumptions they rest on.
+≈ $40 of shared background calls) and plugins and AI together ($712 / $785 /
+$1,402 / $5,582, on the $632 of data plans above), with the assumptions
+they rest on. Written after the merge note above, so already on its figures.
+
+**Pinned by** `tests/test_financials.py::test_tiingo_s_licence_is_priced_and_the_episode_is_haiku_s`.
+
+## 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03)
+
+CI's `postgres` job failed on the merges of #217 and #218 (and earlier on
+#202, #212 and #213) while the `test` job passed, so each merge went in red.
+Reproduced on a local Postgres 16 the way `ci.yml` runs it (`DATABASE_URL`
+set, the same tuning): 22 failures in seven files written for §396-§415,
+none in the code they test.
+
+**The cause.** Each read the store it had just written with
+`sqlite3.connect(store.path)`. With `DATABASE_URL` set every store is a
+schema in Postgres (§243), so the file at that path was empty and the read
+said `no such table`. Older tests that must read the file carry
+`@pytest.mark.sqlite_file`, which skips them on Postgres; these had neither
+the marker nor a read that follows the backend.
+
+**The fix.** A test that only reads what the code wrote now reads through
+`db.connect` (imported as `store_db`), the same door the stores use, so it
+reads the file under SQLite and the schema under Postgres and keeps running
+in both jobs: `test_archive_nodes_396`, `test_category_tag_404`,
+`test_consuela_consolidates_399`, `test_consuela_dedupe_401`,
+`test_consuela_longer_jobs_402`, `test_demographic_totals_415`,
+`test_tag_sync_405`. Two tests are of the file itself and are marked
+`sqlite_file`: the one that builds an archive in the pre-§394 SQLite shape to
+watch it migrate, and `test_sonic_retrieves_403`'s `mode=ro` check - on
+Postgres Sonic is held to reads by `retriever._gate`, which its own test
+pins on both backends. No product code changed.
+
+A full local run on Postgres then passed but for `test_spend_guard`'s staging
+boot, which failed only because earlier smoke runs had left `accounts.db` in
+the checkout (§254's guard, doing its job); a clean checkout passes, as CI's
+is.
+
+**For the next new test:** read a store with `db.connect(store.path)`, not
+`sqlite3.connect`; reach for `sqlite_file` only when the file itself is the
+subject. A separate `close_all()` pool race has been named as a source of
+flaky Postgres runs; it is not this, and is not touched here.
+
+## 425. Finishing Phase 1, piece 1: facts, never advice (2026-11-03)
+
+Decided item 17 (every-agent.md never 10, c3p0.md never 7). C3P0 has set
+`advice_request` since §375, and nothing read it: an advice request was
+written like any other question, so nothing stopped "you should refinance
+now" from being spoken.
+
+**The writer is told.** When C3P0's answer on the brief says
+`advice_request`, `episode_intelligence.build_brief_block` adds one note,
+`ADVICE_NOTE`, said before the cautions with the other note that changes
+what the episode *is*: no recommendation, no choosing for them; the facts
+around the decision - the options and what each involves, what is known
+about how they turn out, cost and risk, who decides and how; what a
+doctor, a regulator or the law says is a fact when the evidence says it,
+and is said as theirs; land on the most concrete fact, never on a verdict
+and never on "go and ask someone". A test pins the wording.
+
+**Then it is checked, never blocked.** After the writer,
+`contextualizer.advice_audit` reads the finished script of a flagged
+request for a recommendation in FAM's own voice (`RECOMMENDS`: "you
+should", "I'd recommend", "your best bet", "the smart move is" ...),
+counting `advice_planned` and `advice_recommended` in the agents block of
+`/api/health` and logging the phrase - never the request. It never changes
+the episode (every-agent.md always 1); a quoted authority ("doctors say you
+should") is counted too, so the number is a prompt to listen, not a
+verdict.
+
+**Off changes nothing.** `contextualized` is empty unless C3P0 worked on
+the brief, so the block is byte for byte what it was; the audit returns
+before counting when there is no flagged plan; `tests/test_agents_off.py`
+passes unchanged.
+
+**Not done, deliberately.** No file in `examples/`: examples are shown to
+every writer call, so one would change episodes with the agents off. If the
+owner wants one anyway, it is a single file. Writing quality with the note
+is unmeasured here: a `write.py` run with C3P0 on is the listening test.
+
+Tests: `tests/test_advice_425.py` (the note pinned; in the brief only when
+flagged, before the cautions; a degraded brief still empty; C3P0's plan
+carries the flag; five recommendations counted and three facts not; no
+flag, no count; the check never raises; the real pipeline checks a
+finished script).
+
+## 426. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03)
+
+Decided item 15 (c3p0.md always 2: "say so and let FAM ask the listener
+which one they mean, before anything is searched. Never guess"). C3P0 has
+said `ambiguous` with two to four `readings` and a `likeliest` since §375,
+and nothing asked anyone: the episode was searched and written anyway, and
+Nando's own tie call could pick between the readings. The owner's answer on
+transport: `/api/progress` plus a `reading=` parameter, and the chosen
+reading re-asks as a new request (not a held-open one).
+
+**Where it stops.** `ScriptGenerator.prepare`, straight after the brief and
+before the live route, C3P0's plan, Nando's placement, any plugin, Sonic or
+the search (`_settle_reading`). It reads C3P0's answer on the brief only
+while he works on the episode (`ambiguous_readings`), so with him off -
+and with `AGENTS=0` - nothing here runs.
+
+- **A client that can ask** sends `ask_reading=1` on `/api/audio`. The
+  episode stops with `ReadingNeeded`; `/api/audio` answers **300** with
+  `{detail, readings, likeliest}`, nothing is charged (the brief was FAM's
+  spend, as with `NoEvidence`), and the live track keeps the readings so
+  `/api/progress` returns `readings` and `likeliest` too - only on an
+  episode that asked, so every other answer keeps its shape.
+- **The chosen reading** comes back as `reading=` on `/api/audio` and on
+  every key-shaped read (`/api/progress`, `/api/next`, `/api/transcript`,
+  `/api/sources`). It is in the cache key and the near-match bucket
+  (`cache.cache_key`/`key_bucket` through `pipeline.key_for`/`bucket_for`,
+  [prefetch-same-key]) **only when there is one**, so every key written
+  before is unchanged. A warmed brief is not used for it (that brief did not
+  know which was meant); the brief's prompt and C3P0's call are told "they
+  were asked which they meant and chose: X" (only then), and the writer
+  reads `READING_NOTE`: write about X and nothing else that shares the name.
+  It costs one more brief call - the price of searching for the right thing.
+- **An older client** never sends `ask_reading` and gets C3P0's likeliest
+  reading, told to the writer ([old-clients]). Its episode is kept for its
+  own replays but **never current** (ttl 0), so a client that can ask is
+  never served the guess under the plain key. With no likeliest it is
+  written as before, broader.
+- **Ahead of the tap** - prefetch, the DailyFAM edition, the Trending bank -
+  the tile's own context went to the brief; if C3P0 still says ambiguous the
+  episode is left unwritten (`"ambiguous"`, counted in the edition's summary)
+  until a tap asks.
+
+Counted in the agents block of `/api/health`: `reading_asked`,
+`reading_assumed`, `reading_unwritten`, `reading_none_likely`.
+
+**§377's open question, settled by the owner.** Nando's tie call no longer
+chooses between the readings of a name code left undecided ("how did United
+do"): his answer is dropped and the request is filed as if the call had not
+answered - broader, or nowhere - until a reading is chosen. A tie where no
+name is undecided is still his to answer, ahead of the tap as at the tap.
+`tests/test_agents_c3p0_call.py`'s old "takes the tie call" case for United
+was the old decision and now pins the new one.
+
+**Known gap.** A plain key written before this (or while C3P0 was off) is
+still served from the cache without asking: the cache is read before the
+brief. It ages out within the week.
+
+**Next (piece 2b):** the search and voice-search screens - the picker, and
+`reading` carried on every key-shaped request the player makes.
+
+Tests: `tests/test_reading_426.py` (the key unchanged without a reading and
+different with one, spacing and case folded, the bucket too; `ask_reading`
+not in the key; the brief's and C3P0's prompts name the reading only when
+there is one; the writer's note pinned; nothing ambiguous with C3P0 off; a
+chosen reading never asked again; a client that can ask stopped with the
+readings on `/api/progress`; ahead of the tap unwritten; an older client
+given the likeliest, and with none written as before; `/api/progress`'s
+shape unchanged otherwise; 300 over HTTP, refunded, and resumed with
+`reading=`; an older client never stopped; four key-shaped reads take the
+reading; the tie call and the ahead writers) and
+`tests/test_agents_c3p0_call.py`.
+
+## 427. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03)
+
+The client half of §426. A search - typed, trending or spoken (voice search
+ends in the same `sendSearch`) - plays with `askReading` (`ask_reading=1`),
+so the server may stop and ask. `FamAudio` turns a 300 into an error
+carrying `readings` and `likeliest`; `onGenerationFailed` hands it to
+`askReading`, which shows "Which one do you mean?" with the question and the
+server's readings as buttons (`#readingOverlay`, the consent card's shape)
+and a Cancel. Nothing is pre-selected: the readings are the server's words
+and the client guesses nothing. A choice sets the topic's `reading` and
+generates the same key again; Cancel leaves it unplayed.
+
+**The reading travels with the episode.** It is part of the key, so every
+request the player makes about that episode carries it: the audio
+(`listener.reading`), `/api/progress` (the loading steps), `/api/next`,
+`/api/transcript` and `/api/sources` (`readingParam`). `episodeStamp` gains
+a fourth field for it, and the one reader that split the stamp from the end
+(the feedback report) now takes three fields off, not two. The double-tap
+guard (`episodeSignature` / `awaitingFirstAudio`) includes it, so a choice
+is never mistaken for a re-tap of the stopped request.
+
+Every other surface - myFAM, DailyFAM, Explore, shares - does not ask: their
+episodes are written ahead or replayed, and an older client never asks
+either (§426). History, saves and shares replay by the episode's id, which
+already names the reading's key.
+
+Smoke check: "A shared name asks which one, then plays the choice" (a 300
+for a search that can ask, the picker with the two readings, the second
+chosen, the next `/api/audio` carrying `reading=Manchester%20United`, the
+episode's stamp ending in it).
+
+## 428. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03)
+
+Decided item 20 (nando.md always 10: "re-file episodes made before you existed
+only once, and only after the owner has reviewed a list of every change you
+would make"). `refile_old.py`, run by `tools/refile_old.py`.
+
+**Docs and code disagreed, and the owner was told.** The opening prompt said
+the re-file goes "through `category_tag.retag`", but `retag` skipped any
+episode with no node of its own ("Nando never filed it") - which is every
+episode written before him. `retag` now takes `first_filing=True` with `was`
+(the node the writer's words placed it under until now, replaced on its
+articles in the archive as an old node is); nothing else passes it, so every
+other caller is unchanged.
+
+**How Nando decides, the owner's answer.** Old rows keep only the question,
+title and the writer's `<<CATEGORY:>>`, not the brief he normally reads, so
+his code steps alone file almost none of them solidly (measured on the seed:
+"how did the Philadelphia Eagles do" places nothing, its suggestion only a
+clash). The owner chose **his own call**, as on a new episode: code's
+shortlist (`candidates_for`), his call choosing (`ask_tie`, ahead of the
+tap), never over a name that means two things (§426), then his check against
+the writer's words (`confirm`). One small call per episode code could not
+file, all on one event loop (§388), four at a time, through the agent layer -
+so only where he is switched on and his rule book signed, and never on
+zero-spend staging. `--no-model` makes the list in code alone, for nothing.
+
+**Two steps.** The dry run reads every kept row with no node
+(`ScriptCache.unfiled`, both stores), changes nothing and writes the list -
+JSON plus a Markdown table (question, title, writer's words, today's node,
+Nando's, how) - and prints its SHA-256. `--apply LIST --approve SHA256`
+refuses any other value, so the list applied is the list reviewed, byte for
+byte; each change goes through `retag` (archive, audio metadata, script row
+together). A row filed meanwhile, or whose words now place it elsewhere, is
+skipped and listed - never re-filed on a stale reading. Applying twice files
+once.
+
+Tests: `tests/test_refile_old_428.py` (only unfiled rows read, both stores;
+his call files what code could not, ahead; `--no-model` asks nothing; a
+shared name never asked; the dry run changes nothing and the Markdown names
+the approval; any other approval, or an edited list, refused; the approval
+applied through `retag` as a first filing, and a second apply skipped; a row
+changed since the review skipped; `retag` without `first_filing` unchanged).
+
+## 429. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03)
+
+The owner asked for the legal guardrails to be checked in the code (copyright,
+defamation, private people, data protection, provider terms). Found and fixed
+at the owner's direction:
+
+**What the archive may keep.** The approval list (`HOUSEKEEPER_APPROVED_PROVIDERS`,
+§397) applied only while Consuela runs; with her off - the default - the
+archive (`ARCHIVE=1`, on by default) kept every provider but Parallel, so
+scores and prices from API-Sports and Finnhub, both refused, could be kept as
+facts (`kept_live`). Now `_kept` and `kept_live` apply the list whether or not
+she runs: a refused or unknown provider's material is never kept, counted as
+`not_approved`. The owner approved **GNews** (2026-11-03); **Polymarket is
+pending**; API-Sports and Finnhub are no longer used and stay refused in code.
+A finding that names no provider is unknown and dropped - every real one names
+its search (`research._findings`). Already-stored rows from the refused two
+are not removed here: that is a reversible purge with a list first
+(every-agent.md always 8), the next piece.
+
+**The writer's rules, two additions** (every episode, agents on or off):
+
+- *An accusation is not a finding.* Say who accuses ("prosecutors say"),
+  where it stands and any denial; it is fact only once a verdict, ruling or
+  admission settles it. Naming the accuser is not mentioning the material -
+  so it sits beside "never mention your material", not against it.
+- *Private people* (victims, witnesses) are named only as the reporting
+  names them; a child accused of a crime, never.
+
+**The prompt's length guard held** (`test_the_prompt_stays_lean`, under
+7,800 characters): the additions were paid for by a dedup pass, not a raised
+bound - the closing paragraph's bait-and-switch sentence (said again by
+"Never tease"), the unresolved line's parting-hook clause, two accuracy
+bullets merged (invent / fill a gap), and the time bullet's "based on what I
+have" (said by "never mention your material"). Unheard: a `write.py` run on
+an accusation story is the listening test.
+
+**Found and left for the owner:** no limit on a real quote's length (Mclovin's
+quote check, Phase 3); no way to honour a removal request from someone named
+in episodes or the archive (a lawyer's question first).
+
+Tests: `tests/test_guardrails_429.py`; the provider and archive tests that
+pinned the old "keep everything while Consuela is off" now pin the new rule.
+
+## 430. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03)
+
+§429 found that, before it, the archive could keep API-Sports' and Finnhub's
+scores and prices (both refused, both no longer used) as live facts while
+Consuela was off. The owner asked for the purge list. `tools/withdraw_refused.py`:
+
+- **The list** (no flag): every active live fact (`facts`, kind `live`, its
+  provider in `host`) and every reading (`live_series`, in `source`) from the
+  two, as JSON and a Markdown table, with counts by store and provider and the
+  list's SHA-256. Nothing is changed.
+- **`--apply LIST --approve SHA256`**: refuses any other value, so the list
+  withdrawn is the list reviewed. **Withdrawing is reversible** (every-agent.md
+  always 8): a fact is marked inactive with no keeper and the mark
+  `withdrawn: refused provider (§430)` - every reader already ignores an
+  inactive fact, and Consuela's own purge of repeats never touches one without
+  a keeper - and a reading moves out of the series into a holding table
+  (`withdrawn`, both backends). Applying twice withdraws once.
+- **`--restore`** puts every one back; **`--status`** counts what is held;
+  **`--purge`** deletes for good only what was withdrawn more than 30 days ago.
+
+Both backends (`SQLiteBackend` and `AtlasBackend`: `provider_rows`, `withdraw`,
+`restore_withdrawn`, `purge_withdrawn`, `withdrawn_count`); the SQL path reads
+the series by its named columns (`SERIES_COLUMNS`), so it holds on Postgres
+too. The Atlas holding collection is opened only when first used. No model,
+no provider, no new dependency (the Atlas test uses a small fake collection).
+
+Tests: `tests/test_withdraw_refused_430.py` (only the refused two listed; the
+list changes nothing and names its approval; any other approval or an edited
+list refused; withdraw, restore, the grace period and the purge on SQLite;
+twice is once; the same on the Atlas backend).
+
+## 431. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03)
+
+Decided item 16 (the owner's answer 4a; c3p0.md never 6; every-agent.md never
+9). The owner asked for it on this branch rather than a new session, though
+this container cannot reach `en.wikipedia.org`, `www.wikidata.org` or
+`query.wikidata.org` (refused by the proxy all session, after the owner
+allowed them - a setting reaches only sessions started after it). So it is
+**built on stubs**, on the reference look that already asks those hosts in
+production (`wikimedia.py`, §278), and the first real answers are
+production's.
+
+**Before any search** (`_public_look`, in `prepare` beside the ambiguous-name
+stop): when C3P0 says the request is about a private person and names them
+(`private_person`, `entity`), `wikimedia.known` asks Wikidata's search once -
+"known" when an item's English label, or the alias it matched, is exactly the
+name; "unknown" when none is; "unchecked" when the look is off or did not
+answer. Kept a day. Off the loop, within the reference look's own time limit.
+
+**After the search** (`_refuse_private`, at `evidence_ready`): a name Wikidata
+did not know is public anyway when the reporting names them - the owner's
+rule (2026-11-03): an official, a coach, a business owner quoted in the
+news. The test is code's: the full name in the retrieved packet, which holds
+only dated, graded articles and the archive's earlier reporting. Otherwise
+`PrivatePerson` - a `research.NoEvidence`, so every path that declines an
+episode already declines this one: `/api/audio` 503 with the sentence and a
+refund, the editions' `no_evidence`, prefetch's skip. The sentence names
+nobody, and the log line holds no name (every-agent.md never 4).
+
+**A look that did not answer establishes nothing** ([missed-not-absent];
+every-agent.md always 1): "unchecked" never refuses. Only the request's
+subject is gated: a name inside an article is said as reporting says it
+(§429's writer rule). Not built: a provider's catalogue as a third witness -
+an athlete or a listed company's officer is in Wikidata or the reporting in
+practice; said here so it is not assumed. Counted in `/api/health`'s agents
+block: `private_known`, `private_unknown`, `private_unchecked`,
+`private_named_in_reporting`, `private_refused`. With C3P0 off nothing is
+asked.
+
+**Phase 1 is finished**: §425-§431 did the four items §390 left.
+`docs/PHASE1_NEXT_BRANCH.md` said to delete itself then, and is deleted.
+
+Tests: `tests/test_public_figures_431.py` (an exact label or alias known, a
+near name not; a failed or switched-off look unchecked; kept, so a second
+ask sends nothing; known goes ahead; unknown and unnamed refused, as a
+`NoEvidence` naming nobody; unknown but named in the reporting goes ahead;
+unchecked never refuses; with C3P0 off or nothing private, nothing asked;
+the look before the search and the refusal after it).
+
+## 432. The review before the pull request: the reading joins the question (2026-11-03)
+
+An independent review of the whole branch before the pull request found two
+real defects in §426-§427 and four small ones. Everything else it read -
+the keys, `AGENTS=0`, the tie task on every exception path, the 300's
+refund, the SQL on Postgres, both approval digests, `wikimedia.known` -
+held.
+
+**A chosen reading was lost everywhere but the live player.** §427 said
+history, saves and shares replay by the episode's id; saves, shares, vibes,
+the queue and the offline shelf name an episode by its question and length,
+and a history replay's captions, sources and Go Deeper looked up the plain
+key. Carrying a separate `reading` through every one of those (and the iOS
+contract) was the wrong size of fix. Instead **the choice joins the
+question**: `app._validated_plan` makes `how did United do` with
+`reading=Manchester United` into `how did United do (Manchester United)` -
+never twice - and the client sets the topic's prompt to the same words when
+the listener chooses. Every surface that names an episode by its question
+now names this one; a share or a save replays it with no reading at all.
+The owner's transport stands (`reading=` carries the choice, and still tells
+the brief and the writer which thing was meant); the separate `reading`
+field in `cache.cache_key`/`key_bucket` is gone, since the question carries
+it, so no key anywhere changed shape after all.
+
+**Tiles written ahead were never asked.** Prefetch and the editions leave an
+ambiguous episode "unwritten until a tap asks", but only a search asked, so a
+myFAM, DailyFAM or Trending tap took the older-client path - the likeliest
+reading, never current - and every tap by every listener wrote it again.
+Every tap that may write an episode now asks (`askReading: !t.cachedOnly &&
+!t.episode`); a replay never does. A guest still cannot play such a tile
+(guests play kept audio only) - the gate's existing answer.
+
+**Small:** Atlas's `restore_withdrawn` put `_id` inside `$setOnInsert`,
+which MongoDB refuses (the test's fake now refuses it too); the advice
+check counted "whether you should ..." (the question, not an answer); both
+tools printed the approve command with the list's bare file name, wrong
+whenever `--out` named another folder.
+
+Tests: `tests/test_reading_426.py` (the reading joins the question once, a
+saved question finds the chosen episode's key, the 300 resumes with the
+question rewritten), `tests/test_advice_425.py`, the Atlas fake in
+`tests/test_withdraw_refused_430.py`, and the smoke check now asserts the
+question carries the choice.

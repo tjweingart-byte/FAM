@@ -1,8 +1,9 @@
 """§207: the deploy says whether it may use each licensed provider commercially.
 
-GNews' free plan is for development, Finnhub's for personal use, and
+GNews' free plan is for development, Tiingo's plans short of
+redistribution for internal use, and
 Open-Meteo's keyless endpoint is non-commercial. None of their answers says
-which plan a key is on, so the deploy says it (`GNEWS_PLAN`, `FINNHUB_PLAN`,
+which plan a key is on, so the deploy says it (`GNEWS_PLAN`, `TIINGO_PLAN`,
 or Open-Meteo's own key) and `/admin` and `/api/health` flag a free plan that
 is in use - the question to answer before charging anybody.
 """
@@ -34,22 +35,22 @@ def deploy(monkeypatch):
 
 
 def test_unused_free_plans_are_not_a_problem(deploy):
-    report = deploy(gnews_key="", finnhub_key="", open_meteo_keyless=False)
+    report = deploy(gnews_key="", tiingo_api_key="", open_meteo_keyless=False)
     assert report["commercial_ready"] is True
     assert report["non_commercial_in_use"] == []
 
 
 def test_free_plans_in_use_are_flagged(deploy):
-    report = deploy(gnews_key="g", finnhub_key="f", open_meteo_keyless=True,
-                    gnews_plan="free", finnhub_plan="free")
+    report = deploy(gnews_key="g", tiingo_api_key="t", open_meteo_keyless=True,
+                    gnews_plan="free", tiingo_plan="power")
     assert report["commercial_ready"] is False
-    assert set(report["non_commercial_in_use"]) == {"gnews", "finnhub", "open_meteo"}
+    assert set(report["non_commercial_in_use"]) == {"gnews", "tiingo", "open_meteo"}
     assert "GNEWS_PLAN" in report["providers"]["gnews"]["buy"]
 
 
 def test_paid_plans_clear_it(deploy):
-    report = deploy(gnews_key="g", finnhub_key="f", gnews_plan="essential",
-                    finnhub_plan="commercial", gnews_daily_requests=950,
+    report = deploy(gnews_key="g", tiingo_api_key="t", gnews_plan="essential",
+                    tiingo_plan="redistribution", gnews_daily_requests=950,
                     open_meteo_keyless=False, meteo_key="k")
     assert report["providers"]["open_meteo"]["commercial"] is True
     assert report["commercial_ready"] is True

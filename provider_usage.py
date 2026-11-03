@@ -41,8 +41,8 @@ log = logging.getLogger("provider_usage")
 DAY = 86400
 
 #: The services the admin page reports, in the order it draws them.
-PROVIDERS = ("balldontlie", "api_sports", "parallel", "perplexity", "gdelt", "polymarket",
-             "gnews", "finnhub", "tiingo",
+PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket",
+             "gnews", "tiingo",
              "wikidata", "wikipedia", "wikimedia_enterprise",
              "nws", "open_meteo", "local_feeds")
 
@@ -55,9 +55,6 @@ LABELS = {
     "gnews": "GNews",
     # §321: recent search for /admin/x, billed per post read.
     "x": "X",
-    "finnhub": "Finnhub",
-    # §290: the free plans used while developing.
-    "api_sports": "API-Sports",
     "tiingo": "Tiingo",
     # §278: the reference look.
     "wikidata": "Wikidata",
@@ -90,7 +87,7 @@ def _plans() -> dict:
         # account for every league.
         "balldontlie": (
             f"{settings.balldontlie_tier} plan: "
-            f"{ {'free': 5, 'all-star': 60, 'goat': 600}.get(settings.balldontlie_tier, 5)}"
+            f"{_bdl_per_minute(settings.balldontlie_tier)}"
             " requests/min, every league",
             "ALL-STAR for injuries and season figures; GOAT for soccer "
             "injuries and golf and tennis figures (see balldontlie.io pricing)"),
@@ -112,20 +109,9 @@ def _plans() -> dict:
             f"{int(settings.gnews_daily_requests):,}/day guard "
             "(free plan: 100/day, 10 articles)",
             "Essential €49.99/mo: 1,000/day, 25 articles"),
-        "finnhub": (
-            "60/min = 86,400/day, personal use only",
-            "commercial plan, quote-based (~$11.99/mo quoted)"),
-        # §290: free plans while developing, replaced before going commercial.
-        "api_sports": (
-            f"free plans: 100/day per sport; FAM stops at "
-            f"{int(settings.api_sports_daily_requests)} and keeps "
-            f"{int(settings.api_sports_lookup_reserve)} for listeners; seasons limited",
-            "temporary: BALLDONTLIE's paid plans replace it (§290)"),
         "tiingo": (
-            f"free: 50/hour, 1,000/day, 500 tickers/month, personal use only; "
-            f"FAM stops at {int(settings.tiingo_hourly_requests)}/hour, "
-            f"{int(settings.tiingo_daily_requests)}/day",
-            "temporary: replaced by a commercial market feed (§290)"),
+            f"{_tiingo_plan()} plan: {_tiingo_stops()}",
+            "redistribution licence, quote-based (sales@tiingo.com)"),
         # §278: the reference look. Keyless routes are free; Wikimedia asks
         # identified clients to stay near 200 requests a minute.
         "wikidata": (
@@ -150,13 +136,37 @@ def _plans() -> dict:
     }
 
 
+def _bdl_per_minute(tier: str) -> int:
+    import balldontlie
+
+    return balldontlie.PER_MINUTE.get(tier, 5)
+
+
+def _tiingo_plan() -> str:
+    import tiingo
+
+    return tiingo.plan()
+
+
+def _tiingo_stops() -> str:
+    import tiingo
+
+    hour, day = tiingo.hourly_limit(), tiingo.daily_limit()
+    if not hour and not day:
+        return "no FAM stop (paid plan)"
+    return ("FAM stops at "
+            f"{f'{hour:,}/hour' if hour else 'no hourly stop'}, "
+            f"{f'{day:,}/day' if day else 'no daily stop'}")
+
+
 def licences() -> dict:
     """provider -> whether this deploy may use it commercially (§207).
 
-    Only the three whose free plan forbids it: GNews (development use),
-    Finnhub (personal, non-commercial) and Open-Meteo's keyless endpoint
-    (non-commercial). The plan is what the deploy says it bought
-    (`GNEWS_PLAN`, `FINNHUB_PLAN`) - neither provider's answer carries it -
+    Only those whose plan may forbid it: GNews (development use on free),
+    Tiingo (every plan but a redistribution licence is internal use only,
+    and speaking a price to listeners is redistribution) and Open-Meteo's
+    keyless endpoint (non-commercial). The plan is what the deploy says it
+    bought (`GNEWS_PLAN`, `TIINGO_PLAN`) - neither provider's answer carries it -
     and Open-Meteo's is the key itself. `in_use` is whether the service is
     configured at all: an unused free plan is not a licence problem.
 
@@ -166,7 +176,6 @@ def licences() -> dict:
     import credentials
 
     gnews_paid = settings.gnews_plan not in ("", "free")
-    finnhub_paid = settings.finnhub_plan not in ("", "free")
     meteo_key = bool(credentials.active("OPEN_METEO_API_KEY"))
     rows = {
         "gnews": {
@@ -175,19 +184,14 @@ def licences() -> dict:
             "commercial": gnews_paid,
             "buy": "Essential, EUR 49.99/mo (gnews.io); then GNEWS_PLAN=essential",
         },
-        "finnhub": {
-            "in_use": bool((settings.finnhub_key or "").strip()),
-            "plan": settings.finnhub_plan or "free",
-            "commercial": finnhub_paid,
-            "buy": "a commercial plan, quote-based (finnhub.io); then FINNHUB_PLAN=commercial",
-        },
-        # §290: personal use only on the free plan, like Finnhub's. §395:
-        # Tiingo is the markets plan FAM buys; Finnhub leaves at launch.
+        # §418: Power and Commercial are internal use; prices said to
+        # listeners need Tiingo's redistribution licence.
         "tiingo": {
             "in_use": bool((settings.tiingo_api_key or "").strip()),
             "plan": settings.tiingo_plan or "free",
-            "commercial": settings.tiingo_plan not in ("", "free"),
-            "buy": "$249/mo all in from launch (§395, tiingo.com); then TIINGO_PLAN=<plan>",
+            "commercial": settings.tiingo_plan == "redistribution",
+            "buy": ("a redistribution licence (email sales@tiingo.com); "
+                    "then TIINGO_PLAN=redistribution"),
         },
         "open_meteo": {
             "in_use": meteo_key or bool(settings.open_meteo_keyless),
@@ -208,11 +212,8 @@ def licences() -> dict:
 
 #: Hosts `live_sources._json` sends to, and whose request each one is.
 _HOSTS = (
-    ("finnhub.io", "finnhub"),
     ("polymarket.com", "polymarket"),
     ("balldontlie.io", "balldontlie"),
-    # §290: the free plans used while developing.
-    ("api-sports.io", "api_sports"),
     ("tiingo.com", "tiingo"),
     # §278: the reference look (`wikimedia._send`).
     ("wikidata.org", "wikidata"),
@@ -340,7 +341,7 @@ _FLUSHING = [False]
 #: Why requests failed, per provider, since this server started (§220): the
 #: admin page's "(101 failed)" said how many and never why. In memory only -
 #: a reason is a diagnosis for whoever is looking now, not a record to keep -
-#: and never a URL (Finnhub's key is a query parameter, §144).
+#: and never a URL (a key can be a query parameter, §144).
 _WHY: dict = {}
 #: Most distinct reasons kept per provider; the rest are "other".
 WHY_KINDS = 12
@@ -496,8 +497,6 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
 BROKEN_DOWN = {
     "balldontlie": ("the account's plan", "shared by every league"),
     "gdelt": ("part of the ~200/day", "what the requests were for"),
-    # §290: API-Sports by sport, each its own day's allowance on the free plan.
-    "api_sports": ("its own day's allowance (free plan)", "per sport"),
 }
 
 

@@ -339,18 +339,8 @@ async def _pages(client, league: League, kind: str, path: str,
     return rows
 
 
-#: §290: BALLDONTLIE's own catalogue of a league API-Sports answers for, kept
-#: apart so its ids never reach the scoreboard and API-Sports' never reach
-#: the player reports. Read by nobody else.
-SHADOW_TEAMS: dict = {}
-
-
 async def league_teams(client, league: League) -> dict:
-    import api_sports
-
     store = TEAMS
-    if api_sports.serves(league.key) and not api_sports.answers_for(client):
-        store = SHADOW_TEAMS
     held = store.get(league.key)
     if held and time.time() - held[0] < TEAMS_SECONDS:
         return held[1]
@@ -525,26 +515,14 @@ class ScoreBoard(LiveSource):
         self._windows: dict = {}
 
     def diagnose(self) -> tuple[bool, str]:
-        import api_sports
-
-        if not settings.balldontlie_api_key and not api_sports.served():
+        if not settings.balldontlie_api_key:
             return False, "BALLDONTLIE_API_KEY is not set"
         problem = getattr(self.client, "problem", lambda: "")()
         said = (f"BALLDONTLIE_API_KEY present, plan "
                 f"{settings.balldontlie_tier}: games for "
                 f"{len(SHAPES)} leagues, Formula 1 and UFC (not verified "
-                "from this machine)") if settings.balldontlie_api_key else \
-            "BALLDONTLIE_API_KEY is not set: no Formula 1 or UFC"
-        # §290: API-Sports' free plans answer some leagues while developing.
-        extra = api_sports.describe()
-        return True, (said + (f"; {extra}" if extra else "")
-                      + (f"; ACCOUNT REFUSED: {problem}" if problem else ""))
-
-    def _source(self, league_key: str) -> str:
-        """Who answered for this league (§290): provenance names the
-        provider read, never the scoreboard's name alone."""
-        named = getattr(self.client, "source_for", lambda k: "")(league_key)
-        return named or self.name
+                "from this machine)")
+        return True, said + (f"; ACCOUNT REFUSED: {problem}" if problem else "")
 
     async def verify(self) -> tuple[bool, str]:
         try:
@@ -552,8 +530,7 @@ class ScoreBoard(LiveSource):
         except Exception as exc:  # noqa: BLE001
             return False, f"{type(exc).__name__}: {exc}"
         count = len((data or {}).get("data") or [])
-        who = self._source("nba").replace(" scores", "")
-        return count > 0, f"{who} answered with {count} NBA teams"
+        return count > 0, f"BALLDONTLIE answered with {count} NBA teams"
 
     # ---- finding the game ---------------------------------------------------
     async def resolve(self, brief) -> Optional[Entity]:
@@ -734,7 +711,7 @@ class ScoreBoard(LiveSource):
         said += await self._seasons(league, row, catalogue)
         if not said:
             return None
-        return LiveFacts(domain="sports", source=self._source(key),
+        return LiveFacts(domain="sports", source=self.name,
                          as_of=datetime.fromtimestamp(read_at, tz=timezone.utc),
                          facts=said, status=status, entity=entity)
 
@@ -955,16 +932,10 @@ def sweeps_on_plan(tier: Optional[str] = None) -> bool:
     return balldontlie.PER_MINUTE.get(tier, 5) > SWEEP_RESERVE
 
 
-def _api_sports(key: str) -> bool:
-    import api_sports
-
-    return api_sports.serves(key)
-
-
 def sweepable(key: str) -> bool:
-    """Whether the sweep may follow this league at all: API-Sports' leagues
-    are paced by their own day (§290), BALLDONTLIE's by its plan's minute."""
-    return _api_sports(key) or sweeps_on_plan()
+    """Whether the sweep may follow this league at all: paced by the
+    plan's minute (§281)."""
+    return sweeps_on_plan()
 
 
 def watching(rows: list, now: float) -> bool:
@@ -1008,6 +979,41 @@ def _keep_finals(league: League, rows: list, catalogue: dict, source: str) -> No
         log.warning("sweep finals were not archived: %s", exc)
 
 
+def _keep_readings(league: League, rows: list, catalogue: dict, source: str,
+                   now: datetime) -> None:
+    """Every game under way or finished in one league's sweep, as readings
+    of Consuela's series (§397): scores through a game are a series, each
+    kept with the sweep's time; a final is one reading, kept at the first
+    sweep that saw it. `history_archive.keep_readings` decides whether
+    Consuela runs and the provider is approved. Never raises."""
+    try:
+        import history_archive
+
+        records = []
+        for row in rows:
+            status = status_of(row)
+            if status not in (live_facts.IN_PROGRESS, live_facts.FINAL):
+                continue
+            lines = game_facts(league, row, status, catalogue)
+            home, away = sides(row, catalogue)
+            if not lines or row.get("id") is None:
+                continue
+            records.append({
+                "domain": "sports", "status": status, "source": source,
+                "subject": f"{team_said(home) or 'the home side'} vs "
+                           f"{team_said(away) or 'the away side'}",
+                "as_of": now.isoformat(),
+                "lines": [f"{league.label}: " + " ".join(lines)],
+                # One final per game, whenever it is first seen.
+                "reading_id": (history_archive.url_id(
+                    f"final:{source}:{league.key}:{row.get('id')}")
+                    if status == live_facts.FINAL else "")})
+        history_archive.keep_readings(
+            [r for r in map(history_archive.reading_from, records) if r is not None])
+    except Exception as exc:  # noqa: BLE001 - the archive never costs a sweep
+        log.warning("sweep scores were not kept as readings: %s", exc)
+
+
 def make_signals():
     """`Signals` is built lazily: `stories` imports `story_sources`, which
     names this class in its registry."""
@@ -1028,16 +1034,12 @@ def make_signals():
                     live_facts.FINAL: 0.55}
 
         def __init__(self, client=None) -> None:
-            import api_sports
-
-            # §290: a `Router` while API-Sports answers any league.
-            self.client = client or api_sports.scoreboard_client()
+            self.client = client or balldontlie.shared_client()
 
         def diagnose(self) -> tuple[bool, str]:
-            import api_sports
             import live_sources
 
-            if not settings.balldontlie_api_key and not api_sports.served():
+            if not settings.balldontlie_api_key:
                 return False, "BALLDONTLIE_API_KEY is not set, so sports stories are off"
             if live_sources.configured().get("sports") != "balldontlie":
                 return False, ("sports are on another provider "
@@ -1094,7 +1096,7 @@ def make_signals():
             # §281: a league the plan cannot reach (the World Cup below GOAT)
             # is never asked, and is not a failure.
             due = {k: self.due(k, clock) for k in SWEPT if sweepable(k)
-                   and (_api_sports(k) or balldontlie.plan_reaches(k, "games"))}
+                   and balldontlie.plan_reaches(k, "games")}
             due = {k: d for k, d in due.items() if d}
 
             async def card(key, days):
@@ -1165,8 +1167,13 @@ def make_signals():
                     if signal is not None:
                         out.append(signal)
                 # Every final the sweep saw, for the history archive (§315):
-                # no request of its own, never awaited.
-                _keep_finals(league, rows, catalogue, self.name)
+                # no request of its own, never awaited. Named by the provider
+                # that answered, BALLDONTLIE's alone since §418 (the archive
+                # still refuses API-Sports' by name, §397).
+                source = self.name
+                _keep_finals(league, rows, catalogue, source)
+                # Every score the sweep saw, as Consuela's series (§397).
+                _keep_readings(league, rows, catalogue, source, now)
             for key, exc in failures:
                 log.warning("stories: BALLDONTLIE %s failed: %s", key, exc)
             if failures and not out:

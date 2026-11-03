@@ -93,7 +93,7 @@ def test_every_service_the_code_calls_has_a_row(stores):
     vendors = {r["vendor"] for r in financials.catalogue()}
     for needed in ("Render", "RunPod", "Anthropic", "Parallel and Perplexity",
                    "GNews", "BALLDONTLIE",
-                   "Tiingo", "Finnhub", "API-Sports", "Open-Meteo", "Polymarket", "GDELT",
+                   "Tiingo", "Open-Meteo", "Polymarket", "GDELT",
                    "National Weather Service", "Google AI Studio", "Viral Loops",
                    "Apple"):
         assert needed in vendors, needed
@@ -244,29 +244,32 @@ def test_a_photo_check_is_spend_but_not_an_episode(stores):
 
 def test_the_sports_plan_is_balldontlie_s_named_by_its_setting(stores, monkeypatch):
     """§280: sports data is one BALLDONTLIE plan, named by BALLDONTLIE_TIER;
-    §395: the plan FAM buys is EUR 299 a month."""
+    its price is not in the repository, so a paid plan asks for it."""
     _set(monkeypatch, balldontlie_tier="free")
     row = [r for r in financials.catalogue() if r["vendor"] == "BALLDONTLIE"]
     assert len(row) == 1 and row[0]["status"] == "Free tier"
     _set(monkeypatch, balldontlie_tier="all-star")
     row = [r for r in financials.catalogue() if r["vendor"] == "BALLDONTLIE"][0]
-    assert row["plan"].startswith("ALL-STAR") and row["status"] == "Paying"
-    assert row["price"] == 299 and row["unit"] == "EUR/month"
+    assert row["plan"].startswith("ALL-STAR") and row["status"] == "Paying, enter price"
 
 
-def test_markets_are_tiingo_s_at_launch_and_finnhub_leaves(stores, monkeypatch):
-    """§395: Tiingo is the markets plan bought at launch ($249 all in);
-    Finnhub and API-Sports are development-only and are never a launch cost."""
+def test_tiingo_s_licence_is_priced_and_the_episode_is_haiku_s(stores, monkeypatch):
+    """§423: Tiingo's redistribution licence is $249 a month all in - a launch
+    purchase until TIINGO_PLAN says it is bought, then a paying row; the
+    internal-use plans still name the licence as owed. A new episode before
+    there is traffic is priced on the Haiku writer, not the Sonnet one."""
     _set(monkeypatch, tiingo_plan="free")
-    rows = financials.catalogue()
-    launch = [p["item"] for p in financials.launch_purchases(rows)]
-    assert any("Tiingo" in item for item in launch)
-    assert not any("Finnhub" in item for item in launch)
-    for vendor in ("Finnhub", "API-Sports"):
-        row = [r for r in rows if r["vendor"] == vendor][0]
-        assert row["price"] == 0 and row["status"] == "Leaving at launch"
+    launch = financials.launch_purchases(financials.catalogue())
+    tiingo = [p for p in launch if "Tiingo" in p["item"]]
+    assert len(tiingo) == 1 and tiingo[0]["price"] == 249
     _set(monkeypatch, tiingo_plan="power")
     rows = financials.catalogue()
-    tiingo = [r for r in rows if r["vendor"] == "Tiingo"][0]
-    assert tiingo["status"] == "Paying" and tiingo["price"] == 249
+    row = [r for r in rows if r["vendor"] == "Tiingo"][0]
+    assert row["status"].startswith("Paying, redistribution licence needed")
+    assert any("Tiingo" in p["item"] for p in financials.launch_purchases(rows))
+    _set(monkeypatch, tiingo_plan="redistribution")
+    rows = financials.catalogue()
+    row = [r for r in rows if r["vendor"] == "Tiingo"][0]
+    assert row["status"] == "Paying" and row["price"] == 249
     assert not any("Tiingo" in p["item"] for p in financials.launch_purchases(rows))
+    assert financials.NEW_EPISODE_USD == 0.011

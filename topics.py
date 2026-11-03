@@ -150,7 +150,7 @@ MISSED_QUIET = 3 * 86400
 MOST_PLAYED_WINDOW = 24 * 3600
 
 #: No constant names the live feeds "What you missed last week" refuses, on
-#: purpose. The owner named Polymarket, Finnhub and the sports feed; the rule is
+#: purpose. The owner named Polymarket, the markets feed and the sports feed; the rule is
 #: every `provenance.LIVE` attribution, because any feed added later is the
 #: same kind and a name list is what misses the next one. A price, a score or
 #: a market line from four days ago replayed as though it were news is the
@@ -2475,6 +2475,21 @@ class EventStore:
         self._maybe_prune(now)
         return len(rows)
 
+    def between(self, start: float, end: float, kinds: Iterable[str]) -> list:
+        """(user_id, kind, tags, at) for every event of `kinds` in [start, end)
+        - the aggregate totals' material (§415). Accounts only, never a
+        Private search: those are never logged (`app._remembers`)."""
+        kinds = tuple(kinds)
+        marks = ",".join("?" for _ in kinds)
+        try:
+            return [(r[0], r[1], tuple(t for t in (r[2] or "").split(",") if t), r[3])
+                    for r in self._conn().execute(
+                        f"SELECT user_id, kind, tags, at FROM events WHERE kind IN ({marks})"
+                        " AND at >= ? AND at < ?", (*kinds, start, end)).fetchall()]
+        except Exception:
+            log.exception("could not read events for the totals")
+            return []
+
     def _maybe_prune(self, now: float) -> None:
         """Drop impressions past IMPRESSION_TTL, at most hourly.
 
@@ -4103,7 +4118,7 @@ def rank_missed(store: EventStore, user_id: str, exclude: set[str],
     * **cached** at the page's length (`episode_info`), so a tap replays and
       nothing is written;
     * **not written from a live feed** - an episode whose provenance names
-      Polymarket, Finnhub, BALLDONTLIE or any other live feed
+      Polymarket, Tiingo, BALLDONTLIE or any other live feed
       (`provenance.LIVE`) is a price or a score from days ago, and replaying it as though it
       were news is the stale-fact failure LIVE_FACTS.md exists to prevent;
     * **never heard by this listener**, on any surface (`heard`).
@@ -5184,7 +5199,7 @@ def world_inventory(live: list, live_held: list, heard: Optional["Heard"],
     so the two cannot disagree - is the current edition, and with no edition
     (no key, the first build still running, a failed build) it is **empty and
     says why** (`trending_bank.empty_reason`). It never falls back to the
-    pool: a Trending row quietly filled from GDELT, BALLDONTLIE, Finnhub and
+    pool: a Trending row quietly filled from GDELT, BALLDONTLIE, Tiingo and
     Polymarket would look exactly like one built from GNews, which is the
     silent fallback this project keeps paying for.
 

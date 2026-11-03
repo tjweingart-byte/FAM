@@ -249,7 +249,8 @@
   of its own). **Nothing below GDELT** *(§135, at the owner's direction)*:
   the model's own search was the last rung and is **deleted**, not switched
   off - everything an episode is written from comes from **Exa, GDELT,
-  API-Sports, Finnhub and Polymarket**, and the model never searches the web
+  API-Sports, Finnhub and Polymarket** (since §418: the search backends,
+  GDELT, BALLDONTLIE, Tiingo and Polymarket), and the model never searches the web
   for FAM. A deployment still setting `RESEARCH_BACKEND=claude` runs on Exa
   and says so at startup and on `/api/health` - replaced rather than refused,
   so merging the removal cannot stop a server booting.
@@ -515,7 +516,8 @@
   > rounds; history is left alone; removed sentences are kept on
   > `ScriptNotes.figure_drops` and counted on `/admin`.
 <!-- rule:sports-balldontlie -->
-> **Current (PROBLEMS.md §395, the owner, 2026-11-03):** what FAM buys at launch: sports stay BALLDONTLIE's, on its **EUR 299 a month** plan, and markets are **Tiingo's, $249 a month all in**. Finnhub and API-Sports are free plans while developing and are **out** once FAM is commercial - neither is a launch cost (`financials.py`, `docs/FINANCIAL.md` section 0). Their code stays until it is removed on purpose; §290's "replace Tiingo before charging" no longer holds.
+> **Current (PROBLEMS.md §419):** the BALLDONTLIE plan bought is ALL-ACCESS ($299.99/mo: every sport, every endpoint - not priced per sport), set as `BALLDONTLIE_TIER=all-access`; it reaches everything GOAT does and is paced at 600 a minute.
+> **Current (PROBLEMS.md §418, at the owner's direction, 11.02):** BALLDONTLIE and Tiingo are paid for, and API-Sports and Finnhub are removed from the pipeline entirely: `api_sports.py` is deleted with every call site (`Router`, `SHADOW_TEAMS`, `aps:` ids, `API_SPORTS_*`), and Finnhub's source, sweep and settings (`FinnhubSource`, `FinnhubSignals`, `FINNHUB_KEY`, `FINNHUB_PLAN`, `quotable`, the refused-symbol day) with it. BALLDONTLIE is the only sports provider, on the plan `BALLDONTLIE_TIER` names; Tiingo is the only markets provider (`tiingo.TiingoSource` on `live_sources.MarketsSource`, which keeps the shared sentences), on the plan `TIINGO_PLAN` names (free | power | commercial | redistribution), which sets FAM's own stops on the free plan only - a paid plan has none in code (§421; `TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` set one). The licence is not the plan: Power and Commercial are internal use, so `/admin` flags Tiingo red until `TIINGO_PLAN=redistribution`. The §290 note below is history.
 > **Current (PROBLEMS.md §290, at the owner's direction, temporary until FAM goes commercial):** BALLDONTLIE is priced per sport, not one flat plan, and its free plan (five a minute, no standings) cannot carry development. With `API_SPORTS_KEY` set, the team leagues in `api_sports.LEAGUES` are answered by API-Sports' free plans (100 requests a day per sport) while BALLDONTLIE is absent or on Free (`API_SPORTS_LEAGUES` names them instead), through `api_sports.Client` under BALLDONTLIE's own scoreboard: rows translated into BALLDONTLIE's shape, so ScoreGuard, the stuck-feed check and the tiles are unchanged; a `Router` sends each league to one provider, never both; `aps:` ids never reach the player reports; the free plan's season limit is a `TierRefused` said on /admin, never a quiet day. Formula 1, UFC and player reports stay BALLDONTLIE's. Removing it is deleting `api_sports.py` and its call sites.
 > **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed from the code entirely, and this rule with it: BALLDONTLIE is FAM's only sports provider - one flat plan for every league (`BALLDONTLIE_TIER`: free, all-star or goat; an endpoint above the plan is never asked), paced to the plan's per-minute limit, its requests counted on `/admin` with a row per league (`provider_usage`, `balldontlie/<league>`). The per-sport budgets, tiers, `API_SPORTS_*` settings and account panel below are gone; the text is kept as history.
 - **API-Sports is a plan per sport.** *(PROBLEMS.md §180, at the owner's
@@ -532,6 +534,7 @@
   game, never a wrong one.
 
 <!-- rule:sweep-on-demand -->
+> **Current (PROBLEMS.md §418):** the markets sweep is Tiingo's alone (`story_sources.TiingoSignals`): the watchlist (`MARKETS_WATCHLIST`, was `FINNHUB_WATCHLIST`) in one request every two hours, swept only while Tiingo is the markets provider. Read "Finnhub" below as the markets sweep.
 > **Current (PROBLEMS.md §290, temporary):** a league API-Sports answers is swept on API-Sports' own day: the sweep stops while `API_SPORTS_LOOKUP_RESERVE` of the sport's requests are left, so listeners' questions keep the end of the day (`api_sports.Client.sweep_may`). With `TIINGO_API_KEY` set, markets are Tiingo's and its sweep (`story_sources.TiingoSignals`) is one request for the whole watchlist; only the markets provider the episodes read is swept.
 > **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed. The sweep is BALLDONTLIE's (`balldontlie_scores.make_signals`): it follows only `balldontlie_scores.SWEPT` (NFL, college football, NBA, men's college basketball, WNBA, MLB, NHL, Champions League, Premier League, La Liga, Bundesliga, World Cup), reads a league's card when due (`Signals.due`, `watching`), only while one of its games is on or about to start and only if myFAM was drawn recently (`Signals.idle`); an endpoint BALLDONTLIE refused is not asked again that day (`balldontlie.Client.refused`). `SWEPT_LEAGUES`, `ApiSportsSignals` and the per-sport budgets below are gone.
 - **The outside services are asked when somebody is looking and there is
@@ -613,6 +616,7 @@
   story: it must name something the listener follows.
 
 <!-- rule:live-facts -->
+> **Current (PROBLEMS.md §418):** Finnhub is removed; markets are Tiingo's. Tiingo has no market-status endpoint, so the session is computed (`tiingo.session`: closed outside 9:30-16:00 Eastern on a weekday, open only with a minutes-old IEX sale, else unknown); read §267's "Finnhub's own status *closed*" as that computed *closed*.
 > **Current (PROBLEMS.md §280):** API-Sports is removed; BALLDONTLIE supplies every league's game, both teams' records and places from the league's own standings, and their last and next games from their own schedules (`balldontlie_scores`, §277). Read the §178 note below with BALLDONTLIE in API-Sports' place.
 > **Current (PROBLEMS.md §267):** with Finnhub's own status *closed*, a closing price stays fresh until the next open (`market_closed`, `CLOSED_MARKET_MAX_AGE_SECONDS` = 96h) and is said as the last close; and the story sweep's watchlist quotes (`live_sources.QUOTES`) are reused on a tap when the session is unchanged and the quote passes the same check.
 > **Current (PROBLEMS.md §266):** a market price is fresh for an hour (`MAX_AGE_SECONDS["markets"]` = 3600s, was 300s), at the owner's direction; still withheld past it, still said with its time and delay.
