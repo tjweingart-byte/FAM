@@ -27833,3 +27833,40 @@ reproduced before it was fixed, and each fix is pinned in
   with no Yes or Change it. Nothing is saved, so it is safe, but it cannot
   be answered there.
 - Settings shows counting as "Off" until `/api/activation` has loaded.
+
+## 418. The answer-key rules for Consuela and Sonic, proposed (2026-11-03)
+
+The first piece of `docs/TRAINING_NEXT_BRANCH.md`, at the owner's
+direction, with the wording the owner approved: the rules C3 and S4 of
+`docs/AGENTS_TRAINING_PLAN.md` need, as proposals. C3 and S4 themselves are
+not built.
+
+- `docs/agent_rule_proposals/consuela.md` - the signed book plus **always
+  12**: a stronger model chosen by the owner grades a sample of her work
+  each night, in the background (the sentences kept, each figure's
+  "happened"/"expected", each pair merged or kept apart); its grades only
+  teach and measure, never re-file, merge, restore or delete anything, and
+  never change an episode.
+- `docs/agent_rule_proposals/sonic.md` - the signed book plus **always 8**:
+  the same for a sample of finished episodes' history packets (each item's
+  relevance, anything the archive held that he missed); grades never change
+  the archive or an episode.
+
+Both follow `nando.md` rule 12 (§384). The grading model (proposed: Opus
+5.5) and the nightly sample are left out of the rules, as in Nando's, and
+decided when C3 and S4 are built. Sonic's never 3 (no other service) is
+unchanged: the answer key is FAM's, not a call Sonic makes.
+
+`tests/test_answer_key_proposals_418.py` holds each proposal to exactly its
+signed book plus that one rule, and fails once signed until the proposal is
+deleted. `tests/test_consuela_proposal_398.py` failed while any
+`consuela.md` proposal existed; its job was done at §412 and it is retired
+here, its check that never 8's list matches the approved providers moved
+into the new test.
+
+`docs/agent_rules/MANIFEST.pending.json` (version 4) is written as §412
+did: the proposals put in place, `--write`, the signed books restored with
+`git checkout`. Only `consuela.md`'s and `sonic.md`'s fingerprints differ
+from version 3. The proposals README gives the owner's route: download
+the two proposals and the pending manifest, sign, upload four files in one
+commit. Nothing runs differently until then; `AGENTS=0` changes nothing.
