@@ -56,7 +56,7 @@ def write_list(found: dict, path) -> str:
     lines += [f"- {k}: {v}" for k, v in sorted(found["counts"].items())] or ["- none"]
     lines += ["", "Reversible: `--restore` puts every one back until the purge, "
               f"which waits {GRACE_DAYS} days.", "",
-              f"Approve with: `python tools/withdraw_refused.py --apply {path.name} "
+              f"Approve with: `python tools/withdraw_refused.py --apply {path} "
               f"--approve {digest}`", "", "| Where | Provider | What | When |", "|---|---|---|---|"]
     for r in found["rows"]:
         lines.append("| " + " | ".join(str(r[k]).replace("|", "/") for k in

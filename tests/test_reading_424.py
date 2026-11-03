@@ -61,26 +61,30 @@ def fresh():
 
 
 # ------------------------------------------------------------------ the key
-def test_the_key_is_unchanged_without_a_reading_and_different_with_one():
-    before = cache.cache_key("how did United do", 2, None, "", True)
-    assert cache.cache_key("how did United do", 2, None, "", True, "") == before
-    chosen = cache.cache_key("how did United do", 2, None, "", True, "Manchester United")
-    other = cache.cache_key("how did United do", 2, None, "", True, "United Airlines")
-    assert len({before, chosen, other}) == 3
-    # Spacing and case are the same reading.
-    assert cache.cache_key("how did United do", 2, None, "", True,
-                           "  manchester   UNITED ") == chosen
-    assert cache.key_bucket(2, "", True) == cache.key_bucket(2, "", True, "")
-    assert cache.key_bucket(2, "", True, "Manchester United") != cache.key_bucket(2, "", True)
+def test_the_reading_joins_the_question_once():
+    """Review (§430): the choice is part of the question, so every surface
+    that names an episode by its question - saves, shares, history, the
+    offline copy - names the chosen reading's episode."""
+    plan = appmod._validated_plan("how did United do", 2, reading="Manchester United")
+    assert plan.query == "how did United do (Manchester United)"
+    assert plan.reading == "Manchester United"
+    again = appmod._validated_plan("how did United do (Manchester United)", 2,
+                                   reading="Manchester United")
+    assert again.query == plan.query                     # never added twice
+    assert appmod._validated_plan("how did United do", 2).query == "how did United do"
 
 
-def test_key_for_reads_the_plans_reading():
-    plan = sg.plan_episode("how did United do", 2, search=True)
-    plain = asyncio.run(pipeline_mod.key_for(plan))
-    chosen = asyncio.run(pipeline_mod.key_for(dataclasses.replace(plan, reading="Manchester United")))
-    assert plain != chosen
+def test_the_key_is_the_questions_and_a_saved_question_finds_it():
+    chosen = appmod._validated_plan("how did United do", 2, search=True, reading="Manchester United")
+    other = appmod._validated_plan("how did United do", 2, search=True, reading="United Airlines")
+    plain = appmod._validated_plan("how did United do", 2, search=True)
+    # A save or share sends only the question, with the reading in it.
+    saved = appmod._validated_plan("how did United do (Manchester United)", 2, search=True)
+    keys = [asyncio.run(pipeline_mod.key_for(p)) for p in (chosen, other, plain, saved)]
+    assert len(set(keys[:3])) == 3 and keys[0] == keys[3]
     # Asking is not part of the key: the same episode either way.
-    assert asyncio.run(pipeline_mod.key_for(dataclasses.replace(plan, ask_reading=True))) == plain
+    assert asyncio.run(pipeline_mod.key_for(dataclasses.replace(plain, ask_reading=True))) \
+        == keys[2]
 
 
 # ------------------------------------------------------------------ what the brief and the writer read
@@ -222,6 +226,7 @@ def test_audio_answers_300_with_the_readings_and_refunds(client, monkeypatch):
                      "&reading=Manchester+United")
     assert res.status_code == 200 and len(res.content) > 44
     assert generator.plans[-1].reading == "Manchester United"
+    assert generator.plans[-1].query == "how did United do (Manchester United)"
 
 
 def test_an_older_client_is_never_stopped(client, monkeypatch):

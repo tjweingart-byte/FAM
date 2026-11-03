@@ -161,7 +161,7 @@ def write_report(proposal: dict, path) -> str:
              f"{proposal['episodes']} episodes with no node; "
              f"**{len(proposal['changes'])} would change**, {proposal['unchanged']} "
              f"stay where they are, {proposal['unplaced']} Nando would not place.", "",
-             f"Approve with: `python tools/refile_old.py --apply {path.name} "
+             f"Approve with: `python tools/refile_old.py --apply {path} "
              f"--approve {digest}`", "",
              "| Question | Title | Writer's words | Today | Nando | How |",
              "|---|---|---|---|---|---|"]

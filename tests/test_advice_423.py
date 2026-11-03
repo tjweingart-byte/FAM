@@ -94,6 +94,7 @@ def test_a_recommendation_is_counted_and_logged(line, caplog):
 
 @pytest.mark.parametrize("line", [
     "A refinance resets the clock on a thirty-year loan.",
+    "Whether you should refinance depends on how long you stay.",
     "Closing costs run between two and five percent of the loan.",
     "The Federal Reserve cut its rate on 29 October.",
 ])

@@ -7250,6 +7250,13 @@
     var t = TOPICS[key];
     if(stack[stack.length - 1] === "player" && stack.length > 1) goBack();
     readingThen = function(choice){
+      // The choice joins the question (§430) - "how did United do
+      // (Manchester United)" - so saving, sharing, history and the offline
+      // copy name this episode the way they name any question.
+      var asked = t.prompt || t.title;
+      if(asked.slice(-(choice.length + 2)) !== "(" + choice + ")"){
+        t.prompt = asked + " (" + choice + ")";
+      }
       t.reading = choice;
       if(playSurface(t) === "search") pendingFromSearch = true;
       generate(key, albumContext);
@@ -10173,9 +10180,12 @@
                      attach: t.attach || "", surface: where,
                      own: !!t.own, private: !!t.private,
                      episode: t.episode || "", queueable: true,
-                     // Which thing a shared name means (§424): asked on a
-                     // search, and the listener's choice once they made one.
-                     askReading: where === "search", reading: t.reading || "" };
+                     // Which thing a shared name means (§424): asked on any
+                     // tap that may write an episode - a tile written ahead
+                     // was left unwritten for exactly this (review, §430) -
+                     // never on a replay; and the listener's choice once made.
+                     askReading: !t.cachedOnly && !t.episode,
+                     reading: t.reading || "" };
     loadPlayerCard(key, t, playOpts.minutes);
     // A DailyFAM playlist entry ends by playing the next one (§134), and
     // anything else that starts playing means the playlist is over - the

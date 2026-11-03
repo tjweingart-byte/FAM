@@ -84,8 +84,7 @@ async def key_for(plan: EpisodePlan, client=None) -> str:
     canonical = None
     if settings.cache_semantic_key and client is not None:
         canonical = await canonical_key(plan.query, client)
-    return cache_key(plan.query, plan.minutes, canonical, plan.context, plan.search,
-                     getattr(plan, "reading", ""))
+    return cache_key(plan.query, plan.minutes, canonical, plan.context, plan.search)
 
 
 def bucket_for(plan: EpisodePlan) -> str:
@@ -94,7 +93,7 @@ def bucket_for(plan: EpisodePlan) -> str:
     nothing is ever found in."""
     if plan.attachments or not settings.cache_vector:
         return ""
-    return key_bucket(plan.minutes, plan.context, plan.search, getattr(plan, "reading", ""))
+    return key_bucket(plan.minutes, plan.context, plan.search)
 
 QUEUE_DEPTH = 4
 # Silence inserted between sentences so the delivery does not sound rushed.

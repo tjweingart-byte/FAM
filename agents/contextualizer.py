@@ -156,6 +156,9 @@ def note_empty_search(look) -> None:
 #: authority ("doctors say you should") is counted too: the count is a
 #: prompt to listen, not a verdict.
 RECOMMENDS = re.compile(
+    # Not "whether you should" or "if you should": that is the question, not
+    # an answer to it (review, §430).
+    r"(?<!whether )(?<!if )"
     r"\b(?:you should|you shouldn't|you ought to|you'd be better off|"
     r"i(?:'d| would) (?:recommend|suggest|advise)|we (?:recommend|suggest|advise)|"
     r"my advice|our advice|your best (?:bet|option|move)|"

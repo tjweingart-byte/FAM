@@ -28279,3 +28279,47 @@ ask sends nothing; known goes ahead; unknown and unnamed refused, as a
 `NoEvidence` naming nobody; unknown but named in the reporting goes ahead;
 unchecked never refuses; with C3P0 off or nothing private, nothing asked;
 the look before the search and the refusal after it).
+
+## 430. The review before the pull request: the reading joins the question (2026-11-03)
+
+An independent review of the whole branch before the pull request found two
+real defects in §424-§425 and four small ones. Everything else it read -
+the keys, `AGENTS=0`, the tie task on every exception path, the 300's
+refund, the SQL on Postgres, both approval digests, `wikimedia.known` -
+held.
+
+**A chosen reading was lost everywhere but the live player.** §425 said
+history, saves and shares replay by the episode's id; saves, shares, vibes,
+the queue and the offline shelf name an episode by its question and length,
+and a history replay's captions, sources and Go Deeper looked up the plain
+key. Carrying a separate `reading` through every one of those (and the iOS
+contract) was the wrong size of fix. Instead **the choice joins the
+question**: `app._validated_plan` makes `how did United do` with
+`reading=Manchester United` into `how did United do (Manchester United)` -
+never twice - and the client sets the topic's prompt to the same words when
+the listener chooses. Every surface that names an episode by its question
+now names this one; a share or a save replays it with no reading at all.
+The owner's transport stands (`reading=` carries the choice, and still tells
+the brief and the writer which thing was meant); the separate `reading`
+field in `cache.cache_key`/`key_bucket` is gone, since the question carries
+it, so no key anywhere changed shape after all.
+
+**Tiles written ahead were never asked.** Prefetch and the editions leave an
+ambiguous episode "unwritten until a tap asks", but only a search asked, so a
+myFAM, DailyFAM or Trending tap took the older-client path - the likeliest
+reading, never current - and every tap by every listener wrote it again.
+Every tap that may write an episode now asks (`askReading: !t.cachedOnly &&
+!t.episode`); a replay never does. A guest still cannot play such a tile
+(guests play kept audio only) - the gate's existing answer.
+
+**Small:** Atlas's `restore_withdrawn` put `_id` inside `$setOnInsert`,
+which MongoDB refuses (the test's fake now refuses it too); the advice
+check counted "whether you should ..." (the question, not an answer); both
+tools printed the approve command with the list's bare file name, wrong
+whenever `--out` named another folder.
+
+Tests: `tests/test_reading_424.py` (the reading joins the question once, a
+saved question finds the chosen episode's key, the 300 resumes with the
+question rewritten), `tests/test_advice_423.py`, the Atlas fake in
+`tests/test_withdraw_refused_428.py`, and the smoke check now asserts the
+question carries the choice.

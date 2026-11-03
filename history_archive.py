@@ -1407,7 +1407,9 @@ class AtlasBackend:
         held = self.held_c
         if held is not None:
             for d in list(held.find({"why": why})):
-                self.series_c.update_one({"_id": d["_id"]}, {"$setOnInsert": d["doc"]},
+                # `_id` comes from the filter; MongoDB refuses it in the update.
+                doc = {k: v for k, v in (d.get("doc") or {}).items() if k != "_id"}
+                self.series_c.update_one({"_id": d["_id"]}, {"$setOnInsert": doc},
                                          upsert=True)
                 held.delete_one({"_id": d["_id"]})
                 done += 1

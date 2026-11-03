@@ -2418,6 +2418,10 @@ def main() -> int:
                     "#readingOverlay", "e => e.classList.contains('active')"), "the picker stayed"
                 last = page.evaluate("() => window.__readingCalls[window.__readingCalls.length - 1]")
                 assert "reading=Manchester%20United" in last, f"the choice was not sent: {last}"
+                # And it joins the question (§430), so saves, shares and
+                # history name this reading's episode.
+                assert "q=how%20did%20United%20do%20(Manchester%20United)" in last \
+                    or "q=how%20did%20United%20do%20%28Manchester%20United%29" in last, last
                 assert page.evaluate("() => episodeStamp.split('|').pop()") == "Manchester United", \
                     "the episode's other requests would not carry the reading"
                 assert page.evaluate("() => readingParam('Manchester United')") == \

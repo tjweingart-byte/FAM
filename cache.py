@@ -334,7 +334,6 @@ def cache_key(
     canonical: Optional[str] = None,
     canonical_context: str = "",
     searched: bool = False,
-    reading: str = "",
 ) -> str:
     """Key on the canonical topic, the duration, and the voice settings.
 
@@ -354,18 +353,12 @@ def cache_key(
         "wpm": settings.target_wpm,
         "v": 2,  # bump to invalidate everything after a prompt change
     }
-    # The reading the listener chose for a name that means two things
-    # (decided item 15, §424): a different episode from the same words.
-    # Only when there is one, so every key written before it is unchanged.
-    if reading:
-        fields["reading"] = " ".join(reading.split()).lower()
     payload = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def key_bucket(
-    minutes: int, canonical_context: str = "", searched: bool = False,
-    reading: str = "",
+    minutes: int, canonical_context: str = "", searched: bool = False
 ) -> str:
     """Everything in `cache_key` *except* the question.
 
@@ -389,10 +382,6 @@ def key_bucket(
         "space": embeddings.space(),
         "v": 2,
     }
-    # A chosen reading is its own kind of episode (§424), never a near
-    # match for the other reading's words. Only when there is one.
-    if reading:
-        fields["reading"] = " ".join(reading.split()).lower()
     payload = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
 

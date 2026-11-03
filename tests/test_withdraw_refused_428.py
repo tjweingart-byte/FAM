@@ -137,6 +137,9 @@ class _Coll:
         return found[0] if found else None
 
     def _apply(self, doc, update, inserting):
+        # As MongoDB: `_id` comes from the filter, never the update.
+        if "_id" in update.get("$setOnInsert", {}) or "_id" in update.get("$set", {}):
+            raise ValueError("Performing an update on the path '_id' would modify the immutable field '_id'")
         for k, v in update.get("$set", {}).items():
             doc[k] = v
         for k in update.get("$unset", {}):

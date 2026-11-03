@@ -1848,9 +1848,18 @@ def _validated_plan(q: str, minutes: int, context: str = "", search: bool | None
         )
     plan = plan_episode(q, minutes, (context or "").strip()[:300], search, cached_only,
                         attachments)
-    # The reading the listener chose (§424), only when there is one.
+    # The reading the listener chose (§424), only when there is one. It
+    # becomes part of the question - "how did United do (Manchester United)"
+    # - so the episode's key, its saves, shares, history and offline copy all
+    # name it the way they name any question (review, §430); the client asks
+    # with those words already, and they are never added twice.
     reading = " ".join(str(reading or "").split())[:200]
-    return dataclasses.replace(plan, reading=reading) if reading else plan
+    if not reading:
+        return plan
+    asked = plan.query
+    if not asked.rstrip().endswith(f"({reading})"):
+        asked = f"{asked.rstrip()} ({reading})"[:500]
+    return dataclasses.replace(plan, query=asked, reading=reading)
 
 
 class ScriptRequest(BaseModel):

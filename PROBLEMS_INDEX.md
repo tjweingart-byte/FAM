@@ -430,3 +430,4 @@ and `limit` = Lines.
 | 28161 | 43 | 427. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03) |
 | 28204 | 31 | 428. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03) |
 | 28235 | 48 | 429. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03) |
+| 28283 | 44 | 430. The review before the pull request: the reading joins the question (2026-11-03) |

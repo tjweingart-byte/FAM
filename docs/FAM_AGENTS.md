@@ -788,12 +788,14 @@ latency matters more here than for any other agent.
   recommendation) and `contextualizer.advice_audit` counts any recommendation
   left in the finished script; never a block.
 - **Built (§424-§425): `ambiguous` asks the listener.** A client that sends
-  `ask_reading=1` (search and voice search) is stopped after the brief,
+  `ask_reading=1` (any tap that may write an episode) is stopped after the brief,
   before any plugin or Sonic: `/api/audio` answers 300 with the readings and
-  `/api/progress` carries them; the choice returns as `reading=`, part of the
-  cache key only when present. Older clients get the likeliest reading (kept,
-  never current); prefetch and the editions leave it unwritten. Nando's tie
-  call never picks between the readings of an undecided name.
+  `/api/progress` carries them; the choice returns as `reading=` and joins
+  the question ("how did United do (Manchester United)", §430), so the key,
+  saves, shares, history and the offline copy all carry it. Every tap that
+  may write an episode can ask; older clients get the likeliest reading
+  (kept, never current); prefetch and the editions leave it unwritten.
+  Nando's tie call never picks between the readings of an undecided name.
 - **Built (§429): `private_person` acted on** (public figures only, decided
   item 16). Before any search, Wikidata is asked whether it knows the name
   (`wikimedia.known`); after the search, a name Wikidata did not know is

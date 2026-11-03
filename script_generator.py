@@ -1092,9 +1092,11 @@ class EpisodePlan:
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
     #: The reading the listener chose when a name means two things (decided
-    #: item 15, §424): "Manchester United" for "how did United do". **In the
-    #: cache key** (`pipeline.key_for`), because it changes the episode; ""
-    #: for every request that was never asked, so their keys are unchanged.
+    #: item 15, §424): "Manchester United" for "how did United do". It is
+    #: also written into `query` ("how did United do (Manchester United)",
+    #: `app._validated_plan`), which is how the key and every surface that
+    #: names an episode by its question carry it (§430); here it tells the
+    #: brief and the writer which thing was meant. "" when never asked.
     reading: str = ""
     #: The client can ask the listener which reading they mean (`ask_reading=1`
     #: on `/api/audio`): an ambiguous brief then stops before anything is
