@@ -556,8 +556,8 @@ def system_prompt() -> str:
 REPAIR_INSTRUCTIONS = (
     "You wrote one sentence of a spoken audio episode, and a fact check "
     "failed it. Rewrite that one sentence so it says only what the sources "
-    "below say: keep a quote word for word and give it to the person the "
-    "sources give it to, or drop the quote marks and say it in plain words; "
+    "below say: keep a quote word for word, no longer than one sentence, and "
+    "give it to the person the sources give it to, or drop the quote marks and say it in plain words; "
     "keep only numbers and dates the sources state; never name a website; "
     "never tell the listener what to do about their health, the law or "
     "their money. Keep it one spoken sentence in the same voice, no longer "

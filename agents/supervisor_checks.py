@@ -19,13 +19,14 @@ to the heuristic ones:
 * `quote` (enforced) - a quoted span of three or more words appears in the
   packets word for word (case and punctuation aside), and, when the
   sentence names who said it, that name is beside the span in the source
-  that holds it. Long quotes are counted (`quote_long`), never failed: §429
-  left the length limit to the owner.
+  that holds it.
+* `quote_length` (counted until the owner signs it) - a quote is at most
+  one sentence (the owner, 2026-11-03, §435: copyright).
 * `website` (enforced) - a hostname or "dot com" in speech.
 * `advice` (enforced) - a recommendation in FAM's own voice about health,
   the law or money (C3P0's `RECOMMENDS`, §425), never a quoted or
   attributed one ("doctors say you should" is a fact about doctors).
-* `superlative` (enforced) - "the first", "a record", "the biggest", "the
+* `superlative` (counted, the owner's choice, §435) - "the first", "a record", "the biggest", "the
   only", "all-time": the same kind of word in a packet sentence that shares
   a name or two words with this one.
 * `figures` (counted) - every number, `figure_guard`'s reader widened from
@@ -53,18 +54,21 @@ from typing import Optional
 
 log = logging.getLogger("fam.agents")
 
-CHECKS = ("quote", "website", "advice", "superlative", "figures", "dates", "mixed")
+CHECKS = ("quote", "quote_length", "website", "advice", "superlative", "figures",
+          "dates", "mixed")
 #: Which checks send a failing sentence back by default. The rest count.
-DEFAULT_ENFORCED = ("quote", "website", "advice", "superlative")
+#: Superlatives count only (the owner, 2026-11-03, §435); the one-sentence
+#: quote limit counts until the owner signs the mclovin.md that names it.
+DEFAULT_ENFORCED = ("quote", "website", "advice")
+#: Named failures the proposed mclovin.md adds (the owner, 2026-11-03, §435);
+#: they join `agents.handoffs.FAILURES` once the owner signs it.
+PROPOSED_FAILURES = ("quote_too_long",)
 #: The named failure (agents.handoffs.FAILURES) each check reports.
 FAILURE_OF = {
-    "website": "website_named", "advice": "advice",
+    "quote_length": "quote_too_long", "website": "website_named", "advice": "advice",
     "superlative": "unsupported_superlative", "figures": "number_not_in_packets",
     "dates": "wrong_date", "mixed": "stories_joined",
 }
-#: Quotes this many words or more are counted as long (§429 left the limit
-#: to the owner; nothing fails on length).
-QUOTE_LONG_WORDS = 40
 #: A quoted span shorter than this is a term, not a quote ("a 'historic' deal").
 QUOTE_MIN_WORDS = 3
 
@@ -206,8 +210,6 @@ def check_quote(sentence: str, blocks: list) -> tuple:
     speaker = _speaker(sentence)
     for span in spans:
         folded = _fold(span)
-        if len(folded.split()) >= QUOTE_LONG_WORDS:
-            _count("quote_long")
         holders = [b for b in blocks if folded and folded in b.folded]
         if not holders:
             return "fail", f"the quote \"{span[:80]}\" is not in the packets"
@@ -223,6 +225,32 @@ def check_quote(sentence: str, blocks: list) -> tuple:
             if not near:
                 return "fail", (f"the packets do not give \"{span[:60]}\" to "
                                 f"{speaker} (wrong speaker)")
+    return "pass", ""
+
+
+#: Where a quote's sentence ends inside it - never at an abbreviation.
+_ABBREVIATIONS = re.compile(
+    r"\b(?:Mr|Mrs|Ms|Dr|St|Jr|Sr|Gen|Sen|Rep|Gov|Lt|Col|Capt|Prof|Inc|Co|Corp|Ltd|"
+    r"No|vs|U\.S|U\.K|U\.N|E\.U|a\.m|p\.m|e\.g|i\.e)\.$")
+
+
+def sentences_in(span: str) -> int:
+    """How many sentences a quoted span holds."""
+    count, start = 1, 0
+    for m in re.finditer(r"[.!?…]+[\"'”’)]*\s+(?=[\"“‘(]?[A-Z0-9])", span.strip()):
+        if _ABBREVIATIONS.search(span.strip()[start:m.start() + 1]):
+            continue
+        count += 1
+        start = m.end()
+    return count
+
+
+def check_quote_length(sentence: str, _blocks: list) -> tuple:
+    """The owner's limit (2026-11-03, §435): a quote is at most one sentence,
+    so an episode never copies a long stretch of anyone's words."""
+    for span in _QUOTED.findall(sentence):
+        if sentences_in(span) > 1:
+            return "fail", f"the quote \"{span[:60]}...\" is longer than one sentence"
     return "pass", ""
 
 
@@ -540,7 +568,8 @@ def repair_prompt(checker: "Checker", sentence: str, why: str) -> str:
             f"The sources:\n{sources or '(none of the sources is about this)'}")
 
 
-_BY_NAME = {"quote": check_quote, "website": check_website,
+_BY_NAME = {"quote": check_quote, "quote_length": check_quote_length,
+            "website": check_website,
             "superlative": check_superlative, "mixed": check_mixed}
 
 

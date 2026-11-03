@@ -28587,3 +28587,45 @@ the named failures are the rule book's; the enforced set pinned; a broken or
 late check plays unchecked; off, nothing checked or asked; a failure rewritten
 once from the sources' words; failing again, NONE, late, past the count - left
 out; a counted failure plays and is recorded; a batched script settles; health).
+
+## 435. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03)
+
+The owner (2026-11-03): "Quote length maximum should be one sentence to
+avoid copyright" and, for superlatives, "count only".
+
+**Both touch the signed `mclovin.md`.** Its "never" 1 says no unsupported
+"first" or "record" is let through, so counting superlatives (and §434's
+counted figures, dates and mixed stories) lets through what it names; and it
+sets no limit on a quote's length. A session never changes a signed book, so
+the proposed draft v2 is at `docs/agent_rule_proposals/mclovin.md`, with
+`docs/agent_rules/MANIFEST.pending.json` (version 4; only `mclovin.md`'s
+fingerprint changes) and the signing steps in that folder's README. It adds:
+a quote is at most one sentence ("always" 3, "never" 1); and "always" 8 -
+while the owner has set a check to count only, its failures are recorded and
+the sentence plays, until the owner sets it to enforce.
+
+**In code now:**
+
+- `superlative` leaves the default `SUPERVISOR_ENFORCE`
+  (`quote,website,advice`): counted, never sent back.
+- a new `quote_length` check (`sentences_in`, which does not end a sentence
+  at "Mr." or "U.S."): a quoted span of more than one sentence fails as
+  `quote_too_long`. **Counted until the owner signs**; then `quote_length`
+  joins `SUPERVISOR_ENFORCE` and `quote_too_long` joins
+  `agents/handoffs.FAILURES`, which `tests/test_agents_roster_tasks.py` pins
+  to the signed book's twelve. Until then it is `PROPOSED_FAILURES`.
+- the 40-word `quote_long` count from §434 is gone; the one-sentence check
+  replaces it.
+- the writer's rewrite instructions (`REPAIR_INSTRUCTIONS`) say a quote is
+  kept to one sentence.
+
+**Not changed, for the owner to say:** the writer's own prompt, which every
+episode reads with the agents on or off. A one-sentence quote limit there
+would apply the copyright guardrail to every episode (as §429's guardrails
+do), not only when Mclovin works - at the cost of the prompt's length guard,
+paid by a dedup.
+
+Tests: `tests/test_supervisor_checks_434.py` (one sentence passes, two fail
+as `quote_too_long`, abbreviations are not sentence ends, counted not sent
+back; superlatives counted; the proposed failure is in the proposal and not
+in the signed list).

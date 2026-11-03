@@ -435,3 +435,4 @@ and `limit` = Lines.
 | 28386 | 44 | 432. The review before the pull request: the reading joins the question (2026-11-03) |
 | 28430 | 75 | 433. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03) |
 | 28505 | 86 | 434. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03) |
+| 28591 | 42 | 435. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03) |

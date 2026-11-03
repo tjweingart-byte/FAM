@@ -99,12 +99,19 @@ def test_a_short_quoted_term_is_not_a_quote():
     assert verdict('Analysts called it a "patient" Fed.')[0]["quote"] == "pass"
 
 
-def test_a_long_quote_is_counted_never_failed():
-    long = " ".join(["word"] * 45)
-    c = checker(EVIDENCE + f"\nShe said \"{long}\".\n")
-    assert all(x.result == "pass" for x in c.check(f'"{long}," she said.').checks
-               if x.check == "quote")
-    assert checks.SINCE_BOOT["quote_long"] == 1
+@pytest.mark.parametrize("sentence,result", [
+    ('"We are not in a hurry to cut rates," Powell said.', "pass"),
+    ('"Mr. Powell and the U.S. economy are fine," she said.', "pass"),
+    ('"We are not in a hurry. We will wait for the data," Powell said.', "fail"),
+    ('"Rates hold! Markets rise," he said.', "fail"),
+])
+def test_a_quote_is_at_most_one_sentence(sentence, result):
+    got, v = verdict(sentence)
+    assert got["quote_length"] == result
+    if result == "fail":
+        # Counted until the owner signs the mclovin.md that names it (§435).
+        assert v.counted[0].failure == "quote_too_long"
+        assert not any(c.check == "quote_length" for c in v.failing)
 
 
 # ------------------------------------------------------------------ websites, advice
@@ -137,7 +144,10 @@ def test_advice_in_fams_own_voice(sentence, advice, result):
     ("It was the only rate decision Powell made alone.", "fail"),
 ])
 def test_a_superlative_needs_the_packets(sentence, result):
-    assert verdict(sentence)[0]["superlative"] == result
+    got, v = verdict(sentence)
+    assert got["superlative"] == result
+    # Counted only, the owner's choice (§435): never sent back.
+    assert not any(c.check == "superlative" for c in v.failing)
 
 
 # ------------------------------------------------------------------ counted checks
@@ -171,7 +181,13 @@ def test_two_stories_joined_by_no_source_are_counted():
 
 def test_the_named_failures_are_the_rule_books():
     for name in checks.FAILURE_OF.values():
-        assert name in FAILURES
+        assert name in FAILURES or name in checks.PROPOSED_FAILURES
+    # Proposed, not yet signed: never in the signed list, always in the proposal.
+    import pathlib
+
+    proposal = pathlib.Path("docs/agent_rule_proposals/mclovin.md").read_text()
+    assert not set(checks.PROPOSED_FAILURES) & set(FAILURES)
+    assert "at most one sentence" in proposal and "count only" in proposal
     assert {"quote_not_said", "quote_wrong_speaker"} <= set(FAILURES)
 
 

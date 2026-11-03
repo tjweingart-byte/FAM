@@ -2117,7 +2117,7 @@ class Settings:
     # measured (figures, dates and mixed stories - §269's "audits first").
     supervisor_enforce: str = field(
         default_factory=lambda: os.environ.get(
-            "SUPERVISOR_ENFORCE", "quote,website,advice,superlative").strip())
+            "SUPERVISOR_ENFORCE", "quote,website,advice").strip())
     # The writer's one rewrite of a failing sentence: its time limit (the
     # sentences behind it wait in order) and how many an episode may ask.
     # Late, or past the count, the sentence is left out.
