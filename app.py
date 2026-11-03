@@ -695,6 +695,11 @@ async def lifespan(_: FastAPI):
         from agents import housekeeper as agent_housekeeper
 
         agent_housekeeper.register(SCRIPT_CACHE)
+        # Her totals about groups of 100 or more (§415), read from the
+        # accounts, the consent, the place and the log, in place.
+        import demographic_totals
+
+        demographic_totals.register(ACCOUNTS, CONSENT, PREFS, EVENTS)
         # Keith's nightly check that an episode's tag agrees everywhere
         # (§405): only while IT_AGENT is on; it reports, never repairs.
         import tag_sync
@@ -1139,6 +1144,15 @@ def _database_report() -> list[dict]:
 
         if agent_tasks.exists():
             stores.append(("agent tasks", "AGENTS_DB", agent_tasks.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
+    # The totals about groups of listeners (§415), once first computed.
+    try:
+        import demographic_totals
+
+        if demographic_totals.exists():
+            stores.append(("totals about groups", "DEMOGRAPHICS_DB",
+                           demographic_totals.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
     # Consuela's report (§399), once her first run creates it.
@@ -1981,6 +1995,8 @@ async def health(request: Request) -> dict:
         # model, where every value came from, and the rule-book lock - all
         # settable in two places, so said here. Off by default.
         "agents": agent_models.health(),
+        # Totals about groups of 100 or more listeners (§415).
+        "totals": _totals_report(),
         # The client releases this server still serves, and which versions
         # have called it since boot (`client_versions.py`).
         "clients": client_versions.report(),
@@ -4463,6 +4479,30 @@ class BankVoiceRequest(BaseModel):
     #: consent, commercial_use and synthetic_voice_cleared, each "yes".
     rights: dict
     replace: bool = False
+
+
+def _totals_report() -> dict:
+    try:
+        import demographic_totals
+
+        return demographic_totals.report()
+    except Exception:  # noqa: BLE001 - a report is never load-bearing
+        return {}
+
+
+@app.get("/api/admin/totals")
+async def admin_totals(request: Request, week: str = "") -> dict:
+    """The totals about groups of listeners (§415): only cells of 100 or more,
+    never a person. Admin only."""
+    _require_admin(request)
+    import demographic_totals
+
+    if not demographic_totals.exists():
+        return {"weeks": [], "cells": [], "min_group": demographic_totals.MIN_GROUP}
+    weeks = demographic_totals.store().weeks()
+    chosen = week if week in weeks else (weeks[0] if weeks else "")
+    return {"weeks": weeks, "week": chosen, "min_group": demographic_totals.MIN_GROUP,
+            "cells": demographic_totals.store().week(chosen) if chosen else []}
 
 
 @app.get("/api/admin/voices")

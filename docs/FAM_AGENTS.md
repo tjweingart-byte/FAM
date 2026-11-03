@@ -1208,7 +1208,10 @@ Purging stored opinion and blog pieces waits for Mclovin's source screen
 its script row, its R2 objects and the archive together, and her re-files
 of a pruned node move its episodes with its facts (§404). Keith's nightly
 check (`tag_sync.py`, `it:tag_sync`) reports where the three disagree; the
-owner repairs with `python tools/tag_sync.py --repair` (§405).
+owner repairs with `python tools/tag_sync.py --repair` (§405). Her long-term
+signals are built (§415, `demographic_totals.py`): weekly totals by kind of
+story, age group, gender and region, only for groups of 100 or more, from
+counted accounts only.
 
 **Purpose.** Keep the archive organised, trustworthy and free of repetition,
 filed so Sonic always knows where to go - and keep what will be valuable to

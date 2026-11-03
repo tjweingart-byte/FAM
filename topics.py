@@ -2475,6 +2475,21 @@ class EventStore:
         self._maybe_prune(now)
         return len(rows)
 
+    def between(self, start: float, end: float, kinds: Iterable[str]) -> list:
+        """(user_id, kind, tags, at) for every event of `kinds` in [start, end)
+        - the aggregate totals' material (§415). Accounts only, never a
+        Private search: those are never logged (`app._remembers`)."""
+        kinds = tuple(kinds)
+        marks = ",".join("?" for _ in kinds)
+        try:
+            return [(r[0], r[1], tuple(t for t in (r[2] or "").split(",") if t), r[3])
+                    for r in self._conn().execute(
+                        f"SELECT user_id, kind, tags, at FROM events WHERE kind IN ({marks})"
+                        " AND at >= ? AND at < ?", (*kinds, start, end)).fetchall()]
+        except Exception:
+            log.exception("could not read events for the totals")
+            return []
+
     def _maybe_prune(self, now: float) -> None:
         """Drop impressions past IMPRESSION_TTL, at most hourly.
 

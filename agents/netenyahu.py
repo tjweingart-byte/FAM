@@ -362,6 +362,8 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    # HOUSEKEEPER_COMB_DAYS, a page a night) and the 90-day pass.
                    ("housekeeper", "comb", 3, "housekeeper"),
                    ("housekeeper", "second", 4, "housekeeper"),
+                   # The totals about groups of 100 or more (§415).
+                   ("housekeeper", "totals", 0, "housekeeper"),
                    # Keith's first check (§405): the tag agrees everywhere.
                    # Observe and report only.
                    ("it", "tag_sync", 5, "it_agent"))

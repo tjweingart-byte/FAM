@@ -272,7 +272,8 @@ def test_her_longer_jobs_are_registered_and_scheduled():
             netenyahu.HANDLERS.pop(("housekeeper", kind), None)
     hours = {kind: hour for agent, kind, hour, _s in netenyahu.SCHEDULE
              if agent == "housekeeper"}
-    assert hours == {"consolidate": 1, "dedupe": 2, "comb": 3, "second": 4}
+    assert hours == {"consolidate": 1, "dedupe": 2, "comb": 3, "second": 4,
+                     "totals": 0}
 
 
 def test_a_refile_task_s_key_is_its_node(archive, monkeypatch):

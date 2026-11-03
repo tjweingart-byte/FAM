@@ -110,6 +110,7 @@ ENV CACHE_PATH=/data/scripts.db \
     EPISODE_QUALITY_DB=/data/episode_quality.db \
     AGENTS_DB=/data/agents.db \
     HOUSEKEEPER_DB=/data/housekeeper.db \
+    DEMOGRAPHICS_DB=/data/demographics.db \
     X_THREADS_DB=/data/x_threads.db \
     LOCAL_NEWS_DB=/data/local_news.db \
     GDELT_EXPORT_DB=/data/gdelt_export.db \

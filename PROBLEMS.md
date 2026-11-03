@@ -27694,3 +27694,62 @@ under 13 asked then deleted and signed out, nothing thrown.
 With part 1 (§411) the step is complete on the web; it ships when the branch
 is merged. For the owner then: the privacy PDF
 (`python tools/legal_pdfs.py --email ... privacy`) and the App Store labels.
+
+## 415. Totals about groups of listeners: groups of 100 or more, never a person (2026-11-03)
+
+The last piece of Phase 2: decided item 2's "aggregate demographic
+signals", consuela.md never 4, and the Privacy Policy's "Totals about groups
+of listeners" (§410, §411). `demographic_totals.py`, Consuela's nightly task
+(`housekeeper:totals`, 00:00 ET; only while she may run).
+
+- **Who is counted**: an account let into the app (`accounts.demographic_rows`
+  - not waitlisted, with a date of birth) with a yes to the `demographics`
+  consent's current wording (`ConsentStore.allowed_users`). Never a guest and
+  never a Private search - neither is ever written to the event log
+  (`app._remembers`), and the totals read only the log
+  (`EventStore.between`: searches and plays; a finish is not a second play).
+- **What is kept** (`demographics.db`, `totals`): for a week, a kind of story
+  (the eight facets, "other", and "all") and one breakdown - none, the
+  owner's age groups, gender, or region (state or province and country,
+  never a city) - the listeners, searches and plays. Computed in memory from
+  the stores, read in place; **no row per person is ever written**, and a
+  test checks the table's columns and that no id is in it.
+- **Groups of 100 or more, and never by subtraction**: a cell under
+  `MIN_GROUP` (100) is never kept, and a breakdown is kept whole or not at
+  all - if one age group of a kind of story is under 100, none of that age
+  breakdown is kept, or the small group could be worked out by subtracting
+  the others from the kind's total. The kind's total itself, 100 or more,
+  stays.
+- **Recomputed, not added to**: each night this week and last are computed
+  again and replace what was there, so a deleted account, or one that turned
+  counting off, stops counting; earlier weeks stay, as the policy says.
+  Registered with the wipe (they came from the log, [wipe-derived]), the
+  data disk (both Dockerfiles, `.env.example`, `/api/health` → `storage`,
+  `tests/test_data_paths.py`), and the agents' import map.
+- **Shown**: `/api/health` → `totals`; `/api/admin/totals` (admin only, a
+  week at a time); `python tools/demographic_totals.py` (`--compute` runs it
+  now).
+
+With few listeners almost every group is under 100 and almost nothing is
+kept - the rule working. Turning it on is `AGENTS=1` and `HOUSEKEEPER=1`,
+with the rest of Consuela.
+
+Tests: `tests/test_demographic_totals_415.py` (the owner's bands, region
+never a city, 100 kept with its breakdowns, no group under 100 and never by
+subtraction, only counted accounts and none under 13, searches and plays
+apart, outside the week not counted, only cells written, recomputed so a no
+or a deletion stops counting, the wipe, the real stores' reads, the task
+and the admin-only endpoint).
+
+## 416. docs/BACKEND.md brought up to Phase 2 (2026-11-03)
+
+The build prompt asks each phase to keep `docs/BACKEND.md` true to the code;
+it still described the archive before Phase 2. Now: the history recall's row
+says Sonic replaces it when the retriever runs, and how; the background jobs
+gain Netenyahu's loop and each of Consuela's and Keith's tasks, and the
+sweeps' live series; the outside services gain Sonic's read-only Atlas user,
+the archive's new collections and fields, and Cloudflare R2 with the
+category tag in its metadata; the routes gain `/api/activation`, the
+`demographics` consent, `activation_needed` and `/api/admin/totals`; the
+health table gains the `archive` and `totals` keys, in the order the
+report gives them.

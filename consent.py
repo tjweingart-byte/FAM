@@ -190,6 +190,14 @@ class ConsentStore:
             self._cache[(user_id, scope)] = answer
         return answer
 
+    def allowed_users(self, scope: str) -> set:
+        """Every listener with a yes to `scope`'s current wording (§415: who
+        the totals may count)."""
+        rows = self._conn().execute(
+            "SELECT user_id FROM consents WHERE scope = ? AND allowed = 1 "
+            "AND version >= ?", (scope, current_version(scope))).fetchall()
+        return {r[0] for r in rows}
+
     def forget(self, user_id: str) -> int:
         """Account deletion (`app.erase_listener`)."""
         cur = self._conn().execute("DELETE FROM consents WHERE user_id = ?", (user_id,))

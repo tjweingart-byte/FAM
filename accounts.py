@@ -592,6 +592,18 @@ class AccountStore:
                 "display_name": row[4], "phone": row[5], "status": row[6],
                 "birth_date": row[7] or "", "gender": row[8] or ""}
 
+    def demographic_rows(self) -> list:
+        """(user_id, birth_date, gender) for every account let into the app
+        that has a date of birth - the aggregate totals' people (§415). Read
+        in place and never copied anywhere a row per person survives."""
+        try:
+            return [(r[0], r[1], r[2] or "") for r in self._conn().execute(
+                "SELECT user_id, birth_date, gender FROM accounts WHERE "
+                "birth_date != '' AND status != 'waitlisted'").fetchall()]
+        except Exception:
+            log.exception("could not read the accounts for the totals")
+            return []
+
     def plan_for(self, user_id: str) -> str:
         """Which plan to stamp on this listener's usage rows.
 
