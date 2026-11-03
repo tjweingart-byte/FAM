@@ -649,6 +649,11 @@ class ScriptNotes:
     #: brief and the code routes once the contextualizer works on it. None
     #: otherwise. Nothing reads it yet.
     research_plan: object = None
+    #: Sonic's history packet (`handoffs.ArchivePacket`, oldest first) and
+    #: which lookup he chose and why (§403), for Shakespeare and the audit.
+    #: None while he does not work on the episode.
+    archive_packet: object = None
+    archive_lookup: object = None
     #: Nando's placement at the request (`agents.categorizer.Placement`,
     #: §371), and what he settled on after the writer
     #: (`categorizer.settle`), for the cache and the audit. None when he did
@@ -1957,8 +1962,19 @@ class ScriptGenerator:
         # episode is not one it may add to.
         import history_archive
 
-        recall = history_archive.look(" ".join(filter(None, (
-            str(getattr(plan.brief, "subject", "") or ""), query))), plan.brief)
+        recall_text = " ".join(filter(None, (
+            str(getattr(plan.brief, "subject", "") or ""), query)))
+        recall = None
+        if _agent_runs(notes, "retriever"):
+            # **Sonic** (§403): his read-only lookups in place of the recall,
+            # merged the same way, within the same grace. None when he may
+            # not add to this episode; today's recall below when he cannot.
+            from agents import retriever
+
+            recall = retriever.look(getattr(notes, "research_plan", None), plan.brief,
+                                    recall_text, notes)
+        if recall is None:
+            recall = history_archive.look(recall_text, plan.brief)
 
         # **The ladder**, in cost order, stopping at the first rung that
         # brings back evidence. Each rung is the same call with a different

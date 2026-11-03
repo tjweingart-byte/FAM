@@ -54,6 +54,10 @@
   <ul>
     <li>We keep what FAM needs to work: your account, what you ask and listen
       to (to make your feeds), and what you post.</li>
+    <li>When you join, we ask your date of birth (to check you are 13 or
+      older) and, if you want to give them, where you live and your gender. We
+      use them only to count, in groups of at least 100 people, what kinds of
+      listeners hear what - never to pick you out, and never sent to anyone.</li>
     <li>What you ask is sent to Anthropic to write the episode, and a search
       drawn from it to Parallel and Perplexity to find sources, only after
       you say yes in the app.
@@ -68,7 +72,8 @@
   <table>
     <tr><th>What</th><th>Details</th><th>Why</th></tr>
     <tr><td>Account</td><td>Email address or phone number, and a password (stored only as a scrypt hash). If you sign in with Google or Apple: the account id they give us, your email and the name on that account.</td><td>To sign you in and keep your things with you.</td></tr>
-    <tr><td>Profile</td><td>Display name, @handle and profile picture if you set them; date of birth if you give it; the town, region or country you type in (FAM never reads your device's location).</td><td>To show your profile and to suggest stories about where you live.</td></tr>
+    <tr><td>Profile</td><td>Display name, @handle and profile picture if you set them; the town, region or country you type in (FAM never reads your device's location).</td><td>To show your profile and to suggest stories about where you live.</td></tr>
+    <tr><td>About you</td><td>Your date of birth, which we ask when you join; your gender if you choose to give it (man, woman, non-binary, self-describe, or prefer not to say). Neither is ever shown to anyone.</td><td>Your date of birth checks you are 13 or older. Both are used, with your place's region, only to count what groups of listeners hear - see "Totals about groups of listeners".</td></tr>
     <tr><td>What you ask and play</td><td>Your searches and Go Deeper questions; which episodes you play, finish or skip; what you pick, share, save, vibe or add to a mix; which tiles were shown to you.</td><td>To make your episodes and to rank myFAM and DailyFAM for you.</td></tr>
     <tr><td>What you post</td><td>Comments, messages, vibes and their captions, mixes and their covers, interests you choose, files and links you attach to a search.</td><td>To deliver them to the people you meant them for.</td></tr>
     <tr><td>Reports and feedback</td><td>Content you report and why; bug reports you send, with the screen and app version.</td><td>To keep FAM safe and to fix it.</td></tr>
@@ -78,6 +83,27 @@
     <tr><td>Technical</td><td>A session cookie (or, in the app, a sign-in token), your time zone on each request, the app version, and the network address our hosting provider records.</td><td>To keep you signed in, write episodes in your own time, and keep the service working.</td></tr>
   </table>
   <p>If you listen without an account, FAM keeps no record of what you play.</p>
+
+  <h2>Totals about groups of listeners</h2>
+  <p>FAM keeps totals of what is searched and heard - by kind of story, region
+  and time of day - and how those totals differ by age group (13-17, 18-24,
+  25-34, 35-44, 45-54, 55-64, 65 and over), gender and region. They tell us
+  what kinds of listeners care about what.</p>
+  <ul>
+    <li><b>Only groups of 100 or more.</b> No total is kept for a group smaller
+      than 100 people, so no total describes you.</li>
+    <li><b>Never about one person.</b> A total holds no name, no account, no city
+      and no date of birth - only the age group and the region.</li>
+    <li><b>Never from a guest, and never from a Private search.</b> If you listen
+      without an account or search with Private on, nothing you do is counted.</li>
+    <li><b>Never shared or sold.</b> The totals stay with FAM.</li>
+    <li><b>You can turn counting off.</b> You are counted from when you join, and
+      you can turn it off at any time in Settings, Privacy and safety; from
+      then on nothing you do is counted.</li>
+  </ul>
+  <p>Your date of birth, gender and place stay on your account. You can change
+  or remove your gender and place at any time in Settings, and deleting your
+  account deletes all three.</p>
 
   <h2>Who else receives it</h2>
   <p>We use these companies to run FAM. Each receives only what is listed, only
@@ -98,6 +124,7 @@
     <tr><td>Google Fonts</td><td>Your network address, when a FAM web page loads its typefaces.</td></tr>
     <tr><td>The website of a link you attach</td><td>A request from FAM's server to read that page.</td></tr>
   </table>
+  <p>Your date of birth and gender are sent to none of these companies.</p>
   <p>We do not sell your information or share it for advertising. We would
   disclose it only if the law required us to.</p>
 
@@ -108,6 +135,8 @@
     <li><b>Comments</b> can be read by anyone; <b>messages</b> only by the people in the
       conversation.</li>
     <li><b>Mixes</b> are public when you make them; you can make one private.</li>
+    <li><b>Your date of birth and gender</b> are never shown to anyone. The place you
+      set shows on your profile.</li>
     <li><b>Episodes you search</b> can be played by other listeners in Explore, without
       your name unless you turn on "Show my name on episodes I searched".
       Questions that look personal (with "my", an email address or a phone
@@ -124,6 +153,8 @@
     <tr><td>Sign-in sessions</td><td>90 days after last use</td></tr>
     <tr><td>Written episodes</td><td>7 days, up to 30 while people keep playing them</td></tr>
     <tr><td>Your account, profile, activity, posts and messages</td><td>Until you delete them or your account</td></tr>
+    <tr><td>Your date of birth, gender and place</td><td>Until you change them or delete your account</td></tr>
+    <tr><td>Totals about groups of 100 or more listeners</td><td>Indefinitely; they describe groups, not you, and are reviewed at two years</td></tr>
   </table>
   <p><b>When you delete your account</b> we erase your account, profile,
   activity, posts, messages, mixes, saved items, blocks and your AI answer
@@ -131,12 +162,15 @@
   removed. Our cost records, bug reports and content reports are kept with your
   name removed, because they are records of the service rather than of you.
   Deleting your account does not remove a waitlist entry from Viral Loops;
-  email us and we will.</p>
+  email us and we will. Your date of birth, gender and place are erased with
+  it. Totals already counted stay, because they describe groups of at least
+  100 people and nothing in them is yours.</p>
 
   <h2>Your choices and rights</h2>
   <ul>
     <li>Change your profile, place, interests and settings in the app.</li>
     <li>Turn <b>Send my questions to AI</b> on or off in Settings, Privacy and safety.</li>
+    <li>Turn <b>Count me in FAM's totals</b> off (or back on) in Settings, Privacy and safety.</li>
     <li>Block anyone; report anything.</li>
     <li>Delete your account in Settings. It cannot be undone.</li>
     <li>Ask us for a copy of what we hold about you, to correct it, or to delete
@@ -158,9 +192,11 @@
   goes wrong that affects you, we will tell you.</p>
 
   <h2>Children</h2>
-  <p>FAM is not meant for children under 13, and we do not knowingly collect
-  their information. If you believe a child has an account, email us and we
-  will delete it.</p>
+  <p>FAM is not meant for children under 13. We ask every listener's date of
+  birth when they join, and someone under 13 cannot enter the app. If a date
+  of birth shows a listener is under 13, we delete their account and what it
+  holds. If you believe a child has an account, email us and we will delete
+  it.</p>
 
   <h2>Where your information is processed</h2>
   <p>FAM and the companies above process information in the United States and

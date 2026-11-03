@@ -361,11 +361,15 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     # Nando's placement (§371) are pure code, and every write path settles
     # Nando's node (§371).
     allowed = {
-        "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster", "training"},
+        # App startup also registers Consuela's task (§399).
+        "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster", "training",
+                   "housekeeper"},
         # The wipe also forgets Nando's answer-key labels (§381).
         "demo_data.py": {"tasks", "training", "nando_model", "memory"},
         "pipeline.py": {"netenyahu", "categorizer"},
-        "script_generator.py": {"netenyahu", "contextualizer", "categorizer"},
+        # Sonic replaces the recall when Netenyahu lets him run (§403): code
+        # and read-only lookups, no model.
+        "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever"},
         "prefetch.py": {"categorizer"},
         "daily_edition.py": {"categorizer"},
         "trending_bank.py": {"categorizer"},
@@ -376,6 +380,15 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # The audit report reads the answer key's agreement (§381); the
         # judge itself is a background task, never on the listener's path.
         "category_audit.py": {"training"},
+        # The archive asks whether Consuela may run - her switches and her
+        # lock, read only, no model (§397) - and, only while she may, queues
+        # her consolidation on Netenyahu's loop and reports it (§399). Her
+        # model call is made there, never on the archive's write thread.
+        "history_archive.py": {"roster", "housekeeper", "retriever"},
+        # Keith's tag check (§405) reads his lock and registers his task.
+        "tag_sync.py": {"roster", "netenyahu"},
+        # Consuela's totals (§415) register their nightly task.
+        "demographic_totals.py": {"netenyahu"},
     }
     found = {}
     for p in ROOT.glob("*.py"):

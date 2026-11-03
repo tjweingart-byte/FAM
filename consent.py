@@ -38,9 +38,32 @@ from paths import data_path
 #:   ai    - their words going to the AI provider (5.1.2(i));
 #:   terms - the Terms and the Privacy Policy, agreed with a checkbox at
 #:           sign-up (clickwrap, §228) and again whenever they change.
+#:   demographics - being counted, by age group, gender and region, in the
+#:           totals of what groups of listeners hear (§411). **On by
+#:           default** (the owner, §410): finishing the activation step, which
+#:           shows `DEMOGRAPHICS_NOTICE`, records a yes; Settings' switch
+#:           records a no. Only a yes to the current version is counted.
 AI = "ai"
 TERMS = "terms"
-SCOPES = (AI, TERMS)
+DEMOGRAPHICS = "demographics"
+SCOPES = (AI, TERMS, DEMOGRAPHICS)
+
+#: Bump when `DEMOGRAPHICS_NOTICE` changes what is counted or what for.
+#: A bump stops counting everyone whose yes is to the old wording until they
+#: say yes again: the activation step is not shown again and records a yes
+#: only when none is held (§417). Showing the new notice is work of its own.
+DEMOGRAPHICS_VERSION = 1
+
+#: The activation screen's notice (docs/ACTIVATION_PRIVACY_DRAFT.md, the
+#: wording the owner approved on 2026-11-03).
+DEMOGRAPHICS_NOTICE = {
+    "body": ("We use your age group, gender and region only to count what groups "
+             "of listeners hear, in groups of at least 100 people. You are never "
+             "picked out, and none of it is shown to anyone or sent to anyone. "
+             "You can turn this off in Settings."),
+    "switch": "Count me in FAM's totals",
+    "privacy_url": "/privacy",
+}
 
 #: Bump when /terms or /privacy change in a way people must agree to again;
 #: everybody signed in is asked once more (the web's `checkTerms`).
@@ -170,6 +193,14 @@ class ConsentStore:
             self._cache[(user_id, scope)] = answer
         return answer
 
+    def allowed_users(self, scope: str) -> set:
+        """Every listener with a yes to `scope`'s current wording (§415: who
+        the totals may count)."""
+        rows = self._conn().execute(
+            "SELECT user_id FROM consents WHERE scope = ? AND allowed = 1 "
+            "AND version >= ?", (scope, current_version(scope))).fetchall()
+        return {r[0] for r in rows}
+
     def forget(self, user_id: str) -> int:
         """Account deletion (`app.erase_listener`)."""
         cur = self._conn().execute("DELETE FROM consents WHERE user_id = ?", (user_id,))
@@ -181,7 +212,24 @@ class ConsentStore:
 
 def current_version(scope: str) -> int:
     """The wording a yes must be to. Read at call time, so a bump applies at once."""
+    if scope == DEMOGRAPHICS:
+        return DEMOGRAPHICS_VERSION
     return TERMS_VERSION if scope == TERMS else VERSION
+
+
+def describe_demographics(answer: Optional[dict]) -> dict:
+    """The `/api/consent` block for being counted (§411): whether this
+    listener has been shown the notice (`asked`), and whether they are counted
+    now (`counted` - a yes to the current version)."""
+    return {
+        "scope": DEMOGRAPHICS,
+        "version": DEMOGRAPHICS_VERSION,
+        "notice": DEMOGRAPHICS_NOTICE,
+        "asked": answer is not None,
+        "counted": bool(answer and answer["allowed"]
+                        and answer["version"] >= DEMOGRAPHICS_VERSION),
+        "at": answer["at"] if answer else None,
+    }
 
 
 def describe_terms(answer: Optional[dict]) -> dict:

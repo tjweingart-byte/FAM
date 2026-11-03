@@ -2347,6 +2347,21 @@
   .terms-check{ display:flex; gap:10px; align-items:flex-start; text-align:left;
     font-size:12.5px; line-height:1.45; color:var(--text-muted); margin:12px 0 14px; cursor:pointer; }
   .terms-check[hidden]{ display:none; }
+  /* The activation step (§414). */
+  .act-card{ max-height:88%; overflow-y:auto; text-align:left; }
+  .act-close{ position:absolute; top:12px; right:12px; }
+  .sheet-close[hidden], .act-close[hidden], #actForm[hidden], #actConfirm[hidden],
+  #actGone[hidden]{ display:none; }
+  .act-label{ display:block; font-family:'Geist Mono', monospace; font-size:9.5px;
+    letter-spacing:0.12em; text-transform:uppercase; color:var(--text-faint); margin:4px 0 6px; }
+  .act-input{ margin-bottom:4px; }
+  .act-help{ font-size:11.5px; line-height:1.4; color:var(--text-muted); margin-bottom:12px; }
+  .act-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; }
+  .act-chip{ border:1px solid var(--border-strong); background:var(--bg); color:var(--text);
+    border-radius:16px; padding:7px 11px; font-family:'Geist',sans-serif; font-size:12px;
+    cursor:pointer; }
+  .act-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .act-notice{ margin-top:6px; }
   .terms-check input{ width:18px; height:18px; flex:0 0 18px; margin:1px 0 0; accent-color:var(--copper); }
   /* How much of the allowance is gone, because a number in a sentence is read
      and a bar is seen. Hidden when the server did not send the figures. */
@@ -3752,10 +3767,11 @@
                        autocapitalize="words" spellcheck="false"
                        placeholder="Country" style="margin-bottom:0;">
               </div>
-              <div class="id-note">Optional. For local episodes &mdash; never shown on your profile.</div>
+              <div class="id-note">Optional. For local episodes &mdash; and it shows on your profile.</div>
             </div>
 
-            <!-- The account, last: private, like the location above it. The
+            <!-- The account, last: private (the location above it is not: it shows
+                 on the profile, §219, §410). The
                  interests the profile shows are chosen higher up, beside the
                  other public fields - the YourFAM handoff moved that choice
                  back here from the profile's own sheet, because the hub has no
@@ -3827,7 +3843,7 @@
         <div class="scroll">
           <div class="entry-wrap" style="min-height:0;">
             <div class="entry-h">Where you are</div>
-            <p class="entry-lede">So we can offer you episodes about where you live. It&rsquo;s never shown on your profile.</p>
+            <p class="entry-lede">So we can offer you episodes about where you live. It shows on your profile.</p>
 
             <div class="auth-field">
               <div class="auth-label">City</div>
@@ -5133,6 +5149,53 @@
         </div>
       </div>
 
+      <!-- The activation step (§411, §414): date of birth (required, 13 and
+           over), where you live and gender (optional), and the counting
+           notice - every word from /api/activation, so the app and an iOS
+           client say the same. Not dismissable on first run; from Settings
+           it is the editor for the same answers, with a close button. -->
+      <div class="modal-overlay" id="activationOverlay" role="dialog" aria-modal="true"
+           aria-labelledby="actTitle">
+        <div class="modal-card act-card">
+          <button class="sheet-close act-close" id="actClose" hidden
+                  onclick="closeActivation()" aria-label="Close"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          <div id="actForm">
+            <div class="modal-title" id="actTitle">A few things before you start</div>
+            <label class="act-label" for="actBirth">Date of birth</label>
+            <input class="modal-input act-input" id="actBirth" type="date"
+                   oninput="activationReady()" onchange="activationReady()">
+            <div class="act-help" id="actBirthHelp"></div>
+            <label class="act-label" for="actPlace">Where you live</label>
+            <input class="modal-input act-input" id="actPlace" type="text"
+                   placeholder="Town or city" autocomplete="address-level2"
+                   autocapitalize="words" spellcheck="false">
+            <div class="act-help" id="actPlaceHelp"></div>
+            <div class="act-label">Gender</div>
+            <div class="act-chips" id="actGenders" role="radiogroup" aria-label="Gender"></div>
+            <div class="act-help" id="actGenderHelp"></div>
+            <div class="limit-body act-notice" id="actNotice"></div>
+            <div class="modal-btns stack">
+              <button class="modal-btn primary" id="actGo" disabled
+                      onclick="submitActivation(false)">Continue</button>
+            </div>
+          </div>
+          <!-- "Is {date} right?" before an under-13 date deletes the account. -->
+          <div id="actConfirm" hidden>
+            <div class="modal-title" id="actConfirmQ"></div>
+            <div class="modal-btns stack">
+              <button class="modal-btn primary" onclick="submitActivation(true)">Yes</button>
+              <button class="modal-btn ghost" onclick="changeActivationDate()">Change it</button>
+            </div>
+          </div>
+          <div id="actGone" hidden>
+            <div class="modal-title" id="actGoneMsg"></div>
+            <div class="modal-btns stack">
+              <button class="modal-btn primary" onclick="location.reload()">OK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- What a bigger plan buys, read from /api/plans so the tiers and the
            features are the server's, not a second copy that drifts. No prices:
            a number here and a number in App Store Connect are two places for
@@ -6236,6 +6299,8 @@
     stopWelcomeSampleLeaving(id);
     if(id === "welcome") loadWelcomeSamples();
     if(id === "home") loadTrendSearches();
+    // The activation step held through sign-up's steps opens after them.
+    releaseActivation(id);
   }
 
   // Which of sign-up's three steps a screen is, or 0: the sign-up form, the
@@ -7316,6 +7381,164 @@
         } else toast("Couldn’t save that. Try again.");
       })
       .catch(function(){ toast("Couldn’t save that. Try again."); });
+  }
+
+  // ---------------- The activation step (§411, §414) ----------------
+  // Date of birth (required, 13 and over), where you live and gender
+  // (optional), asked once when an account is let into the app - and, for
+  // those already in, the next time they open it. `/api/auth/me` says
+  // whether it is owed (`activation_needed`); every word the form shows is
+  // `/api/activation`'s. From Settings the same form is the editor.
+  var ACTIVATION = null, actGender = "", actEditing = false;
+  //: Owed, but held until sign-up's own steps are done (§414): a new
+  //: account is asked its name and place first, and the step then opens
+  //: with that place already in it - never on top of the sign-up flow.
+  var activationPending = false;
+  function inFirstRun(){
+    var here = document.querySelector(".screen.active");
+    return !!(here && firstRunStep(here.id.replace("screen-", "")));
+  }
+  function checkActivation(){
+    if(!(AUTH && AUTH.authenticated && AUTH.activation_needed)) return Promise.resolve(null);
+    if(inFirstRun()){ activationPending = true; return Promise.resolve(null); }
+    return loadActivation().then(function(d){
+      if(d && d.needed) openActivation(false);
+      return d;
+    });
+  }
+  function releaseActivation(id){
+    if(!activationPending || firstRunStep(id)) return;
+    activationPending = false;
+    checkActivation();
+  }
+  function loadActivation(){
+    if(!(AUTH && AUTH.authenticated)) return Promise.resolve(null);
+    return fetch("/api/activation").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d) ACTIVATION = d; return ACTIVATION; })
+      .catch(function(){ return ACTIVATION; });
+  }
+  // The place as the box showed it: sent back only when it was changed, so
+  // a place kept as town / region / country is never re-split (§417).
+  var actPlaceShown = "";
+  function placeText(loc){
+    return [loc && loc.city, loc && loc.region, loc && loc.country]
+      .filter(function(p){ return p; }).join(", ");
+  }
+  function drawActivationGenders(){
+    var box = document.getElementById("actGenders");
+    if(!box || !ACTIVATION) return;
+    box.innerHTML = (ACTIVATION.genders || []).map(function(g){
+      var on = g.id === actGender;
+      return '<button type="button" class="act-chip' + (on ? " on" : "") + '" role="radio"'
+        + ' aria-checked="' + on + '" onclick="pickActivationGender(\'' + g.id + '\')">'
+        + escapeHtml(g.label) + '</button>';
+    }).join("");
+  }
+  function pickActivationGender(id){
+    // Tapping the chosen one again clears it: gender is optional.
+    actGender = actGender === id ? "" : id;
+    drawActivationGenders();
+  }
+  function activationReady(){
+    document.getElementById("actGo").disabled = !document.getElementById("actBirth").value;
+  }
+  function openActivation(editing){
+    if(!ACTIVATION) return;
+    actEditing = !!editing;
+    actGender = ACTIVATION.gender || "";
+    document.getElementById("actTitle").textContent =
+      actEditing ? "Your details" : ACTIVATION.title;
+    document.getElementById("actBirth").value = ACTIVATION.birth_date || "";
+    document.getElementById("actBirth").max = new Date().toISOString().slice(0, 10);
+    actPlaceShown = placeText(ACTIVATION.location);
+    document.getElementById("actPlace").value = actPlaceShown;
+    var help = ACTIVATION.help || {};
+    document.getElementById("actBirthHelp").textContent = help.birth_date || "";
+    document.getElementById("actPlaceHelp").textContent = help.location || "";
+    document.getElementById("actGenderHelp").textContent = help.gender || "";
+    var notice = (ACTIVATION.counting && ACTIVATION.counting.notice) || {};
+    document.getElementById("actNotice").innerHTML = escapeHtml(notice.body || "")
+      + (notice.privacy_url ? ' <a href="' + notice.privacy_url
+         + '" target="_blank" rel="noopener">Privacy policy</a>' : "");
+    // The first time it is owed it cannot be closed: the date is required.
+    document.getElementById("actClose").hidden = !actEditing;
+    document.getElementById("actForm").hidden = false;
+    document.getElementById("actConfirm").hidden = true;
+    document.getElementById("actGone").hidden = true;
+    drawActivationGenders();
+    activationReady();
+    document.getElementById("activationOverlay").classList.add("active");
+  }
+  function closeActivation(){
+    if(!actEditing && ACTIVATION && ACTIVATION.needed) return;
+    document.getElementById("activationOverlay").classList.remove("active");
+  }
+  function changeActivationDate(){
+    document.getElementById("actConfirm").hidden = true;
+    document.getElementById("actForm").hidden = false;
+    document.getElementById("actBirth").focus();
+    activationReady();
+  }
+  function submitActivation(confirmed){
+    var birth = document.getElementById("actBirth").value;
+    if(!birth) return;
+    // One box for the place; the server splits "Town, State, Country".
+    var place = document.getElementById("actPlace").value.trim();
+    var body = { birth_date: birth, gender: actGender };
+    if(place !== actPlaceShown){ body.city = place; body.region = null; body.country = null; }
+    if(confirmed) body.confirm_under_13 = true;
+    document.getElementById("actGo").disabled = true;
+    fetch("/api/activation", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body) })
+      .then(function(r){ return r.json().then(function(d){ return { r: r, d: d }; }); })
+      .then(function(x){
+        if(x.r.status === 409 && x.d.confirm){
+          // Under 13: asked first, so a slip of the finger costs nothing.
+          document.getElementById("actConfirmQ").textContent = x.d.confirm;
+          document.getElementById("actForm").hidden = true;
+          document.getElementById("actConfirm").hidden = false;
+          return;
+        }
+        if(!x.r.ok) throw new Error(x.d.error || "Couldn\u2019t save that. Try again.");
+        if(x.d.deleted){
+          document.getElementById("actGoneMsg").textContent = x.d.message;
+          document.getElementById("actConfirm").hidden = true;
+          document.getElementById("actForm").hidden = true;
+          document.getElementById("actClose").hidden = true;
+          document.getElementById("actGone").hidden = false;
+          return;
+        }
+        ACTIVATION = x.d;
+        AUTH.activation_needed = false;
+        document.getElementById("activationOverlay").classList.remove("active");
+        if(actEditing){ toast("Saved"); renderSettings(); }
+      })
+      .catch(function(e){ toast(e.message); activationReady(); });
+  }
+  function activationSummary(field){
+    if(!ACTIVATION) return "";
+    if(field === "birth_date") return ACTIVATION.birth_date || "Not set";
+    var g = (ACTIVATION.genders || []).filter(function(x){ return x.id === ACTIVATION.gender; })[0];
+    return g ? g.label : "Not set";
+  }
+  function editActivation(){
+    loadActivation().then(function(d){
+      if(d) openActivation(true); else toast("Couldn\u2019t reach FAM. Try again.");
+    });
+  }
+  function countingOn(){
+    return !!(ACTIVATION && ACTIVATION.counting && ACTIVATION.counting.counted);
+  }
+  function setCounting(on){
+    fetch("/api/consent", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "demographics", allow: !!on }) })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d || !d.demographics){ toast("Couldn\u2019t save that. Try again."); return; }
+        if(ACTIVATION) ACTIVATION.counting = d.demographics;
+        renderSettings();
+      })
+      .catch(function(){ toast("Couldn\u2019t save that. Try again."); });
   }
 
   // ---------------- Reporting and blocking (App Store 1.2, moderation.py) ----------------
@@ -15223,7 +15446,11 @@
       });
     }).then(function(d){
       toast(okMessage);
-      return refreshAuth().then(function(){ loadProfile(); checkTerms(); return d; });
+      return refreshAuth().then(function(){
+        loadProfile();
+        checkTerms().then(checkActivation);
+        return d;
+      });
     }).catch(function(err){ (onError || toast)(err.message); });
   }
 
@@ -16639,6 +16866,7 @@
     loadAiConsent().then(renderSettings);
     if(AUTH.authenticated){
       loadBlocked().then(renderSettings);
+      loadActivation().then(renderSettings);
     }
   }
 
@@ -16677,6 +16905,14 @@
       // and says so rather than failing on save.
       + settingsRow("Where you are", escapeHtml(locationSummary()),
           "openLocationFromSettings()")
+      // The activation step's answers (§414), beside the place: corrected
+      // here, never removed once in; gender a choice or nothing.
+      + (AUTH.authenticated
+          ? settingsRow("Date of birth", escapeHtml(activationSummary("birth_date")),
+              "editActivation()")
+            + settingsRow("Gender", escapeHtml(activationSummary("gender")),
+              "editActivation()")
+          : "")
       // The clock episodes are written on (10.1). Automatic is the device's
       // own zone and needs no permission; this row is for pinning another.
       + settingsRow("Time zone", escapeHtml(zoneSummary()), "openTimeZoneMenu()");
@@ -16716,6 +16952,10 @@
           "toggleAiConsent()")
       + '<div class="set-note">FAM writes episodes for what you ask with Anthropic\u2019s Claude, and searches for sources with Parallel and Perplexity. Turn this off and you can still listen to everything FAM writes ahead.</div>';
     if(AUTH.authenticated){
+      // Counted by default, turned off here (§410 decision 2, §414).
+      html += settingsRow("Count me in FAM\u2019s totals", countingOn() ? "On" : "Off",
+          "setCounting(" + (countingOn() ? "false" : "true") + ")")
+        + '<div class="set-note">FAM counts what groups of listeners hear, by age group, gender and region, only in groups of 100 or more. You\u2019re never picked out, and none of it is shown or sent to anyone.</div>';
       html += settingsRow("Blocked people",
           blockedCount === null ? "" : (blockedCount ? String(blockedCount) : "None"),
           "openBlocked()");
@@ -23401,7 +23641,9 @@
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.
-  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(checkTerms);
+  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(checkTerms)
+    // The activation step, when it is owed (§414) - after the Terms.
+    .then(checkActivation);
 </script>
 </body>
 </html>

@@ -112,6 +112,10 @@ services:
         sync: false
       - key: MONGODB_URI
         sync: false
+      # Sonic's read-only Atlas user (§403); the retriever never uses the
+      # writer's MONGODB_URI.
+      - key: MONGODB_READ_URI
+        sync: false
       - key: AUDIO_STORE
         sync: false
       - key: AUDIO_BUCKET

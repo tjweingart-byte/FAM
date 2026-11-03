@@ -1122,6 +1122,26 @@ class MemoryScriptCache:
             return "", ""
         return self._categories.get(key, ""), self._category_nodes.get(key, "")
 
+    # The tag everywhere (§404); the memory cache keeps no bucket objects.
+    def set_category_node(self, key: str, node: str) -> bool:
+        if key not in self._data:
+            return False
+        if node:
+            self._category_nodes[key] = node
+        else:
+            self._category_nodes.pop(key, None)
+        return True
+
+    def audio_objects(self, key: str) -> list:
+        return []
+
+    def keys_with_node(self, node: str, limit: int = 5000) -> list:
+        return [k for k, n in self._category_nodes.items() if n == node][:limit]
+
+    def tagged(self, after: str = "", limit: int = 500) -> list:
+        return [(k, n, self.sourced_at(k), []) for k, n in
+                sorted(self._category_nodes.items()) if k > after][:limit]
+
     # -- audio (§132) -------------------------------------------------------
 
     def _live(self, key: str) -> bool:
@@ -1989,7 +2009,7 @@ class SqliteScriptCache:
             name = ""
             store = audio_store.get_store()
             if store is not None:
-                name = self._upload(store, blob)
+                name = self._upload(store, blob, self._tag_metadata(key))
                 if not name:
                     return False
             # A row this replaces may name an object of its own.
@@ -2021,8 +2041,19 @@ class SqliteScriptCache:
             log.exception("audio cache write failed; continuing")
             return False
 
+    def _tag_metadata(self, key: str) -> dict:
+        """The R2 metadata an episode's audio carries (§404, decided item 5):
+        Nando's node and the episode's id, so the bucket can be checked
+        against the script cache and the archive. {} when Nando did not
+        file it - with `AGENTS=0` an upload is exactly as it was."""
+        node = self.category_node(key)
+        if not node:
+            return {}
+        return {"category-node": node,
+                "episode": episode_id(key, self.sourced_at(key))}
+
     @staticmethod
-    def _upload(store, blob: bytes) -> str:
+    def _upload(store, blob: bytes, metadata: Optional[dict] = None) -> str:
         """Put one episode's audio in the bucket under a new `recent/` name,
         trying again after each of `UPLOAD_RETRY_SECONDS`. The name, or ""
         when every try failed - which is recorded where /admin reads it,
@@ -2033,7 +2064,10 @@ class SqliteScriptCache:
             if wait:
                 time.sleep(wait)
             try:
-                store.put(name, blob)
+                if metadata:
+                    store.put(name, blob, metadata=metadata)
+                else:
+                    store.put(name, blob)
                 return name
             except audio_store.AudioStoreError as exc:
                 last = exc
@@ -2306,6 +2340,52 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache category node read failed")
             return ""
+
+    # -------------------------------------------------- the tag everywhere (§404)
+    def set_category_node(self, key: str, node: str) -> bool:
+        """Re-file a written episode: its node, and nothing else, changes.
+        The archived copies of earlier writes under the key keep theirs."""
+        try:
+            cur = self._conn().execute(
+                "UPDATE scripts SET category_node = ? WHERE key = ?",
+                ((node or "")[:80], key))
+            return bool(cur.rowcount)
+        except Exception:
+            log.exception("script cache re-file failed")
+            return False
+
+    def audio_objects(self, key: str) -> list:
+        """The bucket objects holding this episode's audio, every voice."""
+        try:
+            return [r[0] for r in self._conn().execute(
+                "SELECT object_key FROM episode_audio WHERE key = ? AND object_key != ''",
+                (key,)).fetchall()]
+        except Exception:
+            log.exception("script cache audio read failed")
+            return []
+
+    def keys_with_node(self, node: str, limit: int = 5000) -> list:
+        """Written episodes Nando filed under `node`."""
+        try:
+            return [r[0] for r in self._conn().execute(
+                "SELECT key FROM scripts WHERE category_node = ? LIMIT ?",
+                (node, max(1, int(limit)))).fetchall()]
+        except Exception:
+            log.exception("script cache node read failed")
+            return []
+
+    def tagged(self, after: str = "", limit: int = 500) -> list:
+        """(key, node, sourced_at, [object names]) for filed episodes after
+        `after`, by key - the sync check's pages (§405)."""
+        try:
+            rows = self._conn().execute(
+                f"SELECT key, category_node, {_SOURCED} FROM scripts WHERE key > ? "
+                "AND category_node != '' ORDER BY key LIMIT ?",
+                (after, max(1, int(limit)))).fetchall()
+            return [(k, n, s, self.audio_objects(k)) for k, n, s in rows]
+        except Exception:
+            log.exception("script cache tag read failed")
+            return []
 
     def category_pair(self, key: str) -> tuple:
         """`(words, node)` in one read (§376), or ("", "")."""

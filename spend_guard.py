@@ -85,6 +85,8 @@ PAID_CREDENTIALS = (
     # outside the private network. Staging keeps its archive in its own
     # SQLite file (`ARCHIVE_BACKEND` is forced below).
     "MONGODB_URI",
+    # §403: Sonic's own read-only user on the same cluster.
+    "MONGODB_READ_URI",
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",
