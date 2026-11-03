@@ -10,7 +10,6 @@ import asyncio
 import dataclasses
 import json
 import os
-import sqlite3
 import sys
 from contextlib import closing
 from types import SimpleNamespace
@@ -19,6 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import db as store_db  # noqa: E402  (a store's file, or its schema in Postgres, §243)
 import history_archive as ha  # noqa: E402
 from agents import dedupe, housekeeper as hk, housekeeping as hj, models  # noqa: E402
 
@@ -84,7 +84,7 @@ def _add(store, fact, created):
 
 
 def _rows(store, sql, *args):
-    with closing(sqlite3.connect(store.path)) as db:
+    with closing(store_db.connect(store.path)) as db:
         return db.execute(sql, args).fetchall()
 
 

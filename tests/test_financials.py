@@ -251,3 +251,25 @@ def test_the_sports_plan_is_balldontlie_s_named_by_its_setting(stores, monkeypat
     _set(monkeypatch, balldontlie_tier="all-star")
     row = [r for r in financials.catalogue() if r["vendor"] == "BALLDONTLIE"][0]
     assert row["plan"].startswith("ALL-STAR") and row["status"] == "Paying, enter price"
+
+
+def test_tiingo_s_licence_is_priced_and_the_episode_is_haiku_s(stores, monkeypatch):
+    """§423: Tiingo's redistribution licence is $249 a month all in - a launch
+    purchase until TIINGO_PLAN says it is bought, then a paying row; the
+    internal-use plans still name the licence as owed. A new episode before
+    there is traffic is priced on the Haiku writer, not the Sonnet one."""
+    _set(monkeypatch, tiingo_plan="free")
+    launch = financials.launch_purchases(financials.catalogue())
+    tiingo = [p for p in launch if "Tiingo" in p["item"]]
+    assert len(tiingo) == 1 and tiingo[0]["price"] == 249
+    _set(monkeypatch, tiingo_plan="power")
+    rows = financials.catalogue()
+    row = [r for r in rows if r["vendor"] == "Tiingo"][0]
+    assert row["status"].startswith("Paying, redistribution licence needed")
+    assert any("Tiingo" in p["item"] for p in financials.launch_purchases(rows))
+    _set(monkeypatch, tiingo_plan="redistribution")
+    rows = financials.catalogue()
+    row = [r for r in rows if r["vendor"] == "Tiingo"][0]
+    assert row["status"] == "Paying" and row["price"] == 249
+    assert not any("Tiingo" in p["item"] for p in financials.launch_purchases(rows))
+    assert financials.NEW_EPISODE_USD == 0.011

@@ -19,7 +19,6 @@ import json
 import math
 import os
 import re
-import sqlite3
 import sys
 from contextlib import closing
 from types import SimpleNamespace
@@ -28,6 +27,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import db as store_db  # noqa: E402  (a store's file, or its schema in Postgres, §243)
 import history_archive as ha  # noqa: E402
 from agents import dedupe, dedupe_eval, housekeeper as hk, models  # noqa: E402
 
@@ -112,7 +112,7 @@ def _date(day):
 
 
 def _active(store):
-    with closing(sqlite3.connect(store.path)) as db:
+    with closing(store_db.connect(store.path)) as db:
         return dict(db.execute("SELECT text, active FROM facts").fetchall())
 
 
@@ -303,7 +303,7 @@ def test_live_after_a_passed_eval_marks_the_repeat_reversibly(archive, monkeypat
     assert (summary["mode"], summary["marked"]) == ("live", 1)
     assert _active(archive) == {"The council approved the budget.": 1,
                                 "The budget was approved by the council.": 0}
-    with closing(sqlite3.connect(archive.path)) as db:
+    with closing(store_db.connect(archive.path)) as db:
         links, = db.execute("SELECT corroborations FROM facts WHERE active = 1").fetchone()
         repeat_id, why = db.execute("SELECT id, superseded_why FROM facts "
                                     "WHERE active = 0").fetchone()
@@ -313,7 +313,7 @@ def test_live_after_a_passed_eval_marks_the_repeat_reversibly(archive, monkeypat
     # Reversible: undone, the link comes off the keeper.
     assert archive.restore(repeat_id)
     assert set(_active(archive).values()) == {1}
-    with closing(sqlite3.connect(archive.path)) as db:
+    with closing(store_db.connect(archive.path)) as db:
         assert db.execute("SELECT corroborations FROM facts WHERE id != ?",
                           (repeat_id,)).fetchone()[0] == "[]"
 
