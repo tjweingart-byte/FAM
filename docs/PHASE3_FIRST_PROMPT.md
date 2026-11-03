@@ -26,7 +26,7 @@ the writing rules in `product.md` above all), `docs/AGENTS_BUILD_PROMPT.md`
 32, 34 and 37 are Phase 3's), `docs/FAM_AGENTS.md` (Shakespeare's and
 Mclovin's tabs, Models decided), the signed rule books in `docs/agent_rules/`
 (`every-agent.md`, `shakespeare.md`, `mclovin.md`), and PROBLEMS.md §309
-(episode quality), §346 (the models), §369-§392, §393-§417 and §425-§431 via
+(episode quality), §346 (the models), §369-§392, §393-§417 and §425-§432 via
 `PROBLEMS_INDEX.md`. Check CI on Main before starting.
 
 The work, in the build prompt's order (I may reorder):
