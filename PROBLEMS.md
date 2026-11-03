@@ -27948,3 +27948,34 @@ shape unchanged otherwise; 300 over HTTP, refunded, and resumed with
 `reading=`; an older client never stopped; four key-shaped reads take the
 reading; the tie call and the ahead writers) and
 `tests/test_agents_c3p0_call.py`.
+
+## 420. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03)
+
+The client half of §419. A search - typed, trending or spoken (voice search
+ends in the same `sendSearch`) - plays with `askReading` (`ask_reading=1`),
+so the server may stop and ask. `FamAudio` turns a 300 into an error
+carrying `readings` and `likeliest`; `onGenerationFailed` hands it to
+`askReading`, which shows "Which one do you mean?" with the question and the
+server's readings as buttons (`#readingOverlay`, the consent card's shape)
+and a Cancel. Nothing is pre-selected: the readings are the server's words
+and the client guesses nothing. A choice sets the topic's `reading` and
+generates the same key again; Cancel leaves it unplayed.
+
+**The reading travels with the episode.** It is part of the key, so every
+request the player makes about that episode carries it: the audio
+(`listener.reading`), `/api/progress` (the loading steps), `/api/next`,
+`/api/transcript` and `/api/sources` (`readingParam`). `episodeStamp` gains
+a fourth field for it, and the one reader that split the stamp from the end
+(the feedback report) now takes three fields off, not two. The double-tap
+guard (`episodeSignature` / `awaitingFirstAudio`) includes it, so a choice
+is never mistaken for a re-tap of the stopped request.
+
+Every other surface - myFAM, DailyFAM, Explore, shares - does not ask: their
+episodes are written ahead or replayed, and an older client never asks
+either (§419). History, saves and shares replay by the episode's id, which
+already names the reading's key.
+
+Smoke check: "A shared name asks which one, then plays the choice" (a 300
+for a search that can ask, the picker with the two readings, the second
+chosen, the next `/api/audio` carrying `reading=Manchester%20United`, the
+episode's stamp ending in it).

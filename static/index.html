@@ -5131,6 +5131,19 @@
         </div>
       </div>
 
+      <!-- A name in the question means more than one thing (§419): which one?
+           Asked before anything is searched; the choice plays the episode. -->
+      <div class="modal-overlay" id="readingOverlay">
+        <div class="modal-card">
+          <div class="modal-title" id="readingTitle">Which one do you mean?</div>
+          <div class="limit-body" id="readingQuestion"></div>
+          <div class="modal-btns stack" id="readingChoices"></div>
+          <div class="modal-btns">
+            <button class="modal-btn ghost" onclick="answerReading('')">Cancel</button>
+          </div>
+        </div>
+      </div>
+
       <!-- An account whose acceptance is missing or older than the current
            Terms (§228): asked once, on whatever screen it is on, before it
            goes on. No "Not now" - stopping agreeing is deleting the account,
@@ -6461,12 +6474,13 @@
         }
       } else if(PLAYER_SCREENS[screen] && episodeStamp){
         var parts = episodeStamp.split("|");
-        // The query is everything before the last two fields, so a "|"
-        // typed into a question does not cut it short.
-        var q = parts.slice(0, Math.max(1, parts.length - 2)).join("|");
+        // The query is everything before the last three fields (minutes,
+        // context, reading - §419), so a "|" typed into a question does not
+        // cut it short.
+        var q = parts.slice(0, Math.max(1, parts.length - 3)).join("|");
         out.episode = { q: q.slice(0, 500),
-                        minutes: Number(parts[parts.length - 2]) || 0,
-                        context: (parts.length > 2 ? parts[parts.length - 1] : "").slice(0, 300),
+                        minutes: Number(parts[parts.length - 3]) || 0,
+                        context: (parts.length > 3 ? parts[parts.length - 2] : "").slice(0, 300),
                         // The id its audio arrived with (§173): the server
                         // finds exactly what played, current or not (10.16 #3).
                         id: (window.FamAudio && FamAudio.episode && FamAudio.episode()) || "",
@@ -7051,7 +7065,7 @@
   // Which episode to ask about. Set by `speakText`, which is the one place
   // that knows the exact question, length and context the audio request was
   // sent with - the progress is keyed on exactly those.
-  function trackGenSteps(query, minutes, context, surface, topicId){
+  function trackGenSteps(query, minutes, context, surface, topicId, reading){
     var st = genSteps;
     if(!st || st.plan) return;
     // Everything the audio request's key is built from, and the two that
@@ -7061,7 +7075,8 @@
       + encodeURIComponent(minutes)
       + (context ? "&context=" + encodeURIComponent(context) : "")
       + (surface ? "&surface=" + encodeURIComponent(surface) : "")
-      + (topicId ? "&topic_id=" + encodeURIComponent(topicId) : "");
+      + (topicId ? "&topic_id=" + encodeURIComponent(topicId) : "")
+      + readingParam(reading);
     var tick = function(){
       if(st !== genSteps) return;
       pollGenSteps(st);
@@ -7190,6 +7205,13 @@
       return;
     }
     clearGenOverlay();
+    // A name that means two things (§419): which one, then the same episode
+    // again with the chosen reading.
+    if(err && err.readings && err.readings.length > 1 && lastGenerate
+       && TOPICS[lastGenerate.key]){
+      askReading(lastGenerate.key, lastGenerate.albumContext, err.readings);
+      return;
+    }
     // The server holds this client to the listener's answer (consent.py): a
     // yes withdrawn elsewhere, or never given, is asked here and the same
     // episode started again after it.
@@ -7216,6 +7238,39 @@
     // failure, not the playlist's: it goes on to the next one.
     if(mixItemFailed(message, err)) return;
     toast(message || "Could not generate that briefing");
+  }
+
+  // ---------------- Which one do you mean? (§419) ----------------
+  // The server stopped before searching: a name in the question means more
+  // than one thing. The readings are the server's words; nothing is guessed
+  // here. Choosing one plays the same episode with `reading`; Cancel leaves
+  // it unplayed.
+  var readingThen = null;
+  function askReading(key, albumContext, readings){
+    var t = TOPICS[key];
+    if(stack[stack.length - 1] === "player" && stack.length > 1) goBack();
+    readingThen = function(choice){
+      t.reading = choice;
+      if(playSurface(t) === "search") pendingFromSearch = true;
+      generate(key, albumContext);
+    };
+    document.getElementById("readingQuestion").textContent = t.prompt || t.title || "";
+    var box = document.getElementById("readingChoices");
+    box.innerHTML = "";
+    readings.slice(0, 4).forEach(function(r){
+      var b = document.createElement("button");
+      b.className = "modal-btn primary";
+      b.textContent = r;
+      b.onclick = function(){ answerReading(r); };
+      box.appendChild(b);
+    });
+    document.getElementById("readingOverlay").classList.add("active");
+  }
+  function answerReading(choice){
+    var then = readingThen;
+    readingThen = null;
+    document.getElementById("readingOverlay").classList.remove("active");
+    if(choice && then) then(choice);
   }
 
   // ---------------- Reaching a limit ----------------
@@ -7754,7 +7809,7 @@
     var t = TOPICS[key];
     if(!t) return "";
     return (t.prompt || t.title) + "|" + episodeMinutes(t.exploreMinutes || 0, playSurface(t))
-         + "|" + selectedVoice + "|" + (t.parentTopic || "");
+         + "|" + selectedVoice + "|" + (t.parentTopic || "") + "|" + (t.reading || "");
   }
   // The request that has been sent and has produced no audio yet.
   var awaitingFirstAudio = "";
@@ -8064,9 +8119,9 @@
   //: Only ever turns on while an episode is written: the server reads it off
   //: what has been said so far, and a word said is not unsaid.
   var episodeExplicit = false;
-  function rememberEpisode(query, minutes, context, replay){
+  function rememberEpisode(query, minutes, context, replay, reading){
     episodeReplay = !!replay;
-    episodeStamp = query + "|" + minutes + "|" + (context || "");
+    episodeStamp = query + "|" + minutes + "|" + (context || "") + "|" + (reading || "");
     episodeThread = "";
     episodeTitle = "";
     episodeTitleFinal = false;
@@ -8096,7 +8151,7 @@
     var stamp = episodeStamp;
     fetch("/api/next?q=" + encodeURIComponent(parts[0]) +
           "&minutes=" + encodeURIComponent(parts[1]) +
-          "&context=" + encodeURIComponent(parts[2] || "") +
+          "&context=" + encodeURIComponent(parts[2] || "") + readingParam(parts[3]) +
           (episodeReplay ? "&cached_only=true" : ""))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data){
@@ -8264,7 +8319,7 @@
     var stamp = episodeStamp;
     fetch("/api/transcript?q=" + encodeURIComponent(parts[0]) +
           "&minutes=" + encodeURIComponent(parts[1]) +
-          "&context=" + encodeURIComponent(parts[2] || ""))
+          "&context=" + encodeURIComponent(parts[2] || "") + readingParam(parts[3]))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data){
         // The listener may have moved on while this was in flight.
@@ -9850,7 +9905,7 @@
     // so only that episode's own reports are held back.
     currentPlayPrivate = opts.private ? title : "";
     var totalSeconds = minutes * 60;
-    rememberEpisode(title, minutes, context || "", !!opts.cachedOnly);
+    rememberEpisode(title, minutes, context || "", !!opts.cachedOnly, opts.reading || "");
     var episodeTopicId = bankTopicId || "";
     // Which episode these events are about (§209): its length, and the id
     // its audio arrived with once it has.
@@ -9875,10 +9930,11 @@
     setSaved(false);
     setTimeout(refreshSavedState, 0);
     markPlaying();
-    awaitingFirstAudio = title + "|" + minutes + "|" + selectedVoice + "|" + (context || "");
+    awaitingFirstAudio = title + "|" + minutes + "|" + selectedVoice + "|" + (context || "")
+                       + "|" + (opts.reading || "");
     var fromDevice = isOffline() && !opts.attach && OfflineShelf.has(title, minutes, context || "");
     if(!opts.cachedOnly && !fromDevice) trackGenSteps(title, minutes, context || "", surface,
-                                       episodeTopicId);
+                                       episodeTopicId, opts.reading || "");
     // Kept on this device once all of it has arrived, so it plays offline
     // next time (an attachment is the listener's own document, and is not).
     var mySeq = ++speakSeq;
@@ -10025,7 +10081,8 @@
         context, surface === "search" ? selectedVoice : null, {
         topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
         attach: opts.attach || "", surface: surface, episode: opts.episode || "",
-        own: !!opts.own, private: !!opts.private
+        own: !!opts.own, private: !!opts.private,
+        askReading: !!opts.askReading, reading: opts.reading || ""
       });
     }
 
@@ -10077,6 +10134,10 @@
     stopSpeech();
     if(had) hideNowBar();
   }
+  //: `&reading=` for a key-shaped request (§419), "" when none was chosen.
+  function readingParam(reading){
+    return reading ? "&reading=" + encodeURIComponent(reading) : "";
+  }
   function pauseSpeech(){ FamAudio.pause(); }
   function resumeSpeech(){ FamAudio.resume(); }
 
@@ -10111,7 +10172,10 @@
                      minutes: episodeMinutes(t.exploreMinutes || 0, where),
                      attach: t.attach || "", surface: where,
                      own: !!t.own, private: !!t.private,
-                     episode: t.episode || "", queueable: true };
+                     episode: t.episode || "", queueable: true,
+                     // Which thing a shared name means (§419): asked on a
+                     // search, and the listener's choice once they made one.
+                     askReading: where === "search", reading: t.reading || "" };
     loadPlayerCard(key, t, playOpts.minutes);
     // A DailyFAM playlist entry ends by playing the next one (§134), and
     // anything else that starts playing means the playlist is over - the
@@ -14957,7 +15021,7 @@
     var stamp = episodeStamp;
     fetch("/api/sources?q=" + encodeURIComponent(parts[0]) +
           "&minutes=" + encodeURIComponent(parts[1]) +
-          "&context=" + encodeURIComponent(parts[2] || ""))
+          "&context=" + encodeURIComponent(parts[2] || "") + readingParam(parts[3]))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data){
         // The listener may have moved on while this was in flight.

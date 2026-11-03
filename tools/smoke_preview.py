@@ -2376,6 +2376,56 @@ def main() -> int:
             page.reload()
             page.wait_for_timeout(1200)
 
+        def asks_which_reading_of_a_shared_name():
+            """A name that means two things (§419): the server answers 300
+            with the readings, the search asks which one, and the choice
+            plays the same question with `reading=` - on the audio and on
+            every request about that episode after it."""
+            page.evaluate("""() => {
+                window.__readingCalls = [];
+                window.__readingInner = window.fetch;
+                window.fetch = function (input, init) {
+                    var url = typeof input === "string" ? input : (input && input.url) || "";
+                    if (url.indexOf("/api/audio") === 0) {
+                        window.__readingCalls.push(url);
+                        if (url.indexOf("ask_reading=1") >= 0 && url.indexOf("&reading=") < 0) {
+                            return Promise.resolve(new Response(JSON.stringify({
+                                detail: "Which one do you mean?",
+                                readings: ["United Airlines", "Manchester United"],
+                                likeliest: "Manchester United"}),
+                                {status: 300, headers: {"Content-Type": "application/json"}}));
+                        }
+                    }
+                    return window.__readingInner(input, init);
+                };
+            }""")
+            try:
+                page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home');"
+                              " delete TOPICS['_custom']; sendSearch('how did United do', '')")
+                page.wait_for_timeout(900)
+                first = page.evaluate("() => window.__readingCalls[0] || ''")
+                assert "ask_reading=1" in first, f"a search did not say it can ask: {first}"
+                assert page.eval_on_selector(
+                    "#readingOverlay", "e => e.classList.contains('active')"), \
+                    "the readings were not asked"
+                choices = page.evaluate(
+                    "() => Array.from(document.querySelectorAll('#readingChoices button'))"
+                    ".map(e => e.textContent.trim())")
+                assert choices == ["United Airlines", "Manchester United"], choices
+                page.click("#readingChoices button:nth-child(2)")
+                page.wait_for_timeout(900)
+                assert not page.eval_on_selector(
+                    "#readingOverlay", "e => e.classList.contains('active')"), "the picker stayed"
+                last = page.evaluate("() => window.__readingCalls[window.__readingCalls.length - 1]")
+                assert "reading=Manchester%20United" in last, f"the choice was not sent: {last}"
+                assert page.evaluate("() => episodeStamp.split('|').pop()") == "Manchester United", \
+                    "the episode's other requests would not carry the reading"
+                assert page.evaluate("() => readingParam('Manchester United')") == \
+                    "&reading=Manchester%20United"
+            finally:
+                page.evaluate("() => { window.fetch = window.__readingInner; "
+                              "stopSpeech(); clearGenOverlay(); answerReading(''); }")
+
         def report_and_block_are_in_the_menus():
             """App Store 1.2 (moderation.py): somebody else's comment has
             Report, a profile has Report and Block, and a report offers the
@@ -4431,6 +4481,8 @@ def main() -> int:
         check("Round-two motion holds nothing and leaves nothing behind",
               round_two_motion_holds_nothing)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
+        check("A shared name asks which one, then plays the choice",
+              asks_which_reading_of_a_shared_name)
         check("Report and Block are in the menus", report_and_block_are_in_the_menus)
         check("Forgot password is two steps on the log-in screen",
               forgot_password_is_two_steps_on_the_log_in_screen)
