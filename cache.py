@@ -334,6 +334,7 @@ def cache_key(
     canonical: Optional[str] = None,
     canonical_context: str = "",
     searched: bool = False,
+    reading: str = "",
 ) -> str:
     """Key on the canonical topic, the duration, and the voice settings.
 
@@ -342,25 +343,29 @@ def cache_key(
     short. Model is included so changing MODEL doesn't serve stale output from
     the previous one.
     """
-    payload = json.dumps(
-        {
-            "q": canonical or normalize_query(query),
-            "m": as_minutes(minutes),
-            # A follow-up is a different episode from the same words asked cold.
-            "ctx": canonical_context or "",
-            # A researched episode is a different thing from an instant one.
-            "search": bool(searched),
-            "model": settings.model,
-            "wpm": settings.target_wpm,
-            "v": 2,  # bump to invalidate everything after a prompt change
-        },
-        sort_keys=True,
-    )
+    fields = {
+        "q": canonical or normalize_query(query),
+        "m": as_minutes(minutes),
+        # A follow-up is a different episode from the same words asked cold.
+        "ctx": canonical_context or "",
+        # A researched episode is a different thing from an instant one.
+        "search": bool(searched),
+        "model": settings.model,
+        "wpm": settings.target_wpm,
+        "v": 2,  # bump to invalidate everything after a prompt change
+    }
+    # The reading the listener chose for a name that means two things
+    # (decided item 15, §419): a different episode from the same words.
+    # Only when there is one, so every key written before it is unchanged.
+    if reading:
+        fields["reading"] = " ".join(reading.split()).lower()
+    payload = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def key_bucket(
-    minutes: int, canonical_context: str = "", searched: bool = False
+    minutes: int, canonical_context: str = "", searched: bool = False,
+    reading: str = "",
 ) -> str:
     """Everything in `cache_key` *except* the question.
 
@@ -375,18 +380,20 @@ def key_bucket(
     retires the old vectors instead of comparing coordinates that no longer
     mean the same thing.
     """
-    payload = json.dumps(
-        {
-            "m": as_minutes(minutes),
-            "ctx": canonical_context or "",
-            "search": bool(searched),
-            "model": settings.model,
-            "wpm": settings.target_wpm,
-            "space": embeddings.space(),
-            "v": 2,
-        },
-        sort_keys=True,
-    )
+    fields = {
+        "m": as_minutes(minutes),
+        "ctx": canonical_context or "",
+        "search": bool(searched),
+        "model": settings.model,
+        "wpm": settings.target_wpm,
+        "space": embeddings.space(),
+        "v": 2,
+    }
+    # A chosen reading is its own kind of episode (§419), never a near
+    # match for the other reading's words. Only when there is one.
+    if reading:
+        fields["reading"] = " ".join(reading.split()).lower()
+    payload = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
 
 

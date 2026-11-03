@@ -27876,3 +27876,75 @@ flagged, before the cautions; a degraded brief still empty; C3P0's plan
 carries the flag; five recommendations counted and three facts not; no
 flag, no count; the check never raises; the real pipeline checks a
 finished script).
+
+## 419. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03)
+
+Decided item 15 (c3p0.md always 2: "say so and let FAM ask the listener
+which one they mean, before anything is searched. Never guess"). C3P0 has
+said `ambiguous` with two to four `readings` and a `likeliest` since §375,
+and nothing asked anyone: the episode was searched and written anyway, and
+Nando's own tie call could pick between the readings. The owner's answer on
+transport: `/api/progress` plus a `reading=` parameter, and the chosen
+reading re-asks as a new request (not a held-open one).
+
+**Where it stops.** `ScriptGenerator.prepare`, straight after the brief and
+before the live route, C3P0's plan, Nando's placement, any plugin, Sonic or
+the search (`_settle_reading`). It reads C3P0's answer on the brief only
+while he works on the episode (`ambiguous_readings`), so with him off -
+and with `AGENTS=0` - nothing here runs.
+
+- **A client that can ask** sends `ask_reading=1` on `/api/audio`. The
+  episode stops with `ReadingNeeded`; `/api/audio` answers **300** with
+  `{detail, readings, likeliest}`, nothing is charged (the brief was FAM's
+  spend, as with `NoEvidence`), and the live track keeps the readings so
+  `/api/progress` returns `readings` and `likeliest` too - only on an
+  episode that asked, so every other answer keeps its shape.
+- **The chosen reading** comes back as `reading=` on `/api/audio` and on
+  every key-shaped read (`/api/progress`, `/api/next`, `/api/transcript`,
+  `/api/sources`). It is in the cache key and the near-match bucket
+  (`cache.cache_key`/`key_bucket` through `pipeline.key_for`/`bucket_for`,
+  [prefetch-same-key]) **only when there is one**, so every key written
+  before is unchanged. A warmed brief is not used for it (that brief did not
+  know which was meant); the brief's prompt and C3P0's call are told "they
+  were asked which they meant and chose: X" (only then), and the writer
+  reads `READING_NOTE`: write about X and nothing else that shares the name.
+  It costs one more brief call - the price of searching for the right thing.
+- **An older client** never sends `ask_reading` and gets C3P0's likeliest
+  reading, told to the writer ([old-clients]). Its episode is kept for its
+  own replays but **never current** (ttl 0), so a client that can ask is
+  never served the guess under the plain key. With no likeliest it is
+  written as before, broader.
+- **Ahead of the tap** - prefetch, the DailyFAM edition, the Trending bank -
+  the tile's own context went to the brief; if C3P0 still says ambiguous the
+  episode is left unwritten (`"ambiguous"`, counted in the edition's summary)
+  until a tap asks.
+
+Counted in the agents block of `/api/health`: `reading_asked`,
+`reading_assumed`, `reading_unwritten`, `reading_none_likely`.
+
+**§377's open question, settled by the owner.** Nando's tie call no longer
+chooses between the readings of a name code left undecided ("how did United
+do"): his answer is dropped and the request is filed as if the call had not
+answered - broader, or nowhere - until a reading is chosen. A tie where no
+name is undecided is still his to answer, ahead of the tap as at the tap.
+`tests/test_agents_c3p0_call.py`'s old "takes the tie call" case for United
+was the old decision and now pins the new one.
+
+**Known gap.** A plain key written before this (or while C3P0 was off) is
+still served from the cache without asking: the cache is read before the
+brief. It ages out within the week.
+
+**Next (piece 2b):** the search and voice-search screens - the picker, and
+`reading` carried on every key-shaped request the player makes.
+
+Tests: `tests/test_reading_419.py` (the key unchanged without a reading and
+different with one, spacing and case folded, the bucket too; `ask_reading`
+not in the key; the brief's and C3P0's prompts name the reading only when
+there is one; the writer's note pinned; nothing ambiguous with C3P0 off; a
+chosen reading never asked again; a client that can ask stopped with the
+readings on `/api/progress`; ahead of the tap unwritten; an older client
+given the likeliest, and with none written as before; `/api/progress`'s
+shape unchanged otherwise; 300 over HTTP, refunded, and resumed with
+`reading=`; an older client never stopped; four key-shaped reads take the
+reading; the tie call and the ahead writers) and
+`tests/test_agents_c3p0_call.py`.

@@ -861,6 +861,13 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     # And its writer is the editions' own, when one is set (§269).
     notes.edition = True
     plan = await generator.understand(plan, notes)
+    # A name that means two things the story did not settle (§419).
+    import script_generator
+
+    if script_generator.ambiguous_readings(plan, notes)[0]:
+        return {"status": "ambiguous", "key": key,
+                "dollars": prefetch._dollars(notes),
+                "detail": "a name in it means more than one thing; the tap asks"}
     if getattr(plan.brief, "outcome_dependent", False):
         return {"status": "volatile", "key": key,
                 "dollars": prefetch._dollars(notes),

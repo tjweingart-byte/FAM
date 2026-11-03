@@ -84,7 +84,8 @@ async def key_for(plan: EpisodePlan, client=None) -> str:
     canonical = None
     if settings.cache_semantic_key and client is not None:
         canonical = await canonical_key(plan.query, client)
-    return cache_key(plan.query, plan.minutes, canonical, plan.context, plan.search)
+    return cache_key(plan.query, plan.minutes, canonical, plan.context, plan.search,
+                     getattr(plan, "reading", ""))
 
 
 def bucket_for(plan: EpisodePlan) -> str:
@@ -93,7 +94,7 @@ def bucket_for(plan: EpisodePlan) -> str:
     nothing is ever found in."""
     if plan.attachments or not settings.cache_vector:
         return ""
-    return key_bucket(plan.minutes, plan.context, plan.search)
+    return key_bucket(plan.minutes, plan.context, plan.search, getattr(plan, "reading", ""))
 
 QUEUE_DEPTH = 4
 # Silence inserted between sentences so the delivery does not sound rushed.
@@ -1639,6 +1640,11 @@ class PodcastPipeline:
                           recency_days=notes.recency_days,
                           live_domain=getattr(notes, "live_domain", ""),
                           intent=getattr(notes, "intent", ""))
+            # An older client's episode on the likeliest reading of a shared
+            # name (§419): kept for its own replays, never current, so a
+            # client that can ask is never served the guess under this key.
+            if getattr(notes, "reading_assumed", ""):
+                ttl = 0
         if writes and ttl <= 0 and settings.cache_life_seconds <= 0:
             # `CACHE_LIFE_SECONDS=0` is the pre-§143 cache: a never-current
             # episode is not written at all, and whatever the key held stays.

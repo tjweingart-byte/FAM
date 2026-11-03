@@ -419,3 +419,4 @@ and `limit` = Lines.
 | 27744 | 13 | 416. docs/BACKEND.md brought up to Phase 2 (2026-11-03) |
 | 27757 | 80 | 417. The review before the pull request (2026-11-03) |
 | 27837 | 43 | 418. Finishing Phase 1, piece 1: facts, never advice (2026-11-03) |
+| 27880 | 72 | 419. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03) |

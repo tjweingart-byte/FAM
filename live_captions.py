@@ -82,7 +82,8 @@ KEEP_SECONDS = 900.0
 
 class _Track:
     __slots__ = ("sentences", "starts", "sources", "title", "title_final",
-                 "category", "done", "touched", "marks", "cached")
+                 "category", "done", "touched", "marks", "cached", "readings",
+                 "likeliest")
 
     def __init__(self) -> None:
         self.sentences: list[str] = []
@@ -125,6 +126,11 @@ class _Track:
         #: True when this episode was replayed from the cache - nothing is
         #: being written, so there are no steps to walk through.
         self.cached = False
+        #: The readings of a name that means two things, when the episode
+        #: stopped to ask which one the listener means (§419), and C3P0's
+        #: likeliest. Empty for every episode that was not stopped.
+        self.readings: tuple = ()
+        self.likeliest: str = ""
         self.done = False
         self.touched = time.time()
 
@@ -222,6 +228,22 @@ def publish_title(key: str, title: str, final: bool = False) -> None:
             return
         track.title = str(title).strip()
         track.title_final = bool(final)
+        track.touched = time.time()
+
+
+def publish_readings(key: str, readings, likeliest: str = "") -> None:
+    """Record that this episode stopped to ask which reading of a name the
+    listener means (§419), for `/api/progress`. Never opens a track and
+    never raises."""
+    clean = tuple(" ".join(str(r).split())[:200] for r in readings or () if str(r).strip())
+    if not key or len(clean) < 2:
+        return
+    with _LOCK:
+        track = _TRACKS.get(key)
+        if track is None:
+            return
+        track.readings = clean[:4]
+        track.likeliest = " ".join(str(likeliest or "").split())[:200]
         track.touched = time.time()
 
 
@@ -451,6 +473,14 @@ def read_progress(key: str) -> dict:
         cached = track.cached
         has_marks = track.marks is not None
         events = dict(getattr(track.marks, "events", None) or {})
+        readings, likeliest = track.readings, track.likeliest
+    if readings:
+        # Stopped to ask (§419): the brief is done and nothing after it ran.
+        # The two fields only on an episode that asked, so every other answer
+        # is the shape it always was.
+        steps = {name: name == PROGRESS_STEPS[0][0] for name in steps}
+        return {"known": True, "cached": False, "steps": steps,
+                "readings": list(readings), "likeliest": likeliest}
     if cached:
         return {"known": True, "cached": True,
                 "steps": {name: True for name in steps}}

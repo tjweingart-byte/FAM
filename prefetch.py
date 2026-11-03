@@ -716,6 +716,17 @@ class Prefetcher:
                      candidate.query, candidate.source, candidate.reason)
             return "brief"
 
+        # **Nor for a name that means two things** (decided item 15, §419):
+        # nobody is here to ask, and the tile's own context did not settle
+        # it, so it stays unwritten until somebody taps it and is asked.
+        import script_generator
+
+        if script_generator.ambiguous_readings(plan, notes)[0]:
+            self.budget.spend(_dollars(notes), level="brief")
+            log.info("prefetch left %r unwritten: a name in it means more than "
+                     "one thing (%s)", candidate.query, candidate.source)
+            return "ambiguous"
+
         # A `script` warm keeps its brief too, and a tap can take that brief
         # before it ever reaches the cache - so it is counted here as well, but
         # with no dollars of its own: the whole cost of this warm is recorded

@@ -664,6 +664,10 @@ class ScriptNotes:
     #: (`categorizer.Prior`, §372) - the Trending story's category. None
     #: everywhere else, where `categorizer.prior_for` reads it from the tap.
     category_prior: object = None
+    #: The reading taken for an older client that cannot ask (§419): C3P0's
+    #: likeliest, "" otherwise. Such an episode is kept but never current,
+    #: so a client that can ask is never served the guess under the plain key.
+    reading_assumed: str = ""
     #: Nando's tie call, running beside the brief (§375), or None. Read once
     #: at placement and never waited for.
     category_tie_task: object = None
@@ -784,6 +788,70 @@ def _agent_runs(notes, role: str) -> bool:
     no notes, no answer, or `AGENTS=0`."""
     runs = getattr(getattr(notes, "agents", None), "runs", None)
     return bool(runs(role)) if callable(runs) else False
+
+class ReadingNeeded(Exception):
+    """A name in the request means two things and the listener has not said
+    which (decided item 15; c3p0.md always 2, §419). Raised after the brief
+    and before any plugin or Sonic is asked, so nothing is searched for the
+    wrong thing. `/api/audio` answers it with the readings; an edition or a
+    prefetch leaves the episode unwritten until somebody taps it."""
+
+    def __init__(self, readings, likeliest: str = ""):
+        self.readings = tuple(readings)
+        self.likeliest = likeliest
+        super().__init__("Which one do you mean? " + " or ".join(self.readings))
+
+
+def ambiguous_readings(plan: "EpisodePlan", notes) -> tuple:
+    """`(readings, likeliest)` when C3P0 said a name in this request means two
+    things and nobody has chosen; `((), "")` otherwise. Read from his answer
+    on the brief, only while he works on the episode - so with him off this
+    is always empty."""
+    if getattr(plan, "reading", "") or plan.brief is None:
+        return (), ""
+    if not _agent_runs(notes, "contextualizer"):
+        return (), ""
+    said = getattr(plan.brief, "contextualized", None) or {}
+    readings = tuple(r for r in (said.get("readings") or ()) if str(r).strip())
+    if not said.get("ambiguous") or len(readings) < 2:
+        return (), ""
+    return readings, str(said.get("likeliest") or "").strip()
+
+
+def _settle_reading(plan: "EpisodePlan", notes) -> "EpisodePlan":
+    """Stop to ask, or take the likeliest reading, when C3P0 said a name is
+    ambiguous (§419). Raises `ReadingNeeded` for a client that can ask and
+    for anything written ahead of the tap (c3p0.md always 2: "leave it
+    unwritten until someone taps it"); an older client gets C3P0's likeliest
+    reading, told to the writer, and the episode is never current under the
+    plain key. Unchanged when nothing is ambiguous or C3P0 is off."""
+    readings, likeliest = ambiguous_readings(plan, notes)
+    if not readings:
+        return plan
+    from agents import contextualizer
+
+    ahead = bool(getattr(notes, "ahead", False) or getattr(notes, "prefetch", False))
+    if ahead or plan.ask_reading or not likeliest:
+        if ahead:
+            contextualizer._count("reading_unwritten")
+        elif plan.ask_reading:
+            contextualizer._count("reading_asked")
+            key = getattr(notes, "caption_key", "")
+            if key:
+                live_captions.publish_readings(key, readings, likeliest)
+        else:
+            # An older client and no likeliest: nothing to take but a guess,
+            # so it is written as before, broader, with nothing chosen.
+            contextualizer._count("reading_none_likely")
+            return plan
+        log.info("reading needed for %r: %s", plan.query, " / ".join(readings))
+        raise ReadingNeeded(readings, likeliest)
+    contextualizer._count("reading_assumed")
+    brief = copy.copy(plan.brief)
+    brief.reading = likeliest
+    notes.reading_assumed = likeliest
+    return dataclasses.replace(plan, brief=brief)
+
 
 def _mark(notes: "ScriptNotes | None", name: str) -> None:
     """Record one pre-writing stage on the episode's clock, if it has one."""
@@ -948,6 +1016,16 @@ class EpisodePlan:
     #: other reader keep `evidence`. **Never in the cache key**, as
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
+    #: The reading the listener chose when a name means two things (decided
+    #: item 15, §419): "Manchester United" for "how did United do". **In the
+    #: cache key** (`pipeline.key_for`), because it changes the episode; ""
+    #: for every request that was never asked, so their keys are unchanged.
+    reading: str = ""
+    #: The client can ask the listener which reading they mean (`ask_reading=1`
+    #: on `/api/audio`): an ambiguous brief then stops before anything is
+    #: searched (`ReadingNeeded`). An older client never sends it and gets
+    #: the likeliest reading instead ([old-clients]). Never in the key.
+    ask_reading: bool = False
 
     @property
     def images(self) -> list:
@@ -2263,7 +2341,10 @@ class ScriptGenerator:
         # whole point of prefetching contextual relevance: the seconds it costs
         # on search are the seconds a warmed brief removes here, and a miss
         # costs one dictionary lookup.
-        warmed = prefetch.warm_brief(plan.query, plan.minutes, plan.context)
+        # Never for a chosen reading (§419): the warmed brief is the one that
+        # did not know which thing was meant.
+        warmed = (None if plan.reading
+                  else prefetch.warm_brief(plan.query, plan.minutes, plan.context))
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
             _publish_title(notes, warmed)
@@ -2306,6 +2387,9 @@ class ScriptGenerator:
         # first word is held to `EI_TIMEOUT_SECONDS`.
         if ahead:
             extra["ahead"] = True
+        # The reading the listener chose (§419), only when there is one.
+        if plan.reading:
+            extra["reading"] = plan.reading
         try:
             brief = await episode_intelligence.understand(
                 plan.query, plan.minutes, plan.context, notes, **extra)
@@ -2316,6 +2400,8 @@ class ScriptGenerator:
             if task is not None:
                 task.cancel()
             raise
+        if plan.reading:
+            brief.reading = plan.reading
         _publish_title(notes, brief)
         _take_c3p0_title(notes, brief)
         # Contextualised (§311): where the request sits in the category
@@ -2401,6 +2487,9 @@ class ScriptGenerator:
             # warmed, degraded or switched-off brief is understood here.
             _mark(notes, "brief_understood")
             _mark(notes, "brief_ready")
+            # A name that means two things and nobody chose (decided item 15,
+            # §419): asked before any plugin, Sonic included, is called.
+            plan = _settle_reading(plan, notes)
             # A brief that named no live domain still asks a provider when the
             # question names something one covers (§265) - decided in code,
             # spending nothing, and changing nothing but who is asked.
@@ -2437,10 +2526,22 @@ class ScriptGenerator:
                 pick = ("" if unsure else said.get("node", "")) or tie
                 placed = categorizer.place(plan.brief, plan.query, field, prior, pick,
                                            unsure=unsure)
+                if tie and pick == tie and not plan.reading:
+                    # Never a guess (decided item 15, §419, settling §377):
+                    # his tie call does not choose between the readings of a
+                    # name code left undecided. C3P0 asks the listener; until
+                    # one is chosen it is filed as if the call had not
+                    # answered - broader, or nowhere.
+                    bare = categorizer.suggest(plan.brief, plan.query, field, prior, "",
+                                               unsure)
+                    if bare.ambiguous:
+                        placed = categorizer.place(plan.brief, plan.query, field,
+                                                   prior, "", unsure=unsure)
                 ahead_now = bool(getattr(notes, "ahead", False)
                                  or getattr(notes, "prefetch", False))
                 if (not placed.node and ahead_now and not unsure
-                        and not said.get("node") and placed.candidates):
+                        and not said.get("node") and placed.candidates
+                        and not placed.ambiguous):
                     # Ahead of the tap nobody waits: Nando's own call is
                     # simply awaited, within its own time limit (§379).
                     pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,

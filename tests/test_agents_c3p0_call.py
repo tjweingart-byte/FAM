@@ -304,16 +304,32 @@ def test_prepare_files_c3p0s_pick(tree, monkeypatch):
     assert notes.category_placement.how == "picked"
 
 
-def test_prepare_takes_the_tie_call_when_there_is_no_pick(tree, monkeypatch):
-    brief = ei.Brief(query="how did United do")
-    notes = notes_with("categorizer")
-
+def _tie(notes, node):
     async def go():
-        notes.category_tie_task = asyncio.ensure_future(asyncio.sleep(0, result="airlines"))
+        notes.category_tie_task = asyncio.ensure_future(asyncio.sleep(0, result=node))
         await asyncio.sleep(0)
     asyncio.run(go())
-    _prepare(monkeypatch, brief, notes)
+
+
+def test_prepare_takes_the_tie_call_when_there_is_no_pick(tree, monkeypatch):
+    query = "how are the airlines doing this quarter"
+    assert not categorizer.suggest(ei.Brief(query=query), query).ambiguous
+    notes = notes_with("categorizer")
+    _tie(notes, "airlines")
+    _prepare(monkeypatch, ei.Brief(query=query), notes)
     assert notes.category_placement.node == "airlines"
+
+
+def test_the_tie_call_never_picks_a_reading_of_an_undecided_name(tree, monkeypatch):
+    """Settles §377 (decided item 15, §419): "United" is the airline or the
+    club, and Nando's own call choosing one would be a guess. Until the
+    listener chooses, it is filed as if the call had not answered."""
+    assert categorizer.suggest(ei.Brief(query="how did United do"),
+                               "how did United do").ambiguous
+    notes = notes_with("categorizer")
+    _tie(notes, "airlines")
+    _prepare(monkeypatch, ei.Brief(query="how did United do"), notes)
+    assert notes.category_placement.node != "airlines"
 
 
 # ------------------------------------------------------------------ the title

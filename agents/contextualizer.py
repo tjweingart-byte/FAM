@@ -498,10 +498,11 @@ def instructions() -> str:
             + "\n\n" + C3P0_INSTRUCTIONS)
 
 
-def _moment(query: str, minutes: int, context: str, now: str, covered: tuple) -> str:
+def _moment(query: str, minutes: int, context: str, now: str, covered: tuple,
+            reading: str = "") -> str:
     import episode_intelligence as ei
 
-    text = ei.build_ei_prompt(query, minutes, context, now, covered, ())
+    text = ei.build_ei_prompt(query, minutes, context, now, covered, (), reading=reading)
     # The request goes in its own tag; what remains is the moment, the
     # length and any follow-up - the brief's own wording of them. What to
     # work out is in the instructions, so the empty heading goes.
@@ -510,7 +511,8 @@ def _moment(query: str, minutes: int, context: str, now: str, covered: tuple) ->
 
 
 async def search_half(query: str, minutes: int, context: str, now: str, covered: tuple,
-                      ahead: bool, notes, candidates: tuple, fallback) -> tuple:
+                      ahead: bool, notes, candidates: tuple, fallback,
+                      reading: str = "") -> tuple:
     """The brief's search half as C3P0's call: `(kind, data, reason)` in the
     shape `episode_intelligence._ask` returns, `data` carrying the search
     fields and `_c3p0` beside them. A request that was never sent (held,
@@ -522,7 +524,7 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
 
     try:
         material = [("request", query), ("evidence", _moment(query, minutes, context, now,
-                                                             covered))]
+                                                             covered, reading))]
         if candidates:
             from agents import categorizer
 
