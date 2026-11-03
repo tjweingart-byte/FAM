@@ -352,7 +352,21 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    ("categorizer", "follow", 2, "categorizer"),
                    ("categorizer", "judge", 3, "categorizer"),
                    # His small model, retrained on the night's grades (§385).
-                   ("categorizer", "train", 4, "categorizer"))
+                   ("categorizer", "train", 4, "categorizer"),
+                   # Consuela's nightly pass over what is still waiting in
+                   # intake, beside the runs each new article asks for (§399).
+                   ("housekeeper", "consolidate", 1, "housekeeper"),
+                   # Her dedupe, after the night's consolidation (§401).
+                   ("housekeeper", "dedupe", 2, "housekeeper"),
+                   # Her longer jobs (§402): the full comb (every
+                   # HOUSEKEEPER_COMB_DAYS, a page a night) and the 90-day pass.
+                   ("housekeeper", "comb", 3, "housekeeper"),
+                   ("housekeeper", "second", 4, "housekeeper"),
+                   # The totals about groups of 100 or more (§415).
+                   ("housekeeper", "totals", 0, "housekeeper"),
+                   # Keith's first check (§405): the tag agrees everywhere.
+                   # Observe and report only.
+                   ("it", "tag_sync", 5, "it_agent"))
 _QUEUED_DAYS: set = set()
 
 

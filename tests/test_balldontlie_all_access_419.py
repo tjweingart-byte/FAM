@@ -1,4 +1,4 @@
-"""§396: FAM's BALLDONTLIE plan is ALL-ACCESS - every sport, every endpoint.
+"""§419: FAM's BALLDONTLIE plan is ALL-ACCESS - every sport, every endpoint.
 
 `BALLDONTLIE_TIER=all-access` reaches everything GOAT does (the top of
 `ENDPOINT_TIERS`), is paced at the highest published minute, carries the

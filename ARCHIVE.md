@@ -18,6 +18,13 @@ it is described in `docs/FAM_AGENTS.md` (Consuela, the housekeeper).
 - **`facts` is empty until the housekeeper agent (Consuela) is built.** That agent will
   digest `intake` into key sentences and figures. Until then the recall finds
   nothing, and the intake keeps every article so nothing is lost.
+- **Filed by node** (§396): facts, intake records and live readings carry
+  Nando's node id when he filed the episode. `live_series` holds every
+  reading of a live score or price, one per subject, metric and moment; it
+  stays empty until Consuela writes it. `python tools/archive_setup.py`
+  creates their indexes and, on an archive set up before §396, updates the
+  vector index to filter by `node_id` (Atlas rebuilds it; the search keeps
+  working meanwhile).
 
 Without Atlas, the same thing runs on a local file (`/data/archive.db`).
 Production uses that file until you switch it over. Staging always uses its
@@ -94,6 +101,24 @@ climbing, with `errors` at 0.
 
 If `enabled` is false, `reason` says why, in one sentence. Most often it's a
 missing `MONGODB_URI`, or an address Atlas refused (step 3).
+
+### 7. A second, read-only user for Sonic (§403)
+
+Sonic, the retriever agent, reads the archive and must never be able to
+write it, so he connects as his own user rather than the one above.
+
+1. **Security → Database Access → Add New Database User**: password
+   authentication, a generated password, and under **Database User
+   Privileges → Specific Privileges** the built-in role **`read`** on the
+   database **`fam`** (the `ARCHIVE_DB_NAME`) - nothing else.
+2. Copy its connection string as in step 4, with this user's password.
+3. On the **fam** service's **Environment** page add `MONGODB_READ_URI`
+   with that string (or put it in `FAM_SECRETS`). Never reuse the
+   `MONGODB_URI` value here.
+
+`/api/health` → `archive` → `retriever` → `connection` then says
+`atlas read-only user`. Without it Sonic does not run on Atlas and the
+recall is the one described above, whatever `RETRIEVER` says.
 
 ## Settings
 

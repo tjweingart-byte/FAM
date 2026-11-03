@@ -184,7 +184,7 @@ def licences() -> dict:
             "commercial": gnews_paid,
             "buy": "Essential, EUR 49.99/mo (gnews.io); then GNEWS_PLAN=essential",
         },
-        # §395: Power and Commercial are internal use; prices said to
+        # §418: Power and Commercial are internal use; prices said to
         # listeners need Tiingo's redistribution licence.
         "tiingo": {
             "in_use": bool((settings.tiingo_api_key or "").strip()),

@@ -1352,7 +1352,7 @@ class Settings:
     balldontlie_api_key: str = field(
         default_factory=lambda: os.environ.get("BALLDONTLIE_API_KEY", "").strip())
     # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat |
-    # all-access (every sport and endpoint, §396; FAM's plan). One
+    # all-access (every sport and endpoint, §419; FAM's plan). One
     # account covers every league. Nothing in an answer says which plan a key
     # is on, so the deploy says it, and an endpoint the plan does not reach
     # is not asked (`balldontlie.ENDPOINT_TIERS`). Free reaches players and
@@ -1373,12 +1373,12 @@ class Settings:
     balldontlie_base: str = field(
         default_factory=lambda: os.environ.get(
             "BALLDONTLIE_BASE", "https://api.balldontlie.io").strip().rstrip("/"))
-    # --- Tiingo: market prices (§290, §395) -------------------------------
+    # --- Tiingo: market prices (§290, §418) -------------------------------
     # Markets: a quote from IEX and a ticker search; the only markets
     # provider. With the key set it is the markets provider. TIINGO_PLAN is
     # the plan bought: free | power | commercial | redistribution. The free
     # plan has FAM's own stops (45/hour, 950/day); a paid plan has none
-    # (§398). The two ceilings set a stop on any plan; 0 means "from the plan".
+    # (§421). The two ceilings set a stop on any plan; 0 means "from the plan".
     tiingo_api_key: str = field(
         default_factory=lambda: os.environ.get("TIINGO_API_KEY", "").strip())
     tiingo_hourly_requests: int = _env_int("TIINGO_HOURLY_REQUESTS", 0)
@@ -2114,6 +2114,39 @@ class Settings:
     supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
     housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
     housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
+    # **Consuela's consolidation** (§399): a dry run until the owner turns
+    # it off - she chooses and the choice is reported, nothing is written.
+    # Articles per call, and calls per run of her task.
+    housekeeper_dry_run: bool = field(
+        default_factory=lambda: os.environ.get("HOUSEKEEPER_DRY_RUN", "1")
+        not in ("0", "false", "False"))
+    housekeeper_batch_articles: int = _env_int("HOUSEKEEPER_BATCH_ARTICLES", 8)
+    housekeeper_batches_per_run: int = _env_int("HOUSEKEEPER_BATCHES_PER_RUN", 5)
+    # **Consuela's dedupe** (§401): a dry run - the merges she would make are
+    # reported, nothing is marked - until the owner sets 0, and even then
+    # only once her automated eval shows no wrong merge for the models set
+    # (decided item 33). A repeat she marks is kept this many days before it
+    # is deleted for good (consuela.md, always 11). Pairs asked of the model
+    # per run, at most.
+    housekeeper_dedupe_dry_run: bool = field(
+        default_factory=lambda: os.environ.get("HOUSEKEEPER_DEDUPE_DRY_RUN", "1")
+        not in ("0", "false", "False"))
+    housekeeper_superseded_days: float = _env_float("HOUSEKEEPER_SUPERSEDED_DAYS", 30.0)
+    housekeeper_dedupe_pairs: int = _env_int("HOUSEKEEPER_DEDUPE_PAIRS", 200)
+    # **Her full comb** (§402, decided item 18): the whole archive combed for
+    # duplicates every this-many days, a page a night until it is through.
+    housekeeper_comb_days: float = _env_float("HOUSEKEEPER_COMB_DAYS", 7.0)
+    # **Whose material Consuela may store** (§397, decided items 8 and 25;
+    # consuela.md, never 8): the providers the owner has approved - GDELT
+    # (with its citation), Tiingo, BALLDONTLIE (2026-10-28) and Perplexity
+    # (2026-11-02) - and FAM's own records. Read only while Consuela runs;
+    # `history_archive.REFUSED` (Parallel's terms; Finnhub and API-Sports,
+    # item 41) cannot be approved here.
+    housekeeper_approved_providers: tuple = field(
+        default_factory=lambda: tuple(
+            p.strip().lower() for p in os.environ.get(
+                "HOUSEKEEPER_APPROVED_PROVIDERS",
+                "fam,gdelt,tiingo,balldontlie,perplexity").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
     # **Netenyahu's background loop** (§350): how often it claims due agent

@@ -4,7 +4,7 @@ Four instructions from the owner, one file:
 
 1. **The model never searches.** Everything an episode is written from comes
    from the web search backends (Parallel, Perplexity), GDELT, BALLDONTLIE
-   (§280), Tiingo (§395) and Polymarket - pinned in
+   (§280), Tiingo (§418) and Polymarket - pinned in
    `test_research.py` and `test_no_evidence.py`; here only the one rule that
    crosses modules: a live provider with a key is switched on by the key.
 2. **The sports sweep carries the score** - pinned in `test_story_sources.py`;

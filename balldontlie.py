@@ -163,7 +163,7 @@ _ROSTER_LEAGUE = {"nfl": "nfl", "nba": "nba", "mlb": "mlb", "nhl": "nhl"}
 # Plans
 # --------------------------------------------------------------------------
 TIER_ORDER = ("free", "all-star", "goat", "all-access")
-#: Requests per minute on each plan, as published. ALL-ACCESS (§396, the
+#: Requests per minute on each plan, as published. ALL-ACCESS (§419, the
 #: plan FAM bought: every sport, every endpoint) is taken at GOAT's 600, the
 #: highest published; nothing in an answer says otherwise.
 PER_MINUTE = {"free": 5, "all-star": 60, "goat": 600, "all-access": 600}

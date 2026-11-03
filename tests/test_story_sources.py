@@ -80,7 +80,7 @@ def test_an_unknown_source_name_costs_one_source_and_not_the_server(monkeypatch)
 
 
 # --------------------------------------------------------------------------
-# Markets (Tiingo since §395): a price is a measurement, never a verdict
+# Markets (Tiingo since §418): a price is a measurement, never a verdict
 # --------------------------------------------------------------------------
 QUOTES = {
     "NVDA": {"ticker": "NVDA", "last": 119.4, "prevClose": 127.29},  # -6.2%

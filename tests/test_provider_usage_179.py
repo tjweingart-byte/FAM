@@ -32,7 +32,7 @@ def test_every_provider_the_owner_named_is_reported_in_order():
     rows = provider_usage.report(NOON)
     assert [r["label"] for r in rows] == [
         # §258: the search and its second look.
-        # §395: Tiingo is the markets provider; API-Sports and Finnhub gone.
+        # §418: Tiingo is the markets provider; API-Sports and Finnhub gone.
         "BALLDONTLIE", "Parallel", "Perplexity", "GDELT",
         "Polymarket", "GNews", "Tiingo",
         # §278: the reference look.

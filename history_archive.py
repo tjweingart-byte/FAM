@@ -22,6 +22,19 @@ behind the same interface:
 * **facts** - the key sentences and figures the agent will keep, one record
   each, with the vector the recall searches. Empty until the agent exists.
   `add_fact` is how it (and the tests) will write one.
+* **live_series** - every reading of a live score or price, one record per
+  subject, metric and moment (§396): scores through a game are a series,
+  never duplicates, so each reading is its own record keyed by when it was
+  true, and the same reading written twice is still one. Empty until
+  Consuela writes it (`add_reading`); nothing calls that yet.
+
+**Filed by node** (§396, decided item 5): a fact carries Nando's node id and
+its path from the root as it stood when written (`node_id`, `node_path`), an
+intake record the node ids of the episodes that used it (`nodes`), a reading
+its node id. They are empty when Nando did not file the episode - which,
+with `AGENTS=0`, is always - so nothing written before him or without him
+changes shape on SQLite, and Atlas documents gain the fields only when
+there is a node to write.
 
 **The recall** (`look` / `add_to_packet`) runs beside the web search, like
 the reference look (§278): it is started first, given `ARCHIVE_GRACE_SECONDS`
@@ -95,6 +108,8 @@ VECTOR_INDEX_DEFINITION = {
         {"type": "filter", "path": "active"},
         {"type": "filter", "path": "published"},
         {"type": "filter", "path": "space"},
+        # Sonic searches by meaning within a node before going wider (§396).
+        {"type": "filter", "path": "node_id"},
     ],
 }
 #: After a failed call, nothing more is sent to the backend for this long.
@@ -148,6 +163,62 @@ PROVIDERS = ("perplexity", "parallel", "gdelt")
 #: backup search, and nothing it returned is kept (docs/PROVIDER_TERMS.md).
 NEVER_KEPT = ("parallel",)
 
+#: Providers Consuela may never store, whatever `HOUSEKEEPER_APPROVED_PROVIDERS`
+#: says (§397): Parallel's terms forbid it (§366); Finnhub and API-Sports must
+#: be treated as not approved until they are removed (decided item 41).
+REFUSED = ("parallel", "finnhub", "api-sports")
+
+#: How a provider is spelled wherever FAM names it (a sweep's `name`, a
+#: live lookup's `source`, a finding's `provider`), to the one id the
+#: approval list uses. First match wins; anything else is "" - unknown, so
+#: never approved.
+_PROVIDER_WORDS = (("balldontlie", "balldontlie"), ("api-sports", "api-sports"),
+                   ("api sports", "api-sports"), ("tiingo", "tiingo"),
+                   ("finnhub", "finnhub"), ("gdelt", "gdelt"),
+                   ("perplexity", "perplexity"), ("parallel", "parallel"),
+                   ("polymarket", "polymarket"), ("gnews", "gnews"))
+
+
+def provider_id(name: str) -> str:
+    """`name` as the approval list spells it, or "" when it is not known."""
+    low = (name or "").strip().lower()
+    if low == "fam":
+        return "fam"
+    for word, pid in _PROVIDER_WORDS:
+        if word in low:
+            return pid
+    return ""
+
+
+def consuela_runs() -> bool:
+    """Whether Consuela may work now: `AGENTS`, `HOUSEKEEPER` and her rule
+    book's lock (`agents.roster.status`). Never raises."""
+    try:
+        from agents import roster
+
+        return bool(roster.status("housekeeper")["may_run"])
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def approved(provider: str) -> bool:
+    """Whether Consuela may store what `provider` returned (§397; decided
+    items 8 and 25; consuela.md, never 8): on the owner's list and not
+    refused. An unknown provider is never approved."""
+    pid = provider_id(provider)
+    return bool(pid) and pid not in REFUSED and pid in tuple(
+        settings.housekeeper_approved_providers or ())
+
+
+def kept_live(records) -> list:
+    """The live records the archive may keep as facts (§417): every one
+    before Consuela runs (§313); once she runs, only an approved provider's,
+    as for everything else she stores (§397) - never a refused one's."""
+    records = list(records or ())
+    if not records or not consuela_runs():
+        return records
+    return [r for r in records if approved(str(r.get("source", "") or ""))]
+
 
 @dataclass
 class Fact:
@@ -170,6 +241,82 @@ class Fact:
     id: str = ""
     #: Cosine similarity to the recall's question, when it came from one.
     score: float = 0.0
+    #: Nando's node, and its path from the root when it was filed (§396).
+    #: "" and [] when Nando did not file it.
+    node_id: str = ""
+    node_path: list = field(default_factory=list)
+    #: The other nodes an article is filed under when several episodes'
+    #: nodes claim it (§413, the owner: a Bengals-Giants game under both
+    #: teams). `node_id` is the first; Sonic finds the fact under any.
+    also_nodes: list = field(default_factory=list)
+
+
+#: The metrics a live reading may be. A score is the game's state at a
+#: moment; a price a symbol's last trade; a count an election's tally.
+METRICS = ("score", "price", "count")
+
+
+@dataclass
+class Reading:
+    """One live score or price, as a provider said it at one moment (§396).
+
+    Never a model's words: `text` is the provider's line, `value` the number
+    code read from the provider's own field (None when there is not one
+    number - a score has two, which stay in `text`)."""
+
+    subject: str
+    metric: str
+    as_of: datetime
+    text: str
+    value: Optional[float] = None
+    unit: str = ""
+    #: The provider's own status word: in_progress, final, scheduled, "".
+    status: str = ""
+    #: Which provider said it ("balldontlie", "tiingo").
+    source: str = ""
+    #: "sports", "markets" or "elections".
+    domain: str = ""
+    node_id: str = ""
+    id: str = ""
+
+    def key(self) -> str:
+        """The reading's id: the subject, metric and moment, so the same
+        reading written twice is one record and two moments are two."""
+        return self.id or reading_id(self.subject, self.metric, self.as_of)
+
+
+def reading_id(subject: str, metric: str, as_of: datetime) -> str:
+    when = as_of.astimezone(timezone.utc).isoformat() if as_of.tzinfo else as_of.isoformat()
+    return url_id(f"live:{(subject or '').strip().lower()}:{metric}:{when}")
+
+
+def node_path(node_id: str) -> list:
+    """`node_id`'s path from the root, ending with itself; [] without a
+    node or a tree. Never raises - a fact is kept without its path rather
+    than not kept."""
+    if not node_id:
+        return []
+    try:
+        import topics
+
+        tree = topics.category_tree()
+        return list(reversed(tree.ancestors(node_id))) + [node_id]
+    except Exception:  # noqa: BLE001
+        return [node_id]
+
+
+def _carried(links: list, loser: str, keeper_url: str, already: list) -> list:
+    """The corroborations a superseded fact passes to its keeper (§417):
+    not the keeper's own article, none it already has, each marked `via`."""
+    have = {c.get("url") for c in already}
+    out = []
+    for c in links:
+        url = c.get("url", "")
+        if not url or url == keeper_url or url in have:
+            continue
+        have.add(url)
+        out.append({**c, "via": loser})
+    return out
 
 
 def url_id(url: str) -> str:
@@ -261,41 +408,76 @@ class SQLiteBackend:
                               "TEXT NOT NULL DEFAULT '{}'")
         except Exception:  # noqa: BLE001 - already there
             pass
+        # Filed by node (§396). Each column on its own connection, for the
+        # same reason as `by_provider`'s.
+        for table, column, kind in (("facts", "node_id", "TEXT NOT NULL DEFAULT ''"),
+                                    # An article filed under several nodes (§413).
+                                    ("facts", "also_nodes", "TEXT NOT NULL DEFAULT '[]'"),
+                                    # Consuela's reversible marks (§401).
+                                    ("facts", "superseded_at", "REAL NOT NULL DEFAULT 0"),
+                                    ("facts", "superseded_why", "TEXT NOT NULL DEFAULT ''"),
+                                    ("facts", "node_path", "TEXT NOT NULL DEFAULT '[]'"),
+                                    ("intake", "nodes", "TEXT NOT NULL DEFAULT '[]'"),
+                                    # The episode's own node (§404).
+                                    ("episode_sources", "node", "TEXT NOT NULL DEFAULT ''")):
+            try:
+                with closing(self._connect()) as alter, alter:
+                    alter.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+            except Exception:  # noqa: BLE001 - already there
+                pass
+        with closing(self._connect()) as db, db:
+            db.execute("CREATE INDEX IF NOT EXISTS facts_node"
+                       " ON facts(node_id, published_ts)")
+            db.execute("CREATE TABLE IF NOT EXISTS live_series ("
+                       " id TEXT PRIMARY KEY, subject TEXT NOT NULL,"
+                       " metric TEXT NOT NULL, as_of TEXT NOT NULL,"
+                       " as_of_ts REAL NOT NULL, value REAL, unit TEXT NOT NULL,"
+                       " text TEXT NOT NULL, status TEXT NOT NULL,"
+                       " source TEXT NOT NULL, domain TEXT NOT NULL,"
+                       " node_id TEXT NOT NULL, created REAL NOT NULL)")
+            db.execute("CREATE INDEX IF NOT EXISTS live_series_subject"
+                       " ON live_series(subject, metric, as_of_ts)")
 
     def _connect(self) -> sqlite3.Connection:
         return store_db.connect(self.path, timeout=10)
 
     def intake(self, findings: list, subject: str, category: str,
-               now: float) -> int:
+               now: float, node: str = "") -> int:
         written = 0
         with self._lock, closing(self._connect()) as db, db:
             for f in findings:
                 row = db.execute("SELECT passages, subjects, categories, "
-                                 "by_provider FROM intake WHERE id = ?",
+                                 "by_provider, nodes FROM intake WHERE id = ?",
                                  (url_id(f.url),)).fetchone()
                 if row is None:
                     db.execute(
                         "INSERT INTO intake (id, url, title, host, grade, "
                         "published, passages, subjects, categories, first_seen, "
-                        "last_seen, seen, digested, by_provider) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?)",
+                        "last_seen, seen, digested, by_provider, nodes) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)",
                         (url_id(f.url), f.url, f.title, f.host, f.grade,
                          f.published, json.dumps(list(f.passages)[:MAX_PASSAGES]),
                          json.dumps([subject] if subject else []),
                          json.dumps([category] if category else []), now, now,
-                         json.dumps(_by_provider({}, f))))
+                         json.dumps(_by_provider({}, f)),
+                         json.dumps([node] if node else [])))
                 else:
                     passages = _union(json.loads(row[0]), f.passages, MAX_PASSAGES)
                     subjects = _union(json.loads(row[1]), [subject] if subject else [])
                     categories = _union(json.loads(row[2]),
                                         [category] if category else [])
                     by_provider = _by_provider(json.loads(row[3] or "{}"), f)
+                    nodes = _union(json.loads(row[4] or "[]"), [node] if node else [])
+                    # New passages make a consolidated article waiting again
+                    # (§400): they are cleared once Consuela has read them.
                     db.execute(
                         "UPDATE intake SET passages = ?, subjects = ?, "
-                        "categories = ?, by_provider = ?, last_seen = ?, "
-                        "seen = seen + 1 WHERE id = ?",
+                        "categories = ?, by_provider = ?, nodes = ?, last_seen = ?, "
+                        "seen = seen + 1, digested = CASE WHEN ? = 1 THEN 0 "
+                        "ELSE digested END WHERE id = ?",
                         (json.dumps(passages), json.dumps(subjects),
-                         json.dumps(categories), json.dumps(by_provider), now,
+                         json.dumps(categories), json.dumps(by_provider),
+                         json.dumps(nodes), now, 1 if f.passages else 0,
                          url_id(f.url)))
                 written += 1
         return written
@@ -310,8 +492,48 @@ class SQLiteBackend:
                        "ORDER BY first_seen LIMIT ?)", (over,))
             return over
 
+    def undigested(self, limit: int) -> list:
+        """The oldest intake records Consuela has not consolidated (§399)."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, url, title, host, grade, published, passages, "
+                "subjects, categories, by_provider, nodes FROM intake "
+                # One with no node or no provider recorded is held for
+                # good (§417): left out, so it never fills the window.
+                "WHERE digested = 0 AND COALESCE(nodes, '') NOT IN ('', '[]') "
+                "AND COALESCE(by_provider, '') NOT IN ('', '{}') "
+                "ORDER BY first_seen LIMIT ?",
+                (max(1, int(limit)),)).fetchall()
+        return [{"id": r[0], "url": r[1], "title": r[2], "host": r[3], "grade": r[4],
+                 "published": r[5], "passages": json.loads(r[6] or "[]"),
+                 "subjects": json.loads(r[7] or "[]"),
+                 "categories": json.loads(r[8] or "[]"),
+                 "by_provider": json.loads(r[9] or "{}"),
+                 "nodes": json.loads(r[10] or "[]")} for r in rows]
+
+    def mark_digested(self, ids: list) -> int:
+        """Mark intake records consolidated and clear their passages at once
+        (§400, the owner: consolidation itself, not a removal kept 30 days).
+        The record keeps its link, title, outlet, grade, date and nodes."""
+        if not ids:
+            return 0
+        with self._lock, closing(self._connect()) as db, db:
+            marks = ",".join("?" for _ in ids)
+            cur = db.execute(f"UPDATE intake SET digested = 1, passages = '[]', "
+                             f"by_provider = '{{}}' WHERE id IN ({marks})", list(ids))
+            return cur.rowcount or 0
+
     def link_episode(self, episode: str, key: str, sourced_at: float,
-                     links: list, now: float) -> None:
+                     links: list, now: float, node: str = "") -> None:
+        if node:
+            with self._lock, closing(self._connect()) as db, db:
+                db.execute("INSERT INTO episode_sources (episode, key, sourced_at, "
+                           "links, created, node) VALUES (?, ?, ?, ?, ?, ?) "
+                           "ON CONFLICT(episode) DO UPDATE SET links = excluded.links, "
+                           "node = excluded.node",
+                           (episode, key, float(sourced_at or 0), json.dumps(links), now,
+                            node))
+            return
         with self._lock, closing(self._connect()) as db, db:
             db.execute("INSERT INTO episode_sources (episode, key, sourced_at, "
                        "links, created) VALUES (?, ?, ?, ?, ?) "
@@ -324,6 +546,37 @@ class SQLiteBackend:
                              (episode,)).fetchone()
         return json.loads(row[0]) if row else []
 
+    def episode_node(self, episode: str) -> Optional[str]:
+        """The node an episode's record carries; None when there is no record."""
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT node FROM episode_sources WHERE episode = ?",
+                             (episode,)).fetchone()
+        return None if row is None else (row[0] or "")
+
+    def tag_episode(self, episode: str, old: str, new: str) -> dict:
+        """Re-file one episode in the archive (§404): its record's node, and
+        on each of its articles `old` replaced by `new` (added when absent)."""
+        out = {"episode": False, "articles": 0}
+        with self._lock, closing(self._connect()) as db, db:
+            row = db.execute("SELECT links FROM episode_sources WHERE episode = ?",
+                             (episode,)).fetchone()
+            if row is None:
+                return out
+            db.execute("UPDATE episode_sources SET node = ? WHERE episode = ?",
+                       (new, episode))
+            out["episode"] = True
+            for link in json.loads(row[0] or "[]"):
+                hit = db.execute("SELECT nodes FROM intake WHERE id = ?",
+                                 (url_id(link.get("url", "")),)).fetchone()
+                if hit is None:
+                    continue
+                nodes = [new if n == old else n for n in json.loads(hit[0] or "[]")]
+                nodes = _union([n for n in nodes if n], [new] if new else [])
+                db.execute("UPDATE intake SET nodes = ? WHERE id = ?",
+                           (json.dumps(nodes), url_id(link.get("url", ""))))
+                out["articles"] += 1
+        return out
+
     def add_fact(self, fact: Fact, vector: Optional[list], space: str,
                  now: float) -> str:
         import embeddings
@@ -334,16 +587,242 @@ class SQLiteBackend:
             db.execute(
                 "INSERT INTO facts (id, url, title, host, grade, published, "
                 "published_ts, kind, text, subject, category, figure, "
-                "corroborations, active, superseded_by, space, embedding, created) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?) "
+                "corroborations, active, superseded_by, space, embedding, created, "
+                "node_id, node_path, also_nodes) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET text = excluded.text, "
-                "corroborations = excluded.corroborations",
+                # A fact read again keeps its corroborations and its
+                # marks (§417): nothing gathered is reset by a re-read.
+                "corroborations = CASE WHEN COALESCE(facts.corroborations, '') "
+                "IN ('', '[]') THEN excluded.corroborations "
+                "ELSE facts.corroborations END, "
+                # A write that knows no node never forgets the one filed.
+                "node_id = CASE WHEN excluded.node_id != '' THEN excluded.node_id "
+                "ELSE facts.node_id END, "
+                "node_path = CASE WHEN excluded.node_id != '' THEN excluded.node_path "
+                "ELSE facts.node_path END, "
+                "also_nodes = CASE WHEN excluded.node_id != '' THEN excluded.also_nodes "
+                "ELSE facts.also_nodes END",
                 (fid, fact.url, fact.title, fact.host, fact.grade, fact.published,
                  when.timestamp() if when else 0.0, fact.kind, fact.text,
                  fact.subject, fact.category, json.dumps(fact.figure),
                  json.dumps(fact.corroborations), space,
-                 embeddings.pack(vector) if vector else None, now))
+                 embeddings.pack(vector) if vector else None, now,
+                 fact.node_id or "", json.dumps(list(fact.node_path or [])),
+                 json.dumps([n for n in fact.also_nodes or [] if n])))
         return fid
+
+    # -------------------------------------------------- Consuela's dedupe (§401)
+    # `node_path` too: the comb re-files from it (§402) - without it, a fact
+    # whose node was pruned would be unfiled instead of moved to its parent.
+    _DEDUPE_COLUMNS = ("id, url, host, grade, published, published_ts, kind, text, "
+                       "subject, figure, node_id, created, embedding, corroborations, "
+                       "node_path")
+
+    @staticmethod
+    def _dedupe_row(r) -> dict:
+        import embeddings
+
+        return {"id": r[0], "url": r[1], "host": r[2], "grade": r[3],
+                "published": r[4], "published_ts": r[5], "kind": r[6], "text": r[7],
+                "subject": r[8], "figure": json.loads(r[9] or "{}"), "node_id": r[10],
+                "created": r[11],
+                "vector": embeddings.unpack(r[12]) if r[12] else None,
+                "corroborations": json.loads(r[13] or "[]"),
+                "node_path": json.loads(r[14] or "[]")}
+
+    def dedupe_facts(self, created_since: float, limit: int) -> list:
+        """Active facts kept since `created_since`, never a live record."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                f"SELECT {self._DEDUPE_COLUMNS} FROM facts WHERE active = 1 "
+                "AND kind != 'live' AND created >= ? ORDER BY created LIMIT ?",
+                (created_since, max(1, int(limit)))).fetchall()
+        return [self._dedupe_row(r) for r in rows]
+
+    def facts_near(self, node_id: str, subject: str, start_ts: float, end_ts: float,
+                   limit: int) -> list:
+        """Active facts under one node (or, with none, one subject) published
+        between two moments - where a duplicate of a fact could be."""
+        field, value = ("node_id", node_id) if node_id else ("subject", subject)
+        if not value:
+            return []
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                f"SELECT {self._DEDUPE_COLUMNS} FROM facts WHERE active = 1 "
+                f"AND kind != 'live' AND {field} = ? AND published_ts >= ? "
+                "AND published_ts <= ? ORDER BY published_ts LIMIT ?",
+                (value, start_ts, end_ts, max(1, int(limit)))).fetchall()
+        return [self._dedupe_row(r) for r in rows]
+
+    def supersede(self, loser: str, keeper: str, why: str, now: float) -> bool:
+        """Mark `loser` a repeat of `keeper` (reversible, consuela.md always
+        11): inactive, never deleted here; `keeper` gains its link and count,
+        never its text (always 8)."""
+        with self._lock, closing(self._connect()) as db, db:
+            row = db.execute("SELECT url, host, grade, published, corroborations "
+                             "FROM facts WHERE id = ? AND active = 1",
+                             (loser,)).fetchone()
+            kept = db.execute("SELECT corroborations, url FROM facts WHERE id = ? "
+                              "AND active = 1", (keeper,)).fetchone()
+            if row is None or kept is None or loser == keeper:
+                return False
+            # Another article is a corroboration; the same article (a
+            # sentence folded into its own link, §402) is not.
+            links = json.loads(kept[0] or "[]")
+            before = len(links)
+            if row[0] != kept[1]:
+                links.append({"url": row[0], "host": row[1], "grade": row[2],
+                              "published": row[3], "fact": loser})
+            # The loser's own corroborations move with it (§417), each
+            # remembered as arriving through it so `restore` takes them back.
+            links.extend(_carried(json.loads(row[4] or "[]"), loser,
+                                  kept[1], links))
+            if len(links) != before:
+                db.execute("UPDATE facts SET corroborations = ? WHERE id = ?",
+                           (json.dumps(links), keeper))
+            db.execute("UPDATE facts SET active = 0, superseded_by = ?, "
+                       "superseded_at = ?, superseded_why = ? WHERE id = ?",
+                       (keeper, now, why, loser))
+        return True
+
+    def restore(self, fact_id: str) -> bool:
+        """Undo `supersede`: the fact active again, its link off the keeper."""
+        with self._lock, closing(self._connect()) as db, db:
+            row = db.execute("SELECT superseded_by FROM facts WHERE id = ? "
+                             "AND active = 0", (fact_id,)).fetchone()
+            if row is None or not row[0]:
+                return False
+            kept = db.execute("SELECT corroborations FROM facts WHERE id = ?",
+                              (row[0],)).fetchone()
+            if kept is not None:
+                links = [c for c in json.loads(kept[0] or "[]")
+                         if c.get("fact") != fact_id and c.get("via") != fact_id]
+                db.execute("UPDATE facts SET corroborations = ? WHERE id = ?",
+                           (json.dumps(links), row[0]))
+            db.execute("UPDATE facts SET active = 1, superseded_by = '', "
+                       "superseded_at = 0, superseded_why = '' WHERE id = ?", (fact_id,))
+        return True
+
+    # -------------------------------------------------- her longer jobs (§402)
+    def facts_under(self, node: str, limit: int) -> list:
+        """Active facts filed under `node` or anywhere beneath it."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, node_id, node_path FROM facts WHERE active = 1 AND "
+                "(node_id = ? OR instr(node_path, ?) > 0 OR instr(also_nodes, ?) > 0) "
+                "LIMIT ?",
+                (node, json.dumps(node), json.dumps(node),
+                 max(1, int(limit)))).fetchall()
+        return [{"id": r[0], "node_id": r[1], "node_path": json.loads(r[2] or "[]")}
+                for r in rows]
+
+    def set_node(self, fact_id: str, node_id: str, node_path: list) -> bool:
+        with self._lock, closing(self._connect()) as db, db:
+            cur = db.execute("UPDATE facts SET node_id = ?, node_path = ? WHERE id = ?",
+                             (node_id, json.dumps(list(node_path)), fact_id))
+            return bool(cur.rowcount)
+
+    def replace_node(self, old: str, new: str) -> dict:
+        """`old` becomes `new` on intake records and readings (a re-file)."""
+        changed = {"intake": 0, "readings": 0}
+        with self._lock, closing(self._connect()) as db, db:
+            for rid, nodes in db.execute("SELECT id, nodes FROM intake WHERE "
+                                         "instr(nodes, ?) > 0",
+                                         (json.dumps(old),)).fetchall():
+                listed = [new if n == old else n for n in json.loads(nodes or "[]")]
+                listed = [n for i, n in enumerate(listed) if n and n not in listed[:i]]
+                db.execute("UPDATE intake SET nodes = ? WHERE id = ?",
+                           (json.dumps(listed), rid))
+                changed["intake"] += 1
+            cur = db.execute("UPDATE live_series SET node_id = ? WHERE node_id = ?",
+                             (new, old))
+            changed["readings"] = cur.rowcount or 0
+            # A fact's other nodes follow too (§413).
+            for fid, also in db.execute("SELECT id, also_nodes FROM facts WHERE "
+                                        "instr(also_nodes, ?) > 0",
+                                        (json.dumps(old),)).fetchall():
+                listed = [new if n == old else n for n in json.loads(also or "[]")]
+                listed = [n for i, n in enumerate(listed) if n and n not in listed[:i]]
+                db.execute("UPDATE facts SET also_nodes = ? WHERE id = ?",
+                           (json.dumps(listed), fid))
+        return changed
+
+    def aging_sentences(self, created_before: float, limit: int) -> list:
+        """Active plain sentences kept before `created_before` - what the
+        90-day consolidation folds into their article's link (§402)."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, url, title, host, grade, published, subject, category, "
+                "node_id, node_path FROM facts WHERE active = 1 AND kind = 'sentence' "
+                "AND created < ? ORDER BY created LIMIT ?",
+                (created_before, max(1, int(limit)))).fetchall()
+        keys = ("id", "url", "title", "host", "grade", "published", "subject",
+                "category", "node_id", "node_path")
+        return [{**dict(zip(keys, r)), "node_path": json.loads(r[9] or "[]")}
+                for r in rows]
+
+    def facts_page(self, after: str, limit: int) -> list:
+        """Active facts by id after `after` - the full comb's pages."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                f"SELECT {self._DEDUPE_COLUMNS} FROM facts WHERE active = 1 "
+                "AND kind != 'live' AND id > ? ORDER BY id LIMIT ?",
+                (after, max(1, int(limit)))).fetchall()
+        return [self._dedupe_row(r) for r in rows]
+
+    def purge_superseded(self, before: float) -> int:
+        """Delete for good what was marked a repeat before `before` (30 days
+        after the mark, always 11). Its link stays on the keeper."""
+        with self._lock, closing(self._connect()) as db, db:
+            cur = db.execute("DELETE FROM facts WHERE active = 0 AND superseded_by != '' "
+                             "AND superseded_at > 0 AND superseded_at < ?", (before,))
+            return cur.rowcount or 0
+
+    def add_reading(self, reading: "Reading", now: float) -> str:
+        """Keep one reading. The same subject, metric and moment again is
+        the same record: the first stays (§396)."""
+        rid = reading.key()
+        as_of = reading.as_of
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute(
+                "INSERT INTO live_series (id, subject, metric, as_of, as_of_ts, "
+                "value, unit, text, status, source, domain, node_id, created) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(id) DO NOTHING",
+                (rid, reading.subject, reading.metric, as_of.isoformat(),
+                 as_of.timestamp(), reading.value, reading.unit, reading.text,
+                 reading.status, reading.source, reading.domain,
+                 reading.node_id or "", now))
+        return rid
+
+    def readings_page(self, limit: int) -> list:
+        """Stored readings in a fixed order - the recall eval's sample (§407)."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, subject, metric, as_of, value, unit, text, status, source, "
+                "domain, node_id FROM live_series ORDER BY id LIMIT ?",
+                (max(1, int(limit)),)).fetchall()
+        return [Reading(id=r[0], subject=r[1], metric=r[2],
+                        as_of=datetime.fromisoformat(r[3]), value=r[4], unit=r[5],
+                        text=r[6], status=r[7], source=r[8], domain=r[9],
+                        node_id=r[10]) for r in rows]
+
+    def readings(self, subject: str, metric: str, start: datetime,
+                 end: datetime, limit: int) -> list:
+        """One subject's readings between two moments, oldest first."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT id, subject, metric, as_of, value, unit, text, status, "
+                "source, domain, node_id FROM live_series WHERE subject = ? "
+                "AND metric = ? AND as_of_ts >= ? AND as_of_ts <= ? "
+                "ORDER BY as_of_ts LIMIT ?",
+                (subject, metric, start.timestamp(), end.timestamp(),
+                 max(1, int(limit)))).fetchall()
+        return [Reading(id=r[0], subject=r[1], metric=r[2],
+                        as_of=datetime.fromisoformat(r[3]), value=r[4], unit=r[5],
+                        text=r[6], status=r[7], source=r[8], domain=r[9],
+                        node_id=r[10]) for r in rows]
 
     def recall(self, vector: list, space: str, before: datetime, limit: int,
                min_similarity: float, exclude_urls: set) -> list:
@@ -352,7 +831,8 @@ class SQLiteBackend:
         with closing(self._connect()) as db:
             rows = db.execute(
                 "SELECT id, url, title, host, grade, published, kind, text, "
-                "subject, category, figure, corroborations, embedding FROM facts "
+                "subject, category, figure, corroborations, embedding, node_id, "
+                "node_path FROM facts "
                 "WHERE active = 1 AND space = ? AND published_ts > 0 "
                 "AND published_ts < ? AND embedding IS NOT NULL",
                 (space, before.timestamp())).fetchall()
@@ -375,7 +855,9 @@ class SQLiteBackend:
                             published=r[5], kind=r[6], text=r[7], subject=r[8],
                             category=r[9], figure=json.loads(r[10] or "{}"),
                             corroborations=json.loads(r[11] or "[]"),
-                            score=round(float(scores[i]), 4)))
+                            score=round(float(scores[i]), 4),
+                            node_id=r[13] or "",
+                            node_path=json.loads(r[14] or "[]")))
         return out
 
     def counts(self) -> dict:
@@ -388,6 +870,10 @@ class SQLiteBackend:
                                        "episode_sources").fetchone()[0],
                 "facts": db.execute("SELECT COUNT(*) FROM facts "
                                     "WHERE active = 1").fetchone()[0],
+                "facts_filed": db.execute("SELECT COUNT(*) FROM facts WHERE "
+                                          "active = 1 AND node_id != ''").fetchone()[0],
+                "readings": db.execute("SELECT COUNT(*) FROM "
+                                       "live_series").fetchone()[0],
                 # Articles holding each provider's passages (§358); "unknown"
                 # holds no attributed passage - written before the provider
                 # was recorded, or kept with no passages at all.
@@ -444,6 +930,7 @@ class AtlasBackend:
         self.intake_c = database["intake"]
         self.episodes_c = database["episode_sources"]
         self.facts_c = database["facts"]
+        self.series_c = database["live_series"]
         self._indexed = False
 
     def ensure_indexes(self) -> None:
@@ -455,6 +942,19 @@ class AtlasBackend:
         self.intake_c.create_index("digested")
         self.facts_c.create_index("url")
         self.facts_c.create_index([("active", 1), ("published", 1)])
+        # Filed by node (§396): Sonic reads a node's facts by date, and
+        # Consuela finds what a tree change touches.
+        self.facts_c.create_index([("node_id", 1), ("published", 1)])
+        # An article under several nodes is found under each (§413).
+        self.facts_c.create_index([("also_nodes", 1), ("published", 1)])
+        # Consuela's nightly dedupe reads the newest facts (§401).
+        self.facts_c.create_index([("active", 1), ("created", 1)])
+        self.intake_c.create_index("nodes")
+        # A subject's readings in time order (§396). An ordinary collection
+        # keyed by subject, metric and moment, not a MongoDB time-series
+        # collection: those take no unique key, so a sweep repeated after a
+        # restart would store the same reading twice.
+        self.series_c.create_index([("subject", 1), ("metric", 1), ("as_of", 1)])
         self._indexed = True
 
     def vector_index_status(self) -> str:
@@ -465,6 +965,15 @@ class AtlasBackend:
             return str(index.get("status", "building")).lower()
         return "missing"
 
+    def vector_index_current(self) -> bool:
+        """Whether the index filters on every field the definition names -
+        an index made before `node_id` was a filter (§396) is not."""
+        wanted = {f["path"] for f in VECTOR_INDEX_DEFINITION["fields"]}
+        for index in self.facts_c.list_search_indexes(VECTOR_INDEX):
+            have = (index.get("latestDefinition") or {}).get("fields") or []
+            return wanted <= {f.get("path") for f in have}
+        return False
+
     def ensure_vector_index(self) -> str:
         status = self.vector_index_status()
         if status == "missing":
@@ -474,10 +983,13 @@ class AtlasBackend:
                 definition=VECTOR_INDEX_DEFINITION, name=VECTOR_INDEX,
                 type="vectorSearch"))
             return "building"
+        if not self.vector_index_current():
+            self.facts_c.update_search_index(VECTOR_INDEX, VECTOR_INDEX_DEFINITION)
+            return "building"
         return status
 
     def intake(self, findings: list, subject: str, category: str,
-               now: float) -> int:
+               now: float, node: str = "") -> int:
         self.ensure_indexes()
         seen = datetime.fromtimestamp(now, timezone.utc)
         written = 0
@@ -485,8 +997,12 @@ class AtlasBackend:
             update: dict = {
                 "$setOnInsert": {"url": f.url, "title": f.title, "host": f.host,
                                  "grade": f.grade, "published": f.published,
-                                 "first_seen": seen, "digested": False},
-                "$set": {"last_seen": seen},
+                                 "first_seen": seen,
+                                 **({} if f.passages else {"digested": False})},
+                # New passages make it waiting again (§400); without any, a
+                # new record waits and an old one keeps its state.
+                "$set": ({"last_seen": seen, "digested": False} if f.passages
+                         else {"last_seen": seen}),
                 "$inc": {"seen": 1},
             }
             add: dict = {}
@@ -500,6 +1016,8 @@ class AtlasBackend:
                 add["subjects"] = subject
             if category:
                 add["categories"] = category
+            if node:
+                add["nodes"] = node
             if add:
                 update["$addToSet"] = add
             self.intake_c.update_one({"_id": url_id(f.url)}, update, upsert=True)
@@ -517,17 +1035,66 @@ class AtlasBackend:
             self.intake_c.delete_many({"_id": {"$in": oldest}})
         return len(oldest)
 
+    def undigested(self, limit: int) -> list:
+        out = []
+        for doc in self.intake_c.find({
+                "digested": False, "nodes.0": {"$exists": True},
+                "by_provider": {"$exists": True, "$ne": {}}}).sort(
+                "first_seen", 1).limit(max(1, int(limit))):
+            out.append({"id": str(doc.get("_id", "")), "url": doc.get("url", ""),
+                        "title": doc.get("title", ""), "host": doc.get("host", ""),
+                        "grade": doc.get("grade", ""),
+                        "published": doc.get("published", ""),
+                        "passages": list(doc.get("passages") or []),
+                        "subjects": list(doc.get("subjects") or []),
+                        "categories": list(doc.get("categories") or []),
+                        "by_provider": dict(doc.get("by_provider") or {}),
+                        "nodes": list(doc.get("nodes") or [])})
+        return out
+
+    def mark_digested(self, ids: list) -> int:
+        if not ids:
+            return 0
+        # As SQLite's (§400): the passages go at once.
+        result = self.intake_c.update_many(
+            {"_id": {"$in": list(ids)}},
+            {"$set": {"digested": True, "passages": []},
+             "$unset": {"by_provider": ""}})
+        return int(getattr(result, "modified_count", 0) or 0)
+
     def link_episode(self, episode: str, key: str, sourced_at: float,
-                     links: list, now: float) -> None:
-        self.episodes_c.replace_one(
-            {"_id": episode},
-            {"_id": episode, "key": key, "sourced_at": float(sourced_at or 0),
-             "links": links, "created": datetime.fromtimestamp(now, timezone.utc)},
-            upsert=True)
+                     links: list, now: float, node: str = "") -> None:
+        doc = {"_id": episode, "key": key, "sourced_at": float(sourced_at or 0),
+               "links": links, "created": datetime.fromtimestamp(now, timezone.utc)}
+        if node:
+            doc["node"] = node
+        # A write that knows no node never forgets the one filed (§417).
+        self.episodes_c.update_one({"_id": episode}, {"$set": doc}, upsert=True)
 
     def episode_links(self, episode: str) -> list:
         doc = self.episodes_c.find_one({"_id": episode})
         return list(doc.get("links", [])) if doc else []
+
+    def episode_node(self, episode: str) -> Optional[str]:
+        doc = self.episodes_c.find_one({"_id": episode})
+        return None if doc is None else (doc.get("node") or "")
+
+    def tag_episode(self, episode: str, old: str, new: str) -> dict:
+        out = {"episode": False, "articles": 0}
+        doc = self.episodes_c.find_one({"_id": episode})
+        if doc is None:
+            return out
+        self.episodes_c.update_one({"_id": episode}, {"$set": {"node": new}})
+        out["episode"] = True
+        for link in doc.get("links") or []:
+            rid = url_id(link.get("url", ""))
+            if old and old != new:
+                self.intake_c.update_one({"_id": rid}, {"$pull": {"nodes": old}})
+            if new:
+                result = self.intake_c.update_one({"_id": rid},
+                                                  {"$addToSet": {"nodes": new}})
+                out["articles"] += int(getattr(result, "matched_count", 1) or 0)
+        return out
 
     def add_fact(self, fact: Fact, vector: Optional[list], space: str,
                  now: float) -> str:
@@ -536,14 +1103,201 @@ class AtlasBackend:
         doc = {"url": fact.url, "title": fact.title, "host": fact.host,
                "grade": fact.grade, "published": _day(fact.published),
                "kind": fact.kind, "text": fact.text, "subject": fact.subject,
-               "category": fact.category, "figure": fact.figure,
-               "corroborations": fact.corroborations, "active": True,
-               "superseded_by": "", "space": space,
-               "created": datetime.fromtimestamp(now, timezone.utc)}
+               "category": fact.category, "figure": fact.figure, "space": space}
+        # Set only when the fact is new (§417): a re-read keeps its marks,
+        # its corroborations and when it was first kept.
+        first = {"active": True, "superseded_by": "",
+                 "created": datetime.fromtimestamp(now, timezone.utc)}
+        if fact.node_id:
+            doc["node_id"] = fact.node_id
+            doc["node_path"] = list(fact.node_path or [])
+            if fact.also_nodes:
+                doc["also_nodes"] = [n for n in fact.also_nodes if n]
         if vector:
             doc["embedding"] = [float(x) for x in vector]
-        self.facts_c.replace_one({"_id": fid}, {"_id": fid, **doc}, upsert=True)
+        update = {"$set": doc, "$setOnInsert": first}
+        if fact.corroborations:
+            update["$addToSet"] = {"corroborations": {"$each": list(fact.corroborations)}}
+        else:
+            first["corroborations"] = []
+        self.facts_c.update_one({"_id": fid}, update, upsert=True)
         return fid
+
+    # -------------------------------------------------- Consuela's dedupe (§401)
+    @staticmethod
+    def _dedupe_doc(doc: dict) -> dict:
+        published = doc.get("published")
+        created = doc.get("created")
+        return {"id": str(doc.get("_id", "")), "url": doc.get("url", ""),
+                "host": doc.get("host", ""), "grade": doc.get("grade", ""),
+                "published": published.strftime("%Y-%m-%d")
+                if isinstance(published, datetime) else "",
+                "published_ts": published.timestamp()
+                if isinstance(published, datetime) else 0.0,
+                "kind": doc.get("kind", "sentence"), "text": doc.get("text", ""),
+                "subject": doc.get("subject", ""), "figure": dict(doc.get("figure") or {}),
+                "node_id": doc.get("node_id", ""),
+                "created": created.timestamp() if isinstance(created, datetime) else 0.0,
+                "vector": list(doc.get("embedding") or []) or None,
+                "corroborations": list(doc.get("corroborations") or []),
+                "node_path": list(doc.get("node_path") or [])}
+
+    def dedupe_facts(self, created_since: float, limit: int) -> list:
+        since = datetime.fromtimestamp(created_since, timezone.utc)
+        return [self._dedupe_doc(d) for d in self.facts_c.find(
+            {"active": True, "kind": {"$ne": "live"}, "created": {"$gte": since}}
+        ).sort("created", 1).limit(max(1, int(limit)))]
+
+    def facts_near(self, node_id: str, subject: str, start_ts: float, end_ts: float,
+                   limit: int) -> list:
+        field, value = ("node_id", node_id) if node_id else ("subject", subject)
+        if not value:
+            return []
+        start = datetime.fromtimestamp(start_ts, timezone.utc)
+        end = datetime.fromtimestamp(end_ts, timezone.utc)
+        return [self._dedupe_doc(d) for d in self.facts_c.find(
+            {"active": True, "kind": {"$ne": "live"}, field: value,
+             "published": {"$gte": start, "$lte": end}}
+        ).sort("published", 1).limit(max(1, int(limit)))]
+
+    def supersede(self, loser: str, keeper: str, why: str, now: float) -> bool:
+        if loser == keeper:
+            return False
+        doc = self.facts_c.find_one({"_id": loser, "active": True})
+        kept = self.facts_c.find_one({"_id": keeper, "active": True})
+        if doc is None or kept is None:
+            return False
+        published = doc.get("published")
+        if doc.get("url", "") != kept.get("url", ""):   # as SQLite's (§402)
+            self.facts_c.update_one({"_id": keeper}, {"$push": {"corroborations": {
+                "url": doc.get("url", ""), "host": doc.get("host", ""),
+                "grade": doc.get("grade", ""),
+                "published": published.strftime("%Y-%m-%d")
+                if isinstance(published, datetime) else "", "fact": loser}}})
+        carried = _carried(list(doc.get("corroborations") or []), loser,
+                           kept.get("url", ""), list(kept.get("corroborations") or []))
+        if carried:
+            self.facts_c.update_one({"_id": keeper},
+                                    {"$push": {"corroborations": {"$each": carried}}})
+        self.facts_c.update_one({"_id": loser}, {"$set": {
+            "active": False, "superseded_by": keeper,
+            "superseded_at": datetime.fromtimestamp(now, timezone.utc),
+            "superseded_why": why}})
+        return True
+
+    def restore(self, fact_id: str) -> bool:
+        doc = self.facts_c.find_one({"_id": fact_id, "active": False})
+        if doc is None or not doc.get("superseded_by"):
+            return False
+        self.facts_c.update_one({"_id": doc["superseded_by"]},
+                                {"$pull": {"corroborations": {"fact": fact_id}}})
+        # And what it carried there (§417).
+        self.facts_c.update_one({"_id": doc["superseded_by"]},
+                                {"$pull": {"corroborations": {"via": fact_id}}})
+        self.facts_c.update_one({"_id": fact_id}, {
+            "$set": {"active": True, "superseded_by": ""},
+            "$unset": {"superseded_at": "", "superseded_why": ""}})
+        return True
+
+    # -------------------------------------------------- her longer jobs (§402)
+    def facts_under(self, node: str, limit: int) -> list:
+        return [{"id": str(d["_id"]), "node_id": d.get("node_id", ""),
+                 "node_path": list(d.get("node_path") or [])}
+                for d in self.facts_c.find(
+                    {"active": True, "$or": [{"node_id": node}, {"node_path": node},
+                                             {"also_nodes": node}]},
+                    {"node_id": 1, "node_path": 1}).limit(max(1, int(limit)))]
+
+    def set_node(self, fact_id: str, node_id: str, node_path: list) -> bool:
+        result = self.facts_c.update_one({"_id": fact_id}, {"$set": {
+            "node_id": node_id, "node_path": list(node_path)}})
+        return bool(getattr(result, "modified_count", 1))
+
+    def replace_node(self, old: str, new: str) -> dict:
+        # Added then pulled, so a record already under `new` holds it
+        # once, and "" (a node unfiled) is never written (§417).
+        intake_ids = [d["_id"] for d in self.intake_c.find({"nodes": old}, {"_id": 1})]
+        if new and intake_ids:
+            self.intake_c.update_many({"_id": {"$in": intake_ids}},
+                                      {"$addToSet": {"nodes": new}})
+        intake = self.intake_c.update_many({"_id": {"$in": intake_ids}},
+                                           {"$pull": {"nodes": old}})
+        series = self.series_c.update_many({"node_id": old}, {"$set": {"node_id": new}})
+        # A fact's other nodes follow too (§413).
+        if new:
+            self.facts_c.update_many({"also_nodes": old},
+                                     {"$addToSet": {"also_nodes": new}})
+        self.facts_c.update_many({"also_nodes": old}, {"$pull": {"also_nodes": old}})
+        return {"intake": int(getattr(intake, "modified_count", 0) or 0),
+                "readings": int(getattr(series, "modified_count", 0) or 0)}
+
+    def aging_sentences(self, created_before: float, limit: int) -> list:
+        before = datetime.fromtimestamp(created_before, timezone.utc)
+        out = []
+        for d in self.facts_c.find({"active": True, "kind": "sentence",
+                                    "created": {"$lt": before}}).sort(
+                                        "created", 1).limit(max(1, int(limit))):
+            published = d.get("published")
+            out.append({"id": str(d["_id"]), "url": d.get("url", ""),
+                        "title": d.get("title", ""), "host": d.get("host", ""),
+                        "grade": d.get("grade", ""),
+                        "published": published.strftime("%Y-%m-%d")
+                        if isinstance(published, datetime) else "",
+                        "subject": d.get("subject", ""), "category": d.get("category", ""),
+                        "node_id": d.get("node_id", ""),
+                        "node_path": list(d.get("node_path") or [])})
+        return out
+
+    def facts_page(self, after: str, limit: int) -> list:
+        return [self._dedupe_doc(d) for d in self.facts_c.find(
+            {"active": True, "kind": {"$ne": "live"}, "_id": {"$gt": after}}
+        ).sort("_id", 1).limit(max(1, int(limit)))]
+
+    def purge_superseded(self, before: float) -> int:
+        result = self.facts_c.delete_many({
+            "active": False, "superseded_by": {"$ne": ""},
+            "superseded_at": {"$lt": datetime.fromtimestamp(before, timezone.utc)}})
+        return int(getattr(result, "deleted_count", 0) or 0)
+
+    def add_reading(self, reading: "Reading", now: float) -> str:
+        self.ensure_indexes()
+        rid = reading.key()
+        doc = {"subject": reading.subject, "metric": reading.metric,
+               "as_of": reading.as_of, "value": reading.value,
+               "unit": reading.unit, "text": reading.text,
+               "status": reading.status, "source": reading.source,
+               "domain": reading.domain,
+               "created": datetime.fromtimestamp(now, timezone.utc)}
+        if reading.node_id:
+            doc["node_id"] = reading.node_id
+        # The first reading of a moment stays (SQLite's DO NOTHING).
+        self.series_c.update_one({"_id": rid}, {"$setOnInsert": doc}, upsert=True)
+        return rid
+
+    def readings_page(self, limit: int) -> list:
+        return [Reading(id=str(d.get("_id", "")), subject=d.get("subject", ""),
+                        metric=d.get("metric", ""), as_of=d.get("as_of"),
+                        value=d.get("value"), unit=d.get("unit", ""),
+                        text=d.get("text", ""), status=d.get("status", ""),
+                        source=d.get("source", ""), domain=d.get("domain", ""),
+                        node_id=d.get("node_id", ""))
+                for d in self.series_c.find({}).sort("_id", 1).limit(max(1, int(limit)))]
+
+    def readings(self, subject: str, metric: str, start: datetime,
+                 end: datetime, limit: int) -> list:
+        out = []
+        for doc in self.series_c.find(
+                {"subject": subject, "metric": metric,
+                 "as_of": {"$gte": start, "$lte": end}}).sort(
+                    "as_of", 1).limit(max(1, int(limit))):
+            out.append(Reading(
+                id=str(doc.get("_id", "")), subject=doc.get("subject", ""),
+                metric=doc.get("metric", ""), as_of=doc.get("as_of"),
+                value=doc.get("value"), unit=doc.get("unit", ""),
+                text=doc.get("text", ""), status=doc.get("status", ""),
+                source=doc.get("source", ""), domain=doc.get("domain", ""),
+                node_id=doc.get("node_id", "")))
+        return out
 
     def recall(self, vector: list, space: str, before: datetime, limit: int,
                min_similarity: float, exclude_urls: set) -> list:
@@ -578,7 +1332,8 @@ class AtlasBackend:
                 subject=doc.get("subject", ""), category=doc.get("category", ""),
                 figure=dict(doc.get("figure") or {}),
                 corroborations=list(doc.get("corroborations") or []),
-                score=round(similarity, 4)))
+                score=round(similarity, 4), node_id=doc.get("node_id", ""),
+                node_path=list(doc.get("node_path") or [])))
             if len(out) >= limit:
                 break
         return out
@@ -589,6 +1344,9 @@ class AtlasBackend:
             "undigested": self.intake_c.count_documents({"digested": False}),
             "episodes": self.episodes_c.estimated_document_count(),
             "facts": self.facts_c.count_documents({"active": True}),
+            "facts_filed": self.facts_c.count_documents(
+                {"active": True, "node_id": {"$exists": True}}),
+            "readings": self.series_c.estimated_document_count(),
             # As SQLite's (§358).
             "intake_by_provider": {
                 **{p: self.intake_c.count_documents(
@@ -611,7 +1369,8 @@ STATS: dict = {"intake_articles": 0, "episodes_linked": 0, "recalls": 0,
                "recalled_facts": 0, "recall_late": 0, "errors": 0,
                "last_error": "", "last_recall_ms": None, "live_facts": 0,
                "live_skipped": 0, "swept_facts": 0, "swept_skipped": 0,
-               "never_kept": 0}
+               "never_kept": 0, "not_approved": 0, "readings_kept": 0,
+               "readings_not_approved": 0}
 _STATS_LOCK = threading.Lock()
 _BACKOFF_UNTIL = [0.0]
 _SINCE_PRUNE = [0]
@@ -682,7 +1441,8 @@ def reset() -> None:
                       "recalled_facts": 0, "recall_late": 0, "errors": 0,
                       "last_error": "", "last_recall_ms": None,
                       "live_facts": 0, "live_skipped": 0, "swept_facts": 0,
-                      "swept_skipped": 0, "never_kept": 0})
+                      "swept_skipped": 0, "never_kept": 0, "not_approved": 0,
+                      "readings_kept": 0, "readings_not_approved": 0})
     _SWEPT_SEEN.clear()
     _BACKOFF_UNTIL[0] = 0.0
     _SINCE_PRUNE[0] = 0
@@ -771,7 +1531,8 @@ def live_records(*lookups) -> list:
     return out
 
 
-def _live_fact(record: dict, subject: str, category: str) -> Fact:
+def _live_fact(record: dict, subject: str, category: str, node: str = "",
+               path: Optional[list] = None) -> Fact:
     """One live record as an archive fact: dated by the provider's own
     `as_of`, graded primary, its lines verbatim."""
     day = str(record.get("as_of", ""))[:10]
@@ -788,7 +1549,8 @@ def _live_fact(record: dict, subject: str, category: str) -> Fact:
         host=str(record.get("source", "")), grade="primary", published=day,
         kind="live", subject=subject, category=category,
         figure={"domain": record.get("domain"), "status": record.get("status"),
-                "as_of": record.get("as_of"), "kind": record.get("kind")})
+                "as_of": record.get("as_of"), "kind": record.get("kind")},
+        node_id=node, node_path=list(path or []))
 
 
 # --------------------------------------------------------------------------
@@ -827,6 +1589,7 @@ def keep_swept(records: list) -> None:
 def _write_swept(records: list) -> None:
     if _backing_off() or backend() is None:
         return
+    records = kept_live(records)
     for index, record in enumerate(records):
         try:
             add_fact(_live_fact(record, str(record.get("subject", "") or ""),
@@ -879,6 +1642,69 @@ def swept_price(symbol: str, label: str, price: float, change, as_of: datetime,
                       f"UTC on {day}{state}."]}
 
 
+#: A live record's domain, as the series' metric.
+_METRIC_OF = {"sports": "score", "markets": "price", "elections": "count"}
+
+
+def reading_from(record: dict, node: str = "") -> Optional[Reading]:
+    """A `live_records` / sweep record as one reading of the series, or None
+    when it is not one (no moment, no line, a domain the series does not
+    keep). The provider's own line and time - never a model's words."""
+    try:
+        metric = _METRIC_OF.get(str(record.get("domain", "") or ""))
+        text = " ".join(str(x) for x in record.get("lines") or () if str(x).strip())
+        subject = str(record.get("subject") or record.get("entity") or "").strip()
+        as_of = datetime.fromisoformat(str(record.get("as_of", "")))
+        if not (metric and text and subject) or as_of.tzinfo is None:
+            return None
+        value = record.get("value")
+        return Reading(subject=subject, metric=metric, as_of=as_of, text=text,
+                       value=float(value) if isinstance(value, (int, float)) else None,
+                       unit=str(record.get("unit", "") or ""),
+                       status=str(record.get("status", "") or ""),
+                       source=str(record.get("source", "") or ""),
+                       domain=str(record.get("domain", "")), node_id=node,
+                       id=str(record.get("reading_id", "") or ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def keep_readings(items: list, wait: bool = False) -> int:
+    """Put readings in the series (§397): only while Consuela runs, only from
+    an approved provider. Queued on the archive's thread unless `wait` (the
+    caller already is that thread). Returns how many were let through.
+    Never raises, never costs a sweep."""
+    try:
+        if not items or not consuela_runs() or not enabled():
+            return 0
+        allowed = [r for r in items if approved(r.source)]
+        if len(allowed) < len(items):
+            _count("readings_not_approved", len(items) - len(allowed))
+        if allowed:
+            if wait:
+                _write_readings(allowed)
+            else:
+                EXECUTOR.submit(_write_readings, allowed)
+        return len(allowed)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not queue readings for the archive: %s", exc)
+        return 0
+
+
+def _write_readings(items: list) -> None:
+    if _backing_off() or backend() is None:
+        return
+    for reading in items:
+        try:
+            add_reading(reading)
+        except ValueError:
+            continue
+        except Exception as exc:  # noqa: BLE001 - see `_failed`
+            _failed("reading", exc)
+            return
+        _count("readings_kept")
+
+
 def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:
     """Queue the episode's articles for the archive. Never raises, never
     waits: the work is submitted to `EXECUTOR`.
@@ -899,8 +1725,12 @@ def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:
         episode = cache_mod.episode_id(key, sourced_at)
         subject = str(carried.get("subject", "") or "")
         category = str(getattr(notes, "category", "") or "")
+        # Nando's node, when he filed the episode (§371, §396); "" otherwise,
+        # and always with AGENTS=0.
+        settled = getattr(notes, "category_settled", None)
+        node = str((settled or {}).get("node", "") or "") if isinstance(settled, dict) else ""
         EXECUTOR.submit(_write, findings, subject, category, episode, key,
-                        float(sourced_at or 0), live)
+                        float(sourced_at or 0), live, node)
     except Exception as exc:  # noqa: BLE001 - never costs the episode
         log.warning("could not queue an episode for the archive: %s", exc)
 
@@ -913,11 +1743,18 @@ def _kept(findings: list) -> list:
     dropped = len(findings or ()) - len(kept)
     if dropped:
         _count("never_kept", dropped)
+    # While Consuela runs, only what an approved provider returned (§397).
+    # With her off, the intake keeps what it kept before her.
+    if kept and consuela_runs():
+        allowed = [f for f in kept if approved(f.provider)]
+        if len(allowed) < len(kept):
+            _count("not_approved", len(kept) - len(allowed))
+        kept = allowed
     return kept
 
 
 def _write(findings: list, subject: str, category: str, episode: str,
-           key: str, sourced_at: float, live: list = ()) -> None:
+           key: str, sourced_at: float, live: list = (), node: str = "") -> None:
     # Before anything else, so no store - intake, the episode's links - ever
     # sees what may not be kept.
     findings = _kept(findings)
@@ -927,11 +1764,13 @@ def _write(findings: list, subject: str, category: str, episode: str,
     if store is None:
         return
     now = time.time()
+    path = node_path(node)
     # The live providers' data (§313): kept as facts at once, in code - a
     # score or a price needs no agent to decide what it says.
-    for record in live or ():
+    live = kept_live(live)
+    for record in live:
         try:
-            add_fact(_live_fact(record, subject, category))
+            add_fact(_live_fact(record, subject, category, node, path))
             _count("live_facts")
         except RuntimeError:
             # No embedder installed: a fact that cannot be recalled is not
@@ -941,14 +1780,31 @@ def _write(findings: list, subject: str, category: str, episode: str,
         except Exception as exc:  # noqa: BLE001 - see `_failed`
             _failed("live fact", exc)
             break
+    # And as readings in the series, while Consuela runs (§397).
+    keep_readings([r for r in (reading_from(record, node) for record in live or ())
+                   if r is not None], wait=True)
     if not findings:
         return
     try:
-        _count("intake_articles", store.intake(findings, subject, category, now))
+        _count("intake_articles", (store.intake(findings, subject, category, now,
+                                                node=node) if node else
+                                   store.intake(findings, subject, category, now)))
         if episode:
-            store.link_episode(episode, key, sourced_at,
-                               [f.as_link() for f in findings], now)
+            links = [f.as_link() for f in findings]
+            if node:   # Nando's node on the episode's record too (§404)
+                store.link_episode(episode, key, sourced_at, links, now, node=node)
+            else:
+                store.link_episode(episode, key, sourced_at, links, now)
             _count("episodes_linked")
+        # Consuela consolidates what just entered (§399), on Netenyahu's
+        # loop, minutes from now - never on this thread.
+        if consuela_runs():
+            try:
+                from agents import housekeeper
+
+                housekeeper.queue()
+            except Exception as exc:  # noqa: BLE001 - never costs the write
+                log.warning("could not queue Consuela's consolidation: %s", exc)
         _SINCE_PRUNE[0] += len(findings)
         if _SINCE_PRUNE[0] >= PRUNE_EVERY:
             _SINCE_PRUNE[0] = 0
@@ -984,6 +1840,36 @@ def episode_links(episode: str) -> list:
         return store.episode_links(episode)
     except Exception as exc:  # noqa: BLE001
         _failed("read an episode's sources", exc)
+        return []
+
+
+def add_reading(reading: Reading) -> str:
+    """Keep one live reading (§396). For Consuela and the tests; nothing on
+    a listener's path calls it. Raises when there is no archive or the
+    reading is not one the series keeps."""
+    store = backend()
+    if store is None:
+        raise RuntimeError(f"no archive: {diagnose()[1]}")
+    if reading.metric not in METRICS:
+        raise ValueError(f"{reading.metric!r} is not a live metric")
+    if not isinstance(reading.as_of, datetime) or reading.as_of.tzinfo is None:
+        raise ValueError("a reading needs the moment it was true, with its zone")
+    if not (reading.subject or "").strip() or not (reading.text or "").strip():
+        raise ValueError("a reading needs a subject and the provider's line")
+    return store.add_reading(reading, time.time())
+
+
+def readings(subject: str, metric: str, start: datetime, end: datetime,
+             limit: int = 200) -> list:
+    """A subject's readings between two moments, oldest first. [] on any
+    failure - history is never worth an error."""
+    store = backend()
+    if store is None or _backing_off() or not subject or end < start:
+        return []
+    try:
+        return store.readings(subject, metric, start, end, limit)
+    except Exception as exc:  # noqa: BLE001
+        _failed("read a series", exc)
         return []
 
 
@@ -1099,6 +1985,42 @@ def as_sources(facts: list, first_number: int, now: Optional[datetime] = None) -
     return "\n".join(parts)
 
 
+def _tag_sync_report() -> dict:
+    try:
+        import tag_sync
+
+        return tag_sync.report()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _retag_report() -> dict:
+    try:
+        import category_tag
+
+        return category_tag.report()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _retriever_report() -> dict:
+    try:
+        from agents import retriever
+
+        return retriever.report()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _consolidation_report() -> dict:
+    try:
+        from agents import housekeeper
+
+        return housekeeper.report()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def report() -> dict:
     """For `/api/health`. Sends nothing and never opens a store."""
     ok, why = diagnose()
@@ -1114,4 +2036,15 @@ def report() -> dict:
             "reason": why, "recall": bool(settings.archive_recall),
             "embedder": embedder,
             "backing_off": _backing_off(),
-            "grace_seconds": float(settings.archive_grace_seconds), **stats}
+            "grace_seconds": float(settings.archive_grace_seconds),
+            # Whose material Consuela may store (§397), and whether she runs.
+            "housekeeper": consuela_runs(),
+            "consolidation": _consolidation_report(),
+            "retriever": _retriever_report(),
+            # Re-files of written episodes, everywhere at once (§404).
+            "retags": _retag_report(),
+            # The last check that the tag agrees everywhere (§405).
+            "tag_sync": _tag_sync_report(),
+            "approved_providers": [p for p in settings.housekeeper_approved_providers
+                                   if p not in REFUSED],
+            **stats}

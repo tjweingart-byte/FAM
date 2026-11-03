@@ -9,7 +9,7 @@
 4. GDELT: a failing file is written off, the quick looks are capped, failing
    syncs back off, and the requests are counted by what they fetched.
 5. Markets: a ticker named with its exchange is looked up, and used only on
-   an exact match (Finnhub's refusal checks went with Finnhub, §395).
+   an exact match (Finnhub's refusal checks went with Finnhub, §418).
 6. How names are said, checked against Wikipedia.
 """
 from __future__ import annotations
@@ -291,7 +291,7 @@ def test_gdelt_requests_are_counted_by_what_they_fetched(gdelt_on):
     assert parts["GKG file"]["label"] == "GKG file"
 
 
-# --- 5. Markets (Tiingo since §395) --------------------------------------------------------------
+# --- 5. Markets (Tiingo since §418) --------------------------------------------------------------
 
 def test_a_ticker_named_with_its_exchange_is_read():
     assert live_sources.ticker_named("Oracle Corporation (NYSE: ORCL)") == "ORCL"

@@ -168,7 +168,7 @@ FAM_ENVIRONMENT = (
     "PLAYER_FACTS", "BALLDONTLIE_API_KEY", "BALLDONTLIE_TIER",
     "BALLDONTLIE_LEAGUES", "BALLDONTLIE_MAX_SEARCHES",
     "BALLDONTLIE_CACHE_SECONDS", "BALLDONTLIE_BASE",
-    # §290, §395: market prices.
+    # §290, §418: market prices.
     "TIINGO_API_KEY", "TIINGO_HOURLY_REQUESTS", "TIINGO_DAILY_REQUESTS",
     "TIINGO_PLAN",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
@@ -254,6 +254,14 @@ FAM_ENVIRONMENT = (
     "EDITOR_AHEAD_TIMEOUT_SECONDS", "EDITOR_MAX_TOKENS", "SUPERVISOR_TIMEOUT_SECONDS",
     "SUPERVISOR_MAX_TOKENS", "HOUSEKEEPER_TIMEOUT_SECONDS", "HOUSEKEEPER_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
+    # §397: whose material Consuela may store.
+    "HOUSEKEEPER_APPROVED_PROVIDERS",
+    # §399: her consolidation's dry run and batch sizes.
+    "HOUSEKEEPER_DRY_RUN", "HOUSEKEEPER_BATCH_ARTICLES", "HOUSEKEEPER_BATCHES_PER_RUN",
+    # §401: her dedupe.
+    "HOUSEKEEPER_DEDUPE_DRY_RUN", "HOUSEKEEPER_SUPERSEDED_DAYS", "HOUSEKEEPER_DEDUPE_PAIRS",
+    # §402: her full comb.
+    "HOUSEKEEPER_COMB_DAYS",
     # §381: Nando's answer key.
     "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", "CATEGORIZER_JUDGE_MAX_TOKENS",
     "NANDO_JUDGE_PER_RUN",
@@ -733,9 +741,14 @@ def isolated_archive(tmp_path, monkeypatch):
 
     monkeypatch.setenv("ARCHIVE_DB", str(tmp_path / "stores" / "archive.db"))
     monkeypatch.delenv("MONGODB_URI", raising=False)
+    monkeypatch.delenv("MONGODB_READ_URI", raising=False)
     history_archive.reset()
+    from agents import retriever
+
+    retriever.reset()
     yield
     history_archive.reset()
+    retriever.reset()
 
 
 @pytest.fixture(autouse=True)

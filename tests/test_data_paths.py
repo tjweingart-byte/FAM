@@ -51,6 +51,8 @@ import history_archive as HA  # noqa: E402
 import episode_quality as EQ  # noqa: E402
 import x_threads as XT  # noqa: E402
 from agents import tasks as AT  # noqa: E402
+from agents import housekeeper as HK  # noqa: E402
+import demographic_totals as DT  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -88,6 +90,8 @@ STORES = [
     ("EPISODE_QUALITY_DB", "episode_quality.db", EQ.QualityStore),
     ("X_THREADS_DB", "x_threads.db", XT.Store),
     ("AGENTS_DB", "agents.db", AT.TaskStore),
+    ("HOUSEKEEPER_DB", "housekeeper.db", HK.ReportStore),
+    ("DEMOGRAPHICS_DB", "demographics.db", DT.TotalsStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.
@@ -152,8 +156,9 @@ ALL_VARS = sorted(DECLARED)
 #: routing rows' case. `X_THREADS_DB` (§321) is created by the first
 #: search on `/admin/x`, and reported once it exists.
 #: `AGENTS_DB` (§349) is created by the first agent task, and reported once
-#: it exists - the trending bank's case.
-LAZY_STORES = {"AGENTS_DB", "X_THREADS_DB", "ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
+#: it exists - the trending bank's case. `HOUSEKEEPER_DB` (§399) is created
+#: by Consuela's first run, and reported once it exists - the same case.
+LAZY_STORES = {"DEMOGRAPHICS_DB", "HOUSEKEEPER_DB", "AGENTS_DB", "X_THREADS_DB", "ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",
                "GDELT_EXPORT_DB", "LIVE_ROUTING_DB", "STORY_POOL_DB",
                "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB", "EPISODE_QUALITY_DB"}

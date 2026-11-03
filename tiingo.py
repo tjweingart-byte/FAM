@@ -1,4 +1,4 @@
-"""Tiingo: FAM's market prices (§290; the only markets provider since §395).
+"""Tiingo: FAM's market prices (§290; the only markets provider since §418).
 
 Bought at the owner's direction (11.02), and Finnhub removed: Tiingo is
 the markets provider, not one beside another. `TiingoSource` is
@@ -16,7 +16,7 @@ shape (`c`, `pc`, `dp`, `t`) at the boundary.
   inside it, it is open only when IEX's last sale is minutes old. A holiday
   or an early close therefore reads as "unknown", never "trading at".
 * **Ticker from Tiingo's own search, never a guess** (§88).
-* **Rationed here on the free plan only** (§398): a paid plan has no stop in
+* **Rationed here on the free plan only** (§421): a paid plan has no stop in
   code; `TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` set one on any
   plan. Requests are counted either way, for /admin.
 * **The licence is not the plan.** Power and Commercial are internal use;
@@ -53,7 +53,7 @@ LIVE_SALE_SECONDS = 15 * 60
 #: The plans `TIINGO_PLAN` may name.
 PLANS = ("free", "power", "commercial", "redistribution")
 #: FAM's own stops on the free plan (50 an hour and 1,000 a day published),
-#: just below them. A paid plan has no stop in code (§398, at the owner's
+#: just below them. A paid plan has no stop in code (§421, at the owner's
 #: direction): FAM's volume is a dozen sweep requests a day and one or two a
 #: markets episode. `TIINGO_HOURLY_REQUESTS` / `TIINGO_DAILY_REQUESTS` still
 #: set one on any plan.

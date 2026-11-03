@@ -106,7 +106,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 
 | File (env var) | Owner module(s) | Main tables | Per-listener? | Retention | Erase / Wipe |
 |---|---|---|---|---|---|
-| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; with R2 the audio is in the bucket only (§293), else capped at 512 MB | `author` cleared on erase (§208) · **Wiped** |
+| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; with R2 the audio is in the bucket only (§293), else capped at 512 MB. Nando's node (`category_node`) travels to the bucket: each audio object carries `x-amz-meta-category-node` and `x-amz-meta-episode` when he filed it (§404), and `category_tag.retag` moves row, objects and archive together; `tag_sync` checks nightly that they agree (§405) | `author` cleared on erase (§208) · **Wiped** |
 | **myfam.db** (`MYFAM_DB`) | `topics.py`, `learned_rank.py` | `events`, `learned_rank` | Yes | Forever (impressions 30 days) | Erased · **Wiped** (events and the model) |
 | **preferences.db** (`PREFS_DB`) | `preferences.py` | `preferences` | Yes | 1 row per listener | Erased · kept |
 | **accounts.db** (`ACCOUNTS_DB`) | `accounts.py`, `waitlist.py` | `accounts`, `sessions`, `identities`, `waitlist_settings`, `waitlist_outbox` | Yes | Sessions 90 days | Erased · **never wiped** |
@@ -115,7 +115,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **saved.db** (`SAVED_DB`) | `saved.py` | `folders`, `items`, `vibe_files`, `progress`, `history`, `dismissed` | Yes | History 14 days | Erased · kept |
 | **shares.db** (`SHARES_DB`) | `sharing.py` | `shares` | Yes | Forever | Erased · kept |
 | **feedback.db** (`FEEDBACK_DB`) | `feedback.py` | `reports` | Account id only | Forever | **Anonymised** · kept |
-| **consent.db** (`CONSENT_DB`) | `consent.py` | `consents` | Yes | 1 row per listener per scope | Erased · kept |
+| **consent.db** (`CONSENT_DB`) | `consent.py` | `consents` | Yes | 1 row per listener per scope (`ai`, `terms`, and since §411 `demographics` - being counted in the totals, a yes recorded when the activation step is finished, a no from Settings) | Erased · kept |
 | **moderation.db** (`MODERATION_DB`) | `moderation.py` | `reports`, `blocks`, `suspended`, `hidden_episodes` | Yes | Forever | Erased (blocks, suspension) · reports **anonymised** · kept |
 | **mixes.db** (`MIXES_DB`) | `mixes.py`, `push.py`, `daily_edition.py` | `mixes`, `push_subscriptions`, `push_sent`, `daily_editions` | Yes (mixes, push) | ≤ 30 mixes per listener | Erased · `daily_editions` **wiped** |
 | **quotas.db** (`QUOTAS_DB`) | `quotas.py` | `counters`, `charges` | Yes | 60 days | Erased · kept |
@@ -135,7 +135,9 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
 | **story_pool.db** (`STORY_POOL_DB`, §267) | `story_store.py` (`StoryStore`), `stories.py` | `snapshots` | No, shared | One row each for the pool (≤ 96 stories) and its ledgers, rewritten every refresh | n/a · **Emptied** |
-| **archive.db** (`ARCHIVE_DB`, §308) | `history_archive.py` (`SQLiteBackend`) | `intake`, `episode_sources`, `facts` | No, shared | The history archive when it is not on MongoDB Atlas (tests, staging, a fresh clone; production until `ARCHIVE_BACKEND=atlas`). Intake kept until digested, at most `ARCHIVE_INTAKE_MAX` = 500,000 articles, oldest dropped; links and facts kept | n/a · kept |
+| **archive.db** (`ARCHIVE_DB`, §308) | `history_archive.py` (`SQLiteBackend`) | `intake`, `episode_sources`, `facts`, `live_series` | No, shared | The history archive when it is not on MongoDB Atlas (tests, staging, a fresh clone; production until `ARCHIVE_BACKEND=atlas`). Intake's passages kept until Consuela consolidates the article, then cleared at once (§400) - the record keeps its link, title, outlet, grade, date and nodes; at most `ARCHIVE_INTAKE_MAX` = 500,000 articles, oldest dropped; links and facts kept | n/a · kept |
+| **housekeeper.db** (`HOUSEKEEPER_DB`, §399) | `agents/housekeeper.py` (`ReportStore`) | `consolidations`, `merges`, `evals`, `jobs`, `refiles`, `state`, `recall_evals` | No, shared | What Consuela chose for each intake article - the chosen sentences and each figure's status, or why it was held - in her dry run and her live runs; every merge her dedupe made or would make and every conflict it flagged, with both texts and both models' answers (§401); every run of her dedupe eval (`tools/consuela_report.py`, `--merges`). No listener, no passage beyond the chosen sentences | n/a · kept |
+| **demographics.db** (`DEMOGRAPHICS_DB`, §415) | `demographic_totals.py` (`TotalsStore`) | `totals` | No: groups only | One row per kept cell - a week, a kind of story, a breakdown (none, age group, gender, region) and its group, with listeners, searches and plays - only for groups of 100 or more, and a breakdown kept whole or not at all. Recomputed nightly for this week and last from the accounts, the `demographics` consent, the place and the event log, read in place; never a row per person, never a guest or a Private search. Kept indefinitely, reviewed at two years | n/a · **Wiped** (from the log) |
 | **wikimedia.db** (`WIKIMEDIA_DB`, §278) | `wikimedia.py` (`ReferenceStore`) | `answers`, `enterprise` | No, shared | Each name's reference answer for 24 hours (read as a miss after that, overwritten on the next look); one Enterprise request count per month | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
@@ -196,7 +198,11 @@ live in page memory (§4).
   `display_name`, `birth_date`, and since §183 the waitlist columns:
   `status` (`waitlisted` / `active`), `referral_code`, `referred_by`,
   `vl_referral_code`, `vl_participant_id`, `waitlist_joined_at`,
-  `access_granted_at`.
+  `access_granted_at`; since §411 `gender` (one of `accounts.GENDERS`, or
+  ""). The activation step (`activation.py`, `/api/activation`) asks for the
+  date of birth (13 and over; under 13, confirmed, deletes the account), the
+  place (the profile's, in preferences) and the gender - never shown to
+  anyone; erased with the account.
 - `sessions`: the **hash** of each session token, `expires` (90 days,
   `accounts.SESSION_TTL`). `identities`: Google/Apple subject per account.
 - `waitlist_settings` (the admin's `access_cutoff`) and `waitlist_outbox`:
@@ -336,16 +342,40 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
 
 **The history archive** (`history_archive.py`, §308; `ARCHIVE.md`): in
 MongoDB Atlas in production once `ARCHIVE_BACKEND=atlas`, else
-**archive.db**. Three collections (tables), no listener in any of them:
+**archive.db**. Four collections (tables), no listener in any of them:
 `intake`, one record per article URL that entered a written episode's packet
 (title, outlet, grade, publish date, up to 8 passages, the subjects and
 categories of the episodes that used it, first and last seen, how often) -
 the raw material Consuela, the housekeeper agent, will digest
 (`docs/FAM_AGENTS.md`), kept until then, at most `ARCHIVE_INTAKE_MAX`;
-`episode_sources`, each written episode's article links keyed by its
+`episode_sources`, each written episode's article links (and, when Nando
+filed it, its node - §404) keyed by its
 `cache.episode_id`, for a sources view on the episode screen; `facts`, the
 key sentences and figures the agent keeps, each with a 384-number vector,
-recalled beside the search. Never a private search or an attachment.
+recalled beside the search; `live_series` (§396), every reading of a live
+score or price, one record per subject, metric and moment (empty until
+Consuela writes it). Filed by node (§396): a fact carries Nando's node id
+and its path (`node_id`, `node_path`), an intake record the nodes of the
+episodes that used it (`nodes`), a reading its node id - all empty when
+Nando did not file the episode, which with `AGENTS=0` is always. While
+Consuela runs (§397) only an approved provider's material is stored
+(`HOUSEKEEPER_APPROVED_PROVIDERS`; Parallel, Finnhub and API-Sports never),
+and the sweeps' scores and prices become readings of `live_series`. Never a
+private search or an attachment. An article several episodes' nodes
+claim is filed under all of them (§413): the first is the fact's `node_id`,
+the rest its `also_nodes`, and Sonic finds it under any. **Sonic reads it read-only** (§403):
+`facts` and `live_series` only, never `intake`, through his own read-only
+Atlas user (`MONGODB_READ_URI`) or the file opened `mode=ro`, every
+statement gated to a read. A fact Consuela's dedupe marks a repeat
+(§401) stays, inactive, with `superseded_by`, `superseded_at` and
+`superseded_why`, for `HOUSEKEEPER_SUPERSEDED_DAYS` (30) before it is
+deleted; the keeper holds its link and count in `corroborations`. After 90
+days a plain sentence is folded into its article's one `link` fact (§402) -
+the publisher's title, the link, date, grade and node, no vector, so the
+recall never offers it - and marked superseded the same way; figures, quotes
+and live records stay. When Nando's tree prunes or moves a node, facts,
+intake records and readings filed under it are re-filed to the nearest
+surviving ancestor (`housekeeper.db`, `refiles`, records each one).
 
 **x_threads.db** (`x_threads.Store`, §321): `/admin/x`'s cards. `candidates`,
 one row per public X post a search found worth replying to - its text, the

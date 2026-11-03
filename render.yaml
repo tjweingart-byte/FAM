@@ -112,6 +112,10 @@ services:
         sync: false
       - key: MONGODB_URI
         sync: false
+      # Sonic's read-only Atlas user (§403); the retriever never uses the
+      # writer's MONGODB_URI.
+      - key: MONGODB_READ_URI
+        sync: false
       - key: AUDIO_STORE
         sync: false
       - key: AUDIO_BUCKET
@@ -321,7 +325,7 @@ services:
         sync: false
       # Sports (§277, §280): the scoreboard, the myFAM sweep's live scores,
       # and player and team reports (§275). Set BALLDONTLIE_TIER to the plan
-      # bought - all-access (every sport and endpoint, §396): free reads
+      # bought - all-access (every sport and endpoint, §419): free reads
       # rosters only.
       - key: BALLDONTLIE_API_KEY
         sync: false
@@ -335,7 +339,7 @@ services:
         sync: false
       - key: WIKIMEDIA_ENTERPRISE_PASSWORD
         sync: false
-      # Markets (§290, §395): Tiingo is the only markets provider. Set
+      # Markets (§290, §418): Tiingo is the only markets provider. Set
       # TIINGO_PLAN to the plan bought (power, commercial or redistribution);
       # it sets FAM's request stops. Never on staging, which scrubs it.
       - key: TIINGO_API_KEY
@@ -352,7 +356,7 @@ services:
       # ahead of the tap, and GNews is the only thing it is built from - no
       # fallback source, and never the live pool. Unset, Trending is empty and
       # says so. Set the ceiling to the plan: 90 fits the free tier's
-      # 100/day, 950 fits Essential's 1,000 (§398: Essential, at the owner's
+      # 100/day, 950 fits Essential's 1,000 (§421: Essential, at the owner's
       # direction - with GNEWS_PLAN=essential and 25 articles a request).
       - key: GNEWS_KEY
         sync: false

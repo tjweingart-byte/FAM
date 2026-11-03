@@ -36,7 +36,7 @@ def _fresh_ration(monkeypatch):
 
 # --------------------------------------------------------------------------
 # A topic is not a ticker (Finnhub's lesson; the markets source is Tiingo's
-# since §395, and the rule stands)
+# since §418, and the rule stands)
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("subject", [
     "Startup and venture capital industry news",

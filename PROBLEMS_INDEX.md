@@ -395,8 +395,31 @@ and `limit` = Lines.
 | 26772 | 31 | 392. The owner signed nando.md rule 12, and a stray file came with it (2026-11-01) |
 | 26803 | 17 | 393. A card shows the friends who listened, not a count (2026-10-31) |
 | 26820 | 21 | 394. Tapping a card's faces opens who listened (2026-10-31) |
-| 26841 | 66 | 395. API-Sports and Finnhub are removed; BALLDONTLIE and Tiingo are paid for (2026-11-02) |
-| 26907 | 19 | 396. BALLDONTLIE's plan is ALL-ACCESS (2026-11-03) |
-| 26926 | 16 | 397. Tiingo is credited on the Terms page (2026-11-03) |
-| 26942 | 20 | 398. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03) |
-| 26962 | 14 | 399. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03) |
+| 26841 | 31 | 395. Phase 2, piece 0: the activation step's Privacy Policy and consent wording, drafted for the owner (2026-11-01) |
+| 26872 | 53 | 396. Phase 2, piece 1: the archive filed by node, live readings as a series, and /admin's read-only stores on any SQLite (2026-11-02) |
+| 26925 | 55 | 397. Phase 2, piece 2: whose material Consuela may store, and the sweeps' readings (2026-11-02) |
+| 26980 | 16 | 398. A proposed consuela.md: Perplexity joins never 8's list (2026-11-02) |
+| 26996 | 72 | 399. Phase 2, piece 3: Consuela consolidates each article as it enters, as a dry run (2026-11-02) |
+| 27068 | 30 | 400. The owner's answer: an article's passages are cleared the moment it is consolidated (2026-11-02) |
+| 27098 | 82 | 401. Phase 2, piece 4: Consuela's dedupe, and the eval that lets it leave its dry run (2026-11-02) |
+| 27180 | 61 | 402. Phase 2, piece 5: Consuela re-files, folds at 90 days and combs the whole archive (2026-11-02) |
+| 27241 | 62 | 403. Phase 2, piece 6: Sonic reads the archive, read-only, and brings back one dated packet (2026-11-02) |
+| 27303 | 46 | 404. Phase 2, piece 7: one category tag, everywhere, moved by one function (2026-11-02) |
+| 27349 | 38 | 405. Phase 2, piece 8: the nightly check that an episode's tag agrees everywhere (2026-11-02) |
+| 27387 | 25 | 406. A plan for training Consuela and Sonic (2026-11-02) |
+| 27412 | 55 | 407. Training C1 and S1: Consuela's dedupe eval grows, Sonic is measured (2026-11-02) |
+| 27467 | 36 | 408. The owner's walkthrough: what is waiting on them, and the next training branch (2026-11-02) |
+| 27503 | 14 | 409. The activation draft as a PDF, its decisions spelled out (2026-11-03) |
+| 27517 | 37 | 410. The owner approved the activation wording: counted by default (2026-11-03) |
+| 27554 | 59 | 411. The activation step, part 1: the API, and the Privacy Policy with it (2026-11-03) |
+| 27613 | 18 | 412. The owner signed consuela.md: Perplexity approved (2026-11-03) |
+| 27631 | 29 | 413. An article two nodes claim is filed under both (2026-11-03) |
+| 27660 | 38 | 414. The activation step, part 2: the screen, and Settings' rows (2026-11-03) |
+| 27698 | 46 | 415. Totals about groups of listeners: groups of 100 or more, never a person (2026-11-03) |
+| 27744 | 13 | 416. docs/BACKEND.md brought up to Phase 2 (2026-11-03) |
+| 27757 | 80 | 417. The review before the pull request (2026-11-03) |
+| 27837 | 66 | 418. API-Sports and Finnhub are removed; BALLDONTLIE and Tiingo are paid for (2026-11-02) |
+| 27903 | 19 | 419. BALLDONTLIE's plan is ALL-ACCESS (2026-11-03) |
+| 27922 | 16 | 420. Tiingo is credited on the Terms page (2026-11-03) |
+| 27938 | 20 | 421. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03) |
+| 27958 | 14 | 422. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03) |

@@ -290,4 +290,13 @@ def _forget_what_the_log_taught() -> dict:
     except Exception:  # noqa: BLE001 - see the docstring
         log.exception("could not clear nando's training material")
         out.setdefault("nando_labels_dropped", 0)
+    # The totals about groups of listeners (§415) were counted from the log.
+    try:
+        import demographic_totals
+
+        out["totals_dropped"] = (demographic_totals.store().forget()
+                                 if demographic_totals.exists() else 0)
+    except Exception:  # noqa: BLE001 - see the docstring
+        log.exception("could not clear the totals")
+        out.setdefault("totals_dropped", 0)
     return out

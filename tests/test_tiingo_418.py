@@ -1,4 +1,4 @@
-"""§395: Tiingo is the only markets provider; API-Sports and Finnhub are gone.
+"""§418: Tiingo is the only markets provider; API-Sports and Finnhub are gone.
 
 Tiingo's tests came from §290's file, which covered the free plans used
 while developing. Every request goes through `live_sources._json`, stubbed
@@ -167,7 +167,7 @@ def test_the_watchlist_setting(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# FAM's stops: the free plan only (§398)
+# FAM's stops: the free plan only (§421)
 # --------------------------------------------------------------------------
 def test_the_free_plan_stops_below_its_limits(monkeypatch):
     use(monkeypatch, tiingo_plan="free", tiingo_hourly_requests=0, tiingo_daily_requests=0)

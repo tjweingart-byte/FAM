@@ -317,8 +317,8 @@ Research and truth
   reports (§275) by the scoreboard; unlisted≠fit. [player-facts]
   Code routes named teams/listings (§265); it only asks. [live-route]
 - **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
-- **Sports are BALLDONTLIE's (ALL-ACCESS, §396), markets Tiingo's** (§277,
-  §280, §395); API-Sports and Finnhub are gone. [sports-balldontlie]
+- **Sports are BALLDONTLIE's (ALL-ACCESS, §419), markets Tiingo's** (§277,
+  §280, §418); API-Sports and Finnhub are gone. [sports-balldontlie]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one
   of their games is on, only if myFAM was drawn recently; other leagues are

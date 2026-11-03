@@ -321,7 +321,7 @@ recorded payloads in `tests/test_live_providers.py`. Run
 | domain | name | provider | credential | notes |
 |---|---|---|---|---|
 | sports | `balldontlie` | BALLDONTLIE | `BALLDONTLIE_API_KEY` (+ `BALLDONTLIE_TIER`) | one flat plan, every league; paced per minute |
-| markets | `tiingo` | Tiingo | `TIINGO_API_KEY` (+ `TIINGO_PLAN`) | IEX last sale, real time; the session is computed (§395: Finnhub removed) |
+| markets | `tiingo` | Tiingo | `TIINGO_API_KEY` (+ `TIINGO_PLAN`) | IEX last sale, real time; the session is computed (§418: Finnhub removed) |
 | elections | `polymarket` | Polymarket | none | **forecast, never a result**; since §211 also asked beside every outcome-dependent question |
 | elections | `ap` | AP Elections | — | declared, unimplemented: quote-only |
 | elections | `ddhq` | Decision Desk HQ | — | declared, unimplemented: quote-only |

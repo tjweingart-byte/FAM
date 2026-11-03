@@ -111,7 +111,7 @@ asked, and `/admin` counts every request with a row per league. Set
 
 ## 3. Finnhub — $0 to start, $11.99/mo when you monetise
 
-> **Removed (PROBLEMS.md §395).** Finnhub and API-Sports are out of the code.
+> **Removed (PROBLEMS.md §418).** Finnhub and API-Sports are out of the code.
 > Markets are Tiingo's: set `TIINGO_API_KEY` and `TIINGO_PLAN` (free | power |
 > commercial | redistribution). This section is history.
 

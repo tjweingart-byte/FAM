@@ -227,7 +227,7 @@ def catalogue() -> list[dict]:
     # repository, so a paid plan asks for it rather than guessing one.
     bdl_tier = str(_setting("balldontlie_tier", "free") or "free").lower()
     bdl_paid = bdl_tier not in ("", "free")
-    # §396: ALL-ACCESS's list price, as the owner's dashboard shows it.
+    # §419: ALL-ACCESS's list price, as the owner's dashboard shows it.
     bdl_price = {"all-access": 299.99}.get(bdl_tier, 0)
     rows.append(_row(
         DATA, "BALLDONTLIE", "Sports data (every league)",
@@ -239,7 +239,7 @@ def catalogue() -> list[dict]:
         "" if bdl_paid else "ALL-STAR for standings, injuries and season figures",
         "BALLDONTLIE_TIER; balldontlie.io/pricing"))
 
-    # §395: Tiingo is the only markets provider. Power and Commercial are
+    # §418: Tiingo is the only markets provider. Power and Commercial are
     # internal use; prices said to listeners need the redistribution licence.
     tiingo_plan = str(_setting("tiingo_plan", "free") or "free").lower()
     tiingo_price = {"power": 30, "commercial": 50}.get(tiingo_plan, 0)

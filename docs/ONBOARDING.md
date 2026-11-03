@@ -635,7 +635,7 @@ There is no checkout yet. Before one exists:
    `GNEWS_DAILY_REQUESTS=950` and `GNEWS_MAX_ARTICLES=25`. The free plan is
    for development only.
 2. **Tiingo with redistribution.** Then set `TIINGO_PLAN=redistribution`.
-   Power and Commercial are internal use only (§395; Finnhub was removed).
+   Power and Commercial are internal use only (§418; Finnhub was removed).
 3. **Open-Meteo API Standard.** Set `OPEN_METEO_API_KEY` and keep
    `OPEN_METEO_KEYLESS=0`. The keyless endpoint is non-commercial.
 4. **BALLDONTLIE ALL-STAR** (or GOAT for soccer injuries, golf and tennis
