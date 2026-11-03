@@ -26885,3 +26885,10 @@ them.
 Not changed: the Finnhub and API-Sports code (removed on purpose later, as
 §290 says), and `commercial_ready`, which already blocks a Finnhub key left
 on a free plan.
+
+**Added the same day, at the owner's request:** the slide's search row was
+Perplexity and Parallel alone, so FINANCIAL.md 0.3 now also has Claude by
+audience ($69 / $125 / $593 / $3,795 a month at 100 / 1k / 10k / 100k
+listeners: ≈ $0.005 an on-demand episode, ≈ $0.004 one written ahead, plus
+≈ $40 of shared background calls) and plugins and AI together ($735 / $808 /
+$1,425 / $5,605), with the assumptions they rest on.
