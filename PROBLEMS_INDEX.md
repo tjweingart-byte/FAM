@@ -399,3 +399,4 @@ and `limit` = Lines.
 | 26907 | 19 | 396. BALLDONTLIE's plan is ALL-ACCESS (2026-11-03) |
 | 26926 | 16 | 397. Tiingo is credited on the Terms page (2026-11-03) |
 | 26942 | 20 | 398. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03) |
+| 26962 | 14 | 399. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03) |

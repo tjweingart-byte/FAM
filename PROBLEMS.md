@@ -26958,3 +26958,17 @@ refused by GNews and said on /admin.
 
 **Pinned by** `tests/test_tiingo_395.py` (the free plan's stops; a paid plan
 asked 200 times with no stop, and /admin saying so).
+
+## 399. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03)
+
+The owner (11.03): all four are "officially paid for and ready to go". Each
+is configured by what the deploy says, so nothing in code changes: GNews by
+`GNEWS_PLAN=essential` with §398's 950 requests and 25 articles, BALLDONTLIE
+by `BALLDONTLIE_TIER=all-access` (§396; `goat` until this branch reaches
+`Main`, which refuses the new value), Tiingo by `TIINGO_PLAN=redistribution`
+(§395, no stop in code since §398), Open-Meteo by `OPEN_METEO_API_KEY`
+(§194; the key is the plan, and the keyless endpoint stays off). With all
+four, `provider_usage.licences()` reports `commercial_ready`. Production's
+dashboard was read the same day: `ANSWER_FIRST` and `GDELT_TIMEOUT_SECONDS`
+are set there and read by nothing (§108 deleted the first; GDELT is read
+from its export files since §211).
