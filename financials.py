@@ -51,8 +51,8 @@ DAY = 86400
 LEDGER_MAX_DAYS = 365
 LEDGER_MIN_DAYS = 30
 
-#: EUR to USD, for GNews (priced in euros). An assumption written into the
-#: GNews formulas (`=49.99*1.08`), so it shows where it is used; change it here.
+#: EUR to USD, for GNews and BALLDONTLIE (priced in euros). An assumption written into the
+#: formulas (`=49.99*1.08`), so it shows where it is used; change it here.
 EUR_TO_USD = 1.08
 
 # --- the catalogue ----------------------------------------------------------
@@ -61,7 +61,7 @@ EUR_TO_USD = 1.08
 # price becomes a monthly cost on the sheet: "/month", "/year", "EUR/month",
 # or "usage" (read from the Daily Spend column named in `ledger`). Prices are
 # from docs/FINANCIAL.md and the code it cites; a row whose plan the deployment
-# can tell us (GNews, Finnhub, Open-Meteo, BALLDONTLIE, the voice transport,
+# can tell us (GNews, Tiingo, Open-Meteo, BALLDONTLIE, the voice transport,
 # tile pictures, Viral Loops) is decided by the settings in force, not copied.
 
 HOSTING = "Hosting & infrastructure"
@@ -123,6 +123,17 @@ def _gpu() -> tuple[float, bool]:
 #: GNews' paid plans by `GNEWS_PLAN`, EUR a month (gnews.io/pricing,
 #: 2026-09-25). A plan not listed is shown as paying with its price to enter.
 GNEWS_PLANS = {"essential": 49.99}
+
+#: The sports and markets plans FAM buys at launch (§395, the owner,
+#: 2026-11-03): BALLDONTLIE in euros a month, Tiingo in dollars, all in.
+BALLDONTLIE_EUR = 299
+TIINGO_USD = 249
+
+#: The cost of one new episode before there is traffic: the Haiku brief
+#: (~$0.003), search (~$0.0015), the Haiku writer (~$0.002) and its first
+#: voicing (~$0.004) - docs/FINANCIAL.md 2.4 (§395). The Sonnet writer's $0.06
+#: was the figure until the writer moved to Haiku (§272, §286).
+NEW_EPISODE_USD = 0.011
 
 
 def _claude_plan(model: str) -> str:
@@ -223,30 +234,43 @@ def catalogue() -> list[dict]:
         "GNEWS_PLAN; gnews.io/pricing (2026-09-25)"))
 
     # §277, §280: every league's scores, standings and player reports on one
-    # flat-rate plan, named by BALLDONTLIE_TIER. Its price is not in the
-    # repository, so a paid plan asks for it rather than guessing one.
+    # flat-rate plan, named by BALLDONTLIE_TIER. §395: the plan FAM buys is
+    # EUR 299 a month (the owner, 2026-11-03), so a paid tier is priced.
     bdl_tier = str(_setting("balldontlie_tier", "free") or "free").lower()
     bdl_paid = bdl_tier not in ("", "free")
     rows.append(_row(
         DATA, "BALLDONTLIE", "Sports data (every league)",
         "Live scores, standings, story-card score lines, player and injury reports",
-        f"{bdl_tier.upper()} plan, flat rate" if bdl_paid
+        f"{bdl_tier.upper()} plan, EUR {BALLDONTLIE_EUR:g}/mo flat" if bdl_paid
         else "Free (5 req/min: rosters and games only)",
-        "Paying, enter price" if bdl_paid else "Free tier",
-        0, "/month",
-        "" if bdl_paid else "ALL-STAR for standings, injuries and season figures",
-        "BALLDONTLIE_TIER; balldontlie.io/pricing"))
+        "Paying" if bdl_paid else "Free tier",
+        BALLDONTLIE_EUR if bdl_paid else 0, "EUR/month" if bdl_paid else "/month",
+        "" if bdl_paid else f"EUR {BALLDONTLIE_EUR:g}/mo plan from launch",
+        "BALLDONTLIE_TIER; the owner, 2026-11-03 (§395)"))
 
-    finnhub_plan = str(_setting("finnhub_plan", "free") or "free")
-    finnhub_paid = finnhub_plan not in ("", "free")
+    # §395: markets are Tiingo's from launch, $249 a month all in (the owner,
+    # 2026-11-03); Finnhub and API-Sports are free plans while developing and
+    # are not used once FAM is commercial, so they carry no launch price.
+    tiingo_plan = str(_setting("tiingo_plan", "free") or "free")
+    tiingo_paid = tiingo_plan not in ("", "free")
     rows.append(_row(
-        DATA, "Finnhub", "Market data",
+        DATA, "Tiingo", "Market data",
         "Market facts and market-move story cards",
-        f"{finnhub_plan.title()} plan" if finnhub_paid else "Free (personal, non-commercial)",
-        "Paying, confirm quote" if finnhub_paid else "Free tier, licence needed before launch",
-        11.99 if finnhub_paid else 0, "/month",
-        "" if finnhub_paid else "Commercial plan (quote-based, ~$11.99/mo quoted)",
-        "FINNHUB_PLAN; PROVIDER_ROLLOUT.md"))
+        f"{tiingo_plan.title()} plan, all in" if tiingo_paid
+        else "Free (personal use only, while developing)",
+        "Paying" if tiingo_paid else "Free tier, licence needed before launch",
+        TIINGO_USD if tiingo_paid else 0, "/month",
+        "" if tiingo_paid else f"${TIINGO_USD:g}/mo all in from launch",
+        "TIINGO_PLAN; the owner, 2026-11-03 (§395)"))
+    for vendor, item, purpose in (
+            ("Finnhub", "Market data (development only)",
+             "Markets while developing; replaced by Tiingo at launch"),
+            ("API-Sports", "Team scores (development only)",
+             "Scores under BALLDONTLIE's scoreboard while developing (§290)")):
+        rows.append(_row(DATA, vendor, item, purpose,
+                         "Free plan while developing", "Leaving at launch", 0,
+                         "/month", "Not used once FAM is commercial (§395)",
+                         "PROBLEMS.md §290, §395"))
 
     meteo_paid = _has_key("OPEN_METEO_API_KEY")
     rows.append(_row(
@@ -306,16 +330,17 @@ def catalogue() -> list[dict]:
 
 #: The licences a paid launch needs that are not yet bought. Projections counts
 #: them from the launch month.
-#: BALLDONTLIE and Render are not here: the plan sizes those itself.
+#: BALLDONTLIE and Render are not here: the plan sizes those itself (the
+#: BALLDONTLIE rate cell). Finnhub is not: it leaves at launch (§395).
 def launch_purchases(rows: list[dict]) -> list[dict]:
     out = []
     bought = {(r["vendor"], r["status"]) for r in rows}
     if ("GNews", "Paying") not in bought:
         out.append({"item": "GNews Essential (commercial licence)",
                     "price": 49.99, "unit": "EUR/month"})
-    if not any(r["vendor"] == "Finnhub" and r["status"].startswith("Paying") for r in rows):
-        out.append({"item": "Finnhub commercial plan (quoted)",
-                    "price": 11.99, "unit": "/month"})
+    if ("Tiingo", "Paying") not in bought:
+        out.append({"item": "Tiingo (markets, all in)",
+                    "price": TIINGO_USD, "unit": "/month"})
     if ("Open-Meteo", "Paying") not in bought:
         out.append({"item": "Open-Meteo API Standard",
                     "price": 29, "unit": "/month"})
@@ -728,7 +753,7 @@ def build(now: Optional[float] = None) -> bytes:
         ("Share of searches that are sports", 0.40, PCT, "Raise it if sports leads the launch."),
         ("New episodes per search, general", 0.70, PCT, "The rest replay a kept episode for almost nothing."),
         ("New episodes per search, sports", 0.90, PCT, "Higher: a game in progress is never replayed from the cache."),
-        ("Cost of one new episode", None, MONEY, "Recorded average once there are episodes; $0.06 until then."),
+        ("Cost of one new episode", None, MONEY, f"Recorded average once there are episodes; ${NEW_EPISODE_USD} until then."),
     ]
     A = {}
     for i, (label, value, fmt, note) in enumerate(assumptions):
@@ -742,7 +767,7 @@ def build(now: Optional[float] = None) -> bytes:
                           # Costs; its per-episode share would count it twice.
                           f"({last30('C')}+{last30('D')}"
                           f"{'' if pod else '+' + last30('E')}+{last30('F')})"
-                          f"/SUMIFS({rng('B')},{rng('A')},\">\"&({AS_OF}-30)),0.06)")
+                          f"/SUMIFS({rng('B')},{rng('A')},\">\"&({AS_OF}-30)),{NEW_EPISODE_USD})")
             cell.font = f(color=GREEN)
             cell.number_format = fmt
         else:
@@ -763,10 +788,11 @@ def build(now: Optional[float] = None) -> bytes:
     purchases = launch_purchases(rows)
     licences = purchases
     rates = [
-        ("fallback", "Cost of one new episode before there is traffic", 0.06, MONEY,
-         "Estimate, docs/FINANCIAL.md 2.4"),
-        ("bdl_launch", "BALLDONTLIE plan from launch, per month", 0, MONEY,
-         "Enter the plan's price (balldontlie.io/pricing): one flat rate, every league"),
+        ("fallback", "Cost of one new episode before there is traffic", NEW_EPISODE_USD,
+         MONEY, "Estimate, docs/FINANCIAL.md 2.4: Haiku brief and writer, search, voice"),
+        ("bdl_launch", "BALLDONTLIE plan from launch, per month",
+         f"={BALLDONTLIE_EUR}*{EUR_TO_USD}", MONEY,
+         f"The owner, 2026-11-03: EUR {BALLDONTLIE_EUR} a month, one flat rate, every league"),
         ("std_at", "Render Standard from this many listeners", 1000, COUNT,
          "docs/FINANCIAL.md 5.1"),
         ("std", "Render on Standard, per month", 32.5, MONEY,
@@ -776,8 +802,9 @@ def build(now: Optional[float] = None) -> bytes:
          "render.com: $80 production + $7 staging + disks"),
         ("bw", "Bandwidth per play", 0.0008, "$0.0000",
          "Estimate: 2 min at 2.65 MB/min, $0.15/GB (Render)"),
-        ("bg_base", "Background writing: base per month", 120, MONEY,
-         "Estimate, docs/FINANCIAL.md 3.3 and 4.2"),
+        ("bg_base", "Background writing: base per month", 60, MONEY,
+         "Estimate, docs/FINANCIAL.md 3.3: rails ~$20, Trending ~$4, pool and "
+         "categories ~$25-55 on the Haiku writer (§395)"),
         ("bg_per", "Background writing: per listener per month", 0.21, MONEY,
          "Estimate, docs/FINANCIAL.md 4.2"),
         ("bg_cap", "Background writing: ceiling per month", 700, MONEY,
@@ -813,7 +840,7 @@ def build(now: Optional[float] = None) -> bytes:
             proj.cell(row=rr, column=c).border = under
 
     ep_cell = proj[A["Cost of one new episode"].replace("$", "")]
-    ep_cell.value = ep_cell.value.replace(",0.06)", f",{t('fallback')})")
+    ep_cell.value = ep_cell.value.replace(f",{NEW_EPISODE_USD})", f",{t('fallback')})")
     prow("mau", "Listeners", lambda m, L: (
         f"=ROUND(IF({live(L)},{a('Listeners at launch')}*(1+{a('Listener growth per month')})"
         f"^((YEAR({L}${PH})-YEAR({lb}))*12+MONTH({L}${PH})-MONTH({lb})),"

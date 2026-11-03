@@ -168,6 +168,8 @@ means an empty Trending row.
 
 ## 8. Finnhub — market facts and market-move cards
 
+> **Current (PROBLEMS.md §395, the owner, 2026-11-03):** Finnhub is out once FAM is commercial, and so is API-Sports; markets are **Tiingo's, $249 a month all in**, and sports **BALLDONTLIE's, EUR 299 a month**, both bought before charging money. The rows below are Finnhub's history.
+
 **Today:** free, 60 requests/minute, **personal / non-commercial** use only.
 
 | When | Trigger | Action | Cost change |
@@ -218,8 +220,8 @@ shared by everybody, so it does not grow with listeners.
 3. Render: Standard plan, 10 GB disk, `AUDIO_CACHE_MAX_MB` raised.
 4. Anthropic: next usage tier requested. (`ENFORCE_QUOTAS=1` is in `render.yaml`, §207.)
 5. Exa: card on file, auto top-up.
-6. Licences before charging money: GNews Essential, Finnhub commercial, BALLDONTLIE ALL-STAR or GOAT (`BALLDONTLIE_TIER`, §280).
-7. Licences: `/api/health` → `licences.commercial_ready` is true (GNEWS_PLAN, FINNHUB_PLAN, OPEN_METEO_API_KEY set after buying, §207).
+6. Licences before charging money: GNews Essential, Open-Meteo Standard, BALLDONTLIE (EUR 299/mo, `BALLDONTLIE_TIER`, §280) and Tiingo ($249/mo all in, `TIINGO_PLAN`); Finnhub and API-Sports leave (§395).
+7. Licences: `/api/health` → `licences.commercial_ready` is true (GNEWS_PLAN, TIINGO_PLAN, OPEN_METEO_API_KEY set after buying, and no `FINNHUB_KEY` left on the service, §207, §395).
 
 Fixed monthly cost of the checklist (estimate): ~$150/mo before launch day,
 then ~$490/mo once the active worker is added.

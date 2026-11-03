@@ -181,12 +181,13 @@ def licences() -> dict:
             "commercial": finnhub_paid,
             "buy": "a commercial plan, quote-based (finnhub.io); then FINNHUB_PLAN=commercial",
         },
-        # §290: personal use only on the free plan, like Finnhub's.
+        # §290: personal use only on the free plan, like Finnhub's. §395:
+        # Tiingo is the markets plan FAM buys; Finnhub leaves at launch.
         "tiingo": {
             "in_use": bool((settings.tiingo_api_key or "").strip()),
             "plan": settings.tiingo_plan or "free",
             "commercial": settings.tiingo_plan not in ("", "free"),
-            "buy": "temporary while developing (§290): replace it before charging",
+            "buy": "$249/mo all in from launch (§395, tiingo.com); then TIINGO_PLAN=<plan>",
         },
         "open_meteo": {
             "in_use": meteo_key or bool(settings.open_meteo_keyless),

@@ -26837,3 +26837,51 @@ pictures from the offline copy, because a page of friends' pictures can pass
 the storage quota and the copy is written inside a `catch` that would have
 lost it silently; offline, a face is its initials. Two friends with no handle
 and the same name no longer share one entry in `FRIEND_FACE_BOOK`.
+
+## 395. The costs on the Haiku writer, the launch plans for sports and markets, and the batched writer test (2026-11-03)
+
+The owner, drafting the pitch deck's backend slide: BALLDONTLIE is **EUR 299
+a month**; **Tiingo is in at $249 a month all in**; **Finnhub and API-Sports
+are out** once FAM is commercial; update the estimates now that the writer is
+on Haiku; and estimate the test to come between Haiku 5.5 at high effort and
+Sonnet 5.5 at medium for the writer on the batched episodes.
+
+**What was stale.** `docs/FINANCIAL.md` still priced a new episode at about
+$0.06 - the Sonnet writer's and Exa's - and the workbook (`financials.py`)
+used that $0.06 on Projections until recorded spend replaced it, listed
+Finnhub's commercial plan as a launch licence and had no price for
+BALLDONTLIE. On §359's prompt sizes (brief ~12.6k in / 3.6k out over three
+Haiku calls, writer ~12.2k in / 2k out) a new episode is about **$0.011** on
+demand - brief $0.003, search $0.0015, writer $0.002, first voicing $0.004 -
+and about $0.0096 batched with the writer at batch price.
+
+**Changed.**
+
+* `docs/FINANCIAL.md` gains section 0, the figures in force: one episode by
+  step, the writer test, fixed costs before and from launch, the background
+  writing, and the four audience sizes again (≈ $150 / $1,300 / $2,350 /
+  $9,700 a month at 100 / 1k / 10k / 100k listeners). Sections 2.1-6 keep
+  their figures as history, each with a `Current` note pointing at section 0.
+  The finding: with the writer on Haiku, **the data plans (~$655 a month at
+  launch) and the voice's active worker are most of the bill until about
+  10,000 listeners**.
+* `financials.py`: BALLDONTLIE's paid tier is priced (`BALLDONTLIE_EUR`, 299,
+  a EUR/month row) and its Projections rate cell defaults to it; a **Tiingo**
+  row ($249, `TIINGO_USD`, by `TIINGO_PLAN`) replaces Finnhub in the launch
+  purchases; Finnhub and API-Sports keep rows (the code still calls them while
+  developing) marked "Leaving at launch" at $0; the new-episode fallback is
+  `NEW_EPISODE_USD` (0.011); the background base is $60 (was $120).
+* `provider_usage.licences` names Tiingo's plan as the one to buy;
+  `docs/SCALING_TIMELINE.md`'s launch checklist and Finnhub's section say so;
+  the `sports-balldontlie` rule has a `Current` note and its core line.
+
+**The writer test, estimated** (FINANCIAL.md 0.2): per batched script the
+writer is $0.0011 on Haiku low (today), $0.0019 on Haiku high and
+$0.022-0.030 on Sonnet medium, assuming ~2k / ~5k / ~3.5k output tokens;
+Sonnet adds about $105-140 a month on the rails and Trending and $62-83 per
+100 active mix subjects. Estimates only - the test's `metering` rows replace
+them.
+
+Not changed: the Finnhub and API-Sports code (removed on purpose later, as
+§290 says), and `commercial_ready`, which already blocks a Finnhub key left
+on a free plan.
