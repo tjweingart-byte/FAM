@@ -57,8 +57,15 @@ def metadata(node: str, episode: str) -> dict:
 
 
 def retag(cache, key: str, node: str, *, reason: str = "",
-          dry_run: bool = False) -> dict:
-    """Move the episode under `key` to `node` everywhere. Returns what moved."""
+          dry_run: bool = False, first_filing: bool = False, was: str = "") -> dict:
+    """Move the episode under `key` to `node` everywhere. Returns what moved.
+
+    `first_filing` is only for the re-file of episodes written before Nando
+    (nando.md always 10, §421), after the owner's yes: such an episode has
+    no node of its own, and `was` is the node its writer's words placed it
+    under until now ("" when they placed it nowhere) - replaced by `node` on
+    its articles in the archive, as an old node is. Every other caller
+    leaves it off, and an episode with no node is then left as it was."""
     import cache as cache_mod
 
     out = {"key": key, "old": "", "new": node, "reason": reason, "script": False,
@@ -66,9 +73,13 @@ def retag(cache, key: str, node: str, *, reason: str = "",
     try:
         old = cache.category_node(key)
         out["old"] = old
-        if not old:
+        if not old and not first_filing:
             out["skipped"] = "Nando never filed it: the writer's words place it"
             return out
+        if not old:
+            # A first filing (§421): the writer's node stands in as the old.
+            old = out["old"] = was
+            out["first_filing"] = True
         if old == node:
             _count("unchanged")
             out["skipped"] = "already filed there"

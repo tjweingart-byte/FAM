@@ -388,6 +388,9 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "history_archive.py": {"roster", "housekeeper", "retriever"},
         # Keith's tag check (§405) reads his lock and registers his task.
         "tag_sync.py": {"roster", "netenyahu"},
+        # The re-file of episodes written before Nando (§421): his code
+        # steps and his check against the writer's words, no model.
+        "refile_old.py": {"categorizer"},
         # Consuela's totals (§415) register their nightly task.
         "demographic_totals.py": {"netenyahu"},
     }

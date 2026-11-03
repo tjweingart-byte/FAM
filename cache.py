@@ -1149,6 +1149,22 @@ class MemoryScriptCache:
         return [(k, n, self.sourced_at(k), []) for k, n in
                 sorted(self._category_nodes.items()) if k > after][:limit]
 
+    def unfiled(self, after: str = "", limit: int = 500) -> list:
+        now = time.time()
+        out = []
+        for key in sorted(self._data):
+            if key <= after or self._category_nodes.get(key):
+                continue
+            entry = self._data[key]
+            if entry[0] < now:
+                continue
+            out.append({"key": key, "query": entry[3] or "",
+                        "title": self._titles.get(key, ""),
+                        "category": self._categories.get(key, ""),
+                        "summary": self._summaries.get(key, ""),
+                        "sourced": self.sourced_at(key)})
+        return out[:limit]
+
     # -- audio (§132) -------------------------------------------------------
 
     def _live(self, key: str) -> bool:
@@ -2379,6 +2395,23 @@ class SqliteScriptCache:
                 (node, max(1, int(limit)))).fetchall()]
         except Exception:
             log.exception("script cache node read failed")
+            return []
+
+    def unfiled(self, after: str = "", limit: int = 500) -> list:
+        """Kept episodes Nando never filed (no `category_node`), after `after`,
+        by key: what the re-file of episodes written before him reads (§421).
+        Each a dict of key, query, title, category words, summary, sourced."""
+        try:
+            rows = self._conn().execute(
+                "SELECT key, query, title, category, summary, "
+                f"{_SOURCED} FROM scripts WHERE key > ? AND category_node = '' "
+                "AND expires >= ? ORDER BY key LIMIT ?",
+                (after, time.time(), max(1, int(limit)))).fetchall()
+            return [{"key": k, "query": q or "", "title": t or "", "category": c or "",
+                     "summary": s or "", "sourced": src}
+                    for k, q, t, c, s, src in rows]
+        except Exception:
+            log.exception("script cache unfiled read failed")
             return []
 
     def tagged(self, after: str = "", limit: int = 500) -> list:

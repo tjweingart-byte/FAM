@@ -27979,3 +27979,46 @@ Smoke check: "A shared name asks which one, then plays the choice" (a 300
 for a search that can ask, the picker with the two readings, the second
 chosen, the next `/api/audio` carrying `reading=Manchester%20United`, the
 episode's stamp ending in it).
+
+## 421. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03)
+
+Decided item 20 (nando.md always 10: "re-file episodes made before you existed
+only once, and only after the owner has reviewed a list of every change you
+would make"). `refile_old.py`, run by `tools/refile_old.py`.
+
+**Docs and code disagreed, and the owner was told.** The opening prompt said
+the re-file goes "through `category_tag.retag`", but `retag` skipped any
+episode with no node of its own ("Nando never filed it") - which is every
+episode written before him. `retag` now takes `first_filing=True` with `was`
+(the node the writer's words placed it under until now, replaced on its
+articles in the archive as an old node is); nothing else passes it, so every
+other caller is unchanged.
+
+**How Nando decides, the owner's answer.** Old rows keep only the question,
+title and the writer's `<<CATEGORY:>>`, not the brief he normally reads, so
+his code steps alone file almost none of them solidly (measured on the seed:
+"how did the Philadelphia Eagles do" places nothing, its suggestion only a
+clash). The owner chose **his own call**, as on a new episode: code's
+shortlist (`candidates_for`), his call choosing (`ask_tie`, ahead of the
+tap), never over a name that means two things (§419), then his check against
+the writer's words (`confirm`). One small call per episode code could not
+file, all on one event loop (§388), four at a time, through the agent layer -
+so only where he is switched on and his rule book signed, and never on
+zero-spend staging. `--no-model` makes the list in code alone, for nothing.
+
+**Two steps.** The dry run reads every kept row with no node
+(`ScriptCache.unfiled`, both stores), changes nothing and writes the list -
+JSON plus a Markdown table (question, title, writer's words, today's node,
+Nando's, how) - and prints its SHA-256. `--apply LIST --approve SHA256`
+refuses any other value, so the list applied is the list reviewed, byte for
+byte; each change goes through `retag` (archive, audio metadata, script row
+together). A row filed meanwhile, or whose words now place it elsewhere, is
+skipped and listed - never re-filed on a stale reading. Applying twice files
+once.
+
+Tests: `tests/test_refile_old_421.py` (only unfiled rows read, both stores;
+his call files what code could not, ahead; `--no-model` asks nothing; a
+shared name never asked; the dry run changes nothing and the Markdown names
+the approval; any other approval, or an edited list, refused; the approval
+applied through `retag` as a first filing, and a second apply skipped; a row
+changed since the review skipped; `retag` without `first_filing` unchanged).
