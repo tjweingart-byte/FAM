@@ -423,13 +423,13 @@ and `limit` = Lines.
 | 27922 | 16 | 420. Tiingo is credited on the Terms page (2026-11-03) |
 | 27938 | 20 | 421. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03) |
 | 27958 | 14 | 422. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03) |
-| 27972 | 66 | 423. The costs on the Haiku writer, the launch plans for sports and markets, and the batched writer test (2026-11-03) |
-| 28038 | 37 | 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03) |
-| 28075 | 43 | 425. Finishing Phase 1, piece 1: facts, never advice (2026-11-03) |
-| 28118 | 72 | 426. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03) |
-| 28190 | 31 | 427. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03) |
-| 28221 | 43 | 428. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03) |
-| 28264 | 43 | 429. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03) |
-| 28307 | 31 | 430. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03) |
-| 28338 | 48 | 431. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03) |
-| 28386 | 44 | 432. The review before the pull request: the reading joins the question (2026-11-03) |
+| 27972 | 74 | 423. The costs on the Haiku writer, the launch plans for sports and markets, and the batched writer test (2026-11-03) |
+| 28046 | 37 | 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03) |
+| 28083 | 43 | 425. Finishing Phase 1, piece 1: facts, never advice (2026-11-03) |
+| 28126 | 72 | 426. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03) |
+| 28198 | 31 | 427. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03) |
+| 28229 | 43 | 428. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03) |
+| 28272 | 43 | 429. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03) |
+| 28315 | 31 | 430. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03) |
+| 28346 | 48 | 431. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03) |
+| 28394 | 44 | 432. The review before the pull request: the reading joins the question (2026-11-03) |

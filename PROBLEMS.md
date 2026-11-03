@@ -28033,6 +28033,14 @@ section 0 is restated on those figures: data plans about $632 a month at
 launch, and the audience totals about $20 lower. `provider_usage.py`, the
 `sports-balldontlie` rule and its note keep Main's wording.
 
+**Added the same day, at the owner's request:** the slide's search row was
+Perplexity and Parallel alone, so FINANCIAL.md 0.3 now also has Claude by
+audience ($69 / $125 / $593 / $3,795 a month at 100 / 1k / 10k / 100k
+listeners: ≈ $0.005 an on-demand episode, ≈ $0.004 one written ahead, plus
+≈ $40 of shared background calls) and plugins and AI together ($712 / $785 /
+$1,402 / $5,582, on the $632 of data plans above), with the assumptions
+they rest on. Written after the merge note above, so already on its figures.
+
 **Pinned by** `tests/test_financials.py::test_tiingo_s_licence_is_priced_and_the_episode_is_haiku_s`.
 
 ## 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03)

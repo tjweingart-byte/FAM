@@ -92,6 +92,38 @@ Trending scripts plus 30 per active mix subject - about 7k / 19k / 118k /
 | Perplexity | $7 | $19 | $118 | $770 |
 | Parallel ($5 free credit a month) | $4 | $9 | $59 | $385 |
 
+**Claude, by audience** (the pitch deck's backend slide, §423). The same new
+episodes a month, split by how they are written: on demand (the search
+episodes of section 0.5) at ≈ $0.005 of Claude each (brief $0.003 + writer
+$0.002), and ahead (~5,100 rails and Trending scripts plus 30 per active mix
+subject) at ≈ $0.004 each (the writer at batch price), plus ≈ $40 a month of
+shared background calls (the story composer and category placer, section 0.4,
+midpoint of $25-55):
+
+| Monthly listeners | 100 | 1,000 | 10,000 | 100,000 |
+|---|---|---|---|---|
+| New episodes on demand | 1,275 | 10,500 | 82,500 | 675,000 |
+| New episodes written ahead | 5,700 | 8,100 | 35,100 | 95,100 |
+| Claude | $69 | $125 | $593 | $3,795 |
+
+**Plugins and AI together** (what the slide's right-hand panel shows; the
+voice GPU, servers and databases are not in it - section 0.5 has the whole
+bill):
+
+| Monthly listeners | 100 | 1,000 | 10,000 | 100,000 |
+|---|---|---|---|---|
+| Data plans (from launch) | $632 | $632 | $632 | $632 |
+| Search (Perplexity + Parallel) | $11 | $28 | $177 | $1,155 |
+| Claude | $69 | $125 | $593 | $3,795 |
+| **Total** | **$712** | **$785** | **$1,402** | **$5,582** |
+
+The assumptions behind both: 15 searches per listener a month; 85% / 70% /
+55% / 45% of them need a new episode (the rest replay a kept one); ~5,100
+rails and Trending scripts a month whatever the audience; 30 a month per
+active mix subject at 20 / 100 / 1,000 / 3,000 subjects; ~1.5 search requests
+per new episode. Claude nearly matches the data plans at 10,000 listeners and
+is about two thirds of this total at 100,000.
+
 **Data plans at launch: $299.99 + $249 + $29 + EUR 49.99 a month, about $632**
 (EUR at 1.08, `financials.EUR_TO_USD`). That is the largest fixed line before the audience
 is large: at 1,000 listeners it is about half the bill.
