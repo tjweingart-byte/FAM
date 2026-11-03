@@ -27499,3 +27499,17 @@ when the measures say so (each still shown first); the attribution label
 (a neutral rewording, or "unsure" accepted); the grading model for C3 and
 S4 (proposed Opus 5.5) and how many a night; whether searched questions may
 become Sonic's router examples (S2, later).
+
+## 409. The activation draft as a PDF, its decisions spelled out (2026-11-03)
+
+At the owner's request: `docs/ACTIVATION_PRIVACY_DRAFT.md` opens with
+"Your decisions - answer these seven", each with its options and a
+recommendation - under-13 dates (delete), counting (opt-in), where the
+location is kept (the profile's place, with the "Where you are" screen's
+wrong sentence corrected), self-describe (the choice only, no text box),
+what the totals may be used for (counting only), asking everyone to agree
+to the Terms again (no), and the wording (approve with the answers filled
+in). Its old section 5 points there; notes in the wording now say
+"decision N". `docs/ACTIVATION_PRIVACY_DRAFT.pdf` is the same text, made with
+pandoc and Chromium's print; regenerate it the same way if the draft
+changes.

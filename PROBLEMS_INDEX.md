@@ -409,3 +409,4 @@ and `limit` = Lines.
 | 27387 | 25 | 406. A plan for training Consuela and Sonic (2026-11-02) |
 | 27412 | 55 | 407. Training C1 and S1: Consuela's dedupe eval grows, Sonic is measured (2026-11-02) |
 | 27467 | 36 | 408. The owner's walkthrough: what is waiting on them, and the next training branch (2026-11-02) |
+| 27503 | 14 | 409. The activation draft as a PDF, its decisions spelled out (2026-11-03) |
