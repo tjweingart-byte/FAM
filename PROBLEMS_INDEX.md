@@ -420,3 +420,4 @@ and `limit` = Lines.
 | 27757 | 80 | 417. The review before the pull request (2026-11-03) |
 | 27837 | 37 | 418. The answer-key rules for Consuela and Sonic, proposed (2026-11-03) |
 | 27874 | 31 | 419. The attribution case: a neutral rewording, at the owner's choice (2026-11-03) |
+| 27905 | 22 | 420. The owner signed the answer-key rules: Consuela always 12, Sonic always 8 (2026-11-03) |

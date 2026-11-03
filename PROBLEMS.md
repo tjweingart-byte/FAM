@@ -27901,3 +27901,25 @@ Tests: `tests/test_dedupe_reworded_419.py` (no swap adds a hedge, number,
 name or attribution; certainty kept; nothing reworded where code would keep
 the pair apart; lowercase whole words only; the grown *same* case is the
 rewording) and `tests/test_agents_training_407.py` updated.
+
+## 420. The owner signed the answer-key rules: Consuela always 12, Sonic always 8 (2026-11-03)
+
+The owner signed manifest version 4 (b6d2970): `consuela.md` and `sonic.md`
+are the §418 proposals byte for byte, and `MANIFEST.json` is the pending
+manifest the session wrote. `python tools/rulebook_manifest.py --verify`:
+every agent may run, signed with the same `owner.pub`. The commit held
+exactly the four files.
+
+Signed the §412 way - downloaded, signed in `famsign` from a key file saved
+from TextEdit and deleted with `rm -P`, uploaded in one commit. Two snags,
+both caught before signing: the browser saved the proposal as
+`consuela (1).md` beside the previous signing's `consuela.md`, and the
+previous `MANIFEST.json.sig` was still in Downloads. So the owner now
+works in a folder of their own (`FAM Rule Books/`: `signing/` emptied after
+each signing, `current/` the full signed set, `archive/vN date` each past
+one) and checks each file's SHA-256 before signing.
+
+The proposals and the pending manifest are deleted;
+`tests/test_answer_key_proposals_418.py` takes its signed branch. Nothing
+behaves differently yet: no code reads the two rules until C3 and S4 are
+built, which may now be. The owner updates the copy held outside Claude.

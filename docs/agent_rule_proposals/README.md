@@ -7,20 +7,17 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-**The answer-key rules (PROBLEMS.md §418)**: `consuela.md` gains always 12
-and `sonic.md` always 8 - in the shape of `nando.md` rule 12, a stronger
-model chosen by the owner grades a sample of the agent's work each night,
-in the background, and its grades only teach and measure, never change the
-archive or an episode. Nothing else in either book changes
-(`tests/test_answer_key_proposals_418.py`). Before: `consuela.md` with
-Perplexity (§412, version 3); `nando.md` rule 12 (§392).
+Nothing. The answer-key rules - `consuela.md` always 12 and `sonic.md`
+always 8 - were signed on 2026-11-03 (PROBLEMS.md §420, manifest version
+4); `consuela.md` with Perplexity before them (§412, version 3); `nando.md`
+rule 12 on 2026-11-01 (§392).
 
 ## Signing it (on the owner's Mac, with the owner's key)
 
-The session has written `docs/agent_rules/MANIFEST.pending.json` (version
-4): the manifest as it will be once the two proposals replace the signed
-books - only `consuela.md`'s and `sonic.md`'s fingerprints change. No clone
-is needed (§352, §392, §412):
+When a proposal waits, the session writes `docs/agent_rules/MANIFEST.pending.json`:
+the manifest as it will be once the proposals replace the signed books -
+only their fingerprints change. No clone is needed (§352, §392, §412, §420).
+As last done (version 4, two books):
 
 1. From GitHub, on the branch, download
    `docs/agent_rule_proposals/consuela.md`,
