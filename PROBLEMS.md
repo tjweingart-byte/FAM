@@ -28697,7 +28697,44 @@ shuffled order per question. Frozen packets and results stay outside the
 repository (they hold provider text). The two weeks of editions written each
 way, judged by listening, come after the owner reads this.
 
-**Results:** the run is in progress; the table is added here when it finishes.
+**Results** (50 questions, 150 scripts, all graded; $10.45 in all, grading
+included; 2026-11-03, with the key). One question (q13, measles) had no
+packet to plan from, so both editor arms wrote it as `none` did.
+
+| | no editor | Haiku 5.5 high | Sonnet 5.5 high |
+|---|---|---|---|
+| cost per episode (editor + writer) | $0.002 | $0.006 | $0.041 |
+| time per episode | 8.0 s | 33.6 s | 17.1 s |
+| editor's own call | - | 27.4 s | 11.9 s |
+| code: information / flow / depth | 0.93 / 0.65 / 0.84 | 0.96 / 0.64 / 0.83 | 0.94 / 0.57 / 0.83 |
+| code: repetition / hook / storytelling | 1.00 / 0.95 / 1.00 | 1.00 / 0.92 / 1.00 | 1.00 / 0.93 / 1.00 |
+| Opus: information / flow / depth | 2.72 / 3.12 / 3.22 | 2.52 / 3.00 / 3.00 | 2.86 / 2.98 / 3.14 |
+| Opus: repetition / hook / storytelling | 2.82 / 3.48 / 1.54 | 3.16 / 3.52 / 1.86 | 3.04 / 3.50 / 1.72 |
+| Opus, mean of the six | 2.82 | 2.84 | 2.87 |
+| Opus: unsupported claims per episode | 3.72 | 3.60 | 3.60 |
+| Mclovin's counted failures per episode | superlative 0.42, mixed 0.38, figures 0.26, dates 0.02 | mixed 0.46, figures 0.36, superlative 0.28, dates 0.06 | superlative 0.46, mixed 0.34, figures 0.30, dates 0.06, website 0.02 |
+
+**Read with the spread, the arms are not different.** Paired by question,
+with 95% bootstrap intervals on the Opus mean of six: Haiku minus none
++0.03 [-0.10, +0.16], better on 21 questions and worse on 24; Sonnet minus
+none +0.06 [-0.07, +0.18], better on 24 and worse on 20; Sonnet minus Haiku
++0.03 [-0.09, +0.14]. The one difference whose interval clears zero is
+repetition under Haiku (+0.34 [+0.06, +0.62]); storytelling under Haiku
+(+0.32 [-0.02, +0.64]) only just fails to. No enforced Mclovin failure on any
+arm but one website on Sonnet. By group the samples are too small to read
+(1-18 questions); news, the largest (18), is 2.76 / 2.83 / 2.85.
+
+**What it says, for the owner's decision.** At 1.5 minutes, from the same
+packets and the same Haiku writer, an editor's outline - on either model -
+does not yet make the writing measurably better on these measures, and every
+arm's storytelling grade is low (1.5-1.9 of 5). So the lever the outline was
+meant to be is not the bottleneck at this length: what the writer does with
+a plan (and the writer itself) is. Sonnet costs about seven times Haiku per
+episode ($0.041 against $0.006) and is faster (12 s against 27 s, both ahead
+of the tap where nobody waits); neither is shown to be better. Not measured
+here: longer episodes (3-5 minutes), where structure should matter more;
+whether the writer followed the plan; and the two weeks of editions judged
+by listening, which item 37 puts after this.
 
 Settings: `EDITOR_EFFORT` (new), `EDITOR_MAX_TOKENS` 16,000 (was 4,000), in
 `config.py`, `.env.example` and `tests/conftest.py`.

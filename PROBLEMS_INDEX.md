@@ -436,5 +436,5 @@ and `limit` = Lines.
 | 28430 | 75 | 433. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03) |
 | 28505 | 86 | 434. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03) |
 | 28591 | 42 | 435. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03) |
-| 28633 | 80 | 436. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03) |
-| 28713 | 93 | 437. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03) |
+| 28633 | 117 | 436. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03) |
+| 28750 | 93 | 437. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03) |
