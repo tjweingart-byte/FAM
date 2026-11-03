@@ -1,7 +1,7 @@
 # Phase 3 - the opening prompt (Shakespeare and Mclovin in the writing)
 
 Phase 0 (the framework), Phase 1 (C3P0 and Nando at the request, finished in
-PROBLEMS.md §425-§431) and Phase 2 (Consuela and Sonic, §393-§417) are done,
+PROBLEMS.md §425-§432) and Phase 2 (Consuela and Sonic, §393-§417) are done,
 and the provider change that had to wait for them (API-Sports and Finnhub
 removed, §418) is merged. Paste the text below into a new session once the
 Phase 1 branch (`claude/pensive-brown-x9nsp8`) is merged into Main. Delete
