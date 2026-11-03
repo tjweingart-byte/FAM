@@ -59,7 +59,8 @@ def main(argv=None) -> int:
         when = datetime.fromtimestamp(row["at"], timezone.utc).strftime("%Y-%m-%d %H:%M")
         print(f"\n{when}  {row['mode']}  {row['outcome']}  {row['url']}")
         if row["why"]:
-            print(f"    held: {row['why']}")
+            label = "held" if row["outcome"] == "held" else "note"
+            print(f"    {label}: {row['why']}")
         for item in row["kept"]:
             status = (item.get("figure") or {}).get("status", "")
             print(f"    [{item['kind']}{' ' + status if status else ''}] {item['text']}")

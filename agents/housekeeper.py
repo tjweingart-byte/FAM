@@ -19,9 +19,12 @@ takes the oldest few and keeps only what is worth keeping:
   *outcome* only when the model says it happened **and** the sentence has
   no hedge ("expected", "will", "could"...); otherwise a forecast or unsure
   (consuela.md, never 3).
-* **Filed under Nando's node** (always 1): an article no episode's node
-  vouches for, or that two nodes claim, or whose node the tree does not
-  know, is held - left in intake, reported - never filed by guess.
+* **Filed under Nando's nodes** (always 1): every node an episode that used
+  the article was filed under, and the tree still knows - one node, or
+  several (§413, the owner: a Bengals-Giants game is filed under both
+  teams, never collapsed to their parent). An article no node vouches for,
+  or none of whose nodes the tree knows, is held - left in intake,
+  reported - never filed by guess.
 * **Only an approved provider's passages** (§397; never 8): an article's
   passages are read from `by_provider`, and only the approved providers'.
   One kept before providers were recorded (§358) has none, so it is held.
@@ -186,7 +189,7 @@ def status_of(sentence: str, said: str) -> str:
 
 
 def facts_from(record: dict, sentences: list, pick: ArticlePick, node: str,
-               path: list) -> list:
+               path: list, also: Optional[list] = None) -> list:
     """The facts one article's pick keeps, in the article's order."""
     import figure_guard
     import history_archive as ha
@@ -213,8 +216,26 @@ def facts_from(record: dict, sentences: list, pick: ArticlePick, node: str,
             published=record.get("published", ""), kind=kind,
             subject=subjects[0] if subjects else "",
             category=categories[0] if categories else "", figure=figure,
-            node_id=node, node_path=list(path)))
+            node_id=node, node_path=list(path), also_nodes=list(also or [])))
     return out
+
+
+def filing_nodes(record: dict) -> list:
+    """The nodes an article is filed under (§413): every node an episode that
+    used it was filed under, in the order they came, that the tree knows.
+    The first is the facts' `node_id`, the rest their `also_nodes`.
+    [] when the tree cannot be read."""
+    nodes = []
+    for node in record.get("nodes") or ():
+        if node and node not in nodes:
+            nodes.append(node)
+    try:
+        import topics
+
+        tree = topics.category_tree()
+        return [n for n in nodes if tree.get(n) is not None]
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def held_why(record: dict, sentences: list) -> str:
@@ -222,15 +243,9 @@ def held_why(record: dict, sentences: list) -> str:
     nodes = [n for n in record.get("nodes") or () if n]
     if not nodes:
         return "no node: Nando did not file an episode that used it"
-    if len(set(nodes)) > 1:
-        return f"two nodes claim it ({', '.join(sorted(set(nodes)))}): Nando to settle"
-    try:
-        import topics
-
-        if topics.category_tree().get(nodes[0]) is None:
-            return f"node {nodes[0]!r} is not in the tree"
-    except Exception:  # noqa: BLE001
-        return "the tree could not be read"
+    if not filing_nodes(record):
+        return (f"none of its nodes is in the tree ({', '.join(sorted(set(nodes)))})"
+                " or the tree could not be read")
     if not sentences:
         return "no passages from an approved provider"
     return ""
@@ -496,8 +511,6 @@ async def run() -> dict:
             why = held_why(record, sentences)
             if why:
                 summary["held"] += 1
-                if why.startswith("two nodes"):
-                    _ask_nando(record)
                 await asyncio.to_thread(store().note, record["id"], record["url"],
                                         mode, "held", why)
                 continue
@@ -512,9 +525,10 @@ async def run() -> dict:
                 continue
             by_article = {p.article: p for p in picks.articles}
             for i, (record, sentences) in enumerate(batch, 1):
-                node = record["nodes"][0]
+                nodes = filing_nodes(record)
+                node = nodes[0]
                 facts = facts_from(record, sentences, by_article[i], node,
-                                   ha.node_path(node))
+                                   ha.node_path(node), also=nodes[1:])
                 kept = [{"kind": f.kind, "text": f.text, "figure": f.figure}
                         for f in facts]
                 if mode == "live":
@@ -524,25 +538,12 @@ async def run() -> dict:
                     summary["kept_facts"] += len(facts)
                 summary["chosen"] += 1
                 await asyncio.to_thread(store().note, record["id"], record["url"],
-                                        mode, "chosen", "", kept)
+                                        mode, "chosen",
+                                        "filed under " + ", ".join(nodes), kept)
         return summary
     except Exception as exc:  # noqa: BLE001 - a run never takes the loop down
         log.exception("consuela's run failed")
         return {**summary, "why": f"{type(exc).__name__}: {exc}"}
-
-
-def _ask_nando(record: dict) -> None:
-    """An article two nodes claim looks misfiled: Consuela checks with Nando
-    before filing it (consuela.md, always 1) - through Netenyahu's task
-    table, never by doing his work (every-agent.md, always 2). The task
-    waits there until Nando has a handler for it (§402). Never raises."""
-    try:
-        from agents import tasks
-
-        tasks.store().add("categorizer", "settle", record["id"],
-                          {"nodes": sorted(set(record.get("nodes") or []))})
-    except Exception as exc:  # noqa: BLE001
-        log.warning("could not hand a misfiled article to Nando: %s", exc)
 
 
 # ------------------------------------------------------------------ Netenyahu's task

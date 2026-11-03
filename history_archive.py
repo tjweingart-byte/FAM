@@ -235,6 +235,10 @@ class Fact:
     #: "" and [] when Nando did not file it.
     node_id: str = ""
     node_path: list = field(default_factory=list)
+    #: The other nodes an article is filed under when several episodes'
+    #: nodes claim it (§413, the owner: a Bengals-Giants game under both
+    #: teams). `node_id` is the first; Sonic finds the fact under any.
+    also_nodes: list = field(default_factory=list)
 
 
 #: The metrics a live reading may be. A score is the game's state at a
@@ -383,6 +387,8 @@ class SQLiteBackend:
         # Filed by node (§396). Each column on its own connection, for the
         # same reason as `by_provider`'s.
         for table, column, kind in (("facts", "node_id", "TEXT NOT NULL DEFAULT ''"),
+                                    # An article filed under several nodes (§413).
+                                    ("facts", "also_nodes", "TEXT NOT NULL DEFAULT '[]'"),
                                     # Consuela's reversible marks (§401).
                                     ("facts", "superseded_at", "REAL NOT NULL DEFAULT 0"),
                                     ("facts", "superseded_why", "TEXT NOT NULL DEFAULT ''"),
@@ -554,21 +560,24 @@ class SQLiteBackend:
                 "INSERT INTO facts (id, url, title, host, grade, published, "
                 "published_ts, kind, text, subject, category, figure, "
                 "corroborations, active, superseded_by, space, embedding, created, "
-                "node_id, node_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?, ?, ?) "
+                "node_id, node_path, also_nodes) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET text = excluded.text, "
                 "corroborations = excluded.corroborations, "
                 # A write that knows no node never forgets the one filed.
                 "node_id = CASE WHEN excluded.node_id != '' THEN excluded.node_id "
                 "ELSE facts.node_id END, "
                 "node_path = CASE WHEN excluded.node_id != '' THEN excluded.node_path "
-                "ELSE facts.node_path END",
+                "ELSE facts.node_path END, "
+                "also_nodes = CASE WHEN excluded.node_id != '' THEN excluded.also_nodes "
+                "ELSE facts.also_nodes END",
                 (fid, fact.url, fact.title, fact.host, fact.grade, fact.published,
                  when.timestamp() if when else 0.0, fact.kind, fact.text,
                  fact.subject, fact.category, json.dumps(fact.figure),
                  json.dumps(fact.corroborations), space,
                  embeddings.pack(vector) if vector else None, now,
-                 fact.node_id or "", json.dumps(list(fact.node_path or []))))
+                 fact.node_id or "", json.dumps(list(fact.node_path or [])),
+                 json.dumps([n for n in fact.also_nodes or [] if n])))
         return fid
 
     # -------------------------------------------------- Consuela's dedupe (§401)
@@ -662,8 +671,9 @@ class SQLiteBackend:
         with closing(self._connect()) as db:
             rows = db.execute(
                 "SELECT id, node_id, node_path FROM facts WHERE active = 1 AND "
-                "(node_id = ? OR node_path LIKE ?) LIMIT ?",
-                (node, f'%{json.dumps(node)}%', max(1, int(limit)))).fetchall()
+                "(node_id = ? OR node_path LIKE ? OR also_nodes LIKE ?) LIMIT ?",
+                (node, f'%{json.dumps(node)}%', f'%{json.dumps(node)}%',
+                 max(1, int(limit)))).fetchall()
         return [{"id": r[0], "node_id": r[1], "node_path": json.loads(r[2] or "[]")}
                 for r in rows]
 
@@ -687,6 +697,14 @@ class SQLiteBackend:
             cur = db.execute("UPDATE live_series SET node_id = ? WHERE node_id = ?",
                              (new, old))
             changed["readings"] = cur.rowcount or 0
+            # A fact's other nodes follow too (§413).
+            for fid, also in db.execute("SELECT id, also_nodes FROM facts WHERE "
+                                        "also_nodes LIKE ?",
+                                        (f'%{json.dumps(old)}%',)).fetchall():
+                listed = [new if n == old else n for n in json.loads(also or "[]")]
+                listed = [n for i, n in enumerate(listed) if n and n not in listed[:i]]
+                db.execute("UPDATE facts SET also_nodes = ? WHERE id = ?",
+                           (json.dumps(listed), fid))
         return changed
 
     def aging_sentences(self, created_before: float, limit: int) -> list:
@@ -886,6 +904,8 @@ class AtlasBackend:
         # Filed by node (§396): Sonic reads a node's facts by date, and
         # Consuela finds what a tree change touches.
         self.facts_c.create_index([("node_id", 1), ("published", 1)])
+        # An article under several nodes is found under each (§413).
+        self.facts_c.create_index([("also_nodes", 1), ("published", 1)])
         # Consuela's nightly dedupe reads the newest facts (§401).
         self.facts_c.create_index([("active", 1), ("created", 1)])
         self.intake_c.create_index("nodes")
@@ -1046,6 +1066,8 @@ class AtlasBackend:
         if fact.node_id:
             doc["node_id"] = fact.node_id
             doc["node_path"] = list(fact.node_path or [])
+            if fact.also_nodes:
+                doc["also_nodes"] = [n for n in fact.also_nodes if n]
         if vector:
             doc["embedding"] = [float(x) for x in vector]
         self.facts_c.replace_one({"_id": fid}, {"_id": fid, **doc}, upsert=True)
@@ -1124,7 +1146,8 @@ class AtlasBackend:
         return [{"id": str(d["_id"]), "node_id": d.get("node_id", ""),
                  "node_path": list(d.get("node_path") or [])}
                 for d in self.facts_c.find(
-                    {"active": True, "$or": [{"node_id": node}, {"node_path": node}]},
+                    {"active": True, "$or": [{"node_id": node}, {"node_path": node},
+                                             {"also_nodes": node}]},
                     {"node_id": 1, "node_path": 1}).limit(max(1, int(limit)))]
 
     def set_node(self, fact_id: str, node_id: str, node_path: list) -> bool:
@@ -1135,6 +1158,11 @@ class AtlasBackend:
     def replace_node(self, old: str, new: str) -> dict:
         intake = self.intake_c.update_many({"nodes": old}, {"$set": {"nodes.$": new}})
         series = self.series_c.update_many({"node_id": old}, {"$set": {"node_id": new}})
+        # A fact's other nodes follow too (§413).
+        if new:
+            self.facts_c.update_many({"also_nodes": old},
+                                     {"$addToSet": {"also_nodes": new}})
+        self.facts_c.update_many({"also_nodes": old}, {"$pull": {"also_nodes": old}})
         return {"intake": int(getattr(intake, "modified_count", 0) or 0),
                 "readings": int(getattr(series, "modified_count", 0) or 0)}
 

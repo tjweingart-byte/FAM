@@ -225,23 +225,39 @@ def test_the_comb_re_files_what_a_lost_task_left_behind(archive):
 
 # --- Nando, and Netenyahu's schedule ------------------------------------------------
 
-def test_an_article_two_nodes_claim_is_handed_to_nando(archive, monkeypatch, tmp_path):
-    from agents import tasks
+def test_an_article_two_nodes_claim_is_filed_under_both(archive, monkeypatch):
+    """§413, the owner: a Bengals-Giants game is filed under both teams -
+    never collapsed to their parent, never held for Nando."""
+    monkeypatch.setattr(models, "ask", _Model_picks())
+    finding = ha.Finding(url="https://x.com/a", title="T", published="2026-10-19",
+                         passages=("The Eagles beat the Giants on Sunday at home.",),
+                         provider="perplexity")
+    archive.intake([finding], "Eagles", "nfl", NOW, node="eagles")
+    archive.intake([finding], "Giants", "nfl", NOW, node="giants")
+    summary = asyncio.run(hk.run())
+    assert (summary["chosen"], summary["held"]) == (1, 0)
+    (node, also), = _rows(archive, "SELECT node_id, also_nodes FROM facts")
+    assert (node, json.loads(also)) == ("eagles", ["giants"])
+    assert "filed under eagles, giants" in hk.store().recent()[0]["why"]
+    # Sonic finds it from either team.
+    from agents import retriever
 
-    tasks.reset(tasks.TaskStore(str(tmp_path / "tasks.db")))
-    try:
-        _settings(monkeypatch, housekeeper_dry_run=True)
-        monkeypatch.setattr(models, "ask", lambda *a, **k: None)
-        finding = ha.Finding(url="https://x.com/a", title="T", passages=("One sentence.",),
-                             provider="perplexity")
-        archive.intake([finding], "Eagles", "nfl", NOW, node="eagles")
-        archive.intake([finding], "Eagles", "nfl", NOW, node="giants")
-        summary = asyncio.run(hk.run())
-        assert summary["held"] == 1
-        task = tasks.store().get(f"categorizer:settle:{ha.url_id('https://x.com/a')}")
-        assert task["status"] == tasks.QUEUED
-    finally:
-        tasks.reset()
+    reader = retriever.ReadOnlySQL(archive.path)
+    later = ha.datetime.fromtimestamp(NOW + 400 * DAY, ha.timezone.utc)
+    assert [f.text for f in reader.node_facts(["giants"], later, 6)] == [
+        "The Eagles beat the Giants on Sunday at home."]
+    # And a re-file of the second node follows it.
+    del archive.parents["giants"]
+    archive.replace_node("giants", "nfl")
+    assert json.loads(_rows(archive, "SELECT also_nodes FROM facts")[0][0]) == ["nfl"]
+
+
+def _Model_picks():
+    async def ask(request, **_kw):
+        return models.AgentResult(status=models.OK, agent=request.agent, task=request.task,
+                                  value=hk.Picks(articles=[hk.ArticlePick(
+                                      article=1, key=[1], quotes=[], figures=[])]))
+    return ask
 
 
 def test_her_longer_jobs_are_registered_and_scheduled():

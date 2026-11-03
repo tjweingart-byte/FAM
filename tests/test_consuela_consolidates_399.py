@@ -150,12 +150,15 @@ def test_only_approved_providers_passages_are_read():
     assert hk.passages_of({"by_provider": {}}) == []
 
 
-def test_an_article_is_filed_under_one_known_node_or_held(archive):
+def test_an_article_is_filed_under_its_known_nodes_or_held(archive):
     s = ["A sentence."]
     assert hk.held_why({"nodes": ["eagles"]}, s) == ""
     assert "no node" in hk.held_why({"nodes": []}, s)
-    assert "two nodes" in hk.held_why({"nodes": ["eagles", "nfl"]}, s)
-    assert "not in the tree" in hk.held_why({"nodes": ["bears"]}, s)
+    # Several nodes are filed under all (§413), never held for Nando.
+    assert hk.held_why({"nodes": ["eagles", "nfl"]}, s) == ""
+    assert hk.filing_nodes({"nodes": ["eagles", "bears", "nfl", "eagles"]}) == [
+        "eagles", "nfl"]
+    assert "none of its nodes" in hk.held_why({"nodes": ["bears"]}, s)
     assert "approved provider" in hk.held_why({"nodes": ["eagles"]}, [])
 
 

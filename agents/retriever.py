@@ -161,16 +161,27 @@ class ReadOnlySQL:
                        corroborations=json.loads(r[12] or "[]"), node_id=r[13] or "",
                        node_path=json.loads(r[14] or "[]"))
 
+    @staticmethod
+    def _under(nodes: list) -> tuple:
+        """(SQL, args): a fact filed under any of `nodes` - its own node, or
+        one of the others an article is filed under (§413)."""
+        import json
+
+        marks = ",".join("?" for _ in nodes)
+        also = " OR ".join("also_nodes LIKE ?" for _ in nodes)
+        return (f"(node_id IN ({marks}) OR {also})",
+                (*nodes, *(f"%{json.dumps(n)}%" for n in nodes)))
+
     def node_facts(self, nodes: list, before: datetime, limit: int) -> list:
         """The latest facts filed under `nodes`, published before `before`."""
         if not nodes:
             return []
-        marks = ",".join("?" for _ in nodes)
+        under, args = self._under(nodes)
         rows = self._read(
             f"SELECT {self._COLUMNS} FROM facts WHERE active = 1 AND kind != 'link' "
-            f"AND node_id IN ({marks}) AND published_ts > 0 AND published_ts < ? "
+            f"AND {under} AND published_ts > 0 AND published_ts < ? "
             "ORDER BY published_ts DESC LIMIT ?",
-            (*nodes, before.timestamp(), max(1, int(limit))))
+            (*args, before.timestamp(), max(1, int(limit))))
         return [self._fact(r) for r in rows]
 
     def subject_facts(self, subject: str, kind: str, start: datetime, end: datetime,
@@ -189,8 +200,8 @@ class ReadOnlySQL:
 
         where, args = "", ()
         if nodes:
-            where = f" AND node_id IN ({','.join('?' for _ in nodes)})"
-            args = tuple(nodes)
+            under, args = self._under(nodes)
+            where = f" AND {under}"
         rows = self._read(
             f"SELECT {self._COLUMNS}, embedding FROM facts WHERE active = 1 "
             "AND kind != 'link' AND space = ? AND published_ts > 0 AND published_ts < ? "
@@ -272,7 +283,9 @@ class ReadOnlyAtlas:
         if not nodes:
             return []
         return [self._fact(d) for d in self.facts_c.find(
-            {"active": True, "kind": {"$ne": "link"}, "node_id": {"$in": list(nodes)},
+            {"active": True, "kind": {"$ne": "link"},
+             "$or": [{"node_id": {"$in": list(nodes)}},
+                     {"also_nodes": {"$in": list(nodes)}}],
              "published": {"$lt": before}}, self._NO_VECTOR
         ).sort("published", -1).limit(max(1, int(limit)))]
 

@@ -360,7 +360,9 @@ Nando did not file the episode, which with `AGENTS=0` is always. While
 Consuela runs (§397) only an approved provider's material is stored
 (`HOUSEKEEPER_APPROVED_PROVIDERS`; Parallel, Finnhub and API-Sports never),
 and the sweeps' scores and prices become readings of `live_series`. Never a
-private search or an attachment. **Sonic reads it read-only** (§403):
+private search or an attachment. An article several episodes' nodes
+claim is filed under all of them (§413): the first is the fact's `node_id`,
+the rest its `also_nodes`, and Sonic finds it under any. **Sonic reads it read-only** (§403):
 `facts` and `live_series` only, never `intake`, through his own read-only
 Atlas user (`MONGODB_READ_URI`) or the file opened `mode=ro`, every
 statement gated to a read. A fact Consuela's dedupe marks a repeat

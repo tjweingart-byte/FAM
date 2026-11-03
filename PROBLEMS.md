@@ -27627,3 +27627,32 @@ files in one commit through GitHub's web page - no stray file this time.
 The proposals README now gives that route. The proposal and the pending
 manifest are deleted; `tests/test_consuela_proposal_398.py` takes its
 signed branch. The owner updates the copy held outside Claude.
+
+## 413. An article two nodes claim is filed under both (2026-11-03)
+
+The owner's answer to §402's question ("2"): an article that episodes filed
+under different nodes is filed under **all of them** - a Bengals-Giants game
+under both teams - never collapsed to their shared parent (the NFL) and
+never held for Nando. The episode itself keeps one category (decided item
+5); only the archive's facts can carry several. `consuela.md` always 1
+("file every packet under the category Nando gave it") is kept as read:
+two episodes gave it two.
+
+- `housekeeper.filing_nodes`: every node an episode that used the article
+  was filed under, in order, that the tree knows. The first is each fact's
+  `node_id` (its path as before); the rest are its new `also_nodes`. An
+  article none of whose nodes the tree knows is still held. The dry-run
+  report says where each article would be filed ("filed under eagles,
+  giants").
+- The hold for two nodes and the hand-off to Nando (`categorizer:settle`,
+  which had no handler) are gone.
+- `facts.also_nodes` (SQLite column migrated in place; Atlas field and
+  index); Sonic's node lookups match `node_id` or `also_nodes`
+  (`ReadOnlySQL._under`, Atlas `$or`), so the game is found from either
+  team; a re-file replaces a pruned node in `also_nodes` too
+  (`replace_node`), and `facts_under` counts it. Atlas Vector Search still
+  filters by `node_id` only - a search by meaning within a family finds a
+  fact through its first node.
+
+Tests: §399's and §402's tests rewritten for the rule (filed under both,
+found from either team, re-filed), Sonic's Atlas query.

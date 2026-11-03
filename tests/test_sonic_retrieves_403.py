@@ -276,7 +276,9 @@ def test_atlas_reads_by_node_before_the_window_and_never_the_vectors():
     before = NOW - timedelta(days=7)
     store.node_facts(["eagles", "nfl"], before, 6)
     query, projection = facts.finds[0]
-    assert query["node_id"] == {"$in": ["eagles", "nfl"]}
+    # Under its own node, or one of the others it is filed under (§413).
+    assert query["$or"] == [{"node_id": {"$in": ["eagles", "nfl"]}},
+                            {"also_nodes": {"$in": ["eagles", "nfl"]}}]
     assert query["published"] == {"$lt": before} and projection == {"embedding": 0}
     store.by_meaning([1.0] * 4, "onnx:4", before, 6, 0.45, nodes=["eagles"])
     stage = facts.pipelines[0][0]["$vectorSearch"]
