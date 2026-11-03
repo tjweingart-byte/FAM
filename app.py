@@ -368,7 +368,7 @@ async def _refresh_stories_forever() -> None:
     is `STORIES_BACKGROUND_SECONDS` old - every fifteen minutes by default,
     one sweep for every listener, exactly as a page load would have paid.
 
-    Since §191 a tick spends only on what is due: the news and Finnhub every
+    Since §191 a tick spends only on what is due: the news and Tiingo's markets every
     two hours, and BALLDONTLIE's sports only when somebody drew myFAM
     recently and a followed game is on (`balldontlie_scores` `Signals.idle`). A tick with nothing due
     asks nobody.
@@ -2099,8 +2099,8 @@ async def health(request: Request) -> dict:
         # is, and what this process wrote and recalled. Sends nothing.
         "archive": _archive_report(),
         # Whether every licensed provider in use may be used commercially
-        # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless
-        # endpoint may not. The question to ask before charging anybody.
+        # (§207): GNews' free plan, Tiingo without its redistribution licence
+        # and Open-Meteo's keyless endpoint may not. The question to ask before charging anybody.
         "licences": _licences_report(),
         # Whether episodes are being written before anybody asks for them, on
         # what evidence, and whether the guesses are being taken. The hit rate

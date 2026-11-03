@@ -320,10 +320,11 @@ def test_the_tracker_draws_the_reasons():
     assert "failure_reasons" in page
 
 
-def test_finnhub_and_local_feeds_say_why_too():
-    """The same admin page shows Finnhub and the local feeds failing; their
-    reasons come from the two functions every request of theirs goes through,
-    and Finnhub's names the path, never the query that carries its key."""
+def test_live_providers_and_local_feeds_say_why_too():
+    """The same admin page shows the live providers and the local feeds
+    failing; their reasons come from the two functions every request of
+    theirs goes through, and a live provider's names the path, never the
+    query that may carry a key."""
     live = (ROOT / "live_sources.py").read_text()
     body = live[live.index("async def _json"):]
     body = body[:body.index("\n\n\n")]

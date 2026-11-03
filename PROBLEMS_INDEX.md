@@ -418,3 +418,8 @@ and `limit` = Lines.
 | 27698 | 46 | 415. Totals about groups of listeners: groups of 100 or more, never a person (2026-11-03) |
 | 27744 | 13 | 416. docs/BACKEND.md brought up to Phase 2 (2026-11-03) |
 | 27757 | 80 | 417. The review before the pull request (2026-11-03) |
+| 27837 | 66 | 418. API-Sports and Finnhub are removed; BALLDONTLIE and Tiingo are paid for (2026-11-02) |
+| 27903 | 19 | 419. BALLDONTLIE's plan is ALL-ACCESS (2026-11-03) |
+| 27922 | 16 | 420. Tiingo is credited on the Terms page (2026-11-03) |
+| 27938 | 20 | 421. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03) |
+| 27958 | 14 | 422. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03) |

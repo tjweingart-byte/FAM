@@ -48,7 +48,6 @@ episode built on it is traceable to it from the log and `/api/health`.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re
@@ -141,8 +140,8 @@ BUILDERS = {
 
 #: The provider a domain gets when nobody named one and its credential is
 #: present (§135). The owner's rule is that an episode's information comes
-#: from the web search, GDELT, BALLDONTLIE, Finnhub and Polymarket - so a deployment that
-#: holds a BALLDONTLIE or Finnhub key and forgot the second line naming it was
+#: from the web search, GDELT, BALLDONTLIE, Tiingo and Polymarket - so a deployment that
+#: holds a BALLDONTLIE or Tiingo key and forgot the second line naming it was
 #: quietly answering live questions from articles alone, which is the "a
 #: capability configured and not used" shape §119 was paid for. The key is
 #: the statement of intent; a separate switch saying so again is a second
@@ -151,13 +150,10 @@ BUILDERS = {
 #: Elections is not here: Polymarket is keyless, so there is no credential
 #: whose presence says anything, and `render.yaml` names it explicitly.
 DERIVED_FROM_KEY = {
-    # BALLDONTLIE's scoreboard (§277, §280); API-Sports' key alone builds the
-    # same scoreboard, its leagues answered by `api_sports` (§290, temporary).
-    "sports": (("balldontlie", "balldontlie_api_key"),
-               ("balldontlie", "api_sports_key")),
-    # §290: Tiingo's key, while developing, puts markets on Tiingo ahead of
-    # Finnhub; `LIVE_MARKETS_PROVIDER=finnhub` keeps Finnhub with both set.
-    "markets": (("tiingo", "tiingo_api_key"), ("finnhub", "finnhub_key")),
+    # BALLDONTLIE's scoreboard (§277, §280) and Tiingo's markets: the only
+    # sports and markets providers.
+    "sports": (("balldontlie", "balldontlie_api_key"),),
+    "markets": (("tiingo", "tiingo_api_key"),),
 }
 
 
@@ -240,7 +236,7 @@ def install() -> dict:
 
     # Player and team reports (§275): beside the scoreboard, never in its
     # slot, so registered apart from it. The key is the switch, as it is for
-    # the scoreboard and Finnhub.
+    # the scoreboard and Tiingo.
     import balldontlie
 
     live_facts.unregister_players(balldontlie.NAME)
@@ -280,17 +276,14 @@ def report() -> dict:
                 d for d, name in configured().items()
                 if name and not (named[d] or "").strip()),
             "known": {d: sorted(v) for d, v in BUILDERS.items()},
-            # §290: the free plans used while developing, and their counts.
-            "free_plans": _free_plans()}
+            # Tiingo's requests this hour and today, against FAM's ceilings.
+            "rations": _rations()}
 
 
-def _free_plans() -> dict:
-    import api_sports
+def _rations() -> dict:
     import tiingo
 
     out = {}
-    if settings.api_sports_key:
-        out["api_sports"] = api_sports.shared_client().report()
     if settings.tiingo_api_key:
         out["tiingo"] = tiingo.RATION.report()
     return out
@@ -313,9 +306,9 @@ import log_redaction  # noqa: E402
 class ProviderHTTPError(RuntimeError):
     """A provider answered with an HTTP error. Carries no URL (§144).
 
-    `httpx.HTTPStatusError`'s message is the whole request URL, and Finnhub's
-    key is a query parameter, so every 422 printed the key into Render's logs
-    - once in the message and again in the traceback. This carries the status
+    `httpx.HTTPStatusError`'s message is the whole request URL, and a key
+    sent as a query parameter is printed into Render's logs -
+    once in the message and again in the traceback. This carries the status
     and the endpoint's path, which is everything a reader of the log needs.
     """
 
@@ -332,11 +325,6 @@ def _usage_detail(provider: str, url: str) -> str:
     if provider == "balldontlie":
         path = httpx.URL(url).path.strip("/").split("/")
         return path[0] if path and path[0] else ""
-    if provider == "api_sports":
-        # §290: the product, each with its own day's allowance.
-        import api_sports
-
-        return api_sports.sport_of_host(httpx.URL(url).host)
     return ""
 
 
@@ -353,8 +341,8 @@ async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
             provider_usage.record(provider, ok=False, detail=_usage_detail(provider, url),
                                   why=type(exc).__name__)
             raise
-        # The reason names the path and status, never the query: Finnhub's
-        # key is a query parameter (§144, §220).
+        # The reason names the path and status, never the query: a key can
+        # be a query parameter (§144, §220).
         provider_usage.record(provider, ok=response.is_success,
                               detail=_usage_detail(provider, url),
                               why=f"HTTP {response.status_code} {response.url.path}")
@@ -368,7 +356,7 @@ async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
 
 
 #: Words that make a subject a topic rather than a company or index name.
-#: Finnhub's `/search` is a ticker lookup: it answers "Apple" or "NVDA", and a
+#: A ticker search answers "Apple" or "NVDA", and a
 #: DailyFAM subject like "Business and finance news of the last 24 hours" is
 #: refused with a 422 (§144).
 _TOPIC_WORDS = frozenset("""
@@ -382,7 +370,7 @@ _MAX_LISTING_WORDS = 5
 
 
 def looks_like_a_listing(subject: str) -> bool:
-    """Could `subject` be a company, fund or index Finnhub can look up?
+    """Could `subject` be a company, fund or index a ticker search can find?
 
     Deliberately generous in one direction only: a false "yes" costs one
     request that returns nothing, a false "no" costs a price for an episode
@@ -406,11 +394,6 @@ _TICKER = re.compile(r"(?:\(|\b)(?:NYSEARCA|NYSE\s+Arca|NYSE\s+American|NYSE|NAS
                      r"\s*:\s*\$?([A-Z]{1,5}(?:\.[A-Z])?)\b"
                      r"|\bticker\s*:?\s*\$?([A-Z]{1,5}(?:\.[A-Z])?)\b")
 
-#: Finnhub's free plan quotes US stocks and funds. An index, a future, a
-#: currency or a foreign listing answers 403 (10.16 #5), so a search row
-#: that is one of those is never chosen.
-_UNQUOTABLE_TYPES = ("index", "crypto", "forex", "future", "commodity", "bond")
-
 
 def ticker_named(subject: str) -> str:
     """The ticker a subject names with its exchange, or ""."""
@@ -418,37 +401,10 @@ def ticker_named(subject: str) -> str:
     return (found.group(1) or found.group(2) or "").upper() if found else ""
 
 
-def quotable(row: dict) -> bool:
-    """Whether a Finnhub search row is a listing the plan can quote."""
-    symbol = str(row.get("symbol") or "")
-    kind = str(row.get("type") or "").lower()
-    if not symbol or any(ch in symbol for ch in "^:=/"):
-        return False
-    if refused_today(symbol):
-        return False
-    return not any(word in kind for word in _UNQUOTABLE_TYPES)
-
-
-#: symbol -> the UTC day Finnhub refused to quote it (10.16 #5).
-_REFUSED: dict = {}
-
-
-def _utc_day() -> str:
-    return time.strftime("%Y-%m-%d", time.gmtime())
-
-
-def note_refused(symbol: str) -> None:
-    _REFUSED[str(symbol or "").upper()] = _utc_day()
-
-
-def refused_today(symbol: str) -> bool:
-    return _REFUSED.get(str(symbol or "").upper()) == _utc_day()
-
-
-#: symbol -> {"data": Finnhub's quote, "is_open": the session then, "at": when
-#: swept}. Written by the story sweep (`story_sources.FinnhubSignals`) for
-#: the watchlist only - never the whole market - and read by
-#: `FinnhubSource.fetch` (§267), the same seam `CARD` is for scores.
+#: symbol -> {"data": the quote (`c`, `pc`, `dp`, `t`), "is_open": the session
+#: then, "at": when swept}. Written by the story sweep
+#: (`story_sources.TiingoSignals`) for the watchlist only - never the whole
+#: market - and read by `tiingo.TiingoSource.fetch` (§267).
 QUOTES: dict = {}
 
 
@@ -484,182 +440,20 @@ def usable_sweep(held: Optional[dict], now: Optional[float] = None) -> bool:
     return now - float(held.get("at") or 0.0) <= limit
 
 
-class FinnhubSource(LiveSource):
-    """Finnhub quotes. The most generous free tier in market data.
+class MarketsSource(LiveSource):
+    """A markets provider's sentences (`tiingo.TiingoSource` is the one).
 
-    60 requests a minute free, and paid starts at $11.99/mo. The one catch is
-    licensing rather than engineering: the free tier is personal/non-commercial,
-    so a monetised app needs the paid plan (`FINNHUB_PLAN`).
-
-    **Delayed by about twenty minutes on the free tier**, which is fine here
-    and not fine elsewhere: `delayed_seconds` makes the prompt say "delayed by
-    twenty minutes" rather than "current". A provider that is honestly late is
-    usable; one that is quietly late is the failure this subsystem exists to
-    prevent.
-
-    **And it knows whether the market is open**, which matters more than the
-    delay. A quote pulled at 3am is not what something "is trading at" - it is
-    where it closed. Saying the first when you mean the second is a small lie
-    that a listener catches immediately, and it is the kind this project keeps
-    paying for. One extra call per lookup, cached with the facts.
+    A quote arrives in one shape - `c` the price, `pc` the previous close,
+    `dp` the day's move in percent, `t` its time - and is said by the
+    session it was taken in, because the fact changes with it: a price
+    pulled at 3am is not what something "is trading at", it is where it
+    closed. Saying the first when you mean the second is a small lie that a
+    listener catches immediately. `delayed_seconds` makes the prompt say a
+    late price is late.
     """
 
-    name = "Finnhub"
     domain = "markets"
-    cost_per_call = 0.0008  # $0.80 per 1,000 on the metered plan
-    delayed_seconds = 1200.0
-    BASE = "https://finnhub.io/api/v1"
-
-    def diagnose(self) -> tuple[bool, str]:
-        if not settings.finnhub_key:
-            return False, "FINNHUB_KEY is not set"
-        return True, "FINNHUB_KEY present (not verified from this machine)"
-
-    async def verify(self) -> tuple[bool, str]:
-        try:
-            data = await _json(f"{self.BASE}/quote", {},
-                               {"symbol": "AAPL", "token": settings.finnhub_key},
-                               settings.live_timeout_seconds)
-        except Exception as exc:  # noqa: BLE001
-            return False, f"Finnhub did not answer: {type(exc).__name__}: {exc}"
-        if not data or data.get("c") in (None, 0):
-            return False, f"Finnhub answered without a price: {str(data)[:120]}"
-        return True, f"Finnhub accepted the key (AAPL at {data.get('c')})"
-
-    async def resolve(self, brief) -> Optional[Entity]:
-        """Symbol lookup through Finnhub's own search - never a guessed ticker.
-
-        A hallucinated symbol does not fail. It returns somebody else's price,
-        fresh and confident and wrong, and nothing downstream can catch it.
-
-        Ordinary common stock is preferred over the warrants, units and foreign
-        listings that share a prefix, because "Apple" should find AAPL and not
-        AAPL.SW.
-        """
-        subject = live_route.entity_of(brief)
-        if not subject:
-            return None
-        # "Oracle Corporation (NYSE: ORCL)" names its own listing (10.16 #5):
-        # it used to be refused as a topic for its brackets. The ticker is
-        # still looked up, never trusted - only an exact match is used.
-        named = ticker_named(subject)
-        if named:
-            found = await self._resolve_ticker(named)
-            if found is not None:
-                return found
-        if not looks_like_a_listing(subject):
-            # "Startup and venture capital industry news" is a topic, not a
-            # company. Finnhub refuses it with a 422 - and if it did not, the
-            # first row it matched would be somebody else's price (§144).
-            log.info("finnhub: %r is a topic, not a listing; not looked up",
-                     subject)
-            return None
-        try:
-            data = await _json(f"{self.BASE}/search", {},
-                               {"q": subject, "token": settings.finnhub_key},
-                               settings.live_timeout_seconds)
-        except ProviderHTTPError as exc:
-            # A 4xx on a *lookup* is Finnhub saying it cannot search on this
-            # text, which is "nothing matching", not a broken provider. A bad
-            # key, a spent plan or a rate limit is still a failure.
-            if 400 <= exc.status < 500 and exc.status not in (401, 403, 429):
-                log.info("finnhub: no listing for %r (%s)", subject, exc)
-                return None
-            raise
-        rows = [row for row in (data or {}).get("result", []) or []
-                if quotable(row)]
-        best = None
-        for row in rows:
-            symbol = str(row.get("symbol") or "").strip()
-            if not symbol or "." in symbol:
-                continue
-            kind = str(row.get("type") or "")
-            if kind == "Common Stock" and best is None:
-                best = row
-            elif best is None and not kind:
-                best = row
-        best = best or (rows[0] if rows else None)
-        if not best:
-            return None
-        symbol = str(best.get("symbol") or "").strip()
-        if not symbol:
-            return None
-        return Entity(domain="markets", provider=self.name, id=symbol,
-                      label=str(best.get("description") or symbol).title())
-
-    async def _resolve_ticker(self, ticker: str) -> Optional[Entity]:
-        """The listing a subject named by ticker, if Finnhub has exactly it."""
-        if refused_today(ticker):
-            return None
-        try:
-            data = await _json(f"{self.BASE}/search", {},
-                               {"q": ticker, "token": settings.finnhub_key},
-                               settings.live_timeout_seconds)
-        except ProviderHTTPError as exc:
-            if 400 <= exc.status < 500 and exc.status not in (401, 403, 429):
-                return None
-            raise
-        for row in (data or {}).get("result", []) or []:
-            if str(row.get("symbol") or "").strip().upper() == ticker and quotable(row):
-                return Entity(domain="markets", provider=self.name, id=ticker,
-                              label=str(row.get("description") or ticker).title())
-        return None
-
-    async def market_open(self) -> Optional[bool]:
-        """Is the US market trading right now? `None` when it cannot be told.
-
-        `None` rather than a guess: an unknown session is reported as "most
-        recently" rather than asserted either way.
-        """
-        try:
-            data = await _json(f"{self.BASE}/stock/market-status", {},
-                               {"exchange": "US", "token": settings.finnhub_key},
-                               settings.live_timeout_seconds)
-        except Exception as exc:  # noqa: BLE001 - a missing session is not fatal
-            log.info("finnhub: market status unavailable (%s)", exc)
-            return None
-        value = (data or {}).get("isOpen")
-        return bool(value) if isinstance(value, bool) else None
-
-    async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
-        # A watchlist symbol the story sweep already quoted (§267): its quote
-        # is used when the session it was taken in is still the session now
-        # and it passes the same freshness check a live quote must. The
-        # session itself is always asked live - one cheap call, run beside
-        # research, so it costs the first word nothing - because a quote
-        # swept at 9:25 is a close, and at 9:35 it is not.
-        #
-        # Judged first in the session it was swept in: a quote that would be
-        # stale even there is not worth a round trip, so the lookup goes
-        # straight to the two requests in parallel, exactly as before - it
-        # never puts a second request behind the first under the live
-        # timeout. Only a quote that could be used costs the session check,
-        # and only a session that changed since costs the quote after it.
-        held = swept_quote(entity.id)
-        candidate = (self.to_facts(held["data"], entity, held["is_open"])
-                     if usable_sweep(held) else None)
-        if candidate is not None and candidate.is_fresh():
-            is_open = await self.market_open()
-            if is_open == held["is_open"]:
-                log.info("finnhub: %s from the story sweep's quote", entity.id)
-                return candidate
-            quote = await _json(f"{self.BASE}/quote", {},
-                                {"symbol": entity.id, "token": settings.finnhub_key},
-                                settings.live_timeout_seconds)
-            return self.to_facts(quote, entity, is_open)
-        try:
-            quote, is_open = await asyncio.gather(
-                _json(f"{self.BASE}/quote", {},
-                      {"symbol": entity.id, "token": settings.finnhub_key},
-                      settings.live_timeout_seconds),
-                self.market_open())
-        except ProviderHTTPError as exc:
-            if exc.status == 403:
-                # The plan does not reach this listing (10.16 #5): not asked
-                # again today, so one refusal is one error, not one a question.
-                note_refused(entity.id)
-            raise
-        return self.to_facts(quote, entity, is_open)
+    delayed_seconds = 0.0
 
     def to_facts(self, data: dict, entity: Entity,
                  is_open: Optional[bool] = None) -> Optional[LiveFacts]:
@@ -691,7 +485,7 @@ class FinnhubSource(LiveSource):
         return LiveFacts(domain="markets", source=self.name, as_of=when,
                          facts=said, status=live_facts.UNKNOWN, entity=entity,
                          delayed_seconds=self.delayed_seconds,
-                         # Only Finnhub's own "closed" (§267); an unknown
+                         # Only a session known closed (§267); an unknown
                          # session keeps the open-market hour.
                          market_closed=is_open is False)
 
@@ -1010,12 +804,10 @@ class _QuoteOnlyElections(LiveSource):
 
 
 def _balldontlie_scores():
-    import api_sports
+    import balldontlie
     import balldontlie_scores
 
-    # §290: a `Router` while API-Sports answers any league, else BALLDONTLIE's
-    # one shared client.
-    return balldontlie_scores.ScoreBoard(client=api_sports.scoreboard_client())
+    return balldontlie_scores.ScoreBoard(client=balldontlie.shared_client())
 
 
 def _tiingo():
@@ -1025,7 +817,6 @@ def _tiingo():
 
 
 BUILDERS["sports"]["balldontlie"] = _balldontlie_scores
-BUILDERS["markets"]["finnhub"] = FinnhubSource
 BUILDERS["markets"]["tiingo"] = _tiingo
 BUILDERS["elections"]["polymarket"] = PolymarketSource
 BUILDERS["elections"]["ap"] = lambda: _QuoteOnlyElections(

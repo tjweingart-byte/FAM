@@ -1,7 +1,7 @@
 """The real providers, against recorded payloads.
 
 **None of these has ever made a live request from this build.** The container's
-egress proxy blocks `api.balldontlie.io`, `finnhub.io`,
+egress proxy blocks `api.balldontlie.io`, `api.tiingo.com`,
 `gamma-api.polymarket.com` and `api.gdeltproject.org`, so
 every shape here is written from the vendors' documentation and pinned against
 payloads recorded by hand.
@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import gdelt  # noqa: E402
 import live_facts  # noqa: E402
 import live_sources as ls  # noqa: E402
+import tiingo  # noqa: E402
 
 
 def entity(domain="sports", provider="p", id="1", label="KC v DEN"):
@@ -153,20 +154,28 @@ def test_a_row_with_no_score_yields_no_score_sentence():
 # --------------------------------------------------------------------------
 # markets: honest about the delay
 # --------------------------------------------------------------------------
-def test_finnhub_quotes_carry_their_delay():
-    """Finnhub's free tier is about twenty minutes behind. Presented as
-    current that is a lie with a timestamp attached."""
-    facts = ls.FinnhubSource().to_facts(
+def test_a_late_quote_says_its_delay():
+    """A price behind the market presented as current is a lie with a
+    timestamp attached. Tiingo's IEX last sale is real time, so it says
+    none; a source that is late says so."""
+    class Late(tiingo.TiingoSource):
+        delayed_seconds = 1200.0
+
+    facts = Late().to_facts(
         {"c": 231.5, "dp": -1.23, "t": 1789000000},
         entity(domain="markets", label="Apple"))
     assert facts.delayed_seconds > 0
     assert "DELAYED" in facts.as_prompt_block()
+    live = tiingo.TiingoSource().to_facts(
+        {"c": 231.5, "dp": -1.23, "t": 1789000000},
+        entity(domain="markets", label="Apple"))
+    assert "DELAYED" not in live.as_prompt_block()
 
 
 def test_a_quote_never_establishes_an_event_status():
     """A price is a price, not an outcome. `unknown` is what stops a market
     question being answered as a result."""
-    facts = ls.FinnhubSource().to_facts(
+    facts = tiingo.TiingoSource().to_facts(
         {"c": 10.0, "dp": 1.0, "t": 1789000000},
         entity(domain="markets", label="X"))
     assert facts.status == live_facts.UNKNOWN
@@ -180,7 +189,7 @@ def test_a_close_is_current_until_the_market_reopens():
 
     now = datetime.now(timezone.utc)
     stamp = (now - timedelta(hours=17)).timestamp()
-    closed = ls.FinnhubSource().to_facts(
+    closed = tiingo.TiingoSource().to_facts(
         {"c": 231.5, "dp": -1.2, "t": stamp},
         entity(domain="markets", label="Apple"), is_open=False)
     assert closed.market_closed and closed.is_fresh()
@@ -189,20 +198,20 @@ def test_a_close_is_current_until_the_market_reopens():
     assert "closed at 231.50" in " ".join(closed.facts)
 
     for is_open in (True, None):
-        same = ls.FinnhubSource().to_facts(
+        same = tiingo.TiingoSource().to_facts(
             {"c": 231.5, "t": stamp}, entity(domain="markets"), is_open=is_open)
         assert not same.market_closed and not same.is_fresh(), (
             "only the provider's own 'closed' buys the longer window")
 
-    stopped = ls.FinnhubSource().to_facts(
+    stopped = tiingo.TiingoSource().to_facts(
         {"c": 1.0, "t": (now - timedelta(days=5)).timestamp()},
         entity(domain="markets"), is_open=False)
     assert not stopped.is_fresh(), "a five-day-old close is a symbol that stopped"
 
 
 def test_an_empty_quote_is_not_a_price_of_zero():
-    assert ls.FinnhubSource().to_facts({"c": 0}, entity(domain="markets")) is None
-    assert ls.FinnhubSource().to_facts({}, entity(domain="markets")) is None
+    assert tiingo.TiingoSource().to_facts({"c": 0}, entity(domain="markets")) is None
+    assert tiingo.TiingoSource().to_facts({}, entity(domain="markets")) is None
 
 
 # --------------------------------------------------------------------------
@@ -285,7 +294,7 @@ def test_quote_only_election_providers_say_what_they_would_need(name):
 # every provider is honest about not being configured
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("domain, name", [
-    ("sports", "balldontlie"), ("markets", "finnhub"),
+    ("sports", "balldontlie"), ("markets", "tiingo"),
 ])
 def test_a_provider_with_no_credential_refuses_and_says_which_one(domain, name):
     source = ls.BUILDERS[domain][name]()

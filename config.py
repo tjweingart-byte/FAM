@@ -826,11 +826,11 @@ class Settings:
     # The category tree is unaffected: it reads every story the pool holds.
     stories_news_interval_seconds: float = _env_float(
         "STORIES_NEWS_INTERVAL_SECONDS", 7200.0)
-    # Finnhub's floor. Two hours since §191, at the owner's direction: what
+    # The markets sweep's floor (Tiingo). Two hours since §191, at the owner's direction: what
     # matters is a large move, which is still a large move two hours later,
     # and markets are heading for 24-hour trading, so it is not limited to
-    # the US session. Was fifteen minutes (§156), which was ~1,400 quotes a
-    # day, most of them overnight. Twelve symbols a sweep: ~144 a day.
+    # the US session. Was fifteen minutes (§156). On Tiingo the whole
+    # watchlist is one request a sweep: twelve a day.
     stories_markets_interval_seconds: float = _env_float(
         "STORIES_MARKETS_INTERVAL_SECONDS", 7200.0)
     # How often a followed sport is swept while one of its games is on
@@ -1007,11 +1007,11 @@ class Settings:
     stories_polymarket: bool = field(
         default_factory=lambda: os.environ.get("STORIES_POLYMARKET", "0")
         not in ("0", "false", "False", ""))
-    # The symbols Finnhub is asked about each sweep. Empty is the named list
-    # in `story_sources.WATCHLIST`; the free tier has no movers endpoint, so a
-    # fixed watchlist is the honest cheap version of "what moved today".
-    finnhub_watchlist: str = field(
-        default_factory=lambda: os.environ.get("FINNHUB_WATCHLIST", "").strip())
+    # The symbols the markets sweep quotes (one Tiingo request). Empty is
+    # the named list in `story_sources.WATCHLIST`; a fixed watchlist is the
+    # honest cheap version of "what moved today".
+    markets_watchlist: str = field(
+        default_factory=lambda: os.environ.get("MARKETS_WATCHLIST", "").strip())
 
     # --- GDELT -----------------------------------------------------------
     # A second article index beside the web search, and the source behind the story
@@ -1351,7 +1351,8 @@ class Settings:
         not in ("0", "false", "False", ""))
     balldontlie_api_key: str = field(
         default_factory=lambda: os.environ.get("BALLDONTLIE_API_KEY", "").strip())
-    # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat. One
+    # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat |
+    # all-access (every sport and endpoint, §419; FAM's plan). One
     # account covers every league. Nothing in an answer says which plan a key
     # is on, so the deploy says it, and an endpoint the plan does not reach
     # is not asked (`balldontlie.ENDPOINT_TIERS`). Free reaches players and
@@ -1372,43 +1373,25 @@ class Settings:
     balldontlie_base: str = field(
         default_factory=lambda: os.environ.get(
             "BALLDONTLIE_BASE", "https://api.balldontlie.io").strip().rstrip("/"))
-    # --- API-Sports' free plans while developing (§290, temporary) --------
-    # One key for every sport. With it set, every league `api_sports.LEAGUES`
-    # maps goes to API-Sports while BALLDONTLIE is absent or on its free
-    # plan; API_SPORTS_LEAGUES names them instead (BALLDONTLIE keys: nfl,
-    # nba, mlb, nhl, epl ...). Deleted when FAM goes commercial.
-    api_sports_key: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_KEY", "").strip())
-    api_sports_leagues: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_LEAGUES", "").strip())
-    # The free plan: 100 requests a day per sport, reset at 00:00 UTC, and
-    # about 10 a minute. The myFAM sweep stops while the reserve is left.
-    api_sports_daily_requests: int = _env_int("API_SPORTS_DAILY_REQUESTS", 100)
-    api_sports_per_minute: int = _env_int("API_SPORTS_PER_MINUTE", 10)
-    api_sports_lookup_reserve: int = _env_int("API_SPORTS_LOOKUP_RESERVE", 40)
-    finnhub_key: str = field(
-        default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
-    # --- Tiingo's free plan while developing (§290, temporary) -----------
-    # Markets: a quote from IEX and a ticker search. With the key set it is
-    # the markets provider (ahead of Finnhub) unless LIVE_MARKETS_PROVIDER
-    # names one. Free is 50 requests an hour, 1,000 a day and 500 tickers a
-    # month, personal use only; the two ceilings below are FAM's own stops.
+    # --- Tiingo: market prices (§290, §418) -------------------------------
+    # Markets: a quote from IEX and a ticker search; the only markets
+    # provider. With the key set it is the markets provider. TIINGO_PLAN is
+    # the plan bought: free | power | commercial | redistribution. The free
+    # plan has FAM's own stops (45/hour, 950/day); a paid plan has none
+    # (§421). The two ceilings set a stop on any plan; 0 means "from the plan".
     tiingo_api_key: str = field(
         default_factory=lambda: os.environ.get("TIINGO_API_KEY", "").strip())
-    tiingo_hourly_requests: int = _env_int("TIINGO_HOURLY_REQUESTS", 45)
-    tiingo_daily_requests: int = _env_int("TIINGO_DAILY_REQUESTS", 950)
+    tiingo_hourly_requests: int = _env_int("TIINGO_HOURLY_REQUESTS", 0)
+    tiingo_daily_requests: int = _env_int("TIINGO_DAILY_REQUESTS", 0)
     tiingo_plan: str = field(
         default_factory=lambda: os.environ.get("TIINGO_PLAN", "free").strip().lower())
     # Which plan each licensed provider is on, as bought on its dashboard
     # (§207). Nothing in the provider's answer says so, and the free plans of
     # both are licensed for development / personal use only - so the deploy
     # says it, and `/admin` and `/api/health` flag a free plan in use.
-    # GNews: free | essential | business | enterprise. Finnhub: free |
-    # commercial (any other word is read as a paid plan).
+    # GNews: free | essential | business | enterprise.
     gnews_plan: str = field(
         default_factory=lambda: os.environ.get("GNEWS_PLAN", "free").strip().lower())
-    finnhub_plan: str = field(
-        default_factory=lambda: os.environ.get("FINNHUB_PLAN", "free").strip().lower())
     ap_elections_key: str = field(
         default_factory=lambda: os.environ.get("AP_ELECTIONS_KEY", "").strip())
     ddhq_key: str = field(
@@ -2251,11 +2234,16 @@ class Settings:
                 f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "
                 f"web search backend. Use one of: same, "
                 f"{', '.join(WEB_RESEARCH_BACKENDS)}.")
-        if self.balldontlie_tier not in ("free", "all-star", "goat"):
+        if self.balldontlie_tier not in ("free", "all-star", "goat", "all-access"):
             raise ValueError(
                 f"BALLDONTLIE_TIER={self.balldontlie_tier!r} is not one of "
-                "BALLDONTLIE's plans: free, all-star, goat. Refusing rather "
+                "BALLDONTLIE's plans: free, all-star, goat, all-access. Refusing rather "
                 "than guessing a plan upward and spending refused requests.")
+        if self.tiingo_plan not in ("free", "power", "commercial", "redistribution"):
+            raise ValueError(
+                f"TIINGO_PLAN={self.tiingo_plan!r} is not one of Tiingo's "
+                "plans: free, power, commercial, redistribution. Refusing "
+                "rather than guessing its request limits.")
         if self.parallel_mode not in ("turbo", "fast", "basic", "advanced"):
             raise ValueError(
                 f"PARALLEL_MODE={self.parallel_mode!r} is not one of Parallel's "

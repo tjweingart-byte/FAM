@@ -61,7 +61,7 @@ EUR_TO_USD = 1.08
 # price becomes a monthly cost on the sheet: "/month", "/year", "EUR/month",
 # or "usage" (read from the Daily Spend column named in `ledger`). Prices are
 # from docs/FINANCIAL.md and the code it cites; a row whose plan the deployment
-# can tell us (GNews, Finnhub, Open-Meteo, BALLDONTLIE, the voice transport,
+# can tell us (GNews, Tiingo, Open-Meteo, BALLDONTLIE, the voice transport,
 # tile pictures, Viral Loops) is decided by the settings in force, not copied.
 
 HOSTING = "Hosting & infrastructure"
@@ -227,26 +227,35 @@ def catalogue() -> list[dict]:
     # repository, so a paid plan asks for it rather than guessing one.
     bdl_tier = str(_setting("balldontlie_tier", "free") or "free").lower()
     bdl_paid = bdl_tier not in ("", "free")
+    # §419: ALL-ACCESS's list price, as the owner's dashboard shows it.
+    bdl_price = {"all-access": 299.99}.get(bdl_tier, 0)
     rows.append(_row(
         DATA, "BALLDONTLIE", "Sports data (every league)",
         "Live scores, standings, story-card score lines, player and injury reports",
         f"{bdl_tier.upper()} plan, flat rate" if bdl_paid
         else "Free (5 req/min: rosters and games only)",
-        "Paying, enter price" if bdl_paid else "Free tier",
-        0, "/month",
+        ("Paying" if bdl_price else "Paying, enter price") if bdl_paid else "Free tier",
+        bdl_price, "/month",
         "" if bdl_paid else "ALL-STAR for standings, injuries and season figures",
         "BALLDONTLIE_TIER; balldontlie.io/pricing"))
 
-    finnhub_plan = str(_setting("finnhub_plan", "free") or "free")
-    finnhub_paid = finnhub_plan not in ("", "free")
+    # §418: Tiingo is the only markets provider. Power and Commercial are
+    # internal use; prices said to listeners need the redistribution licence.
+    tiingo_plan = str(_setting("tiingo_plan", "free") or "free").lower()
+    tiingo_price = {"power": 30, "commercial": 50}.get(tiingo_plan, 0)
     rows.append(_row(
-        DATA, "Finnhub", "Market data",
+        DATA, "Tiingo", "Market data",
         "Market facts and market-move story cards",
-        f"{finnhub_plan.title()} plan" if finnhub_paid else "Free (personal, non-commercial)",
-        "Paying, confirm quote" if finnhub_paid else "Free tier, licence needed before launch",
-        11.99 if finnhub_paid else 0, "/month",
-        "" if finnhub_paid else "Commercial plan (quote-based, ~$11.99/mo quoted)",
-        "FINNHUB_PLAN; PROVIDER_ROLLOUT.md"))
+        {"free": "Free (personal use)", "power": "Power (internal use)",
+         "commercial": "Commercial (internal use)",
+         "redistribution": "Redistribution licence"}.get(tiingo_plan, tiingo_plan),
+        "Paying, enter price" if tiingo_plan == "redistribution" else
+        "Paying, redistribution licence needed before launch" if tiingo_price else
+        "Free tier, licence needed before launch",
+        tiingo_price, "/month",
+        "" if tiingo_plan == "redistribution"
+        else "Redistribution licence (quote-based, sales@tiingo.com)",
+        "TIINGO_PLAN; tiingo.com/about/pricing"))
 
     meteo_paid = _has_key("OPEN_METEO_API_KEY")
     rows.append(_row(
@@ -313,9 +322,10 @@ def launch_purchases(rows: list[dict]) -> list[dict]:
     if ("GNews", "Paying") not in bought:
         out.append({"item": "GNews Essential (commercial licence)",
                     "price": 49.99, "unit": "EUR/month"})
-    if not any(r["vendor"] == "Finnhub" and r["status"].startswith("Paying") for r in rows):
-        out.append({"item": "Finnhub commercial plan (quoted)",
-                    "price": 11.99, "unit": "/month"})
+    if not any(r["vendor"] == "Tiingo" and r["status"] == "Paying, enter price"
+               for r in rows):
+        out.append({"item": "Tiingo redistribution licence (quote-based)",
+                    "price": 0, "unit": "/month"})
     if ("Open-Meteo", "Paying") not in bought:
         out.append({"item": "Open-Meteo API Standard",
                     "price": 29, "unit": "/month"})
@@ -362,9 +372,8 @@ def daily_ledger(now: Optional[float] = None) -> dict:
         return out.setdefault(d, {"episodes": 0, "hits": 0, "claude": 0.0,
                                   "search": 0.0, "gpu": 0.0, "images": 0.0})
 
-    # `live_usd` is left out on purpose: it prices Finnhub calls at its metered
-    # per-call rate, but FAM is on the free plan (and would be on a flat
-    # commercial one, a row of its own on Costs), so it is not money spent.
+    # `live_usd` is left out on purpose: market and sports data are flat-rate
+    # plans, rows of their own on Costs, so a per-call price is not money spent.
     for at, surface, hit, claude, search, gpu in _read(
             "METERING_DB", "metering.db",
             "SELECT at, surface, cache_hit, claude_usd, web_search_usd, gpu_usd"
