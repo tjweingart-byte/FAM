@@ -1839,7 +1839,8 @@
     object-fit:cover; display:block; }
   .seed-thumb.has-img .seed-tag{ z-index:1; left:9px; bottom:8px;
     background:rgba(237,230,214,0.92); color:#2A2530; padding:3px 6px 2px;
-    border-radius:4px; }
+    border-radius:4px; max-width:calc(100% - 18px); white-space:normal;
+    overflow-wrap:break-word; line-height:1.25; }
   .seed-thumb .sec-ready{ z-index:1; }
   /* "7 friends listened" (10.31 notebook): the subject chip's twin, bottom
      right, so the picture keeps its subject on the left. */
@@ -1860,9 +1861,10 @@
   /* The sheet's rows draw the same face at the logo's size. */
   #flList .friend-face{ width:30px; height:30px; font-size:12px; }
   .seed-friends.has-faces:not(:has(.src-count)){ padding-right:3px; }
-  /* Room for both on a narrow card: the subject gives way, never the count. */
-  .seed-thumb.has-friends .seed-tag{ max-width:calc(100% - 112px); overflow:hidden;
-    text-overflow:ellipsis; white-space:nowrap; }
+  /* Room for both on a narrow card: the faces step up above the subject,
+     so the category is always shown whole ("Culture", never "CUL..."). A
+     label too long for the card wraps rather than being cut. */
+  .seed-thumb.has-friends .seed-friends{ bottom:30px; }
   /* Two lines, clamped, so a rail's cards are one height whatever their
      hooks are. `startup.MAX_HOOK` is the other half of this: a clamp is the
      one failure that hides itself, so the budget is asserted on the strings

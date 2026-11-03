@@ -109,9 +109,12 @@ def test_both_card_shapes_draw_the_chip_and_never_a_zero():
     assert "seedFriendsHtml(t)" in _fn("renderSection")
     assert INDEX.count("+ seedFriendsHtml(t)") == 2
     assert "right:8px" in _rule(".seed-card .seed-friends")
-    # The subject gives way on a narrow card rather than sitting under it.
+    # On a narrow card the faces step up above the subject; the category is
+    # never cut to an ellipsis to make room for them.
     assert "has-friends" in _fn("seedThumbOpen")
-    assert "text-overflow:ellipsis" in _rule(".seed-thumb.has-friends .seed-tag")
+    assert "bottom:30px" in _rule(".seed-thumb.has-friends .seed-friends")
+    assert ".seed-thumb.has-friends .seed-tag" not in INDEX
+    assert "white-space:normal" in _rule(".seed-thumb.has-img .seed-tag")
 
 
 # --- 4. the best available picture ----------------------------------------------
