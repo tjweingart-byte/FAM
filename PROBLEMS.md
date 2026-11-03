@@ -27513,3 +27513,40 @@ in). Its old section 5 points there; notes in the wording now say
 "decision N". `docs/ACTIVATION_PRIVACY_DRAFT.pdf` is the same text, made with
 pandoc and Chromium's print; regenerate it the same way if the draft
 changes.
+
+## 410. The owner approved the activation wording: counted by default (2026-11-03)
+
+The owner answered the seven decisions of §409: **1A 2B 3A 4A 5A 6A 7A**.
+
+1. An under-13 date of birth deletes the account, after an "Is {date}
+   right?" check - at activation or when corrected later.
+2. **Counted by default** - the one answer that differs from the
+   recommendation (opt-in): the activation screen shows the notice, finishing
+   it records a yes in a new `demographics` consent scope, and a switch in
+   Settings, Privacy and safety ("Count me in FAM's totals") records a no.
+   The totals read only accounts whose answer is yes, so an account that
+   never saw the notice is never counted. The Privacy Policy says counting
+   is on and can be turned off; the lawyer's list now asks whether that holds
+   for EU and UK listeners (legitimate interest rather than consent).
+3. The location is the profile's existing place, shown on the profile.
+4. "Self-describe" is a choice only, no text box.
+5. The totals are only for counting.
+6. `TERMS_VERSION` stays 2.
+7. The wording is approved as drafted, with these answers.
+
+`docs/ACTIVATION_PRIVACY_DRAFT.md` (and its PDF) is now the approved wording
+with the answers written in; it goes live with the activation step that uses
+it - the Privacy Policy, `consent.py` and the app change together, never
+before the step collects anything.
+
+**Fixed now, from decision 3**: the app said, in two places, that the place
+"is never shown on your profile" - the sign-up identity step's note and the
+"Where you are" screen's lede - while since §219 the profile and
+`/api/person` show it, as the Privacy Policy says. Both now say it shows on
+the profile (and a code comment calling it private is corrected). Copy only;
+no behaviour changes.
+
+Next, each its own piece: the activation step (an API before the screen,
+its old-client contract, the policy and consent going live with it, account
+deletion removing the new fields, a Settings row for gender and the counting
+switch), then the aggregate totals job.

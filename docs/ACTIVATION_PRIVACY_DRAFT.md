@@ -1,8 +1,9 @@
 # Draft: Privacy Policy and consent wording for the activation step
 
-**Status: a draft for the owner. Nothing here is live.** `pages/privacy.html`,
-`consent.py` and the app are unchanged. Nothing asks for or collects a date of
-birth, location or gender until the owner approves this wording
+**Status: the wording the owner approved on 2026-11-03 (PROBLEMS.md §410),
+not live yet.** `pages/privacy.html`, `consent.py` and the app change with
+the activation step that uses them, never before it. Nothing asks for or
+collects a date of birth, location or gender until then
 (`docs/AGENTS_BUILD_PROMPT.md`, Phase 2, the activation step; decided items 2
 and 11; PROBLEMS.md §395). Delete this file once the approved wording is in
 `pages/privacy.html` and the app.
@@ -10,73 +11,22 @@ and 11; PROBLEMS.md §395). Delete this file once the approved wording is in
 Not legal advice. The Terms already name the points a lawyer should confirm
 before launch; this draft adds to that list (the end of this file).
 
-## Your decisions - answer these seven
+## The owner's decisions (2026-11-03)
 
-Each line is one decision. The recommendation is first; reply with the
-number and your choice (for example "1 A, 2 A, 3 A, ..."). Nothing below is
-built or collected until you have answered and approved the wording.
+Answered "1A 2B 3A 4A 5A 6A 7A":
 
-**1. A date of birth under 13** - at activation, or one already on an
-account.
-- **A. Delete the account (recommended).** After a "Is {date} right?"
-  check, so a typing slip costs nothing. *Why:* the current policy already
-  promises to delete a child's account, and US children's privacy law
-  (COPPA) expects deletion once FAM knows.
-- B. Lock the account until someone reviews it.
-- C. Hold it for you to review by hand.
-
-**2. Counting someone in the totals** (the age-group, gender and region
-counts, groups of 100 or more).
-- **A. Opt-in: a switch on the activation screen, off until they turn it on
-  (recommended).** *Why:* the safer reading for EU and UK law and for App
-  Store review. *Cost:* fewer people counted, so fewer groups reach 100.
-- B. On by default, with the notice on the screen and a switch in Settings
-  to turn it off. More data; more legal and review risk.
-
-**3. Where the location asked at activation is kept** - and a fix either
-way, because today the app disagrees with itself: the "Where you are"
-screen says the place "is never shown on your profile", but since §219 it is
-shown on your profile and to friends, and the Privacy Policy says so.
-- **A. Use the profile's existing place, shown on the profile as today, and
-  correct the "Where you are" screen's sentence (recommended).** *Why:* one
-  place, not two; what the policy already says; the screen's sentence is
-  the error.
-- B. A separate private location used only for the totals; the profile's
-  place stays as it is (and the screen's sentence is still corrected).
-- C. Make the profile's place private (reverses §219: profiles and
-  `/api/person` stop showing it).
-
-**4. "Self-describe" gender.**
-- **A. Keep only the choice "self-describe", with no text box
-  (recommended).** *Why:* nothing would use the words - totals count only
-  "self-describe" - and data FAM does not use is data it should not
-  collect (App Store 5.1.1, GDPR minimisation).
-- B. Offer a text box; keep the words on the account, never shown, never
-  counted.
-
-**5. What the totals may be used for.**
-- **A. Only to count what groups of listeners hear (recommended).** *Why:*
-  it is all that is planned. If they should one day shape what FAM offers
-  (say, Trending), that is a new policy change and everyone is asked again
-  then.
-- B. Also to shape what FAM offers - the policy must say so now.
-
-**6. Asking everyone to agree to the Terms again.**
-- **A. No: keep `TERMS_VERSION` at 2; the activation screen shows its own
-  notice and asks for its own yes (recommended).** *Why:* nothing new goes
-  to a third party, and a second prompt for the same thing adds friction.
-- B. Yes: raise `TERMS_VERSION` to 3 so every signed-in listener ticks the
-  Terms again.
-
-**7. The wording itself** (sections 1-3 below: the Privacy Policy changes,
-the consent notice, the activation screen's words).
-- **A. Approve as drafted, with your answers to 1-6 filled in
-  (recommended).**
-- B. Approve with changes - mark them on this page and send them back.
-
-After your answers I update `pages/privacy.html`, `consent.py` and the
-app, build the activation step (an API first, then the screen) and then the
-totals - each its own piece, checked as usual.
+1. **An under-13 date of birth deletes the account** - after an
+   "Is {date} right?" check - at activation or when corrected later.
+2. **Counted by default**: the activation screen shows the notice, and a
+   switch in Settings, Privacy and safety turns counting off. (The opt-in
+   switch was the recommendation; the owner chose on-by-default.)
+3. **The location is the profile's existing place**, shown on the profile as
+   today; the app's two sentences saying it is never shown are corrected.
+4. **"Self-describe" is a choice only**, with no text box.
+5. **The totals are only for counting** what groups of listeners hear.
+6. **The Terms are not asked again**: `TERMS_VERSION` stays 2; the activation
+   screen shows its own notice.
+7. **The wording below is approved** as drafted, with these answers in it.
 
 ## What the wording has to cover
 
@@ -145,9 +95,9 @@ groups of listeners".
 > or remove your gender and place at any time in Settings, and deleting
 > your account deletes all three.
 
-*[Owner: one choice affects this section - see decision 2. If counting is
-opt-in, add: "You are counted only if you said yes when you joined; you can
-change that in Settings, Privacy and safety."]*
+> **You can turn counting off.** You are counted from when you join, and
+> you can turn it off at any time in Settings, Privacy and safety; from
+> then on nothing you do is counted.
 
 ### Who else receives it - one sentence added under the table
 
@@ -162,8 +112,8 @@ tap the story about where you live - that row stays as it is.)
 > Your date of birth and gender are never shown to anyone. The place you
 > set shows on your profile, as it does today.
 
-*[Owner: see decision 3 - the location asked at activation is the same
-place as the profile's, which other people can see.]*
+(Decision 3: the location asked at activation is the profile's place,
+which other people can see; the screen asking for it says so.)
 
 ### How long we keep it - two rows added
 
@@ -186,7 +136,7 @@ email us and we will delete it.
 
 **Proposed:** FAM is not meant for children under 13. We ask every
 listener's date of birth when they join, and someone under 13 cannot enter
-the app. *[Owner: decision 1 decides the next sentence - recommended:]* If a
+the app. If a
 date of birth shows a listener is under 13, we delete their account and
 what it holds. If you believe a child has an account, email us and we will
 delete it.
@@ -200,21 +150,23 @@ again when `TERMS_VERSION` rises).
 **Proposed:**
 
 - **A third scope, `demographics`, version 1**, kept exactly like `ai`:
-  the answer, its version and when, keyed on the account; a no is kept too,
-  and Settings can change it. The aggregate job reads only accounts whose
-  answer is yes to the current version.
+  the answer, its version and when, keyed on the account. **Counted by
+  default** (decision 2): finishing the activation screen, which shows the
+  notice, records a yes to the current version; the Settings switch records
+  a no, and a no is kept. The aggregate job reads only accounts whose answer
+  is yes to the current version - so an account that never saw the notice
+  is never counted.
 - **`TERMS_VERSION` is not raised.** The policy change adds what FAM asks at
   activation and nothing sent to a third party, and the activation screen
   shows the notice itself, so asking everyone to tick the terms again would
-  add a second prompt for the same thing. *[Decision 6: if everyone should
-  re-agree instead, that is one line, `TERMS_VERSION = 3`.]*
+  add a second prompt for the same thing (decision 6).
 - **The notice text** (the `demographics` scope's `NOTICE`, shown on the
   activation screen under the fields):
 
 > We use your age group, gender and region only to count what groups of
 > listeners hear, in groups of at least 100 people. You are never picked
-> out, and none of it is shown to anyone or sent to anyone.
-> [Privacy policy](/privacy)
+> out, and none of it is shown to anyone or sent to anyone. You can turn
+> this off in Settings. [Privacy policy](/privacy)
 
 ## 3. The activation screen - in-app wording
 
@@ -227,15 +179,13 @@ An API before a screen ([api-before-screen]); this is the screen's text.
   `Town or city`; help text `Shows on your profile, and helps FAM find
   stories near you. Optional.`
 - **Gender** (optional): label `Gender`; choices `Man`, `Woman`,
-  `Non-binary`, `Self-describe`, `Prefer not to say`; with decision 4's
-  option B, choosing Self-describe opens a short text box (`In your words`);
-  with option A (recommended) it is a choice and nothing more. Help text `Never shown to anyone.
-  Optional.`
-- **Counting** (decision 2): either the notice alone (counted by default) or
-  a switch, `Count me in FAM's totals`, with the notice under it.
+  `Non-binary`, `Self-describe`, `Prefer not to say` - a choice, no text box
+  (decision 4). Help text `Never shown to anyone. Optional.`
+- **Counting** (decision 2): the notice under the fields; no switch here -
+  the switch is in Settings.
 - **Button:** `Continue` (enabled once a date of birth is entered); the two
   optional fields can be left empty.
-- **Under 13** (decision 1, recommended wording): before saving, `Is
+- **Under 13** (decision 1): before saving, `Is
   {date} right?` with `Yes` / `Change it`, so a slip of the finger does not
   cost an account; then `FAM is for people 13 and older, so we can't let you
   in. We've deleted your account.`
@@ -245,7 +195,7 @@ An API before a screen ([api-before-screen]); this is the screen's text.
 
 **Settings** gets a row for gender beside the place's (the place already
 has its own screen, `screen-location`) and, under Privacy and safety, the
-counting switch if counting is opt-in. The date of birth is
+switch `Count me in FAM's totals`, on until turned off (decision 2). The date of birth is
 shown but cannot be cleared (it can be corrected; a correction under 13
 follows decision 1).
 
@@ -262,14 +212,15 @@ follows decision 1).
 
 ## 5. Questions for the owner
 
-They are at the top of this draft, under "Your decisions - answer these
-seven", each with the options and a recommendation.
+Answered on 2026-11-03 - see "The owner's decisions" at the top.
 
 ## 6. For the lawyer's list (beside the Terms' existing notes)
 
 - Whether gender, joined with listening, needs more than this notice in any
-  US state FAM launches in, or in the EU or UK (where consent is the safer
-  basis for the totals).
+  US state FAM launches in, or in the EU or UK - **counting is on by default
+  with an off switch (decision 2)**, so the totals rest on legitimate
+  interest rather than consent there; whether that holds for EU and UK
+  listeners, or they need an opt-in.
 - Whether totals with a 100-person floor count as de-identified data under
   the laws that apply.
 - COPPA: what FAM must do when a date of birth shows a listener is under 13.
