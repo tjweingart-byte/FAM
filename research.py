@@ -321,6 +321,12 @@ def screen_results(results, *, query: str = "", live_domain: str = "") -> list:
     """
     results = list(results or [])
     kept, dropped = [], []
+    # **Mclovin's screen** (§433): opinion and blog posts out, before anyone
+    # weighs anything - only while he works on this episode, so with him off
+    # this is a no-op and the packet is what it was.
+    from agents import supervisor
+
+    results, dropped = supervisor.screen(results)
     games_asked = bool(_GAME_WORDS.search(query or ""))
     for result in results:
         if not games_asked and is_simulation(result):
@@ -1070,6 +1076,13 @@ def build_packet(results, packet_sources: int, highlights_per_source: int,
         # putting "reuters dot com" within reach of the script. `domains()`
         # still reports the hosts, out of band, for a person to judge.
         parts.append(f"Source type: {TIER_LABELS[credibility(result)]}")
+        # An asked-for opinion piece, marked as its author's view (§433);
+        # "" unless Mclovin's screen kept it for that reason.
+        from agents import supervisor
+
+        opinion = supervisor.opinion_label(result)
+        if opinion:
+            parts.append(opinion)
         highlights = getattr(result, "highlights", None)
         if highlights:
             parts.append("Key evidence:")
@@ -1392,6 +1405,11 @@ async def finish_history_look(packet: "Packet", look) -> None:
             getattr(packet.provenance, "items", []) or []}
     held |= {getattr(f, "url", "") for f in packet.findings}
     facts = [f for f in facts if f.url not in held]
+    # Mclovin's screen on the archive's packet too (§433); untouched while
+    # he is off.
+    from agents import supervisor
+
+    facts = supervisor.screen_facts(facts)
     if not facts:
         packet.archive = "nothing relevant"
         return

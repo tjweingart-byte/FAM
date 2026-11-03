@@ -370,7 +370,13 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "pipeline.py": {"netenyahu", "categorizer", "contextualizer"},
         # Sonic replaces the recall when Netenyahu lets him run (§403): code
         # and read-only lookups, no model.
-        "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever"},
+        # Mclovin's source screen is put in force around the research step
+        # (§433): code only, no model.
+        "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever",
+                                "supervisor"},
+        # The screen itself, read inside `screen_results`, the packet's
+        # opinion label and the archive's merge (§433): code only.
+        "research.py": {"supervisor"},
         "prefetch.py": {"categorizer"},
         "daily_edition.py": {"categorizer"},
         "trending_bank.py": {"categorizer"},

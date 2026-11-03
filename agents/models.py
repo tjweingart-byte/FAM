@@ -616,6 +616,14 @@ def health() -> dict:
         out["contextualizer"] = contextualizer.report()
     except Exception:  # noqa: BLE001
         out["contextualizer"] = None
+    try:
+        from agents import supervisor
+
+        # Mclovin's source screen: pages read, dropped by kind, kept as an
+        # asked-for opinion, unsettled (§433).
+        out["supervisor"] = supervisor.report()
+    except Exception:  # noqa: BLE001
+        out["supervisor"] = None
     out["overlord"] = {"loop": bool(settings.agents),
                        "tick_seconds": settings.overlord_tick_seconds,
                        "max_tasks_per_tick": settings.overlord_max_tasks_per_tick}

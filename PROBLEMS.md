@@ -28426,3 +28426,78 @@ saved question finds the chosen episode's key, the 300 resumes with the
 question rewritten), `tests/test_advice_425.py`, the Atlas fake in
 `tests/test_withdraw_refused_430.py`, and the smoke check now asserts the
 question carries the choice.
+
+## 433. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03)
+
+Decided items 6 and 13; mclovin.md "always" 2. The owner's answers before
+Phase 3 started (2026-11-03): pieces in the order screen, Mclovin's sentence
+checks, then Shakespeare and his eval (so the eval has Mclovin's counts from
+the start); a failing sentence's one repair is a one-sentence rewrite call;
+Shakespeare is built and measured ahead of the tap first, searchFAM's hand-over
+designed once the first chunk's wait is measured; and **a page code cannot
+settle is kept and counted on the tap**, never dropped.
+
+**What a page says it is** (`agents/supervisor.classify`), code only, from
+the page itself and never its tone:
+
+- *opinion*: a section in the address (`/opinion/`, `/opinions/`, `/op-ed/`,
+  `/editorial/`, `/commentary/`, `/columns/`, `/columnists/`, `/letters/`,
+  `/commentisfree/` and the like - whole path segments, never the article's
+  slug, so `/opinion-poll-shows-lead/` is reporting), or the title's own
+  label ("Opinion | ...", "Op-Ed: ...", "... - Opinion", "(opinion)");
+- *blog*: a blogging platform's host (Substack, Medium, Blogspot,
+  WordPress.com, Tumblr, Ghost, beehiiv and others), whatever the path;
+- kept: *analysis* (a `/analysis/` section or "Analysis:" label - reporting,
+  decided item 13, unless it sits inside the opinion pages); *official*
+  (a newsroom or press-release section, or a blog on a government's or
+  university's own domain - a wire service's blog is not "official");
+  *unsettled* (any other `/blog/` section or `blog.` host - counted, kept);
+  *reporting* (everything else).
+
+No provider returns a page type: Parallel, Perplexity and GDELT give a URL,
+a title, a date and passages. The build prompt's "a provider's page type" has
+nothing to read today; the screen takes one when a provider sends it.
+
+**Whose opinion** (`by`). When C3P0 marks `opinion_requested`, that person's
+own pieces stay and every other opinion piece or blog goes. A search result
+carries no byline, so "theirs" is what code can see of one: the name's slug in
+the host or a section of the address (their newsletter, a columnist's path),
+the title opening or closing on the name, or a passage reading "By <name>". A
+piece *about* them ("Why Paul Krugman is wrong") is not theirs; a one-word name
+is never looked for in an address. A kept piece is marked in the packet,
+under its source type: "Opinion: <name>'s own view - tell it as their view,
+never as fact".
+
+**Where it runs.** Inside `research.screen_results`, first, so every rung,
+the second look, the tapped story's outlets, GDELT and the local ladder's
+search are screened - and before the sports screen counts known outlets, so
+a column is never one of them. The archive's facts (Sonic's packet or the
+recall) are screened in `finish_history_look` by the article each came from;
+a provider's data (`live:`) is kept. The thin-packet retry runs after the
+screen as it always has; an empty packet is a missed search (§256).
+
+**Off changes nothing.** The screen is a context variable that
+`ScriptGenerator.research` puts in force only when Netenyahu lets Mclovin
+work on the episode (`SUPERVISOR=1` under `AGENTS=1`, both off); every rung's
+thread and task sees the episode's own. With none in force `screen()` returns
+its input untouched and the packet has no new line - `tests/test_agents_off.py`
+passes unchanged. A screen that fails keeps every page.
+
+**Counted** in `/api/health`'s agents block (`supervisor`): pages read,
+drops by kind (and the archive's), asked-for opinions kept, unsettled pages,
+and the drop rate (None before any page). Drops are logged with their hosts,
+as the simulation screen's are.
+
+**Not here.** The small model on unsettled pages ahead of the tap
+(`SUPERVISOR_SCREEN_MODEL`) is the next piece; how many pages it would see is
+now counted, so its cost can be stated before it is built. Unmeasured: the
+real drop rate on live packets - a `write.py` run with `AGENTS=1 SUPERVISOR=1`
+and the key shows it.
+
+Tests: `tests/test_supervisor_screen_433.py` (27 pages read; whose pieces;
+off a no-op and the packet byte for byte; on, drops counted and logged; the
+asked-for person's pieces kept and labelled; before the sports count; threads
+and tasks see it; a failing screen keeps all; the archive's facts and
+`finish_history_look`; in force only while Mclovin works; health).
+`tests/test_agents_model_layer.py` allows `research.py` and
+`script_generator.py` the code-only `supervisor` module.

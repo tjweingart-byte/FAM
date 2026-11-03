@@ -2061,6 +2061,21 @@ class ScriptGenerator:
 
     async def research(self, plan: EpisodePlan,
                        notes: ScriptNotes | None = None) -> EpisodePlan:
+        """`_research`, with Mclovin's source screen in force when Netenyahu
+        lets him work on this episode (§433): every rung, the second look,
+        GDELT, the local ladder and the archive's facts are screened for
+        opinion and blog posts, keeping the asked-for person's own views
+        (`opinion_requested`). Without him, exactly `_research`."""
+        if not _agent_runs(notes, "supervisor"):
+            return await self._research(plan, notes)
+        from agents import supervisor
+
+        asked = getattr(getattr(notes, "research_plan", None), "opinion_requested", "")
+        with supervisor.screening(asked or ""):
+            return await self._research(plan, notes)
+
+    async def _research(self, plan: EpisodePlan,
+                        notes: ScriptNotes | None = None) -> EpisodePlan:
         """Retrieve the evidence this episode is written from, before it is written.
 
         Returns the plan to write from: the same one when nothing was found,
