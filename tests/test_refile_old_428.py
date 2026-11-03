@@ -1,5 +1,5 @@
 """Re-file the episodes written before Nando (decided item 20; nando.md always
-10, §426): a list for the owner first, applied only with its SHA-256, through
+10, §428): a list for the owner first, applied only with its SHA-256, through
 `category_tag.retag` as a first filing.
 """
 from __future__ import annotations

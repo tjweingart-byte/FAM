@@ -2377,7 +2377,7 @@ def main() -> int:
             page.wait_for_timeout(1200)
 
         def asks_which_reading_of_a_shared_name():
-            """A name that means two things (§424): the server answers 300
+            """A name that means two things (§426): the server answers 300
             with the readings, the search asks which one, and the choice
             plays the same question with `reading=` - on the audio and on
             every request about that episode after it."""
@@ -2418,7 +2418,7 @@ def main() -> int:
                     "#readingOverlay", "e => e.classList.contains('active')"), "the picker stayed"
                 last = page.evaluate("() => window.__readingCalls[window.__readingCalls.length - 1]")
                 assert "reading=Manchester%20United" in last, f"the choice was not sent: {last}"
-                # And it joins the question (§430), so saves, shares and
+                # And it joins the question (§432), so saves, shares and
                 # history name this reading's episode.
                 assert "q=how%20did%20United%20do%20(Manchester%20United)" in last \
                     or "q=how%20did%20United%20do%20%28Manchester%20United%29" in last, last

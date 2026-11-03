@@ -716,7 +716,7 @@ class Prefetcher:
                      candidate.query, candidate.source, candidate.reason)
             return "brief"
 
-        # **Nor for a name that means two things** (decided item 15, §424):
+        # **Nor for a name that means two things** (decided item 15, §426):
         # nobody is here to ask, and the tile's own context did not settle
         # it, so it stays unwritten until somebody taps it and is asked.
         import script_generator

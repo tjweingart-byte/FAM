@@ -1,4 +1,4 @@
-"""Ask the listener when a name is ambiguous (decided item 15, §424).
+"""Ask the listener when a name is ambiguous (decided item 15, §426).
 
 C3P0 says a name means two things; before any plugin or Sonic is asked the
 episode stops and the readings go back - on `/api/audio` (300) and
@@ -62,7 +62,7 @@ def fresh():
 
 # ------------------------------------------------------------------ the key
 def test_the_reading_joins_the_question_once():
-    """Review (§430): the choice is part of the question, so every surface
+    """Review (§432): the choice is part of the question, so every surface
     that names an episode by its question - saves, shares, history, the
     offline copy - names the chosen reading's episode."""
     plan = appmod._validated_plan("how did United do", 2, reading="Manchester United")

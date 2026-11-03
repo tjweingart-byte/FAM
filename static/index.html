@@ -5131,7 +5131,7 @@
         </div>
       </div>
 
-      <!-- A name in the question means more than one thing (§424): which one?
+      <!-- A name in the question means more than one thing (§426): which one?
            Asked before anything is searched; the choice plays the episode. -->
       <div class="modal-overlay" id="readingOverlay">
         <div class="modal-card">
@@ -6475,7 +6475,7 @@
       } else if(PLAYER_SCREENS[screen] && episodeStamp){
         var parts = episodeStamp.split("|");
         // The query is everything before the last three fields (minutes,
-        // context, reading - §424), so a "|" typed into a question does not
+        // context, reading - §426), so a "|" typed into a question does not
         // cut it short.
         var q = parts.slice(0, Math.max(1, parts.length - 3)).join("|");
         out.episode = { q: q.slice(0, 500),
@@ -7205,7 +7205,7 @@
       return;
     }
     clearGenOverlay();
-    // A name that means two things (§424): which one, then the same episode
+    // A name that means two things (§426): which one, then the same episode
     // again with the chosen reading.
     if(err && err.readings && err.readings.length > 1 && lastGenerate
        && TOPICS[lastGenerate.key]){
@@ -7240,7 +7240,7 @@
     toast(message || "Could not generate that briefing");
   }
 
-  // ---------------- Which one do you mean? (§424) ----------------
+  // ---------------- Which one do you mean? (§426) ----------------
   // The server stopped before searching: a name in the question means more
   // than one thing. The readings are the server's words; nothing is guessed
   // here. Choosing one plays the same episode with `reading`; Cancel leaves
@@ -7250,7 +7250,7 @@
     var t = TOPICS[key];
     if(stack[stack.length - 1] === "player" && stack.length > 1) goBack();
     readingThen = function(choice){
-      // The choice joins the question (§430) - "how did United do
+      // The choice joins the question (§432) - "how did United do
       // (Manchester United)" - so saving, sharing, history and the offline
       // copy name this episode the way they name any question.
       var asked = t.prompt || t.title;
@@ -10141,7 +10141,7 @@
     stopSpeech();
     if(had) hideNowBar();
   }
-  //: `&reading=` for a key-shaped request (§424), "" when none was chosen.
+  //: `&reading=` for a key-shaped request (§426), "" when none was chosen.
   function readingParam(reading){
     return reading ? "&reading=" + encodeURIComponent(reading) : "";
   }
@@ -10180,9 +10180,9 @@
                      attach: t.attach || "", surface: where,
                      own: !!t.own, private: !!t.private,
                      episode: t.episode || "", queueable: true,
-                     // Which thing a shared name means (§424): asked on any
+                     // Which thing a shared name means (§426): asked on any
                      // tap that may write an episode - a tile written ahead
-                     // was left unwritten for exactly this (review, §430) -
+                     // was left unwritten for exactly this (review, §432) -
                      // never on a replay; and the listener's choice once made.
                      askReading: !t.cachedOnly && !t.episode,
                      reading: t.reading || "" };

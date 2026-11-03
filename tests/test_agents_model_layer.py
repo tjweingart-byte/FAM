@@ -366,7 +366,7 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
                    "housekeeper"},
         # The wipe also forgets Nando's answer-key labels (§381).
         "demo_data.py": {"tasks", "training", "nando_model", "memory"},
-        # C3P0's advice check after the writer (§423): a regex, no model.
+        # C3P0's advice check after the writer (§425): a regex, no model.
         "pipeline.py": {"netenyahu", "categorizer", "contextualizer"},
         # Sonic replaces the recall when Netenyahu lets him run (§403): code
         # and read-only lookups, no model.
@@ -388,7 +388,7 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "history_archive.py": {"roster", "housekeeper", "retriever"},
         # Keith's tag check (§405) reads his lock and registers his task.
         "tag_sync.py": {"roster", "netenyahu"},
-        # The re-file of episodes written before Nando (§426): his code
+        # The re-file of episodes written before Nando (§428): his code
         # steps and his check against the writer's words, no model.
         "refile_old.py": {"categorizer"},
         # Consuela's totals (§415) register their nightly task.

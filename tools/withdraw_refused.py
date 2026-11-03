@@ -1,4 +1,4 @@
-"""Withdraw what the archive kept from a refused provider: a list first (§428).
+"""Withdraw what the archive kept from a refused provider: a list first (§430).
 
     python tools/withdraw_refused.py                     # the list: withdraw_refused.json/.md
     python tools/withdraw_refused.py --apply withdraw_refused.json --approve <sha256>
@@ -7,7 +7,7 @@
     python tools/withdraw_refused.py --purge             # delete for good, 30 days after
 
 API-Sports and Finnhub are refused (`history_archive.REFUSED`) and no longer
-used; before §427 the archive could keep their scores and prices as live
+used; before §429 the archive could keep their scores and prices as live
 facts while Consuela was off. Withdrawing is reversible (every-agent.md
 always 8): a fact is marked inactive, which every reader already ignores, and
 a reading is moved out of the series into a holding table; `--restore` puts
@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 #: Whose material is withdrawn: the refused providers no longer in use.
 PROVIDERS = ("api-sports", "finnhub")
 #: The mark on everything withdrawn, so restore and purge touch only this.
-WHY = "withdrawn: refused provider (§428)"
+WHY = "withdrawn: refused provider (§430)"
 #: How long withdrawn material is held before it may be deleted for good.
 GRACE_DAYS = 30
 

@@ -26,5 +26,5 @@ def test_the_list_matches_what_the_code_approves():
     from config import settings
 
     approved = {p for p in settings.housekeeper_approved_providers if ha.approved(p)}
-    # GNews approved by the owner on 2026-11-03 (§427); Polymarket pending.
+    # GNews approved by the owner on 2026-11-03 (§429); Polymarket pending.
     assert approved == {"fam", "gdelt", "tiingo", "balldontlie", "perplexity", "gnews"}

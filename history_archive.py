@@ -163,7 +163,7 @@ PROVIDERS = ("perplexity", "parallel", "gdelt")
 #: backup search, and nothing it returned is kept (docs/PROVIDER_TERMS.md).
 NEVER_KEPT = ("parallel",)
 
-#: The series' columns, in order: what a withdrawn reading keeps (§428).
+#: The series' columns, in order: what a withdrawn reading keeps (§430).
 SERIES_COLUMNS = ("id", "subject", "metric", "as_of", "as_of_ts", "value", "unit",
                   "text", "status", "source", "domain", "node_id", "created")
 
@@ -216,7 +216,7 @@ def approved(provider: str) -> bool:
 
 def kept_live(records) -> list:
     """The live records the archive may keep as facts (§417): only an
-    approved provider's, whether or not Consuela runs (the owner, §427) -
+    approved provider's, whether or not Consuela runs (the owner, §429) -
     never a refused or unknown one's."""
     records = list(records or ())
     if not records:
@@ -445,7 +445,7 @@ class SQLiteBackend:
             db.execute("CREATE INDEX IF NOT EXISTS live_series_subject"
                        " ON live_series(subject, metric, as_of_ts)")
             # Readings taken out of the series and held for a grace period
-            # before they are deleted for good (§428, always 8).
+            # before they are deleted for good (§430, always 8).
             db.execute("CREATE TABLE IF NOT EXISTS withdrawn ("
                        " id TEXT PRIMARY KEY, store TEXT NOT NULL,"
                        " doc TEXT NOT NULL, why TEXT NOT NULL, at REAL NOT NULL)")
@@ -791,7 +791,7 @@ class SQLiteBackend:
                              "AND superseded_at > 0 AND superseded_at < ?", (before,))
             return cur.rowcount or 0
 
-    # -------------------------------------------------- withdrawing a provider (§428)
+    # -------------------------------------------------- withdrawing a provider (§430)
     def provider_rows(self, providers: tuple) -> list:
         """Active live facts and readings a provider in `providers` supplied."""
         out = []
@@ -1355,10 +1355,10 @@ class AtlasBackend:
             "superseded_at": {"$lt": datetime.fromtimestamp(before, timezone.utc)}})
         return int(getattr(result, "deleted_count", 0) or 0)
 
-    # -------------------------------------------------- withdrawing a provider (§428)
+    # -------------------------------------------------- withdrawing a provider (§430)
     @property
     def held_c(self):
-        """Readings withdrawn and held for a grace period (§428). Opened
+        """Readings withdrawn and held for a grace period (§430). Opened
         when first used, so nothing else ever touches it."""
         return self._database["withdrawn"]
 
@@ -1918,7 +1918,7 @@ def _kept(findings: list) -> list:
     if dropped:
         _count("never_kept", dropped)
     # Only what an approved provider returned (§397) - whether or not
-    # Consuela runs (the owner, §427): the approval list is a rule about
+    # Consuela runs (the owner, §429): the approval list is a rule about
     # what FAM may keep, not about who keeps it.
     if kept:
         allowed = [f for f in kept if approved(f.provider)]

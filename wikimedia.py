@@ -832,7 +832,7 @@ def lookup(name: str, context: str = "",
 
 def known(name: str) -> str:
     """Whether Wikidata knows a person by this name (public figures only,
-    decided item 16, §429): "known" when an item's English label or the
+    decided item 16, §431): "known" when an item's English label or the
     alias the search matched on is exactly `name` (any of several), "unknown"
     when none is, and "unchecked" when the look is off or did not answer -
     which establishes nothing ([missed-not-absent]). One request, its answer

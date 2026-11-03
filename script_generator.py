@@ -664,11 +664,11 @@ class ScriptNotes:
     #: (`categorizer.Prior`, §372) - the Trending story's category. None
     #: everywhere else, where `categorizer.prior_for` reads it from the tap.
     category_prior: object = None
-    #: The reading taken for an older client that cannot ask (§424): C3P0's
+    #: The reading taken for an older client that cannot ask (§426): C3P0's
     #: likeliest, "" otherwise. Such an episode is kept but never current,
     #: so a client that can ask is never served the guess under the plain key.
     reading_assumed: str = ""
-    #: Public figures only (§429): whether the reference look knew the person
+    #: Public figures only (§431): whether the reference look knew the person
     #: C3P0 said the request is about ("known", "unknown", "unchecked"), and
     #: the name it asked about. "" when he said nothing of the kind.
     public_check: str = ""
@@ -796,7 +796,7 @@ def _agent_runs(notes, role: str) -> bool:
 
 class ReadingNeeded(Exception):
     """A name in the request means two things and the listener has not said
-    which (decided item 15; c3p0.md always 2, §424). Raised after the brief
+    which (decided item 15; c3p0.md always 2, §426). Raised after the brief
     and before any plugin or Sonic is asked, so nothing is searched for the
     wrong thing. `/api/audio` answers it with the readings; an edition or a
     prefetch leaves the episode unwritten until somebody taps it."""
@@ -809,7 +809,7 @@ class ReadingNeeded(Exception):
 
 class PrivatePerson(research_mod.NoEvidence):
     """The request is about a person FAM cannot find in a public role
-    (decided item 16; c3p0.md never 6; every-agent.md never 9; §429): no
+    (decided item 16; c3p0.md never 6; every-agent.md never 9; §431): no
     episode. A `NoEvidence`, so every path that already declines an episode
     for want of evidence - `/api/audio`'s 503 and refund, the editions'
     `no_evidence`, prefetch's skip - declines this one the same way. The
@@ -824,7 +824,7 @@ class PrivatePerson(research_mod.NoEvidence):
 
 
 async def _public_look(plan: "EpisodePlan", notes) -> None:
-    """Before anything is searched (§429): when C3P0 says the request is
+    """Before anything is searched (§431): when C3P0 says the request is
     about a private person, ask whether Wikidata knows the name. Notes
     `public_check` as "known", "unknown" or "unchecked" and the name in
     `public_name`; never raises, never refuses - the refusal waits for the
@@ -861,7 +861,7 @@ def _named_in_reporting(name: str, evidence: str) -> bool:
 
 
 def _refuse_private(plan: "EpisodePlan", notes) -> None:
-    """After the search (§429): raises `PrivatePerson` when Wikidata did not
+    """After the search (§431): raises `PrivatePerson` when Wikidata did not
     know the name and the reporting does not name them either."""
     if getattr(notes, "public_check", "") != "unknown":
         return
@@ -895,7 +895,7 @@ def ambiguous_readings(plan: "EpisodePlan", notes) -> tuple:
 
 def _settle_reading(plan: "EpisodePlan", notes) -> "EpisodePlan":
     """Stop to ask, or take the likeliest reading, when C3P0 said a name is
-    ambiguous (§424). Raises `ReadingNeeded` for a client that can ask and
+    ambiguous (§426). Raises `ReadingNeeded` for a client that can ask and
     for anything written ahead of the tap (c3p0.md always 2: "leave it
     unwritten until someone taps it"); an older client gets C3P0's likeliest
     reading, told to the writer, and the episode is never current under the
@@ -1092,10 +1092,10 @@ class EpisodePlan:
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
     #: The reading the listener chose when a name means two things (decided
-    #: item 15, §424): "Manchester United" for "how did United do". It is
+    #: item 15, §426): "Manchester United" for "how did United do". It is
     #: also written into `query` ("how did United do (Manchester United)",
     #: `app._validated_plan`), which is how the key and every surface that
-    #: names an episode by its question carry it (§430); here it tells the
+    #: names an episode by its question carry it (§432); here it tells the
     #: brief and the writer which thing was meant. "" when never asked.
     reading: str = ""
     #: The client can ask the listener which reading they mean (`ask_reading=1`
@@ -2418,7 +2418,7 @@ class ScriptGenerator:
         # whole point of prefetching contextual relevance: the seconds it costs
         # on search are the seconds a warmed brief removes here, and a miss
         # costs one dictionary lookup.
-        # Never for a chosen reading (§424): the warmed brief is the one that
+        # Never for a chosen reading (§426): the warmed brief is the one that
         # did not know which thing was meant.
         warmed = (None if plan.reading
                   else prefetch.warm_brief(plan.query, plan.minutes, plan.context))
@@ -2464,7 +2464,7 @@ class ScriptGenerator:
         # first word is held to `EI_TIMEOUT_SECONDS`.
         if ahead:
             extra["ahead"] = True
-        # The reading the listener chose (§424), only when there is one.
+        # The reading the listener chose (§426), only when there is one.
         if plan.reading:
             extra["reading"] = plan.reading
         try:
@@ -2565,9 +2565,9 @@ class ScriptGenerator:
             _mark(notes, "brief_understood")
             _mark(notes, "brief_ready")
             # A name that means two things and nobody chose (decided item 15,
-            # §424): asked before any plugin, Sonic included, is called.
+            # §426): asked before any plugin, Sonic included, is called.
             plan = _settle_reading(plan, notes)
-            # Public figures only (decided item 16, §429): is the person
+            # Public figures only (decided item 16, §431): is the person
             # this is about known to the reference look? Before any search.
             await _public_look(plan, notes)
             # A brief that named no live domain still asks a provider when the
@@ -2607,7 +2607,7 @@ class ScriptGenerator:
                 placed = categorizer.place(plan.brief, plan.query, field, prior, pick,
                                            unsure=unsure)
                 if tie and pick == tie and not plan.reading:
-                    # Never a guess (decided item 15, §424, settling §377):
+                    # Never a guess (decided item 15, §426, settling §377):
                     # his tie call does not choose between the readings of a
                     # name code left undecided. C3P0 asks the listener; until
                     # one is chosen it is filed as if the call had not
@@ -2753,7 +2753,7 @@ class ScriptGenerator:
             thin_on=research_plan.thin_on, local=research_plan.local,
             forecast=forecast, players=players)
         # Unknown to the reference look and not named in the reporting
-        # either: a private person, and no episode (§429).
+        # either: a private person, and no episode (§431).
         _refuse_private(plan, notes)
 
         # The weather the local ladder fetched when the town had nothing

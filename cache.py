@@ -2388,7 +2388,7 @@ class SqliteScriptCache:
 
     def unfiled(self, after: str = "", limit: int = 500) -> list:
         """Kept episodes Nando never filed (no `category_node`), after `after`,
-        by key: what the re-file of episodes written before him reads (§426).
+        by key: what the re-file of episodes written before him reads (§428).
         Each a dict of key, query, title, category words, summary, sourced."""
         try:
             rows = self._conn().execute(

@@ -1,4 +1,4 @@
-"""Public figures only (decided item 16; c3p0.md never 6; §429).
+"""Public figures only (decided item 16; c3p0.md never 6; §431).
 
 When C3P0 says a request is about a private person, the reference look asks
 Wikidata for the name before anything is searched; a name Wikidata does not

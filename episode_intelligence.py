@@ -356,7 +356,7 @@ class Brief:
     #: exactly what it was. Kept on the brief so a brief warmed before the
     #: tap carries it.
     contextualized: dict = field(default_factory=dict)
-    #: Which thing a name that means two things is (§424): the reading the
+    #: Which thing a name that means two things is (§426): the reading the
     #: listener chose, or C3P0's likeliest for a client that cannot ask. ""
     #: otherwise, and the writer then reads exactly what it did before.
     reading: str = ""
@@ -1338,7 +1338,7 @@ def build_ei_prompt(query: str, minutes: int, context: str = "",
     follow_up = ""
     if reading:
         # The listener was asked which thing a shared name means and chose
-        # (decided item 15, §424). Only when they did, so every other
+        # (decided item 15, §426). Only when they did, so every other
         # brief's prompt is the text it always was.
         follow_up += (
             f"\nA name in it means more than one thing, so they were asked "
@@ -2003,7 +2003,7 @@ def build_structure_note(brief: Brief) -> str:
 
 
 #: What the writer reads when C3P0 says a request asks for medical, legal or
-#: financial advice (decided item 17, §423). A test pins this wording.
+#: financial advice (decided item 17, §425). A test pins this wording.
 ADVICE_NOTE = (
     "This asks for medical, legal or financial advice, and FAM never gives "
     "it: do not tell them what to do, recommend anything, or choose for "
@@ -2016,7 +2016,7 @@ ADVICE_NOTE = (
 
 
 #: What the writer reads when a name in the request means more than one thing
-#: and one meaning was taken (§424). A test pins this wording.
+#: and one meaning was taken (§426). A test pins this wording.
 READING_NOTE = (
     "A name in the request means more than one thing; this episode is about "
     "{reading}. Write about that and nothing else that shares the name, and "
@@ -2085,7 +2085,7 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
     if (brief.contextualized or {}).get("advice_request"):
         lines.append(ADVICE_NOTE)
 
-    # Which of a shared name's meanings this is (§424): chosen by the
+    # Which of a shared name's meanings this is (§426): chosen by the
     # listener, or C3P0's likeliest for a client that cannot ask.
     if brief.reading:
         lines.append(READING_NOTE.format(reading=brief.reading))

@@ -50,7 +50,7 @@ def _series(subject, metric="score"):
 
 def test_the_owner_s_approvals_are_the_default():
     assert set(ha.settings.housekeeper_approved_providers) == {
-        "fam", "gdelt", "tiingo", "balldontlie", "perplexity", "gnews"}   # GNews: §427
+        "fam", "gdelt", "tiingo", "balldontlie", "perplexity", "gnews"}   # GNews: §429
     for name in ("GDELT", "Tiingo", "BALLDONTLIE scores", "BALLDONTLIE", "perplexity",
                  "fam", "GNews"):
         assert ha.approved(name), name
@@ -94,7 +94,7 @@ FOUND = [_finding("https://a.com/1", "perplexity"), _finding("https://a.com/2", 
 
 
 def test_with_consuela_off_only_approved_providers_reach_the_intake_too(archive):
-    """The owner (§427): the approval list governs everything FAM keeps,
+    """The owner (§429): the approval list governs everything FAM keeps,
     not only what Consuela keeps."""
     assert ha.consuela_runs() is False
     assert [f.provider for f in ha._kept(FOUND)] == ["perplexity", "gdelt"]

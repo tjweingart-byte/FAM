@@ -150,14 +150,14 @@ def note_empty_search(look) -> None:
         log.warning("could not note an empty search", exc_info=True)
 
 
-#: A recommendation in FAM's own voice (decided item 17, §423). Checked on
+#: A recommendation in FAM's own voice (decided item 17, §425). Checked on
 #: the finished script of an advice request and only counted and logged -
 #: never a block on an episode (every-agent.md always 1). A quoted
 #: authority ("doctors say you should") is counted too: the count is a
 #: prompt to listen, not a verdict.
 RECOMMENDS = re.compile(
     # Not "whether you should" or "if you should": that is the question, not
-    # an answer to it (review, §430).
+    # an answer to it (review, §432).
     r"(?<!whether )(?<!if )"
     r"\b(?:you should|you shouldn't|you ought to|you'd be better off|"
     r"i(?:'d| would) (?:recommend|suggest|advise)|we (?:recommend|suggest|advise)|"

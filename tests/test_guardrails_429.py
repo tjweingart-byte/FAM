@@ -1,4 +1,4 @@
-"""The owner's guardrails of §427: an accusation is said as who makes it,
+"""The owner's guardrails of §429: an accusation is said as who makes it,
 private people are named only as the reporting names them, and the archive
 keeps only approved providers' material whether or not Consuela runs."""
 from __future__ import annotations

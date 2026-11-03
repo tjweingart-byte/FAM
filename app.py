@@ -1848,10 +1848,10 @@ def _validated_plan(q: str, minutes: int, context: str = "", search: bool | None
         )
     plan = plan_episode(q, minutes, (context or "").strip()[:300], search, cached_only,
                         attachments)
-    # The reading the listener chose (§424), only when there is one. It
+    # The reading the listener chose (§426), only when there is one. It
     # becomes part of the question - "how did United do (Manchester United)"
     # - so the episode's key, its saves, shares, history and offline copy all
-    # name it the way they name any question (review, §430); the client asks
+    # name it the way they name any question (review, §432); the client asks
     # with those words already, and they are never added twice.
     reading = " ".join(str(reading or "").split())[:200]
     if not reading:
@@ -10141,7 +10141,7 @@ async def episode_sources(
     # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
     search: bool | None = Query(None),
-    # The reading the listener chose for a shared name (§424): part of the
+    # The reading the listener chose for a shared name (§426): part of the
     # episode's key, so every key-shaped request carries it.
     reading: str = Query("", max_length=200),
 ):
@@ -10183,7 +10183,7 @@ async def episode_transcript(
     # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
     search: bool | None = Query(None),
-    # The reading the listener chose for a shared name (§424): part of the
+    # The reading the listener chose for a shared name (§426): part of the
     # episode's key, so every key-shaped request carries it.
     reading: str = Query("", max_length=200),
 ):
@@ -10250,7 +10250,7 @@ async def progress(
     # so this has to as well or it asks about a different key.
     surface: str = Query("", max_length=16),
     topic_id: str = Query("", max_length=64),
-    # The reading the listener chose for a shared name (§424): part of the
+    # The reading the listener chose for a shared name (§426): part of the
     # episode's key, so every key-shaped request carries it.
     reading: str = Query("", max_length=200),
 ):
@@ -10295,7 +10295,7 @@ async def next_thread(
     # details; anything else plays a current one, and past its window the
     # kept row is the previous episode under this key (§143).
     cached_only: bool = Query(False),
-    # The reading the listener chose for a shared name (§424): part of the
+    # The reading the listener chose for a shared name (§426): part of the
     # episode's key, so every key-shaped request carries it.
     reading: str = Query("", max_length=200),
 ):
@@ -10372,11 +10372,11 @@ async def audio(
                                              "incognito, §282): the play is not "
                                              "recorded and what it writes is on "
                                              "no feed and names no author"),
-    # The reading the listener chose for a shared name (§424): part of the
+    # The reading the listener chose for a shared name (§426): part of the
     # episode's key, so every key-shaped request carries it.
     reading: str = Query("", max_length=200),
     # A client that can ask which reading of a shared name the listener
-    # means (§424). An older client never sends it and gets the likeliest.
+    # means (§426). An older client never sends it and gets the likeliest.
     ask_reading: bool = Query(False),
 ):
     """Stream the episode.
@@ -10568,7 +10568,7 @@ async def audio(
                 preroll_at = time.monotonic() - started
                 break
     except ReadingNeeded as exc:
-        # A name that means two things (decided item 15, §424): stopped after
+        # A name that means two things (decided item 15, §426): stopped after
         # the brief, before anything was searched. Nothing was heard, so the
         # episode is not charged - the brief was FAM's spend, as with
         # `NoEvidence` - and the readings go back to be asked. 300, Multiple

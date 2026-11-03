@@ -1,7 +1,7 @@
 # Phase 3 - the opening prompt (Shakespeare and Mclovin in the writing)
 
 Phase 0 (the framework), Phase 1 (C3P0 and Nando at the request, finished in
-PROBLEMS.md §423-§429) and Phase 2 (Consuela and Sonic, §393-§417) are done,
+PROBLEMS.md §425-§431) and Phase 2 (Consuela and Sonic, §393-§417) are done,
 and the provider change that had to wait for them (API-Sports and Finnhub
 removed, §418) is merged. Paste the text below into a new session once the
 Phase 1 branch (`claude/pensive-brown-x9nsp8`) is merged into Main. Delete
@@ -26,7 +26,7 @@ the writing rules in `product.md` above all), `docs/AGENTS_BUILD_PROMPT.md`
 32, 34 and 37 are Phase 3's), `docs/FAM_AGENTS.md` (Shakespeare's and
 Mclovin's tabs, Models decided), the signed rule books in `docs/agent_rules/`
 (`every-agent.md`, `shakespeare.md`, `mclovin.md`), and PROBLEMS.md §309
-(episode quality), §346 (the models), §369-§392, §393-§417 and §423-§429 via
+(episode quality), §346 (the models), §369-§392, §393-§417 and §425-§431 via
 `PROBLEMS_INDEX.md`. Check CI on Main before starting.
 
 The work, in the build prompt's order (I may reorder):
@@ -54,9 +54,9 @@ The work, in the build prompt's order (I may reorder):
 3. **Mclovin while the writer writes** (decided items 12, 14, 17, 26, 32):
    a per-sentence hook in `_ScriptReader` beside the existing guards -
    quotes (span found in the packets, speaker matched; this is also the
-   quote-length guardrail §427 left open), figures (`figure_guard` widened
+   quote-length guardrail §429 left open), figures (`figure_guard` widened
    carefully, measured on audits first, §269), dates, mixed stories across
-   `news_clusters`, advice (an advising sentence fails - §423's
+   `news_clusters`, advice (an advising sentence fails - §425's
    `advice_audit` counts today and is the starting point), and support from
    a grounding checker. A failing sentence goes back to the writer once; a
    second failure drops it; a check past `SUPERVISOR_TIMEOUT_SECONDS` lets
@@ -83,7 +83,7 @@ and never skip; the writer's prompt stays under its length guard
 (`test_the_prompt_stays_lean`) - dedup before adding, and prefer an example
 over a rule; check other open branches for PROBLEMS section numbers before
 numbering yours, and merge Main before the pull request (Main took this
-branch's numbers once already, §418). Measure with a key where you can: the
+branch's numbers twice, §418 and §423). Measure with a key where you can: the
 Anthropic key is `FAM_ANTHROPIC_KEY`, so pass it as
 `ANTHROPIC_API_KEY="$FAM_ANTHROPIC_KEY"` for one command, and any tool making
 several model calls keeps one event loop (§388). Leave the preview to the

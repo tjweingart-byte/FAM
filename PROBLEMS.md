@@ -27969,7 +27969,7 @@ dashboard was read the same day: `ANSWER_FIRST` and `GDELT_TIMEOUT_SECONDS`
 are set there and read by nothing (§108 deleted the first; GDELT is read
 from its export files since §211).
 
-## 423. Finishing Phase 1, piece 1: facts, never advice (2026-11-03)
+## 425. Finishing Phase 1, piece 1: facts, never advice (2026-11-03)
 
 Decided item 17 (every-agent.md never 10, c3p0.md never 7). C3P0 has set
 `advice_request` since §375, and nothing read it: an advice request was
@@ -28006,13 +28006,13 @@ every writer call, so one would change episodes with the agents off. If the
 owner wants one anyway, it is a single file. Writing quality with the note
 is unmeasured here: a `write.py` run with C3P0 on is the listening test.
 
-Tests: `tests/test_advice_423.py` (the note pinned; in the brief only when
+Tests: `tests/test_advice_425.py` (the note pinned; in the brief only when
 flagged, before the cautions; a degraded brief still empty; C3P0's plan
 carries the flag; five recommendations counted and three facts not; no
 flag, no count; the check never raises; the real pipeline checks a
 finished script).
 
-## 424. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03)
+## 426. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03)
 
 Decided item 15 (c3p0.md always 2: "say so and let FAM ask the listener
 which one they mean, before anything is searched. Never guess"). C3P0 has
@@ -28072,7 +28072,7 @@ brief. It ages out within the week.
 **Next (piece 2b):** the search and voice-search screens - the picker, and
 `reading` carried on every key-shaped request the player makes.
 
-Tests: `tests/test_reading_424.py` (the key unchanged without a reading and
+Tests: `tests/test_reading_426.py` (the key unchanged without a reading and
 different with one, spacing and case folded, the bucket too; `ask_reading`
 not in the key; the brief's and C3P0's prompts name the reading only when
 there is one; the writer's note pinned; nothing ambiguous with C3P0 off; a
@@ -28084,9 +28084,9 @@ shape unchanged otherwise; 300 over HTTP, refunded, and resumed with
 reading; the tie call and the ahead writers) and
 `tests/test_agents_c3p0_call.py`.
 
-## 425. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03)
+## 427. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03)
 
-The client half of §424. A search - typed, trending or spoken (voice search
+The client half of §426. A search - typed, trending or spoken (voice search
 ends in the same `sendSearch`) - plays with `askReading` (`ask_reading=1`),
 so the server may stop and ask. `FamAudio` turns a 300 into an error
 carrying `readings` and `likeliest`; `onGenerationFailed` hands it to
@@ -28107,7 +28107,7 @@ is never mistaken for a re-tap of the stopped request.
 
 Every other surface - myFAM, DailyFAM, Explore, shares - does not ask: their
 episodes are written ahead or replayed, and an older client never asks
-either (§424). History, saves and shares replay by the episode's id, which
+either (§426). History, saves and shares replay by the episode's id, which
 already names the reading's key.
 
 Smoke check: "A shared name asks which one, then plays the choice" (a 300
@@ -28115,7 +28115,7 @@ for a search that can ask, the picker with the two readings, the second
 chosen, the next `/api/audio` carrying `reading=Manchester%20United`, the
 episode's stamp ending in it).
 
-## 426. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03)
+## 428. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03)
 
 Decided item 20 (nando.md always 10: "re-file episodes made before you existed
 only once, and only after the owner has reviewed a list of every change you
@@ -28135,7 +28135,7 @@ his code steps alone file almost none of them solidly (measured on the seed:
 "how did the Philadelphia Eagles do" places nothing, its suggestion only a
 clash). The owner chose **his own call**, as on a new episode: code's
 shortlist (`candidates_for`), his call choosing (`ask_tie`, ahead of the
-tap), never over a name that means two things (§424), then his check against
+tap), never over a name that means two things (§426), then his check against
 the writer's words (`confirm`). One small call per episode code could not
 file, all on one event loop (§388), four at a time, through the agent layer -
 so only where he is switched on and his rule book signed, and never on
@@ -28151,14 +28151,14 @@ together). A row filed meanwhile, or whose words now place it elsewhere, is
 skipped and listed - never re-filed on a stale reading. Applying twice files
 once.
 
-Tests: `tests/test_refile_old_426.py` (only unfiled rows read, both stores;
+Tests: `tests/test_refile_old_428.py` (only unfiled rows read, both stores;
 his call files what code could not, ahead; `--no-model` asks nothing; a
 shared name never asked; the dry run changes nothing and the Markdown names
 the approval; any other approval, or an edited list, refused; the approval
 applied through `retag` as a first filing, and a second apply skipped; a row
 changed since the review skipped; `retag` without `first_filing` unchanged).
 
-## 427. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03)
+## 429. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03)
 
 The owner asked for the legal guardrails to be checked in the code (copyright,
 defamation, private people, data protection, provider terms). Found and fixed
@@ -28198,12 +28198,12 @@ an accusation story is the listening test.
 quote check, Phase 3); no way to honour a removal request from someone named
 in episodes or the archive (a lawyer's question first).
 
-Tests: `tests/test_guardrails_427.py`; the provider and archive tests that
+Tests: `tests/test_guardrails_429.py`; the provider and archive tests that
 pinned the old "keep everything while Consuela is off" now pin the new rule.
 
-## 428. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03)
+## 430. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03)
 
-§427 found that, before it, the archive could keep API-Sports' and Finnhub's
+§429 found that, before it, the archive could keep API-Sports' and Finnhub's
 scores and prices (both refused, both no longer used) as live facts while
 Consuela was off. The owner asked for the purge list. `tools/withdraw_refused.py`:
 
@@ -28214,7 +28214,7 @@ Consuela was off. The owner asked for the purge list. `tools/withdraw_refused.py
 - **`--apply LIST --approve SHA256`**: refuses any other value, so the list
   withdrawn is the list reviewed. **Withdrawing is reversible** (every-agent.md
   always 8): a fact is marked inactive with no keeper and the mark
-  `withdrawn: refused provider (§428)` - every reader already ignores an
+  `withdrawn: refused provider (§430)` - every reader already ignores an
   inactive fact, and Consuela's own purge of repeats never touches one without
   a keeper - and a reading moves out of the series into a holding table
   (`withdrawn`, both backends). Applying twice withdraws once.
@@ -28227,12 +28227,12 @@ the series by its named columns (`SERIES_COLUMNS`), so it holds on Postgres
 too. The Atlas holding collection is opened only when first used. No model,
 no provider, no new dependency (the Atlas test uses a small fake collection).
 
-Tests: `tests/test_withdraw_refused_428.py` (only the refused two listed; the
+Tests: `tests/test_withdraw_refused_430.py` (only the refused two listed; the
 list changes nothing and names its approval; any other approval or an edited
 list refused; withdraw, restore, the grace period and the purge on SQLite;
 twice is once; the same on the Atlas backend).
 
-## 429. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03)
+## 431. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03)
 
 Decided item 16 (the owner's answer 4a; c3p0.md never 6; every-agent.md never
 9). The owner asked for it on this branch rather than a new session, though
@@ -28263,32 +28263,32 @@ nobody, and the log line holds no name (every-agent.md never 4).
 **A look that did not answer establishes nothing** ([missed-not-absent];
 every-agent.md always 1): "unchecked" never refuses. Only the request's
 subject is gated: a name inside an article is said as reporting says it
-(§427's writer rule). Not built: a provider's catalogue as a third witness -
+(§429's writer rule). Not built: a provider's catalogue as a third witness -
 an athlete or a listed company's officer is in Wikidata or the reporting in
 practice; said here so it is not assumed. Counted in `/api/health`'s agents
 block: `private_known`, `private_unknown`, `private_unchecked`,
 `private_named_in_reporting`, `private_refused`. With C3P0 off nothing is
 asked.
 
-**Phase 1 is finished**: §423-§429 did the four items §390 left.
+**Phase 1 is finished**: §425-§431 did the four items §390 left.
 `docs/PHASE1_NEXT_BRANCH.md` said to delete itself then, and is deleted.
 
-Tests: `tests/test_public_figures_429.py` (an exact label or alias known, a
+Tests: `tests/test_public_figures_431.py` (an exact label or alias known, a
 near name not; a failed or switched-off look unchecked; kept, so a second
 ask sends nothing; known goes ahead; unknown and unnamed refused, as a
 `NoEvidence` naming nobody; unknown but named in the reporting goes ahead;
 unchecked never refuses; with C3P0 off or nothing private, nothing asked;
 the look before the search and the refusal after it).
 
-## 430. The review before the pull request: the reading joins the question (2026-11-03)
+## 432. The review before the pull request: the reading joins the question (2026-11-03)
 
 An independent review of the whole branch before the pull request found two
-real defects in §424-§425 and four small ones. Everything else it read -
+real defects in §426-§427 and four small ones. Everything else it read -
 the keys, `AGENTS=0`, the tie task on every exception path, the 300's
 refund, the SQL on Postgres, both approval digests, `wikimedia.known` -
 held.
 
-**A chosen reading was lost everywhere but the live player.** §425 said
+**A chosen reading was lost everywhere but the live player.** §427 said
 history, saves and shares replay by the episode's id; saves, shares, vibes,
 the queue and the offline shelf name an episode by its question and length,
 and a history replay's captions, sources and Go Deeper looked up the plain
@@ -28318,8 +28318,8 @@ check counted "whether you should ..." (the question, not an answer); both
 tools printed the approve command with the list's bare file name, wrong
 whenever `--out` named another folder.
 
-Tests: `tests/test_reading_424.py` (the reading joins the question once, a
+Tests: `tests/test_reading_426.py` (the reading joins the question once, a
 saved question finds the chosen episode's key, the 300 resumes with the
-question rewritten), `tests/test_advice_423.py`, the Atlas fake in
-`tests/test_withdraw_refused_428.py`, and the smoke check now asserts the
+question rewritten), `tests/test_advice_425.py`, the Atlas fake in
+`tests/test_withdraw_refused_430.py`, and the smoke check now asserts the
 question carries the choice.
