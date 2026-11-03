@@ -783,6 +783,20 @@ latency matters more here than for any other agent.
   choices are recorded and compared with the code routes
   (`plugins_agree`/`plugins_differ`), not yet followed. His title is the
   episode's (`CONTEXTUALIZER_TITLES`).
+- **Built (§418): `advice_request` is acted on** - the writer reads
+  `episode_intelligence.ADVICE_NOTE` (the facts around the decision, never a
+  recommendation) and `contextualizer.advice_audit` counts any recommendation
+  left in the finished script; never a block.
+- **Built (§419-§420): `ambiguous` asks the listener.** A client that sends
+  `ask_reading=1` (search and voice search) is stopped after the brief,
+  before any plugin or Sonic: `/api/audio` answers 300 with the readings and
+  `/api/progress` carries them; the choice returns as `reading=`, part of the
+  cache key only when present. Older clients get the likeliest reading (kept,
+  never current); prefetch and the editions leave it unwritten. Nando's tie
+  call never picks between the readings of an undecided name.
+- **Not built: `private_person` acted on** (public figures only, decided item
+  16) - the next session, which needs `en.wikipedia.org`, `www.wikidata.org`
+  and `query.wikidata.org` (`docs/PHASE1_NEXT_BRANCH.md`).
 
 ### Settings and open questions
 
