@@ -95,7 +95,7 @@ def test_a_supersede_chain_keeps_every_corroboration(store):
 def test_a_refused_provider_s_live_record_is_never_kept(monkeypatch):
     records = [{"source": "Finnhub", "lines": ["x"]}, {"source": "Tiingo", "lines": ["y"]},
                {"source": "API-Sports", "lines": ["z"]}]
-    # Whether or not Consuela runs (the owner, §422).
+    # Whether or not Consuela runs (the owner, §427).
     for runs in (False, True):
         monkeypatch.setattr(ha, "consuela_runs", lambda runs=runs: runs)
         assert [r["source"] for r in ha.kept_live(records)] == ["Tiingo"]

@@ -501,7 +501,7 @@ window.FamAudio = (function () {
               // One heard episode, replayed exactly (§173): the listening
               // history. Never generates - a 409 if it is no longer kept.
               (listener && listener.episode ? "&episode=" + encodeURIComponent(listener.episode) : "") +
-              // A name that means two things (§419): a client that can ask
+              // A name that means two things (§424): a client that can ask
               // says so, and the reading the listener chose is part of the
               // episode's key - sent on every request about this episode.
               (listener && listener.askReading ? "&ask_reading=1" : "") +
@@ -569,7 +569,7 @@ window.FamAudio = (function () {
           // The listener has not said yes to their words going to the AI
           // provider (consent.py): the interface asks, then starts again.
           err.consent = res.headers.get("X-FAM-Consent") || "";
-          // 300: a name in the question means more than one thing (§419).
+          // 300: a name in the question means more than one thing (§424).
           // The caller asks which, then plays again with `reading`.
           if (res.status === 300 && body.readings) {
             err.readings = body.readings;

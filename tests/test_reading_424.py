@@ -1,4 +1,4 @@
-"""Ask the listener when a name is ambiguous (decided item 15, §419).
+"""Ask the listener when a name is ambiguous (decided item 15, §424).
 
 C3P0 says a name means two things; before any plugin or Sonic is asked the
 episode stops and the readings go back - on `/api/audio` (300) and

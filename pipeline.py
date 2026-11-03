@@ -1618,7 +1618,7 @@ class PodcastPipeline:
         if getattr(notes, "category", ""):
             live_captions.publish_category(stats.caption_key, notes.category)
 
-        # An advice request planned as facts (§418): did the script still
+        # An advice request planned as facts (§423): did the script still
         # recommend? Counted for /api/health, never a block.
         from agents import contextualizer
 
@@ -1641,7 +1641,7 @@ class PodcastPipeline:
                           live_domain=getattr(notes, "live_domain", ""),
                           intent=getattr(notes, "intent", ""))
             # An older client's episode on the likeliest reading of a shared
-            # name (§419): kept for its own replays, never current, so a
+            # name (§424): kept for its own replays, never current, so a
             # client that can ask is never served the guess under this key.
             if getattr(notes, "reading_assumed", ""):
                 ttl = 0

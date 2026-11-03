@@ -2158,7 +2158,7 @@ class Settings:
     # (with its citation), Tiingo, BALLDONTLIE (2026-10-28), Perplexity
     # (2026-11-02) and GNews (2026-11-03; Polymarket pending) - and FAM's own
     # records. Applied to everything the archive keeps, whether or not
-    # Consuela runs (§422); `history_archive.REFUSED` (Parallel's terms;
+    # Consuela runs (§427); `history_archive.REFUSED` (Parallel's terms;
     # Finnhub and API-Sports, no longer used) cannot be approved here.
     housekeeper_approved_providers: tuple = field(
         default_factory=lambda: tuple(

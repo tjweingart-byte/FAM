@@ -1,4 +1,4 @@
-"""Facts, never advice (decided item 17, §418): C3P0's `advice_request`
+"""Facts, never advice (decided item 17, §423): C3P0's `advice_request`
 reaches the writer as one note, and the finished script is checked for a
 recommendation in FAM's own voice - counted and logged, never a block.
 With C3P0 off the brief carries no flag, so the writer reads what it did.

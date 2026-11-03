@@ -527,7 +527,7 @@ async def _start(query: str, generator, cache, length: int,
         # from this brief. A brief prefetch already warmed is taken instead.
         plan = await generator.understand(plan, notes)
         # A name that means two things, which the mix's own context did not
-        # settle (decided item 15, §419): left unwritten until it is tapped.
+        # settle (decided item 15, §424): left unwritten until it is tapped.
         import script_generator
 
         if script_generator.ambiguous_readings(plan, notes)[0]:
@@ -999,7 +999,7 @@ def _summarise(episodes: dict) -> dict:
         "cached": statuses.count("cached"),
         "no_evidence": statuses.count("no_evidence"),
         "failed": statuses.count("failed"),
-        # Left unwritten: a name in it means two things (§419).
+        # Left unwritten: a name in it means two things (§424).
         "ambiguous": statuses.count("ambiguous"),
         # How many of the episodes written were built on a real brief. A
         # number below `written` is EI falling back, and this is where it

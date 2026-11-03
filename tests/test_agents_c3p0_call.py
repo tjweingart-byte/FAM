@@ -321,7 +321,7 @@ def test_prepare_takes_the_tie_call_when_there_is_no_pick(tree, monkeypatch):
 
 
 def test_the_tie_call_never_picks_a_reading_of_an_undecided_name(tree, monkeypatch):
-    """Settles §377 (decided item 15, §419): "United" is the airline or the
+    """Settles §377 (decided item 15, §424): "United" is the airline or the
     club, and Nando's own call choosing one would be a guess. Until the
     listener chooses, it is filed as if the call had not answered."""
     assert categorizer.suggest(ei.Brief(query="how did United do"),

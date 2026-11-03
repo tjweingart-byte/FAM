@@ -2377,7 +2377,7 @@ def main() -> int:
             page.wait_for_timeout(1200)
 
         def asks_which_reading_of_a_shared_name():
-            """A name that means two things (§419): the server answers 300
+            """A name that means two things (§424): the server answers 300
             with the readings, the search asks which one, and the choice
             plays the same question with `reading=` - on the audio and on
             every request about that episode after it."""

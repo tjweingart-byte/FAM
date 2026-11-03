@@ -1,4 +1,4 @@
-"""Re-file the episodes written before Nando: a list first, applied only after a yes (§421).
+"""Re-file the episodes written before Nando: a list first, applied only after a yes (§426).
 
     python tools/refile_old.py                          # the dry run: writes refile_old.json/.md
     python tools/refile_old.py --out /tmp/refile.json   # somewhere else

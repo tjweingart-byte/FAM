@@ -861,7 +861,7 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     # And its writer is the editions' own, when one is set (§269).
     notes.edition = True
     plan = await generator.understand(plan, notes)
-    # A name that means two things the story did not settle (§419).
+    # A name that means two things the story did not settle (§424).
     import script_generator
 
     if script_generator.ambiguous_readings(plan, notes)[0]:

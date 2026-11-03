@@ -355,7 +355,7 @@ def cache_key(
         "v": 2,  # bump to invalidate everything after a prompt change
     }
     # The reading the listener chose for a name that means two things
-    # (decided item 15, §419): a different episode from the same words.
+    # (decided item 15, §424): a different episode from the same words.
     # Only when there is one, so every key written before it is unchanged.
     if reading:
         fields["reading"] = " ".join(reading.split()).lower()
@@ -389,7 +389,7 @@ def key_bucket(
         "space": embeddings.space(),
         "v": 2,
     }
-    # A chosen reading is its own kind of episode (§419), never a near
+    # A chosen reading is its own kind of episode (§424), never a near
     # match for the other reading's words. Only when there is one.
     if reading:
         fields["reading"] = " ".join(reading.split()).lower()
@@ -2399,7 +2399,7 @@ class SqliteScriptCache:
 
     def unfiled(self, after: str = "", limit: int = 500) -> list:
         """Kept episodes Nando never filed (no `category_node`), after `after`,
-        by key: what the re-file of episodes written before him reads (§421).
+        by key: what the re-file of episodes written before him reads (§426).
         Each a dict of key, query, title, category words, summary, sourced."""
         try:
             rows = self._conn().execute(

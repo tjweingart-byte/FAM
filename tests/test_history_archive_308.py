@@ -65,7 +65,7 @@ def archive(monkeypatch, tmp_path):
 def _finding(url="https://www.reuters.com/a", passages=("One.", "Two."),
              published="2026-10-20", grade="primary", provider="perplexity"):
     # A real finding always names its search (`research._findings`); one
-    # that names none is unknown, and never kept (§422).
+    # that names none is unknown, and never kept (§427).
     return ha.Finding(url=url, title="A title", host="reuters.com", grade=grade,
                       published=published, passages=tuple(passages), provider=provider)
 

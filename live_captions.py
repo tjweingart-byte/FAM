@@ -127,7 +127,7 @@ class _Track:
         #: being written, so there are no steps to walk through.
         self.cached = False
         #: The readings of a name that means two things, when the episode
-        #: stopped to ask which one the listener means (§419), and C3P0's
+        #: stopped to ask which one the listener means (§424), and C3P0's
         #: likeliest. Empty for every episode that was not stopped.
         self.readings: tuple = ()
         self.likeliest: str = ""
@@ -233,7 +233,7 @@ def publish_title(key: str, title: str, final: bool = False) -> None:
 
 def publish_readings(key: str, readings, likeliest: str = "") -> None:
     """Record that this episode stopped to ask which reading of a name the
-    listener means (§419), for `/api/progress`. Never opens a track and
+    listener means (§424), for `/api/progress`. Never opens a track and
     never raises."""
     clean = tuple(" ".join(str(r).split())[:200] for r in readings or () if str(r).strip())
     if not key or len(clean) < 2:
@@ -475,7 +475,7 @@ def read_progress(key: str) -> dict:
         events = dict(getattr(track.marks, "events", None) or {})
         readings, likeliest = track.readings, track.likeliest
     if readings:
-        # Stopped to ask (§419): the brief is done and nothing after it ran.
+        # Stopped to ask (§424): the brief is done and nothing after it ran.
         # The two fields only on an episode that asked, so every other answer
         # is the shape it always was.
         steps = {name: name == PROGRESS_STEPS[0][0] for name in steps}

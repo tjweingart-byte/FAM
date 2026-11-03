@@ -1,4 +1,4 @@
-"""Withdrawing what the archive kept from a refused provider (§423): a list
+"""Withdrawing what the archive kept from a refused provider (§428): a list
 first, applied only with its SHA-256, reversible until a 30-day purge."""
 from __future__ import annotations
 

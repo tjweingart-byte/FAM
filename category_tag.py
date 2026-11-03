@@ -61,7 +61,7 @@ def retag(cache, key: str, node: str, *, reason: str = "",
     """Move the episode under `key` to `node` everywhere. Returns what moved.
 
     `first_filing` is only for the re-file of episodes written before Nando
-    (nando.md always 10, §421), after the owner's yes: such an episode has
+    (nando.md always 10, §426), after the owner's yes: such an episode has
     no node of its own, and `was` is the node its writer's words placed it
     under until now ("" when they placed it nowhere) - replaced by `node` on
     its articles in the archive, as an old node is. Every other caller
@@ -77,7 +77,7 @@ def retag(cache, key: str, node: str, *, reason: str = "",
             out["skipped"] = "Nando never filed it: the writer's words place it"
             return out
         if not old:
-            # A first filing (§421): the writer's node stands in as the old.
+            # A first filing (§426): the writer's node stands in as the old.
             old = out["old"] = was
             out["first_filing"] = True
         if old == node:

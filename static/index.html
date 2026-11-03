@@ -5131,7 +5131,7 @@
         </div>
       </div>
 
-      <!-- A name in the question means more than one thing (§419): which one?
+      <!-- A name in the question means more than one thing (§424): which one?
            Asked before anything is searched; the choice plays the episode. -->
       <div class="modal-overlay" id="readingOverlay">
         <div class="modal-card">
@@ -6475,7 +6475,7 @@
       } else if(PLAYER_SCREENS[screen] && episodeStamp){
         var parts = episodeStamp.split("|");
         // The query is everything before the last three fields (minutes,
-        // context, reading - §419), so a "|" typed into a question does not
+        // context, reading - §424), so a "|" typed into a question does not
         // cut it short.
         var q = parts.slice(0, Math.max(1, parts.length - 3)).join("|");
         out.episode = { q: q.slice(0, 500),
@@ -7205,7 +7205,7 @@
       return;
     }
     clearGenOverlay();
-    // A name that means two things (§419): which one, then the same episode
+    // A name that means two things (§424): which one, then the same episode
     // again with the chosen reading.
     if(err && err.readings && err.readings.length > 1 && lastGenerate
        && TOPICS[lastGenerate.key]){
@@ -7240,7 +7240,7 @@
     toast(message || "Could not generate that briefing");
   }
 
-  // ---------------- Which one do you mean? (§419) ----------------
+  // ---------------- Which one do you mean? (§424) ----------------
   // The server stopped before searching: a name in the question means more
   // than one thing. The readings are the server's words; nothing is guessed
   // here. Choosing one plays the same episode with `reading`; Cancel leaves
@@ -10134,7 +10134,7 @@
     stopSpeech();
     if(had) hideNowBar();
   }
-  //: `&reading=` for a key-shaped request (§419), "" when none was chosen.
+  //: `&reading=` for a key-shaped request (§424), "" when none was chosen.
   function readingParam(reading){
     return reading ? "&reading=" + encodeURIComponent(reading) : "";
   }
@@ -10173,7 +10173,7 @@
                      attach: t.attach || "", surface: where,
                      own: !!t.own, private: !!t.private,
                      episode: t.episode || "", queueable: true,
-                     // Which thing a shared name means (§419): asked on a
+                     // Which thing a shared name means (§424): asked on a
                      // search, and the listener's choice once they made one.
                      askReading: where === "search", reading: t.reading || "" };
     loadPlayerCard(key, t, playOpts.minutes);

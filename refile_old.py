@@ -1,5 +1,5 @@
 """Re-file the episodes written before Nando, once, after the owner's review
-(decided item 20; nando.md always 10, §421).
+(decided item 20; nando.md always 10, §426).
 
 An episode written before Nando has no node of its own: `app._episode_category`
 places it from the writer's `<<CATEGORY:>>` words against the tree as it is
@@ -21,7 +21,7 @@ Two steps, never one:
    skipped and said so, never re-filed on a stale reading.
 
 Nando's placement here is what he does on a new episode (the owner's
-answer, §421): his code steps (`categorizer.place`), his own small model
+answer, §426): his code steps (`categorizer.place`), his own small model
 where its numbers trust it, **his own call** choosing from code's shortlist
 where code filed nothing solid (`categorizer.ask_tie`, one small call per
 such episode, through the agent layer - so only where he is switched on and
@@ -42,7 +42,7 @@ from typing import Optional
 log = logging.getLogger("fam.refile_old")
 
 #: Why every change was made, on the retag's log line and the report.
-REASON = "re-file of an episode written before Nando, reviewed by the owner (§421)"
+REASON = "re-file of an episode written before Nando, reviewed by the owner (§426)"
 
 
 def current_node(words: str) -> str:
@@ -75,7 +75,7 @@ def nando_node(query: str, title: str, words: str, pick: str = "") -> tuple:
 
 async def _his_pick(query: str, title: str, gate, counts: dict) -> str:
     """Nando's own call (§379), as at the request: only when code's steps
-    filed nothing solid, never over a name that means two things (§419), on
+    filed nothing solid, never over a name that means two things (§424), on
     code's shortlist. "" when not asked or not answered. Never raises."""
     try:
         import episode_intelligence as ei

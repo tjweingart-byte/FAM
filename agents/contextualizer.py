@@ -150,7 +150,7 @@ def note_empty_search(look) -> None:
         log.warning("could not note an empty search", exc_info=True)
 
 
-#: A recommendation in FAM's own voice (decided item 17, §418). Checked on
+#: A recommendation in FAM's own voice (decided item 17, §423). Checked on
 #: the finished script of an advice request and only counted and logged -
 #: never a block on an episode (every-agent.md always 1). A quoted
 #: authority ("doctors say you should") is counted too: the count is a
