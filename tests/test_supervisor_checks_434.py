@@ -109,9 +109,9 @@ def test_a_quote_is_at_most_one_sentence(sentence, result):
     got, v = verdict(sentence)
     assert got["quote_length"] == result
     if result == "fail":
-        # Counted until the owner signs the mclovin.md that names it (§435).
-        assert v.counted[0].failure == "quote_too_long"
-        assert not any(c.check == "quote_length" for c in v.failing)
+        # Enforced since the owner signed mclovin.md v2 (§440).
+        failed = [c for c in v.failing if c.check == "quote_length"]
+        assert failed and failed[0].failure == "quote_too_long"
 
 
 # ------------------------------------------------------------------ websites, advice
@@ -189,13 +189,12 @@ def test_two_stories_joined_by_no_source_fail():
 
 def test_the_named_failures_are_the_rule_books():
     for name in checks.FAILURE_OF.values():
-        assert name in FAILURES or name in checks.PROPOSED_FAILURES
-    # Proposed, not yet signed: never in the signed list, always in the proposal.
+        assert name in FAILURES
+    # mclovin.md v2, signed (§440): the one-sentence limit and count only.
     import pathlib
 
-    proposal = pathlib.Path("docs/agent_rule_proposals/mclovin.md").read_text()
-    assert not set(checks.PROPOSED_FAILURES) & set(FAILURES)
-    assert "at most one sentence" in proposal and "count only" in proposal
+    book = pathlib.Path("docs/agent_rules/mclovin.md").read_text()
+    assert "at most one sentence" in book and "count only" in book
     assert {"quote_not_said", "quote_wrong_speaker"} <= set(FAILURES)
 
 

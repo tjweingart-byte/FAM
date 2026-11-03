@@ -134,7 +134,9 @@ def test_evidence_is_only_ever_a_pointer_to_a_sources_sentence():
 def test_the_named_failures_are_mclovins():
     book = " ".join((ROOT / "docs" / "agent_rules" / "mclovin.md").read_text().split())
     assert "quote" in book and "website named" in book
-    assert len(handoffs.FAILURES) == len(set(handoffs.FAILURES)) == 12
+    # v2 (signed 2026-11-03, §440): a quote is at most one sentence.
+    assert "longer than one sentence" in book
+    assert len(handoffs.FAILURES) == len(set(handoffs.FAILURES)) == 13
 
 
 def test_the_lookups_are_sonics_closed_list():

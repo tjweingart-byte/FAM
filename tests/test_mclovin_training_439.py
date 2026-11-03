@@ -55,12 +55,11 @@ def result(sentence, check, evidence=EVIDENCE):
 
 # ------------------------------------------------------------------ step 2: what enforces
 def test_the_enforced_checks_are_the_ones_the_eval_passed():
-    assert set(checks.DEFAULT_ENFORCED) == {"quote", "website", "advice", "superlative",
-                                            "dates", "mixed"}
-    # Figures did not pass (85% caught, 1.5% of clean sentences flagged);
-    # the one-sentence quote limit passed and waits for the owner's signature.
+    assert set(checks.DEFAULT_ENFORCED) == {"quote", "quote_length", "website", "advice",
+                                            "superlative", "dates", "mixed"}
+    # Figures did not pass (85% caught, 1.5% of clean sentences flagged); the
+    # one-sentence quote limit passed and enforces since mclovin.md v2 (§440).
     assert "figures" not in checks.DEFAULT_ENFORCED
-    assert "quote_length" not in checks.DEFAULT_ENFORCED
 
 
 # ------------------------------------------------------------------ step 3: what was tightened

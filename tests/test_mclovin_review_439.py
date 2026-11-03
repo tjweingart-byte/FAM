@@ -148,7 +148,7 @@ def test_agreement_and_disagreements_are_reported():
 
 def test_the_reviewers_failures_are_the_rule_books():
     for failure in training.CHECK_OF:
-        assert failure in FAILURES or failure in checks.PROPOSED_FAILURES
+        assert failure in FAILURES
 
 
 def test_the_review_is_scheduled_nightly_only_while_he_works():

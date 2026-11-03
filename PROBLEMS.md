@@ -29007,3 +29007,37 @@ disagreements; scheduled; wiped; no checker no change; pass, fail, unsure;
 settled facts stay; a failing checker leaves it unchecked; only the unsure
 band takes the second look, and only while enforced). §434's tests updated
 for superlatives, history and mixed stories enforced and read anew.
+
+## 440. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03)
+
+The owner signed manifest version 4 (3c43b83, "mclovin upload"): `mclovin.md`
+is the §435 proposal byte for byte, and `MANIFEST.json` the pending manifest
+byte for byte, in which only `mclovin.md`'s fingerprint changed. The commit
+holds exactly the three files (`mclovin.md`, `MANIFEST.json`,
+`MANIFEST.json.sig`), no stray one. `python tools/rulebook_manifest.py
+--verify`: all eight agents may run, signed with the same `owner.pub`. The
+owner checked the signature on the Mac first (`openssl pkeyutl -verify`
+against `owner.pub`), recreating `owner.pub` from its text when it was not in
+Downloads - a public key is safe to paste; the private key never was.
+
+**What the signature lets go in:**
+
+- `quote_too_long` joins Mclovin's named failures (`agents/handoffs.FAILURES`,
+  now 13, and `Verdict`); `PROPOSED_FAILURES` is gone.
+- `quote_length` joins the default `SUPERVISOR_ENFORCE`
+  (`quote,quote_length,website,advice,superlative,dates,mixed`): a quote of
+  more than one sentence goes back to the writer once, then is left out. It
+  passed §439's bar (100% of 141 planted, no false flag).
+- "always" 8 - a check the owner sets to count only records its failures and
+  lets the sentence play - is now the signed rule for figures, which still
+  count.
+
+The proposal and the pending manifest are deleted; the proposals README says
+nothing is waiting and keeps the signing steps generic; the rule books'
+README records which books have moved past version 1. The owner updates the
+copy held outside Claude to v2.
+
+Tests: `tests/test_agents_roster_tasks.py` (13 named failures, the book names
+the one-sentence limit), `tests/test_supervisor_checks_434.py` (a two-sentence
+quote is sent back as `quote_too_long`; the signed book holds both new rules),
+`tests/test_mclovin_training_439.py` (the enforced set).

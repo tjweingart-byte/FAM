@@ -20,8 +20,8 @@ to the heuristic ones:
   packets word for word (case and punctuation aside), and, when the
   sentence names who said it, that name is beside the span in the source
   that holds it.
-* `quote_length` (counted until the owner signs it) - a quote is at most
-  one sentence (the owner, 2026-11-03, §435: copyright).
+* `quote_length` (enforced since mclovin.md v2 was signed, §440) - a quote
+  is at most one sentence (the owner, 2026-11-03, §435: copyright).
 * `website` (enforced) - a hostname or "dot com" in speech.
 * `advice` (enforced) - a recommendation in FAM's own voice about health,
   the law or money (C3P0's `RECOMMENDS`, §425), never a quoted or
@@ -60,12 +60,10 @@ CHECKS = ("quote", "quote_length", "website", "advice", "superlative", "figures"
 #: Set by the planted-mistake eval (§439, step 2: `tools/mclovin_eval.py`):
 #: a check enforces once it catches 90% of its planted mistakes and flags
 #: at most 1% of clean sentences. Figures (85%, 1.5%) still count. The
-#: one-sentence quote limit passes too but counts until the owner signs
-#: the mclovin.md that names it (§435).
-DEFAULT_ENFORCED = ("quote", "website", "advice", "superlative", "dates", "mixed")
-#: Named failures the proposed mclovin.md adds (the owner, 2026-11-03, §435);
-#: they join `agents.handoffs.FAILURES` once the owner signs it.
-PROPOSED_FAILURES = ("quote_too_long",)
+#: one-sentence quote limit (100%, 0%) enforces since the owner signed
+#: mclovin.md v2 (§440).
+DEFAULT_ENFORCED = ("quote", "quote_length", "website", "advice", "superlative", "dates",
+                    "mixed")
 #: The named failure (agents.handoffs.FAILURES) each check reports.
 #: The grounding checker's check (§439, step 5), run only when one is
 #: plugged in (`agents.grounding`); none is yet.

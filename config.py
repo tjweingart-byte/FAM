@@ -2128,11 +2128,12 @@ class Settings:
     # **Mclovin's sentence checks** (§434): which ones send a failing
     # sentence back to the writer; the rest only count. A check joins this
     # list once the planted-mistake eval passes it (§439,
-    # `tools/mclovin_eval.py`); figures have not yet, and the one-sentence
-    # quote limit waits for the owner's signature (§435).
+    # `tools/mclovin_eval.py`); figures have not yet. The one-sentence quote
+    # limit enforces since the owner signed mclovin.md v2 (§440).
     supervisor_enforce: str = field(
         default_factory=lambda: os.environ.get(
-            "SUPERVISOR_ENFORCE", "quote,website,advice,superlative,dates,mixed").strip())
+            "SUPERVISOR_ENFORCE",
+            "quote,quote_length,website,advice,superlative,dates,mixed").strip())
     # The writer's one rewrite of a failing sentence: its time limit (the
     # sentences behind it wait in order) and how many an episode may ask.
     # Late, or past the count, the sentence is left out.
