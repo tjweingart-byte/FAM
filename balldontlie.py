@@ -162,9 +162,11 @@ _ROSTER_LEAGUE = {"nfl": "nfl", "nba": "nba", "mlb": "mlb", "nhl": "nhl"}
 # --------------------------------------------------------------------------
 # Plans
 # --------------------------------------------------------------------------
-TIER_ORDER = ("free", "all-star", "goat")
-#: Requests per minute on each plan, as published.
-PER_MINUTE = {"free": 5, "all-star": 60, "goat": 600}
+TIER_ORDER = ("free", "all-star", "goat", "all-access")
+#: Requests per minute on each plan, as published. ALL-ACCESS (§396, the
+#: plan FAM bought: every sport, every endpoint) is taken at GOAT's 600, the
+#: highest published; nothing in an answer says otherwise.
+PER_MINUTE = {"free": 5, "all-star": 60, "goat": 600, "all-access": 600}
 
 #: The plan each kind of request needs. `players` and `teams` are Free;
 #: injuries and season figures need ALL-STAR unless a league's spec says
@@ -584,7 +586,8 @@ class PlayerReports(LiveSource):
         reach = ("players and teams only - injuries and season figures need "
                  "ALL-STAR" if tier == "free" else
                  "players, teams, injuries and season figures (soccer injuries, "
-                 "golf and tennis season figures need GOAT)" if tier == "all-star"
+                 "golf and tennis season figures need GOAT or ALL-ACCESS)"
+                 if tier == "all-star"
                  else "everything this module reads")
         problem = self.client.problem()
         return True, (f"BALLDONTLIE_API_KEY present, plan {tier}: {reach} "

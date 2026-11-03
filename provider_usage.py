@@ -87,7 +87,7 @@ def _plans() -> dict:
         # account for every league.
         "balldontlie": (
             f"{settings.balldontlie_tier} plan: "
-            f"{ {'free': 5, 'all-star': 60, 'goat': 600}.get(settings.balldontlie_tier, 5)}"
+            f"{_bdl_per_minute(settings.balldontlie_tier)}"
             " requests/min, every league",
             "ALL-STAR for injuries and season figures; GOAT for soccer "
             "injuries and golf and tennis figures (see balldontlie.io pricing)"),
@@ -135,6 +135,12 @@ def _plans() -> dict:
             "free; one conditional request per feed per poll",
             "no paid plan"),
     }
+
+
+def _bdl_per_minute(tier: str) -> int:
+    import balldontlie
+
+    return balldontlie.PER_MINUTE.get(tier, 5)
 
 
 def _tiingo_plan() -> str:

@@ -321,7 +321,8 @@ services:
         sync: false
       # Sports (§277, §280): the scoreboard, the myFAM sweep's live scores,
       # and player and team reports (§275). Set BALLDONTLIE_TIER to the plan
-      # bought (all-star or goat): free reads rosters only.
+      # bought - all-access (every sport and endpoint, §396): free reads
+      # rosters only.
       - key: BALLDONTLIE_API_KEY
         sync: false
       - key: BALLDONTLIE_TIER

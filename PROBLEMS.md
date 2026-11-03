@@ -26903,3 +26903,38 @@ to Tiingo: `test_story_sources`, `test_live_providers`,
 `test_provider_usage_179`, `test_trending_135`, `test_financials` and four
 more. Notes at `sports-balldontlie`, `sweep-on-demand`, `live-facts` and
 `always-researched`.
+
+## 396. BALLDONTLIE's plan is ALL-ACCESS (2026-11-03)
+
+The owner (11.03), with a screenshot of the BALLDONTLIE dashboard: the plan
+is **ALL-ACCESS**, $299.99 a month - "All sports, all endpoints, BDL Lab,
+Webhooks, and StoryStats access ... No need to manage individual sport
+subscriptions". §290's "BALLDONTLIE is priced per sport" is not how this
+account is bought, so one plan for every league (`BALLDONTLIE_TIER`, §280)
+stands, and `all-access` is now one of its values.
+
+`balldontlie.TIER_ORDER` ends in `all-access`, so it reaches everything GOAT
+does (`ENDPOINT_TIERS` asks for nothing higher). Its per-minute limit is not
+published where this container can read it; `PER_MINUTE["all-access"]` is
+GOAT's 600, the highest published, and a 429 still reads as `RateLimited`.
+`config.py` accepts the value (anything else still refuses to boot), /admin's
+limit line reads `balldontlie.PER_MINUTE` rather than its own copy, and the
+finance workbook prices the row at $299.99 ("Paying"). The dashboard showed a
+trial ending 11.04 08:38; the plan must be upgraded there for the key to keep
+answering. **Pinned by** `tests/test_balldontlie_all_access_396.py`.
+
+## 397. Tiingo is credited on the Terms page (2026-11-03)
+
+The owner (11.03) shared FAM's signed-for market data agreement with Tiingo.
+**It is not in this repository and must not be:** the repository is public
+and the agreement's terms are confidential, so it is kept where the owner
+keeps contracts, and no figure from it (fee, limits) is written here. The
+limits are set on Render (`TIINGO_HOURLY_REQUESTS`, `TIINGO_DAILY_REQUESTS`,
+`sync: false`); `TIINGO_PLAN=redistribution`'s defaults stay at Commercial's
+published limits.
+
+Tiingo is credited on the Terms page, beside the other live data (section 5):
+"Market data from Tiingo.com", linked. The Terms already forbid copying,
+re-hosting, selling or distributing anything from FAM and training a model
+on it (section 10), which is what a listener may not do with a price either;
+nothing a listener agreed to changed, so `TERMS_VERSION` is not bumped.

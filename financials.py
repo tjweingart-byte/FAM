@@ -227,13 +227,15 @@ def catalogue() -> list[dict]:
     # repository, so a paid plan asks for it rather than guessing one.
     bdl_tier = str(_setting("balldontlie_tier", "free") or "free").lower()
     bdl_paid = bdl_tier not in ("", "free")
+    # §396: ALL-ACCESS's list price, as the owner's dashboard shows it.
+    bdl_price = {"all-access": 299.99}.get(bdl_tier, 0)
     rows.append(_row(
         DATA, "BALLDONTLIE", "Sports data (every league)",
         "Live scores, standings, story-card score lines, player and injury reports",
         f"{bdl_tier.upper()} plan, flat rate" if bdl_paid
         else "Free (5 req/min: rosters and games only)",
-        "Paying, enter price" if bdl_paid else "Free tier",
-        0, "/month",
+        ("Paying" if bdl_price else "Paying, enter price") if bdl_paid else "Free tier",
+        bdl_price, "/month",
         "" if bdl_paid else "ALL-STAR for standings, injuries and season figures",
         "BALLDONTLIE_TIER; balldontlie.io/pricing"))
 

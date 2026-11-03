@@ -1351,7 +1351,8 @@ class Settings:
         not in ("0", "false", "False", ""))
     balldontlie_api_key: str = field(
         default_factory=lambda: os.environ.get("BALLDONTLIE_API_KEY", "").strip())
-    # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat. One
+    # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat |
+    # all-access (every sport and endpoint, §396; FAM's plan). One
     # account covers every league. Nothing in an answer says which plan a key
     # is on, so the deploy says it, and an endpoint the plan does not reach
     # is not asked (`balldontlie.ENDPOINT_TIERS`). Free reaches players and
@@ -2200,10 +2201,10 @@ class Settings:
                 f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "
                 f"web search backend. Use one of: same, "
                 f"{', '.join(WEB_RESEARCH_BACKENDS)}.")
-        if self.balldontlie_tier not in ("free", "all-star", "goat"):
+        if self.balldontlie_tier not in ("free", "all-star", "goat", "all-access"):
             raise ValueError(
                 f"BALLDONTLIE_TIER={self.balldontlie_tier!r} is not one of "
-                "BALLDONTLIE's plans: free, all-star, goat. Refusing rather "
+                "BALLDONTLIE's plans: free, all-star, goat, all-access. Refusing rather "
                 "than guessing a plan upward and spending refused requests.")
         if self.tiingo_plan not in ("free", "power", "commercial", "redistribution"):
             raise ValueError(
