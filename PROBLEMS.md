@@ -28501,3 +28501,89 @@ and tasks see it; a failing screen keeps all; the archive's facts and
 `finish_history_look`; in force only while Mclovin works; health).
 `tests/test_agents_model_layer.py` allows `research.py` and
 `script_generator.py` the code-only `supervisor` module.
+
+## 434. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03)
+
+Decided items 12, 14, 17, 26 and 32; mclovin.md "always" 1, 3-5 and 7,
+"never" 1-5 and 7. The owner's answer (§433): a failing sentence's one repair
+is a one-sentence rewrite call.
+
+**Where.** `_ScriptReader` asks `agents/supervisor_checks.Checker` about every
+sentence that passed the existing guards (score, figure, material, opening),
+in the feed and the tail - the one reader a stream and a batched edition share
+(§179), so both are checked alike. The checker is built only when Netenyahu
+lets Mclovin work on the episode; otherwise the reader hands out plain
+sentences exactly as before and nothing is counted.
+
+**The checks**, all code, against the two packets only (the evidence packet
+with Sonic's archive sources in it, the live block, the forecast); no model
+reads the whole script and no model judges a sentence here (item 26):
+
+| Check | Fails when | Mode |
+|---|---|---|
+| `quote` | a quoted span of 3+ words is not in the packets word for word (case and punctuation aside), or the sentence names a speaker the packets do not put beside it | enforced |
+| `website` | a hostname, "dot com", `www` or a URL in speech | enforced |
+| `advice` | C3P0's `RECOMMENDS` in FAM's own voice, on a health, legal or money sentence or any sentence of an advice request; never a quote or an attributed one ("doctors say you should") | enforced |
+| `superlative` | "the first / only / biggest...", "record", "all-time", "ever" with no packet sentence of the same kind sharing a name or two words | enforced |
+| `figures` | any number - `figure_guard`'s reader widened from markets to every episode - not in the packets (the archive's only for a sentence that says when); years, history, and counts up to twelve in words are left alone | counted |
+| `dates` | "today", "last night", "this week"... where the packet source most like the sentence is older than the phrase allows by the listener's clock | counted |
+| `mixed` | a sentence whose names two different stories' sources hold, and no one source holds together (`news_clusters`' fingerprints) | counted |
+
+**Enforced or counted** (`SUPERVISOR_ENFORCE`, default
+`quote,website,advice,superlative`). A counted failure is recorded and the
+sentence plays. Figures are counted because §269 kept `figure_guard` narrow
+on purpose and the owner's rule is to measure on audits before widening what
+blocks; dates and mixed stories because they are heuristics on which source a
+sentence rests - the grounding checker (item 34) answers that properly. Each
+moves to enforced by a setting once its counts are read.
+
+**The one repair.** An enforced failure comes out of the reader as a
+`Repair`; whoever reads the stream asks `ScriptGenerator._repair`: one small
+call to the episode's own writer (`writer_for`) - Mclovin gives verdicts, the
+writer writes (mclovin.md "never" 2) - with the failing sentence, what the
+check found, and the three packet sources most like it in their own words
+(`REPAIR_INSTRUCTIONS`, its own short system prompt, so the writer's prompt
+and its length guard are untouched). The rewrite passes the guards and the
+checks again; a second failure, "NONE", an empty answer, a rewrite later than
+`SUPERVISOR_REPAIR_TIMEOUT_SECONDS` (2) or one past `SUPERVISOR_MAX_REPAIRS`
+(4 an episode) leaves the sentence out - never asked twice ("never" 4). The
+sentences behind it wait in order. Batched editions get the same through
+`settle_repairs`, which the DailyFAM and Trending editions call after
+`sentences_from_message`; with no `Repair` in the list it returns the list
+untouched. The rewrite is metered on the episode like the writer's call. It
+is the writer's call, not an agent's, so it does not go through
+`agents/models.py` and counts against no agent's one-call bound.
+
+**Out of time** (item 32). A check past `SUPERVISOR_TIMEOUT_SECONDS` leaves
+the rest of that sentence's checks `unchecked` and the sentence plays; a check
+that raises is `unchecked` too. Counted (`sentences_unchecked`, and the
+unchecked rate) for Keith.
+
+**Recorded.** `ScriptNotes.supervisor` holds every non-passing verdict (check,
+result, enforced, the rule book's named failure, why, the sentence), every
+rewrite kept and every sentence left out, filled in place as the script is
+written; `/api/health`'s agents block counts them by check and result, with
+rewrites asked, kept and dropped, and the repair settings.
+
+**What waits on the next pieces.** Facts and events supported by a source
+sentence, an unsupported settled fact with a name, number or date (item 12),
+and a preview told as a result (outside sports, where `score_guard` holds it)
+need the grounding checker - analysed and asked of the owner first (item 34).
+The quote-length limit §429 left open is counted (`quote_long`, 40 words or
+more) and never fails: a limit is the owner's to set.
+
+**Unmeasured.** What the checks cost the first chunk on searchFAM: the code
+checks are microseconds, but a failing first or second sentence waits on its
+rewrite - up to 2 s in front of the first word. P4 measures it with
+`stall_probe` and `compare_search` and reports it; it is not switched off for
+being slow (item 14). How often each check fails on real scripts is unknown
+until `write.py` runs with `AGENTS=1 SUPERVISOR=1` and the key.
+
+Settings: `SUPERVISOR_ENFORCE`, `SUPERVISOR_REPAIR_TIMEOUT_SECONDS`,
+`SUPERVISOR_MAX_REPAIRS` in `config.py`, `.env.example` and the health block.
+
+Tests: `tests/test_supervisor_checks_434.py` (each check passing and failing;
+the named failures are the rule book's; the enforced set pinned; a broken or
+late check plays unchecked; off, nothing checked or asked; a failure rewritten
+once from the sources' words; failing again, NONE, late, past the count - left
+out; a counted failure plays and is recorded; a batched script settles; health).

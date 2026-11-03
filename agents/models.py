@@ -622,6 +622,13 @@ def health() -> dict:
         # Mclovin's source screen: pages read, dropped by kind, kept as an
         # asked-for opinion, unsettled (§433).
         out["supervisor"] = supervisor.report()
+        from agents import supervisor_checks
+
+        # His sentence checks and the writer's rewrites (§434).
+        out["supervisor"]["checks"] = supervisor_checks.report()
+        out["supervisor"]["repairs"] = {
+            "timeout_seconds": settings.supervisor_repair_timeout_seconds,
+            "max_per_episode": settings.supervisor_max_repairs}
     except Exception:  # noqa: BLE001
         out["supervisor"] = None
     out["overlord"] = {"loop": bool(settings.agents),

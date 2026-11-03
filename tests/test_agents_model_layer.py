@@ -372,8 +372,10 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # and read-only lookups, no model.
         # Mclovin's source screen is put in force around the research step
         # (§433): code only, no model.
+        # His sentence checks (§434) sit in the reader beside the guards:
+        # code only; the one rewrite is the writer's own call, not his.
         "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever",
-                                "supervisor"},
+                                "supervisor", "supervisor_checks"},
         # The screen itself, read inside `screen_results`, the packet's
         # opinion label and the archive's merge (§433): code only.
         "research.py": {"supervisor"},

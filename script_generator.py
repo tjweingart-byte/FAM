@@ -550,6 +550,21 @@ def system_prompt() -> str:
     return SYSTEM_PROMPT + style_example_block()
 
 
+#: The writer's one rewrite of a sentence Mclovin failed (§434). Its own
+#: short call, never the episode's prompt, so the writer's instructions and
+#: their length guard are untouched.
+REPAIR_INSTRUCTIONS = (
+    "You wrote one sentence of a spoken audio episode, and a fact check "
+    "failed it. Rewrite that one sentence so it says only what the sources "
+    "below say: keep a quote word for word and give it to the person the "
+    "sources give it to, or drop the quote marks and say it in plain words; "
+    "keep only numbers and dates the sources state; never name a website; "
+    "never tell the listener what to do about their health, the law or "
+    "their money. Keep it one spoken sentence in the same voice, no longer "
+    "than it was. Reply with the sentence alone, or NONE if the sources "
+    "hold no true version of it.")
+
+
 def writer_system():
     """The writer's `system`, marked cacheable unless `PROMPT_CACHE=0` (§179).
 
@@ -702,6 +717,10 @@ class ScriptNotes:
     #: Sentences `figure_guard.FigureGuard` removed: a market figure the
     #: material did not state (§269).
     figure_drops: tuple = ()
+    #: Mclovin's sentence checks on this episode (§434), when he worked on
+    #: it: `{"rows": [...], "repaired": [...], "dropped": [...]}`, filled in
+    #: place as the script is written. None otherwise.
+    supervisor: object = None
     #: What kind of thing the episode is, off `<<CATEGORY:>>` (§189), as the
     #: writer worded it. Resolved against the category tree only where it is
     #: read, so a tree that grows later can still place an older episode.
@@ -1696,6 +1715,35 @@ def _take_pronunciations(buffer: str, notes: "ScriptNotes | None",
 _BATCH_SLICE = 48
 
 
+@dataclass
+class Repair:
+    """A sentence Mclovin failed (§434), on its way back to the writer once.
+    `_ScriptReader` hands these out in place of the sentence; whoever is
+    reading the stream asks for the rewrite (`ScriptGenerator._repair`), so
+    the sentences behind it wait in order. Only while Mclovin works."""
+
+    sentence: str
+    why: str
+    #: The reader that failed it, whose guards and checks judge the rewrite.
+    reader: object = None
+
+
+async def settle_repairs(generator, plan, notes, sentences: list) -> list:
+    """A batched script's sentences with Mclovin's failures rewritten once or
+    left out, in order (§434). A list with none - always, while Mclovin is
+    off - is returned as it is, and the generator is not touched."""
+    if not any(isinstance(s, Repair) for s in sentences):
+        return sentences
+    out = []
+    for sentence in sentences:
+        if isinstance(sentence, Repair):
+            sentence = await generator._repair(plan, notes, sentence)
+            if not sentence:
+                continue
+        out.append(sentence)
+    return out
+
+
 class _ScriptReader:
     """Turns the writer's text into speech-ready sentences, as it arrives.
 
@@ -1723,6 +1771,39 @@ class _ScriptReader:
         # it was given (§269).
         self.figures = figure_guard.FigureGuard(plan)
         self.shared = _names_are_shared(plan)
+        # Mclovin's checks (§434), beside the guards - only while Netenyahu
+        # lets him work on this episode. None otherwise, and nothing changes.
+        self.mclovin = None
+        if _agent_runs(notes, "supervisor"):
+            try:
+                from agents import supervisor_checks
+
+                self.mclovin = supervisor_checks.Checker(plan, notes)
+                if notes is not None:
+                    notes.supervisor = self.mclovin.summary
+            except Exception:  # noqa: BLE001 - a check never costs an episode
+                log.warning("Mclovin's checks could not start; writing without them",
+                            exc_info=True)
+                self.mclovin = None
+
+    def _checked(self, sentence: str):
+        """The sentence, or a `Repair` when an enforced check fails it."""
+        if self.mclovin is None:
+            return sentence
+        verdict = self.mclovin.check(sentence)
+        if not verdict.failing:
+            return sentence
+        return Repair(sentence, verdict.reasons(), self)
+
+    def recheck(self, text: str) -> bool:
+        """Whether the writer's rewrite may be spoken: the same guards (not
+        the opening guard, whose moment has passed) and Mclovin's checks."""
+        if not text or not (self.scores.allow(text) and self.figures.allow(text)
+                            and self.material.allow(text)):
+            return False
+        if self.mclovin is None:
+            return True
+        return not self.mclovin.check(text).failing
 
     @property
     def over_budget(self) -> bool:
@@ -1772,7 +1853,7 @@ class _ScriptReader:
                     and self.figures.allow(sentence) \
                     and self.material.allow(sentence) and self.guard.allow(sentence):
                 self.emitted_words += count_words(sentence)
-                out.append(sentence)
+                out.append(self._checked(sentence))
         self.buffer = speech + marker + rest
         return out
 
@@ -1790,7 +1871,7 @@ class _ScriptReader:
             tail = ""
         if tail and self.scores.allow(tail) and self.figures.allow(tail) \
                 and self.material.allow(tail) and self.guard.allow(tail):
-            out.append(tail)
+            out.append(self._checked(tail))
         # Nothing but disclaimer is still better than nothing at all.
         rescued = self.guard.rescue()
         if rescued:
@@ -1837,7 +1918,7 @@ class _ScriptReader:
                     f"{'s' if len(dropped) != 1 else ''}", dropped[0],
                     self.plan.query, pipeline_errors.NOTICE)
         self.finished_words = self.emitted_words + sum(
-            count_words(line) for line in out)
+            count_words(getattr(line, "sentence", line)) for line in out)
         return out
 
     def note_if_short(self, outcome: str) -> None:
@@ -2898,6 +2979,10 @@ class ScriptGenerator:
                     if first_word is None and event:
                         first_word = time.monotonic() - started
                     for sentence in reader.feed(event):
+                        if isinstance(sentence, Repair):
+                            sentence = await self._repair(plan, notes, sentence)
+                            if not sentence:
+                                continue
                         spoken += 1
                         yield sentence
                     # Safety valve: a model that ignores the budget must not
@@ -2909,6 +2994,10 @@ class ScriptGenerator:
 
                 if stopped_early:
                     for sentence in reader.finish():
+                        if isinstance(sentence, Repair):
+                            sentence = await self._repair(plan, notes, sentence)
+                            if not sentence:
+                                continue
                         yield sentence
                     final = await stream.get_final_message()
                 else:
@@ -2918,6 +3007,10 @@ class ScriptGenerator:
                     final = await stream.get_final_message()
                     cut_off = getattr(final, "stop_reason", None) == "max_tokens"
                     for sentence in reader.finish(cut_off=cut_off):
+                        if isinstance(sentence, Repair):
+                            sentence = await self._repair(plan, notes, sentence)
+                            if not sentence:
+                                continue
                         yield sentence
         except Exception as exc:
             # Said on /admin's errors (§269), then raised exactly as before -
@@ -2959,6 +3052,64 @@ class ScriptGenerator:
     # (`sentences_from_message`) - so a batched episode is parsed, guarded and
     # budgeted exactly as a streamed one is.
 
+    # -- Mclovin's one repair (§434) ---------------------------------------
+    async def _repair(self, plan: EpisodePlan, notes: ScriptNotes | None,
+                      item: "Repair") -> str:
+        """The writer's one rewrite of a sentence Mclovin failed, or "" when
+        it is left out (mclovin.md "always" 5, "never" 2 and 4).
+
+        One small call to the episode's own writer - Mclovin gives verdicts,
+        the writer writes - with the failing sentence, what is wrong with it
+        and the packet sources most like it. The sentences behind it wait in
+        order, never past `SUPERVISOR_REPAIR_TIMEOUT_SECONDS`; a rewrite that
+        is late, empty, fails the guards or fails a check again is left out,
+        and so is every failure past `SUPERVISOR_MAX_REPAIRS`. Never raises."""
+        reader = item.reader
+        checker = getattr(reader, "mclovin", None)
+        summary = getattr(checker, "summary", None) or {}
+        def dropped(why: str) -> str:
+            summary.setdefault("dropped", []).append({"text": item.sentence[:240],
+                                                     "failed": item.why, "why": why})
+            log.warning("Mclovin: left out (%s; %s): %r", item.why, why,
+                        item.sentence[:160])
+            from agents import supervisor_checks
+
+            supervisor_checks._count("repair_dropped")
+            return ""
+        if checker is None:
+            return item.sentence
+        if checker.repairs >= max(0, int(settings.supervisor_max_repairs)):
+            return dropped("past the episode's rewrites")
+        checker.repairs += 1
+        from agents import supervisor_checks
+
+        supervisor_checks._count("repair_asked")
+        model, _effort = writer_for(notes)
+        try:
+            message = await asyncio.wait_for(self.client.messages.create(
+                model=model, max_tokens=300, system=REPAIR_INSTRUCTIONS,
+                messages=[{"role": "user", "content": supervisor_checks.repair_prompt(
+                    checker, item.sentence, item.why)}]),
+                timeout=max(0.1, float(settings.supervisor_repair_timeout_seconds)))
+        except asyncio.TimeoutError:
+            return dropped("the rewrite was late")
+        except Exception as exc:  # noqa: BLE001 - a repair never costs an episode
+            return dropped(f"the rewrite failed: {type(exc).__name__}")
+        if notes is not None:
+            notes.usage.add_model_call(model, getattr(message, "usage", None))
+        text = clean_for_speech("".join(
+            getattr(block, "text", "") or "" for block in (getattr(message, "content", None) or [])
+            if getattr(block, "type", "") == "text").strip())
+        if not text or text.strip(" .").upper() == "NONE":
+            return dropped("the writer had no true version")
+        if not reader.recheck(text):
+            return dropped("the rewrite failed again")
+        summary.setdefault("repaired", []).append({"text": item.sentence[:240],
+                                                  "failed": item.why, "now": text[:240]})
+        supervisor_checks._count("repair_kept")
+        reader.emitted_words += count_words(text) - count_words(item.sentence)
+        return text
+
     async def batch_request(self, plan: EpisodePlan,
                             notes: ScriptNotes | None = None
                             ) -> tuple[EpisodePlan, dict]:
@@ -2997,6 +3148,8 @@ class ScriptGenerator:
         cut_off = (not reader.over_budget
                    and getattr(message, "stop_reason", None) == "max_tokens")
         out.extend(reader.finish(cut_off=cut_off))
+        # Mclovin's failures (§434) are `Repair`s here, for `settle_repairs`,
+        # which the editions call next; with him off there are none.
         outcome = _writer_outcome(
             message, plan, notes, getattr(message, "model", None)
             or writer_for(notes)[0], batched=True,

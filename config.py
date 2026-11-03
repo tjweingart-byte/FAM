@@ -2112,6 +2112,18 @@ class Settings:
     editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 4000)
     supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
     supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
+    # **Mclovin's sentence checks** (§434): which ones send a failing
+    # sentence back to the writer; the rest only count until they are
+    # measured (figures, dates and mixed stories - §269's "audits first").
+    supervisor_enforce: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_ENFORCE", "quote,website,advice,superlative").strip())
+    # The writer's one rewrite of a failing sentence: its time limit (the
+    # sentences behind it wait in order) and how many an episode may ask.
+    # Late, or past the count, the sentence is left out.
+    supervisor_repair_timeout_seconds: float = _env_float(
+        "SUPERVISOR_REPAIR_TIMEOUT_SECONDS", 2.0)
+    supervisor_max_repairs: int = _env_int("SUPERVISOR_MAX_REPAIRS", 4)
     housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
     housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
     # **Consuela's consolidation** (§399): a dry run until the owner turns

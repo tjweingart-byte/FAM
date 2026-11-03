@@ -1011,7 +1011,8 @@ switched off. **A check that runs out of time does not hold the sentence**
 (the owner, 2026-10-29): it plays unchecked, and the miss is recorded and
 reported to Keith. Before that, the moment each packet comes back, it screens
 the sources. **Status:** the source screen is built, off by default
-(`agents/supervisor.py`, §433); the sentence checks are next.
+(`agents/supervisor.py`, §433), and the per-sentence code checks with one
+rewrite (`agents/supervisor_checks.py`, §434); the grounding checker is next.
 
 **Purpose.** Make sure every episode is true to its sources and keeps the
 rules of what an episode is - **checking only against the two packets**
