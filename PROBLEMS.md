@@ -29091,7 +29091,12 @@ Settings (new): `SUPERVISOR_SCREEN_TIMEOUT_SECONDS`,
 (`test_the_writing_path_asks_for_a_warmed_brief_before_paying_for_one`) that
 reads `ScriptGenerator.understand`'s source by line - this piece was being
 edited into `script_generator.py` while the check ran, and moved the lines
-under it. Alone it passes. Edits wait for a check to end.
+under it. Alone it passes. Edits wait for a check to end. This piece's own
+full check then failed `tests/test_refile_old_428.py::test_apply_refuses_any_other_approval`
+by chance: it made a "wrong" approval by putting `0` in place of the
+digest's last character, which is the real digest whenever that character
+was already `0` - one run in sixteen, since the report is new each run. The
+test now changes the character to one it is not.
 
 Tests: `tests/test_supervisor_screen_model_441.py` (the screen records what
 it could not settle; one call judges them; the asked-for person's page stays;
