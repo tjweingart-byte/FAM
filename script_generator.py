@@ -751,11 +751,11 @@ class ScriptNotes:
     #: (`writer_for`, §269).
     edition: bool = False
     #: Which arm of decided item 37's two weeks this episode is in
-    #: (`EDITOR_TRIAL`, §450): "with" (Shakespeare planned it), "with_unplanned"
+    #: (`EDITOR_TRIAL`, §454): "with" (Shakespeare planned it), "with_unplanned"
     #: (he was asked and gave no plan), "without" (left out by the trial), or
     #: "" when no trial ran. Kept on its quality row for the comparison.
     editor_arm: str = ""
-    #: What came of Shakespeare's plan on searchFAM (`EDITOR_TANDEM`, §452):
+    #: What came of Shakespeare's plan on searchFAM (`EDITOR_TANDEM`, §456):
     #: "handed_over" (the writer wrote the rest from it), "late" (not in by
     #: `EDITOR_TANDEM_WAIT_SECONDS`), "no_plan" (in, empty), "short" (the episode
     #: ended before the hand-over point), or "" (he did
@@ -1748,7 +1748,7 @@ class Repair:
     second_look: bool = False
 
 
-#: The writer's second call in tandem (§452), after its own instructions.
+#: The writer's second call in tandem (§456), after its own instructions.
 TANDEM_CONTINUE = """
 
 <already_spoken>
@@ -1762,7 +1762,7 @@ more words. Every other instruction still holds, the closing lines included."""
 
 def _tandem_plan(plan: "EpisodePlan", notes) -> "Optional[asyncio.Future]":
     """Shakespeare's plan for a searchFAM episode, started now, beside the
-    writer (§452) - or None: `EDITOR_TANDEM` off, an episode written ahead
+    writer (§456) - or None: `EDITOR_TANDEM` off, an episode written ahead
     of the tap (he planned it in `prepare`), a prefetch warm, no packets, or
     he does not work on it (Netenyahu: switches, a private search, an
     attached file). Never raises."""
@@ -1831,7 +1831,7 @@ async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
 
 
 def editor_trial_arm(plan: "EpisodePlan") -> str:
-    """Decided item 37's two weeks (§450): "with" or "without" by a hash of
+    """Decided item 37's two weeks (§454): "with" or "without" by a hash of
     the question and its length - so the same story is always in the same
     arm, and a rewrite never moves it - or "" when `EDITOR_TRIAL` is off."""
     from config import settings
@@ -1918,7 +1918,7 @@ class _ScriptReader:
     def _note_drops(self) -> None:
         """What the guards dropped, on the notes. At `finish`, and again
         after a rewrite is rechecked: the final sentence's rewrite is checked
-        after `finish`, so a drop there would otherwise never reach them (§453)."""
+        after `finish`, so a drop there would otherwise never reach them (§457)."""
         if self.notes is None:
             return
         self.notes.meta_openings = (tuple(self.guard.dropped)
@@ -3096,7 +3096,7 @@ class ScriptGenerator:
         for sentence in reader.opening():
             yield sentence
 
-        # Shakespeare on searchFAM, in tandem (§452): his plan starts now,
+        # Shakespeare on searchFAM, in tandem (§456): his plan starts now,
         # beside the writer, never in front of the first word. None when he
         # does not work on this episode or `EDITOR_TANDEM` is off.
         tandem = _tandem_plan(plan, notes)
@@ -3186,7 +3186,7 @@ class ScriptGenerator:
                                     spoken=spoken)
             yield refused
 
-    # -- Shakespeare in tandem on searchFAM (§452) --------------------------
+    # -- Shakespeare in tandem on searchFAM (§456) --------------------------
     async def _stream_tandem(self, plan: EpisodePlan, notes: ScriptNotes | None,
                              reader: "_ScriptReader", request: dict,
                              tandem: "asyncio.Future") -> AsyncIterator[str]:
@@ -3309,7 +3309,7 @@ class ScriptGenerator:
 
     def _continuation_kwargs(self, plan: EpisodePlan, notes: ScriptNotes | None,
                              spoken: list, reader: "_ScriptReader") -> dict:
-        """The writer's second call (§452): its own request for this plan -
+        """The writer's second call (§456): its own request for this plan -
         Shakespeare's outline in it - with what was already spoken and how
         many words are left, under the same system block."""
         kwargs = self._request_kwargs(plan, notes)

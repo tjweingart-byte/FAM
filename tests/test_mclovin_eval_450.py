@@ -1,4 +1,4 @@
-"""The planter names a quote's speaker as the packet places it (§446).
+"""The planter names a quote's speaker as the packet places it (§450).
 
 Recreating §440's evaluation data, two controls - a packet quote given to
 its own speaker - failed because the planter had named the wrong one: a

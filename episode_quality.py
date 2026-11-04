@@ -370,7 +370,7 @@ class QualityStore:
                               graded_at     REAL NOT NULL DEFAULT 0,
                               PRIMARY KEY (key, sourced))""")
             db.execute("CREATE INDEX IF NOT EXISTS episodes_at ON episodes (at)")
-            # Added after the table shipped (§450): an existing file is widened.
+            # Added after the table shipped (§454): an existing file is widened.
             try:
                 db.execute("ALTER TABLE episodes ADD COLUMN editor_arm "
                            "TEXT NOT NULL DEFAULT ''")
@@ -1130,7 +1130,7 @@ def _default_place() -> tuple:
 
 UNPLACED = "unplaced"
 
-#: The trial's arms (§450). "with_unplanned" (he was asked and gave no plan)
+#: The trial's arms (§454). "with_unplanned" (he was asked and gave no plan)
 #: counts with "with": the comparison is of being given him, not of his
 #: successes.
 TRIAL_ARMS = {"with": "with", "with_unplanned": "with", "without": "without"}
@@ -1138,7 +1138,7 @@ TRIAL_ARMS = {"with": "with", "with_unplanned": "with", "without": "without"}
 
 def editor_trial(days: float = 14.0, now: Optional[float] = None,
                  quality: Optional[QualityStore] = None) -> dict:
-    """Decided item 37's two weeks (`EDITOR_TRIAL`, §450): episodes written
+    """Decided item 37's two weeks (`EDITOR_TRIAL`, §454): episodes written
     ahead of the tap with and without Shakespeare, compared on listening -
     who left in the first `EARLY_EXIT_SECONDS`, who heard `FINISHED_SHARE`,
     the mean share heard - and on the six code measures. Numbers only; the

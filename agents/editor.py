@@ -338,10 +338,10 @@ def report() -> dict:
     from config import settings
 
     with _LOCK:
-        # Whether decided item 37's two weeks are running (§450).
+        # Whether decided item 37's two weeks are running (§454).
         return {"since_boot": dict(SINCE_BOOT),
                 "trial": bool(getattr(settings, "editor_trial", False)),
-                # Beside the writer on searchFAM (§452).
+                # Beside the writer on searchFAM (§456).
                 "tandem": bool(getattr(settings, "editor_tandem", False))}
 
 

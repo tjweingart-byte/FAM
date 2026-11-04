@@ -1,4 +1,4 @@
-"""Decided item 37's two weeks: editions with and without Shakespeare (§450).
+"""Decided item 37's two weeks: editions with and without Shakespeare (§454).
 
     python tools/editor_trial.py            # the last 14 days
     python tools/editor_trial.py --days 21

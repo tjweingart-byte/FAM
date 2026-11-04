@@ -1,4 +1,4 @@
-"""Shakespeare on searchFAM, in tandem with the writer (§452).
+"""Shakespeare on searchFAM, in tandem with the writer (§456).
 
 His plan starts beside the writer, never in front of the first word. The
 writer opens from the packets as today; once `EDITOR_TANDEM_OPENING_WORDS`

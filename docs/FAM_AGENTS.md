@@ -969,8 +969,8 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | `EDITOR_TIMEOUT_SECONDS`, `EDITOR_AHEAD_TIMEOUT_SECONDS` | Ceilings; past them the writer reads the packets |
 | `EDITOR_RERANKER` | Empty, or the reranker |
 | `EDITOR_PLAYBOOK` | The journalism playbook's file |
-| `EDITOR_TANDEM`, `EDITOR_TANDEM_OPENING_WORDS`, `EDITOR_TANDEM_WAIT_SECONDS` | `0` (off), 30, 7: on searchFAM he plans beside the writer at low effort - never in front of the first word; once 30 words are spoken the writer waits for his plan until 7 s from its start, then a second writer call writes the rest from it; late or empty, the writer carries on as today (§452) |
-| `EDITOR_TRIAL` | `0` / `1` (off): decided item 37's two weeks - half the episodes written ahead of the tap, by a hash of the question and length, are written without him, each records its arm, and `python tools/editor_trial.py` compares them on listening (left in 20 s, heard 85%) and the code measures (§450) |
+| `EDITOR_TANDEM`, `EDITOR_TANDEM_OPENING_WORDS`, `EDITOR_TANDEM_WAIT_SECONDS` | `0` (off), 30, 7: on searchFAM he plans beside the writer at low effort - never in front of the first word; once 30 words are spoken the writer waits for his plan until 7 s from its start, then a second writer call writes the rest from it; late or empty, the writer carries on as today (§456) |
+| `EDITOR_TRIAL` | `0` / `1` (off): decided item 37's two weeks - half the episodes written ahead of the tap, by a hash of the question and length, are written without him, each records its arm, and `python tools/editor_trial.py` compares them on listening (left in 20 s, heard 85%) and the code measures (§454) |
 
 **The journalism playbook - decided: A, B and C combined** (the owner,
 2026-10-28: "for training Diana, please combine A, B, and C right now").

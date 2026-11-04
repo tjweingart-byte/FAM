@@ -1,4 +1,4 @@
-"""The review's two small fixes (§453).
+"""The review's two small fixes (§457).
 
 1. A prefetch warm's second look is labelled "ahead": nobody is waiting on
    it, whether or not `notes.ahead` is set (`ScriptNotes.ahead`).

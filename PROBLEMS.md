@@ -29237,7 +29237,7 @@ with every reference to them and the test files named after them
 `test_supervisor_screen_model_442`) - the fourth time Main took this work's
 numbers (§386, §418, §423). Every other open branch stops at §433 or below.
 
-## 446. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04)
+## 450. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04)
 
 The frozen packets and scripts behind §437 and §440 were gone (they live
 outside the repository, in `~/.fam/editor_eval/`, since they hold provider
@@ -29301,19 +29301,19 @@ Chromium build 1248; this container ships build 1243 under
 while all 6,443 tests passed. `pip install playwright==1.63.0` puts back the
 match; CI installs its own browser and is unaffected.
 
-Tests: `tests/test_mclovin_eval_446.py` (the nearest name is the speaker; a
+Tests: `tests/test_mclovin_eval_450.py` (the nearest name is the speaker; a
 role never is; accented names are read; a name cut by the window is not
 taken), each failing on the old planter.
 
-## 447. Finishing Phase 3, piece 2: HHEM measured for accuracy, and as int8 ONNX on one thread (2026-11-04)
+## 451. Finishing Phase 3, piece 2: HHEM measured for accuracy, and as int8 ONNX on one thread (2026-11-04)
 
 §444 timed HHEM-2.1-Open but did not measure whether it is right. This piece
-did both, on §446's recreated data, in a throwaway virtualenv in the
+did both, on §450's recreated data, in a throwaway virtualenv in the
 scratchpad (torch, transformers, onnx - never `requirements.txt`; PyPI's
 Linux torch needs its CUDA packages even on a CPU, and the PyTorch CPU index
 is refused by this environment). Nothing in FAM changed.
 
-**The data.** All 2,408 sentences of §446's 150 scripts (119 have no source
+**The data.** All 2,408 sentences of §450's 150 scripts (119 have no source
 near them, which the `support` check already handles without the checker) and
 349 planted mistakes from `agents/supervisor_cases.py` with their originals:
 changed numbers (109), two stories joined (141), "yesterday" on old news
@@ -29394,16 +29394,16 @@ unmeasured).
 Tests: none; nothing in FAM changed. The scripts (dataset, scoring, export,
 quantisation, the Opus sample) stayed in the scratchpad with the virtualenv.
 
-## 448. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04)
+## 452. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04)
 
-The owner, on §447: the grounding question "is supposed to be Mclovin's job,
+The owner, on §451: the grounding question "is supposed to be Mclovin's job,
 not HHEM" - agents run these checks because their rules are signed and a
 session cannot change them. §440's design let a model outside his rule book
 fail a sentence on its score, at thresholds (0.8, 0.2) a session chose; his
 signed `mclovin.md` names no checker and no threshold. **No checker is
 installed and none will be without the owner**; `SUPERVISOR_GROUNDING` stays
 empty and the `support` check does not run. The comparison of HHEM-like
-models §447 led to was withdrawn before it started. Also the owner's: API
+models §451 led to was withdrawn before it started. Also the owner's: API
 keys are not for running tests at will - spend only on what the owner asks.
 
 **Mclovin measured on the job** (the owner's yes; "find a cheaper way" than
@@ -29413,7 +29413,7 @@ makes, through `agents/models.py`, under his signed rule book, on
 sentence and its three nearest sources at a time, ahead-of-the-tap surface,
 with the time limit raised to 10 s so every answer came back and its time
 could be read. On the 353 planted mistakes (labelled by construction) and the
-120 real sentences Opus had already judged for §447: 473 calls, **$0.133**.
+120 real sentences Opus had already judged for §451: 473 calls, **$0.133**.
 
 | | n | says unsupported | supported | unsure | out of room |
 |---|---|---|---|---|---|
@@ -29439,20 +29439,20 @@ could be read. On the 353 planted mistakes (labelled by construction) and the
   ~$48 per 10,000 episodes against the ~$5 target (decided item 26).
 
 **So, as configured, the support verdict does not meet the bar on any
-route** - neither a checker's (§447) nor Mclovin's own. The code checks under
-his book stand as §446 measured them: seven enforce; **figures** stays count
+route** - neither a checker's (§451) nor Mclovin's own. The code checks under
+his book stand as §450 measured them: seven enforce; **figures** stays count
 only (81% caught, 1.70% flagged). Nothing changed in FAM; the support check
 stays off until the owner decides otherwise.
 
 Tests: none; nothing in FAM changed. The script stayed in the scratchpad.
 
-## 449. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04)
+## 453. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04)
 
-The owner, on §448: "Raise the token limit to 500, raise the time to 2
+The owner, on §452: "Raise the token limit to 500, raise the time to 2
 seconds. We will revisit this once the agents are implemented. Leave support
 off." `SUPERVISOR_MAX_TOKENS` 300 → 500 and `SUPERVISOR_TIMEOUT_SECONDS`
 1 → 2, in `config.py` and `.env.example`. At the old limits one second look
-in six ran out of room and nine in ten took longer than 1 s (§448).
+in six ran out of room and nine in ten took longer than 1 s (§452).
 
 `SUPERVISOR_TIMEOUT_SECONDS` is also the deadline for one sentence's code
 checks (`supervisor_checks.Checker.check`), on searchFAM too; those take well
@@ -29461,10 +29461,10 @@ check stays off: `SUPERVISOR_GROUNDING` is empty, no checker is installed,
 and the second look these limits govern is reached only through it. His
 effort ("low") is still written in code, not a setting.
 
-Tests: `tests/test_supervisor_limits_449.py` (the defaults; `.env.example`
+Tests: `tests/test_supervisor_limits_453.py` (the defaults; `.env.example`
 agrees; support off).
 
-## 450. Finishing Phase 3, piece 4: Shakespeare's two weeks, built behind a switch - and his place on searchFAM (2026-11-04)
+## 454. Finishing Phase 3, piece 4: Shakespeare's two weeks, built behind a switch - and his place on searchFAM (2026-11-04)
 
 The owner (2026-11-04): no 3-5 minute rerun of the comparison; build the
 two weeks of editions with and without Shakespeare (decided item 37); and
@@ -29519,26 +29519,26 @@ would have no editor apart from the writer. §437 also found the plan was not
 the bottleneck at 1.5 minutes (storytelling 1.5-1.9 of 5 in every arm): the
 writer is. Raised, not changed.
 
-Tests: `tests/test_editor_trial_450.py` (off, he plans every one and no arm
+Tests: `tests/test_editor_trial_454.py` (off, he plans every one and no arm
 is kept; on, half go without and the same story always lands the same;
 without, he is not asked; with, whether he planned; no arm when he does not
 work; the arm kept and compared by listening; an existing store widened;
 `note` keeps the arm; the setting copied and off; the tool runs) - on SQLite
 and on Postgres 16 (`DATABASE_URL`).
 
-## 451. Shakespeare on searchFAM: alongside the writer, and his call measured at low and medium effort (2026-11-04)
+## 455. Shakespeare on searchFAM: alongside the writer, and his call measured at low and medium effort (2026-11-04)
 
 The owner (2026-11-04): "have it work alongside the writer for now. As long
 as Shakespeare's rules don't change, I see no problem with that. It should
 absolutely be there on search though... We want to have these running at the
 same time to avoid that latency addition. Still, quality is the most
 important." So he stays the editor beside the writer (his signed book
-unchanged, §450's replacement question closed), and searchFAM gets him in
+unchanged, §454's replacement question closed), and searchFAM gets him in
 tandem, never a step in front of the first word.
 
 **His call, measured** (the owner's yes; his real request through
 `agents.editor.outline` under his signed book, `EDITOR_MODEL` Haiku 5.5, on
-20 of §446's frozen packets, low and medium in alternating order, one call
+20 of §450's frozen packets, low and medium in alternating order, one call
 at a time; 40 calls, $0.083):
 
 | effort | median | p90 | range | cost a plan | planned | sentence numbers code dropped |
@@ -29570,13 +29570,13 @@ design behind a switch, off by default.
 
 Tests: none; nothing in FAM changed. The script stayed in the scratchpad.
 
-## 452. Shakespeare on searchFAM: low effort keeps quality, and he plans beside the writer (2026-11-04)
+## 456. Shakespeare on searchFAM: low effort keeps quality, and he plans beside the writer (2026-11-04)
 
 The owner (2026-11-04): "Do a then b" - (a) whether low or medium effort
 keeps quality, (b) the in-tandem design on search behind a switch.
 
 **(a) Low against medium, judged blind** ($0.838: the writer wrote from each
-of §451's 40 plans, $0.066; Opus 5.5 compared each question's two scripts,
+of §455's 40 plans, $0.066; Opus 5.5 compared each question's two scripts,
 in a shuffled order, against the evidence under FAM's episode rules -
 answer the question first, a story not a list, every sentence informs, a
 concrete open and end, nothing unsupported - and counted each script's
@@ -29612,7 +29612,7 @@ which says whether the tandem is on. Off, `stream_prepared` runs the code
 it always did.
 
 Unmeasured until it runs with the key: how often the plan is in by 7 s on
-real searches (§451's p90 was 6.4 s), whether the hand-over is heard (the
+real searches (§455's p90 was 6.4 s), whether the hand-over is heard (the
 second call's first sentence must arrive before the opening's ~11 s of audio
 ends), and whether the rest of the episode is better for the plan - the
 next measures, for the owner to ask for.
@@ -29621,21 +29621,21 @@ Settings (new): `EDITOR_TANDEM`, `EDITOR_TANDEM_OPENING_WORDS`,
 `EDITOR_TANDEM_WAIT_SECONDS`, in `config.py`, `.env.example` and
 `tests/conftest.py`.
 
-Tests: `tests/test_editor_tandem_452.py` (off, as always; a plan in time
+Tests: `tests/test_editor_tandem_456.py` (off, as always; a plan in time
 writes the rest from it, the opening whole sentences, the second call
 reading the plan, what was spoken and the words left, both calls metered;
 never in front of the first word; late, empty, or an episode shorter than
 the opening - the writer as it was; not ahead of the tap, not when he does
 not work; the settings copied and off).
 
-## 453. Finishing Phase 3, piece 5: the review's two small fixes (2026-11-04)
+## 457. Finishing Phase 3, piece 5: the review's two small fixes (2026-11-04)
 
 1. **A prefetch warm's second look is labelled "ahead".**
    `ScriptGenerator._repair` passed `ahead=notes.ahead` to Mclovin's second
    look, but a prefetch warm counts as ahead of the tap whether or not
    `ahead` is set (`ScriptNotes.ahead`'s own comment): its look was labelled
    "search" in the model layer's records. Now `ahead or prefetch`. (The
-   second look runs only through the grounding checker, which is off, §448.)
+   second look runs only through the grounding checker, which is off, §452.)
 2. **A guard's drop of a rewritten final sentence reaches the notes.**
    `_ScriptReader.finish` copied the guards' drops onto the notes
    (`meta_openings`, `score_drops`, `figure_drops`), but the episode's last
@@ -29644,6 +29644,20 @@ not work; the settings copied and off).
    copy, and the notes never saw it. One method, `_note_drops`, copies them
    at `finish` and again whenever `recheck` refuses a rewrite.
 
-Tests: `tests/test_review_fixes_453.py` (a prefetch warm's second look is
+Tests: `tests/test_review_fixes_457.py` (a prefetch warm's second look is
 ahead; a dropped rewrite of the final sentence is on the notes), both failing
 before the fix.
+
+## 458. This branch's sections renumbered past the other open branch's (2026-11-04)
+
+While this branch held §446-§453, `claude/determined-cray-n15x95` (another
+session, not yet merged) took §446-§449 for its own work (Chatterbox's fast
+loop, a search's kept voice, push spread, search length). Neither was on
+Main, so rather than wait to see which merges second, this branch's sections
+move up four, to §450-§457 - with every reference to them and the test
+files named after them (`test_mclovin_eval_450`, `test_supervisor_limits_453`,
+`test_editor_trial_454`, `test_editor_tandem_456`, `test_review_fixes_457`).
+The numbers are now unique across both branches, so either can merge first:
+the other's sections then sit before this branch's in the file and nothing
+is renumbered again. No test requires the numbers to be consecutive. Checked
+before numbering: no other open branch past §449.

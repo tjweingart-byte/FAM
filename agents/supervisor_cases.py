@@ -96,7 +96,7 @@ def change_number(sentence: str) -> Optional[str]:
 
 
 _PACKET_QUOTE = re.compile(r'["“]([^"“”]{15,240})["”]')
-#: A two-word name; accented letters count ("Michel Bréal", §446).
+#: A two-word name; accented letters count ("Michel Bréal", §450).
 _CAPS = re.compile(r"\b([A-Z][^\W\d_A-Z]+(?:\s+[A-Z][^\W\d_A-Z]+)+)\b")
 
 
@@ -104,7 +104,7 @@ def packet_quotes(blocks) -> list:
     """`(span, speaker)` for quotes in the packets with a two-word name
     within 120 characters - the speaker as the packet places it: the name
     nearest the quote, never a role ("Federal Reserve Chair") and never a
-    word cut off at the window's edge ("Summer Gam", §446)."""
+    word cut off at the window's edge ("Summer Gam", §450)."""
     from agents.supervisor_checks import NOT_ENTITIES
 
     out = []

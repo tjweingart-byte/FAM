@@ -1,4 +1,4 @@
-"""Decided item 37's two weeks: editions with and without Shakespeare (§450).
+"""Decided item 37's two weeks: editions with and without Shakespeare (§454).
 
 With `EDITOR_TRIAL=1`, half the episodes written ahead of the tap - by a
 hash of the question and length - are written without his plan, and each
@@ -145,7 +145,7 @@ def test_the_arm_is_kept_and_compared_by_listening(tmp_path):
 
 
 def test_an_existing_file_is_widened(tmp_path):
-    """A quality store from before §450 gains the column, on SQLite or Postgres."""
+    """A quality store from before §454 gains the column, on SQLite or Postgres."""
     path = str(tmp_path / "old.db")
     with closing(store_db.connect(path, isolation_level=None)) as db:
         db.execute("""CREATE TABLE episodes (

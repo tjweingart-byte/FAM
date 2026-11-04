@@ -2123,14 +2123,14 @@ class Settings:
     # runs both Haiku and Sonnet (decided item 37). On searchFAM: low.
     editor_effort: str = field(
         default_factory=lambda: os.environ.get("EDITOR_EFFORT", "high").strip())
-    # Decided item 37's two weeks (§450): with it on, half the episodes
+    # Decided item 37's two weeks (§454): with it on, half the episodes
     # written ahead of the tap - by a hash of the question and length - are
     # written without Shakespeare, and each records its arm, so listening
     # (left in 20 s, heard 85%) can be compared. Off: he plans every one.
     editor_trial: bool = field(
         default_factory=lambda: os.environ.get("EDITOR_TRIAL", "0")
         not in ("0", "false", "False", ""))
-    # Shakespeare on searchFAM, in tandem with the writer (§452): he plans
+    # Shakespeare on searchFAM, in tandem with the writer (§456): he plans
     # (`EDITOR_SEARCH_MODEL`, low effort) while the writer opens from the
     # packets as today; once `EDITOR_TANDEM_OPENING_WORDS` are spoken the
     # writer waits for his plan until `EDITOR_TANDEM_WAIT_SECONDS` from its
@@ -2142,8 +2142,8 @@ class Settings:
         not in ("0", "false", "False", ""))
     editor_tandem_opening_words: int = _env_int("EDITOR_TANDEM_OPENING_WORDS", 30)
     editor_tandem_wait_seconds: float = _env_float("EDITOR_TANDEM_WAIT_SECONDS", 7.0)
-    # 2 s and 500 tokens, the owner's (§449): at 1 s and 300 most of his
-    # second looks timed out or ran out of room (§448). Also the deadline
+    # 2 s and 500 tokens, the owner's (§453): at 1 s and 300 most of his
+    # second looks timed out or ran out of room (§452). Also the deadline
     # for one sentence's code checks, which take well under a millisecond.
     supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 2.0)
     # The small model on pages the source screen cannot settle (§442): ahead

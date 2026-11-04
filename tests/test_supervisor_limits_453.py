@@ -1,7 +1,7 @@
-"""Mclovin's per-sentence limits, the owner's (§449): 2 s and 500 tokens.
+"""Mclovin's per-sentence limits, the owner's (§453): 2 s and 500 tokens.
 
 At 1 s and 300 tokens most of his second looks timed out or ran out of room
-before answering (§448). Support stays off; these are the limits it will
+before answering (§452). Support stays off; these are the limits it will
 have when the owner revisits it.
 """
 import os
