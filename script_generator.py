@@ -1915,11 +1915,23 @@ class _ScriptReader:
                           second_look=True)
         return sentence
 
+    def _note_drops(self) -> None:
+        """What the guards dropped, on the notes. At `finish`, and again
+        after a rewrite is rechecked: the final sentence's rewrite is checked
+        after `finish`, so a drop there would otherwise never reach them (§453)."""
+        if self.notes is None:
+            return
+        self.notes.meta_openings = (tuple(self.guard.dropped)
+                                    + tuple(self.material.dropped))
+        self.notes.score_drops = tuple(self.scores.dropped)
+        self.notes.figure_drops = tuple(self.figures.dropped)
+
     def recheck(self, text: str) -> bool:
         """Whether the writer's rewrite may be spoken: the same guards (not
         the opening guard, whose moment has passed) and Mclovin's checks."""
         if not text or not (self.scores.allow(text) and self.figures.allow(text)
                             and self.material.allow(text)):
+            self._note_drops()
             return False
         if self.mclovin is None:
             return True
@@ -2015,10 +2027,7 @@ class _ScriptReader:
                                 or extract_title(self.buffer))
             self.notes.summary = extract_summary(self.buffer)
             self.notes.category = extract_category(self.buffer)
-            self.notes.meta_openings = (tuple(self.guard.dropped)
-                                        + tuple(self.material.dropped))
-            self.notes.score_drops = tuple(self.scores.dropped)
-            self.notes.figure_drops = tuple(self.figures.dropped)
+            self._note_drops()
             # What the quality record judges it against (§309).
             self.notes.written_from = (getattr(self.plan, "evidence_digest", "")
                                        or getattr(self.plan, "evidence", "")
@@ -3352,8 +3361,11 @@ class ScriptGenerator:
             from agents import grounding
 
             sources = "\n\n".join(b.text.strip()[:2500] for b in checker.nearest(item.sentence))
-            answer = await grounding.second_look(item.sentence, sources,
-                                                 ahead=bool(getattr(notes, "ahead", False)))
+            # A prefetch warm is ahead of the tap too, whether or not
+            # `ahead` is set (`ScriptNotes.ahead`).
+            answer = await grounding.second_look(
+                item.sentence, sources,
+                ahead=bool(getattr(notes, "ahead", False) or getattr(notes, "prefetch", False)))
             summary.setdefault("second_looks", []).append(
                 {"text": item.sentence[:240], "answer": answer or "unchecked"})
             if answer != "no":

@@ -29627,3 +29627,23 @@ reading the plan, what was spoken and the words left, both calls metered;
 never in front of the first word; late, empty, or an episode shorter than
 the opening - the writer as it was; not ahead of the tap, not when he does
 not work; the settings copied and off).
+
+## 453. Finishing Phase 3, piece 5: the review's two small fixes (2026-11-04)
+
+1. **A prefetch warm's second look is labelled "ahead".**
+   `ScriptGenerator._repair` passed `ahead=notes.ahead` to Mclovin's second
+   look, but a prefetch warm counts as ahead of the tap whether or not
+   `ahead` is set (`ScriptNotes.ahead`'s own comment): its look was labelled
+   "search" in the model layer's records. Now `ahead or prefetch`. (The
+   second look runs only through the grounding checker, which is off, §448.)
+2. **A guard's drop of a rewritten final sentence reaches the notes.**
+   `_ScriptReader.finish` copied the guards' drops onto the notes
+   (`meta_openings`, `score_drops`, `figure_drops`), but the episode's last
+   sentence, when Mclovin sends it back, is rewritten and rechecked after
+   `finish` - so a guard dropping that rewrite added to its list after the
+   copy, and the notes never saw it. One method, `_note_drops`, copies them
+   at `finish` and again whenever `recheck` refuses a rewrite.
+
+Tests: `tests/test_review_fixes_453.py` (a prefetch warm's second look is
+ahead; a dropped rewrite of the final sentence is on the notes), both failing
+before the fix.
