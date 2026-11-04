@@ -29236,3 +29236,71 @@ with every reference to them and the test files named after them
 `test_editor_437`, `test_mclovin_training_440`, `test_mclovin_review_440`,
 `test_supervisor_screen_model_442`) - the fourth time Main took this work's
 numbers (§386, §418, §423). Every other open branch stops at §433 or below.
+
+## 446. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04)
+
+The frozen packets and scripts behind §437 and §440 were gone (they live
+outside the repository, in `~/.fam/editor_eval/`, since they hold provider
+text). Recreated with the key:
+
+    AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --freeze
+    AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run --arms none,haiku,sonnet --no-grade
+
+**All three arms, not `none` alone** (the owner's choice): `mclovin_eval.py`
+plants into every script, so one arm's 50 scripts would give each check a
+third of §440's cases, and superlatives (~11) and dates (~17) would fall
+under its 20-case minimum. 50 questions frozen, six sources each; 150 scripts
+written. Writing and the editor cost $2.41 (none $0.09, Haiku $0.29, Sonnet
+$2.04); the freeze's briefs and searches are not printed by the tool
+(estimated $0.40-0.70). New scripts, so the numbers are close to §440's and
+not the same: the writer never writes the same words twice.
+
+**`python tools/mclovin_eval.py`** (2,408 unaltered sentences; §440's in
+brackets):
+
+| check | planted | caught | false flags | ready |
+|---|---|---|---|---|
+| quote | 119 (117) | 100% (97%) | 0.08% (0.00%) | yes |
+| quote_length | 144 (141) | 100% (100%) | 0.00% (0.00%) | yes |
+| website | 150 (150) | 100% (100%) | 0.00% (0.04%) | yes |
+| advice | 150 (150) | 100% (100%) | 0.00% (0.00%) | yes |
+| superlative | 52 (34) | 100% (100%) | 0.17% (0.21%) | yes |
+| figures | 109 (114) | 81% (85%) | 1.70% (1.48%) | **no** (no) |
+| dates | 51 (50) | 96% (96%) | 0.08% (0.08%) | yes |
+| mixed | 141 (114) | 100% (100%) | 0.00% (0.02%) | yes |
+
+**It reproduces §440's decisions**: the same seven checks clear the bar
+(90% caught, at most 1% flagged, 20 cases), and figures does not - a little
+further off it on these scripts (81% / 1.70%), still mostly numbers the
+writer worked out from two the sources gave. Quote's two flags on unaltered
+sentences are titles in quotation marks (a song, a novel), not quotes.
+
+**A planter fix on the way.** The first reading had quote failing 4 of its
+63 controls (a packet quote given to its own speaker), where §440 had none.
+Both cases (each counted twice) were the planter naming the wrong speaker,
+and Mclovin's check right to refuse it: "Federal Reserve Chair" - a role,
+the first capitalised words near a quote whose speaker the packet names as
+"Warsh" - and "Summer Gam", the cut-off half of "Summer Games" at the
+120-character window's edge, taken because the name regex could not read
+"Bréal". `supervisor_cases.packet_quotes` now takes the name nearest the
+quote, reads accented letters, and never takes a role (the mixed check's own
+`NOT_ENTITIES`) or a word cut by the window. Controls: 0 of 60 failed.
+`supervisor_cases` is used only by the eval and its tests; no episode
+changes.
+
+**The code measures, by arm** (no grade; §437 had them on its own scripts):
+information 0.95 / 0.91 / 0.94, flow 0.59 / 0.64 / 0.55, depth 0.82 / 0.83 /
+0.82, hook 0.93 / 0.95 / 0.92, repetition and storytelling 1.00 on all
+(none / Haiku / Sonnet); $0.002 / $0.006 / $0.041 and 8.9 / 32.7 / 18.4 s an
+episode. Mclovin's counted failures per episode: figures 0.42 / 0.16 / 0.24.
+
+**The environment's trap, for the next session.** `pip install playwright`
+(the setup step in [setup-deps]) installed 1.64.1, which looks for
+Chromium build 1248; this container ships build 1243 under
+`/opt/pw-browsers`, which goes with 1.63. Every smoke run failed at launch
+while all 6,443 tests passed. `pip install playwright==1.63.0` puts back the
+match; CI installs its own browser and is unaffected.
+
+Tests: `tests/test_mclovin_eval_446.py` (the nearest name is the speaker; a
+role never is; accented names are read; a name cut by the window is not
+taken), each failing on the old planter.

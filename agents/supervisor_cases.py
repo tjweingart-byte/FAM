@@ -96,12 +96,17 @@ def change_number(sentence: str) -> Optional[str]:
 
 
 _PACKET_QUOTE = re.compile(r'["“]([^"“”]{15,240})["”]')
-_CAPS = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b")
+#: A two-word name; accented letters count ("Michel Bréal", §446).
+_CAPS = re.compile(r"\b([A-Z][^\W\d_A-Z]+(?:\s+[A-Z][^\W\d_A-Z]+)+)\b")
 
 
 def packet_quotes(blocks) -> list:
     """`(span, speaker)` for quotes in the packets with a two-word name
-    within 120 characters - the speaker as the packet places it."""
+    within 120 characters - the speaker as the packet places it: the name
+    nearest the quote, never a role ("Federal Reserve Chair") and never a
+    word cut off at the window's edge ("Summer Gam", §446)."""
+    from agents.supervisor_checks import NOT_ENTITIES
+
     out = []
     for block in blocks:
         text = block.text
@@ -109,11 +114,21 @@ def packet_quotes(blocks) -> list:
             span = m.group(1).strip().rstrip(",.")
             if len(span.split()) < 4:
                 continue
-            window = text[max(0, m.start() - 120): m.end() + 120]
-            names = [n for n in _CAPS.findall(window) if n not in span
-                     and all(len(w) >= 3 for w in n.split())]
+            lo, hi = max(0, m.start() - 120), min(len(text), m.end() + 120)
+            names = []
+            for n in _CAPS.finditer(text, lo, hi):
+                start, end = n.start(), n.end()
+                cut = (start == lo and lo > 0 and text[lo - 1].isalpha()) or \
+                      (end == hi and hi < len(text) and text[hi].isalpha())
+                words = n.group(1).split()
+                if cut or n.group(1) in span or any(len(w) < 3 for w in words) \
+                        or any(w.lower() in NOT_ENTITIES for w in words) \
+                        or m.start() <= start < m.end():
+                    continue
+                gap = m.start() - end if end <= m.start() else start - m.end()
+                names.append((gap, n.group(1)))
             if names:
-                out.append((span, names[0]))
+                out.append((span, min(names)[1]))
     return out
 
 

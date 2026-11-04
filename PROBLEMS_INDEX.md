@@ -446,3 +446,4 @@ and `limit` = Lines.
 | 29174 | 15 | 443. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |
 | 29189 | 41 | 444. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04) |
 | 29230 | 10 | 445. This branch's sections renumbered: Main took §433 (2026-11-04) |
+| 29240 | 68 | 446. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04) |
