@@ -331,8 +331,8 @@ class Brief:
     #: then searches `live_entity` or the subject, as before.
     forecast_query: str = ""
     #: What kind of source answers this best (`SOURCE_KINDS`, §320): read by
-    #: Perplexity as its `search_mode` (filings, academic) and by Parallel's
-    #: objective as a stated source preference. "general" says nothing.
+    #: Parallel's objective as a stated source preference (Perplexity's
+    #: `search_mode` is no longer accepted, §439). "general" says nothing.
     source_kind: str = "general"
     #: **The plan of the piece, from the question alone** (§270, the third
     #: part of a split brief). Each beat is `{"does", "needs"}`: what that

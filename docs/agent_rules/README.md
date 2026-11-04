@@ -5,7 +5,9 @@ Each is written in plain English: the rules an agent **must follow and cannot
 break**.
 
 **These files are version 1** (written 2026-10-28, signed by the owner
-2026-10-30, PROBLEMS.md §352). The owner keeps the
+2026-10-30, PROBLEMS.md §352), except `mclovin.md`, version 3 (signed
+2026-11-04, §443), and the later signed changes to `nando.md` (§392) and
+`consuela.md` (§412). The owner keeps the
 governing copies **outside Claude**, where no session and no agent can change
 them. When a held copy and anything in this repository disagree, the held
 copy wins and the repository is corrected. An agent reads its rule book; it

@@ -321,6 +321,12 @@ def screen_results(results, *, query: str = "", live_domain: str = "") -> list:
     """
     results = list(results or [])
     kept, dropped = [], []
+    # **Mclovin's screen** (§434): opinion and blog posts out, before anyone
+    # weighs anything - only while he works on this episode, so with him off
+    # this is a no-op and the packet is what it was.
+    from agents import supervisor
+
+    results, dropped = supervisor.screen(results)
     games_asked = bool(_GAME_WORDS.search(query or ""))
     for result in results:
         if not games_asked and is_simulation(result):
@@ -864,12 +870,11 @@ def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
         body["search_after_date_filter"] = cutoff.strftime("%m/%d/%Y")
     if include_domains:
         body["search_domain_filter"] = list(include_domains)[:PERPLEXITY_MAX_DOMAINS]
-    # Perplexity's own modes for its own indexes (§320): SEC filings and
-    # academic papers, from EI's `source_kind`; its `country` on a town's
-    # question. Perplexity has no objective field - the query carries it.
-    mode = PERPLEXITY_MODES.get((hints or {}).get("source_kind", ""))
-    if mode:
-        body["search_mode"] = mode
+    # Its `country` on a town's question. Perplexity has no objective field -
+    # the query carries it. **No `search_mode`** (§439): its search API now
+    # answers `400 search_mode is not supported`, so every filings or
+    # academic question (§320) lost its Perplexity search and fell down the
+    # ladder. Those questions keep their hint in Parallel's objective.
     if (hints or {}).get("country"):
         body["country"] = hints["country"]
     data = _post(PERPLEXITY_URL, {"Authorization": f"Bearer {key}"}, body)
@@ -938,9 +943,6 @@ SOURCE_PREFERENCES = {
                 "institutions.",
     "local": "Prefer the town's own newspapers, broadcasters and official sites.",
 }
-#: EI's `source_kind` as Perplexity's `search_mode` (§320). Everything else
-#: is the default web search, which is not sent.
-PERPLEXITY_MODES = {"filings": "sec", "academic": "academic"}
 
 
 def hints_for(brief, country: str = "") -> dict:
@@ -1070,6 +1072,13 @@ def build_packet(results, packet_sources: int, highlights_per_source: int,
         # putting "reuters dot com" within reach of the script. `domains()`
         # still reports the hosts, out of band, for a person to judge.
         parts.append(f"Source type: {TIER_LABELS[credibility(result)]}")
+        # An asked-for opinion piece, marked as its author's view (§434);
+        # "" unless Mclovin's screen kept it for that reason.
+        from agents import supervisor
+
+        opinion = supervisor.opinion_label(result)
+        if opinion:
+            parts.append(opinion)
         highlights = getattr(result, "highlights", None)
         if highlights:
             parts.append("Key evidence:")
@@ -1392,6 +1401,11 @@ async def finish_history_look(packet: "Packet", look) -> None:
             getattr(packet.provenance, "items", []) or []}
     held |= {getattr(f, "url", "") for f in packet.findings}
     facts = [f for f in facts if f.url not in held]
+    # Mclovin's screen on the archive's packet too (§434); untouched while
+    # he is off.
+    from agents import supervisor
+
+    facts = supervisor.screen_facts(facts)
     if not facts:
         packet.archive = "nothing relevant"
         return

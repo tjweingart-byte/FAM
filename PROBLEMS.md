@@ -28494,3 +28494,745 @@ scrubbed bar and a scrubbed `complete`, a tap and a skip not counted, people
 before listens, a creation that is not a listen, faces, forget and clear,
 taste never reading it, the report naming nobody); the play helpers in eight
 older test files now mark their invented listens heard.
+
+## 434. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03)
+
+Decided items 6 and 13; mclovin.md "always" 2. The owner's answers before
+Phase 3 started (2026-11-03): pieces in the order screen, Mclovin's sentence
+checks, then Shakespeare and his eval (so the eval has Mclovin's counts from
+the start); a failing sentence's one repair is a one-sentence rewrite call;
+Shakespeare is built and measured ahead of the tap first, searchFAM's hand-over
+designed once the first chunk's wait is measured; and **a page code cannot
+settle is kept and counted on the tap**, never dropped.
+
+**What a page says it is** (`agents/supervisor.classify`), code only, from
+the page itself and never its tone:
+
+- *opinion*: a section in the address (`/opinion/`, `/opinions/`, `/op-ed/`,
+  `/editorial/`, `/commentary/`, `/columns/`, `/columnists/`, `/letters/`,
+  `/commentisfree/` and the like - whole path segments, never the article's
+  slug, so `/opinion-poll-shows-lead/` is reporting), or the title's own
+  label ("Opinion | ...", "Op-Ed: ...", "... - Opinion", "(opinion)");
+- *blog*: a blogging platform's host (Substack, Medium, Blogspot,
+  WordPress.com, Tumblr, Ghost, beehiiv and others), whatever the path;
+- kept: *analysis* (a `/analysis/` section or "Analysis:" label - reporting,
+  decided item 13, unless it sits inside the opinion pages); *official*
+  (a newsroom or press-release section, or a blog on a government's or
+  university's own domain - a wire service's blog is not "official");
+  *unsettled* (any other `/blog/` section or `blog.` host - counted, kept);
+  *reporting* (everything else).
+
+No provider returns a page type: Parallel, Perplexity and GDELT give a URL,
+a title, a date and passages. The build prompt's "a provider's page type" has
+nothing to read today; the screen takes one when a provider sends it.
+
+**Whose opinion** (`by`). When C3P0 marks `opinion_requested`, that person's
+own pieces stay and every other opinion piece or blog goes. A search result
+carries no byline, so "theirs" is what code can see of one: the name's slug in
+the host or a section of the address (their newsletter, a columnist's path),
+the title opening or closing on the name, or a passage reading "By <name>". A
+piece *about* them ("Why Paul Krugman is wrong") is not theirs; a one-word name
+is never looked for in an address. A kept piece is marked in the packet,
+under its source type: "Opinion: <name>'s own view - tell it as their view,
+never as fact".
+
+**Where it runs.** Inside `research.screen_results`, first, so every rung,
+the second look, the tapped story's outlets, GDELT and the local ladder's
+search are screened - and before the sports screen counts known outlets, so
+a column is never one of them. The archive's facts (Sonic's packet or the
+recall) are screened in `finish_history_look` by the article each came from;
+a provider's data (`live:`) is kept. The thin-packet retry runs after the
+screen as it always has; an empty packet is a missed search (§256).
+
+**Off changes nothing.** The screen is a context variable that
+`ScriptGenerator.research` puts in force only when Netenyahu lets Mclovin
+work on the episode (`SUPERVISOR=1` under `AGENTS=1`, both off); every rung's
+thread and task sees the episode's own. With none in force `screen()` returns
+its input untouched and the packet has no new line - `tests/test_agents_off.py`
+passes unchanged. A screen that fails keeps every page.
+
+**Counted** in `/api/health`'s agents block (`supervisor`): pages read,
+drops by kind (and the archive's), asked-for opinions kept, unsettled pages,
+and the drop rate (None before any page). Drops are logged with their hosts,
+as the simulation screen's are.
+
+**Not here.** The small model on unsettled pages ahead of the tap
+(`SUPERVISOR_SCREEN_MODEL`) is the next piece; how many pages it would see is
+now counted, so its cost can be stated before it is built. Unmeasured: the
+real drop rate on live packets - a `write.py` run with `AGENTS=1 SUPERVISOR=1`
+and the key shows it.
+
+Tests: `tests/test_supervisor_screen_434.py` (27 pages read; whose pieces;
+off a no-op and the packet byte for byte; on, drops counted and logged; the
+asked-for person's pieces kept and labelled; before the sports count; threads
+and tasks see it; a failing screen keeps all; the archive's facts and
+`finish_history_look`; in force only while Mclovin works; health).
+`tests/test_agents_model_layer.py` allows `research.py` and
+`script_generator.py` the code-only `supervisor` module.
+
+## 435. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03)
+
+Decided items 12, 14, 17, 26 and 32; mclovin.md "always" 1, 3-5 and 7,
+"never" 1-5 and 7. The owner's answer (§434): a failing sentence's one repair
+is a one-sentence rewrite call.
+
+**Where.** `_ScriptReader` asks `agents/supervisor_checks.Checker` about every
+sentence that passed the existing guards (score, figure, material, opening),
+in the feed and the tail - the one reader a stream and a batched edition share
+(§179), so both are checked alike. The checker is built only when Netenyahu
+lets Mclovin work on the episode; otherwise the reader hands out plain
+sentences exactly as before and nothing is counted.
+
+**The checks**, all code, against the two packets only (the evidence packet
+with Sonic's archive sources in it, the live block, the forecast); no model
+reads the whole script and no model judges a sentence here (item 26):
+
+| Check | Fails when | Mode |
+|---|---|---|
+| `quote` | a quoted span of 3+ words is not in the packets word for word (case and punctuation aside), or the sentence names a speaker the packets do not put beside it | enforced |
+| `website` | a hostname, "dot com", `www` or a URL in speech | enforced |
+| `advice` | C3P0's `RECOMMENDS` in FAM's own voice, on a health, legal or money sentence or any sentence of an advice request; never a quote or an attributed one ("doctors say you should") | enforced |
+| `superlative` | "the first / only / biggest...", "record", "all-time", "ever" with no packet sentence of the same kind sharing a name or two words | enforced |
+| `figures` | any number - `figure_guard`'s reader widened from markets to every episode - not in the packets (the archive's only for a sentence that says when); years, history, and counts up to twelve in words are left alone | counted |
+| `dates` | "today", "last night", "this week"... where the packet source most like the sentence is older than the phrase allows by the listener's clock | counted |
+| `mixed` | a sentence whose names two different stories' sources hold, and no one source holds together (`news_clusters`' fingerprints) | counted |
+
+**Enforced or counted** (`SUPERVISOR_ENFORCE`, default
+`quote,website,advice,superlative`). A counted failure is recorded and the
+sentence plays. Figures are counted because §269 kept `figure_guard` narrow
+on purpose and the owner's rule is to measure on audits before widening what
+blocks; dates and mixed stories because they are heuristics on which source a
+sentence rests - the grounding checker (item 34) answers that properly. Each
+moves to enforced by a setting once its counts are read.
+
+**The one repair.** An enforced failure comes out of the reader as a
+`Repair`; whoever reads the stream asks `ScriptGenerator._repair`: one small
+call to the episode's own writer (`writer_for`) - Mclovin gives verdicts, the
+writer writes (mclovin.md "never" 2) - with the failing sentence, what the
+check found, and the three packet sources most like it in their own words
+(`REPAIR_INSTRUCTIONS`, its own short system prompt, so the writer's prompt
+and its length guard are untouched). The rewrite passes the guards and the
+checks again; a second failure, "NONE", an empty answer, a rewrite later than
+`SUPERVISOR_REPAIR_TIMEOUT_SECONDS` (2) or one past `SUPERVISOR_MAX_REPAIRS`
+(4 an episode) leaves the sentence out - never asked twice ("never" 4). The
+sentences behind it wait in order. Batched editions get the same through
+`settle_repairs`, which the DailyFAM and Trending editions call after
+`sentences_from_message`; with no `Repair` in the list it returns the list
+untouched. The rewrite is metered on the episode like the writer's call. It
+is the writer's call, not an agent's, so it does not go through
+`agents/models.py` and counts against no agent's one-call bound.
+
+**Out of time** (item 32). A check past `SUPERVISOR_TIMEOUT_SECONDS` leaves
+the rest of that sentence's checks `unchecked` and the sentence plays; a check
+that raises is `unchecked` too. Counted (`sentences_unchecked`, and the
+unchecked rate) for Keith.
+
+**Recorded.** `ScriptNotes.supervisor` holds every non-passing verdict (check,
+result, enforced, the rule book's named failure, why, the sentence), every
+rewrite kept and every sentence left out, filled in place as the script is
+written; `/api/health`'s agents block counts them by check and result, with
+rewrites asked, kept and dropped, and the repair settings.
+
+**What waits on the next pieces.** Facts and events supported by a source
+sentence, an unsupported settled fact with a name, number or date (item 12),
+and a preview told as a result (outside sports, where `score_guard` holds it)
+need the grounding checker - analysed and asked of the owner first (item 34).
+The quote-length limit §429 left open is counted (`quote_long`, 40 words or
+more) and never fails: a limit is the owner's to set.
+
+**Unmeasured.** What the checks cost the first chunk on searchFAM: the code
+checks are microseconds, but a failing first or second sentence waits on its
+rewrite - up to 2 s in front of the first word. P4 measures it with
+`stall_probe` and `compare_search` and reports it; it is not switched off for
+being slow (item 14). How often each check fails on real scripts is unknown
+until `write.py` runs with `AGENTS=1 SUPERVISOR=1` and the key.
+
+Settings (cleared for the suite in `tests/conftest.py`): `SUPERVISOR_ENFORCE`, `SUPERVISOR_REPAIR_TIMEOUT_SECONDS`,
+`SUPERVISOR_MAX_REPAIRS` in `config.py`, `.env.example` and the health block.
+
+Tests: `tests/test_supervisor_checks_435.py` (each check passing and failing;
+the named failures are the rule book's; the enforced set pinned; a broken or
+late check plays unchecked; off, nothing checked or asked; a failure rewritten
+once from the sources' words; failing again, NONE, late, past the count - left
+out; a counted failure plays and is recorded; a batched script settles; health).
+
+## 436. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03)
+
+The owner (2026-11-03): "Quote length maximum should be one sentence to
+avoid copyright" and, for superlatives, "count only".
+
+**Both touch the signed `mclovin.md`.** Its "never" 1 says no unsupported
+"first" or "record" is let through, so counting superlatives (and §435's
+counted figures, dates and mixed stories) lets through what it names; and it
+sets no limit on a quote's length. A session never changes a signed book, so
+the proposed draft v2 is at `docs/agent_rule_proposals/mclovin.md`, with
+`docs/agent_rules/MANIFEST.pending.json` (version 4; only `mclovin.md`'s
+fingerprint changes) and the signing steps in that folder's README. It adds:
+a quote is at most one sentence ("always" 3, "never" 1); and "always" 8 -
+while the owner has set a check to count only, its failures are recorded and
+the sentence plays, until the owner sets it to enforce.
+
+**In code now:**
+
+- `superlative` leaves the default `SUPERVISOR_ENFORCE`
+  (`quote,website,advice`): counted, never sent back.
+- a new `quote_length` check (`sentences_in`, which does not end a sentence
+  at "Mr." or "U.S."): a quoted span of more than one sentence fails as
+  `quote_too_long`. **Counted until the owner signs**; then `quote_length`
+  joins `SUPERVISOR_ENFORCE` and `quote_too_long` joins
+  `agents/handoffs.FAILURES`, which `tests/test_agents_roster_tasks.py` pins
+  to the signed book's twelve. Until then it is `PROPOSED_FAILURES`.
+- the 40-word `quote_long` count from §435 is gone; the one-sentence check
+  replaces it.
+- the writer's rewrite instructions (`REPAIR_INSTRUCTIONS`) say a quote is
+  kept to one sentence.
+
+**Not changed, for the owner to say:** the writer's own prompt, which every
+episode reads with the agents on or off. A one-sentence quote limit there
+would apply the copyright guardrail to every episode (as §429's guardrails
+do), not only when Mclovin works - at the cost of the prompt's length guard,
+paid by a dedup.
+
+Tests: `tests/test_supervisor_checks_435.py` (one sentence passes, two fail
+as `quote_too_long`, abbreviations are not sentence ends, counted not sent
+back; superlatives counted; the proposed failure is in the proposal and not
+in the signed list).
+
+## 437. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03)
+
+Decided items 28, 29, 30 and 37; shakespeare.md. The owner's answer (§434):
+built and measured ahead of the tap first; searchFAM's hand-over designed once
+the first chunk's wait is measured (§438).
+
+**Where.** `prepare`'s last step (`script_generator._with_editor`), once both
+packets are in: only when Netenyahu lets him work on the episode and it is
+written ahead of the tap (`notes.ahead`: the Trending, DailyFAM and rails
+editions and the write-ahead), never a prefetch warm (its script is not
+written from this plan) and not yet on searchFAM. The plan reaches the writer
+as `EpisodePlan.editor_outline`, after `</evidence>` in the prompt; "" when he
+did not plan, and then the prompt is byte for byte what it was. Never in the
+cache key. A batched edition gets the same, since `batch_request` runs
+`prepare`.
+
+**Extractive by construction** (`agents/editor.py`). `number_packets` numbers
+both packets sentence by sentence - `P2.3` the plugin packet's second source,
+third sentence; `A1.1` the archive's; the live block, when there is one, is
+`P1` - at most 12 sentences a source and 16 sources, so the call's size is
+bounded by the packet. His answer (`EditorAnswer`, structured output, extra
+fields forbidden) holds only numbers, a few words on what the episode
+answers, each beat's purpose, `thin` and `missing`: there is no field a fact
+could be written into. Code then (`to_outline`) checks every number exists
+and drops the rest, drops a beat left with nothing behind it ([depth-not-words]),
+drops a "now" beat resting only on the archive, trims every list, and builds
+the handoff `Outline`. `writer_block` shows the writer the sources' own
+sentences under each part - what to open on, each part's purpose (history
+marked, with its date), what to land on, and what was not found, for the
+writer only and never to be announced ([missed-not-absent]).
+
+**His prompt.** The shared preamble and his signed rule book with the
+journalism playbook (the lock adds it, §348), then the instructions from his
+tab in `docs/FAM_AGENTS.md`, then the material: the request, the plugin
+packet in `<evidence>`, the archive in `<archive>`, and `examples/` in
+`<teaching>` - the same worked episodes the writer is shown. Effort
+`EDITOR_EFFORT` (high, new) ahead of the tap; time limit
+`EDITOR_AHEAD_TIMEOUT_SECONDS` (60).
+
+**Measured on the first trial: his call size was too small.** At high effort
+Haiku 5.5 spent all of `EDITOR_MAX_TOKENS` (4,000, a placeholder since §349)
+thinking and was cut off before answering (`out_of_room`) on both trial
+questions; Sonnet fitted. The answer itself is a few hundred tokens, so the
+ceiling is now 16,000 - a bound on a runaway, not a budget.
+
+**Never costs an episode.** Off, held, late, refused, cut off, malformed,
+or a plan with no beat left: the writer reads the packets exactly as today.
+`/api/health`'s agents block counts his calls by outcome and every number or
+beat code dropped.
+
+**The comparison** (`tools/editor_eval.py`, decided item 37). Fifty fixed
+edition questions - 18 Trending-style news, 22 DailyFAM subjects across
+sports, money, tech, science, health and culture, 10 evergreen - each
+researched once as an edition is (ahead, at the edition's ceilings, no agent
+working) and frozen, then written three ways by the same writer (Haiku 5.5,
+`WRITER_MODEL`) at 1.5 minutes: no editor; Shakespeare on Haiku 5.5 high;
+Shakespeare on Sonnet 5.5 high. Each script is scored on
+`episode_quality.measure`'s six code measures; Mclovin's sentence checks
+(§435), every check counted and none enforced, so the arms are compared on
+what the writer wrote; a blind 1-5 grade per metric by Opus 5.5
+(`QUALITY_GRADER_MODEL`, so Sonnet never grades itself; it sees the question,
+the evidence and the script, never the arm), and its count of claims the
+evidence does not support; and cost and time per episode. The arms run in a
+shuffled order per question. Frozen packets and results stay outside the
+repository (they hold provider text). The two weeks of editions written each
+way, judged by listening, come after the owner reads this.
+
+**Results** (50 questions, 150 scripts, all graded; $10.45 in all, grading
+included; 2026-11-03, with the key). One question (q13, measles) had no
+packet to plan from, so both editor arms wrote it as `none` did.
+
+| | no editor | Haiku 5.5 high | Sonnet 5.5 high |
+|---|---|---|---|
+| cost per episode (editor + writer) | $0.002 | $0.006 | $0.041 |
+| time per episode | 8.0 s | 33.6 s | 17.1 s |
+| editor's own call | - | 27.4 s | 11.9 s |
+| code: information / flow / depth | 0.93 / 0.65 / 0.84 | 0.96 / 0.64 / 0.83 | 0.94 / 0.57 / 0.83 |
+| code: repetition / hook / storytelling | 1.00 / 0.95 / 1.00 | 1.00 / 0.92 / 1.00 | 1.00 / 0.93 / 1.00 |
+| Opus: information / flow / depth | 2.72 / 3.12 / 3.22 | 2.52 / 3.00 / 3.00 | 2.86 / 2.98 / 3.14 |
+| Opus: repetition / hook / storytelling | 2.82 / 3.48 / 1.54 | 3.16 / 3.52 / 1.86 | 3.04 / 3.50 / 1.72 |
+| Opus, mean of the six | 2.82 | 2.84 | 2.87 |
+| Opus: unsupported claims per episode | 3.72 | 3.60 | 3.60 |
+| Mclovin's counted failures per episode | superlative 0.42, mixed 0.38, figures 0.26, dates 0.02 | mixed 0.46, figures 0.36, superlative 0.28, dates 0.06 | superlative 0.46, mixed 0.34, figures 0.30, dates 0.06, website 0.02 |
+
+**Read with the spread, the arms are not different.** Paired by question,
+with 95% bootstrap intervals on the Opus mean of six: Haiku minus none
++0.03 [-0.10, +0.16], better on 21 questions and worse on 24; Sonnet minus
+none +0.06 [-0.07, +0.18], better on 24 and worse on 20; Sonnet minus Haiku
++0.03 [-0.09, +0.14]. The one difference whose interval clears zero is
+repetition under Haiku (+0.34 [+0.06, +0.62]); storytelling under Haiku
+(+0.32 [-0.02, +0.64]) only just fails to. No enforced Mclovin failure on any
+arm but one website on Sonnet. By group the samples are too small to read
+(1-18 questions); news, the largest (18), is 2.76 / 2.83 / 2.85.
+
+**What it says, for the owner's decision.** At 1.5 minutes, from the same
+packets and the same Haiku writer, an editor's outline - on either model -
+does not yet make the writing measurably better on these measures, and every
+arm's storytelling grade is low (1.5-1.9 of 5). So the lever the outline was
+meant to be is not the bottleneck at this length: what the writer does with
+a plan (and the writer itself) is. Sonnet costs about seven times Haiku per
+episode ($0.041 against $0.006) and is faster (12 s against 27 s, both ahead
+of the tap where nobody waits); neither is shown to be better. Not measured
+here: longer episodes (3-5 minutes), where structure should matter more;
+whether the writer followed the plan; and the two weeks of editions judged
+by listening, which item 37 puts after this.
+
+Settings: `EDITOR_EFFORT` (new), `EDITOR_MAX_TOKENS` 16,000 (was 4,000), in
+`config.py`, `.env.example` and `tests/conftest.py`.
+
+Tests: `tests/test_editor_437.py` (packets numbered by sentence; every
+number checked, bad ones and empty beats dropped and counted; a "now" beat on
+the archive alone dropped; the writer reads the sources' sentences, history
+marked, never a number; no beats no block; the call bounded, on his rule
+book, with the examples; anything but an answer leaves the writer as today;
+no packets no call; the prompt byte for byte without him; he plans only ahead
+of the tap, never a prefetch, never while off).
+
+## 438. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03)
+
+Decided items 14 and 34; the owner's direction: analyse on its own whether
+the grounding checker can run inside the current pipeline without a new
+machine (Vectara's HHEM-2.1-Open on a CPU first; never on the voice pod), and
+how a rejected sentence avoids delaying the writer; measure the first chunk's
+added wait; bring the analysis and the numbers before any new dependency or
+machine. **Nothing is built or installed here.**
+
+**Measured: what Mclovin's code checks cost the first word today**
+(`tools/supervisor_wait.py`, new; ten search questions, two trials, each
+prepared once on the search surface and written twice from the same packets,
+Mclovin off then on, with the key):
+
+| | Mclovin off | Mclovin on |
+|---|---|---|
+| first sentence, median | 1.29 s | 1.04 s |
+| second sentence, median | 1.87 s | 1.36 s |
+| code checks per sentence | - | median 0.28 ms, max 100 ms (the first call, cold imports), 321 sentences |
+| rewrites asked | - | 0 in 20 episodes (none before the first word) |
+
+The code checks add nothing a listener can hear: well under a millisecond a
+sentence. The off/on difference is the writer's own variance - both arms had
+first sentences of 6-11 s on some runs (5 of 20 off, 4 of 20 on), which is
+the writer's first token, not Mclovin; worth its own look (it is above the
+spec's second either way). A rewrite would wait up to
+`SUPERVISOR_REPAIR_TIMEOUT_SECONDS` (2 s) in front of the first word if the
+first sentence failed an enforced check; in these 20 episodes none did.
+`tools/stall_probe.py` (the browser's main thread): longest stall 0.07 s - the
+checks are on the server and do not reach the page.
+
+**HHEM-2.1-Open on a CPU: not measured, because this container cannot reach
+huggingface.co** (the environment's network policy refuses it; the weights
+live only there). What follows is from FAM's own numbers and Vectara's model
+card, which I could not open from here and is stated as the card states it:
+a flan-t5-base classifier scoring how far a premise supports a hypothesis,
+0 to 1, Apache 2.0, about 600 MB at 32-bit and about 1.5 s for a 2,000-token
+input on a modern x86 CPU. To measure it for real: allow `huggingface.co` in
+the environment's network settings, then a throwaway script in the
+scratchpad (never `requirements.txt`) times it on the frozen packets of
+`tools/editor_eval.py`.
+
+**Can it run without a new machine?** On the web instance itself
+(`render.yaml`: `standard`, 1 CPU, 2 GB; FAM holds about 400 MB, §339), by
+memory yes - and FAM already runs a CPU-only ONNX model there (the sentence
+embedder, `requirements-embed.txt`, ~10 ms a sentence, no torch), so the same
+route (an ONNX export of HHEM, `onnxruntime` already installed, int8 to about
+a quarter of the size) adds no package. By CPU, not safely: a sentence's
+premise is the three sources most like it (~600-900 tokens, as the rewrite
+uses), so by the card's figure about 0.5-0.7 s of one core per sentence, and
+an episode of 15-20 sentences is 8-14 s of CPU on the one core that also
+serves every request. One episode at a time is fine; several at once queue
+behind each other and slow every page. So:
+
+1. **In the web instance**: no new machine, ONNX through the embedder's
+   route, a one-thread executor so the event loop never waits; fine while
+   traffic is a few episodes at a time, and measured before trusted.
+2. **A small CPU worker of its own** (a Render private service), called over
+   the private network: a new machine and a monthly cost - the owner's
+   decision, if (1) measures too slow under load.
+3. A GPU only if searchFAM's first chunk is too slow even then (item 34).
+
+**How a rejected sentence avoids delaying the writer.** The writer is never
+paused: its stream keeps arriving into the SDK's buffer while a sentence is
+checked or rewritten, so a rejection costs the writer nothing; only the
+order in which sentences are handed to the voice waits. After the first
+sentence the check runs while earlier sentences are being voiced and played
+(each is several seconds of audio against well under a second of checking),
+so a rejection there is not heard. Only the first sentence - and the
+second, if the first is short - waits in front of the first word. For those:
+
+- the grounding check on the first sentence gets its own short deadline
+  (proposed 0.3 s, against `SUPERVISOR_TIMEOUT_SECONDS`' 1 s), with a premise
+  trimmed to the one best source's sentences (~250 tokens, ~0.2 s by the
+  card); past it the sentence plays unchecked and is recorded (item 32);
+- an "unsure" first sentence is not sent to Haiku (a second call, ~1 s) in
+  front of the first word: it plays, recorded as unsure, and only later
+  sentences take the Haiku second look;
+- a rejected first sentence takes the one rewrite as now (§435) - up to 2 s,
+  measured as zero times in 20 episodes - or, if the owner prefers the
+  spec, is left out on searchFAM's first sentence only.
+
+**Asked of the owner**: allow huggingface.co so HHEM can be measured; then
+choose (1) or (2); and the first-sentence rules above.
+
+**Also found, not fixed (outside Phase 3):** Perplexity's search API now
+answers `400 search_mode is not supported` whenever FAM sends `search_mode`
+(`research.PERPLEXITY_MODES`, §320: academic and SEC-filings questions), so
+every such question loses its Perplexity search and falls down the ladder to
+the next rung - seen on the science and evergreen questions of the editor
+eval and the wait probe. Dropping the field is one line; it changes what
+every listener's episode is researched from, so it is the owner's to say.
+
+## 439. Perplexity's refused field taken out, and one sentence of anyone's words in every episode (2026-11-03)
+
+The owner (2026-11-03), on §438's findings: "Fix number 2, and do number 3".
+
+**Perplexity's `search_mode` is no longer sent.** Its search API now answers
+`400 search_mode is not supported` (checked by hand: the same request without
+the field, and with a date filter, a domain filter or a country, all answer
+200). FAM sent it on every question EI marked `filings` or `academic` (§320),
+so each of those lost its Perplexity search and fell down the ladder - seen on
+the science and evergreen questions of §437's eval and §438's probe.
+`research.PERPLEXITY_MODES` is gone; the hint still reaches Parallel's
+objective, which is unaffected. This changes what those questions are
+researched from, for every listener, agents on or off.
+
+**A quote is at most one sentence, for every episode** - the owner's
+copyright limit (§436), now in the writer's own instructions as well as
+Mclovin's check: "Quote real words exactly, and never more than one sentence
+of them", beside the rule against inventing a quote. With the agents off it
+is the writer's rule alone; with Mclovin on, his `quote_length` check counts
+any that get through (enforced once the owner signs mclovin.md v2).
+
+**The prompt's length guard held** (`test_the_prompt_stays_lean`, under
+7,800; now 7,794): paid for by taking out what was said twice -
+"it was a cold morning in" from the banned openers (the ban on scene-setting
+for its own sake, one clause earlier, says it), "bullets" from the format
+line (markdown covers it), and the second of two number examples. Unheard, as
+every prompt change is until listened to; the next `write.py` run on a story
+with long quotes is the check.
+
+Tests: `tests/test_provider_inputs_320.py` (no `search_mode` on a filings or
+an academic question; the country still sent); the writer's prompt tests
+unchanged and passing.
+
+## 440. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03)
+
+The owner (2026-11-03): "Do all of this for mclovin. Set Shakespeare to
+haiku high effort" - the five training steps proposed after §439.
+
+**Shakespeare ahead of the tap is Haiku 5.5 at high effort**
+(`EDITOR_MODEL=anthropic:claude-haiku-5-5`, `EDITOR_EFFORT=high`), the
+owner's choice on §437's comparison: no arm measurably better, Haiku the
+cheapest editor and the one clear gain (repetition). `tools/editor_eval.py`
+pins Sonnet for its own Sonnet arm, so the comparison stays the same one.
+
+**Step 1 - labelled cases built in code** (`agents/supervisor_cases.py`,
+decided item 30). Into copies of the 150 real scripts of §437, against each
+episode's own frozen packets: a number changed (never a date, a year, a
+label or a count up to twelve); a packet quote given to someone the packets
+never put beside it, or with a word changed; two clean packet sentences
+quoted as one; "Yesterday" on a story whose every close source is two
+weeks old; "for the first time" and "the biggest ... ever" where no packet
+line claims anything of the kind; a person or place only another story's
+sources name, joined on; advice; a website. Controls the check must pass: a
+packet quote given to its own speaker; "Yesterday" on a story the best
+source dates today or yesterday. An edition's packet is nearly always one
+story, so mixed stories are planted into a packet made of two episodes'
+packets, whose unaltered sentences are the controls.
+
+**Step 2 - two numbers per check** (`tools/mclovin_eval.py`, no key, no
+network, deterministic): planted mistakes caught, and false flags - flags on
+the 2,438 unaltered sentences (an upper bound: some may be real) plus failed
+controls. A check enforces once it catches 90% and flags at most 1%, over
+at least 20 planted cases. Final:
+
+| check | planted | caught | false flags | enforced now |
+|---|---|---|---|---|
+| quote | 117 | 97% | 0.00% | yes |
+| quote_length | 141 | 100% | 0.00% | counted until mclovin.md v2 is signed (§436) |
+| website | 150 | 100% | 0.04% | yes |
+| advice | 150 | 100% | 0.00% | yes |
+| superlative | 34 | 100% | 0.21% | yes |
+| figures | 114 | 85% | 1.48% | **no - still counted** |
+| dates | 50 | 96% | 0.08% | yes |
+| mixed | 114 | 100% | 0.02% | yes |
+
+`SUPERVISOR_ENFORCE` is now `quote,website,advice,superlative,dates,mixed`.
+Superlatives were "count only" by the owner's §436 answer; they pass the bar
+the owner's step 2 sets, and the signed mclovin.md v1 ("never" 1: no
+unsupported first or record) asks for them, so they enforce. The one-sentence
+quote limit passes too and waits for the signature that names it.
+
+**Step 3 - tighten the rule, never the model.** The first run read
+quote 90% / 0.32%, superlative 2.4% false flags, figures 67% / 1.9%, dates
+81%, mixed 66% / 2.4%. Each miss and false flag was read and the rule fixed:
+
+- *superlatives* are claim-shaped only: "for the first time", "first-ever",
+  "the first / only ... to / since / ever", "a / new / all-time record",
+  "record high", "the biggest ... since / ever / on record", "unprecedented",
+  "never before" - never "the most recent", "October the first", "the first
+  week", "the record matters"; and "biggest" is vouched for only by
+  "biggest" or "largest", never any "most" or "highest";
+- *quotes*: the speaker is looked for beside every place the quote appears,
+  not the first (a quote repeated in a headline lost its speaker);
+- *figures*: read by `figure_guard`'s own reader on its own tokens ("four
+  hundred and eighty-five thousand" is one number, "a hundred and forty"
+  another, "eighteen and a half" 18.5); never a word with digits ("COP28"),
+  a spelled-out ordinal ("the twenty-eighth of October"), cents beside
+  dollars, or a count up to twelve - but "eight percent" is a figure; a
+  number is vouched for only by the sources about the same subject (the
+  rule book's "same subject"), whose numbers include those written in words;
+  and history is checked too, against the archive as well (it was skipped);
+- *dates*: a live block vouches only for a sentence about it (any live block
+  passed every sentence); "today" counts only when the sentence reports an
+  event - never "today is", "today's", "toward today";
+- *mixed stories*: names come from the sources' own text, never the packet's
+  labels or a title-case headline (with them every source shared names and
+  two stories read as one); months, days, titles, roles and parties are not
+  names, nor a sentence's first word; sources sharing three names are one
+  story whatever their headlines; a join is two names each held by only one
+  story, held together by no source.
+
+Tried and reverted: vouching figures by single source *sentences* (93%
+caught, but 3.5% false flags - true numbers in a neighbouring sentence).
+Figures stay counted: what is left is mostly figures the writer worked out
+from two the sources gave (a gap, an age), which a pattern cannot tell from
+recall (§269's own note) - the grounding checker's question. Every case is
+pinned in `tests/test_mclovin_training_440.py`, written for the test, never
+provider text.
+
+**Step 4 - real episodes, reviewed nightly** (`agents/supervisor_training.py`).
+When an episode Mclovin checked is cached, `episode_quality.note` keeps every
+sentence he did not simply pass in the agents' store (`AGENTS_DB`): key,
+check, result, enforced, why, the sentence - never a listener id. The nightly
+task `supervisor:review` (Netenyahu's schedule, 03:00, only while
+`SUPERVISOR` is on) sends up to `SUPERVISOR_REVIEW_PER_RUN` (40) sentences -
+half his flags, half a sample of what he passed - each alone with the packet
+sources most like it from the quality record's evidence (never the whole
+script, mclovin.md "always" 6), to `SUPERVISOR_JUDGE_MODEL` (Opus 5.5) under
+his signed rule book, which names the failure or "none". Each sentence once.
+`report` gives per check how often it agreed with his flags and what he
+missed; `disagreements` lists the cases for step 3, printed by
+`python tools/mclovin_eval.py --reviewed`. A wipe forgets it. It reads only
+one sentence and its sources, as his own checks do - his job, under his own
+book; if the owner wants a rule naming it, as nando.md rule 12 names Nando's
+answer key, that is a proposal for the owner to sign.
+
+**Step 5 - the grounding checker only for "does the source say this?"**
+(`agents/grounding.py`). Its place is built and nothing is installed (§438:
+the owner decides which checker and where; huggingface.co is refused here).
+With one plugged in, Mclovin's `support` check scores a sentence against its
+nearest sources: at or above `SUPERVISOR_GROUNDING_HIGH` (0.8) it passes; at
+or below `SUPERVISOR_GROUNDING_LOW` (0.2) it fails as an unsupported fact -
+unless it has no name, number or date (decided item 12); in between it is
+unsure, and only then, while `support` is enforced, Haiku 5.5
+(`SUPERVISOR_MODEL`) takes one look with the source sentences beside it:
+supported plays, unsupported goes back to the writer once, unsure or out of
+`SUPERVISOR_TIMEOUT_SECONDS` plays unchecked and is recorded (items 26, 32).
+With `SUPERVISOR_GROUNDING` empty - the default - the check does not run.
+
+**Off changes nothing**: every piece is under `SUPERVISOR` (and `AGENTS`);
+`tests/test_agents_off.py` passes unchanged.
+
+Settings (new): `SUPERVISOR_JUDGE_MODEL`, `SUPERVISOR_JUDGE_TIMEOUT_SECONDS`,
+`SUPERVISOR_JUDGE_MAX_TOKENS`, `SUPERVISOR_REVIEW_PER_RUN`,
+`SUPERVISOR_GROUNDING`, `SUPERVISOR_GROUNDING_HIGH`, `SUPERVISOR_GROUNDING_LOW`;
+changed: `SUPERVISOR_ENFORCE`, `EDITOR_MODEL`. In `config.py`, `.env.example`,
+`tests/conftest.py`, `agents/names.py` (the judge model) and the roster (his
+background ceiling).
+
+Tests: `tests/test_mclovin_training_440.py` (the enforced set; every
+tightened rule; the planting deterministic and caught), and
+`tests/test_mclovin_review_440.py` (kept only when he checked; beside the
+quality record; one sentence and its sources reviewed once; agreement and
+disagreements; scheduled; wiped; no checker no change; pass, fail, unsure;
+settled facts stay; a failing checker leaves it unchecked; only the unsure
+band takes the second look, and only while enforced). §435's tests updated
+for superlatives, history and mixed stories enforced and read anew.
+
+## 441. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03)
+
+The owner signed manifest version 4 (3c43b83, "mclovin upload"): `mclovin.md`
+is the §436 proposal byte for byte, and `MANIFEST.json` the pending manifest
+byte for byte, in which only `mclovin.md`'s fingerprint changed. The commit
+holds exactly the three files (`mclovin.md`, `MANIFEST.json`,
+`MANIFEST.json.sig`), no stray one. `python tools/rulebook_manifest.py
+--verify`: all eight agents may run, signed with the same `owner.pub`. The
+owner checked the signature on the Mac first (`openssl pkeyutl -verify`
+against `owner.pub`), recreating `owner.pub` from its text when it was not in
+Downloads - a public key is safe to paste; the private key never was.
+
+**What the signature lets go in:**
+
+- `quote_too_long` joins Mclovin's named failures (`agents/handoffs.FAILURES`,
+  now 13, and `Verdict`); `PROPOSED_FAILURES` is gone.
+- `quote_length` joins the default `SUPERVISOR_ENFORCE`
+  (`quote,quote_length,website,advice,superlative,dates,mixed`): a quote of
+  more than one sentence goes back to the writer once, then is left out. It
+  passed §440's bar (100% of 141 planted, no false flag).
+- "always" 8 - a check the owner sets to count only records its failures and
+  lets the sentence play - is now the signed rule for figures, which still
+  count.
+
+The proposal and the pending manifest are deleted; the proposals README says
+nothing is waiting and keeps the signing steps generic; the rule books'
+README records which books have moved past version 1. The owner updates the
+copy held outside Claude to v2.
+
+Tests: `tests/test_agents_roster_tasks.py` (13 named failures, the book names
+the one-sentence limit), `tests/test_supervisor_checks_435.py` (a two-sentence
+quote is sent back as `quote_too_long`; the signed book holds both new rules),
+`tests/test_mclovin_training_440.py` (the enforced set).
+
+## 442. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04)
+
+The owner (2026-11-04): huggingface.co is allowed in the cloud environment;
+"we will be going straight to main, not through staging"; the writer's slow
+first sentence (§438) "is ok"; "nightly review - yes"; "build the small model
+for unsettled" pages.
+
+**Straight to Main.** This branch's pull request goes to `Main`, not through
+`staging` - the owner's exception to [staging-flow] for this work; the rule
+itself is unchanged.
+
+**The nightly review, in his own book.** `docs/agent_rule_proposals/mclovin.md`
+(draft v3) adds "always" 9, as nando.md rule 12 names Nando's answer key: a
+stronger model chosen by the owner reads a sample of his verdicts each night,
+one sentence and its sources at a time, never a whole script, each sentence
+once; its reviews only measure him and show where a rule is too strict or
+misses, and never change an episode. The review already runs under v2
+(§440); v3 says so. Pending manifest: version 5, only `mclovin.md`'s
+fingerprint changes. Waiting for the owner's signature.
+
+**The small model on unsettled pages - ahead of the tap only** (decided
+items 6, 13; mclovin.md "always" 2). The code screen (§434) keeps a page it
+cannot settle - a blog section on a host that is neither a blogging platform
+nor a primary source - and now also records it on the episode's screen (its
+address, title, why, and its opening words). After research, on the ahead
+surface (editions, the write-ahead, prefetch), `supervisor.settle_unsettled`
+asks `SUPERVISOR_SCREEN_MODEL` (Haiku 5.5, low effort) about all of them in
+**one call an episode** (`SUPERVISOR_SCREEN_TIMEOUT_SECONDS` 20,
+`SUPERVISOR_SCREEN_MAX_TOKENS` 2000): opinion, blog, official, reporting or
+unsure, judged from the address, title and opening only - never whether it
+is true. A page called opinion or blog - unless it is the asked-for person's
+own (`opinion_requested`, §434's `by`) - leaves the packet the writer reads
+(`drop_sources`: the other sources keep their order), the archive's intake,
+and the episode's credits; official, reporting and unsure stay. Any failure,
+refusal or late answer keeps every page. Verdicts are remembered by address
+(2,000 kept, unsure never), so a page is judged once. On the tap nothing is
+asked - the owner's §434 answer: kept and counted. Counted in `/api/health`
+(`screen_model_*`), and `notes.research["screen_model_dropped"]` says how many
+an episode lost. Only while Mclovin works on the episode; off, nothing is
+recorded or asked.
+
+Settings (new): `SUPERVISOR_SCREEN_TIMEOUT_SECONDS`,
+`SUPERVISOR_SCREEN_MAX_TOKENS`, in `config.py`, `.env.example` and
+`tests/conftest.py`.
+
+**A check run's lesson.** §441's full check failed one test
+(`test_the_writing_path_asks_for_a_warmed_brief_before_paying_for_one`) that
+reads `ScriptGenerator.understand`'s source by line - this piece was being
+edited into `script_generator.py` while the check ran, and moved the lines
+under it. Alone it passes. Edits wait for a check to end. This piece's own
+full check then failed `tests/test_refile_old_428.py::test_apply_refuses_any_other_approval`
+by chance: it made a "wrong" approval by putting `0` in place of the
+digest's last character, which is the real digest whenever that character
+was already `0` - one run in sixteen, since the report is new each run. The
+test now changes the character to one it is not.
+
+Tests: `tests/test_supervisor_screen_model_442.py` (the screen records what
+it could not settle; one call judges them; the asked-for person's page stays;
+any failure keeps all; unsure kept and a page judged once; the packet loses
+a ruled-out page ahead of the tap; nothing asked on the tap or with him off).
+
+## 443. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04)
+
+The owner signed manifest version 5 (995499f, "mclovin v3"): `mclovin.md` is
+the §442 proposal byte for byte and `MANIFEST.json` the pending manifest byte
+for byte - only `mclovin.md`'s fingerprint changed - in one commit of the
+three files. `python tools/rulebook_manifest.py --verify`: all eight agents
+may run, signed with the same `owner.pub`. "Always" 9 now names what §440
+built: a stronger model chosen by the owner reads a sample of his verdicts
+each night, one sentence and its sources at a time, never a whole script,
+each sentence once, and its reviews never change an episode. The proposal
+and the pending manifest are deleted; the proposals README says nothing is
+waiting. The owner updates the copy held outside Claude to v3.
+
+Tests: `tests/test_mclovin_review_440.py` (the signed book names the review).
+
+## 444. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04)
+
+The owner allowed huggingface.co and its download hosts (`us.aws.cdn.hf.co`,
+`cas-bridge.xethub.hf.co`, `cas-server.xethub.hf.co`) in the cloud
+environment, so §438's measurement could run. Vectara's
+HHEM-2.1-Open (`vectara/hallucination_evaluation_model`, flan-t5-base,
+`trust_remote_code`) in a throwaway virtualenv in the scratchpad - torch and
+transformers from PyPI, never in `requirements.txt` - on one CPU thread, as
+Render's `standard` instance has one CPU. Ten real script sentences from
+§437's frozen episodes, each against the sources `Checker.nearest` gives:
+
+| premise | per sentence |
+|---|---|
+| the three nearest sources (about 1,700 tokens) | median 7.7 s, max 9.8 s |
+| the one nearest source (about 600 tokens) | median 1.4 s, max 1.75 s |
+| that source cut to 1,000 characters (about 250 tokens) | median 0.6 s, max 0.6 s |
+
+Memory: 1.65 GB resident with the model loaded (torch, fp32). The full run -
+200 sentences, 78 planted-mistake pairs, the score spread - did not finish
+inside 28 minutes, which is the same finding: at these lengths it scores a
+sentence every several seconds. The model also warns its inputs pass its 512
+tokens on the three-source premise, so that premise is truncated anyway.
+
+**What it says for §438's choice.** As it ships, it does not belong on the
+web instance: 1.65 GB against the instance's 2 GB, of which FAM holds about
+400 MB, and seconds of the one CPU per sentence. Two routes remain, both the
+owner's to choose:
+
+1. **Smaller and shorter, on the web instance**: an ONNX export, int8 (the
+   embedder's route, `onnxruntime` already installed), with the premise cut
+   to the best source's sentences that share words with the claim (about 250
+   tokens, under the model's 512). Likely a few hundred MB and well under
+   half a second, unmeasured until the export is made; and accuracy on a
+   trimmed premise is unmeasured too.
+2. **A small CPU worker of its own**: a new machine and a monthly cost, any
+   premise length, nothing on the listener's server.
+
+Not yet measured: accuracy - how many real sentences score as supported,
+unsure and unsupported, and whether planted mistakes score lower - which the
+next session runs on a short premise before either route is built.
+
+## 445. This branch's sections renumbered: Main took §433 (2026-11-04)
+
+Main merged "A listen is something heard, not a tap" as §433 while this
+branch held §433-§443, so this branch's sections move up one, to §434-§444,
+with every reference to them and the test files named after them
+(`test_supervisor_screen_434`, `test_supervisor_checks_435`,
+`test_editor_437`, `test_mclovin_training_440`, `test_mclovin_review_440`,
+`test_supervisor_screen_model_442`) - the fourth time Main took this work's
+numbers (§386, §418, §423). Every other open branch stops at §433 or below.

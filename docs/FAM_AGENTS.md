@@ -311,7 +311,7 @@ prices) cost more than Haiku 5.5.
 | C3P0 | Haiku 5.5 folded into the brief's call: at the brief's effort (medium) on the tap, at high effort ahead of the tap (`EI_AHEAD_EFFORT`) |
 | Nando | Code first, folded into the brief's call, Haiku 5.5 whenever nothing solid files the request (§379); always the closest node it is truly about. His answer key: Opus 5.5, in the background (§381) |
 | Sonic | An embedding router chooses the lookup; the code mapping is its fallback |
-| Shakespeare | Haiku 5.5 on searchFAM, in tandem with the writer; ahead of the tap measured first (no editor / Haiku 5.5 high / Sonnet 5.5), the owner decides, Sonnet the default until then; Opus 5.5 for the playbook and the eval |
+| Shakespeare | Haiku 5.5 on searchFAM, in tandem with the writer; ahead of the tap **Haiku 5.5 at high effort** (the owner, 2026-11-03, on the comparison of §437: no editor / Haiku 5.5 high / Sonnet 5.5); Opus 5.5 for the playbook and the eval |
 | Mclovin | Haiku 5.5 on unsure sentences and unsettled pages; **the grounding checker not decided** (its own analysis) |
 | Consuela | Haiku 5.5 low, batched, for consolidation; Haiku 5.5 then Sonnet 5.5 on duplicate pairs |
 | Keith | Haiku 5.5 for incidents; Sonnet 5.5 for `/admin`'s summaries |
@@ -829,7 +829,10 @@ called Diana Russini, then Shakespear; renamed Shakespeare by the owner).
 plugin packet and Sonic's MongoDB packet), with Mclovin checking as the
 writer writes. On searchFAM a listener waits through its work; on myFAM,
 DailyFAM, Trending and the write-ahead it runs before the tap. **Status:**
-planned (§312).
+built ahead of the tap, off by default (`agents/editor.py`, §437): the
+outline by sentence number, checked in code; the comparison of item 37 in
+`tools/editor_eval.py`. searchFAM's hand-over waits on the first-chunk
+measurement (§438).
 
 **Purpose.** Be the journalist in the room. The writer today reads the
 packets raw and plans in its head; Shakespeare decides what matters, what the
@@ -943,7 +946,7 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | Open model on Groq / Cerebras | ~$10-90 | fastest generation | Buys latency back; quality unmeasured | Consent; terms | No on search |
 | Fine-tuning a model on FAM's best scripts | training cost (check) | as the base model | Bakes the house style in | Needs hundreds of approved scripts; Claude models cannot be fine-tuned here | Partly - `examples/` first |
 
-**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: on searchFAM, Haiku 5.5, in tandem with the writer and never a step after it; ahead of the tap, measured first - no editor, Haiku 5.5 at high effort and Sonnet 5.5 on the same frozen packets - and decided by the owner on the result, Sonnet the default until then; Opus 5.5 drafts the playbook and builds the eval. Shared rules, Models decided.)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: on searchFAM, Haiku 5.5, in tandem with the writer and never a step after it; ahead of the tap, measured first - no editor, Haiku 5.5 at high effort and Sonnet 5.5 on the same frozen packets - and decided by the owner on the result: Haiku 5.5 at high effort (2026-11-03, §440); Opus 5.5 drafts the playbook and builds the eval. Shared rules, Models decided.)*
 
 - **Need 1 → Sonnet 5.5, batched, on the editions and the write-ahead,**
   with the journalism playbook and `examples/` in its cached prompt; Opus to
@@ -962,7 +965,7 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | Setting (proposed) | What it is |
 |---|---|
 | `EDITOR_AGENT` | `0` / `1`, off until the eval says it helps (not `EDITOR`, which most machines already set for a text editor; the owner, 2026-10-30) |
-| `EDITOR_MODEL`, `EDITOR_SEARCH_MODEL` | Editions and write-ahead (`anthropic:claude-sonnet-5-5` until the comparison decides); searchFAM (`anthropic:claude-haiku-5-5`, decided 2026-10-30) |
+| `EDITOR_MODEL`, `EDITOR_SEARCH_MODEL` | Editions and write-ahead (`anthropic:claude-haiku-5-5` at `EDITOR_EFFORT=high`, decided 2026-11-03 on §437's comparison); searchFAM (`anthropic:claude-haiku-5-5`, decided 2026-10-30) |
 | `EDITOR_TIMEOUT_SECONDS`, `EDITOR_AHEAD_TIMEOUT_SECONDS` | Ceilings; past them the writer reads the packets |
 | `EDITOR_RERANKER` | Empty, or the reranker |
 | `EDITOR_PLAYBOOK` | The journalism playbook's file |
@@ -1010,7 +1013,11 @@ If it costs more than expected, that is raised with the owner, not
 switched off. **A check that runs out of time does not hold the sentence**
 (the owner, 2026-10-29): it plays unchecked, and the miss is recorded and
 reported to Keith. Before that, the moment each packet comes back, it screens
-the sources. **Status:** planned (§312).
+the sources. **Status:** the source screen is built, off by default
+(`agents/supervisor.py`, §434), and the per-sentence code checks with one
+rewrite (`agents/supervisor_checks.py`, §435), trained on mistakes planted in
+code, scored and tightened, with a nightly Opus review of his real verdicts
+and the grounding checker's place built, none installed (§440).
 
 **Purpose.** Make sure every episode is true to its sources and keeps the
 rules of what an episode is - **checking only against the two packets**

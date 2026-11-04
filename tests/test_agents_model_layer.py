@@ -363,14 +363,26 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     allowed = {
         # App startup also registers Consuela's task (§399).
         "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster", "training",
-                   "housekeeper"},
+                   "housekeeper", "supervisor_training"},
         # The wipe also forgets Nando's answer-key labels (§381).
-        "demo_data.py": {"tasks", "training", "nando_model", "memory"},
+        "demo_data.py": {"tasks", "training", "nando_model", "memory",
+                         "supervisor_training"},
         # C3P0's advice check after the writer (§425): a regex, no model.
         "pipeline.py": {"netenyahu", "categorizer", "contextualizer"},
         # Sonic replaces the recall when Netenyahu lets him run (§403): code
         # and read-only lookups, no model.
-        "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever"},
+        # Mclovin's source screen is put in force around the research step
+        # (§434): code only, no model.
+        # His sentence checks (§435) sit in the reader beside the guards:
+        # code only; the one rewrite is the writer's own call, not his.
+        "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever",
+                                "supervisor", "supervisor_checks", "editor", "grounding"},
+        # The screen itself, read inside `screen_results`, the packet's
+        # opinion label and the archive's merge (§434): code only.
+        "research.py": {"supervisor"},
+        # Mclovin's verdicts kept beside the quality record (§440): a write
+        # to his own store, no model.
+        "episode_quality.py": {"supervisor_training"},
         "prefetch.py": {"categorizer"},
         "daily_edition.py": {"categorizer"},
         "trending_bank.py": {"categorizer"},

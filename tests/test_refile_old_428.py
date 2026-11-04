@@ -113,7 +113,10 @@ def test_apply_refuses_any_other_approval(cache, monkeypatch, tmp_path):
     picks(monkeypatch, {ROWS[0][1]: "philadelphia eagles"})
     path = tmp_path / "r.json"
     digest = refile_old.write_report(refile_old.propose(cache), path)
-    for wrong in ("", "yes", digest[:-1] + "0"):
+    # The last character changed - to one it is not (§442: "+ '0'" was the
+    # real digest one run in sixteen, and the test failed by chance).
+    flipped = digest[:-1] + ("1" if digest[-1] == "0" else "0")
+    for wrong in ("", "yes", flipped):
         out = refile_old.apply(cache, path, wrong)
         assert out["applied"] == 0 and "nothing was changed" in out["refused"]
     # A list edited after the review is a different list.

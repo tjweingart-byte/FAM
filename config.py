@@ -2037,8 +2037,9 @@ class Settings:
     # 2026-10-30): `vendor:model-id`, an exact model and never a moving
     # alias, and never `MODEL` - an empty value means the agent makes no
     # model call (code only). `agents/models.py` refuses anything else. The
-    # editor's ahead-of-the-tap model is Sonnet until the owner decides on
-    # the comparison (§346); the grounding checker is not a model setting.
+    # editor's ahead-of-the-tap model is Haiku 5.5 at high effort, the owner's
+    # choice on the comparison (§437, §440); the grounding checker is not a
+    # model setting.
     overlord_planner_model: str = field(
         default_factory=lambda: os.environ.get("OVERLORD_PLANNER_MODEL", "").strip())
     contextualizer_model: str = field(
@@ -2056,13 +2057,19 @@ class Settings:
         default_factory=lambda: os.environ.get("RETRIEVER_MODEL", "").strip())
     editor_model: str = field(
         default_factory=lambda: os.environ.get(
-            "EDITOR_MODEL", "anthropic:claude-sonnet-5-5").strip())
+            "EDITOR_MODEL", "anthropic:claude-haiku-5-5").strip())
     editor_search_model: str = field(
         default_factory=lambda: os.environ.get(
             "EDITOR_SEARCH_MODEL", "anthropic:claude-haiku-5-5").strip())
     supervisor_model: str = field(
         default_factory=lambda: os.environ.get(
             "SUPERVISOR_MODEL", "anthropic:claude-haiku-5-5").strip())
+    # Mclovin's nightly reviewer (§440, step 4): the stronger model that
+    # reviews his verdicts on real episodes, sentence by sentence, in the
+    # background - Opus, as Nando's answer key (§381).
+    supervisor_judge_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_JUDGE_MODEL", "anthropic:claude-opus-5-5").strip())
     supervisor_screen_model: str = field(
         default_factory=lambda: os.environ.get(
             "SUPERVISOR_SCREEN_MODEL", "anthropic:claude-haiku-5-5").strip())
@@ -2109,9 +2116,49 @@ class Settings:
     nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 50)
     editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
     editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
-    editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 4000)
+    # Measured (§437): at high effort Haiku 5.5 spent 4,000 tokens thinking
+    # and was cut off before answering; the answer itself is a few hundred.
+    editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 16000)
+    # Shakespeare's effort ahead of the tap (§437): high, as the comparison
+    # runs both Haiku and Sonnet (decided item 37). On searchFAM: low.
+    editor_effort: str = field(
+        default_factory=lambda: os.environ.get("EDITOR_EFFORT", "high").strip())
     supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
+    # The small model on pages the source screen cannot settle (§442): ahead
+    # of the tap only, one call an episode, so it may take its time.
+    supervisor_screen_timeout_seconds: float = _env_float(
+        "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", 20.0)
+    supervisor_screen_max_tokens: int = _env_int("SUPERVISOR_SCREEN_MAX_TOKENS", 2000)
     supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
+    # **Mclovin's sentence checks** (§435): which ones send a failing
+    # sentence back to the writer; the rest only count. A check joins this
+    # list once the planted-mistake eval passes it (§440,
+    # `tools/mclovin_eval.py`); figures have not yet. The one-sentence quote
+    # limit enforces since the owner signed mclovin.md v2 (§441).
+    supervisor_enforce: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_ENFORCE",
+            "quote,quote_length,website,advice,superlative,dates,mixed").strip())
+    # The writer's one rewrite of a failing sentence: its time limit (the
+    # sentences behind it wait in order) and how many an episode may ask.
+    # Late, or past the count, the sentence is left out.
+    supervisor_repair_timeout_seconds: float = _env_float(
+        "SUPERVISOR_REPAIR_TIMEOUT_SECONDS", 2.0)
+    supervisor_max_repairs: int = _env_int("SUPERVISOR_MAX_REPAIRS", 4)
+    # His nightly review's one call per sentence, and how many sentences a
+    # night (§440): half his flags, half a sample of what he passed.
+    supervisor_judge_timeout_seconds: float = _env_float(
+        "SUPERVISOR_JUDGE_TIMEOUT_SECONDS", 60.0)
+    supervisor_judge_max_tokens: int = _env_int("SUPERVISOR_JUDGE_MAX_TOKENS", 4000)
+    supervisor_review_per_run: int = _env_int("SUPERVISOR_REVIEW_PER_RUN", 40)
+    # **The grounding checker** (§440, step 5; §438): which one, empty for
+    # none - none is installed until the owner decides on §438's analysis -
+    # and the scores that pass, fail and leave unsure (the unsure band
+    # takes the small model's second look while `support` is enforced).
+    supervisor_grounding: str = field(
+        default_factory=lambda: os.environ.get("SUPERVISOR_GROUNDING", "").strip())
+    supervisor_grounding_high: float = _env_float("SUPERVISOR_GROUNDING_HIGH", 0.8)
+    supervisor_grounding_low: float = _env_float("SUPERVISOR_GROUNDING_LOW", 0.2)
     housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
     housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
     # **Consuela's consolidation** (§399): a dry run until the owner turns

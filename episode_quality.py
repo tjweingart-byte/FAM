@@ -646,6 +646,11 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
             "measures": json.dumps(measures),
         })
         _grade_soon(key, sourced, origin)
+        # What Mclovin found on it, when he checked it (§440, step 4).
+        if getattr(notes, "supervisor", None) is not None:
+            from agents import supervisor_training
+
+            supervisor_training.note(key, sourced, sentences, notes)
     except Exception as exc:  # noqa: BLE001 - a measurement never costs an episode
         log.exception("could not keep the quality of %r", query)
         try:
