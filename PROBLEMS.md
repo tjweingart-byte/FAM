@@ -29393,3 +29393,55 @@ unmeasured).
 
 Tests: none; nothing in FAM changed. The scripts (dataset, scoring, export,
 quantisation, the Opus sample) stayed in the scratchpad with the virtualenv.
+
+## 448. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04)
+
+The owner, on §447: the grounding question "is supposed to be Mclovin's job,
+not HHEM" - agents run these checks because their rules are signed and a
+session cannot change them. §440's design let a model outside his rule book
+fail a sentence on its score, at thresholds (0.8, 0.2) a session chose; his
+signed `mclovin.md` names no checker and no threshold. **No checker is
+installed and none will be without the owner**; `SUPERVISOR_GROUNDING` stays
+empty and the `support` check does not run. The comparison of HHEM-like
+models §447 led to was withdrawn before it started. Also the owner's: API
+keys are not for running tests at will - spend only on what the owner asks.
+
+**Mclovin measured on the job** (the owner's yes; "find a cheaper way" than
+a new $4 answer key). His real request - the one `agents.grounding.second_look`
+makes, through `agents/models.py`, under his signed rule book, on
+`SUPERVISOR_MODEL` (Haiku 5.5, low effort, `SUPERVISOR_MAX_TOKENS` 300) - one
+sentence and its three nearest sources at a time, ahead-of-the-tap surface,
+with the time limit raised to 10 s so every answer came back and its time
+could be read. On the 353 planted mistakes (labelled by construction) and the
+120 real sentences Opus had already judged for §447: 473 calls, **$0.133**.
+
+| | n | says unsupported | supported | unsure | out of room |
+|---|---|---|---|---|---|
+| planted mistakes (should be unsupported) | 353 | 63% | 20% | 1% | 17% |
+| - a number changed | 109 | 76% | 12% | 1% | 11% |
+| - two stories joined | 141 | 61% | 22% | 1% | 16% |
+| - "first" / "biggest" | 52 | 62% | 21% | 0% | 17% |
+| - "yesterday" on old news | 51 | 39% | 27% | 4% | 29% |
+| real, Opus: supported | 85 | **13%** | 61% | 8% | 18% |
+| real, Opus: unsupported | 32 | 59% | 22% | 6% | 12% |
+
+- **Out of room on one call in six**: at low effort his 300-token ceiling is
+  spent before he answers (the same as Shakespeare's 4,000, §437). Those
+  sentences would play unchecked.
+- **Of what he answered**: 76% of planted mistakes caught (numbers 86%), and
+  17% of the sentences Opus finds supported rejected (11 of 63). The bar is
+  90% and 1%.
+- **Time**: median 1.38 s a sentence, p90 1.83 s; 8% within his own 1 s
+  limit (`SUPERVISOR_TIMEOUT_SECONDS`), none within the 0.3 s proposed for
+  searchFAM's first sentence. As set, nine in ten of his support verdicts
+  would time out and play unchecked.
+- **Cost**: $0.00028 a sentence, about $0.005 an episode of 17 sentences -
+  ~$48 per 10,000 episodes against the ~$5 target (decided item 26).
+
+**So, as configured, the support verdict does not meet the bar on any
+route** - neither a checker's (§447) nor Mclovin's own. The code checks under
+his book stand as §446 measured them: seven enforce; **figures** stays count
+only (81% caught, 1.70% flagged). Nothing changed in FAM; the support check
+stays off until the owner decides otherwise.
+
+Tests: none; nothing in FAM changed. The script stayed in the scratchpad.
