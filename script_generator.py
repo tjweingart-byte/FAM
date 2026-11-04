@@ -750,6 +750,11 @@ class ScriptNotes:
     #: DailyFAM): its writer is `EDITION_WRITER_MODEL` when that is set
     #: (`writer_for`, §269).
     edition: bool = False
+    #: Which arm of decided item 37's two weeks this episode is in
+    #: (`EDITOR_TRIAL`, §450): "with" (Shakespeare planned it), "with_unplanned"
+    #: (he was asked and gave no plan), "without" (left out by the trial), or
+    #: "" when no trial ran. Kept on its quality row for the comparison.
+    editor_arm: str = ""
     #: What the history archive keeps once this episode is cached (§308):
     #: `{"subject": ..., "findings": [history_archive.Finding, ...]}`, set by
     #: `research` from the winning packet. None when nothing was retrieved.
@@ -1748,6 +1753,10 @@ async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
             or getattr(notes, "prefetch", False) or not plan.evidence
             or not _agent_runs(notes, "editor")):
         return plan
+    trial = editor_trial_arm(plan)
+    if trial == "without":
+        notes.editor_arm = "without"
+        return plan
     try:
         from agents import editor
 
@@ -1755,8 +1764,25 @@ async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
     except Exception:  # noqa: BLE001 - the editor never costs an episode
         log.warning("Shakespeare could not plan; the writer reads the packets",
                     exc_info=True)
-        return plan
+        block = ""
+    if trial:
+        notes.editor_arm = "with" if block else "with_unplanned"
     return dataclasses.replace(plan, editor_outline=block) if block else plan
+
+
+def editor_trial_arm(plan: "EpisodePlan") -> str:
+    """Decided item 37's two weeks (§450): "with" or "without" by a hash of
+    the question and its length - so the same story is always in the same
+    arm, and a rewrite never moves it - or "" when `EDITOR_TRIAL` is off."""
+    from config import settings
+
+    if not getattr(settings, "editor_trial", False):
+        return ""
+    import zlib
+
+    question = " ".join(str(plan.query or "").lower().split())
+    seed = f"{question}|{getattr(plan, 'minutes', '')}".encode()
+    return "with" if zlib.crc32(seed) % 2 == 0 else "without"
 
 
 async def settle_repairs(generator, plan, notes, sentences: list) -> list:

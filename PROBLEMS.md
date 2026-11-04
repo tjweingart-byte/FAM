@@ -29463,3 +29463,65 @@ effort ("low") is still written in code, not a setting.
 
 Tests: `tests/test_supervisor_limits_449.py` (the defaults; `.env.example`
 agrees; support off).
+
+## 450. Finishing Phase 3, piece 4: Shakespeare's two weeks, built behind a switch - and his place on searchFAM (2026-11-04)
+
+The owner (2026-11-04): no 3-5 minute rerun of the comparison; build the
+two weeks of editions with and without Shakespeare (decided item 37); and
+two questions - what Haiku at medium effort would cost search's first word,
+and whether he could be on every episode, or replace the writer.
+
+**The trial (`EDITOR_TRIAL`, off).** With it on, under `AGENTS=1
+EDITOR_AGENT=1`, every episode written ahead of the tap that he would plan
+(the Trending, DailyFAM and rails editions and the write-ahead; never a
+prefetch warm, never searchFAM) is put in an arm by a hash of its question
+and length (`script_generator.editor_trial_arm`) - not the cache key, which
+`pipeline.key_for` computes later and may need a call to; the same story is
+always in the same arm, and a rewrite never moves it. "without": he is not
+asked and the writer reads the packets as today. "with": he plans it;
+"with_unplanned" when he was asked and gave no plan (counted with "with": the
+comparison is of being given him). The arm is on `ScriptNotes.editor_arm` and
+kept on the episode's quality row (`episode_quality.episodes.editor_arm`, a
+new column; an existing file - SQLite or Postgres - is widened as
+`accounts.py` widens its own). `episode_quality.editor_trial` and
+`python tools/editor_trial.py` compare the arms on what the quality store
+already records per listen - left in the first 20 s (`EARLY_EXIT_SECONDS`),
+heard 85% (`FINISHED_SHARE`), mean share heard - and the six code measures;
+numbers only, never a listener. Shakespeare's health block says whether the
+trial is on. Off, nothing changes: he plans every episode he did, and no arm
+is recorded.
+
+**To run it in production**: `AGENTS=1`, `EDITOR_AGENT=1`, `EDITOR_TRIAL=1`
+on the `fam` service (his model stays `EDITOR_MODEL`, Haiku 5.5 at
+`EDITOR_EFFORT=high`); about $0.004 an episode he plans, ahead of the tap
+where nobody waits. Read it at two weeks or once each arm has on the order of
+a thousand listens, whichever is later - a 5-point gap in early exits is
+noise below that, and production's traffic is not visible from here.
+
+**Haiku at medium effort on searchFAM** (from §437's numbers, nothing new
+spent). He plans from both packets and the writer writes from his plan, so on
+search his whole call is in front of the first word. At high effort it took
+26.4 s ahead of the tap; medium is unmeasured - by how effort scales, roughly
+8-15 s, low 3-6 s - against a first word at ~1-1.3 s today and the spec's
+second ([one-sentence-spec]). Without a wait: plan prefetch's script-level
+warms (he skips prefetch warms today), or run in tandem - the writer opens,
+his plan shapes the rest - which splits the writer's one call and touches
+[opening-last]. Both are designs for the owner; neither is built.
+
+**Every episode, or in place of the writer.** He already plans every episode
+written ahead of the tap; missing are prefetch warms and search/Go Deeper.
+Replacing the writer would be one call that plans then writes - feasible,
+with every guard of the writer's stream and Mclovin's checks still on it -
+but against his signed rule book: "never" 1, he states no fact in his own
+words, and his job is alongside the writer, pointing at the sources'
+sentences by number. It would need a new book only the owner signs, and FAM
+would have no editor apart from the writer. §437 also found the plan was not
+the bottleneck at 1.5 minutes (storytelling 1.5-1.9 of 5 in every arm): the
+writer is. Raised, not changed.
+
+Tests: `tests/test_editor_trial_450.py` (off, he plans every one and no arm
+is kept; on, half go without and the same story always lands the same;
+without, he is not asked; with, whether he planned; no arm when he does not
+work; the arm kept and compared by listening; an existing store widened;
+`note` keeps the arm; the setting copied and off; the tool runs) - on SQLite
+and on Postgres 16 (`DATABASE_URL`).

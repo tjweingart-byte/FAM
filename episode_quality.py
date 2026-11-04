@@ -55,6 +55,7 @@ import json
 import logging
 import math
 import re
+import sqlite3
 import threading
 import time
 from contextlib import closing
@@ -369,6 +370,12 @@ class QualityStore:
                               graded_at     REAL NOT NULL DEFAULT 0,
                               PRIMARY KEY (key, sourced))""")
             db.execute("CREATE INDEX IF NOT EXISTS episodes_at ON episodes (at)")
+            # Added after the table shipped (§450): an existing file is widened.
+            try:
+                db.execute("ALTER TABLE episodes ADD COLUMN editor_arm "
+                           "TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
             db.execute("""CREATE TABLE IF NOT EXISTS listens (
                               key      TEXT NOT NULL,
                               sourced  INTEGER NOT NULL,
@@ -404,7 +411,9 @@ class QualityStore:
         now = time.time() if now is None else now
         columns = ("key", "sourced", "at", "query", "minutes", "origin",
                    "structure", "category", "title", "writer_model", "prompt",
-                   "words", "word_budget", "sentences", "evidence", "measures")
+                   "words", "word_budget", "sentences", "evidence", "measures",
+                   "editor_arm")
+        row = {**row, "editor_arm": str(row.get("editor_arm") or "")}
         with self._lock, closing(self._connect()) as db:
             # A re-written key under the same sourced stamp is the same
             # episode written again: the newer text is the one heard, and
@@ -480,7 +489,8 @@ class QualityStore:
     def episodes_since(self, at: float) -> list:
         return self._rows("SELECT key, sourced, at, query, minutes, origin, "
                           "structure, category, title, writer_model, prompt, "
-                          "words, word_budget, measures, grade, grade_model "
+                          "words, word_budget, measures, grade, grade_model, "
+                          "editor_arm "
                           "FROM episodes WHERE at >= ? ORDER BY at DESC", (at,))
 
     def note_listen(self, key: str, sourced: int, listener: str, heard: float,
@@ -644,6 +654,7 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
             "sentences": json.dumps([str(s) for s in sentences]),
             "evidence": evidence[:EVIDENCE_CHARS],
             "measures": json.dumps(measures),
+            "editor_arm": str(getattr(notes, "editor_arm", "") or "")[:20],
         })
         _grade_soon(key, sourced, origin)
         # What Mclovin found on it, when he checked it (§440, step 4).
@@ -1118,6 +1129,60 @@ def _default_place() -> tuple:
 
 
 UNPLACED = "unplaced"
+
+#: The trial's arms (§450). "with_unplanned" (he was asked and gave no plan)
+#: counts with "with": the comparison is of being given him, not of his
+#: successes.
+TRIAL_ARMS = {"with": "with", "with_unplanned": "with", "without": "without"}
+
+
+def editor_trial(days: float = 14.0, now: Optional[float] = None,
+                 quality: Optional[QualityStore] = None) -> dict:
+    """Decided item 37's two weeks (`EDITOR_TRIAL`, §450): episodes written
+    ahead of the tap with and without Shakespeare, compared on listening -
+    who left in the first `EARLY_EXIT_SECONDS`, who heard `FINISHED_SHARE`,
+    the mean share heard - and on the six code measures. Numbers only; the
+    owner reads them. Never a person's id."""
+    now = time.time() if now is None else now
+    empty = {"days": days, "arms": {}, "unplanned": 0}
+    if quality is None:
+        if not exists():
+            return empty
+        quality = store()
+    rows = [r for r in quality.episodes_since(now - days * DAY)
+            if TRIAL_ARMS.get(r.get("editor_arm") or "")]
+    if not rows:
+        return empty
+    listening = _listening(quality.listens_for(r["key"] for r in rows), rows)
+    arms: dict = {}
+    for r in rows:
+        arm = arms.setdefault(TRIAL_ARMS[r["editor_arm"]], {
+            "episodes": 0, "listens": 0, "early": 0, "finished": 0, "heard": 0.0,
+            "scores": {m: [] for m in METRICS}})
+        arm["episodes"] += 1
+        heard = listening.get((r["key"], int(r["sourced"])))
+        if heard:
+            for k in ("listens", "early", "finished", "heard"):
+                arm[k] += heard[k]
+        try:
+            scores = json.loads(r.get("measures") or "{}").get("scores") or {}
+        except ValueError:
+            scores = {}
+        for m in METRICS:
+            if scores.get(m) is not None:
+                arm["scores"][m].append(float(scores[m]))
+    out = {}
+    for name, a in arms.items():
+        n = a["listens"]
+        out[name] = {
+            "episodes": a["episodes"], "listens": n,
+            "early_exit": round(a["early"] / n, 3) if n else None,
+            "finished": round(a["finished"] / n, 3) if n else None,
+            "heard": round(a["heard"] / n, 3) if n else None,
+            "code": {m: (round(sum(v) / len(v), 3) if v else None)
+                     for m, v in a["scores"].items()}}
+    return {"days": days, "arms": out,
+            "unplanned": sum(1 for r in rows if r["editor_arm"] == "with_unplanned")}
 
 
 def report(days: float = 30.0, now: Optional[float] = None,

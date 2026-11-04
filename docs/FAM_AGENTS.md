@@ -969,6 +969,7 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | `EDITOR_TIMEOUT_SECONDS`, `EDITOR_AHEAD_TIMEOUT_SECONDS` | Ceilings; past them the writer reads the packets |
 | `EDITOR_RERANKER` | Empty, or the reranker |
 | `EDITOR_PLAYBOOK` | The journalism playbook's file |
+| `EDITOR_TRIAL` | `0` / `1` (off): decided item 37's two weeks - half the episodes written ahead of the tap, by a hash of the question and length, are written without him, each records its arm, and `python tools/editor_trial.py` compares them on listening (left in 20 s, heard 85%) and the code measures (§450) |
 
 **The journalism playbook - decided: A, B and C combined** (the owner,
 2026-10-28: "for training Diana, please combine A, B, and C right now").

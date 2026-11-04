@@ -2123,6 +2123,13 @@ class Settings:
     # runs both Haiku and Sonnet (decided item 37). On searchFAM: low.
     editor_effort: str = field(
         default_factory=lambda: os.environ.get("EDITOR_EFFORT", "high").strip())
+    # Decided item 37's two weeks (§450): with it on, half the episodes
+    # written ahead of the tap - by a hash of the question and length - are
+    # written without Shakespeare, and each records its arm, so listening
+    # (left in 20 s, heard 85%) can be compared. Off: he plans every one.
+    editor_trial: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_TRIAL", "0")
+        not in ("0", "false", "False", ""))
     # 2 s and 500 tokens, the owner's (§449): at 1 s and 300 most of his
     # second looks timed out or ran out of room (§448). Also the deadline
     # for one sentence's code checks, which take well under a millisecond.
