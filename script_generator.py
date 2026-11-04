@@ -2187,7 +2187,13 @@ class ScriptGenerator:
 
         asked = getattr(getattr(notes, "research_plan", None), "opinion_requested", "")
         with supervisor.screening(asked or ""):
-            return await self._research(plan, notes)
+            out = await self._research(plan, notes)
+            # Ahead of the tap only (§441): the pages code could not settle,
+            # judged by the small model in one call; nobody is waiting.
+            if notes is not None and (getattr(notes, "ahead", False)
+                                      or getattr(notes, "prefetch", False)):
+                out = await supervisor.settle_unsettled(out, notes)
+            return out
 
     async def _research(self, plan: EpisodePlan,
                         notes: ScriptNotes | None = None) -> EpisodePlan:

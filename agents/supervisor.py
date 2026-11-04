@@ -40,8 +40,10 @@ import logging
 import re
 import threading
 import unicodedata
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Literal, Optional
+
+from pydantic import BaseModel, ConfigDict
 
 log = logging.getLogger("fam.agents")
 
@@ -221,9 +223,12 @@ def by(name: str, url: str, title: str = "", passages=()) -> bool:
 # ------------------------------------------------------------------ in force for one episode
 @dataclass(frozen=True)
 class Screen:
-    """The screen for one episode: whose opinion was asked for, if anyone's."""
+    """The screen for one episode: whose opinion was asked for, if anyone's,
+    and the pages it kept without being able to settle them (§441), for the
+    small model ahead of the tap."""
 
     opinion_of: str = ""
+    unsettled: list = field(default_factory=list, compare=False)
 
 
 #: The screen in force for the research of the episode being written, or
@@ -271,6 +276,10 @@ def screen(results) -> tuple:
             reading = classify(url, title)
             if reading.kind == "unsettled":
                 _count("screen_unsettled")
+                if not any(u["url"] == url for u in current.unsettled):
+                    current.unsettled.append({
+                        "url": url, "title": title, "why": reading.why,
+                        "passage": " ".join(str(h) for h in list(passages)[:2])[:600]})
             if reading.dropped:
                 if _keep_as_theirs(current, reading, url, title, passages):
                     _count("screen_opinion_kept")
@@ -354,3 +363,160 @@ def report() -> dict:
 def reset() -> None:
     with _LOCK:
         SINCE_BOOT.clear()
+
+
+# ------------------------------------------------------------------ the small model, ahead of the tap (§441)
+class _Page(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    page: int
+    kind: Literal["opinion", "blog", "official", "reporting", "unsure"]
+
+
+class PageKinds(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    pages: list[_Page]
+
+
+SCREEN_INSTRUCTIONS = """Each page below is a search result FAM's code could not \
+settle: it sits in a blog section of a site that is neither a blogging \
+platform nor a known primary source. Say what each page is, from its \
+address, title and opening words:
+
+- "opinion": an op-ed, editorial, column, commentary, a letter, or a \
+personal take
+- "blog": a personal or company blog post that is not an official \
+announcement - marketing, a how-to, a personal account
+- "official": an organisation's own announcement about itself - a company's \
+newsroom or product announcement, a government agency's notice, a \
+university's research news
+- "reporting": news reporting or analysis by a newsroom
+- "unsure": you cannot tell
+
+Judge only what the page is, never whether it is true. Answer for every page \
+by its number."""
+
+#: Verdicts kept by address, so a page is judged once (bounded).
+_JUDGED: "collections.OrderedDict[str, str]" = collections.OrderedDict()
+JUDGED_KEPT = 2000
+
+
+def _remember(url: str, kind: str) -> None:
+    with _LOCK:
+        _JUDGED[url] = kind
+        _JUDGED.move_to_end(url)
+        while len(_JUDGED) > JUDGED_KEPT:
+            _JUDGED.popitem(last=False)
+
+
+async def judge_unsettled(screen: Screen, notes=None) -> list:
+    """The unsettled pages the small model calls opinion or blog - and not
+    the asked-for person's own - as the page records; [] on any failure,
+    out of time, or "unsure" (a page is kept unless it is judged otherwise).
+    One call per episode, bounded; never raises."""
+    pages = list(screen.unsettled or [])
+    if not pages:
+        return []
+    try:
+        from agents import models, netenyahu
+        from config import settings
+
+        known = {p["url"]: _JUDGED.get(p["url"]) for p in pages}
+        ask = [p for p in pages if known[p["url"]] is None]
+        verdicts = {url: kind for url, kind in known.items() if kind is not None}
+        if ask:
+            listing = "\n\n".join(
+                f"[{i}] address: {p['url']}\ntitle: {p['title']}\nopening: {p['passage']}"
+                for i, p in enumerate(ask, 1))
+            request = models.AgentRequest(
+                agent="supervisor", task="screen", switch_setting="supervisor",
+                model_setting="supervisor_screen_model", rule_book="mclovin.md",
+                schema=PageKinds, instructions=SCREEN_INSTRUCTIONS,
+                material=(("evidence", listing),),
+                timeout=float(settings.supervisor_screen_timeout_seconds),
+                max_tokens=int(settings.supervisor_screen_max_tokens), effort="low",
+                surface="ahead")
+            result = await models.ask(request, notes=notes)
+            netenyahu.report("supervisor", result.status)
+            _count(f"screen_model_{result.status}")
+            if result.ok:
+                for item in result.value.pages:
+                    if 1 <= item.page <= len(ask):
+                        url = ask[item.page - 1]["url"]
+                        verdicts[url] = item.kind
+                        if item.kind != "unsure":
+                            _remember(url, item.kind)
+        drop = []
+        for page in pages:
+            kind = verdicts.get(page["url"])
+            if kind not in ("opinion", "blog"):
+                continue
+            if screen.opinion_of and by(screen.opinion_of, page["url"], page["title"],
+                                        (page["passage"],)):
+                _count("screen_opinion_kept")
+                continue
+            _count(f"screen_model_dropped_{kind}")
+            drop.append(page)
+        return drop
+    except Exception:  # noqa: BLE001 - the screen never costs an episode
+        log.warning("Mclovin's page judgment failed; the pages are kept", exc_info=True)
+        return []
+
+
+def drop_sources(evidence: str, titles) -> tuple:
+    """`(evidence, n)` with the packet's sources of these titles taken out.
+    The other sources keep their order and their own numbers."""
+    import re
+
+    wanted = {" ".join(str(t or "").split()) for t in titles if str(t or "").strip()}
+    if not wanted:
+        return evidence, 0
+    kept, n = [], 0
+    for block in re.split(r"(?m)^(?=SOURCE \d+\s*$)", evidence or ""):
+        found = re.search(r"^Title:\s*(.*)$", block, re.M)
+        if block.startswith("SOURCE") and found and " ".join(found.group(1).split()) in wanted:
+            n += 1
+            continue
+        kept.append(block)
+    return "".join(kept), n
+
+
+async def settle_unsettled(plan, notes=None):
+    """The plan with the pages the small model ruled out taken out of its
+    packet, its archive intake and its credits (§441). Ahead of the tap only;
+    the same plan when nothing is ruled out. Never raises."""
+    screen = active()
+    if screen is None or not screen.unsettled:
+        return plan
+    try:
+        import dataclasses
+
+        import research
+
+        drop = await judge_unsettled(screen, notes)
+        if not drop:
+            return plan
+        evidence, n = drop_sources(str(getattr(plan, "evidence", "") or ""),
+                                   [p["title"] for p in drop])
+        if not n:
+            return plan
+        urls = {p["url"] for p in drop}
+        hosts = {research.host_of(type("R", (), {"url": u})()) for u in urls}
+        if notes is not None:
+            archive = getattr(notes, "archive", None)
+            if isinstance(archive, dict) and archive.get("findings"):
+                archive["findings"] = [f for f in archive["findings"]
+                                       if getattr(f, "url", "") not in urls]
+            kept_hosts = {research.host_of(type("R", (), {"url": getattr(f, "url", "")})())
+                          for f in ((archive or {}).get("findings") or [])}
+            provenance = getattr(notes, "provenance", None)
+            if provenance is not None and getattr(provenance, "items", None):
+                provenance.items = [i for i in provenance.items
+                                    if getattr(i, "label", "") not in hosts - kept_hosts]
+            if isinstance(getattr(notes, "research", None), dict):
+                notes.research["screen_model_dropped"] = n
+        log.info("Mclovin: the small model ruled out %d page%s ahead of the tap: %s", n,
+                 "" if n == 1 else "s", ", ".join(sorted(hosts)))
+        return dataclasses.replace(plan, evidence=evidence)
+    except Exception:  # noqa: BLE001
+        log.warning("Mclovin could not settle the unsettled pages; all kept", exc_info=True)
+        return plan

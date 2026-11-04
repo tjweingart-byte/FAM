@@ -7,11 +7,17 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-Nothing. `mclovin.md` v2 - a quote is at most one sentence, and a check the
-owner sets to count only lets its sentence play - was signed on 2026-11-03
-(PROBLEMS.md §440, manifest version 4); `consuela.md` with Perplexity in
-never 8's list on 2026-11-03 (§412, version 3); `nando.md` rule 12 on
-2026-11-01 (§392).
+**`mclovin.md`, draft v3** (PROBLEMS.md §441, the owner's "nightly review -
+yes", 2026-11-03): a new "always" 9 names his nightly reviewer, as nando.md
+rule 12 names Nando's answer key - a stronger model reads a sample of his
+verdicts each night, one sentence and its sources at a time, never a whole
+script, and its reviews never change an episode. The review already runs
+under v2 (§439); v3 says so in his own book. Pending manifest: version 5,
+only `mclovin.md`'s fingerprint changes.
+
+Earlier: `mclovin.md` v2 (one-sentence quotes, count only) signed on
+2026-11-03 (§440, version 4); `consuela.md` with Perplexity on 2026-11-03
+(§412, version 3); `nando.md` rule 12 on 2026-11-01 (§392).
 
 ## Signing it (on the owner's Mac, with the owner's key)
 

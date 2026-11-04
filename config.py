@@ -2124,6 +2124,11 @@ class Settings:
     editor_effort: str = field(
         default_factory=lambda: os.environ.get("EDITOR_EFFORT", "high").strip())
     supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
+    # The small model on pages the source screen cannot settle (§441): ahead
+    # of the tap only, one call an episode, so it may take its time.
+    supervisor_screen_timeout_seconds: float = _env_float(
+        "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", 20.0)
+    supervisor_screen_max_tokens: int = _env_int("SUPERVISOR_SCREEN_MAX_TOKENS", 2000)
     supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
     # **Mclovin's sentence checks** (§434): which ones send a failing
     # sentence back to the writer; the rest only count. A check joins this

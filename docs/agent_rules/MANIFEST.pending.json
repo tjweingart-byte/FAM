@@ -1,0 +1,16 @@
+{
+  "books": {
+    "c3p0.md": "26dfbaf31b29738025dfe048bb339aca410ef0b1c3be39e7a10c2d4937d15222",
+    "consuela.md": "be0205daeeb0aafd5718bcfc8beba4982792cdf5a331eece4abe413bd3a9d48f",
+    "every-agent.md": "5a62878d15477a34c93ef4a8041311dd7360123798d10289ed3f31d1af64fe26",
+    "journalism_playbook.md": "49e301b198a093415e1857fc2b1161fd95bfaa8323cc55a916e95136be6ad807",
+    "keith.md": "1b52ac687d67bba0127fcac00ee63288c9638331a1e3c0f164cef043f415ba70",
+    "mclovin.md": "aeb5ed9a7bd9b8f6b0bc3222589c834dabcdab04ebc31309a4b1e9c074119bd8",
+    "nando.md": "ecc211f83913f9d67bec39bc4672512a432c1fd03725c6b70fd2d67f94e543b0",
+    "netenyahu.md": "48c0202016abfdf17e41dd8af5afb4054dada1ca0a12b71a5d7b9eed58375820",
+    "shakespeare.md": "49539139ddb3c35b89dcf98bd216332f29e634037280d90138d4b26bbaead718",
+    "sonic.md": "7a37e61a510e36bea486d0ade8ef9bd0a254c0a82dd8287caca978ff2f3f4317"
+  },
+  "format": 1,
+  "version": 5
+}

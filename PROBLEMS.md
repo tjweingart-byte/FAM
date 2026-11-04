@@ -29041,3 +29041,59 @@ Tests: `tests/test_agents_roster_tasks.py` (13 named failures, the book names
 the one-sentence limit), `tests/test_supervisor_checks_434.py` (a two-sentence
 quote is sent back as `quote_too_long`; the signed book holds both new rules),
 `tests/test_mclovin_training_439.py` (the enforced set).
+
+## 441. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04)
+
+The owner (2026-11-04): huggingface.co is allowed in the cloud environment;
+"we will be going straight to main, not through staging"; the writer's slow
+first sentence (§437) "is ok"; "nightly review - yes"; "build the small model
+for unsettled" pages.
+
+**Straight to Main.** This branch's pull request goes to `Main`, not through
+`staging` - the owner's exception to [staging-flow] for this work; the rule
+itself is unchanged.
+
+**The nightly review, in his own book.** `docs/agent_rule_proposals/mclovin.md`
+(draft v3) adds "always" 9, as nando.md rule 12 names Nando's answer key: a
+stronger model chosen by the owner reads a sample of his verdicts each night,
+one sentence and its sources at a time, never a whole script, each sentence
+once; its reviews only measure him and show where a rule is too strict or
+misses, and never change an episode. The review already runs under v2
+(§439); v3 says so. Pending manifest: version 5, only `mclovin.md`'s
+fingerprint changes. Waiting for the owner's signature.
+
+**The small model on unsettled pages - ahead of the tap only** (decided
+items 6, 13; mclovin.md "always" 2). The code screen (§433) keeps a page it
+cannot settle - a blog section on a host that is neither a blogging platform
+nor a primary source - and now also records it on the episode's screen (its
+address, title, why, and its opening words). After research, on the ahead
+surface (editions, the write-ahead, prefetch), `supervisor.settle_unsettled`
+asks `SUPERVISOR_SCREEN_MODEL` (Haiku 5.5, low effort) about all of them in
+**one call an episode** (`SUPERVISOR_SCREEN_TIMEOUT_SECONDS` 20,
+`SUPERVISOR_SCREEN_MAX_TOKENS` 2000): opinion, blog, official, reporting or
+unsure, judged from the address, title and opening only - never whether it
+is true. A page called opinion or blog - unless it is the asked-for person's
+own (`opinion_requested`, §433's `by`) - leaves the packet the writer reads
+(`drop_sources`: the other sources keep their order), the archive's intake,
+and the episode's credits; official, reporting and unsure stay. Any failure,
+refusal or late answer keeps every page. Verdicts are remembered by address
+(2,000 kept, unsure never), so a page is judged once. On the tap nothing is
+asked - the owner's §433 answer: kept and counted. Counted in `/api/health`
+(`screen_model_*`), and `notes.research["screen_model_dropped"]` says how many
+an episode lost. Only while Mclovin works on the episode; off, nothing is
+recorded or asked.
+
+Settings (new): `SUPERVISOR_SCREEN_TIMEOUT_SECONDS`,
+`SUPERVISOR_SCREEN_MAX_TOKENS`, in `config.py`, `.env.example` and
+`tests/conftest.py`.
+
+**A check run's lesson.** §440's full check failed one test
+(`test_the_writing_path_asks_for_a_warmed_brief_before_paying_for_one`) that
+reads `ScriptGenerator.understand`'s source by line - this piece was being
+edited into `script_generator.py` while the check ran, and moved the lines
+under it. Alone it passes. Edits wait for a check to end.
+
+Tests: `tests/test_supervisor_screen_model_441.py` (the screen records what
+it could not settle; one call judges them; the asked-for person's page stays;
+any failure keeps all; unsure kept and a page judged once; the packet loses
+a ruled-out page ahead of the tap; nothing asked on the tap or with him off).
