@@ -29661,3 +29661,79 @@ The numbers are now unique across both branches, so either can merge first:
 the other's sections then sit before this branch's in the file and nothing
 is renumbered again. No test requires the numbers to be consecutive. Checked
 before numbering: no other open branch past §449.
+
+## 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04)
+
+The owner: "double check all changes that have been made in this branch."
+Two passes: a reviewer given only the diff and what each change was meant to
+do (not this session's conclusions), and this session on the standing rules
+and the record. Every finding below was reproduced before it was fixed.
+
+**Fixed - the eval's planter (§450), confirmed by running it:**
+
+1. *A role in front of a name threw the name away.* The greedy name pattern
+   read "Federal Reserve Chair Jerome Powell" as one run, the role filter
+   rejected the run, and Powell was never tried: the very case §450 meant
+   to fix gave no speaker. Names are now read word by word
+   (`supervisor_cases._names_in`): a role word ends a run, the run straight
+   before a role is the role's organisation and never a speaker ("Central
+   Bank Chair"), and function words ("The") never begin or join a name.
+2. *A name whose first letter is accented was unread* ("Émile Zola"). Any
+   alphabet's capital now starts a word. The mixed-story planting keeps its
+   own pattern (`_CAPS`), unchanged.
+
+`python tools/mclovin_eval.py` after both: the same decisions as §450 -
+seven checks ready, figures not (81% / 1.70%) - with quote now 99% caught
+and still no failed control.
+
+**Fixed - Shakespeare in tandem (§456), each with a test that failed before:**
+
+3. *Past the word budget the tail waited for the whole stream.* The tandem
+   path read the final message before speaking the last sentence;
+   `stream_prepared` speaks it first (`get_final_message` reads the rest of
+   the stream). Now the same order on both calls.
+4. *Reading the first call for its bill could fail a finished episode.* That
+   read sat inside the writer's error handling, so a reset connection on a
+   stream left unread during the second call made a fully spoken episode a
+   writer failure. Now it is logged and never costs the episode.
+5. *A second call that failed killed the episode the first could finish*
+   ("a layer that adds quality must not subtract availability",
+   [ei-before-search]). Now, if it fails before saying anything, the first
+   call's set-aside sentence is restored and it carries on (`second_failed`);
+   only a failure after it has spoken fails the episode, as any writer's
+   does.
+6. *The refusal record undercounted* what was spoken. Both calls now count.
+
+Also from the review, made tight: his plan is cancelled once nothing waits on
+it (it was left to run to its own time limit); the inner stream is closed
+with `stream_prepared`; the second call is pinned to the first call's model
+(billed as sent); the local gap line (§194) is part of what the second call
+is told was spoken; the writer never waits before its first sentence, whatever
+`EDITOR_TANDEM_OPENING_WORDS` says; and a plan that did not shape the episode
+(late, empty) is not left on its record (`notes.editor`).
+
+**Raised, not changed.** The tandem runs on the `search` surface, which
+Netenyahu defines as any episode a listener is in front of - so myFAM and
+DailyFAM tiles scripted on the tap and Go Deeper too, not only a typed
+search. That fits the owner's "there for every episode"; say if it should be
+typed searches only. And in `editor_trial`, a listen with no sourced stamp is
+matched to the newest row of its key (`_listening`'s existing rule).
+
+**Checked and sound.** Nothing touched `preview/`, the signed rule books,
+requirements, `render.yaml` or the Dockerfile; the manifest verifies
+(version 5, `owner.pub`); `tests/test_agents_off.py` passes; every new
+setting is in `config.py`, `.env.example` and `tests/conftest.py`; the new
+column widens an existing store on SQLite and Postgres (`db.py` maps a
+duplicate column to `sqlite3.OperationalError` in autocommit); trial arms
+reach the quality row from all four `note` callers; off, `stream_prepared`
+runs its old code. Noticed, older than this branch: the Cost table in
+`docs/FAM_AGENTS.md` still assumes Shakespeare on Sonnet ahead of the tap.
+
+Tests: `tests/test_editor_tandem_456.py` (its fake stream now behaves like
+the SDK's - one resumable text generator, `get_final_message` reading the
+rest; both calls metered; a second call failing before speaking leaves the
+first to finish, after speaking fails; the first call's bill never costs the
+episode; past the budget the tail is spoken first; an unused plan is off the
+record; the gap line is in what was spoken) and
+`tests/test_mclovin_eval_450.py` (a role in front of a name; an accented
+first letter), on SQLite and Postgres 16.

@@ -1787,10 +1787,11 @@ def _tandem_plan(plan: "EpisodePlan", notes) -> "Optional[asyncio.Future]":
         return None
 
 
-def _quiet(future) -> None:
-    """A tandem plan nobody waits on any more: its outcome is read and let go."""
-    if not future.cancelled():
-        future.exception()
+def _plan_of(tandem) -> str:
+    """His plan, if it is in and is one; "" otherwise. Never raises."""
+    if not tandem.done() or tandem.cancelled() or tandem.exception() is not None:
+        return ""
+    return tandem.result() or ""
 
 
 def _tandem_count(state: str) -> None:
@@ -3093,7 +3094,8 @@ class ScriptGenerator:
         rather than asking for them again.
         """
         reader = _ScriptReader(plan, notes)
-        for sentence in reader.opening():
+        opened = reader.opening()
+        for sentence in opened:
             yield sentence
 
         # Shakespeare on searchFAM, in tandem (§456): his plan starts now,
@@ -3109,8 +3111,12 @@ class ScriptGenerator:
         if notes is not None:
             notes.writer_model = model   # for the quality record (§309)
         if tandem is not None:
-            async for sentence in self._stream_tandem(plan, notes, reader, request, tandem):
-                yield sentence
+            inner = self._stream_tandem(plan, notes, reader, request, tandem, opened)
+            try:
+                async for sentence in inner:
+                    yield sentence
+            finally:
+                await inner.aclose()
             return
         path = _writer_path(notes)
         started = time.monotonic()
@@ -3189,122 +3195,155 @@ class ScriptGenerator:
     # -- Shakespeare in tandem on searchFAM (§456) --------------------------
     async def _stream_tandem(self, plan: EpisodePlan, notes: ScriptNotes | None,
                              reader: "_ScriptReader", request: dict,
-                             tandem: "asyncio.Future") -> AsyncIterator[str]:
+                             tandem: "asyncio.Future", opened: list = ()
+                             ) -> AsyncIterator[str]:
         """`stream_prepared`'s writing with Shakespeare planning beside it.
 
-        The writer opens from the packets exactly as without him. Once
-        `EDITOR_TANDEM_OPENING_WORDS` are spoken (their audio covers the
-        wait), it waits for his plan until `EDITOR_TANDEM_WAIT_SECONDS` from
-        its start. A plan in time: the first call is no longer read, its
-        unfinished sentence is dropped, and a second writer call writes the
-        rest of the episode from the plan and what was spoken - read by the
-        same reader, so every guard, Mclovin's checks and the word budget
-        carry on. Late, empty or failed: the first call carries on as today.
-        Both calls are metered from their own final messages (the first is
-        read to its end after the second, its text unused)."""
+        The writer opens from the packets exactly as without him. Once a
+        sentence and `EDITOR_TANDEM_OPENING_WORDS` are spoken (their audio
+        covers the wait), it waits for his plan until
+        `EDITOR_TANDEM_WAIT_SECONDS` from its start. A plan in time: the first
+        call is no longer read, its unfinished sentence is set aside, and a
+        second writer call writes the rest from the plan and what was spoken -
+        read by the same reader, so every guard, Mclovin's checks and the word
+        budget carry on. Late, empty or failed - or a second call that fails
+        before it has said anything - the first call carries on as today.
+        Each call is metered from its own final message; reading the first
+        to its end for that never costs the episode (§459)."""
         model = request["model"]
         path = _writer_path(notes)
         started = time.monotonic()
-        first_word = None
-        spoken: list = []
-        opening_words = int(settings.editor_tandem_opening_words)
+        spoken: list = list(opened)
+        opening_words = max(1, int(settings.editor_tandem_opening_words))
         wait = float(settings.editor_tandem_wait_seconds)
-        state = "short"         # what came of his plan: the episode ended before the hand-over point
-        final = None
+        ctx = {"first_word": None, "over": False, "spoke": False, "final": None}
+        state = "short"         # the episode ended before the hand-over point
+
+        async def read(events, stop_at: int = 0):
+            """Sentences from one call's text, as `stream_prepared` reads
+            them; returns at the word budget, or once a sentence and
+            `stop_at` words are spoken."""
+            async for event in events:
+                if ctx["first_word"] is None and event:
+                    ctx["first_word"] = time.monotonic() - started
+                for sentence in reader.feed(event):
+                    if isinstance(sentence, Repair):
+                        sentence = await self._repair(plan, notes, sentence)
+                        if not sentence:
+                            continue
+                    spoken.append(sentence)
+                    ctx["spoke"] = True
+                    yield sentence
+                if reader.over_budget:
+                    ctx["over"] = True
+                    return
+                if stop_at and len(spoken) > len(opened) \
+                        and count_words(" ".join(spoken)) >= stop_at:
+                    return
+
+        async def finish(stream_):
+            """The tail, in the order `stream_prepared` keeps: past the
+            budget it is spoken before the rest of the stream is read;
+            otherwise after, so a script cut off by its ceiling does not
+            speak half a sentence (§270)."""
+            if ctx["over"]:
+                tail = reader.finish()
+            else:
+                ctx["final"] = await stream_.get_final_message()
+                tail = reader.finish(
+                    cut_off=getattr(ctx["final"], "stop_reason", None) == "max_tokens")
+            for sentence in tail:
+                if isinstance(sentence, Repair):
+                    sentence = await self._repair(plan, notes, sentence)
+                    if not sentence:
+                        continue
+                spoken.append(sentence)
+                yield sentence
+            if ctx["over"]:
+                ctx["final"] = await stream_.get_final_message()
+
         try:
             async with self.client.messages.stream(**request) as stream:
-                stopped_early = False
+                events = stream.text_stream
+                async for sentence in read(events, stop_at=opening_words):
+                    yield sentence
                 handed = False
-                waited = False
-                async for event in stream.text_stream:
-                    if first_word is None and event:
-                        first_word = time.monotonic() - started
-                    for sentence in reader.feed(event):
-                        if isinstance(sentence, Repair):
-                            sentence = await self._repair(plan, notes, sentence)
-                            if not sentence:
-                                continue
-                        spoken.append(sentence)
-                        yield sentence
-                    if reader.over_budget:
-                        stopped_early = True
-                        break
-                    if not waited and count_words(" ".join(spoken)) >= opening_words:
-                        waited = True
-                        left = wait - (time.monotonic() - started)
-                        if not tandem.done() and left > 0:
-                            await asyncio.wait({tandem}, timeout=left)
-                        block = tandem.result() if tandem.done() and not tandem.cancelled() \
-                            and tandem.exception() is None else ""
-                        if block:
-                            handed = True
-                            break
+                if not ctx["over"] and len(spoken) > len(opened) \
+                        and count_words(" ".join(spoken)) >= opening_words:
+                    left = wait - (time.monotonic() - started)
+                    if not tandem.done() and left > 0:
+                        await asyncio.wait({tandem}, timeout=left)
+                    block = _plan_of(tandem)
+                    if block:
+                        handed = True
+                    else:
                         state = "late" if not tandem.done() else "no_plan"
                 if handed:
-                    state = "handed_over"
+                    set_aside = reader.buffer
                     reader.buffer = ""          # the first call's unfinished sentence
                     second = self._continuation_kwargs(
-                        dataclasses.replace(plan, editor_outline=tandem.result()),
-                        notes, spoken, reader)
-                    async with self.client.messages.stream(**second) as stream2:
-                        stopped2 = False
-                        async for event in stream2.text_stream:
-                            for sentence in reader.feed(event):
-                                if isinstance(sentence, Repair):
-                                    sentence = await self._repair(plan, notes, sentence)
-                                    if not sentence:
-                                        continue
+                        dataclasses.replace(plan, editor_outline=block), notes, spoken, reader)
+                    second["model"] = model     # the same writer, billed as sent
+                    ctx["spoke"] = False
+                    try:
+                        async with self.client.messages.stream(**second) as stream2:
+                            async for sentence in read(stream2.text_stream):
                                 yield sentence
-                            if reader.over_budget:
-                                stopped2 = True
-                                break
-                        final = await stream2.get_final_message()
-                        cut_off = (not stopped2
-                                   and getattr(final, "stop_reason", None) == "max_tokens")
-                        for sentence in reader.finish(cut_off=cut_off):
-                            if isinstance(sentence, Repair):
-                                sentence = await self._repair(plan, notes, sentence)
-                                if not sentence:
-                                    continue
-                            yield sentence
-                    # The first call's own tokens, read from its own answer.
-                    first = await stream.get_final_message()
-                    if notes is not None:
-                        notes.usage.add_model_call(model, getattr(first, "usage", None))
-                else:
-                    final = await stream.get_final_message()
-                    cut_off = (not stopped_early
-                               and getattr(final, "stop_reason", None) == "max_tokens")
-                    for sentence in reader.finish(cut_off=cut_off):
-                        if isinstance(sentence, Repair):
-                            sentence = await self._repair(plan, notes, sentence)
-                            if not sentence:
-                                continue
+                            async for sentence in finish(stream2):
+                                yield sentence
+                        state = "handed_over"
+                    except Exception:  # noqa: BLE001 - checked just below
+                        if ctx["spoke"]:
+                            raise              # it had begun: the episode is its
+                        # Nothing said yet: the first call finishes the episode.
+                        log.warning("Shakespeare's tandem: the second writer call failed "
+                                    "before speaking; the first carries on", exc_info=True)
+                        reader.buffer = set_aside
+                        handed = False
+                        state = "second_failed"
+                    if handed:
+                        # The first call's own tokens, read from its own answer;
+                        # a failure here never costs an episode already spoken.
+                        try:
+                            first = await stream.get_final_message()
+                            if notes is not None:
+                                notes.usage.add_model_call(model, getattr(first, "usage", None))
+                        except Exception:  # noqa: BLE001
+                            log.warning("Shakespeare's tandem: the first writer call's usage "
+                                        "could not be read", exc_info=True)
+                if not handed:
+                    async for sentence in read(events):
+                        yield sentence
+                    async for sentence in finish(stream):
                         yield sentence
         except Exception as exc:
             pipeline_errors.record("writer", f"{model} failed",
                                    f"{type(exc).__name__}: {exc}", plan.query)
             pipeline_errors.mark_recorded(exc)
-            _writer_ended(path, "failed", first_word, time.monotonic() - started)
+            _writer_ended(path, "failed", ctx["first_word"], time.monotonic() - started)
             _tandem_count("failed")
             raise
         finally:
             if not tandem.done():
-                # His call ends by its own time limit; nothing waits on it.
-                tandem.add_done_callback(_quiet)
+                # Nothing waits on his plan any more: stop it spending.
+                tandem.cancel()
+        final = ctx["final"]
         if notes is not None:
             notes.editor_tandem = state
+            if state != "handed_over":
+                # A plan that did not shape the episode is not on its record.
+                notes.editor = None
             notes.usage.add_model_call(model, getattr(final, "usage", None))
         _tandem_count(state)
         writer_warm.note_used(model, request["output_config"]["effort"])
         refused = _refusal_line(final)
         outcome = _writer_outcome(final, plan, notes, model, over_budget=reader.over_budget)
         reader.note_if_short(outcome)
-        _writer_ended(path, outcome, first_word, time.monotonic() - started)
+        _writer_ended(path, outcome, ctx["first_word"], time.monotonic() - started)
         if refused:
             pipeline_errors.record("writer", "refused", refused, plan.query)
             pipeline_errors.refusal("writer", model, path, plan.query, final,
-                                    spoken=len(spoken))
+                                    spoken=len(spoken) - len(opened))
             yield refused
 
     def _continuation_kwargs(self, plan: EpisodePlan, notes: ScriptNotes | None,

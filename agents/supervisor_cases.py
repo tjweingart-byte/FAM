@@ -96,8 +96,47 @@ def change_number(sentence: str) -> Optional[str]:
 
 
 _PACKET_QUOTE = re.compile(r'["“]([^"“”]{15,240})["”]')
-#: A two-word name; accented letters count ("Michel Bréal", §450).
+#: A run of capitalised words, as the mixed-story planting reads names.
 _CAPS = re.compile(r"\b([A-Z][^\W\d_A-Z]+(?:\s+[A-Z][^\W\d_A-Z]+)+)\b")
+#: Words a sentence or a headline capitalises that never begin or join a
+#: name ("The Central Bank Chair spoke" names nobody).
+_FUNCTION_WORDS = frozenset("""
+the a an this that these those his her its their our my your and but or nor
+for of to in on at by from with as after before when while since until than
+""".split())
+#: One word of a name: letters of any alphabet, an apostrophe inside it.
+_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?")
+
+
+def _names_in(text: str, lo: int, hi: int, not_names) -> list:
+    """`(start, end, name)` for each run of two or more capitalised words in
+    `text[lo:hi]`, accented letters included ("Émile Zola", "Michel Bréal").
+    A role word ends a run rather than spoiling it, and the run straight
+    before it is the role's organisation, not a person ("Federal Reserve
+    Chair Jerome Powell" gives "Jerome Powell"); a word cut off at the
+    window's edge ends one too ("Summer Gam", §450). Function words ("The")
+    never begin or join a name."""
+    runs, current, prev_end = [], [], None
+    for w in _WORD.finditer(text, lo, hi):
+        word = w.group(0)
+        cut = (w.start() == lo and lo > 0 and text[lo - 1].isalpha()) or \
+              (w.end() == hi and hi < len(text) and text[hi].isalpha())
+        role = word.lower() in not_names
+        good = (word[0].isupper() and len(word) >= 3 and not cut and not role
+                and word.lower() not in _FUNCTION_WORDS)
+        joined = prev_end is not None and text[prev_end:w.start()].isspace()
+        if good and current and joined:
+            current.append(w)
+        else:
+            # A run straight before a role word is the role's organisation
+            # ("Central Bank Chair", "Federal Reserve Chair"), never a speaker.
+            if len(current) >= 2 and not (role and joined):
+                runs.append(current)
+            current = [w] if good else []
+        prev_end = w.end()
+    if len(current) >= 2:
+        runs.append(current)
+    return [(r[0].start(), r[-1].end(), text[r[0].start():r[-1].end()]) for r in runs]
 
 
 def packet_quotes(blocks) -> list:
@@ -116,17 +155,11 @@ def packet_quotes(blocks) -> list:
                 continue
             lo, hi = max(0, m.start() - 120), min(len(text), m.end() + 120)
             names = []
-            for n in _CAPS.finditer(text, lo, hi):
-                start, end = n.start(), n.end()
-                cut = (start == lo and lo > 0 and text[lo - 1].isalpha()) or \
-                      (end == hi and hi < len(text) and text[hi].isalpha())
-                words = n.group(1).split()
-                if cut or n.group(1) in span or any(len(w) < 3 for w in words) \
-                        or any(w.lower() in NOT_ENTITIES for w in words) \
-                        or m.start() <= start < m.end():
+            for start, end, name in _names_in(text, lo, hi, NOT_ENTITIES):
+                if name in span or m.start() <= start < m.end():
                     continue
                 gap = m.start() - end if end <= m.start() else start - m.end()
-                names.append((gap, n.group(1)))
+                names.append((gap, name))
             if names:
                 out.append((span, min(names)[1]))
     return out

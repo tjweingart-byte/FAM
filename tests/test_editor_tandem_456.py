@@ -34,14 +34,24 @@ SECOND = ("The two dissents are the story, because they show the committee is sp
           "The next meeting is in December.")
 
 
+class _Usage:
+    input_tokens, output_tokens = 100, 10
+    cache_read_input_tokens = cache_creation_input_tokens = 0
+
+
 class _Final:
     stop_reason = "end_turn"
-    usage = None
+    usage = _Usage()
 
 
 class _Stream:
-    def __init__(self, text, log):
-        self.text, self.log = text, log
+    """As the SDK's: one text generator, resumable after a break, and
+    `get_final_message` reads whatever is left of it first."""
+
+    def __init__(self, text, log, fail_at=None, final_fails=False, chunk=1):
+        self.text, self.log, self.read = text, log, []
+        self.fail_at, self.final_fails, self.chunk = fail_at, final_fails, chunk
+        self.text_stream = self._gen()
 
     async def __aenter__(self):
         return self
@@ -49,30 +59,45 @@ class _Stream:
     async def __aexit__(self, *exc):
         return False
 
-    @property
-    def text_stream(self):
-        async def gen():
-            for chunk in self.text.split(" "):
-                await asyncio.sleep(0.005)
-                yield chunk + " "
-        return gen()
+    async def _gen(self):
+        words = self.text.split(" ")
+        # `chunk` words at a time, as a real stream straddles sentence ends.
+        for i in range(0, len(words), self.chunk):
+            if self.fail_at is not None and i >= self.fail_at:
+                raise RuntimeError("overloaded")
+            await asyncio.sleep(0.005)
+            part = words[i:i + self.chunk]
+            self.read.extend(part)
+            yield " ".join(part) + " "
 
     async def get_final_message(self):
+        if self.final_fails:
+            raise RuntimeError("connection reset")
+        async for _ in self.text_stream:
+            pass
         self.log.append(self.text[:12])
         return _Final()
 
 
-def generator(texts=(FIRST, SECOND)):
+def generator(texts=(FIRST, SECOND), second_fails_at=None, second_open_fails=False,
+              first_final_fails=False, chunk=1):
     gen = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
-    asked, finals = [], []
-    queue = list(texts)
+    asked, finals, streams = [], [], []
 
     class _Messages:
         def stream(self, **kwargs):
             asked.append(kwargs)
-            return _Stream(queue.pop(0), finals)
+            i = len(streams)
+            if i == 1 and second_open_fails:
+                raise RuntimeError("rate limited")
+            if i == 1 and first_final_fails:
+                streams[0].final_fails = True
+            streams.append(_Stream(texts[i], finals, chunk=chunk,
+                                   fail_at=second_fails_at if i == 1 else None))
+            return streams[-1]
 
     gen.client = type("C", (), {"messages": _Messages()})()
+    gen.streams = streams
     return gen, asked, finals
 
 
@@ -207,3 +232,86 @@ def test_the_settings_are_copied_and_off():
                  "EDITOR_TANDEM_WAIT_SECONDS=7"):
         assert f"\n{line}\n" in text
     assert editor.report()["tandem"] is False
+
+
+def test_both_calls_are_metered_from_their_own_answers(monkeypatch):
+    settings_for(monkeypatch, words=8)
+    shakespeare(monkeypatch)
+    gen, _, _ = generator()
+    _spoken, notes, _ = run(gen)
+    assert notes.editor_tandem == "handed_over"
+    assert notes.usage.input_tokens == 200 and notes.usage.output_tokens == 20
+
+
+def test_a_second_call_that_fails_before_speaking_leaves_the_first_to_finish(monkeypatch):
+    """The review (§459): the episode must never die for the editor's sake."""
+    for kw in ({"second_fails_at": 0}, {"second_open_fails": True}):
+        settings_for(monkeypatch, words=8)
+        shakespeare(monkeypatch)
+        gen, asked, _ = generator(**kw)
+        spoken, notes, _ = run(gen)
+        assert len(asked) == 2 and notes.editor_tandem == "second_failed"
+        assert " ".join(spoken) == FIRST          # nothing lost, nothing repeated
+
+
+def test_a_second_call_that_fails_after_speaking_fails_as_a_writer_does(monkeypatch):
+    settings_for(monkeypatch, words=8)
+    shakespeare(monkeypatch)
+    gen, _, _ = generator(second_fails_at=14)
+    with pytest.raises(RuntimeError):
+        run(gen)
+
+
+def test_reading_the_first_call_for_its_bill_never_costs_the_episode(monkeypatch):
+    settings_for(monkeypatch, words=8)
+    shakespeare(monkeypatch)
+    gen, _, _ = generator(first_final_fails=True)
+    spoken, notes, _ = run(gen)
+    assert notes.editor_tandem == "handed_over"
+    assert spoken[-1] == "The next meeting is in December."
+    assert notes.usage.input_tokens == 100        # the second call's, still billed
+
+
+def test_past_the_budget_the_tail_is_spoken_before_the_rest_is_read(monkeypatch):
+    """As `stream_prepared` does (§459): a runaway writer's last sentence
+    does not wait for everything the model goes on to write."""
+    settings_for(monkeypatch, words=500)
+    shakespeare(monkeypatch)
+    long = " ".join(f"Sentence number {i} says the Fed held its rate today." for i in range(40))
+    gen, _, _ = generator(texts=(long,), chunk=7)
+    notes = ScriptNotes()
+    notes.agents = netenyahu.EpisodeRun(("editor",), {})
+    p = dataclasses.replace(plan_episode("what did the fed decide", 1.5), search=False,
+                            evidence=EVIDENCE, word_budget=20)
+    read_when_spoken = []
+
+    async def go():
+        async for _s in gen.stream_prepared(p, notes):
+            read_when_spoken.append(len(gen.streams[0].read))
+
+    asyncio.run(go())
+    assert read_when_spoken and read_when_spoken[-1] < len(long.split(" "))
+
+
+def test_a_plan_that_did_not_shape_the_episode_is_not_on_its_record(monkeypatch):
+    settings_for(monkeypatch, words=8)
+
+    async def outline(p, notes=None, **kw):
+        notes.editor = {"beats": 0}
+        return ""
+
+    monkeypatch.setattr(editor, "outline", outline)
+    gen, _, _ = generator()
+    _spoken, notes, _ = run(gen)
+    assert notes.editor_tandem == "no_plan" and notes.editor is None
+
+
+def test_the_local_gap_line_is_part_of_what_was_spoken(monkeypatch):
+    settings_for(monkeypatch, words=8)
+    shakespeare(monkeypatch)
+    monkeypatch.setattr(sg._ScriptReader, "opening", lambda self: ["Nothing came from the town."])
+    gen, asked, _ = generator()
+    spoken, notes, _ = run(gen)
+    assert spoken[0] == "Nothing came from the town." and notes.editor_tandem == "handed_over"
+    prompt = asked[1]["messages"][0]["content"][-1]["text"]
+    assert "<already_spoken>\nNothing came from the town. The Federal Reserve" in prompt
