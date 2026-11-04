@@ -29304,3 +29304,92 @@ match; CI installs its own browser and is unaffected.
 Tests: `tests/test_mclovin_eval_446.py` (the nearest name is the speaker; a
 role never is; accented names are read; a name cut by the window is not
 taken), each failing on the old planter.
+
+## 447. Finishing Phase 3, piece 2: HHEM measured for accuracy, and as int8 ONNX on one thread (2026-11-04)
+
+§444 timed HHEM-2.1-Open but did not measure whether it is right. This piece
+did both, on §446's recreated data, in a throwaway virtualenv in the
+scratchpad (torch, transformers, onnx - never `requirements.txt`; PyPI's
+Linux torch needs its CUDA packages even on a CPU, and the PyTorch CPU index
+is refused by this environment). Nothing in FAM changed.
+
+**The data.** All 2,408 sentences of §446's 150 scripts (119 have no source
+near them, which the `support` check already handles without the checker) and
+349 planted mistakes from `agents/supervisor_cases.py` with their originals:
+changed numbers (109), two stories joined (141), "yesterday" on old news
+(51), unsupported "first" (35) and "biggest" (13). Three premises:
+
+- **A** - the owner's: the nearest source's sentences that share words with
+  the claim, to 1,000 characters (~250 tokens);
+- **B** - the same length, but the evidence text only (A carried each
+  source's "Title / Published / Source type" lines, as `b.text` does today)
+  and the best-matching sentences from any source;
+- **C** - the best of three scores, one per nearest source, each cut to
+  1,600 characters (~400 tokens): three times the work, an upper bound.
+
+**Real sentences, full model** (support fails a sentence at ≤0.2 only when it
+names someone, a number or a date - decided item 12):
+
+| premise | ≥0.8 | between | ≤0.2 | support would fail |
+|---|---|---|---|---|
+| A | 18.5% | 29.3% | 52.2% | 34.7% |
+| B | 30.9% | 35.8% | 33.3% | 20.6% |
+
+**Not every real sentence is clean** (§437's Opus grader counted 3.6
+unsupported claims an episode), so the fails were judged: Opus 5.5 (Mclovin's
+nightly reviewer's model), under `grounding.SECOND_LOOK`, read 120 real
+sentences stratified by HHEM's band on B - 60 fails, 30 unsure, 30 passes -
+each alone with its three nearest sources ($1.31). Of HHEM's 60 fails Opus
+found **35 supported** and 23 not; of its passes, 4 of 30 unsupported. Weighted
+back to all sentences (Opus finds ~18% unsupported):
+
+| premise | false flags (fails Opus calls supported) | real ones caught | planted caught | lower than its original |
+|---|---|---|---|---|
+| B | ~12% of sentences | ~8% (44% of them) | 64% | 84% |
+| C | ~9% | ~11% (63%) | 66% | 86% |
+
+By kind on B: two stories joined 71% caught, "first" 77%, numbers 62%,
+"biggest" 46%, "yesterday" 45% (HHEM does not read dates against today, as
+expected). **The bar to enforce is ≥90% caught and ≤1% flagged; HHEM is
+nowhere near it on any premise**, and the longest premise buys little. It
+does rank: a planted mistake scores below its own original 84-86% of the
+time. What it misses is mostly paraphrase - an audio sentence that restates
+two source sentences in other words reads to it as unsupported.
+
+**The web-instance route** (the embedder's: `onnxruntime` and `tokenizers`
+only, no torch). The scoring path of HHEM's `predict` (flan-t5-base encoder,
+first token, softmax) exported to ONNX (439 MB) and quantised dynamically:
+
+| model | size | agrees with fp32 (same band) | per sentence, one thread, B (median / p90 / max) | process memory |
+|---|---|---|---|---|
+| fp32 | 439 MB | - | 0.38 / 0.44 / 0.50 s | 613 MB |
+| int8 | 110 MB | 75% (mean diff 0.13) | 0.10 / 0.12 / 0.16 s | 290 MB |
+| **int8, feed-forward out (`wo`) kept fp32** | 167 MB | **96%** (mean diff 0.02) | **0.16 / 0.20 / 0.24 s** | **360 MB** |
+
+Plain int8 is fast but changes a quarter of the verdicts - T5's feed-forward
+output layers do not survive 8-bit; keeping those twelve in fp32 fixes it.
+On the web instance (2 GB; FAM holds ~400 MB) the last row is ~310 MB more
+memory and ~2.7 s of the one CPU per 17-sentence episode; the first sentence
+fits the owner's 0.3 s deadline (max 0.24 s alone, more under load). It
+would ship as the embedder does - downloaded at image build
+(`tools/install_embed.sh`'s pattern), revision pinned, no new package.
+
+**A small CPU worker** (a Render private service, called over the private
+network): Render's list prices are $7 a month (Starter, 512 MB, 0.5 CPU - the
+model fits, at about twice the time, which misses 0.3 s) and $25 (Standard,
+2 GB, 1 CPU), plus build minutes; to be confirmed on Render's pricing page.
+
+**Recommendation, for the owner's decision.** Neither route makes `support`
+enforceable: at ~9-12% false flags it would send one sentence in ten back to
+the writer for nothing. So it can only count. For counting, the web instance
+is enough - no machine, no monthly cost, 0.16 s a sentence - and a worker
+buys nothing until a checker is good enough to enforce. The unsure band's
+Haiku second look runs only while `support` is enforced, so it would cost
+nothing. If the owner wants `support` to enforce one day, the question is a
+better checker, not a better machine (a MiniCheck-7B-class model needs a GPU;
+or Haiku 5.5 on every sentence with a name, number or date, ahead of the tap
+only - about $0.0002 a sentence, ~$25 per 10,000 episodes, accuracy
+unmeasured).
+
+Tests: none; nothing in FAM changed. The scripts (dataset, scoring, export,
+quantisation, the Opus sample) stayed in the scratchpad with the virtualenv.
