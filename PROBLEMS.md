@@ -29102,3 +29102,18 @@ Tests: `tests/test_supervisor_screen_model_441.py` (the screen records what
 it could not settle; one call judges them; the asked-for person's page stays;
 any failure keeps all; unsure kept and a page judged once; the packet loses
 a ruled-out page ahead of the tap; nothing asked on the tap or with him off).
+
+## 442. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04)
+
+The owner signed manifest version 5 (995499f, "mclovin v3"): `mclovin.md` is
+the §441 proposal byte for byte and `MANIFEST.json` the pending manifest byte
+for byte - only `mclovin.md`'s fingerprint changed - in one commit of the
+three files. `python tools/rulebook_manifest.py --verify`: all eight agents
+may run, signed with the same `owner.pub`. "Always" 9 now names what §439
+built: a stronger model chosen by the owner reads a sample of his verdicts
+each night, one sentence and its sources at a time, never a whole script,
+each sentence once, and its reviews never change an episode. The proposal
+and the pending manifest are deleted; the proposals README says nothing is
+waiting. The owner updates the copy held outside Claude to v3.
+
+Tests: `tests/test_mclovin_review_439.py` (the signed book names the review).

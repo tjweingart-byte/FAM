@@ -442,3 +442,4 @@ and `limit` = Lines.
 | 28876 | 135 | 439. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03) |
 | 29011 | 34 | 440. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03) |
 | 29045 | 61 | 441. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04) |
+| 29106 | 15 | 442. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |

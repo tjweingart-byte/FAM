@@ -151,6 +151,15 @@ def test_the_reviewers_failures_are_the_rule_books():
         assert failure in FAILURES
 
 
+def test_his_signed_book_names_the_nightly_review():
+    """mclovin.md v3 (signed 2026-11-04, §442): "always" 9."""
+    import pathlib
+
+    book = " ".join(pathlib.Path("docs/agent_rules/mclovin.md").read_text().split())
+    assert "Let your reviewer" in book and "never a whole script" in book
+    assert "they never change an episode" in book
+
+
 def test_the_review_is_scheduled_nightly_only_while_he_works():
     assert ("supervisor", "review", 3, "supervisor") in netenyahu.SCHEDULE
 
