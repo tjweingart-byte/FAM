@@ -29569,3 +29569,61 @@ each question's low and medium scripts blind, ~$0.60) - and then the tandem
 design behind a switch, off by default.
 
 Tests: none; nothing in FAM changed. The script stayed in the scratchpad.
+
+## 452. Shakespeare on searchFAM: low effort keeps quality, and he plans beside the writer (2026-11-04)
+
+The owner (2026-11-04): "Do a then b" - (a) whether low or medium effort
+keeps quality, (b) the in-tandem design on search behind a switch.
+
+**(a) Low against medium, judged blind** ($0.838: the writer wrote from each
+of §451's 40 plans, $0.066; Opus 5.5 compared each question's two scripts,
+in a shuffled order, against the evidence under FAM's episode rules -
+answer the question first, a story not a list, every sentence informs, a
+concrete open and end, nothing unsupported - and counted each script's
+unsupported claims). Over 20 questions: **medium better on 11, low on 9,
+none the same; unsupported claims 1.60 a script on both.** That is no
+difference (11-9 is a coin's spread), so low keeps quality at this length,
+at a third of the time (3.8 s against 12.5 s) and three-fifths of the cost.
+His search path was already low in code (`agents/editor.outline`). Caveat:
+at low he once gave no plan (1 in 20); the writer then wrote from the
+packets.
+
+**(b) In tandem (`EDITOR_TANDEM`, off).** In `stream_prepared`, when he works
+on a searchFAM episode (Netenyahu: switches on, not a private search or an
+attachment; not an episode written ahead of the tap, which he planned in
+`prepare`), `_tandem_plan` starts his plan - his real request, on
+`EDITOR_SEARCH_MODEL` at low effort, within `EDITOR_TIMEOUT_SECONDS` - the
+moment writing starts. The writer's first call is exactly today's request
+and opens from the packets ([opening-last]; the first word is not moved).
+Once `EDITOR_TANDEM_OPENING_WORDS` (30, ~11 s of audio) are spoken, the
+writer waits for his plan until `EDITOR_TANDEM_WAIT_SECONDS` (7) from its
+start. A plan in time: the first call is no longer read, its unfinished
+sentence is dropped, and a second writer call - the same system block, its
+prompt with his outline in it, then what was already spoken and the words
+left (`TANDEM_CONTINUE`) - writes the rest, read by the **same** reader, so
+every guard, Mclovin's checks and repairs and the word budget carry on.
+Late, empty or failed: the first call carries on as today. Both calls are
+metered from their own final messages - the first is read to its end after
+the second, its text unused, so no token is estimated (~$0.00075 an episode
+of writer output). His rule book is unchanged: he points at sentences by
+number, the writer writes. Recorded on `ScriptNotes.editor_tandem`
+(handed_over / late / no_plan / short) and counted in his health block,
+which says whether the tandem is on. Off, `stream_prepared` runs the code
+it always did.
+
+Unmeasured until it runs with the key: how often the plan is in by 7 s on
+real searches (§451's p90 was 6.4 s), whether the hand-over is heard (the
+second call's first sentence must arrive before the opening's ~11 s of audio
+ends), and whether the rest of the episode is better for the plan - the
+next measures, for the owner to ask for.
+
+Settings (new): `EDITOR_TANDEM`, `EDITOR_TANDEM_OPENING_WORDS`,
+`EDITOR_TANDEM_WAIT_SECONDS`, in `config.py`, `.env.example` and
+`tests/conftest.py`.
+
+Tests: `tests/test_editor_tandem_452.py` (off, as always; a plan in time
+writes the rest from it, the opening whole sentences, the second call
+reading the plan, what was spoken and the words left, both calls metered;
+never in front of the first word; late, empty, or an episode shorter than
+the opening - the writer as it was; not ahead of the tap, not when he does
+not work; the settings copied and off).

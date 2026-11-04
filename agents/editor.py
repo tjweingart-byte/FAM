@@ -340,7 +340,9 @@ def report() -> dict:
     with _LOCK:
         # Whether decided item 37's two weeks are running (§450).
         return {"since_boot": dict(SINCE_BOOT),
-                "trial": bool(getattr(settings, "editor_trial", False))}
+                "trial": bool(getattr(settings, "editor_trial", False)),
+                # Beside the writer on searchFAM (§452).
+                "tandem": bool(getattr(settings, "editor_tandem", False))}
 
 
 def reset() -> None:

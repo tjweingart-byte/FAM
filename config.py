@@ -2130,6 +2130,18 @@ class Settings:
     editor_trial: bool = field(
         default_factory=lambda: os.environ.get("EDITOR_TRIAL", "0")
         not in ("0", "false", "False", ""))
+    # Shakespeare on searchFAM, in tandem with the writer (§452): he plans
+    # (`EDITOR_SEARCH_MODEL`, low effort) while the writer opens from the
+    # packets as today; once `EDITOR_TANDEM_OPENING_WORDS` are spoken the
+    # writer waits for his plan until `EDITOR_TANDEM_WAIT_SECONDS` from its
+    # start, and a second writer call writes the rest from it. Late or no
+    # plan: the first call carries on as today. Never in front of the first
+    # word. Off: search is written as it always was.
+    editor_tandem: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_TANDEM", "0")
+        not in ("0", "false", "False", ""))
+    editor_tandem_opening_words: int = _env_int("EDITOR_TANDEM_OPENING_WORDS", 30)
+    editor_tandem_wait_seconds: float = _env_float("EDITOR_TANDEM_WAIT_SECONDS", 7.0)
     # 2 s and 500 tokens, the owner's (§449): at 1 s and 300 most of his
     # second looks timed out or ran out of room (§448). Also the deadline
     # for one sentence's code checks, which take well under a millisecond.
