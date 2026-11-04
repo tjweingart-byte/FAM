@@ -981,6 +981,37 @@
   one of these episodes**; there is no key here, and quality is the whole
   point of this set.
 
+<!-- rule:heard-not-tapped -->
+- **A listen is something heard, not a tap** *(§433, at the owner's
+  direction; `topics.counts_as_heard`, `_heard_pairs`, `EventStore.note_progress`.)*
+  The server writes a `play` the moment it begins sending audio - before a
+  word is heard, and even when the episode then fails - and the crowd rows
+  read nothing else, so a two-second tap, a skip and a failure each counted
+  as a listen, and one person tapping an episode six times topped the row.
+  Now **What FAM can't stop playing**, **What your friends are listening
+  to**, the friends' faces on a card and **What you missed last week** count
+  a listener only once they heard it: `HEARD_SECONDS` (30) in, or
+  `HEARD_SHARE` (30%) of a shorter episode - the real length once the player
+  has it, else the minutes - or a finish.
+  * **The server's clock holds the position.** The player reports where it
+    is (`/api/progress`, every fifteen seconds); `note_progress` keeps a
+    heard listen in its own table (`heard_listens`, never read for taste)
+    only when the time since the server began serving the play covers the
+    threshold at `MAX_PLAYBACK_SPEED` (2x). A `complete` sooner than
+    `MIN_HEARD_ELAPSED` after its play was scrubbed to and is not a finish.
+  * **A skip below the threshold cancels the listen**, because nothing was
+    heard to count; a play alone, or a play and a skip, is not on a tally.
+  * **People before listens** (`_by_listens`): the most played row ranks by
+    how many people heard an episode, total listens only the tiebreak.
+    This narrows §181's "in order of total listens" at the owner's direction.
+  * **A friend's creation is not a listen**: an episode a friend wrote counts
+    on their rail only once they heard it.
+  * The taste model still reads every `play` - a tap is a statement of
+    curiosity - and nothing here changes its weights.
+  * /admin shows **Tapped against heard** (`topics.listen_report`): per
+    question, people served, people who heard it, people who finished.
+    A wipe and an account deletion take `heard_listens` with the log.
+
 <!-- rule:missed-rail -->
 - **The weekly recap is a rail, not a popup.** *(`topics.rank_missed`,
   `MYFAM.md`.)* It was one episode *about* somebody's week, fired on the first

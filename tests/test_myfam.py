@@ -40,6 +40,9 @@ def _account(client, email="me@fam.test"):
 def play(store, user, topic_id, kind="play", ago=0.0):
     store.record(T.Event(user, kind, topic_id, "",
                          T.BANK_BY_ID[topic_id].tags, time.time() - ago))
+    # Heard past its threshold (§433): the crowd rows count nothing less.
+    if kind == "play":
+        store.mark_heard(user, "", time.time() - ago, topic_id)
 
 
 def crowd_plays(store, topics, user="stranger"):

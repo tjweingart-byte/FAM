@@ -172,6 +172,12 @@
    listeners played three to seven days ago that this one never heard, with
    no live-feed episode (Polymarket, Finnhub, API-Sports), nothing from the
    story pool or Trending, and no top-up.
+
+   > **Current:** since §433 (`[heard-not-tapped]`) all three count only a
+   > *heard* listen - 30 seconds, or 30% of a shorter episode, on the
+   > server's clock, or a finish - never a bare `play`; the crowd row ranks
+   > by people first, total listens as the tiebreak; and a friend's
+   > creation counts only once that friend heard it.
    **"What your friends are listening to" now reads the follow graph.** It
    was co-listener overlap under a heading that said "your circle", on a card
    that said "people you follow" about strangers; `social.circle_of` is

@@ -225,12 +225,14 @@ def test_the_crowd_rows_never_invent_a_play_and_show_four_once_they_can(store):
     for n, topic in enumerate(T.TOPIC_BANK[:2]):
         store.record(T.Event(f"other{n}", "play", topic.id, topic.query,
                              topic.tags, at=time.time() - 60))
+        store.mark_heard(f"other{n}", topic.query, time.time() - 30)  # §433
     shown = ids(rail(T.build_feed(store, "me"), "most_played"))
     assert len(shown) == 2, "the row was padded with tiles nobody played"
 
     for n, topic in enumerate(T.TOPIC_BANK[2:9]):
         store.record(T.Event(f"more{n}", "play", topic.id, topic.query,
                              topic.tags, at=time.time() - 60))
+        store.mark_heard(f"more{n}", topic.query, time.time() - 30)  # §433
     assert len(ids(rail(T.build_feed(store, "me"), "most_played"))) == 4
 
 

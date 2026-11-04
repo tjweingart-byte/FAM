@@ -49,6 +49,8 @@ def store(tmp_path):
         for n in range(8 - rank):
             store.record(topics_mod.Event(f"listener-{n}", "play", topic.id,
                                           "", topic.tags, time.time()))
+            # Heard, not just tapped (§433): the crowd row counts no less.
+            store.mark_heard(f"listener-{n}", topic.query, time.time())
     return store
 
 

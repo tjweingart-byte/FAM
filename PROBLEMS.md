@@ -28033,6 +28033,14 @@ section 0 is restated on those figures: data plans about $632 a month at
 launch, and the audience totals about $20 lower. `provider_usage.py`, the
 `sports-balldontlie` rule and its note keep Main's wording.
 
+**Added the same day, at the owner's request:** the slide's search row was
+Perplexity and Parallel alone, so FINANCIAL.md 0.3 now also has Claude by
+audience ($69 / $125 / $593 / $3,795 a month at 100 / 1k / 10k / 100k
+listeners: ≈ $0.005 an on-demand episode, ≈ $0.004 one written ahead, plus
+≈ $40 of shared background calls) and plugins and AI together ($712 / $785 /
+$1,402 / $5,582, on the $632 of data plans above), with the assumptions
+they rest on. Written after the merge note above, so already on its figures.
+
 **Pinned by** `tests/test_financials.py::test_tiingo_s_licence_is_priced_and_the_episode_is_haiku_s`.
 
 ## 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03)
@@ -28426,6 +28434,66 @@ saved question finds the chosen episode's key, the 300 resumes with the
 question rewritten), `tests/test_advice_425.py`, the Atlas fake in
 `tests/test_withdraw_refused_430.py`, and the smoke check now asserts the
 question carries the choice.
+
+## 433. A listen is something heard, not a tap (2026-11-03)
+
+The owner: "it doesn't have a great tell on when a user has actually
+listened to something or not", for **What your friends are listening to**
+and **What FAM can't stop playing**. Checked, and true. The server writes a
+`play` the moment it begins sending audio (`app.py`, both the stream and the
+§252 link), before a word is heard and even when the episode then fails, and
+`listens_between` - the crowd rows' only input - reads `play` and `complete`
+and nothing else. The client's `skip` (sent past five seconds) was never
+read by them, and a tap that left inside five seconds sent nothing. A probe
+against the real tally: one listener tapping an episode six times ranked
+above two people, a two-second tap and a twenty-second skip were two
+listens, and both put a face on a friend's card. A friend who asked for an
+episode and left at once put it on the friends row as "created".
+
+What the server already knew and ignored: the player's position every
+fifteen seconds (`/api/progress`), kept per episode only for the quality
+report (`episode_quality.note_listen`, §309).
+
+**The guardrails** (`[heard-not-tapped]`):
+
+1. **Heard means past a threshold**: 30 seconds, or 30% of a shorter
+   episode (the real length once the player has it, else the minutes), or a
+   finish. `EventStore.note_progress` keeps it in a table of its own,
+   `heard_listens` (one row per listener and question, `at` the latest
+   heard) - never in `events`, so nothing that reads taste, subjects or
+   engagement sees it.
+2. **Held to the server's clock**: the time since the server began serving
+   the play must cover the threshold at the player's fastest speed (2x), so
+   the bar dragged to the end is not a listen; a `complete` less than
+   `MIN_HEARD_ELAPSED` (9 s) after its play was scrubbed to. A skip below
+   the threshold is not a listen, because nothing was heard.
+3. **People before listens**: `_by_listens` is now (people, listens,
+   recency), narrowing §181's "in order of total listens".
+4. **A creation is not a listen**: `rank_friends` still reads `authored`,
+   but only a friend who heard it puts it on the row; `friends_who_listened`
+   (the faces) reads heard listens only.
+6. **Visible**: /admin's **Tapped against heard** (`topics.listen_report`):
+   per question, people served, people who heard it, people who finished; no
+   listener named. `forget` and `clear` take `heard_listens`.
+
+`_tally_listens` and `_heard_pairs` are shared, so **What you missed last
+week** counts heard listens too. The taste model is unchanged - a tap is a
+statement of curiosity - and `play` is still written when audio is served.
+`tools/seed_demo.py` marks its invented plays heard. The live preview's JS
+stand-in for these rows was already an approximation (30 days, no graph)
+and is not changed.
+
+**What this costs on deploy:** heard listens are recorded from now on, and
+plays from before carry none. Finished listens (`complete`) still count, so
+the rows thin rather than empty for a day, while progress builds up.
+Not done (5, the owner's choice): a floor of two people before a tile goes
+on the most played row.
+
+Tests: `tests/test_heard_listens_433.py` (the threshold, the clock against a
+scrubbed bar and a scrubbed `complete`, a tap and a skip not counted, people
+before listens, a creation that is not a listen, faces, forget and clear,
+taste never reading it, the report naming nobody); the play helpers in eight
+older test files now mark their invented listens heard.
 
 ## 434. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03)
 
