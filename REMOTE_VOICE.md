@@ -506,6 +506,32 @@ immediately after a redeploy is normal and not a fault: the registry is on
 the disk like every other database, and a live pod re-registers on its next
 heartbeat.
 
+## Faster on the same card (§446)
+
+`chatterbox_speed.py` runs the same voice settings and the same seeded draws
+through a loop without the work Chatterbox 0.1.7's own loop throws away
+(every layer's attention maps on every token, which forces eager attention,
+and a CPU wait after every token). It is **off** until a card has measured it.
+To try it:
+
+1. On a Pod with the same image and the voice volume (as for `verify_voice.py`):
+
+        python tools/bench_voice_speed.py --save /workspace/speed
+        CHATTERBOX_FAST=1 python verify_voice.py --fingerprint
+
+   The bench reports whether each sentence drew identical speech tokens, the
+   speed-up on the token stage and the whole chunk's realtime factor, and
+   writes stock/fast pairs to listen to. Then `--bf16` and `--compile`.
+2. If the fingerprint passes and the pairs sound the same, set on the
+   **endpoint** (Manage → Edit Endpoint → Environment variables), not on Render:
+   `CHATTERBOX_FAST=1`; with `--compile` measured too, `CHATTERBOX_COMPILE=1`
+   and `TORCHINDUCTOR_CACHE_DIR=/runpod-volume/inductor` (so a cold worker
+   loads the compiled code instead of compiling for 20-60 s); with `--bf16`
+   listened to, `CHATTERBOX_BF16=1`.
+3. Each worker reports its path under `speed` in its identity, so a change in
+   the voice can be traced to the workers that had it on. Then measure the
+   realtime factor again and set `SYNTHESIS_REALTIME_FACTOR` on Render.
+
 ## The cold start, and what is done about it
 
 A serverless worker at zero pays container boot plus a ~10s model load before

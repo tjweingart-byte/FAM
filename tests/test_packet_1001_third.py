@@ -149,7 +149,8 @@ def test_due_at_the_listen_time_once_the_edition_is_written(tmp_path, monkeypatc
     pushes = push.PushStore(str(tmp_path / "m.db"))
     monkeypatch.setattr(push, "_edition_ready", lambda now: True)
     assert push.due(store, pushes, _local(2026, 10, 2, 7, 29)) == []
-    assert [(m.id, d) for m, d in push.due(store, pushes, _local(2026, 10, 2, 7, 31))] \
+    # §448: within fifteen minutes of the listen time, never later.
+    assert [(m.id, d) for m, d in push.due(store, pushes, _local(2026, 10, 2, 7, 45))] \
         == [(mix.id, "2026-10-02")]
     # Past the grace window, a "ready" is noise.
     assert push.due(store, pushes, _local(2026, 10, 2, 7, 30) + push.GRACE_SECONDS + 1) == []
@@ -179,7 +180,7 @@ def test_the_listen_time_is_the_listeners_own_clock(tmp_path, monkeypatch):
     store, mix = _mix_at(tmp_path, listen_at="08:00", zone="Asia/Tokyo")
     pushes = push.PushStore(str(tmp_path / "m.db"))
     monkeypatch.setattr(push, "_edition_ready", lambda now: True)
-    due = push.due(store, pushes, _local(2026, 10, 2, 8, 1, "Asia/Tokyo"))
+    due = push.due(store, pushes, _local(2026, 10, 2, 8, 15, "Asia/Tokyo"))
     assert [(m.id, d) for m, d in due] == [(mix.id, "2026-10-02")]
 
 
@@ -190,7 +191,7 @@ def test_sent_once_a_day_and_only_where_it_can_be_delivered(tmp_path, monkeypatc
     sent = []
     monkeypatch.setattr(push, "_send_webpush",
                         lambda sub, payload, ps: sent.append((sub["endpoint"], payload)) or True)
-    now = _local(2026, 10, 2, 7, 31)
+    now = _local(2026, 10, 2, 7, 45)
     # Nowhere to send: nothing claimed, so subscribing in the window still works.
     assert push.tick(store, pushes, now) == []
     pushes.subscribe("u", {"endpoint": "https://push.example/1",
@@ -346,7 +347,7 @@ def test_nobody_outside_the_waitlist_is_notified(tmp_path, monkeypatch, keys):
                            "keys": {"p256dh": "k", "auth": "a"}})
     monkeypatch.setattr(push, "_edition_ready", lambda now: True)
     monkeypatch.setattr(push, "_send_webpush", lambda sub, payload, ps: True)
-    now = _local(2026, 10, 2, 7, 31)
+    now = _local(2026, 10, 2, 7, 45)  # §448: within the 15-minute spread
     assert push.tick(store, pushes, now, allowed=lambda uid: False) == []
     # Not claimed, so once they are let in the same day's still goes out.
     assert push.tick(store, pushes, now + 60, allowed=lambda uid: True) \
@@ -390,3 +391,23 @@ def test_the_push_store_closes_its_connections():
     src = (ROOT / "push.py").read_text()
     assert "db.close()" in src
     assert "push_store._connect" not in src
+
+
+def test_pushes_spread_over_fifteen_minutes_and_no_more(tmp_path, monkeypatch):
+    """§448: listen times cluster on the hour; their pushes do not."""
+    assert push.SPREAD_SECONDS == 15 * 60
+    offsets = {push.spread_offset(f"mix-{i}", "2026-10-02") for i in range(400)}
+    assert min(offsets) >= 0 and max(offsets) <= 15 * 60
+    assert max(offsets) - min(offsets) > 12 * 60, "pushes still land together"
+    # Fixed for a mix and a day (a restart does not move it), new each day.
+    assert push.spread_offset("m", "2026-10-02") == push.spread_offset("m", "2026-10-02")
+    assert len({push.spread_offset("m", f"2026-10-{d:02d}") for d in range(1, 29)}) > 1
+
+    store, mix = _mix_at(tmp_path)
+    pushes = push.PushStore(str(tmp_path / "m.db"))
+    monkeypatch.setattr(push, "_edition_ready", lambda now: True)
+    at = _local(2026, 10, 2, 7, 30)
+    offset = push.spread_offset(mix.id, "2026-10-02")
+    if offset:
+        assert push.due(store, pushes, at + offset - 1) == []
+    assert [m.id for m, _ in push.due(store, pushes, at + offset)] == [mix.id]

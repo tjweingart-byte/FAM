@@ -12,7 +12,10 @@ would cost if it came back:
 * **A search by somebody who never picked a voice** was voiced again in the
   default whenever another listener's voice was kept - a GPU job and a
   first-play stream for audio that already existed. It now replays the kept
-  voice. Any choice, the default included, is still honoured.
+  voice. §447 (the owner, 11.04) widened this to every search whose voice
+  was not picked for it: a standing choice - the default, or the voice last
+  picked - plays the kept voice; a voice picked for this search
+  (`voice_picked=1`) is honoured exactly.
 """
 from __future__ import annotations
 
@@ -89,10 +92,11 @@ def test_a_whole_file_fallback_streams_pcm_not_opus():
 # --- the voice a search is spoken in ------------------------------------------
 
 
-def _search(client, voice=""):
+def _search(client, voice="", picked=False):
     return client.get("/api/audio", params={
         "q": "how volcanoes form", "minutes": 3, "fmt": "pcm", "surface": "search",
-        **({"voice": voice} if voice else {})})
+        **({"voice": voice} if voice else {}),
+        **({"voice_picked": 1} if picked else {})})
 
 
 def _default():
@@ -103,7 +107,7 @@ def test_a_listener_who_never_chose_replays_the_kept_voice(served):
     first = TestClient(appmod.app)
     assert first.post("/api/voices/choice",
                       json={"voice": "chatterbox:nova"}).status_code == 200
-    assert _search(first).status_code == 200
+    assert _search(first, voice="chatterbox:nova", picked=True).status_code == 200
     assert BankEngine.spoken and set(BankEngine.spoken) == {"chatterbox:nova"}
 
     BankEngine.spoken = []
@@ -116,25 +120,48 @@ def test_a_listener_who_never_chose_replays_the_kept_voice(served):
     assert res.headers["x-fam-cache"] == "hit"
 
 
-def test_choosing_the_default_is_a_choice(served):
+def test_a_standing_choice_of_the_default_replays_the_kept_voice(served):
+    """§447: the voice last picked - the default here - is not a pick for
+    this search, so kept audio in another voice plays as a replay."""
     first = TestClient(appmod.app)
     first.post("/api/voices/choice", json={"voice": "chatterbox:nova"})
-    _search(first)
+    _search(first, voice="chatterbox:nova", picked=True)
     BankEngine.spoken = []
     chose = TestClient(appmod.app)
     assert chose.post("/api/voices/choice", json={"voice": _default()}).status_code == 200
-    _search(chose, voice=_default())
-    assert BankEngine.spoken, "an explicit choice of the default was overridden"
-    assert "chatterbox:nova" not in BankEngine.spoken
+    res = _search(chose, voice=_default())
+    assert BankEngine.spoken == [], "a standing choice re-voiced a cached search"
+    assert res.headers["x-fam-cache"] == "hit"
 
 
-def test_a_voice_named_by_the_request_is_honoured(served):
+def test_a_standing_choice_of_another_voice_replays_the_kept_voice(served):
     first = TestClient(appmod.app)
     first.post("/api/voices/choice", json={"voice": "chatterbox:nova"})
-    _search(first)
+    _search(first, voice="chatterbox:nova", picked=True)
     BankEngine.spoken = []
-    _search(TestClient(appmod.app), voice="chatterbox:ellis")
+    other = TestClient(appmod.app)
+    other.post("/api/voices/choice", json={"voice": "chatterbox:ellis"})
+    _search(other, voice="chatterbox:ellis")
+    assert BankEngine.spoken == [], "the voice last picked re-voiced a cached search"
+
+
+def test_a_voice_picked_for_this_search_is_honoured(served):
+    first = TestClient(appmod.app)
+    first.post("/api/voices/choice", json={"voice": "chatterbox:nova"})
+    _search(first, voice="chatterbox:nova", picked=True)
+    BankEngine.spoken = []
+    _search(TestClient(appmod.app), voice="chatterbox:ellis", picked=True)
     assert set(BankEngine.spoken) == {"chatterbox:ellis"}
+
+
+def test_picking_the_default_for_this_search_is_honoured(served):
+    first = TestClient(appmod.app)
+    first.post("/api/voices/choice", json={"voice": "chatterbox:nova"})
+    _search(first, voice="chatterbox:nova", picked=True)
+    BankEngine.spoken = []
+    _search(TestClient(appmod.app), voice=_default(), picked=True)
+    assert BankEngine.spoken, "a pick of the default for this search was overridden"
+    assert "chatterbox:nova" not in BankEngine.spoken
 
 
 def test_with_nothing_kept_a_listener_who_never_chose_hears_the_default(served):
@@ -143,12 +170,22 @@ def test_with_nothing_kept_a_listener_who_never_chose_hears_the_default(served):
     assert not {"chatterbox:nova", "chatterbox:ellis"} & set(BankEngine.spoken)
 
 
-def test_an_unreadable_choice_is_treated_as_a_choice(monkeypatch):
-    def broken():
-        raise RuntimeError("bank down")
+def test_with_nothing_kept_the_voice_last_picked_speaks(served):
+    """Nothing to replay: the standing choice is what the episode is voiced in."""
+    client = TestClient(appmod.app)
+    client.post("/api/voices/choice", json={"voice": "chatterbox:ellis"})
+    _search(client, voice="chatterbox:ellis")
+    assert set(BankEngine.spoken) == {"chatterbox:ellis"}
 
-    monkeypatch.setattr(voice_bank, "bank", broken)
-    assert appmod._has_chosen_voice("someone") is True
+
+def test_the_app_sends_a_pick_once_and_never_from_settings():
+    html = open(os.path.join(ROOT, "static", "index.html")).read()
+    js = open(os.path.join(ROOT, "static", "fam-audio.js")).read()
+    assert 'listener.voicePicked ? "&voice_picked=1"' in js
+    assert 'voicePicked: surface === "search" && voicePickedForSearch' in html
+    assert 'if(surface === "search") voicePickedForSearch = false;' in html
+    assert "openVoiceMenu('settings')" in html
+    assert 'if(voiceMenuFrom !== "settings") voicePickedForSearch = true;' in html
 
 
 def test_switching_voice_on_the_player_waits_for_the_choice():

@@ -445,4 +445,8 @@ and `limit` = Lines.
 | 29113 | 61 | 442. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04) |
 | 29174 | 15 | 443. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |
 | 29189 | 41 | 444. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04) |
-| 29230 | 10 | 445. This branch's sections renumbered: Main took §433 (2026-11-04) |
+| 29230 | 11 | 445. This branch's sections renumbered: Main took §433 (2026-11-04) |
+| 29241 | 45 | 446. Chatterbox faster on the same card: the fast T3 loop, off until measured (2026-11-04) |
+| 29286 | 23 | 447. A search plays its kept voice unless a voice was picked for it (2026-11-04) |
+| 29309 | 12 | 448. Mix "ready" pushes spread over fifteen minutes (2026-11-04) |
+| 29321 | 19 | 449. Search length measured from the ledger; the usage report ran again (2026-11-04) |

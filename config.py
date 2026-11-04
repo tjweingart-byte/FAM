@@ -1845,6 +1845,31 @@ class Settings:
     # re-rolls every sentence at once. Blank is the default roll.
     chatterbox_seed_salt: str = field(
         default_factory=lambda: os.environ.get("CHATTERBOX_SEED_SALT", "").strip())
+    # §446: Chatterbox's speech-token loop without the work it throws away
+    # (`chatterbox_speed.py`): every layer's attention maps and hidden states
+    # on every token, which forces eager attention, and a CPU wait after every
+    # token. Same settings, same seeded draws; SDPA instead of eager attention
+    # is the one numerical difference, so it is off until a card has measured
+    # it (`tools/bench_voice_speed.py`) and `verify_voice.py --fingerprint`
+    # passes with it on. Only ever runs on chatterbox-tts 0.1.7's English model.
+    chatterbox_fast: bool = field(
+        default_factory=lambda: os.environ.get("CHATTERBOX_FAST", "0")
+        .strip().lower() in ("1", "true", "yes", "on"))
+    # With the fast loop: the transformer in bf16. Changes the numbers more
+    # than SDPA does, so it is a separate switch and must be listened to.
+    chatterbox_bf16: bool = field(
+        default_factory=lambda: os.environ.get("CHATTERBOX_BF16", "0")
+        .strip().lower() in ("1", "true", "yes", "on"))
+    # With the fast loop: `torch.compile` the transformer. Set
+    # TORCHINDUCTOR_CACHE_DIR to a folder on the network volume, or every cold
+    # worker spends 20-60 s compiling before its first chunk.
+    chatterbox_compile: bool = field(
+        default_factory=lambda: os.environ.get("CHATTERBOX_COMPILE", "0")
+        .strip().lower() in ("1", "true", "yes", "on"))
+    # How many tokens pass between checks for the end of speech - the loop's
+    # only CPU wait. Tokens after the stop token are discarded, so this costs
+    # at most this many wasted steps at a chunk's end and changes no audio.
+    chatterbox_eos_check_every: int = _env_int("CHATTERBOX_EOS_CHECK_EVERY", 16)
     # The fingerprint of the recording every voice worker must clone (§176):
     # the sha256 `tools/pack_for_pod.py` prints. Set, a worker reporting a
     # different recording is refused rather than used - a swapped pod used to

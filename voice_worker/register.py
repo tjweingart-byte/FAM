@@ -202,7 +202,20 @@ def identity() -> dict:
         # them (§176): neither can be read off a pod from outside otherwise.
         "weights_revision": _weights_revision(),
         "chatterbox_version": _chatterbox_version(),
+        # Which synthesis path this worker runs (§446): stock Chatterbox, or
+        # the fast loop with or without bf16 and compile. A speed-up that
+        # changed the voice must be traceable to the workers that had it on.
+        "speed": _speed(),
     }
+
+
+def _speed() -> dict:
+    try:
+        import chatterbox_speed
+
+        return chatterbox_speed.report()
+    except Exception:  # pragma: no cover - identity is never load-bearing
+        return {}
 
 
 def _weights_revision() -> str:
