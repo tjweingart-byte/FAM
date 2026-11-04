@@ -443,3 +443,4 @@ and `limit` = Lines.
 | 29011 | 34 | 440. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03) |
 | 29045 | 61 | 441. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04) |
 | 29106 | 15 | 442. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |
+| 29121 | 41 | 443. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04) |

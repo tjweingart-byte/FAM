@@ -29117,3 +29117,44 @@ and the pending manifest are deleted; the proposals README says nothing is
 waiting. The owner updates the copy held outside Claude to v3.
 
 Tests: `tests/test_mclovin_review_439.py` (the signed book names the review).
+
+## 443. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04)
+
+The owner allowed huggingface.co and its download hosts (`us.aws.cdn.hf.co`,
+`cas-bridge.xethub.hf.co`, `cas-server.xethub.hf.co`) in the cloud
+environment, so §437's measurement could run. Vectara's
+HHEM-2.1-Open (`vectara/hallucination_evaluation_model`, flan-t5-base,
+`trust_remote_code`) in a throwaway virtualenv in the scratchpad - torch and
+transformers from PyPI, never in `requirements.txt` - on one CPU thread, as
+Render's `standard` instance has one CPU. Ten real script sentences from
+§436's frozen episodes, each against the sources `Checker.nearest` gives:
+
+| premise | per sentence |
+|---|---|
+| the three nearest sources (about 1,700 tokens) | median 7.7 s, max 9.8 s |
+| the one nearest source (about 600 tokens) | median 1.4 s, max 1.75 s |
+| that source cut to 1,000 characters (about 250 tokens) | median 0.6 s, max 0.6 s |
+
+Memory: 1.65 GB resident with the model loaded (torch, fp32). The full run -
+200 sentences, 78 planted-mistake pairs, the score spread - did not finish
+inside 28 minutes, which is the same finding: at these lengths it scores a
+sentence every several seconds. The model also warns its inputs pass its 512
+tokens on the three-source premise, so that premise is truncated anyway.
+
+**What it says for §437's choice.** As it ships, it does not belong on the
+web instance: 1.65 GB against the instance's 2 GB, of which FAM holds about
+400 MB, and seconds of the one CPU per sentence. Two routes remain, both the
+owner's to choose:
+
+1. **Smaller and shorter, on the web instance**: an ONNX export, int8 (the
+   embedder's route, `onnxruntime` already installed), with the premise cut
+   to the best source's sentences that share words with the claim (about 250
+   tokens, under the model's 512). Likely a few hundred MB and well under
+   half a second, unmeasured until the export is made; and accuracy on a
+   trimmed premise is unmeasured too.
+2. **A small CPU worker of its own**: a new machine and a monthly cost, any
+   premise length, nothing on the listener's server.
+
+Not yet measured: accuracy - how many real sentences score as supported,
+unsure and unsupported, and whether planted mistakes score lower - which the
+next session runs on a short premise before either route is built.
