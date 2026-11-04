@@ -449,3 +449,4 @@ and `limit` = Lines.
 | 29240 | 68 | 446. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04) |
 | 29308 | 89 | 447. Finishing Phase 3, piece 2: HHEM measured for accuracy, and as int8 ONNX on one thread (2026-11-04) |
 | 29397 | 52 | 448. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04) |
+| 29449 | 18 | 449. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04) |

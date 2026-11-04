@@ -29445,3 +29445,21 @@ only (81% caught, 1.70% flagged). Nothing changed in FAM; the support check
 stays off until the owner decides otherwise.
 
 Tests: none; nothing in FAM changed. The script stayed in the scratchpad.
+
+## 449. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04)
+
+The owner, on §448: "Raise the token limit to 500, raise the time to 2
+seconds. We will revisit this once the agents are implemented. Leave support
+off." `SUPERVISOR_MAX_TOKENS` 300 → 500 and `SUPERVISOR_TIMEOUT_SECONDS`
+1 → 2, in `config.py` and `.env.example`. At the old limits one second look
+in six ran out of room and nine in ten took longer than 1 s (§448).
+
+`SUPERVISOR_TIMEOUT_SECONDS` is also the deadline for one sentence's code
+checks (`supervisor_checks.Checker.check`), on searchFAM too; those take well
+under a millisecond (§438), so the wider ceiling is not heard. The support
+check stays off: `SUPERVISOR_GROUNDING` is empty, no checker is installed,
+and the second look these limits govern is reached only through it. His
+effort ("low") is still written in code, not a setting.
+
+Tests: `tests/test_supervisor_limits_449.py` (the defaults; `.env.example`
+agrees; support off).

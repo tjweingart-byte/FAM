@@ -2123,13 +2123,16 @@ class Settings:
     # runs both Haiku and Sonnet (decided item 37). On searchFAM: low.
     editor_effort: str = field(
         default_factory=lambda: os.environ.get("EDITOR_EFFORT", "high").strip())
-    supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
+    # 2 s and 500 tokens, the owner's (§449): at 1 s and 300 most of his
+    # second looks timed out or ran out of room (§448). Also the deadline
+    # for one sentence's code checks, which take well under a millisecond.
+    supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 2.0)
     # The small model on pages the source screen cannot settle (§442): ahead
     # of the tap only, one call an episode, so it may take its time.
     supervisor_screen_timeout_seconds: float = _env_float(
         "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", 20.0)
     supervisor_screen_max_tokens: int = _env_int("SUPERVISOR_SCREEN_MAX_TOKENS", 2000)
-    supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
+    supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 500)
     # **Mclovin's sentence checks** (§435): which ones send a failing
     # sentence back to the writer; the rest only count. A check joins this
     # list once the planted-mistake eval passes it (§440,
