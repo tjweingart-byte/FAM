@@ -97,6 +97,9 @@ def record_history(events, topic, minutes: int, thread: str, rng: random.Random)
             text=topic.query, tags=topic.tags, at=at,
         ))
         written += 1
+        # Heard, not just tapped (§433): the crowd and friends rows count
+        # only a listen past its threshold, or a finished one.
+        events.mark_heard(user_id, topic.query, at + 60)
         if rng.random() < 0.7:
             events.record(topics_mod.Event(
                 user_id=user_id, kind="complete", topic_id=topic.id,

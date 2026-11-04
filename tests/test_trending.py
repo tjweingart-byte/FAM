@@ -21,6 +21,7 @@ import asyncio
 import dataclasses
 import os
 import sys
+import time
 
 import pytest
 
@@ -108,6 +109,7 @@ def test_the_fam_popularity_row_still_ranks_plays_over_the_bank():
     for listener in ("u1", "u2", "u3"):
         store.record(T.Event(listener, "play", T.TOPIC_BANK[2].id, "",
                              T.TOPIC_BANK[2].tags))
+        store.mark_heard(listener, T.TOPIC_BANK[2].query, time.time())  # §433
     ranked = T.rank_most_played(store)
     assert ranked[0].id == T.TOPIC_BANK[2].id
     assert all(t in T.TOPIC_BANK for t in ranked), "this row comes from the bank"

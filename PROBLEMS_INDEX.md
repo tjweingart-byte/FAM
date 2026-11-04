@@ -433,3 +433,4 @@ and `limit` = Lines.
 | 28315 | 31 | 430. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03) |
 | 28346 | 48 | 431. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03) |
 | 28394 | 44 | 432. The review before the pull request: the reading joins the question (2026-11-03) |
+| 28438 | 60 | 433. A listen is something heard, not a tap (2026-11-03) |

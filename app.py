@@ -9373,6 +9373,10 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
     kept = SAVED.note_progress(_listener(request), req.query, req.minutes,
                                req.seconds, title=req.title, context=req.context,
                                duration=req.duration)
+    # Whether this listen has now been *heard* (§433): the crowd and friends
+    # rows count only those, held to the clock of the play the server served.
+    await asyncio.to_thread(EVENTS.note_progress, _listener(request), req.query,
+                            req.seconds, req.minutes, req.duration)
     if req.episode:
         # The furthest point heard, for the quality report (§309): an exit in
         # the first seconds is the hook's measure, a finish the story's.
@@ -11199,6 +11203,13 @@ async def admin_tracker_snapshot(request: Request) -> dict:
     _require_admin(request)
     snap = await asyncio.to_thread(admin_tracker.snapshot)
     snap["suggestions"] = admin_tracker.suggestions()
+    # Tapped against heard, per question (§433): what the crowd and friends
+    # rows count and what they refuse.
+    try:
+        snap["listens"] = await asyncio.to_thread(topics_mod.listen_report, EVENTS)
+    except Exception:  # noqa: BLE001 - a report is never load-bearing
+        log.exception("could not build the listen report")
+        snap["listens"] = None
     snap["via"] = "account" if _is_admin_account(request) else "token"
     return snap
 
