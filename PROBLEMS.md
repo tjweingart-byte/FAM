@@ -29525,3 +29525,47 @@ without, he is not asked; with, whether he planned; no arm when he does not
 work; the arm kept and compared by listening; an existing store widened;
 `note` keeps the arm; the setting copied and off; the tool runs) - on SQLite
 and on Postgres 16 (`DATABASE_URL`).
+
+## 451. Shakespeare on searchFAM: alongside the writer, and his call measured at low and medium effort (2026-11-04)
+
+The owner (2026-11-04): "have it work alongside the writer for now. As long
+as Shakespeare's rules don't change, I see no problem with that. It should
+absolutely be there on search though... We want to have these running at the
+same time to avoid that latency addition. Still, quality is the most
+important." So he stays the editor beside the writer (his signed book
+unchanged, §450's replacement question closed), and searchFAM gets him in
+tandem, never a step in front of the first word.
+
+**His call, measured** (the owner's yes; his real request through
+`agents.editor.outline` under his signed book, `EDITOR_MODEL` Haiku 5.5, on
+20 of §446's frozen packets, low and medium in alternating order, one call
+at a time; 40 calls, $0.083):
+
+| effort | median | p90 | range | cost a plan | planned | sentence numbers code dropped |
+|---|---|---|---|---|---|---|
+| low | 3.8 s | 6.4 s | 2.1-8.4 s | $0.0015 | 19 of 20 | 109 |
+| medium | 12.5 s | 17.4 s | 8.9-21.2 s | $0.0025 | 20 of 20 | 66 |
+| high (§437, ahead) | 26.4 s | - | - | ~$0.004 | - | - |
+
+The added time in front of the first word, were he a step before the
+writer, is all his call: EI and research come before him as today, and the
+writer's own time is unchanged. At low effort he points at sentences that do
+not exist 1.7 times as often as at medium (code drops them, §437), and once
+that left no plan. That is a sign, not a measure of the episode.
+
+**The in-tandem design, for the owner (not built).** When the packets are in,
+the writer and Shakespeare start together; the writer decides the whole piece
+and writes its opening from the packets, as today ([opening-last]; the first
+word unchanged); when his plan arrives, the writer continues the rest from
+the plan and what was already said, in a second call. A sentence is about 5 s
+of audio, so a low-effort plan (3.8 s, p90 6.4 s) lands while the first or
+second is still playing and shapes nearly all of it; medium (12.5 s) lands
+two or three sentences in. Late or failed: the writer carries on from the
+packets. Cost: one more writer call (~$0.001) and his.
+
+**Asked of the owner**: whether low or medium keeps quality - measurable for
+~$0.70 (the writer writes from each of these 40 plans, ~$0.10; Opus compares
+each question's low and medium scripts blind, ~$0.60) - and then the tandem
+design behind a switch, off by default.
+
+Tests: none; nothing in FAM changed. The script stayed in the scratchpad.

@@ -451,3 +451,4 @@ and `limit` = Lines.
 | 29397 | 52 | 448. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04) |
 | 29449 | 18 | 449. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04) |
 | 29467 | 62 | 450. Finishing Phase 3, piece 4: Shakespeare's two weeks, built behind a switch - and his place on searchFAM (2026-11-04) |
+| 29529 | 44 | 451. Shakespeare on searchFAM: alongside the writer, and his call measured at low and medium effort (2026-11-04) |
