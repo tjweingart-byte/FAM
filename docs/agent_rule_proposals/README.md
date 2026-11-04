@@ -8,8 +8,8 @@ file, until the owner signs it. Nothing reads this folder at run time.
 ## Waiting now
 
 Nothing. `mclovin.md` v3 - "always" 9 names his nightly reviewer - was signed
-on 2026-11-04 (PROBLEMS.md §442, manifest version 5); v2 (one-sentence
-quotes, count only) on 2026-11-03 (§440, version 4); `consuela.md` with
+on 2026-11-04 (PROBLEMS.md §443, manifest version 5); v2 (one-sentence
+quotes, count only) on 2026-11-03 (§441, version 4); `consuela.md` with
 Perplexity on 2026-11-03 (§412, version 3); `nando.md` rule 12 on 2026-11-01
 (§392).
 

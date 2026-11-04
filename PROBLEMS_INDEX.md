@@ -433,14 +433,15 @@ and `limit` = Lines.
 | 28307 | 31 | 430. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03) |
 | 28338 | 48 | 431. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03) |
 | 28386 | 44 | 432. The review before the pull request: the reading joins the question (2026-11-03) |
-| 28430 | 75 | 433. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03) |
-| 28505 | 86 | 434. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03) |
-| 28591 | 42 | 435. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03) |
-| 28633 | 117 | 436. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03) |
-| 28750 | 93 | 437. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03) |
-| 28843 | 33 | 438. Perplexity's refused field taken out, and one sentence of anyone's words in every episode (2026-11-03) |
-| 28876 | 135 | 439. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03) |
-| 29011 | 34 | 440. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03) |
-| 29045 | 61 | 441. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04) |
-| 29106 | 15 | 442. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |
-| 29121 | 41 | 443. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04) |
+| 28430 | 75 | 434. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03) |
+| 28505 | 86 | 435. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03) |
+| 28591 | 42 | 436. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03) |
+| 28633 | 117 | 437. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03) |
+| 28750 | 93 | 438. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03) |
+| 28843 | 33 | 439. Perplexity's refused field taken out, and one sentence of anyone's words in every episode (2026-11-03) |
+| 28876 | 135 | 440. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03) |
+| 29011 | 34 | 441. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03) |
+| 29045 | 61 | 442. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04) |
+| 29106 | 15 | 443. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |
+| 29121 | 41 | 444. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04) |
+| 29162 | 10 | 445. This branch's sections renumbered: Main took §433 (2026-11-04) |

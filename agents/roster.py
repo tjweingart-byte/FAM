@@ -113,7 +113,7 @@ ROSTER: dict = {a.role: a for a in (
            (SEARCH, AHEAD, BACKGROUND), "check",
            ((SEARCH, "supervisor_timeout_seconds", "supervisor_max_tokens"),
             (AHEAD, "supervisor_timeout_seconds", "supervisor_max_tokens"),
-            # His nightly review (§439, step 4).
+            # His nightly review (§440, step 4).
             (BACKGROUND, "supervisor_judge_timeout_seconds", "supervisor_judge_max_tokens")),
            "Today's code guards; a check out of time plays its sentence unchecked "
            "and the miss is recorded", True),

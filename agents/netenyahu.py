@@ -364,7 +364,7 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    ("housekeeper", "second", 4, "housekeeper"),
                    # The totals about groups of 100 or more (§415).
                    ("housekeeper", "totals", 0, "housekeeper"),
-                   # Mclovin's verdicts on real episodes, reviewed (§439).
+                   # Mclovin's verdicts on real episodes, reviewed (§440).
                    ("supervisor", "review", 3, "supervisor"),
                    # Keith's first check (§405): the tag agrees everywhere.
                    # Observe and report only.

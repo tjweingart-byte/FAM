@@ -1,4 +1,4 @@
-"""Shakespeare, the editor in chief - the outline (Phase 3, piece 3, §436).
+"""Shakespeare, the editor in chief - the outline (Phase 3, piece 3, §437).
 
 docs/agent_rules/shakespeare.md: once both packets are back, work alongside
 the writer as a professional journalist would - choose what matters, outline

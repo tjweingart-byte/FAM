@@ -1,4 +1,4 @@
-"""Training Mclovin, step 4: real episodes as a second, ongoing check (§439).
+"""Training Mclovin, step 4: real episodes as a second, ongoing check (§440).
 
 The planted-mistake eval (`tools/mclovin_eval.py`, steps 1-2) measures each
 check on mistakes put there in code. This is the other half: what Mclovin
@@ -23,7 +23,7 @@ waits on the owner scoring anything).
   sentence is reviewed once.
 * **Used** (`report`, `disagreements`): per check, how often the reviewer
   agreed with a flag, and the sentences he passed that the reviewer failed.
-  Each disagreement is a case to add to `tests/test_mclovin_training_439.py`
+  Each disagreement is a case to add to `tests/test_mclovin_training_440.py`
   (step 3) - tighten the rule, never the model - printed by
   `python tools/mclovin_eval.py --reviewed`.
 

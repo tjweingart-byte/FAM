@@ -113,7 +113,7 @@ def test_apply_refuses_any_other_approval(cache, monkeypatch, tmp_path):
     picks(monkeypatch, {ROWS[0][1]: "philadelphia eagles"})
     path = tmp_path / "r.json"
     digest = refile_old.write_report(refile_old.propose(cache), path)
-    # The last character changed - to one it is not (§441: "+ '0'" was the
+    # The last character changed - to one it is not (§442: "+ '0'" was the
     # real digest one run in sixteen, and the test failed by chance).
     flipped = digest[:-1] + ("1" if digest[-1] == "0" else "0")
     for wrong in ("", "yes", flipped):

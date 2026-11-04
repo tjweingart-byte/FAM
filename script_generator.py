@@ -550,7 +550,7 @@ def system_prompt() -> str:
     return SYSTEM_PROMPT + style_example_block()
 
 
-#: The writer's one rewrite of a sentence Mclovin failed (§434). Its own
+#: The writer's one rewrite of a sentence Mclovin failed (§435). Its own
 #: short call, never the episode's prompt, so the writer's instructions and
 #: their length guard are untouched.
 REPAIR_INSTRUCTIONS = (
@@ -717,7 +717,7 @@ class ScriptNotes:
     #: Sentences `figure_guard.FigureGuard` removed: a market figure the
     #: material did not state (§269).
     figure_drops: tuple = ()
-    #: Mclovin's sentence checks on this episode (§434), when he worked on
+    #: Mclovin's sentence checks on this episode (§435), when he worked on
     #: it: `{"rows": [...], "repaired": [...], "dropped": [...]}`, filled in
     #: place as the script is written. None otherwise.
     supervisor: object = None
@@ -1110,7 +1110,7 @@ class EpisodePlan:
     #: other reader keep `evidence`. **Never in the cache key**, as
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
-    #: Shakespeare's plan for the writer (§436, `agents.editor.writer_block`):
+    #: Shakespeare's plan for the writer (§437, `agents.editor.writer_block`):
     #: what to open on, each part's purpose and the sources' own sentences
     #: under it, what to land on. "" when he did not plan this episode - then
     #: the prompt is byte for byte what it was. Never in the cache key: how
@@ -1723,7 +1723,7 @@ _BATCH_SLICE = 48
 
 @dataclass
 class Repair:
-    """A sentence Mclovin failed (§434), on its way back to the writer once.
+    """A sentence Mclovin failed (§435), on its way back to the writer once.
     `_ScriptReader` hands these out in place of the sentence; whoever is
     reading the stream asks for the rewrite (`ScriptGenerator._repair`), so
     the sentences behind it wait in order. Only while Mclovin works."""
@@ -1733,12 +1733,12 @@ class Repair:
     #: The reader that failed it, whose guards and checks judge the rewrite.
     reader: object = None
     #: True when no check failed it but the grounding checker was unsure
-    #: (§439): the small model's second look decides before any rewrite.
+    #: (§440): the small model's second look decides before any rewrite.
     second_look: bool = False
 
 
 async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
-    """The plan with Shakespeare's outline for the writer (§436), when he
+    """The plan with Shakespeare's outline for the writer (§437), when he
     works on this episode and it is written ahead of the tap - an edition or
     the write-ahead, never a prefetch warm (whose script is not written from
     this plan) and not searchFAM yet (the owner, 2026-11-03: in tandem there,
@@ -1761,7 +1761,7 @@ async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
 
 async def settle_repairs(generator, plan, notes, sentences: list) -> list:
     """A batched script's sentences with Mclovin's failures rewritten once or
-    left out, in order (§434). A list with none - always, while Mclovin is
+    left out, in order (§435). A list with none - always, while Mclovin is
     off - is returned as it is, and the generator is not touched."""
     if not any(isinstance(s, Repair) for s in sentences):
         return sentences
@@ -1802,7 +1802,7 @@ class _ScriptReader:
         # it was given (§269).
         self.figures = figure_guard.FigureGuard(plan)
         self.shared = _names_are_shared(plan)
-        # Mclovin's checks (§434), beside the guards - only while Netenyahu
+        # Mclovin's checks (§435), beside the guards - only while Netenyahu
         # lets him work on this episode. None otherwise, and nothing changes.
         self.mclovin = None
         if _agent_runs(notes, "supervisor"):
@@ -2177,7 +2177,7 @@ class ScriptGenerator:
     async def research(self, plan: EpisodePlan,
                        notes: ScriptNotes | None = None) -> EpisodePlan:
         """`_research`, with Mclovin's source screen in force when Netenyahu
-        lets him work on this episode (§433): every rung, the second look,
+        lets him work on this episode (§434): every rung, the second look,
         GDELT, the local ladder and the archive's facts are screened for
         opinion and blog posts, keeping the asked-for person's own views
         (`opinion_requested`). Without him, exactly `_research`."""
@@ -2188,7 +2188,7 @@ class ScriptGenerator:
         asked = getattr(getattr(notes, "research_plan", None), "opinion_requested", "")
         with supervisor.screening(asked or ""):
             out = await self._research(plan, notes)
-            # Ahead of the tap only (§441): the pages code could not settle,
+            # Ahead of the tap only (§442): the pages code could not settle,
             # judged by the small model in one call; nobody is waiting.
             if notes is not None and (getattr(notes, "ahead", False)
                                       or getattr(notes, "prefetch", False)):
@@ -2966,7 +2966,7 @@ class ScriptGenerator:
         # (§264), one row for /admin. In memory; written off this path.
         live_routing.record(plan.query, plan.brief,
                             routed_miss if plan.live is None else plan.live)
-        # Shakespeare's plan (§436), last: once both packets are in.
+        # Shakespeare's plan (§437), last: once both packets are in.
         return await _with_editor(plan, notes)
 
     async def stream_sentences(
@@ -3093,7 +3093,7 @@ class ScriptGenerator:
     # (`sentences_from_message`) - so a batched episode is parsed, guarded and
     # budgeted exactly as a streamed one is.
 
-    # -- Mclovin's one repair (§434) ---------------------------------------
+    # -- Mclovin's one repair (§435) ---------------------------------------
     async def _repair(self, plan: EpisodePlan, notes: ScriptNotes | None,
                       item: "Repair") -> str:
         """The writer's one rewrite of a sentence Mclovin failed, or "" when
@@ -3120,7 +3120,7 @@ class ScriptGenerator:
         if checker is None:
             return item.sentence
         if item.second_look:
-            # Only the grounding checker's unsure band (§439, step 5): the
+            # Only the grounding checker's unsure band (§440, step 5): the
             # small model's one look, with the sources beside the sentence.
             from agents import grounding
 
@@ -3204,7 +3204,7 @@ class ScriptGenerator:
         cut_off = (not reader.over_budget
                    and getattr(message, "stop_reason", None) == "max_tokens")
         out.extend(reader.finish(cut_off=cut_off))
-        # Mclovin's failures (§434) are `Repair`s here, for `settle_repairs`,
+        # Mclovin's failures (§435) are `Repair`s here, for `settle_repairs`,
         # which the editions call next; with him off there are none.
         outcome = _writer_outcome(
             message, plan, notes, getattr(message, "model", None)

@@ -1,4 +1,4 @@
-"""Mclovin, the script supervisor - the source screen (Phase 3, §433).
+"""Mclovin, the script supervisor - the source screen (Phase 3, §434).
 
 docs/agent_rules/mclovin.md "always" 2: screen each packet the moment it
 comes back, from both paths, and remove every opinion piece (op-eds,
@@ -224,7 +224,7 @@ def by(name: str, url: str, title: str = "", passages=()) -> bool:
 @dataclass(frozen=True)
 class Screen:
     """The screen for one episode: whose opinion was asked for, if anyone's,
-    and the pages it kept without being able to settle them (§441), for the
+    and the pages it kept without being able to settle them (§442), for the
     small model ahead of the tap."""
 
     opinion_of: str = ""
@@ -365,7 +365,7 @@ def reset() -> None:
         SINCE_BOOT.clear()
 
 
-# ------------------------------------------------------------------ the small model, ahead of the tap (§441)
+# ------------------------------------------------------------------ the small model, ahead of the tap (§442)
 class _Page(BaseModel):
     model_config = ConfigDict(extra="forbid")
     page: int
@@ -482,7 +482,7 @@ def drop_sources(evidence: str, titles) -> tuple:
 
 async def settle_unsettled(plan, notes=None):
     """The plan with the pages the small model ruled out taken out of its
-    packet, its archive intake and its credits (§441). Ahead of the tap only;
+    packet, its archive intake and its credits (§442). Ahead of the tap only;
     the same plan when nothing is ruled out. Never raises."""
     screen = active()
     if screen is None or not screen.unsettled:

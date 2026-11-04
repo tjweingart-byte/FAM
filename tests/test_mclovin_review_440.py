@@ -1,4 +1,4 @@
-"""Training Mclovin, steps 4 and 5 (§439): his verdicts on real episodes,
+"""Training Mclovin, steps 4 and 5 (§440): his verdicts on real episodes,
 kept and reviewed nightly; and the grounding checker's place - none
 installed, so nothing changes until one is.
 """
@@ -152,7 +152,7 @@ def test_the_reviewers_failures_are_the_rule_books():
 
 
 def test_his_signed_book_names_the_nightly_review():
-    """mclovin.md v3 (signed 2026-11-04, §442): "always" 9."""
+    """mclovin.md v3 (signed 2026-11-04, §443): "always" 9."""
     import pathlib
 
     book = " ".join(pathlib.Path("docs/agent_rules/mclovin.md").read_text().split())

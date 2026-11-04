@@ -646,7 +646,7 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
             "measures": json.dumps(measures),
         })
         _grade_soon(key, sourced, origin)
-        # What Mclovin found on it, when he checked it (§439, step 4).
+        # What Mclovin found on it, when he checked it (§440, step 4).
         if getattr(notes, "supervisor", None) is not None:
             from agents import supervisor_training
 

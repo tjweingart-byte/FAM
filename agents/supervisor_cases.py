@@ -1,4 +1,4 @@
-"""Mclovin's labelled cases, built in code (Phase 3 training, step 1, §439).
+"""Mclovin's labelled cases, built in code (Phase 3 training, step 1, §440).
 
 Decided item 30: where an eval needs labelled examples, build them in code -
 inject a wrong figure, a swapped quote, a preview told as a result into a

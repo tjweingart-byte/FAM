@@ -372,15 +372,15 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # Sonic replaces the recall when Netenyahu lets him run (§403): code
         # and read-only lookups, no model.
         # Mclovin's source screen is put in force around the research step
-        # (§433): code only, no model.
-        # His sentence checks (§434) sit in the reader beside the guards:
+        # (§434): code only, no model.
+        # His sentence checks (§435) sit in the reader beside the guards:
         # code only; the one rewrite is the writer's own call, not his.
         "script_generator.py": {"netenyahu", "contextualizer", "categorizer", "retriever",
                                 "supervisor", "supervisor_checks", "editor", "grounding"},
         # The screen itself, read inside `screen_results`, the packet's
-        # opinion label and the archive's merge (§433): code only.
+        # opinion label and the archive's merge (§434): code only.
         "research.py": {"supervisor"},
-        # Mclovin's verdicts kept beside the quality record (§439): a write
+        # Mclovin's verdicts kept beside the quality record (§440): a write
         # to his own store, no model.
         "episode_quality.py": {"supervisor_training"},
         "prefetch.py": {"categorizer"},

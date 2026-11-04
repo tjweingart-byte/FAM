@@ -1,4 +1,4 @@
-"""Mclovin's sentence checks, while the writer writes (Phase 3, piece 2, §434).
+"""Mclovin's sentence checks, while the writer writes (Phase 3, piece 2, §435).
 
 docs/agent_rules/mclovin.md "always" 1, 3, 4 and 5, "never" 1, 3, 4 and 7:
 every sentence is checked as it is written, against the two packets only -
@@ -20,13 +20,13 @@ to the heuristic ones:
   packets word for word (case and punctuation aside), and, when the
   sentence names who said it, that name is beside the span in the source
   that holds it.
-* `quote_length` (enforced since mclovin.md v2 was signed, §440) - a quote
-  is at most one sentence (the owner, 2026-11-03, §435: copyright).
+* `quote_length` (enforced since mclovin.md v2 was signed, §441) - a quote
+  is at most one sentence (the owner, 2026-11-03, §436: copyright).
 * `website` (enforced) - a hostname or "dot com" in speech.
 * `advice` (enforced) - a recommendation in FAM's own voice about health,
   the law or money (C3P0's `RECOMMENDS`, §425), never a quoted or
   attributed one ("doctors say you should" is a fact about doctors).
-* `superlative` (counted, the owner's choice, §435) - "the first", "a record", "the biggest", "the
+* `superlative` (counted, the owner's choice, §436) - "the first", "a record", "the biggest", "the
   only", "all-time": the same kind of word in a packet sentence that shares
   a name or two words with this one.
 * `figures` (counted) - every number, `figure_guard`'s reader widened from
@@ -57,15 +57,15 @@ log = logging.getLogger("fam.agents")
 CHECKS = ("quote", "quote_length", "website", "advice", "superlative", "figures",
           "dates", "mixed")
 #: Which checks send a failing sentence back by default. The rest count.
-#: Set by the planted-mistake eval (§439, step 2: `tools/mclovin_eval.py`):
+#: Set by the planted-mistake eval (§440, step 2: `tools/mclovin_eval.py`):
 #: a check enforces once it catches 90% of its planted mistakes and flags
 #: at most 1% of clean sentences. Figures (85%, 1.5%) still count. The
 #: one-sentence quote limit (100%, 0%) enforces since the owner signed
-#: mclovin.md v2 (§440).
+#: mclovin.md v2 (§441).
 DEFAULT_ENFORCED = ("quote", "quote_length", "website", "advice", "superlative", "dates",
                     "mixed")
 #: The named failure (agents.handoffs.FAILURES) each check reports.
-#: The grounding checker's check (§439, step 5), run only when one is
+#: The grounding checker's check (§440, step 5), run only when one is
 #: plugged in (`agents.grounding`); none is yet.
 SUPPORT = "support"
 FAILURE_OF = {
@@ -105,7 +105,7 @@ class Block:
     folded: str = ""
     words: frozenset = frozenset()
     names: frozenset = frozenset()
-    #: Every number the source states, digits and words, read once (§439).
+    #: Every number the source states, digits and words, read once (§440).
     values: tuple = ()
 
 
@@ -149,7 +149,7 @@ def _blocks(plan) -> list:
         # Names from the source's own text, never the packet's labels
         # ("Title", "Published", "Source type", "Key evidence") or a
         # title-case headline, where every word is capitalised: with them
-        # every source shared names and two stories read as one (§439).
+        # every source shared names and two stories read as one (§440).
         body = block.text.split("Key evidence:", 1)[1] if "Key evidence:" in block.text \
             else block.text
         block.names = news_clusters.names(body)
@@ -238,7 +238,7 @@ def check_quote(sentence: str, blocks: list) -> tuple:
             near = False
             for block in holders:
                 # Beside any place the quote appears, never only the first
-                # (§439, step 3: a quote repeated in a headline lost its speaker).
+                # (§440, step 3: a quote repeated in a headline lost its speaker).
                 for at in [m.start() for m in re.finditer(re.escape(folded), block.folded)]:
                     window = block.folded[max(0, at - 400): at + len(folded) + 400]
                     if re.search(r"\b" + re.escape(last) + r"\b", window):
@@ -270,7 +270,7 @@ def sentences_in(span: str) -> int:
 
 
 def check_quote_length(sentence: str, _blocks: list) -> tuple:
-    """The owner's limit (2026-11-03, §435): a quote is at most one sentence,
+    """The owner's limit (2026-11-03, §436): a quote is at most one sentence,
     so an episode never copies a long stretch of anyone's words."""
     for span in _QUOTED.findall(sentence):
         if sentences_in(span) > 1:
@@ -317,7 +317,7 @@ def check_advice(sentence: str, _blocks: list, advice_request: bool = False) -> 
 
 
 #: A claim that something is unprecedented - claim-shaped, never ordinary
-#: English (§439, step 3: "the most recent", "October the first", "the
+#: English (§440, step 3: "the most recent", "October the first", "the
 #: first week" and "the record matters" were flagged on clean scripts):
 #: "for the first time", "first-ever", "the first ... to / since / ever",
 #: "the only ... to", "a / new / all-time record", "record high", "the
@@ -333,7 +333,7 @@ _SUPERLATIVE = re.compile(
     re.I)
 #: The family each superlative's support may use.
 #: The words a packet may use for the same claim: "biggest" is "largest",
-#: never any "most" or "highest" (§439, step 3: a packet's "highest since
+#: never any "most" or "highest" (§440, step 3: a packet's "highest since
 #: May" vouched for a planted "biggest ever").
 _FAMILIES = (("first",), ("only",), ("record", "all-time", "all time", "ever", "unprecedented",
                                      "never before"),
@@ -393,7 +393,7 @@ def check_figures(sentence: str, blocks: list, values=None) -> tuple:
     text = " ".join(sentence.split())
     fresh, archived = values
     approx = bool(figure_guard._APPROX.search(text))
-    # History is checked too (§439, step 3): a sentence about another year
+    # History is checked too (§440, step 3): a sentence about another year
     # or an earlier period may be vouched for by the archive as well.
     dated = bool(figure_guard._DATED.search(text) or score_guard._PAST.search(text)
                  or score_guard._years_other_than_now(text))
@@ -440,7 +440,7 @@ def _near_values(sentence: str, blocks: list):
 def _material_values(text: str) -> tuple:
     """What a source states: `figure_guard`'s reading of printed figures,
     and the same word-number reader the script is read with - "one hundred
-    and seventy-eight" in a source vouches for 178 (§439, step 3)."""
+    and seventy-eight" in a source vouches for 178 (§440, step 3)."""
     import figure_guard
 
     values = set(figure_guard.material_values(text))
@@ -498,7 +498,7 @@ def _numbers(text: str) -> list:
                     break
             nxt = tokens[j].lower() if j < len(tokens) else ""
             # A count of things up to twelve is not a figure - "two teams" -
-            # but "eight percent" and "five dollars" are (§439, step 3).
+            # but "eight percent" and "five dollars" are (§440, step 3).
             small_count = (value <= 12 and len(words) == 1
                            and not figure_guard._DIGIT.match(tokens[i])
                            and nxt not in ("percent", "%", "points", "point", "dollars",
@@ -523,7 +523,7 @@ _RELATIVE = (
 
 #: "Today" as an event's day needs an event: a past-tense verb. "Today is
 #: the third", "today's tariffs" and "trains toward today" mean now, and
-#: were flagged on clean scripts (§439, step 3).
+#: were flagged on clean scripts (§440, step 3).
 _NOW_ONLY = re.compile(r"\btoday(?:'s|’s)|\btoday\s+(?:is|are|was the)\b|\b(?:toward|until|"
                        r"to|as of|from|than|through)\s+today\b", re.I)
 _EVENT = re.compile(r"\b(?:said|says|told|gave|won|lost|beat|held|met|named|voted|signed|"
@@ -552,7 +552,7 @@ def check_dates(sentence: str, blocks: list, now: Optional[datetime] = None) -> 
         score = 2 * len(names & block.names) + len(words & block.words)
         if block.live:
             # The live block is now by definition - but only vouches for a
-            # sentence about it (§439, step 3: any live block passed all).
+            # sentence about it (§440, step 3: any live block passed all).
             if score >= 3:
                 return "pass", ""
             continue
@@ -577,7 +577,7 @@ def check_dates(sentence: str, blocks: list, now: Optional[datetime] = None) -> 
 #: Capitalised words that name no one: months, days, titles and roles,
 #: parties and the words a sentence starts with. Left in, "Representative
 #: Nancy Mace, a Republican" read as four names and "on November the
-#: ninth" joined any two stories (§439, step 3).
+#: ninth" joined any two stories (§440, step 3).
 NOT_ENTITIES = frozenset("""
 january february march april may june july august september october november
 december monday tuesday wednesday thursday friday saturday sunday representative
@@ -655,7 +655,7 @@ class Checker:
         self.now = now
         self.verdicts: list = []
         self.repairs = 0
-        #: What `ScriptNotes.supervisor` shows, filled in place (§434).
+        #: What `ScriptNotes.supervisor` shows, filled in place (§435).
         self.summary: dict = {"rows": [], "repaired": [], "dropped": [],
                               "enforced": sorted(self.enforce)}
         try:

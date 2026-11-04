@@ -1034,7 +1034,7 @@ async def write_batched(stories: list, generator, cache, minutes: int,
             if message is not None:
                 sentences = generator.sentences_from_message(prepared, notes,
                                                              message)
-                # Mclovin's failures rewritten once or left out (§434).
+                # Mclovin's failures rewritten once or left out (§435).
                 import script_generator
                 sentences = await script_generator.settle_repairs(
                     generator, prepared, notes, sentences)

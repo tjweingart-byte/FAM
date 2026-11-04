@@ -726,7 +726,7 @@ async def _write_batch(pending: list, generator, cache, length: int,
                 elif message is not None:
                     sentences = generator.sentences_from_message(
                         item.prepared, item.notes, message)
-                    # Mclovin's failures rewritten once or left out (§434);
+                    # Mclovin's failures rewritten once or left out (§435);
                     # the same list while he is off.
                     import script_generator
                     sentences = await script_generator.settle_repairs(

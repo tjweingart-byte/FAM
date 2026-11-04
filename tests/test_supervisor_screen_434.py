@@ -1,4 +1,4 @@
-"""Mclovin's source screen (Phase 3, decided items 6 and 13, §433).
+"""Mclovin's source screen (Phase 3, decided items 6 and 13, §434).
 
 Opinion pieces and blog posts are dropped from both packets inside
 `research.screen_results` and on the archive's facts - only while Mclovin

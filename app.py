@@ -695,7 +695,7 @@ async def lifespan(_: FastAPI):
         from agents import housekeeper as agent_housekeeper
 
         agent_housekeeper.register(SCRIPT_CACHE)
-        # Mclovin's nightly review of his verdicts on real episodes (§439),
+        # Mclovin's nightly review of his verdicts on real episodes (§440),
         # only while SUPERVISOR is on.
         from agents import supervisor_training as agent_supervisor_training
 

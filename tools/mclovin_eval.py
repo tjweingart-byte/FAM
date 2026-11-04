@@ -1,4 +1,4 @@
-"""Mclovin's checks, scored on mistakes planted in code (training steps 1-2, §439).
+"""Mclovin's checks, scored on mistakes planted in code (training steps 1-2, §440).
 
     python tools/mclovin_eval.py                       # the editor eval's frozen scripts
     python tools/mclovin_eval.py --dir ~/.fam/editor_eval --show quote
@@ -148,7 +148,7 @@ def main() -> int:
     ap.add_argument("--misses", action="store_true", help="print planted cases not caught")
     ap.add_argument("--reviewed", action="store_true",
                     help="print the nightly reviewer's disagreements (step 4): cases to "
-                         "add to tests/test_mclovin_training_439.py")
+                         "add to tests/test_mclovin_training_440.py")
     args = ap.parse_args()
     if args.reviewed:
         from agents import supervisor_training

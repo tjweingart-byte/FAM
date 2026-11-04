@@ -1,4 +1,4 @@
-"""What Mclovin's checks add in front of the first word on searchFAM (item 14, §437).
+"""What Mclovin's checks add in front of the first word on searchFAM (item 14, §438).
 
     python tools/supervisor_wait.py                 # ten search questions
     python tools/supervisor_wait.py --trials 2

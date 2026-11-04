@@ -1,4 +1,4 @@
-"""Mclovin's sentence checks while the writer writes (Phase 3, piece 2, §434).
+"""Mclovin's sentence checks while the writer writes (Phase 3, piece 2, §435).
 
 Every check is code, against the two packets only. Enforced checks send a
 failing sentence back to the writer once; a second failure, a late rewrite
@@ -109,7 +109,7 @@ def test_a_quote_is_at_most_one_sentence(sentence, result):
     got, v = verdict(sentence)
     assert got["quote_length"] == result
     if result == "fail":
-        # Enforced since the owner signed mclovin.md v2 (§440).
+        # Enforced since the owner signed mclovin.md v2 (§441).
         failed = [c for c in v.failing if c.check == "quote_length"]
         assert failed and failed[0].failure == "quote_too_long"
 
@@ -142,7 +142,7 @@ def test_advice_in_fams_own_voice(sentence, advice, result):
     ("Apple opened its biggest store yet in Mumbai.", "pass"),
     ("Hurts set a record with 312 yards.", "fail"),
     ("It was the only rate decision ever made by a split vote.", "fail"),
-    # Ordinary English, never a claim (§439, step 3).
+    # Ordinary English, never a claim (§440, step 3).
     ("It is the most recent decision we have.", "pass"),
     ("On October the first, none of the bills had passed.", "pass"),
     ("The record matters beyond the score.", "pass"),
@@ -151,7 +151,7 @@ def test_advice_in_fams_own_voice(sentence, advice, result):
 def test_a_superlative_needs_the_packets(sentence, result):
     got, v = verdict(sentence)
     assert got["superlative"] == result
-    # Enforced since the planted-mistake eval passed it (§439, step 2).
+    # Enforced since the planted-mistake eval passed it (§440, step 2).
     assert any(c.check == "superlative" for c in v.failing) == (result == "fail")
 
 
@@ -161,7 +161,7 @@ def test_a_superlative_needs_the_packets(sentence, result):
     ("Hurts threw for 312 yards.", "pass"),
     ("Hurts threw for 340 yards.", "fail"),
     ("Two teams met in Philadelphia.", "pass"),     # a count of things
-    # History is checked too, against the archive as well (§439, step 3).
+    # History is checked too, against the archive as well (§440, step 3).
     ("In 2019 the rate was 2.4 percent.", "fail"),
 ])
 def test_every_number_is_counted(sentence, result):
@@ -182,7 +182,7 @@ def test_relative_dates_by_the_listeners_clock(sentence, result):
 def test_two_stories_joined_by_no_source_fail():
     got, v = verdict("In the end, Powell and Jalen Hurts both had a big week in Philadelphia.")
     assert got["mixed"] == "fail"
-    assert any(c.check == "mixed" for c in v.failing)      # enforced (§439)
+    assert any(c.check == "mixed" for c in v.failing)      # enforced (§440)
     assert verdict("In the end, Powell spoke in Washington as the Federal Reserve held."
                    )[0]["mixed"] == "pass"
 
@@ -190,7 +190,7 @@ def test_two_stories_joined_by_no_source_fail():
 def test_the_named_failures_are_the_rule_books():
     for name in checks.FAILURE_OF.values():
         assert name in FAILURES
-    # mclovin.md v2, signed (§440): the one-sentence limit and count only.
+    # mclovin.md v2, signed (§441): the one-sentence limit and count only.
     import pathlib
 
     book = pathlib.Path("docs/agent_rules/mclovin.md").read_text()

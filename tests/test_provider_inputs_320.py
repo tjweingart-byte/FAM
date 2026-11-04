@@ -89,7 +89,7 @@ def test_no_country_no_location(wire, monkeypatch):
 
 
 def test_perplexity_gets_its_country_and_never_a_search_mode(wire, monkeypatch):
-    """§438: Perplexity's search API refuses `search_mode` (400 "search_mode
+    """§439: Perplexity's search API refuses `search_mode` (400 "search_mode
     is not supported"), so it is never sent - a filings question is searched
     like any other rather than losing its Perplexity search."""
     sent, _ = wire

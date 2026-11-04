@@ -321,7 +321,7 @@ def screen_results(results, *, query: str = "", live_domain: str = "") -> list:
     """
     results = list(results or [])
     kept, dropped = [], []
-    # **Mclovin's screen** (§433): opinion and blog posts out, before anyone
+    # **Mclovin's screen** (§434): opinion and blog posts out, before anyone
     # weighs anything - only while he works on this episode, so with him off
     # this is a no-op and the packet is what it was.
     from agents import supervisor
@@ -871,7 +871,7 @@ def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
     if include_domains:
         body["search_domain_filter"] = list(include_domains)[:PERPLEXITY_MAX_DOMAINS]
     # Its `country` on a town's question. Perplexity has no objective field -
-    # the query carries it. **No `search_mode`** (§438): its search API now
+    # the query carries it. **No `search_mode`** (§439): its search API now
     # answers `400 search_mode is not supported`, so every filings or
     # academic question (§320) lost its Perplexity search and fell down the
     # ladder. Those questions keep their hint in Parallel's objective.
@@ -1072,7 +1072,7 @@ def build_packet(results, packet_sources: int, highlights_per_source: int,
         # putting "reuters dot com" within reach of the script. `domains()`
         # still reports the hosts, out of band, for a person to judge.
         parts.append(f"Source type: {TIER_LABELS[credibility(result)]}")
-        # An asked-for opinion piece, marked as its author's view (§433);
+        # An asked-for opinion piece, marked as its author's view (§434);
         # "" unless Mclovin's screen kept it for that reason.
         from agents import supervisor
 
@@ -1401,7 +1401,7 @@ async def finish_history_look(packet: "Packet", look) -> None:
             getattr(packet.provenance, "items", []) or []}
     held |= {getattr(f, "url", "") for f in packet.findings}
     facts = [f for f in facts if f.url not in held]
-    # Mclovin's screen on the archive's packet too (§433); untouched while
+    # Mclovin's screen on the archive's packet too (§434); untouched while
     # he is off.
     from agents import supervisor
 

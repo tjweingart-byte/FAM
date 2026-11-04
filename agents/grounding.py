@@ -1,4 +1,4 @@
-"""Mclovin's grounding checker: "does the source say this?" (§439, step 5; §437).
+"""Mclovin's grounding checker: "does the source say this?" (§440, step 5; §438).
 
 Code cannot judge whether a source supports a claim in other words - that
 is the grounding checker's one question. It scores a sentence against the
@@ -12,7 +12,7 @@ beside it (decided item 26), and only while `support` is enforced; out of
 time, it plays unchecked and is recorded (decided item 32).
 
 **No checker is installed.** Which one, and where it runs, waits on the
-owner (§437: HHEM-2.1-Open on a CPU, measured first; huggingface.co, where
+owner (§438: HHEM-2.1-Open on a CPU, measured first; huggingface.co, where
 its weights are, is refused by this environment). Until then
 `SUPERVISOR_GROUNDING` is empty, `scorer()` is None, the `support` check is
 not run at all, and nothing about any episode changes. A checker is plugged
@@ -50,7 +50,7 @@ def scorer() -> Optional[Scorer]:
     if named and not _WARNED[0]:
         _WARNED[0] = True
         log.warning("SUPERVISOR_GROUNDING=%r: no grounding checker is installed yet "
-                    "(§437, waiting on the owner); the support check does not run", named)
+                    "(§438, waiting on the owner); the support check does not run", named)
     return None
 
 

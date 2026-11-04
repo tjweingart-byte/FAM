@@ -28427,7 +28427,7 @@ question rewritten), `tests/test_advice_425.py`, the Atlas fake in
 `tests/test_withdraw_refused_430.py`, and the smoke check now asserts the
 question carries the choice.
 
-## 433. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03)
+## 434. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03)
 
 Decided items 6 and 13; mclovin.md "always" 2. The owner's answers before
 Phase 3 started (2026-11-03): pieces in the order screen, Mclovin's sentence
@@ -28494,7 +28494,7 @@ now counted, so its cost can be stated before it is built. Unmeasured: the
 real drop rate on live packets - a `write.py` run with `AGENTS=1 SUPERVISOR=1`
 and the key shows it.
 
-Tests: `tests/test_supervisor_screen_433.py` (27 pages read; whose pieces;
+Tests: `tests/test_supervisor_screen_434.py` (27 pages read; whose pieces;
 off a no-op and the packet byte for byte; on, drops counted and logged; the
 asked-for person's pieces kept and labelled; before the sports count; threads
 and tasks see it; a failing screen keeps all; the archive's facts and
@@ -28502,10 +28502,10 @@ and tasks see it; a failing screen keeps all; the archive's facts and
 `tests/test_agents_model_layer.py` allows `research.py` and
 `script_generator.py` the code-only `supervisor` module.
 
-## 434. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03)
+## 435. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03)
 
 Decided items 12, 14, 17, 26 and 32; mclovin.md "always" 1, 3-5 and 7,
-"never" 1-5 and 7. The owner's answer (§433): a failing sentence's one repair
+"never" 1-5 and 7. The owner's answer (§434): a failing sentence's one repair
 is a one-sentence rewrite call.
 
 **Where.** `_ScriptReader` asks `agents/supervisor_checks.Checker` about every
@@ -28582,19 +28582,19 @@ until `write.py` runs with `AGENTS=1 SUPERVISOR=1` and the key.
 Settings (cleared for the suite in `tests/conftest.py`): `SUPERVISOR_ENFORCE`, `SUPERVISOR_REPAIR_TIMEOUT_SECONDS`,
 `SUPERVISOR_MAX_REPAIRS` in `config.py`, `.env.example` and the health block.
 
-Tests: `tests/test_supervisor_checks_434.py` (each check passing and failing;
+Tests: `tests/test_supervisor_checks_435.py` (each check passing and failing;
 the named failures are the rule book's; the enforced set pinned; a broken or
 late check plays unchecked; off, nothing checked or asked; a failure rewritten
 once from the sources' words; failing again, NONE, late, past the count - left
 out; a counted failure plays and is recorded; a batched script settles; health).
 
-## 435. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03)
+## 436. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03)
 
 The owner (2026-11-03): "Quote length maximum should be one sentence to
 avoid copyright" and, for superlatives, "count only".
 
 **Both touch the signed `mclovin.md`.** Its "never" 1 says no unsupported
-"first" or "record" is let through, so counting superlatives (and §434's
+"first" or "record" is let through, so counting superlatives (and §435's
 counted figures, dates and mixed stories) lets through what it names; and it
 sets no limit on a quote's length. A session never changes a signed book, so
 the proposed draft v2 is at `docs/agent_rule_proposals/mclovin.md`, with
@@ -28614,7 +28614,7 @@ the sentence plays, until the owner sets it to enforce.
   joins `SUPERVISOR_ENFORCE` and `quote_too_long` joins
   `agents/handoffs.FAILURES`, which `tests/test_agents_roster_tasks.py` pins
   to the signed book's twelve. Until then it is `PROPOSED_FAILURES`.
-- the 40-word `quote_long` count from §434 is gone; the one-sentence check
+- the 40-word `quote_long` count from §435 is gone; the one-sentence check
   replaces it.
 - the writer's rewrite instructions (`REPAIR_INSTRUCTIONS`) say a quote is
   kept to one sentence.
@@ -28625,16 +28625,16 @@ would apply the copyright guardrail to every episode (as §429's guardrails
 do), not only when Mclovin works - at the cost of the prompt's length guard,
 paid by a dedup.
 
-Tests: `tests/test_supervisor_checks_434.py` (one sentence passes, two fail
+Tests: `tests/test_supervisor_checks_435.py` (one sentence passes, two fail
 as `quote_too_long`, abbreviations are not sentence ends, counted not sent
 back; superlatives counted; the proposed failure is in the proposal and not
 in the signed list).
 
-## 436. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03)
+## 437. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03)
 
-Decided items 28, 29, 30 and 37; shakespeare.md. The owner's answer (§433):
+Decided items 28, 29, 30 and 37; shakespeare.md. The owner's answer (§434):
 built and measured ahead of the tap first; searchFAM's hand-over designed once
-the first chunk's wait is measured (§437).
+the first chunk's wait is measured (§438).
 
 **Where.** `prepare`'s last step (`script_generator._with_editor`), once both
 packets are in: only when Netenyahu lets him work on the episode and it is
@@ -28688,7 +28688,7 @@ working) and frozen, then written three ways by the same writer (Haiku 5.5,
 `WRITER_MODEL`) at 1.5 minutes: no editor; Shakespeare on Haiku 5.5 high;
 Shakespeare on Sonnet 5.5 high. Each script is scored on
 `episode_quality.measure`'s six code measures; Mclovin's sentence checks
-(§434), every check counted and none enforced, so the arms are compared on
+(§435), every check counted and none enforced, so the arms are compared on
 what the writer wrote; a blind 1-5 grade per metric by Opus 5.5
 (`QUALITY_GRADER_MODEL`, so Sonnet never grades itself; it sees the question,
 the evidence and the script, never the arm), and its count of claims the
@@ -28739,7 +28739,7 @@ by listening, which item 37 puts after this.
 Settings: `EDITOR_EFFORT` (new), `EDITOR_MAX_TOKENS` 16,000 (was 4,000), in
 `config.py`, `.env.example` and `tests/conftest.py`.
 
-Tests: `tests/test_editor_436.py` (packets numbered by sentence; every
+Tests: `tests/test_editor_437.py` (packets numbered by sentence; every
 number checked, bad ones and empty beats dropped and counted; a "now" beat on
 the archive alone dropped; the writer reads the sources' sentences, history
 marked, never a number; no beats no block; the call bounded, on his rule
@@ -28747,7 +28747,7 @@ book, with the examples; anything but an answer leaves the writer as today;
 no packets no call; the prompt byte for byte without him; he plans only ahead
 of the tap, never a prefetch, never while off).
 
-## 437. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03)
+## 438. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03)
 
 Decided items 14 and 34; the owner's direction: analyse on its own whether
 the grounding checker can run inside the current pipeline without a new
@@ -28825,7 +28825,7 @@ second, if the first is short - waits in front of the first word. For those:
 - an "unsure" first sentence is not sent to Haiku (a second call, ~1 s) in
   front of the first word: it plays, recorded as unsure, and only later
   sentences take the Haiku second look;
-- a rejected first sentence takes the one rewrite as now (§434) - up to 2 s,
+- a rejected first sentence takes the one rewrite as now (§435) - up to 2 s,
   measured as zero times in 20 episodes - or, if the owner prefers the
   spec, is left out on searchFAM's first sentence only.
 
@@ -28840,22 +28840,22 @@ the next rung - seen on the science and evergreen questions of the editor
 eval and the wait probe. Dropping the field is one line; it changes what
 every listener's episode is researched from, so it is the owner's to say.
 
-## 438. Perplexity's refused field taken out, and one sentence of anyone's words in every episode (2026-11-03)
+## 439. Perplexity's refused field taken out, and one sentence of anyone's words in every episode (2026-11-03)
 
-The owner (2026-11-03), on §437's findings: "Fix number 2, and do number 3".
+The owner (2026-11-03), on §438's findings: "Fix number 2, and do number 3".
 
 **Perplexity's `search_mode` is no longer sent.** Its search API now answers
 `400 search_mode is not supported` (checked by hand: the same request without
 the field, and with a date filter, a domain filter or a country, all answer
 200). FAM sent it on every question EI marked `filings` or `academic` (§320),
 so each of those lost its Perplexity search and fell down the ladder - seen on
-the science and evergreen questions of §436's eval and §437's probe.
+the science and evergreen questions of §437's eval and §438's probe.
 `research.PERPLEXITY_MODES` is gone; the hint still reaches Parallel's
 objective, which is unaffected. This changes what those questions are
 researched from, for every listener, agents on or off.
 
 **A quote is at most one sentence, for every episode** - the owner's
-copyright limit (§435), now in the writer's own instructions as well as
+copyright limit (§436), now in the writer's own instructions as well as
 Mclovin's check: "Quote real words exactly, and never more than one sentence
 of them", beside the rule against inventing a quote. With the agents off it
 is the writer's rule alone; with Mclovin on, his `quote_length` check counts
@@ -28873,19 +28873,19 @@ Tests: `tests/test_provider_inputs_320.py` (no `search_mode` on a filings or
 an academic question; the country still sent); the writer's prompt tests
 unchanged and passing.
 
-## 439. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03)
+## 440. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03)
 
 The owner (2026-11-03): "Do all of this for mclovin. Set Shakespeare to
-haiku high effort" - the five training steps proposed after §438.
+haiku high effort" - the five training steps proposed after §439.
 
 **Shakespeare ahead of the tap is Haiku 5.5 at high effort**
 (`EDITOR_MODEL=anthropic:claude-haiku-5-5`, `EDITOR_EFFORT=high`), the
-owner's choice on §436's comparison: no arm measurably better, Haiku the
+owner's choice on §437's comparison: no arm measurably better, Haiku the
 cheapest editor and the one clear gain (repetition). `tools/editor_eval.py`
 pins Sonnet for its own Sonnet arm, so the comparison stays the same one.
 
 **Step 1 - labelled cases built in code** (`agents/supervisor_cases.py`,
-decided item 30). Into copies of the 150 real scripts of §436, against each
+decided item 30). Into copies of the 150 real scripts of §437, against each
 episode's own frozen packets: a number changed (never a date, a year, a
 label or a count up to twelve); a packet quote given to someone the packets
 never put beside it, or with a word changed; two clean packet sentences
@@ -28907,7 +28907,7 @@ at least 20 planted cases. Final:
 | check | planted | caught | false flags | enforced now |
 |---|---|---|---|---|
 | quote | 117 | 97% | 0.00% | yes |
-| quote_length | 141 | 100% | 0.00% | counted until mclovin.md v2 is signed (§435) |
+| quote_length | 141 | 100% | 0.00% | counted until mclovin.md v2 is signed (§436) |
 | website | 150 | 100% | 0.04% | yes |
 | advice | 150 | 100% | 0.00% | yes |
 | superlative | 34 | 100% | 0.21% | yes |
@@ -28916,7 +28916,7 @@ at least 20 planted cases. Final:
 | mixed | 114 | 100% | 0.02% | yes |
 
 `SUPERVISOR_ENFORCE` is now `quote,website,advice,superlative,dates,mixed`.
-Superlatives were "count only" by the owner's §435 answer; they pass the bar
+Superlatives were "count only" by the owner's §436 answer; they pass the bar
 the owner's step 2 sets, and the signed mclovin.md v1 ("never" 1: no
 unsupported first or record) asks for them, so they enforce. The one-sentence
 quote limit passes too and waits for the signature that names it.
@@ -28956,7 +28956,7 @@ caught, but 3.5% false flags - true numbers in a neighbouring sentence).
 Figures stay counted: what is left is mostly figures the writer worked out
 from two the sources gave (a gap, an age), which a pattern cannot tell from
 recall (§269's own note) - the grounding checker's question. Every case is
-pinned in `tests/test_mclovin_training_439.py`, written for the test, never
+pinned in `tests/test_mclovin_training_440.py`, written for the test, never
 provider text.
 
 **Step 4 - real episodes, reviewed nightly** (`agents/supervisor_training.py`).
@@ -28977,7 +28977,7 @@ book; if the owner wants a rule naming it, as nando.md rule 12 names Nando's
 answer key, that is a proposal for the owner to sign.
 
 **Step 5 - the grounding checker only for "does the source say this?"**
-(`agents/grounding.py`). Its place is built and nothing is installed (§437:
+(`agents/grounding.py`). Its place is built and nothing is installed (§438:
 the owner decides which checker and where; huggingface.co is refused here).
 With one plugged in, Mclovin's `support` check scores a sentence against its
 nearest sources: at or above `SUPERVISOR_GROUNDING_HIGH` (0.8) it passes; at
@@ -28999,19 +28999,19 @@ changed: `SUPERVISOR_ENFORCE`, `EDITOR_MODEL`. In `config.py`, `.env.example`,
 `tests/conftest.py`, `agents/names.py` (the judge model) and the roster (his
 background ceiling).
 
-Tests: `tests/test_mclovin_training_439.py` (the enforced set; every
+Tests: `tests/test_mclovin_training_440.py` (the enforced set; every
 tightened rule; the planting deterministic and caught), and
-`tests/test_mclovin_review_439.py` (kept only when he checked; beside the
+`tests/test_mclovin_review_440.py` (kept only when he checked; beside the
 quality record; one sentence and its sources reviewed once; agreement and
 disagreements; scheduled; wiped; no checker no change; pass, fail, unsure;
 settled facts stay; a failing checker leaves it unchecked; only the unsure
-band takes the second look, and only while enforced). §434's tests updated
+band takes the second look, and only while enforced). §435's tests updated
 for superlatives, history and mixed stories enforced and read anew.
 
-## 440. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03)
+## 441. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03)
 
 The owner signed manifest version 4 (3c43b83, "mclovin upload"): `mclovin.md`
-is the §435 proposal byte for byte, and `MANIFEST.json` the pending manifest
+is the §436 proposal byte for byte, and `MANIFEST.json` the pending manifest
 byte for byte, in which only `mclovin.md`'s fingerprint changed. The commit
 holds exactly the three files (`mclovin.md`, `MANIFEST.json`,
 `MANIFEST.json.sig`), no stray one. `python tools/rulebook_manifest.py
@@ -29027,7 +29027,7 @@ Downloads - a public key is safe to paste; the private key never was.
 - `quote_length` joins the default `SUPERVISOR_ENFORCE`
   (`quote,quote_length,website,advice,superlative,dates,mixed`): a quote of
   more than one sentence goes back to the writer once, then is left out. It
-  passed §439's bar (100% of 141 planted, no false flag).
+  passed §440's bar (100% of 141 planted, no false flag).
 - "always" 8 - a check the owner sets to count only records its failures and
   lets the sentence play - is now the signed rule for figures, which still
   count.
@@ -29038,15 +29038,15 @@ README records which books have moved past version 1. The owner updates the
 copy held outside Claude to v2.
 
 Tests: `tests/test_agents_roster_tasks.py` (13 named failures, the book names
-the one-sentence limit), `tests/test_supervisor_checks_434.py` (a two-sentence
+the one-sentence limit), `tests/test_supervisor_checks_435.py` (a two-sentence
 quote is sent back as `quote_too_long`; the signed book holds both new rules),
-`tests/test_mclovin_training_439.py` (the enforced set).
+`tests/test_mclovin_training_440.py` (the enforced set).
 
-## 441. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04)
+## 442. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04)
 
 The owner (2026-11-04): huggingface.co is allowed in the cloud environment;
 "we will be going straight to main, not through staging"; the writer's slow
-first sentence (§437) "is ok"; "nightly review - yes"; "build the small model
+first sentence (§438) "is ok"; "nightly review - yes"; "build the small model
 for unsettled" pages.
 
 **Straight to Main.** This branch's pull request goes to `Main`, not through
@@ -29059,11 +29059,11 @@ stronger model chosen by the owner reads a sample of his verdicts each night,
 one sentence and its sources at a time, never a whole script, each sentence
 once; its reviews only measure him and show where a rule is too strict or
 misses, and never change an episode. The review already runs under v2
-(§439); v3 says so. Pending manifest: version 5, only `mclovin.md`'s
+(§440); v3 says so. Pending manifest: version 5, only `mclovin.md`'s
 fingerprint changes. Waiting for the owner's signature.
 
 **The small model on unsettled pages - ahead of the tap only** (decided
-items 6, 13; mclovin.md "always" 2). The code screen (§433) keeps a page it
+items 6, 13; mclovin.md "always" 2). The code screen (§434) keeps a page it
 cannot settle - a blog section on a host that is neither a blogging platform
 nor a primary source - and now also records it on the episode's screen (its
 address, title, why, and its opening words). After research, on the ahead
@@ -29073,12 +29073,12 @@ asks `SUPERVISOR_SCREEN_MODEL` (Haiku 5.5, low effort) about all of them in
 `SUPERVISOR_SCREEN_MAX_TOKENS` 2000): opinion, blog, official, reporting or
 unsure, judged from the address, title and opening only - never whether it
 is true. A page called opinion or blog - unless it is the asked-for person's
-own (`opinion_requested`, §433's `by`) - leaves the packet the writer reads
+own (`opinion_requested`, §434's `by`) - leaves the packet the writer reads
 (`drop_sources`: the other sources keep their order), the archive's intake,
 and the episode's credits; official, reporting and unsure stay. Any failure,
 refusal or late answer keeps every page. Verdicts are remembered by address
 (2,000 kept, unsure never), so a page is judged once. On the tap nothing is
-asked - the owner's §433 answer: kept and counted. Counted in `/api/health`
+asked - the owner's §434 answer: kept and counted. Counted in `/api/health`
 (`screen_model_*`), and `notes.research["screen_model_dropped"]` says how many
 an episode lost. Only while Mclovin works on the episode; off, nothing is
 recorded or asked.
@@ -29087,7 +29087,7 @@ Settings (new): `SUPERVISOR_SCREEN_TIMEOUT_SECONDS`,
 `SUPERVISOR_SCREEN_MAX_TOKENS`, in `config.py`, `.env.example` and
 `tests/conftest.py`.
 
-**A check run's lesson.** §440's full check failed one test
+**A check run's lesson.** §441's full check failed one test
 (`test_the_writing_path_asks_for_a_warmed_brief_before_paying_for_one`) that
 reads `ScriptGenerator.understand`'s source by line - this piece was being
 edited into `script_generator.py` while the check ran, and moved the lines
@@ -29098,36 +29098,36 @@ digest's last character, which is the real digest whenever that character
 was already `0` - one run in sixteen, since the report is new each run. The
 test now changes the character to one it is not.
 
-Tests: `tests/test_supervisor_screen_model_441.py` (the screen records what
+Tests: `tests/test_supervisor_screen_model_442.py` (the screen records what
 it could not settle; one call judges them; the asked-for person's page stays;
 any failure keeps all; unsure kept and a page judged once; the packet loses
 a ruled-out page ahead of the tap; nothing asked on the tap or with him off).
 
-## 442. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04)
+## 443. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04)
 
 The owner signed manifest version 5 (995499f, "mclovin v3"): `mclovin.md` is
-the §441 proposal byte for byte and `MANIFEST.json` the pending manifest byte
+the §442 proposal byte for byte and `MANIFEST.json` the pending manifest byte
 for byte - only `mclovin.md`'s fingerprint changed - in one commit of the
 three files. `python tools/rulebook_manifest.py --verify`: all eight agents
-may run, signed with the same `owner.pub`. "Always" 9 now names what §439
+may run, signed with the same `owner.pub`. "Always" 9 now names what §440
 built: a stronger model chosen by the owner reads a sample of his verdicts
 each night, one sentence and its sources at a time, never a whole script,
 each sentence once, and its reviews never change an episode. The proposal
 and the pending manifest are deleted; the proposals README says nothing is
 waiting. The owner updates the copy held outside Claude to v3.
 
-Tests: `tests/test_mclovin_review_439.py` (the signed book names the review).
+Tests: `tests/test_mclovin_review_440.py` (the signed book names the review).
 
-## 443. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04)
+## 444. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04)
 
 The owner allowed huggingface.co and its download hosts (`us.aws.cdn.hf.co`,
 `cas-bridge.xethub.hf.co`, `cas-server.xethub.hf.co`) in the cloud
-environment, so §437's measurement could run. Vectara's
+environment, so §438's measurement could run. Vectara's
 HHEM-2.1-Open (`vectara/hallucination_evaluation_model`, flan-t5-base,
 `trust_remote_code`) in a throwaway virtualenv in the scratchpad - torch and
 transformers from PyPI, never in `requirements.txt` - on one CPU thread, as
 Render's `standard` instance has one CPU. Ten real script sentences from
-§436's frozen episodes, each against the sources `Checker.nearest` gives:
+§437's frozen episodes, each against the sources `Checker.nearest` gives:
 
 | premise | per sentence |
 |---|---|
@@ -29141,7 +29141,7 @@ inside 28 minutes, which is the same finding: at these lengths it scores a
 sentence every several seconds. The model also warns its inputs pass its 512
 tokens on the three-source premise, so that premise is truncated anyway.
 
-**What it says for §437's choice.** As it ships, it does not belong on the
+**What it says for §438's choice.** As it ships, it does not belong on the
 web instance: 1.65 GB against the instance's 2 GB, of which FAM holds about
 400 MB, and seconds of the one CPU per sentence. Two routes remain, both the
 owner's to choose:
@@ -29158,3 +29158,13 @@ owner's to choose:
 Not yet measured: accuracy - how many real sentences score as supported,
 unsure and unsupported, and whether planted mistakes score lower - which the
 next session runs on a short premise before either route is built.
+
+## 445. This branch's sections renumbered: Main took §433 (2026-11-04)
+
+Main merged "A listen is something heard, not a tap" as §433 while this
+branch held §433-§443, so this branch's sections move up one, to §434-§444,
+with every reference to them and the test files named after them
+(`test_supervisor_screen_434`, `test_supervisor_checks_435`,
+`test_editor_437`, `test_mclovin_training_440`, `test_mclovin_review_440`,
+`test_supervisor_screen_model_442`) - the fourth time Main took this work's
+numbers (§386, §418, §423). Every other open branch stops at §433 or below.

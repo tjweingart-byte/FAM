@@ -158,7 +158,7 @@ class ScriptSentence(_Handoff):
 
 #: Mclovin's named failures (docs/agent_rules/mclovin.md, "you must never").
 #: `quote_too_long`: a quote longer than one sentence (mclovin.md v2, signed
-#: by the owner 2026-11-03, §440).
+#: by the owner 2026-11-03, §441).
 FAILURES = ("number_not_in_packets", "quote_not_said", "quote_wrong_speaker",
             "quote_too_long",
             "unsupported_changing_fact", "contradicted", "unsupported_superlative",

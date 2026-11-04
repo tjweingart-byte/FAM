@@ -1,4 +1,4 @@
-"""Training Mclovin (§439): what the planted-mistake eval found, pinned.
+"""Training Mclovin (§440): what the planted-mistake eval found, pinned.
 
 Step 1 plants known mistakes into real sentences in code; step 2 scores
 each check on what it catches and what it wrongly flags; step 3 tightens a
@@ -58,7 +58,7 @@ def test_the_enforced_checks_are_the_ones_the_eval_passed():
     assert set(checks.DEFAULT_ENFORCED) == {"quote", "quote_length", "website", "advice",
                                             "superlative", "dates", "mixed"}
     # Figures did not pass (85% caught, 1.5% of clean sentences flagged); the
-    # one-sentence quote limit passed and enforces since mclovin.md v2 (§440).
+    # one-sentence quote limit passed and enforces since mclovin.md v2 (§441).
     assert "figures" not in checks.DEFAULT_ENFORCED
 
 

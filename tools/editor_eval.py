@@ -1,4 +1,4 @@
-"""Shakespeare ahead of the tap: no editor, Haiku 5.5 high, Sonnet 5.5 (item 37, §436).
+"""Shakespeare ahead of the tap: no editor, Haiku 5.5 high, Sonnet 5.5 (item 37, §437).
 
     AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --freeze   # research once
     AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run      # write and score
@@ -12,11 +12,11 @@ frozen**, then written three ways with the same writer:
 * `none` - no editor; the writer reads the packets, as today;
 * `haiku` - Shakespeare on `EDITOR_SEARCH_MODEL` (Haiku 5.5) at high effort;
 * `sonnet` - Shakespeare on Sonnet 5.5 at high effort (pinned here: since
-  §439 `EDITOR_MODEL` is Haiku).
+  §440 `EDITOR_MODEL` is Haiku).
 
 Each script is scored on what needs no person (decided item 30):
 `episode_quality.measure`'s six code measures; Mclovin's sentence checks
-(§434), every check counted, none enforced, so the arms are compared on what
+(§435), every check counted, none enforced, so the arms are compared on what
 the writer wrote; a blind 1-5 grade by Opus (`QUALITY_GRADER_MODEL`, so Sonnet
 never grades itself), which sees the question, the evidence and the script
 and never which arm wrote it; and each arm's cost and time per episode.
@@ -103,7 +103,7 @@ ARMS = ("none", "haiku", "sonnet")
 #: Each arm's model setting for Shakespeare (always at high effort, ahead).
 ARM_SETTING = {"haiku": "editor_search_model", "sonnet": "editor_model"}
 #: The model each arm runs, whatever the deployment's defaults are now: the
-#: owner chose Haiku for `EDITOR_MODEL` on this comparison (§439), so the
+#: owner chose Haiku for `EDITOR_MODEL` on this comparison (§440), so the
 #: Sonnet arm pins its own model to stay the same comparison.
 ARM_MODEL = {"haiku": "anthropic:claude-haiku-5-5", "sonnet": "anthropic:claude-sonnet-5-5"}
 MINUTES = 1.5

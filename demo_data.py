@@ -290,7 +290,7 @@ def _forget_what_the_log_taught() -> dict:
     except Exception:  # noqa: BLE001 - see the docstring
         log.exception("could not clear nando's training material")
         out.setdefault("nando_labels_dropped", 0)
-    # Mclovin's kept verdicts and their reviews (§439) were read off episodes
+    # Mclovin's kept verdicts and their reviews (§440) were read off episodes
     # the wipe has just emptied.
     try:
         from agents import supervisor_training
