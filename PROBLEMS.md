@@ -29933,3 +29933,38 @@ list price; unpriced counted unpriced; the batch price; an answer folded twice
 counted once; the job that spent it; an agent's call with notes counted once
 under the agent; every Claude call in FAM reaches the spend; the table on
 Postgres).
+
+## 464. Phase 4, piece 1c: the error rows keep their own record (2026-11-05)
+
+The third of Keith's first fixes (§462): `pipeline_errors`, the store `/admin`
+reads to say what went wrong.
+
+1. **Rows were dropped with no trace.** While the store could not be written,
+   rows waited in memory, and past `MAX_PENDING` (2,000 of each kind) the
+   oldest were cut - errors, measured steps and refusals alike - and nothing
+   counted them. They are counted now, by kind, since the server started.
+2. **A failed write or open was a log line.** `status()` says when the last
+   write landed, how many failed, the last error, how many rows are waiting
+   and how many were dropped; `behind` is true while rows wait after a
+   failure, or once any was dropped. `/api/health` reports it (`tracking` →
+   `pipeline_errors`, beside §462's `provider_usage`) and the report carries
+   it as `tracking`.
+3. **The page could not show its own trouble.** It reads this store, and the
+   store's trouble is never a row in it. While it is behind, the report puts
+   one kind of its own at the top, stage `tracking`, "not written", with the
+   counts and the last error in its detail and an explanation of what to
+   check - drawn by the page's existing list (stages are read from the data,
+   so nothing in the page's code changed).
+4. **Two stages had no words.** `agents` (§347, §350: an agent held, a call
+   that did not finish, answered by another model, a setting that cannot be
+   used) and `audio` (§404: an upload that failed) were recorded but not in
+   `STAGES` and not in `EXPLAIN`, so an opened row said "no explanation is
+   written for it yet". Both are listed and explained now; every one of
+   these says what the listener noticed - nothing, the episode carried on.
+
+A write that fails still keeps its rows and tries again (unchanged); a flush
+with nothing waiting no longer opens the store.
+
+Tests: `tests/test_error_tracking_464.py` (dropped rows counted and shown at
+the top of the page with words; a failed write kept and said, then written;
+the agents and audio stages explained; health's `tracking`).

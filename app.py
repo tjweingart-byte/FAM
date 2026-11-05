@@ -1997,10 +1997,13 @@ async def voice_register(request: Request) -> dict:
 def _tracking_health() -> dict:
     """`/api/health`'s `tracking` (§462): how the records Keith reads are
     being kept. Never raises; reads memory only, never a store."""
+    import pipeline_errors
     import provider_usage
 
     try:
-        return {"provider_usage": provider_usage.status()}
+        return {"provider_usage": provider_usage.status(),
+                # §464: rows waiting, dropped, the last failed write.
+                "pipeline_errors": pipeline_errors.status()}
     except Exception as exc:  # noqa: BLE001 - health never fails on a report
         return {"error": f"{type(exc).__name__}: {exc}"[:200]}
 

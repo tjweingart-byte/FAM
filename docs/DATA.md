@@ -506,7 +506,8 @@ source of truth.
 | Live facts | `live_facts.FACT_CACHE` | Scores, quotes, odds | Short, by status (in progress shortest) |
 | Sports sweep and scoreboard | `balldontlie_scores.CARDS`, `TEAMS`, `STANDINGS`, `SCHEDULES`, `SWEPT_AT` | Today's cards, catalogues, tables, schedules (§277) | 10 min to a day, per process |
 | GDELT download state | `gdelt.STATE` | Last success, last attempt, failures in a row, last error, last file (§211; the §207 breaker is deleted) | Process lifetime |
-| Provider counts (pending) | `provider_usage._PENDING` | Requests not yet flushed to `provider_usage.db` | ≤ 10 s |
+| Provider counts (pending) | `provider_usage._PENDING`, `_PENDING_SPEND` | Requests and model spend not yet flushed to `provider_usage.db`; how writing has gone (`status()`, §462) | ≤ 10 s, or until a failed write succeeds |
+| Pipeline error rows (pending) | `pipeline_errors._PENDING*` | Errors, steps and refusals not yet written; past 2,000 of each the oldest are dropped and counted (`status()`, §464) | ≤ 10 s, or until a failed write succeeds |
 | Weather lookups | `weather._POINTS`, `weather._PLACES` | NWS grid points, resolved places | Process lifetime |
 | robots.txt | `local_news._ROBOTS` | Per-host robots answers | Process lifetime |
 | Engagement table | `topics._ENGAGEMENT_CACHE` | Global click-through per tile | Rebuilt every 5 min |
