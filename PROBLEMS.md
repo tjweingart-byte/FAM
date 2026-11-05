@@ -27986,3 +27986,38 @@ The sweep shows what C1's eval cannot: it tests the dedupe, not the
 choosing. So the recommendation to the owner is **not to set
 `HOUSEKEEPER_DRY_RUN=0` yet**, and to decide which of these to fix first;
 the branch's brief covers the thresholds, not her choosing.
+
+## 422. Consuela is offered whole sentences of the article, once (2026-11-05)
+
+Fixes 1-4 of §421, at the owner's yes, all in code before the model reads
+(`housekeeper.sentences_of`). The words stay the publisher's: nothing is
+reworded, only cut differently or left out.
+
+1. **More hedges**: "likelihood" and "probability" join "chance" (§421).
+   Production kept "speculators give Democrats a 78% likelihood of flipping
+   it" as an *outcome*.
+2. **No cut at an abbreviation**: a piece ending in "p.m.", "Sept.", "Dr.",
+   "U.S." and the like is joined to the next (`_ABBREVIATION`), so "by 9
+   p.m." | "ET (0200 GMT...)" and "since Sept." | "1, according to..." are
+   one sentence each again. Only Consuela's splitting changes;
+   `evidence_digest.split_sentences`, which numbers the writer's evidence,
+   is untouched.
+3. **A sentence an article repeats is offered once**, compared by
+   `dedupe.normalise` - so "... sweep. ..." and "... sweep.", or
+   "**Jackson Blake**" and "Jackson Blake", are one; the first wording is
+   kept. The nightly dedupe never compares two sentences of one article, so
+   this is the only place such a repeat could go.
+4. **The page around the article is never offered** (`_CLUTTER`): a table
+   row (three or more `|`), "click here", "Preferred Source", newsletter,
+   subscribe/sign-up and "follow us" lines. `**` markup is left as written
+   - removing it would be rewording, and the owner did not ask for it.
+
+Measured on three of production's articles from the report (stand-in
+material in the session's scratchpad: the NHL recap, the Kalshi odds piece,
+the Reuters markets piece with the ESPN table and Sporting News line
+appended): before, 32 + 12 + 11 sentences offered, with two fragments, one
+repeat, one invitation and one table among them; after, 32 + 11 + 6, none.
+
+`tests/test_consuela_sentences_422.py`, every case word for word from the
+report; `test_consuela_consolidates_399.py`'s unreadable-figure case no
+longer uses a "subscribe" line as its sentence.

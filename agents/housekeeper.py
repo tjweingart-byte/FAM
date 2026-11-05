@@ -123,7 +123,20 @@ HEDGE = re.compile(
     r"aims? to|plans? to|preview|odds|estimate[sd]?|"
     # "a 94% chance of winning" is a forecast (§421) - narrowly: a chance
     # with a figure before it, or a chance of/to/that something.
-    r"\d+(?:\.\d+)?%? chance|chances? (?:of|to|that))\b", re.I)
+    r"\d+(?:\.\d+)?%? chance|chances? (?:of|to|that)|likelihood|"
+    r"probabilit(?:y|ies))\b", re.I)
+#: An abbreviation a sentence does not end on (§422): a piece ending in one
+#: was cut too soon ("by 9 p.m." | "ET (0200 GMT)...", "since Sept." | "1,
+#: according to..."), so it is joined to the next.
+_ABBREVIATION = re.compile(
+    r"\b(?:[ap]\.m|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec|Mr|Mrs|Ms|Dr|"
+    r"St|Jr|Sr|No|vs|U\.S|U\.K|Gov|Sen|Rep|Gen|Lt|Col|Sgt|Prof)\.[\"'”’)]*$", re.I)
+#: The page around an article, not the article (§422): a table row, an
+#: invitation to click, subscribe or follow. Dropped before the model reads.
+_CLUTTER = re.compile(
+    r"(?:\|[^|]*){3,}|click(?:ing)? here|preferred source|newsletter|"
+    r"subscribe to (?:our|the)|sign up for (?:our|the)|all rights reserved|"
+    r"follow us on", re.I)
 _QUOTE_MARK = re.compile(r"[\"“”]|(?:^|\s)[‘'][A-Z]")
 
 
@@ -138,15 +151,35 @@ def passages_of(record: dict) -> list:
     return out
 
 
+def _whole(pieces: list) -> list:
+    """The pieces with any cut at an abbreviation mended (§422)."""
+    out: list = []
+    for piece in pieces:
+        if out and _ABBREVIATION.search(out[-1]):
+            out[-1] = f"{out[-1]} {piece}"
+        else:
+            out.append(piece)
+    return out
+
+
 def sentences_of(record: dict) -> list:
-    """The record's approved passages, numbered as the model sees them."""
+    """The record's approved passages, numbered as the model sees them:
+    whole sentences (never cut at "p.m." or "Sept."), no table rows or
+    invitations to click, and a sentence the article repeats - even with
+    other markup or punctuation - once (§422). The words are the
+    publisher's; nothing is reworded."""
     import evidence_digest
+    from agents import dedupe
 
     out: list = []
+    seen: set = set()
     for passage in passages_of(record):
-        for sentence in evidence_digest.split_sentences(passage):
-            if sentence not in out:
-                out.append(sentence)
+        for sentence in _whole(evidence_digest.split_sentences(passage)):
+            key = dedupe.normalise(sentence)
+            if not key or key in seen or _CLUTTER.search(sentence):
+                continue
+            seen.add(key)
+            out.append(sentence)
     return out[:MAX_SENTENCES]
 
 
