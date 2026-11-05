@@ -378,39 +378,47 @@ runs. Cost is designed out, and watched - not rationed. The models named
 below are the proposals the estimate assumes, not choices (see Models and
 outside plugins).
 
-**Assumptions** (estimates, not measured - there is no API key here; every
-figure is to be replaced by `metering`'s real numbers once agents run):
-per **10,000 episodes**, half written on a listener's search and half ahead
-of the tap (editions, write-ahead, prefetch); ~30 sentences and ~5 new
-articles an episode; Claude list prices (Haiku $0.10 / $0.50, Sonnet $2 /
-$10 per million tokens in / out); a cached prompt read at a tenth of the
-input price; the Batch API at half price for anything nobody waits on.
+**Assumptions** (updated 2026-11-04, PROBLEMS.md §459; *measured* where a
+run with the key measured it, *est.* where not - every figure is to be
+replaced by `metering`'s real numbers once agents run): per **10,000
+episodes**, half written on a listener's tap (search, Go Deeper, tiles
+scripted on the tap) and half ahead of it (editions, write-ahead,
+prefetch); Claude list prices from `metering.PRICES` (Haiku 5.5 $0.10 /
+$0.50, Sonnet 5.5 $2 / $10, Opus 5.5 $4 / $20 per million tokens in / out).
+The models are the ones decided (Models decided, and §440, §455, §456).
 
 **Per agent**
 
-| Agent | What it calls, per episode | Model and discounts | Per 10k episodes | Per episode |
+| Agent | What it calls, per episode | Model | Per 10k episodes | Per episode |
 |---|---|---|---|---|
 | **Netenyahu** | Nothing - orchestration is code | - | $0 | $0 |
-| **C3P0** | ~1,000 more tokens in and ~200 out inside EI's existing call (disambiguation, plugins, Sonic's request, the title); public-figure check from the reference look | Haiku; its instructions cached | ~$1.50 | ~$0.0002 |
-| **Nando** | Code; a ~3k-token Haiku call on ~1 in 5 requests where candidates tie; confirmation after the writer in code | Haiku; cached | ~$0.50 | <$0.0001 |
-| **Sonic** | Code lookups in Atlas | - | $0 (inside the Atlas tier) | $0 |
-| **Shakespeare** | One outline: ~10k in (~3k cached: instructions, rule book, playbook; ~7k the two packets), ~1k out | Search: Haiku. Ahead of the tap: Sonnet, batched and cached | ~$6 (search) + ~$62 (ahead) = **~$68** | ~$0.007 |
-| **Mclovin** | Code: screen, quotes, figures, dates, episode rules; the self-hosted checker on every sentence; Haiku on ~3 unsure sentences (~1.5k in, ~50 out each); a small model on unsettled pages ahead only | Haiku; batched ahead | **~$5** + the checker's machine | ~$0.0005 |
-| **Consuela** | ~5 new articles digested (~1.2k in, ~150 out each); dedupe pairs and periodic combs (code first, Haiku on unsure pairs, Sonnet on the few still unsure); demographic totals in code | Haiku, batched and cached | **~$5-6** | ~$0.0006 |
-| **Keith** | Code watching; a Haiku write-up per incident (~300 a month, not per episode); usage APIs free; email through `mail.py` | Haiku | **<$1** | ~$0 |
-| **All eight** | | | **~$80** | **~0.8¢** |
+| **C3P0** | ~1,000 more tokens in and ~200 out inside EI's existing call (disambiguation, plugins, Sonic's request, the title); public-figure check from the reference look | Haiku 5.5, inside EI's call | ~$1.50 *(est.)* | ~$0.0002 |
+| **Nando** | Code; a Haiku call on the ~1 in 5 requests where candidates tie; confirmation after the writer in code | Haiku 5.5 | ~$0.50 *(est.)* | <$0.0001 |
+| **Sonic** | Code lookups in the archive | - | $0 | $0 |
+| **Shakespeare, ahead of the tap** | One outline per edition, write-ahead or rail episode | Haiku 5.5, high effort | **~$20** *(measured: $0.004 a plan, §437)* | $0.004 |
+| **Shakespeare, on the tap** (`EDITOR_TANDEM`) | One outline beside the writer, and the writer's second call that writes the rest from it | Haiku 5.5, low effort | **~$15-18** *(measured parts: $0.0015 a plan, §455; a writer call ~$0.002, §450; the tandem itself unmeasured)* | ~$0.003-0.0035 |
+| **Mclovin** | Code: source screen, quotes, figures, dates, websites, advice, superlatives, mixed stories; the writer's one rewrite of a failed sentence (none in 20 measured episodes, §438); Haiku on pages the screen cannot settle, ahead of the tap only. **Support is off** (§452-§453): no grounding checker and no second look | Haiku 5.5 (screen); the writer (rewrites) | **~$1** *(est.)* | ~$0.0001 |
+| **Consuela** | ~5 new articles digested; dedupe pairs and periodic combs (code first, Haiku on unsure pairs, Sonnet on the few still unsure); demographic totals in code | Haiku 5.5, batched; Sonnet 5.5 review | **~$5-6** *(est.)* | ~$0.0006 |
+| **Keith** | Code watching; a write-up per incident (not per episode); usage APIs free; email through `mail.py` | Haiku 5.5; Sonnet 5.5 summaries | **<$1** *(est.)* | ~$0 |
+| **All eight** | | | **~$45** | **~0.45¢** |
 
-**Fixed machines** (a month, whatever the volume; estimates - check before
-buying): the grounding checker - Vectara's HHEM-2.1-Open is built to run on
-a CPU, ~$25-85 on a Render instance; a small GPU (~$150-300 always on) only
-if the CPU is too slow for searchFAM. The same machine can carry Shakespeare's
-reranker and Nando's offline picture check. MongoDB Atlas per §307 (Flex
+**Nightly, whatever the volume** (a month): Mclovin's review - 40 of his
+verdicts each night on Opus 5.5 (`SUPERVISOR_REVIEW_PER_RUN`), ~$0.011 a
+verdict *(measured, §451)*: **~$13**; Nando's answer key - up to 50 grades a
+night on Opus 5.5 (`NANDO_JUDGE_PER_RUN`): **~$15-20** *(est.)*. About
+**$30 a month** together, only while each agent is on.
+
+**Fixed machines**: **none needed now.** The grounding checker was measured
+and is not installed: HHEM-2.1-Open rejected ~9-12% of good sentences and
+caught ~64-66% of planted mistakes (§451), and Mclovin's own support verdict
+did no better (§452), so `support` stays off and needs no machine or GPU
+(the owner, §453). MongoDB Atlas per §307 if the archive moves there (Flex
 first, M10 at about 1,000 monthly listeners).
 
-**Where the money goes:** Shakespeare on Sonnet ahead of the tap is ~80% of all
-agent spend - deliberately: it is the lever most likely to improve the
-writing, which is the product ([writing-is-the-problem]). Everything else
-together is ~$15 per 10,000 episodes.
+**Where the money goes:** Shakespeare is ~80% of all agent spend - ~$37 per
+10,000 episodes on Haiku, against ~$68 in the old Sonnet-ahead plan (§437: no
+arm measurably better; the owner chose Haiku, §440). Everything else together is ~$8-9 per
+10,000 episodes plus the nightly ~$30 a month.
 
 **How to keep it low without costing quality** - safe levers, per agent:
 
@@ -421,18 +429,18 @@ together is ~$15 per 10,000 episodes.
 | All | **Code before models**; a model only where code cannot decide | Most calls | Better: code is exact |
 | C3P0, Nando | **Fold into EI's existing call** instead of new calls | A call each | None; no added wait |
 | Shakespeare | **Trim the packets before it reads them**: the screened, de-duplicated packets with Sonic's date-ordered history, not raw search output | ~30% of its input (est.) | None if the trim is extractive; measure on the eval |
-| Shakespeare | **Sonnet only where nobody waits**; Haiku on search | Keeps Sonnet off the busiest path | Search keeps today's model |
-| Mclovin | **No whole-script model**; code and the self-hosted checker; Haiku only on unsure sentences | ~$120 per 10k vs a Sonnet whole-script check | None for the named checks; the checker is better at support than a general model |
+| Shakespeare | **Low effort on the tap** | A third of the time, three-fifths of the cost of medium (§455) | None measured: medium better on 11 of 20, low on 9, same unsupported claims (§456) |
+| Mclovin | **No whole-script model**; code for the named checks; support off until a checker meets the bar | ~$120 per 10k vs a Sonnet whole-script check, and no checker machine | None for the named checks; support is unchecked, as it was before him |
 | Consuela | **Only new articles reach a model** (URL match first); figures in code | Most of her calls | None |
-| Consuela | GPT-5 nano or Gemini Flash-Lite for digests (FAM's material only) | ~30-40% of ~$5 | Only if the eval holds |
 | Everyone | **Shared work**: one cached episode or edition serves every listener who taps it | Falls per listener as FAM grows | None |
 | Everyone | **Anthropic volume discounts** once monthly volume is known | Negotiated | None |
 
-**Levers not to pull**, because they cost quality: Haiku for Shakespeare on the
-editions; dropping Mclovin's checker for a cheaper rule; skipping
-fact-checks on search; Opus anywhere per episode. *(The owner's one
-exception: Nando's answer key reads each finished episode once, in the
-background, on Opus - §381, nando.md rule 12 awaiting signature, §384.)*
+**Levers not to pull**, because they cost quality: skipping fact-checks on
+search; Opus anywhere per episode. *(The owner's exceptions, both in the
+background and never per episode: Nando's answer key reads each finished
+episode once on Opus - §381, nando.md rule 12 - and Mclovin's nightly review
+reads a sample of his verdicts on Opus - mclovin.md "always" 9, §443.)*
+GPT-5 nano is withdrawn for Consuela (decided item 35).
 
 **Instead of a cap:** every call has a size limit (tokens in and out); each
 agent makes at most one call per episode plus one retry or repair;
