@@ -758,7 +758,9 @@ class ScriptNotes:
     #: What came of Shakespeare's plan on searchFAM (`EDITOR_TANDEM`, §456):
     #: "handed_over" (the writer wrote the rest from it), "late" (not in by
     #: `EDITOR_TANDEM_WAIT_SECONDS`), "no_plan" (in, empty), "short" (the episode
-    #: ended before the hand-over point), or "" (he did
+    #: ended before the hand-over point), "over_budget" (the writer ran past
+    #: its budget first), "second_failed" (the second call failed before
+    #: speaking; the first finished), or "" (he did
     #: not run in tandem).
     editor_tandem: str = ""
     #: What the history archive keeps once this episode is cached (§308):
@@ -3098,10 +3100,6 @@ class ScriptGenerator:
         for sentence in opened:
             yield sentence
 
-        # Shakespeare on searchFAM, in tandem (§456): his plan starts now,
-        # beside the writer, never in front of the first word. None when he
-        # does not work on this episode or `EDITOR_TANDEM` is off.
-        tandem = _tandem_plan(plan, notes)
         _mark(notes, "writer_request")
         # The model is read once, from the request itself, and billed as
         # sent (review, §269): asking `writer_for` again after the call
@@ -3110,6 +3108,11 @@ class ScriptGenerator:
         model = request["model"]
         if notes is not None:
             notes.writer_model = model   # for the quality record (§309)
+        # Shakespeare on searchFAM, in tandem (§456): his plan starts once
+        # the writer's request is built, beside it, never in front of the
+        # first word. None when he does not work on this episode or
+        # `EDITOR_TANDEM` is off.
+        tandem = _tandem_plan(plan, notes)
         if tandem is not None:
             inner = self._stream_tandem(plan, notes, reader, request, tandem, opened)
             try:
@@ -3258,6 +3261,7 @@ class ScriptGenerator:
                     if not sentence:
                         continue
                 spoken.append(sentence)
+                ctx["spoke"] = True
                 yield sentence
             if ctx["over"]:
                 ctx["final"] = await stream_.get_final_message()
@@ -3312,8 +3316,11 @@ class ScriptGenerator:
                             log.warning("Shakespeare's tandem: the first writer call's usage "
                                         "could not be read", exc_info=True)
                 if not handed:
-                    async for sentence in read(events):
-                        yield sentence
+                    if not ctx["over"]:     # past the budget, nothing more is read
+                        async for sentence in read(events):
+                            yield sentence
+                    else:
+                        state = "over_budget"
                     async for sentence in finish(stream):
                         yield sentence
         except Exception as exc:

@@ -105,7 +105,9 @@ the a an this that these those his her its their our my your and but or nor
 for of to in on at by from with as after before when while since until than
 """.split())
 #: One word of a name: letters of any alphabet, an apostrophe inside it.
-_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?")
+#: A possessive's "'s" is never part of the name ("Jerome Powell's" reads
+#: "Jerome Powell", §460).
+_WORD = re.compile(r"[^\W\d_]+(?:['’](?!s\b)[^\W\d_]+)?")
 
 
 def _names_in(text: str, lo: int, hi: int, not_names) -> list:

@@ -315,3 +315,27 @@ def test_the_local_gap_line_is_part_of_what_was_spoken(monkeypatch):
     assert spoken[0] == "Nothing came from the town." and notes.editor_tandem == "handed_over"
     prompt = asked[1]["messages"][0]["content"][-1]["text"]
     assert "<already_spoken>\nNothing came from the town. The Federal Reserve" in prompt
+
+
+def test_past_the_budget_it_speaks_exactly_what_the_plain_path_speaks(monkeypatch):
+    """The second review (§460): over the budget before the hand-over point,
+    the tandem read one more event and spoke one more sentence."""
+    long = " ".join(f"Sentence number {i} says the Fed held its rate today." for i in range(40))
+
+    def spoken_with(on):
+        settings_for(monkeypatch, on=on, words=500)
+        shakespeare(monkeypatch)
+        gen, _, _ = generator(texts=(long,), chunk=10)
+        notes = ScriptNotes()
+        notes.agents = netenyahu.EpisodeRun(("editor",), {})
+        p = dataclasses.replace(plan_episode("what did the fed decide", 1.5), search=False,
+                                evidence=EVIDENCE, word_budget=20)
+
+        async def go():
+            return [s async for s in gen.stream_prepared(p, notes)]
+
+        return asyncio.run(go()), notes
+
+    plain, _ = spoken_with(False)
+    tandem, notes = spoken_with(True)
+    assert tandem == plain and notes.editor_tandem == "over_budget"

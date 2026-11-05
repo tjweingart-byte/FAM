@@ -51,7 +51,7 @@ def plan(query="what did the fed decide"):
     return dataclasses.replace(plan_episode(query, 1.5), search=False, evidence=EVIDENCE)
 
 
-def run(monkeypatch, p, roles=("editor",), answer="\n<plan>planned</plan>\n"):
+def run(monkeypatch, p, roles=("editor",), answer="\n<plan>planned</plan>\n", ahead=True):
     called = []
 
     async def outline(_p, notes=None, **kw):
@@ -62,7 +62,7 @@ def run(monkeypatch, p, roles=("editor",), answer="\n<plan>planned</plan>\n"):
 
     monkeypatch.setattr(editor, "outline", outline)
     notes = ScriptNotes()
-    notes.ahead = True
+    notes.ahead = ahead
     notes.agents = netenyahu.EpisodeRun(tuple(roles), {})
     out = asyncio.run(sg._with_editor(p, notes))
     return out, notes, called
@@ -113,6 +113,9 @@ def test_no_arm_when_he_does_not_work_or_not_ahead(monkeypatch):
     trial(monkeypatch, True)
     for q in questions(10):
         _out, notes, called = run(monkeypatch, plan(q), roles=())
+        assert called == [] and notes.editor_arm == ""
+        # Not ahead of the tap (a search): he does not plan here, no arm.
+        _out, notes, called = run(monkeypatch, plan(q), ahead=False)
         assert called == [] and notes.editor_arm == ""
 
 

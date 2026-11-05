@@ -57,3 +57,12 @@ def test_a_name_that_begins_with_an_accent_is_read():
     text = "Émile Zola wrote: “the truth is on the march and nothing will stop it.”"
     assert _quotes(text) == [("the truth is on the march and nothing will stop it",
                               "Émile Zola")]
+
+
+def test_a_possessive_is_not_part_of_the_name():
+    """The second review (§460): "Jerome Powell's" read as the speaker."""
+    text = ("Jerome Powell's statement came first. \u201cWe will wait for more data "
+            "before moving rates,\u201d the chair said.")
+    assert _quotes(text) == [("We will wait for more data before moving rates", "Jerome Powell")]
+    text = "Conan O'Brien said \u201cthis is the last show we will ever make.\u201d"
+    assert _quotes(text) == [("this is the last show we will ever make", "Conan O'Brien")]

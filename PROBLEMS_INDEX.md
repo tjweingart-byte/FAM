@@ -456,3 +456,4 @@ and `limit` = Lines.
 | 29631 | 20 | 457. Finishing Phase 3, piece 5: the review's two small fixes (2026-11-04) |
 | 29651 | 14 | 458. This branch's sections renumbered past the other open branch's (2026-11-04) |
 | 29665 | 76 | 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04) |
+| 29741 | 53 | 460. The second double-check, and the Cost table from measured figures (2026-11-05) |

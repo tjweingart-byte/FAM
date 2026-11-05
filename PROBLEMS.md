@@ -29737,3 +29737,56 @@ episode; past the budget the tail is spoken first; an unused plan is off the
 record; the gap line is in what was spoken) and
 `tests/test_mclovin_eval_450.py` (a role in front of a name; an accented
 first letter), on SQLite and Postgres 16.
+
+## 460. The second double-check, and the Cost table from measured figures (2026-11-05)
+
+The owner: "Double check everything again, then update the cost table." A
+second reviewer, fresh, read the whole diff against §450-§459's own words and
+CLAUDE.md's rules. No serious bug; each point below was reproduced, then
+fixed with a test that failed before.
+
+1. **Past the word budget, the tandem could speak one sentence more than
+   the plain path.** When the writer ran over its budget before the
+   hand-over point, `_stream_tandem` read once more before stopping. Only
+   reachable when `EDITOR_TANDEM_OPENING_WORDS` exceeds the budget (not at
+   the defaults). It now stops as `stream_prepared` does, recorded as
+   `over_budget`; a test compares the two paths sentence for sentence.
+2. **A possessive joined the name** in the eval's planter: "Jerome Powell's
+   statement" gave the speaker "Jerome Powell's". The "'s" is no longer part
+   of a word ("Conan O'Brien" still is one name).
+3. **§459 was wrong on one point:** it said the mixed-story planting "keeps
+   its own pattern (`_CAPS`), unchanged". `_CAPS` changed in §450 (accented
+   letters inside a word), so the mixed planting also reads names such as
+   "José Mourinho" now - eval only, and part of why §450's mixed cases are
+   141 against §440's 114; its numbers are not strictly comparable with
+   §440's.
+4. **A trial test covered half its name**: "not ahead of the tap" was never
+   run. It is now.
+
+Also made tight, from the reviewer's unconfirmed list: Shakespeare's tandem
+plan starts once the writer's request is built (a request that failed to
+build left it running), and a sentence the second call speaks from its tail
+counts as spoken (so a later failure could not fall back and repeat words).
+Left as they are, and said: a cancelled plan's tokens reach the model
+layer's ledger but not the listener's `notes.usage` (as any cancelled agent
+call); and if the first call ends exactly as the hand-over point is crossed,
+the second still writes "the rest" - rare, needing the last event to cross
+the mark.
+
+`python tools/mclovin_eval.py` after the fixes: unchanged from §459 - seven
+checks ready, figures not (81% / 1.70%), quote 99% with no failed control.
+
+**The Cost table** in `docs/FAM_AGENTS.md`, from measured figures where
+there are any: Shakespeare on Haiku ahead of the tap ($0.004 a plan, §437)
+and in tandem on the tap (~$0.003-0.0035: $0.0015 a plan, §455, plus about a
+writer call, §450); Mclovin with support off - no checker, no machine;
+the nightly Opus jobs (his review ~$13 a month at §451's measured rate,
+Nando's answer key ~$15-20 estimated). All eight: ~$45 per 10,000 episodes
+(~0.45¢ an episode) plus ~$30 a month nightly, against the old plan's ~$80
+and a checker machine. Stale lines withdrawn: "Haiku for Shakespeare on the
+editions" as a lever not to pull (the owner chose it, §440) and GPT-5 nano
+(decided item 35).
+
+Tests: `tests/test_editor_tandem_456.py` (past the budget, exactly the plain
+path's sentences), `tests/test_mclovin_eval_450.py` (a possessive),
+`tests/test_editor_trial_454.py` (not ahead of the tap, no arm).
