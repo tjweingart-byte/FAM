@@ -27923,3 +27923,66 @@ The proposals and the pending manifest are deleted;
 `tests/test_answer_key_proposals_418.py` takes its signed branch. Nothing
 behaves differently yet: no code reads the two rules until C3 and S4 are
 built, which may now be. The owner updates the copy held outside Claude.
+
+## 421. C2 on production's first three nights: the thresholds stand, "chance" is a hedge, and her choices are not ready to file (2026-11-05)
+
+The owner ran the three reports on `fam` after three nights with
+`AGENTS=1 HOUSEKEEPER=1` (both dry runs on). Production runs Main, without
+§419.
+
+**`consuela_report.py --merges` was empty**, as it must be: in her dry run
+she files nothing, and the nightly dedupe compares filed facts. Real merge
+pairs come only once `HOUSEKEEPER_DRY_RUN=0`.
+
+**`consuela_dedupe_eval.py`: 104 cases, 0 wrong merges, no fallback,
+passed.** The 21 misses: the core's two, §417's by design, and 19 grown
+"attribution added" cases - 13 on sentences with a number (code keeps a
+reworded figure apart, so they could never be found repeats) and 6 Haiku
+"unsure" (§407's finding, now on real material). §419 removes both kinds.
+
+**The thresholds, before and after, on that run:**
+- `CANDIDATE_SIMILARITY` 0.80 → 0.90 would send 11 pairs to a model, not
+  15, with 0 wrong merges and 21 misses either way - but every true repeat
+  there is a light edit made in code (0.96 or more), and two outlets'
+  repeats are reworded far more. **Unchanged** until real pairs exist.
+- `FIGURE_SIMILARITY` 0.90: every two-values-one-moment pair 0.94-1.00 and
+  flagged; "two quarters' revenue" at 0.89 correctly not. **Unchanged.**
+- `WINDOW_DAYS` 3: every eval case is one day; not measurable yet.
+  **Unchanged.**
+- **The hedge list gains "chance"** (the owner's yes): her report kept
+  "Democrats have a 94% chance of controlling the House" as a figure with
+  status *outcome* - a forecast stored as a result, never 3. Narrowly: a
+  chance with a figure before it ("94% chance") or a chance of/to/that.
+  "Chance the Rapper" and "by chance" are not hedges; "missed a chance to
+  tie" becomes one, the safe direction (kept apart, never asserted). The
+  eval: 0 wrong merges before and after; one sentence no longer grows a
+  "hedge added" case, being hedged already. `tests/test_hedge_chance_421.py`.
+
+**Her choices** (`consuela_report.py --limit 40`: 16 chosen, 1 held), read
+against `consuela.md`, are not ready to file:
+- *Forecasts as outcomes* (never 3): the "94% chance" above, now fixed;
+  "speculators give Democrats a 78% likelihood of flipping it" also kept as
+  an *outcome* - "likelihood" is not in the list either.
+- *Not key sentences* (always 3): the NHL recap kept about 35 sentences,
+  nearly the whole article; an ESPN box score table kept as a "sentence".
+- *Fragments*: sentences cut at abbreviations - "ET (2300 GMT), and by 9
+  p.m." and "1, according to a Yahoo Finance analysis." (split at "Sept.").
+- *Page furniture kept*: "Add The Sporting News as a* *Preferred Source by
+  clicking here*", headlines run into the first sentence, `**` markup.
+- *Quotes lose their speaker*: a quote's later sentences are kept as
+  "sentence" ("We had a really hard start.", "I thought we were trying to
+  do too much."), and pronouns lose their subject ("He made his initial 51
+  of the season.").
+- *Repeats inside one article*: the same sentence kept twice ("And per
+  Polymarket, there is a 75% chance...", the Jackson Blake sentence). The
+  dedupe never compares two sentences of one article ("two sentences of
+  one article"), so they would stay.
+- *An opinion piece* (never 6): the Sporting News "Warriors predicted to
+  part ways" column was chosen, its speculation kept as plain sentences.
+- *Chosen with nothing kept*: four pages (two index pages, a video page,
+  euronews) are "chosen" with no sentence - no harm, but counted as chosen.
+
+The sweep shows what C1's eval cannot: it tests the dedupe, not the
+choosing. So the recommendation to the owner is **not to set
+`HOUSEKEEPER_DRY_RUN=0` yet**, and to decide which of these to fix first;
+the branch's brief covers the thresholds, not her choosing.

@@ -120,7 +120,10 @@ INSTRUCTIONS = (
 HEDGE = re.compile(
     r"\b(expect(?:s|ed)?|set to|could|would|will|may|might|forecast(?:s|ed)?|"
     r"project(?:s|ed|ion)|predict(?:s|ed|ion)?|likely|poised|on track|"
-    r"aims? to|plans? to|preview|odds|estimate[sd]?)\b", re.I)
+    r"aims? to|plans? to|preview|odds|estimate[sd]?|"
+    # "a 94% chance of winning" is a forecast (§421) - narrowly: a chance
+    # with a figure before it, or a chance of/to/that something.
+    r"\d+(?:\.\d+)?%? chance|chances? (?:of|to|that))\b", re.I)
 _QUOTE_MARK = re.compile(r"[\"“”]|(?:^|\s)[‘'][A-Z]")
 
 
