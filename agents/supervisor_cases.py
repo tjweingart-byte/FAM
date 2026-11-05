@@ -96,12 +96,58 @@ def change_number(sentence: str) -> Optional[str]:
 
 
 _PACKET_QUOTE = re.compile(r'["“]([^"“”]{15,240})["”]')
-_CAPS = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b")
+#: A run of capitalised words, as the mixed-story planting reads names.
+_CAPS = re.compile(r"\b([A-Z][^\W\d_A-Z]+(?:\s+[A-Z][^\W\d_A-Z]+)+)\b")
+#: Words a sentence or a headline capitalises that never begin or join a
+#: name ("The Central Bank Chair spoke" names nobody).
+_FUNCTION_WORDS = frozenset("""
+the a an this that these those his her its their our my your and but or nor
+for of to in on at by from with as after before when while since until than
+""".split())
+#: One word of a name: letters of any alphabet, an apostrophe inside it.
+#: A possessive's "'s" is never part of the name ("Jerome Powell's" reads
+#: "Jerome Powell", §460).
+_WORD = re.compile(r"[^\W\d_]+(?:['’](?!s\b)[^\W\d_]+)?")
+
+
+def _names_in(text: str, lo: int, hi: int, not_names) -> list:
+    """`(start, end, name)` for each run of two or more capitalised words in
+    `text[lo:hi]`, accented letters included ("Émile Zola", "Michel Bréal").
+    A role word ends a run rather than spoiling it, and the run straight
+    before it is the role's organisation, not a person ("Federal Reserve
+    Chair Jerome Powell" gives "Jerome Powell"); a word cut off at the
+    window's edge ends one too ("Summer Gam", §450). Function words ("The")
+    never begin or join a name."""
+    runs, current, prev_end = [], [], None
+    for w in _WORD.finditer(text, lo, hi):
+        word = w.group(0)
+        cut = (w.start() == lo and lo > 0 and text[lo - 1].isalpha()) or \
+              (w.end() == hi and hi < len(text) and text[hi].isalpha())
+        role = word.lower() in not_names
+        good = (word[0].isupper() and len(word) >= 3 and not cut and not role
+                and word.lower() not in _FUNCTION_WORDS)
+        joined = prev_end is not None and text[prev_end:w.start()].isspace()
+        if good and current and joined:
+            current.append(w)
+        else:
+            # A run straight before a role word is the role's organisation
+            # ("Central Bank Chair", "Federal Reserve Chair"), never a speaker.
+            if len(current) >= 2 and not (role and joined):
+                runs.append(current)
+            current = [w] if good else []
+        prev_end = w.end()
+    if len(current) >= 2:
+        runs.append(current)
+    return [(r[0].start(), r[-1].end(), text[r[0].start():r[-1].end()]) for r in runs]
 
 
 def packet_quotes(blocks) -> list:
     """`(span, speaker)` for quotes in the packets with a two-word name
-    within 120 characters - the speaker as the packet places it."""
+    within 120 characters - the speaker as the packet places it: the name
+    nearest the quote, never a role ("Federal Reserve Chair") and never a
+    word cut off at the window's edge ("Summer Gam", §450)."""
+    from agents.supervisor_checks import NOT_ENTITIES
+
     out = []
     for block in blocks:
         text = block.text
@@ -109,11 +155,15 @@ def packet_quotes(blocks) -> list:
             span = m.group(1).strip().rstrip(",.")
             if len(span.split()) < 4:
                 continue
-            window = text[max(0, m.start() - 120): m.end() + 120]
-            names = [n for n in _CAPS.findall(window) if n not in span
-                     and all(len(w) >= 3 for w in n.split())]
+            lo, hi = max(0, m.start() - 120), min(len(text), m.end() + 120)
+            names = []
+            for start, end, name in _names_in(text, lo, hi, NOT_ENTITIES):
+                if name in span or m.start() <= start < m.end():
+                    continue
+                gap = m.start() - end if end <= m.start() else start - m.end()
+                names.append((gap, name))
             if names:
-                out.append((span, names[0]))
+                out.append((span, min(names)[1]))
     return out
 
 

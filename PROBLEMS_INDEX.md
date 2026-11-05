@@ -446,3 +446,14 @@ and `limit` = Lines.
 | 29174 | 15 | 443. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |
 | 29189 | 41 | 444. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04) |
 | 29230 | 10 | 445. This branch's sections renumbered: Main took §433 (2026-11-04) |
+| 29240 | 68 | 450. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04) |
+| 29308 | 89 | 451. Finishing Phase 3, piece 2: HHEM measured for accuracy, and as int8 ONNX on one thread (2026-11-04) |
+| 29397 | 52 | 452. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04) |
+| 29449 | 18 | 453. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04) |
+| 29467 | 62 | 454. Finishing Phase 3, piece 4: Shakespeare's two weeks, built behind a switch - and his place on searchFAM (2026-11-04) |
+| 29529 | 44 | 455. Shakespeare on searchFAM: alongside the writer, and his call measured at low and medium effort (2026-11-04) |
+| 29573 | 58 | 456. Shakespeare on searchFAM: low effort keeps quality, and he plans beside the writer (2026-11-04) |
+| 29631 | 20 | 457. Finishing Phase 3, piece 5: the review's two small fixes (2026-11-04) |
+| 29651 | 14 | 458. This branch's sections renumbered past the other open branch's (2026-11-04) |
+| 29665 | 76 | 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04) |
+| 29741 | 53 | 460. The second double-check, and the Cost table from measured figures (2026-11-05) |

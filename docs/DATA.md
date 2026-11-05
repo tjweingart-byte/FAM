@@ -392,7 +392,8 @@ only by `/admin/x`.
 written episode was written. `episodes`, one row per episode cached anywhere
 (a tap, prefetch, DailyFAM, Trending) - never an attachment's, which is never
 cached, and never a private search's - with its script, the writer's category words, story shape, writer
-model, a hash of the writer's instructions, the code's six scores and, when
+model, a hash of the writer's instructions, which arm of Shakespeare's trial it
+was in (`editor_arm`, §454; "" when no trial ran), the code's six scores and, when
 grading is on (`QUALITY_GRADE`, off by default), the grader's; the evidence the
 writer read is kept only until it is graded, at most 14 days. `listens`, the
 furthest point each signed-in account heard each episode (from
