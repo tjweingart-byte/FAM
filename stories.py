@@ -1528,6 +1528,11 @@ async def compose(signals: list, now: Optional[float] = None) -> list:
                     len(signals))
         return [template(s, now) for s in signals]
 
+    # The day's spend (§462): the composer's answer is folded in nowhere else.
+    import metering
+
+    metering.count_call("story composer", settings.stories_model,
+                        getattr(response, "usage", None))
     if getattr(response, "stop_reason", "") == "refusal":
         log.warning("stories: the composer declined; templating %d", len(signals))
         return [template(s, now) for s in signals]

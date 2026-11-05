@@ -123,7 +123,7 @@ def test_a_failed_write_is_said_on_the_page_and_kept(tmp_path, monkeypatch):
     provider_usage.reset(usage)
     real = usage.add
 
-    def broken(counts):
+    def broken(counts, spent=None):
         raise OSError("disk full")
 
     monkeypatch.setattr(usage, "add", broken)

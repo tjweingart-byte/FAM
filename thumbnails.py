@@ -1190,6 +1190,11 @@ async def claude_writer(paths: list[str]) -> list[Scene]:
                        + listing}],
         ),
         timeout=float(settings.thumbnails_timeout_seconds))
+    # The day's spend (§462), priced at `metering.PRICES` there.
+    import metering
+
+    metering.count_call("thumbnails", settings.thumbnails_model,
+                        getattr(response, "usage", None))
     if getattr(response, "stop_reason", "") == "refusal":
         raise GenerationError("the scene writer declined")
     text = next(b.text for b in response.content if b.type == "text")
@@ -1336,7 +1341,7 @@ async def _google_post(model: str, prompt: str, key: str):
                               why=type(exc).__name__)
         raise
     # Every image request, counted where it goes out (§462); what a made
-    # picture cost is `record_spend`'s, below.
+    # picture cost is `record_spend`'s, below, and the day's spend.
     code = int(getattr(resp, "status_code", 0) or 0)
     provider_usage.record("gemini", ok=200 <= code < 300, detail="images",
                           why=f"HTTP {code}")
@@ -1478,6 +1483,10 @@ async def claude_checker(image: bytes, mime: str, subject: str
         ),
         timeout=float(settings.thumbnails_timeout_seconds))
     cost = _price_tokens(getattr(response, "usage", None))
+    import metering
+
+    metering.count_call("thumbnails", settings.thumbnails_model,
+                        getattr(response, "usage", None))
     if getattr(response, "stop_reason", "") == "refusal":
         raise GenerationError("the checker declined")
     text = next(b.text for b in response.content if b.type == "text")
@@ -1724,6 +1733,13 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
             raise StopRun(f"painter failed: {exc}") from exc
         spent += image_cost
         thumb_store.record_spend(node_id, 1, image_cost)
+        # And in the day's model spend beside Claude's (§462), priced as the
+        # tile store prices it (`THUMBNAILS_IMAGE_PRICE`).
+        import provider_usage
+
+        provider_usage.spend("thumbnails", "google:" + str(
+            _RESOLVED_MODEL or settings.thumbnails_image_model).split("/")[-1],
+            usd=image_cost)
         try:
             # Off the event loop: a Lanczos resize and a WebP encode are tens
             # of milliseconds each, and this runs inside a server.

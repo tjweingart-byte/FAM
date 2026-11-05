@@ -68,7 +68,8 @@ LABELS = {
     "nws": "National Weather Service",
     "open_meteo": "Open-Meteo",
     "local_feeds": "Local news feeds",
-    # §462: every Claude request, counted at the client (`anthropic_client`).
+    # §462: every Claude request, counted at the client (`anthropic_client`),
+    # and what it cost from `metering` (the `spend` table below).
     "anthropic": "Claude (Anthropic)",
     # §462: the tile pictures' image model (`thumbnails._google_post`).
     "gemini": "Google image model",
@@ -354,7 +355,9 @@ def provider_for_host(host: str) -> str:
 
 
 class UsageStore:
-    """`calls(day, provider, requests, failures)`, one row per provider-day."""
+    """`calls(day, provider, requests, failures)`, one row per provider-day;
+    `spend(day, source, model, ...)`, what the model calls cost per day (§462).
+    """
 
     def __init__(self, path: Optional[str] = None) -> None:
         self.path = data_path("PROVIDER_USAGE_DB", "provider_usage.db", path)
@@ -366,6 +369,25 @@ class UsageStore:
                               requests INTEGER NOT NULL DEFAULT 0,
                               failures INTEGER NOT NULL DEFAULT 0,
                               PRIMARY KEY (day, provider))""")
+            # §462: every model call's tokens and dollars, per UTC day, by
+            # what spent it (`source`) and on which model - the listener's
+            # episodes, the editions, prefetch, the composer, the agents.
+            # `metering`'s ledger is per listener episode; this is the whole
+            # bill, the figure a provider's limit is measured against. No
+            # listener id. `unpriced` counts calls with no rate in
+            # `metering.PRICES`, whose dollars are not in `usd`.
+            db.execute("""CREATE TABLE IF NOT EXISTS spend (
+                              day                TEXT NOT NULL,
+                              source             TEXT NOT NULL,
+                              model              TEXT NOT NULL,
+                              calls              INTEGER NOT NULL DEFAULT 0,
+                              input_tokens       INTEGER NOT NULL DEFAULT 0,
+                              output_tokens      INTEGER NOT NULL DEFAULT 0,
+                              cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+                              cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+                              usd                REAL NOT NULL DEFAULT 0,
+                              unpriced           INTEGER NOT NULL DEFAULT 0,
+                              PRIMARY KEY (day, source, model))""")
 
     def _connect(self) -> sqlite3.Connection:
         db = store_db.connect(self.path, timeout=5, isolation_level=None)
@@ -377,22 +399,33 @@ class UsageStore:
         day = _day(time.time() if now is None else now)
         self.add({(day, provider): (1, 0 if ok else 1)})
 
-    def add(self, counts: dict) -> None:
-        """Add `{(day, provider): (requests, failures)}` in one transaction."""
-        if not counts:
+    def add(self, counts: dict, spent: Optional[dict] = None) -> None:
+        """Add `{(day, provider): (requests, failures)}` and
+        `{(day, source, model): SPEND_FIELDS values}` in one transaction."""
+        if not counts and not spent:
             return
         with self._lock:
             db = self._connect()
             try:
                 with db:
-                    db.executemany(
-                        "INSERT INTO calls (day, provider, requests, failures) "
-                        "VALUES (?, ?, ?, ?) ON CONFLICT(day, provider) DO UPDATE "
-                        "SET requests = calls.requests + excluded.requests, "
-                        "failures = calls.failures + excluded.failures",
-                        [(day, provider, requests, failures)
-                         for (day, provider), (requests, failures)
-                         in counts.items()])
+                    if counts:
+                        db.executemany(
+                            "INSERT INTO calls (day, provider, requests, failures) "
+                            "VALUES (?, ?, ?, ?) ON CONFLICT(day, provider) DO UPDATE "
+                            "SET requests = calls.requests + excluded.requests, "
+                            "failures = calls.failures + excluded.failures",
+                            [(day, provider, requests, failures)
+                             for (day, provider), (requests, failures)
+                             in counts.items()])
+                    if spent:
+                        names = ", ".join(SPEND_FIELDS)
+                        sums = ", ".join(f"{f} = spend.{f} + excluded.{f}"
+                                         for f in SPEND_FIELDS)
+                        db.executemany(
+                            f"INSERT INTO spend (day, source, model, {names}) "
+                            f"VALUES (?, ?, ?, {', '.join('?' for _ in SPEND_FIELDS)}) "
+                            f"ON CONFLICT(day, source, model) DO UPDATE SET {sums}",
+                            [(*key, *values) for key, values in spent.items()])
             finally:
                 db.close()
 
@@ -408,9 +441,24 @@ class UsageStore:
                 out.setdefault(provider, {})[day] = (int(requests), int(failures))
         return out
 
+    def spend_since(self, day: str) -> list:
+        """Every spend row from `day` (a UTC `YYYY-MM-DD`) on, as dicts."""
+        with closing(self._connect()) as db:
+            cursor = db.execute(
+                f"SELECT day, source, model, {', '.join(SPEND_FIELDS)} FROM spend "
+                "WHERE day >= ?", (day,))
+            names = [c[0] for c in cursor.description]
+            return [dict(zip(names, values)) for values in cursor]
+
     def clear(self) -> None:
         with self._lock, closing(self._connect()) as db:
             db.execute("DELETE FROM calls")
+            db.execute("DELETE FROM spend")
+
+
+#: The spend table's summed columns, in order.
+SPEND_FIELDS = ("calls", "input_tokens", "output_tokens", "cache_read_tokens",
+                "cache_write_tokens", "usd", "unpriced")
 
 
 def _day(at: float) -> str:
@@ -437,6 +485,7 @@ def reset(usage_store: Optional[UsageStore] = None) -> None:
         _STORE = usage_store
     with _PENDING_LOCK:
         _PENDING.clear()
+        _PENDING_SPEND.clear()
         _WHY.clear()
         _LAST_FLUSH[0] = 0.0
         _WRITES.update(_WRITES_EMPTY)
@@ -452,7 +501,7 @@ def exists() -> bool:
     if _STORE is not None:
         return True
     with _PENDING_LOCK:
-        if _PENDING:
+        if _PENDING or _PENDING_SPEND:
             return True
     return store_db.has_tables(data_path("PROVIDER_USAGE_DB", "provider_usage.db"))
 
@@ -461,6 +510,8 @@ def exists() -> bool:
 FLUSH_SECONDS = 10.0
 
 _PENDING: dict = {}
+#: Model spend not yet written (§462): (day, source, model) -> SPEND_FIELDS.
+_PENDING_SPEND: dict = {}
 _PENDING_LOCK = threading.Lock()
 _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
@@ -535,6 +586,35 @@ def record(provider: str, ok: bool = True, detail: str = "",
         log.warning("could not count a %s request: %s", provider, exc)
 
 
+def spend(source: str, model: str, *, input_tokens: int = 0,
+          output_tokens: int = 0, cache_read_tokens: int = 0,
+          cache_write_tokens: int = 0, usd: Optional[float] = None,
+          calls: int = 1) -> None:
+    """Count what one model call cost (§462). Never raises, never waits.
+
+    Called by `metering.Usage.add_model_call` for every Claude answer and by
+    the few calls that price themselves (the image model). `usd` None means
+    the model has no rate: the call is counted as unpriced, never as $0.
+    """
+    try:
+        now = time.time()
+        key = (_day(now), str(source or "other")[:40], str(model or "?")[:80])
+        added = (int(calls), int(input_tokens or 0), int(output_tokens or 0),
+                 int(cache_read_tokens or 0), int(cache_write_tokens or 0),
+                 float(usd or 0.0), 0 if usd is not None else int(calls))
+        with _PENDING_LOCK:
+            held = _PENDING_SPEND.get(key)
+            _PENDING_SPEND[key] = (added if held is None else
+                                   tuple(a + b for a, b in zip(held, added)))
+            _held_since(now)
+            due = _due()
+        if due:
+            threading.Thread(target=_flush_in_background, daemon=True,
+                             name="provider-usage-flush").start()
+    except Exception as exc:  # noqa: BLE001 - counting never costs a call
+        log.warning("could not count a %s call's spend: %s", model, exc)
+
+
 def _flush_in_background() -> None:
     try:
         flush()
@@ -568,7 +648,7 @@ def _failed(what: str, exc: BaseException) -> None:
 
 def _flush_locked() -> None:
     with _PENDING_LOCK:
-        if not _PENDING:
+        if not _PENDING and not _PENDING_SPEND:
             _LAST_FLUSH[0] = time.monotonic()
             return
     try:
@@ -584,18 +664,29 @@ def _flush_locked() -> None:
     with _PENDING_LOCK:
         taken = dict(_PENDING)
         _PENDING.clear()
+        spent = dict(_PENDING_SPEND)
+        _PENDING_SPEND.clear()
         waiting_since = _WRITES["waiting_since"]
         _WRITES["waiting_since"] = None
         _LAST_FLUSH[0] = time.monotonic()
-    if not taken:
+    if not taken and not spent:
         return
     try:
-        target.add(taken)
+        # The spend only when there is some: a store's `add` took the
+        # counts alone before §463, and a stand-in for one still may.
+        if spent:
+            target.add(taken, spent)
+        else:
+            target.add(taken)
     except Exception as exc:  # noqa: BLE001
         with _PENDING_LOCK:
             for key, (requests, failures) in taken.items():
                 held = _PENDING.get(key, (0, 0))
                 _PENDING[key] = (held[0] + requests, held[1] + failures)
+            for key, values in spent.items():
+                held = _PENDING_SPEND.get(key)
+                _PENDING_SPEND[key] = (values if held is None else
+                                       tuple(a + b for a, b in zip(held, values)))
             if waiting_since is not None and (
                     _WRITES["waiting_since"] is None
                     or waiting_since < _WRITES["waiting_since"]):
@@ -615,9 +706,10 @@ def status() -> dict:
     with _PENDING_LOCK:
         out = dict(_WRITES)
         out["waiting"] = sum(r for (_, p), (r, _) in _PENDING.items() if SUB not in p)
+        out["waiting_spend_calls"] = sum(v[0] for v in _PENDING_SPEND.values())
     last_fail, last_ok = out["last_failure_at"], out["last_written_at"]
     out["behind"] = bool(last_fail and (not last_ok or last_fail > last_ok)
-                         and out["waiting"])
+                         and (out["waiting"] or out["waiting_spend_calls"]))
     return out
 
 
@@ -625,6 +717,9 @@ def _behind_alert(row_provider: str, state: dict) -> str:
     """The words a row's `alert` carries while its counts are not written."""
     with _PENDING_LOCK:
         waiting = sum(r for (_, p), (r, _) in _PENDING.items() if p == row_provider)
+    if row_provider == "anthropic":
+        with _PENDING_LOCK:
+            waiting += sum(v[0] for v in _PENDING_SPEND.values())
     if not waiting:
         return ""
     since = state.get("waiting_since")
@@ -672,12 +767,16 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
         licensed = {}
     today, yesterday = _day(now), _day(now - DAY)
     first = _day(now - (days - 1) * DAY)
+    spent = spend_report(now) if exists() else None
     rows = []
     for provider in PROVIDERS:
         per_day = seen.get(provider, {})
         total = sum(requests for day, (requests, _) in per_day.items()
                     if day >= first)
         limit, upgrade = plans[provider]
+        if provider == "anthropic" and spent:
+            limit = (f"{limit}; spent today ${spent['today']:,.2f}, this month "
+                     f"${spent['month']:,.2f} (priced at metering.PRICES)")
         row = {
             "provider": provider,
             "label": LABELS[provider],
@@ -689,6 +788,8 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
             "next": upgrade,
             "allowance": _used(limits.get(provider), per_day, now, provider),
         }
+        if provider == "anthropic":
+            row["spend"] = spent
         if provider in licensed:
             row["licence"] = licensed[provider]
         why = failure_reasons(provider)
@@ -705,6 +806,55 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
                 row["breakdown"] = breakdown
         rows.append(row)
     return rows
+
+
+def spend_report(now: Optional[float] = None) -> Optional[dict]:
+    """What the model calls cost (§462): today, yesterday and this UTC month,
+    in dollars at `metering.PRICES`, by source and by model, with the calls
+    no rate covers. None when nothing was ever counted. Never raises."""
+    now = time.time() if now is None else now
+    try:
+        if not exists():
+            return None
+        flush()
+        month = _day(now)[:7]
+        start = min(month + "-01", _day(now - DAY))
+        rows = store().spend_since(start)
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not read model spend: %s", exc)
+        return None
+    today, yesterday = _day(now), _day(now - DAY)
+
+    def total(pick) -> float:
+        return round(sum(float(r["usd"]) for r in rows if pick(r)), 6)
+
+    def grouped(field: str) -> list:
+        out: dict = {}
+        for r in rows:
+            g = out.setdefault(r[field], {field: r[field], "today": 0.0,
+                                          "month": 0.0, "calls_today": 0,
+                                          "unpriced_month": 0})
+            if r["day"] == today:
+                g["today"] += float(r["usd"])
+                g["calls_today"] += int(r["calls"])
+            if r["day"].startswith(month):
+                g["month"] += float(r["usd"])
+                g["unpriced_month"] += int(r["unpriced"])
+        for g in out.values():
+            g["today"], g["month"] = round(g["today"], 6), round(g["month"], 6)
+        return sorted(out.values(), key=lambda g: (-g["month"], g[field]))
+
+    return {
+        "today": total(lambda r: r["day"] == today),
+        "yesterday": total(lambda r: r["day"] == yesterday),
+        "month": total(lambda r: r["day"].startswith(month)),
+        "calls_today": sum(int(r["calls"]) for r in rows if r["day"] == today),
+        "unpriced_today": sum(int(r["unpriced"]) for r in rows if r["day"] == today),
+        "unpriced_month": sum(int(r["unpriced"]) for r in rows
+                              if r["day"].startswith(month)),
+        "by_source": grouped("source"),
+        "by_model": grouped("model"),
+    }
 
 
 #: Providers whose requests are also counted by part (`record(detail=...)`),

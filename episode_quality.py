@@ -869,7 +869,7 @@ async def grade_script(client, query: str, minutes: int, structure: str,
         log.warning("quality grade failed for %r: %s", query, exc)
         return None, model, 0.0, f"{type(exc).__name__}: {exc}"
     usage = metering.Usage()
-    usage.add_model_call(model, getattr(response, "usage", None))
+    usage.add_model_call(model, getattr(response, "usage", None), source="quality grading")
     dollars = metering.price_of(usage).total
     if getattr(response, "stop_reason", "") in ("refusal", "max_tokens"):
         return None, model, dollars, f"the grader stopped: {response.stop_reason}"

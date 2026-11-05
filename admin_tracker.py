@@ -535,6 +535,9 @@ def snapshot(now: Optional[float] = None) -> dict:
             "signups": series, "recent_accounts": recent,
             "top_searches": top_searches, "stores": stores,
             "providers": provider_usage.report(now),
+            # What the model calls cost, today and this month, by what spent
+            # it (§463) - the figure Claude's limit is measured against.
+            "claude_spend": provider_usage.spend_report(now),
             "routing": live_routing.report(now),
             "pipeline_errors": pipeline_errors.report(now)}
 
@@ -806,6 +809,11 @@ async def _model_sql(question: str, schema_lines: str, error: str = "",
         ),
         timeout=30.0,
     )
+    # The day's spend (§462): an admin question is nobody's episode.
+    import metering
+
+    metering.count_call("admin questions", ask_model(),
+                        getattr(response, "usage", None))
     text = next(b.text for b in response.content if b.type == "text")
     return json.loads(text)
 

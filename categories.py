@@ -1480,6 +1480,11 @@ async def place(store: "CategoryStore", subjects: list[str],
                     "their keyless parents", exc, len(subjects))
         return 0
 
+    # The day's spend (§462): the placer's answer is folded in nowhere else.
+    import metering
+
+    metering.count_call("category placer", settings.categories_model,
+                        getattr(response, "usage", None))
     if getattr(response, "stop_reason", "") == "refusal":
         log.warning("categories: the placer declined; keeping keyless parents")
         return 0

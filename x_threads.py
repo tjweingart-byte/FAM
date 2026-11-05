@@ -1078,7 +1078,7 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
             output_config={"format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
             messages=[{"role": "user", "content": draft_prompt(cand)}])
         usage = metering.Usage()
-        usage.add_model_call(model, getattr(response, "usage", None))
+        usage.add_model_call(model, getattr(response, "usage", None), source="x drafts")
         dollars = metering.price_of(usage).total
         text = next(b.text for b in response.content if b.type == "text")
         body = json.loads(text)

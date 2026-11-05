@@ -163,9 +163,16 @@ async def check(data_url: str, usage=None) -> Verdict:
 
     if usage is not None:
         try:
-            usage.add_model_call(settings.image_check_model, response.usage)
+            usage.add_model_call(settings.image_check_model, response.usage,
+                                 source="photo check")
         except Exception:  # noqa: BLE001 - metering never fails an upload
             log.exception("image_check: could not meter the call")
+    else:
+        # Not folded into a listener's usage, still in the day's spend (§462).
+        import metering
+
+        metering.count_call("photo check", settings.image_check_model,
+                            getattr(response, "usage", None))
     return verdict_from(response)
 
 
