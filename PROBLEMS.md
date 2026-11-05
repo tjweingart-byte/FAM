@@ -29791,6 +29791,50 @@ Tests: `tests/test_editor_tandem_456.py` (past the budget, exactly the plain
 path's sentences), `tests/test_mclovin_eval_450.py` (a possessive),
 `tests/test_editor_trial_454.py` (not ahead of the tap, no arm).
 
+## 461. The owner's answers after Phase 3, the production switches, and the Phase 4 prompt (2026-11-05)
+
+The owner (2026-11-05): the tandem "runs on every episode a listener waits
+on"; "don't measure the tandem on real searches"; "support off until I
+revisit it"; and a prompt for Phase 4 with these in it, for a new branch.
+Recorded as decided items 42-46 in `docs/AGENTS_BUILD_PROMPT.md`, with items
+34 and 37 marked answered and the provider line brought up to date
+(Polymarket the only one pending). Nothing in code changes: the tandem
+already runs wherever Netenyahu's `search` surface does - any episode a
+listener is in front of (§459).
+
+**Asked: is `MONGODB_URI` different from `MONGODB_READ_URI`?** Yes.
+`MONGODB_URI` is the archive's read-write user - FAM writes the history
+archive with it and Consuela is its only writer (`history_archive.py`).
+`MONGODB_READ_URI` is a second, read-only user for Sonic alone (§403,
+`ARCHIVE.md` step 7), so the agent that reads can never write. Both are read
+only once `ARCHIVE_BACKEND=atlas`; until then the archive is
+`/data/archive.db` and neither is used.
+
+**The production switches** (the `fam` service, set in Render's dashboard;
+none is in `render.yaml` and none needs to be; all off today):
+
+| Variable | Turns on | Cost |
+|---|---|---|
+| `AGENTS=1` | the master switch: Netenyahu's background loop (code, every 5 min) and the rule books' signature check; nothing else runs without it | $0 |
+| `CONTEXTUALIZER=1` | C3P0 inside EI's brief call: same-name things told apart (and asked), public figures only, plugins chosen, the title | ~$0.0002 an episode (est.) |
+| `CATEGORIZER=1` | Nando: one tree node per request (Haiku on ties); nightly: follow, judge up to 50 on Opus, train | <$0.0001 an episode; ~$15-20 a month nightly (est.) |
+| `RETRIEVER=1` | Sonic: one dated history packet, code only; on Atlas needs `MONGODB_READ_URI` | $0 |
+| `EDITOR_AGENT=1` | Shakespeare ahead of the tap (Haiku 5.5 high); with `EDITOR_TANDEM=1` beside the writer on every episode a listener waits on; with `EDITOR_TRIAL=1` the two weeks | $0.004 a plan ahead (measured); ~$0.003-0.0035 an episode in tandem (measured parts) |
+| `SUPERVISOR=1` | Mclovin: the source screen, the per-sentence code checks (seven enforce, figures count), one rewrite of a failed sentence, Haiku on unsettled pages ahead of the tap, the nightly Opus review; support off | ~$0.0001 an episode; ~$13 a month nightly (measured rate) |
+| `HOUSEKEEPER=1` | Consuela: files packets into the archive, nightly dedupe, comb, the 90-day pass, the group totals | ~$0.0006 an episode (est.) |
+| `HOUSEKEEPER_DRY_RUN` | default 1: she reports and writes nothing; 0 lets her write. Her dedupe has its own `HOUSEKEEPER_DEDUPE_DRY_RUN`, to be set 0 only once her eval shows no wrong merge | - |
+| `IT_AGENT=1` | Keith: today only the daily tag check, observe and report; Phase 4 adds the rest | <$1 per 10,000 episodes (est.) |
+
+**The Phase 4 prompt** is `docs/PHASE4_PROMPT.md`: what the owner needs
+ready first (read-only keys for Render, Atlas and Cloudflare; each service's
+plan; `IT_ALERT_EMAIL` and `mail.py`'s sender; the cost-per-episode figure
+and its threshold), then the prompt itself - the owner's standing rules,
+the Phase 3 decisions not to reopen, and Phase 4's work in the build
+prompt's order, with what Phase 3 left Keith to watch (Mclovin's unchecked
+sentences, the tandem's outcomes, the trial's progress). The Phase 3 prompt
+(`docs/PHASE3_FIRST_PROMPT.md`) is deleted, as it said to be when Phase 3
+was finished.
+
 ## 462. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05)
 
 Phase 4 opens with decided item 7 and keith.md "always" 12: "your first fixes

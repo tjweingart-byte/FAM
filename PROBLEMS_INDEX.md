@@ -457,6 +457,7 @@ and `limit` = Lines.
 | 29651 | 14 | 458. This branch's sections renumbered past the other open branch's (2026-11-04) |
 | 29665 | 76 | 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04) |
 | 29741 | 53 | 460. The second double-check, and the Cost table from measured figures (2026-11-05) |
-| 29794 | 75 | 462. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05) |
-| 29869 | 68 | 463. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05) |
-| 29937 | 35 | 464. Phase 4, piece 1c: the error rows keep their own record (2026-11-05) |
+| 29794 | 44 | 461. The owner's answers after Phase 3, the production switches, and the Phase 4 prompt (2026-11-05) |
+| 29838 | 75 | 462. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05) |
+| 29913 | 68 | 463. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05) |
+| 29981 | 35 | 464. Phase 4, piece 1c: the error rows keep their own record (2026-11-05) |
