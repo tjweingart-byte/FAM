@@ -1337,8 +1337,9 @@ async def _google_post(model: str, prompt: str, key: str):
         raise
     # Every image request, counted where it goes out (§462); what a made
     # picture cost is `record_spend`'s, below.
-    provider_usage.record("gemini", ok=resp.is_success, detail="images",
-                          why=f"HTTP {resp.status_code}")
+    code = int(getattr(resp, "status_code", 0) or 0)
+    provider_usage.record("gemini", ok=200 <= code < 300, detail="images",
+                          why=f"HTTP {code}")
     return resp
 
 
