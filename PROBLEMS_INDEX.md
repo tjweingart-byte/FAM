@@ -423,3 +423,4 @@ and `limit` = Lines.
 | 27905 | 22 | 420. The owner signed the answer-key rules: Consuela always 12, Sonic always 8 (2026-11-03) |
 | 27927 | 63 | 421. C2 on production's first three nights: the thresholds stand, "chance" is a hedge, and her choices are not ready to file (2026-11-05) |
 | 27990 | 35 | 422. Consuela is offered whole sentences of the article, once (2026-11-05) |
+| 28025 | 37 | 423. Consuela keeps the key sentences only, each one that stands alone (2026-11-05) |

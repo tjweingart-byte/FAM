@@ -28021,3 +28021,40 @@ repeat, one invitation and one table among them; after, 32 + 11 + 6, none.
 `tests/test_consuela_sentences_422.py`, every case word for word from the
 report; `test_consuela_consolidates_399.py`'s unreadable-figure case no
 longer uses a "subscribe" line as its sentence.
+
+## 423. Consuela keeps the key sentences only, each one that stands alone (2026-11-05)
+
+Fixes 5-6 of §421, at the owner's yes: her instructions now say what "key"
+means - what someone would need months from now to know what happened, at
+most `MAX_KEPT` (12) sentences an article, fewer when fewer will do - and
+that a kept sentence must make sense read alone: none that leans on an
+earlier one for who it is about ("He took a cross-ice feed...", "We had a
+really hard start."), and a quote only in the sentence that names its
+speaker. Her other instructions are unchanged. No code cap: cutting her
+picks in article order could drop a late result line, so the number is
+hers to keep, measured below.
+
+**Measured** on the three stand-in articles of §422 (production's own,
+after §422's sentences), two runs each: kept 29 + 10 + 6 = **45** before,
+11-12 + 4-5 + 5 = **21** after - the result, every goal, the odds and the
+dollar figures kept; no pronoun without its subject, no quote without its
+speaker. On batches of eight (the three repeated), six runs each: 99-141
+sentences kept before, 57-75 after; every batch answered, in 5-15 s.
+
+**The output limit was too small** (the owner's yes): `HOUSEKEEPER_MAX_TOKENS`
+1,500 → **6,000**, in `config.py` and `.env.example`. With effort "low" her
+reasoning counts against it: three articles used 540-1,313 output tokens
+with the old instructions and 1,405-1,925 with these, so at 1,500 every run
+of the new ones on three articles was cut off (`out_of_room`), and a batch
+of eight - production's size - would often have been with the old. A cut
+batch is left for the next run (`consuela left N articles for the next
+run` in the log), so production may have been losing batches since §399;
+its report does not show them. She pays only for what she writes: about a
+cent a batch on Haiku. Her 60 s timeout holds (15 s at most, measured).
+
+Found while measuring, not changed: an article whose title carries a
+bracketed number ("... (0)") made Haiku number the batch from 0, and
+`check` refused the answer twice. Real titles rarely do; the refusal is
+the safe way and the batch waits for the next run.
+
+`tests/test_consuela_keeps_less_423.py`.

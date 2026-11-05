@@ -69,6 +69,8 @@ TASK = "consolidate"
 
 #: Most sentences one article offers the model; the rest are not read.
 MAX_SENTENCES = 40
+#: Most sentences she is asked to keep from one article (§423).
+MAX_KEPT = 12
 #: A held article is looked at again after this long (its node may be
 #: settled by then).
 HELD_RETRY_SECONDS = 24 * 3600.0
@@ -109,7 +111,19 @@ INSTRUCTIONS = (
     "win 4-2\" is expected; \"won 4-2\" happened. If you cannot tell, say "
     "unsure. A sentence may appear in more than one list, but never twice in "
     "one. An article with nothing worth keeping gets empty lists. Answer for "
-    "every article."
+    "every article.\n\n"
+    # §423: production's dry run kept nearly whole articles, and sentences
+    # that mean nothing alone. Measured before and after on its own articles.
+    "Keep only the key sentences: what someone would need, months from now, "
+    "to know what happened - the result, who did it, when, the figures that "
+    "matter, and the one or two quotes that say the most. At most "
+    f"{MAX_KEPT} sentences an article, fewer when fewer will do. Leave out "
+    "moment-by-moment detail a result already covers, and colour.\n\n"
+    "Keep only a sentence that makes sense read alone: leave out one that "
+    "leans on an earlier sentence for who or what it is about (\"He took a "
+    "cross-ice feed...\", \"We had a really hard start.\"). A quote is kept "
+    "only in a sentence that names its speaker; the quote's other sentences "
+    "are left out."
 )
 
 
