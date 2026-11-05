@@ -268,17 +268,43 @@ Names are internal: never shown to a listener.
     data is still spoken to listeners until removed; `[sports-balldontlie]`
     and `[sweep-on-demand]` stay as written.
 
+## Decided in the owner's Phase 3 rounds (2026-11-03 to 2026-11-05)
+
+42. **Shakespeare ahead of the tap is Haiku 5.5 at high effort** (item 37's
+    comparison, §437: no arm measurably better; the owner's choice, §440).
+    The two weeks of editions with and without him run behind
+    `EDITOR_TRIAL` (§454), judged by listening.
+43. **Shakespeare works beside the writer, never in place of it**, and his
+    rule book does not change (§455). **On every episode a listener waits
+    on** - a typed search, a tile scripted on the tap, Go Deeper - he plans
+    in tandem with the writer at **low effort** (`EDITOR_TANDEM`, §456; low
+    kept quality against medium, §456), never in front of the first word.
+    **The tandem is not to be measured on real searches** (the owner,
+    2026-11-05).
+44. **Support - "does the source say this?" - is Mclovin's job, never an
+    outside checker's** (the owner, §452): agents whose rules are signed do
+    these checks, because a session cannot change their rules. **No
+    grounding checker is installed and `support` stays off until the owner
+    revisits it** (§453), after the agents are implemented. HHEM-2.1-Open
+    (§451) and Mclovin's own verdict (§452) both missed the bar. This closes
+    item 34 for now.
+45. **Mclovin's per-sentence limits**: 2 s and 500 tokens
+    (`SUPERVISOR_TIMEOUT_SECONDS`, `SUPERVISOR_MAX_TOKENS`, §453). Figures
+    stay count only (81% caught, 1.70% flagged, §450).
+46. **API keys are for what the owner asks, not tests at will** (§452):
+    spend only on a measurement the owner has agreed to, and say what it
+    costs first.
+
 ## Decisions still to ask the owner
 
-Check `PROBLEMS.md` §340 and §346 (the last entries) for answers first.
+Check `PROBLEMS.md` (the last entries, via `PROBLEMS_INDEX.md`) for answers
+first. Items 34 and 37 are answered (42-44 above).
 
-- Mclovin's grounding checker (item 34).
-- Shakespeare's model ahead of the tap, on the comparison's result (item 37).
-
-- Parallel, Perplexity, GNews and Polymarket: whether their material may be
-  stored. This is being researched in its own branch (written up in
-  `docs/PROVIDER_TERMS.md` there); until the owner approves a provider,
-  Consuela does not store its material (item 8).
+- Polymarket: whether its material may be stored (item 8). Perplexity
+  (2026-11-02) and GNews (2026-11-03) are approved; Parallel's terms refuse
+  it (`history_archive.REFUSED`); see `HOUSEKEEPER_APPROVED_PROVIDERS` in
+  `config.py`. Until the owner approves a provider, Consuela does not store
+  its material.
 
 ## The work, in order
 
