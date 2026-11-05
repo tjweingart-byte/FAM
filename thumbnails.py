@@ -1324,10 +1324,22 @@ async def _google_post(model: str, prompt: str, key: str):
                 "generationConfig": {
                     "responseModalities": ["IMAGE"],
                     "imageConfig": {"aspectRatio": "4:3"}}}
-    async with httpx.AsyncClient(
-            timeout=settings.thumbnails_timeout_seconds) as http:
-        return await http.post(url, json=body,
-                               headers={"x-goog-api-key": key})
+    import provider_usage
+
+    try:
+        async with httpx.AsyncClient(
+                timeout=settings.thumbnails_timeout_seconds) as http:
+            resp = await http.post(url, json=body,
+                                   headers={"x-goog-api-key": key})
+    except Exception as exc:
+        provider_usage.record("gemini", ok=False, detail="images",
+                              why=type(exc).__name__)
+        raise
+    # Every image request, counted where it goes out (§462); what a made
+    # picture cost is `record_spend`'s, below.
+    provider_usage.record("gemini", ok=resp.is_success, detail="images",
+                          why=f"HTTP {resp.status_code}")
+    return resp
 
 
 async def _image_models(key: str) -> list[str]:
@@ -1335,10 +1347,19 @@ async def _image_models(key: str) -> list[str]:
     import httpx
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as http:
-            resp = await http.get(f"{_GOOGLE_API}models",
-                                  params={"pageSize": 1000},
-                                  headers={"x-goog-api-key": key})
+        import provider_usage
+
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as http:
+                resp = await http.get(f"{_GOOGLE_API}models",
+                                      params={"pageSize": 1000},
+                                      headers={"x-goog-api-key": key})
+        except Exception as exc:
+            provider_usage.record("gemini", ok=False, detail="model list",
+                                  why=type(exc).__name__)
+            raise
+        provider_usage.record("gemini", ok=resp.status_code == 200,
+                              detail="model list", why=f"HTTP {resp.status_code}")
         rows = (resp.json() or {}).get("models") or [] \
             if resp.status_code == 200 else []
     except Exception:  # noqa: BLE001

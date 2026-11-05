@@ -310,9 +310,15 @@ stored**; it is computed from `events` and `preferences` on each request.
 
 **provider_usage.db** (`provider_usage.py`, §179): `calls` per UTC day per
 provider: `balldontlie` (and `balldontlie/<league>` per league, §275, §280), `parallel`, `perplexity`,
-`gdelt`, `polymarket`, `gnews`, `finnhub`, `nws`, `open_meteo`, `local_feeds`.
-Counted in memory and flushed at most every 10 s (`FLUSH_SECONDS`). Feeds
-`/admin`. Since §211 `gdelt` counts the export-file downloads (~200 a day,
+`gdelt`, `polymarket`, `gnews`, `tiingo`, `wikidata`, `wikipedia`,
+`wikimedia_enterprise`, `nws`, `open_meteo`, `local_feeds`, and since §462
+`x`, `anthropic` (every Claude request, counted at the client; `/messages`,
+`/batches`), `gemini` (`/images`, `/model list`) and `r2` (`/class A`,
+`/class B`, `/delete (free)`). Counted in memory and flushed at most every
+10 s (`FLUSH_SECONDS`); a failed write keeps the counts and is said on the
+row and in `/api/health` → `tracking` (§462). Each limit is also a number
+(`allowances()`): a daily or monthly quota with what was used and the share,
+a rate with none, or None. Feeds `/admin`. Since §211 `gdelt` counts the export-file downloads (~200 a day,
 whatever the traffic), never a listener's request. The licence check (§207, `provider_usage.licences()`) stores
 nothing: it reads `GNEWS_PLAN`, `FINNHUB_PLAN` and whether an Open-Meteo key
 is set, and reports `commercial_ready` on `/api/health`.

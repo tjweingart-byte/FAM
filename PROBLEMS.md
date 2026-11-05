@@ -29790,3 +29790,78 @@ editions" as a lever not to pull (the owner chose it, §440) and GPT-5 nano
 Tests: `tests/test_editor_tandem_456.py` (past the budget, exactly the plain
 path's sentences), `tests/test_mclovin_eval_450.py` (a possessive),
 `tests/test_editor_trial_454.py` (not ahead of the tap, no arm).
+
+## 462. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05)
+
+Phase 4 opens with decided item 7 and keith.md "always" 12: "your first fixes
+are to the records FAM keeps of its errors and of how much each plugin is
+used". The audit came first and went to the owner as a list; the owner said
+"Do 1a-1c". This is 1a, `provider_usage`; §463 is the money (`metering`) and
+§464 the error rows (`pipeline_errors`). Nothing here is an agent: Keith
+stays off, and these are the records he will read.
+
+**What the audit found in `provider_usage`, and what changed:**
+
+1. **X was counted and never shown.** `x` was in `LABELS` (so `record` took
+   it) but not in `PROVIDERS` or `_plans`, so the /admin/x reads, billed per
+   post, had no row. It has one now, and its allowance is in posts, read
+   from `x_threads`' own count (X bills per post, and one request carries
+   many). A test pins `PROVIDERS` and `LABELS` as the same set.
+2. **Three paid services were not counted at all.** Claude's requests are
+   counted at the one client every call is built from
+   (`anthropic_client.build_http_client`, an httpx response hook), split into
+   messages and the batch API, with 429s and 529s kept as failures; a
+   connection that never got an answer has no response and is the caller's
+   own error record. Google's image model is counted at `_google_post`
+   ("images") and its model listing ("model list"). The R2 bucket is counted
+   at `R2AudioStore._request`, by Cloudflare's billing class - Class A
+   (writes, copies), Class B (reads, heads), deletes free; a 404 read is an
+   answer and an operation. A replay a listener's app fetches from a signed
+   link (§252) goes straight to Cloudflare and is not seen here; that is
+   Cloudflare's analytics, item 2's monitor.
+3. **No limit was a number.** Every limit was a sentence, so no warning could
+   say "80% of it". `allowances()` gives each one as a number and a period,
+   read from the setting in force where FAM rations a service itself
+   (`GNEWS_DAILY_REQUESTS`, `WIKIMEDIA_MONTHLY_REQUESTS`, Tiingo's stops,
+   `X_THREADS_DAILY_READS`, `THUMBNAILS_DAILY_IMAGES`), and None - said, never
+   0 - where there is no limit (Polymarket, NWS, GDELT, the local feeds). A
+   daily or monthly quota carries `used` and `share`; a pace (BALLDONTLIE per
+   minute, Parallel per minute, Perplexity per second, Wikimedia's per-minute
+   courtesy) is a `rate` with no share, because daily counts cannot measure a
+   pace. Tiingo's hourly stop is enforced by `tiingo.py`'s own counter; when
+   it has a daily stop the daily one is measured. Claude's tier limits are
+   not copied yet: which tier the account is on is the owner's figure (item
+   2).
+4. **A monthly limit was never measured over its month.** The report read
+   seven days. It now reads the UTC month (31 days), measures a monthly quota
+   month-to-date - Wikimedia Enterprise's 50,000 and Open-Meteo's 1,000,000
+   - and keeps the 7-day average over seven days. R2's free allowances are
+   per class, so they are on the class rows.
+5. **A failed write was a log line.** Counts that could not be written (or a
+   store that would not open) waited in memory and nothing said so. `status()`
+   now says when the last write landed, how many failed, the last error and
+   how many counts are waiting; `/api/health` reports it (`tracking` →
+   `provider_usage`), and while the store is behind, each affected row
+   carries an `alert` - which the page already draws in red above the table
+   and in the row (a field the page already drew, which nothing set any
+   more). Nothing in the page's code changed.
+6. **On Postgres the page read no usage after every deploy.** `exists()`
+   asked for the SQLite file; production runs on Postgres (§243) and has no
+   file, so until the first request after a deploy the store was "not there"
+   and the table read zeros. It asks `db.has_tables` now. Four other stores
+   carry the same file check (`trending_bank._exists` - so GNews "requests
+   today" also reads 0 after a deploy - `thumbnails`, `local_news`,
+   `agents.supervisor_training`); they are outside the tracking and wait for
+   the owner's word, as the audit said.
+
+**Not changed:** the reasons a provider failed stay in memory (§220: a
+diagnosis for whoever is looking now); no plan figure was guessed - the
+published ones were already in `_plans`, and R2's free tier and prices are
+Cloudflare's published ones.
+
+Tests: `tests/test_usage_tracking_462.py` (the four new rows; every limit a
+number or None; a month measured over the month; X in posts; `exists` asks
+the database; a failed write said on the row and on health, kept, then
+written; a store that will not open; Claude counted at the client; R2 by
+class; image requests), and `tests/test_provider_usage_179.py`'s list of rows
+extended.

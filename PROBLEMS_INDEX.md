@@ -457,3 +457,4 @@ and `limit` = Lines.
 | 29651 | 14 | 458. This branch's sections renumbered past the other open branch's (2026-11-04) |
 | 29665 | 76 | 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04) |
 | 29741 | 53 | 460. The second double-check, and the Cost table from measured figures (2026-11-05) |
+| 29794 | 75 | 462. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05) |

@@ -1994,6 +1994,17 @@ async def voice_register(request: Request) -> dict:
             "ttl_seconds": settings.voice_registry_ttl}
 
 
+def _tracking_health() -> dict:
+    """`/api/health`'s `tracking` (§462): how the records Keith reads are
+    being kept. Never raises; reads memory only, never a store."""
+    import provider_usage
+
+    try:
+        return {"provider_usage": provider_usage.status()}
+    except Exception as exc:  # noqa: BLE001 - health never fails on a report
+        return {"error": f"{type(exc).__name__}: {exc}"[:200]}
+
+
 @app.get("/api/health")
 async def health(request: Request) -> dict:
     # Built once and read twice: the list and the summary over it have to
@@ -2256,6 +2267,10 @@ async def health(request: Request) -> dict:
         # Whether a person is emailed when a report arrives (App Store 1.2's
         # 24 hours). Says why not, rather than leaving the inbox to be found.
         "report_alerts": REPORT_ALERTS.status(),
+        # How the usage and error records are being kept (§462): when the
+        # last write landed, failures, what is waiting. A record that cannot
+        # be written used to be a log line and nothing else.
+        "tracking": _tracking_health(),
         # Whether tier limits bite, and what they are. A server running with
         # them off looks identical from the outside to one running with them
         # on, and that is exactly the thing worth being able to ask.
