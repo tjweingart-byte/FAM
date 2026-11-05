@@ -318,7 +318,12 @@ provider: `balldontlie` (and `balldontlie/<league>` per league, §275, §280), `
 10 s (`FLUSH_SECONDS`); a failed write keeps the counts and is said on the
 row and in `/api/health` → `tracking` (§462). Each limit is also a number
 (`allowances()`): a daily or monthly quota with what was used and the share,
-a rate with none, or None. Feeds `/admin`. Since §211 `gdelt` counts the export-file downloads (~200 a day,
+a rate with none, or None. Feeds `/admin`. Its second table, `spend` (§463),
+is what model calls cost per UTC day by `source` (`episodes`, `edition:*`,
+`prefetch`, `agent:<role>`, the composer, the placer, thumbnails...) and model:
+calls, tokens, dollars at `metering.PRICES`, and calls with no price
+(`unpriced`, never $0). Every Claude answer is counted once there
+(`metering.Usage.add_model_call`, `metering.count_call`); no listener id. Since §211 `gdelt` counts the export-file downloads (~200 a day,
 whatever the traffic), never a listener's request. The licence check (§207, `provider_usage.licences()`) stores
 nothing: it reads `GNEWS_PLAN`, `FINNHUB_PLAN` and whether an Open-Meteo key
 is set, and reports `commercial_ready` on `/api/health`.

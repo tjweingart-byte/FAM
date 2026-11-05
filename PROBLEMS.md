@@ -29865,3 +29865,71 @@ the database; a failed write said on the row and on health, kept, then
 written; a store that will not open; Claude counted at the client; R2 by
 class; image requests), and `tests/test_provider_usage_179.py`'s list of rows
 extended.
+
+## 463. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05)
+
+The second of Keith's first fixes (§462): "spend in `metering` not counted
+as usage". `metering`'s ledger is one row per listener episode (`app.py`,
+`METER.record`) plus one per agent call (§347). Everything else that spent on
+Claude reached it nowhere: the Trending, DailyFAM and rails editions and
+prefetch kept their dollars in their own edition reports; the story composer
+(`stories.py`), the category placer (`categories.py`), the canonical-key call
+(`cache.py`, off by default) and the admin page's questions
+(`admin_tracker.py`) priced nothing; the thumbnails priced their calls in
+their own store; the quality grader and the X drafter priced theirs for their
+own reports. So nothing could say what Claude cost in a day - the figure the
+account's limit, and Keith's 80% warning, are measured against.
+
+**Every model answer is now counted once in the day's spend.**
+`provider_usage` has a second table, `spend` (day, source, model: calls,
+tokens in, out, cache read and write, dollars, unpriced calls), kept in
+memory and written with the request counts by the same background flush, on
+SQLite and Postgres alike. `metering.Usage.add_model_call` - already the one
+place a pipeline answer's tokens are folded in - counts each answer there,
+priced at `metering.PRICES` (the batch discount taken off a batched call);
+a model with no rate is counted as unpriced, never at $0. The searches and
+paid live calls an episode makes (`add_research`, `add_live_call`) are
+counted too. The calls whose answers are folded in nowhere get one line,
+`metering.count_call(source, model, usage)`, beside the call: the composer,
+the placer, the canonical key, the thumbnails' scenes and checks, the admin
+questions, the photo check without a listener's usage.
+
+**Counted once.** An agent's answer was folded in twice - into its own
+ledger row and into the episode's notes - so the notes' fold says
+`count=False`, and the agent's is counted under `agent:<role>`. Nothing else
+folds one answer twice. A test derived from the code, not a list, finds
+every request to Claude in FAM's modules and fails if no counting line
+follows it in the same function; the four exceptions say why (the batch
+API's answers are folded by the writer; the adapter's by the model layer;
+`compare_models.py` and `diagnose_api.py` are run by hand).
+
+**By what spent it.** `source` is `episodes` unless a job says otherwise: the
+editions' loops and a saved mix's write (`edition:trending`,
+`edition:dailyfam`, `edition:rails`) and a prefetch cycle (`prefetch`) set it
+once at their task's start (`metering.attribute_task`, a context variable
+their child tasks inherit), the way they already set the edition's clock; an
+admin-started edition counts as `episodes`. The image model's pictures are
+in it too, at the tile store's own `THUMBNAILS_IMAGE_PRICE`, as
+`google:<model>`.
+
+**Where it shows.** `provider_usage.spend_report()` (today, yesterday, this
+month; by source and by model; unpriced calls) is in `/admin`'s tracker data
+as `claude_spend`, and Claude's row in the outside-services table says
+"spent today $X, this month $Y" in its limit line - the one place on the page
+it can say so without the page's code changing. A table of it on the page is
+a before-and-after for the owner (keith.md "always" 8), not built here.
+
+**A correction to the audit's item 8.** It said the image model's spend "is
+not recorded or priced anywhere". It is priced, at `THUMBNAILS_IMAGE_PRICE`,
+and kept in `thumbnails.db`'s own spend rows; what it was not, was in any
+daily figure beside Claude's - which this fixes.
+
+**Not changed:** `metering`'s ledger itself (one row per listener episode,
+append-only), the per-listener and per-episode figures, and every price.
+Nothing new is called; counting never fails a call.
+
+Tests: `tests/test_model_spend_463.py` (an answer in the day's spend at the
+list price; unpriced counted unpriced; the batch price; an answer folded twice
+counted once; the job that spent it; an agent's call with notes counted once
+under the agent; every Claude call in FAM reaches the spend; the table on
+Postgres).
