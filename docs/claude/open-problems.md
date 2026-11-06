@@ -79,6 +79,15 @@
    > never on an episode's chunks). Its verdict is a hint with the audio
    > beside it; nothing changes the lexicon by itself.
 <!-- rule:op-voice-bank -->
+> **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
+> search whose voice was not picked *for that search* - left at the default
+> or at the voice last picked - plays in the voice its audio is already kept
+> in (`cache.audio_voices`), so it is a replay, not a second voicing; with
+> nothing kept it is voiced in the standing choice. A voice picked on the
+> search page or in the player since the last search (`voice_picked=1`, sent
+> once) is honoured exactly, the default included. A pick in Settings is a
+> standing choice, not a pick. This replaces §294's "any choice is honoured".
+>
 > **Current (PROBLEMS.md §333):** when the bank's voices change, every
 > episode with no audio kept in any voice forgets its drawn voice and draws
 > again from the new bank (`redeal_voices`, at boot and after /admin adds or
@@ -887,6 +896,11 @@ friends and get none.
   active again. The edition's ceilings are lifted (0, settable), and its
   report counts `dormant_mixes`. `0` hours writes every mix, as before.
 <!-- rule:mix-listen-time -->
+> **Current (PROBLEMS.md §448, at the owner's direction, 11.04):** each
+> mix's "ready" push goes out a fixed 0-15 minutes after its listen time
+> (`push.spread_offset`, from the mix and the day), **never more than
+> fifteen**, so pushes set for the same minute do not all land together.
+>
 - **A mix's listen time is when the phone is told, never when episodes are
   written** *(§184, the 10.1 packet's third set, at the owner's direction)*.
   The 05:00 edition writes every mix as before; `push.py` sends "your mix is

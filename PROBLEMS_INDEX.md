@@ -445,25 +445,29 @@ and `limit` = Lines.
 | 29113 | 61 | 442. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04) |
 | 29174 | 15 | 443. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |
 | 29189 | 41 | 444. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04) |
-| 29230 | 10 | 445. This branch's sections renumbered: Main took §433 (2026-11-04) |
-| 29240 | 68 | 450. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04) |
-| 29308 | 89 | 451. Finishing Phase 3, piece 2: HHEM measured for accuracy, and as int8 ONNX on one thread (2026-11-04) |
-| 29397 | 52 | 452. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04) |
-| 29449 | 18 | 453. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04) |
-| 29467 | 62 | 454. Finishing Phase 3, piece 4: Shakespeare's two weeks, built behind a switch - and his place on searchFAM (2026-11-04) |
-| 29529 | 44 | 455. Shakespeare on searchFAM: alongside the writer, and his call measured at low and medium effort (2026-11-04) |
-| 29573 | 58 | 456. Shakespeare on searchFAM: low effort keeps quality, and he plans beside the writer (2026-11-04) |
-| 29631 | 20 | 457. Finishing Phase 3, piece 5: the review's two small fixes (2026-11-04) |
-| 29651 | 14 | 458. This branch's sections renumbered past the other open branch's (2026-11-04) |
-| 29665 | 76 | 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04) |
-| 29741 | 53 | 460. The second double-check, and the Cost table from measured figures (2026-11-05) |
-| 29794 | 44 | 461. The owner's answers after Phase 3, the production switches, and the Phase 4 prompt (2026-11-05) |
-| 29838 | 37 | 462. The answer-key rules for Consuela and Sonic, proposed (2026-11-03) |
-| 29875 | 31 | 463. The attribution case: a neutral rewording, at the owner's choice (2026-11-03) |
-| 29906 | 22 | 464. The owner signed the answer-key rules: Consuela always 12, Sonic always 8 (2026-11-03) |
-| 29928 | 63 | 465. C2 on production's first three nights: the thresholds stand, "chance" is a hedge, and her choices are not ready to file (2026-11-05) |
-| 29991 | 35 | 466. Consuela is offered whole sentences of the article, once (2026-11-05) |
-| 30026 | 37 | 467. Consuela keeps the key sentences only, each one that stands alone (2026-11-05) |
-| 30063 | 13 | 468. This branch's sections renumbered: Main took §418-§461 (2026-11-06) |
-| 30076 | 38 | 469. The branch double-checked before its pull request, and the manifest for the merged books (2026-11-06) |
-| 30114 | 13 | 470. The owner signed manifest version 6: the merged books (2026-11-06) |
+| 29230 | 11 | 445. This branch's sections renumbered: Main took §433 (2026-11-04) |
+| 29241 | 45 | 446. Chatterbox faster on the same card: the fast T3 loop, off until measured (2026-11-04) |
+| 29286 | 23 | 447. A search plays its kept voice unless a voice was picked for it (2026-11-04) |
+| 29309 | 22 | 448. Mix "ready" pushes spread over fifteen minutes (2026-11-04) |
+| 29331 | 19 | 449. Search length measured from the ledger; the usage report ran again (2026-11-04) |
+| 29350 | 68 | 450. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04) |
+| 29418 | 89 | 451. Finishing Phase 3, piece 2: HHEM measured for accuracy, and as int8 ONNX on one thread (2026-11-04) |
+| 29507 | 52 | 452. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04) |
+| 29559 | 18 | 453. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04) |
+| 29577 | 62 | 454. Finishing Phase 3, piece 4: Shakespeare's two weeks, built behind a switch - and his place on searchFAM (2026-11-04) |
+| 29639 | 44 | 455. Shakespeare on searchFAM: alongside the writer, and his call measured at low and medium effort (2026-11-04) |
+| 29683 | 58 | 456. Shakespeare on searchFAM: low effort keeps quality, and he plans beside the writer (2026-11-04) |
+| 29741 | 20 | 457. Finishing Phase 3, piece 5: the review's two small fixes (2026-11-04) |
+| 29761 | 14 | 458. This branch's sections renumbered past the other open branch's (2026-11-04) |
+| 29775 | 76 | 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04) |
+| 29851 | 53 | 460. The second double-check, and the Cost table from measured figures (2026-11-05) |
+| 29904 | 44 | 461. The owner's answers after Phase 3, the production switches, and the Phase 4 prompt (2026-11-05) |
+| 29948 | 37 | 462. The answer-key rules for Consuela and Sonic, proposed (2026-11-03) |
+| 29985 | 31 | 463. The attribution case: a neutral rewording, at the owner's choice (2026-11-03) |
+| 30016 | 22 | 464. The owner signed the answer-key rules: Consuela always 12, Sonic always 8 (2026-11-03) |
+| 30038 | 63 | 465. C2 on production's first three nights: the thresholds stand, "chance" is a hedge, and her choices are not ready to file (2026-11-05) |
+| 30101 | 35 | 466. Consuela is offered whole sentences of the article, once (2026-11-05) |
+| 30136 | 37 | 467. Consuela keeps the key sentences only, each one that stands alone (2026-11-05) |
+| 30173 | 13 | 468. This branch's sections renumbered: Main took §418-§461 (2026-11-06) |
+| 30186 | 38 | 469. The branch double-checked before its pull request, and the manifest for the merged books (2026-11-06) |
+| 30224 | 13 | 470. The owner signed manifest version 6: the merged books (2026-11-06) |

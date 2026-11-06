@@ -132,11 +132,13 @@ def render(report: dict, price: float = 0.0, flagged: list | None = None) -> str
     for plan, row in report["by_plan"].items():
         say(f"  {plan:<8}{row['listeners']:>11}{row['episodes']:>10}"
             f"{money(row['cost_usd']):>13}{money(row['cost_per_listener']):>15}")
-    if not report["by_plan"]["paid"]["listeners"]:
+    # The tiers are free, plus and unlimited (entitlements.TIERS); "paid" was
+    # the old name and is no longer a key, so asking for it crashed the report.
+    if not any(row["listeners"] for plan, row in report["by_plan"].items() if plan != "free"):
         say(f"{DIM}  Every listener is on 'free' because nothing in the app takes "
             f"payment yet.{RESET}")
-        say(f"{DIM}  The column is live: accounts.set_plan(user, 'paid') fills it "
-            f"from that point on.{RESET}")
+        say(f"{DIM}  The column is live: POST /api/admin/plan moves a listener to "
+            f"another tier from that point on.{RESET}")
 
     # --- the cache, which gets cheaper with scale --------------------------
     cache = report["cache"]
@@ -147,6 +149,27 @@ def render(report: dict, price: float = 0.0, flagged: list | None = None) -> str
         f"one cost line{RESET}")
     say(f"{DIM}  that improves as listeners are added - two people asking the same "
         f"thing pay once.{RESET}")
+
+    # --- how long episodes are (§449) ----------------------------------------
+    lengths = report.get("lengths") or {}
+    if lengths:
+        say(f"\n{BOLD}Episode length{RESET}  {DIM}asked for, and what the voice made{RESET}")
+        for surface, row in lengths.items():
+            asked, voiced = row["requested_minutes"], row["voiced_minutes"]
+            line = (f"  {surface:<9} {row['episodes']:>6} episodes   asked mean "
+                    f"{asked['mean']:.2f} min (median {asked['median']:g})")
+            if voiced["count"]:
+                line += (f"   voiced mean {voiced['mean']:.2f} min, median "
+                         f"{voiced['median']:.2f}, p90 {voiced['p90']:.2f} "
+                         f"({row['voiced_episodes']} voiced)")
+            say(line)
+            if surface == "search" and row["requested_counts"]:
+                spread_of = ", ".join(f"{k} min: {v}" for k, v in row["requested_counts"].items())
+                say(f"{DIM}            lengths asked: {spread_of}{RESET}")
+        say(f"{DIM}  Voiced minutes come from episodes the GPU made (a replay makes none): "
+            f"the number the{RESET}")
+        say(f"{DIM}  GPU bill scales with. The scaling model assumed a 2.0-minute search; "
+            f"put this in its place.{RESET}")
 
     # --- 3. the fixed floor ------------------------------------------------
     fixed = report["fixed"]

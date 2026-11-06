@@ -10090,9 +10090,12 @@
         context, surface === "search" ? selectedVoice : null, {
         topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
         attach: opts.attach || "", surface: surface, episode: opts.episode || "",
+        voicePicked: surface === "search" && voicePickedForSearch,
         own: !!opts.own, private: !!opts.private,
         askReading: !!opts.askReading, reading: opts.reading || ""
       });
+      // One pick, one search (§447): the next search starts from "left as it was".
+      if(surface === "search") voicePickedForSearch = false;
     }
 
     // The brief names the episode during the wait, several seconds before the
@@ -11184,7 +11187,15 @@
   // listener picks a voice, and it governs their searches alone: myFAM,
   // DailyFAM and everything else is spoken in a voice drawn from the bank per
   // episode, so the heading says so.
-  function openVoiceMenu(){
+  // §447: a voice picked on the search page or in the player is a choice for
+  // the next search, and only then is a cached episode voiced again in it.
+  // Left as it was - the default, or the voice last picked - a cached search
+  // plays in the voice its audio is already kept in. A pick in Settings is a
+  // standing preference, not a pick for a search.
+  var voicePickedForSearch = false;
+  var voiceMenuFrom = "search";
+  function openVoiceMenu(from){
+    voiceMenuFrom = from || "search";
     if(!AVAILABLE_VOICES.length){ toast("No voices reported by the server"); return; }
     var items = [{ group: "Voice for your searches" }];
     AVAILABLE_VOICES.forEach(function(v){ items.push(voiceItem(v)); });
@@ -11195,6 +11206,7 @@
     return {
       label: v.label + (v.id === selectedVoice ? "  \u2713" : ""),
       action: function(){
+        if(voiceMenuFrom !== "settings") voicePickedForSearch = true;
         if(v.id === selectedVoice) return;
         selectedVoice = v.id;
         paintVoiceControls();
@@ -17014,7 +17026,7 @@
       // episode is spoken in a voice drawn from the bank, so this row says
       // what it governs.
       + settingsRow("Voice for your searches", escapeHtml(voiceLabel(selectedVoice)),
-          "openVoiceMenu()");
+          "openVoiceMenu('settings')");
     // "Hey FAM" (§158), only where the browser can recognise speech at all.
     if(speechRecognitionCtor()){
       html += settingsRow("Say \u201cHey FAM\u201d to search", wakeOn ? "On" : "Off",

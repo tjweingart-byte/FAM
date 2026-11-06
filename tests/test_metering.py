@@ -342,3 +342,36 @@ def test_the_generator_records_what_the_provider_billed(monkeypatch):
     assert notes.usage.cache_read_tokens == 800
     assert notes.usage.output_tokens != len(" ".join(spoken).split()), (
         "this looks like a word count, which is the thing being ruled out")
+
+
+def test_episode_length_by_surface_asked_and_voiced(store):
+    """§449: how long searches are - what was asked for, and what the GPU
+    made. A replay of kept audio made nothing and is not a voiced length."""
+    def ep(surface, minutes, seconds, at):
+        u = usage()
+        u.audio_seconds = seconds
+        store.record("u1", u, surface=surface, minutes=minutes, at=at)
+
+    ep("search", 1.5, 81.0, 100)     # voiced, ended a little under 1.5
+    ep("search", 3, 150.0, 101)      # voiced, under its ceiling
+    ep("search", 1.5, 0.0, 102)      # a replay: asked 1.5, voiced nothing
+    ep("myfam", 1.5, 85.0, 103)
+    lengths = store.report()["lengths"]
+    assert list(lengths) == ["search", "myfam"]
+    search = lengths["search"]
+    assert search["episodes"] == 3 and search["voiced_episodes"] == 2
+    assert search["requested_counts"] == {"1.5": 2, "3": 1}
+    assert search["requested_minutes"]["mean"] == pytest.approx(2.0)
+    assert search["voiced_minutes"]["mean"] == pytest.approx((81 + 150) / 2 / 60)
+    assert lengths["myfam"]["voiced_minutes"]["count"] == 1
+
+
+def test_the_usage_report_prints_episode_length(store):
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+    import usage_report
+
+    u = usage()
+    u.audio_seconds = 84.0
+    store.record("u1", u, surface="search", minutes=1.5, at=100)
+    text = usage_report.render(store.report())
+    assert "Episode length" in text and "voiced mean 1.40 min" in text

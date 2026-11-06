@@ -13,6 +13,12 @@ The rules this file keeps:
   the slot `ready`). A listen time before the edition (a 4am mix) waits for it,
   up to `GRACE_SECONDS`; an edition that failed sends nothing, because "your
   mix is ready" would be false.
+* **Spread over fifteen minutes** (§448, the owner, 11.04). Listen times
+  cluster on the hour, and every "ready" landing at 07:00 sent a crowd of
+  first plays at the voice in the same minute - the burst that sized the GPU
+  fleet. Each mix's push goes out a fixed 0-15 minutes after its listen time
+  (`spread_offset`, from the mix and the day, so a restart does not move it),
+  never more than fifteen.
 * **Once a day per mix**, by the listener's own calendar day in their own zone
   (`sent`, keyed by mix and local date) - not the server's.
 * **Delivery is Web Push** (a service worker's `push` event, `static/sw.js`).
@@ -31,6 +37,7 @@ The rules this file keeps:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import sqlite3
@@ -39,7 +46,7 @@ import db as store_db
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from paths import data_path
@@ -51,6 +58,9 @@ log = logging.getLogger("fam.push")
 #: server that was restarting at the minute; past it, the listener has either
 #: listened or moved on, and a late "ready" is noise.
 GRACE_SECONDS = 3 * 3600
+#: §448: the most a "ready" push may land after its listen time. The owner's
+#: ceiling: "don't make it more than 15 minutes".
+SPREAD_SECONDS = 15 * 60
 #: How often the loop looks for due mixes. A notification lands within this
 #: much of the minute chosen.
 TICK_SECONDS = 60
@@ -264,20 +274,48 @@ def listen_moment(mix, now: float) -> Optional[tuple]:
     return moment.timestamp(), local_now.date().isoformat()
 
 
+def listen_moments(mix, now: float) -> list:
+    """Yesterday's listen time and today's, each (timestamp, local date).
+
+    Yesterday's is here because a push may land after midnight: a 23:55
+    listen time plus its spread (§448), or the grace window, crosses into the
+    next local day, where "today's" listen time is still hours away. Asking
+    only about today lost those pushes. Each day keeps its own `sent` key."""
+    today = listen_moment(mix, now)
+    if today is None:
+        return []
+    zone = _zone(getattr(mix, "listen_tz", ""))
+    h, m = (int(x) for x in mix.listen_at.split(":"))
+    before = (datetime.fromtimestamp(now, zone) - timedelta(days=1)).replace(
+        hour=h, minute=m, second=0, microsecond=0)
+    return [(before.timestamp(), before.date().isoformat()), today]
+
+
+def spread_offset(mix_id: str, day: str) -> int:
+    """Seconds after its listen time this mix's push goes out today (§448):
+    0 to `SPREAD_SECONDS`, the same for a mix all day and different from day
+    to day, so nobody's push is always the last."""
+    digest = hashlib.sha256(f"{mix_id}|{day}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") % (SPREAD_SECONDS + 1)
+
+
 def due(mix_store, push_store: PushStore, now: Optional[float] = None) -> list:
     """Mixes whose notification should go out now: (mix, local day)."""
     now = time.time() if now is None else now
     out = []
     ready = None
     for mix in mix_store.with_listen_time():
-        moment = listen_moment(mix, now)
-        if moment is None or not mix.items:
+        if not mix.items:
             continue
-        at, day = moment
-        if not (at <= now < at + GRACE_SECONDS):
+        moment = None
+        for at, day in listen_moments(mix, now):
+            if (at + spread_offset(mix.id, day) <= now < at + GRACE_SECONDS
+                    and not push_store.was_sent(mix.id, day)):
+                moment = (at, day)
+                break
+        if moment is None:
             continue
-        if push_store.was_sent(mix.id, day):
-            continue
+        _at, day = moment
         if ready is None:
             ready = _edition_ready(now)
         if not ready:

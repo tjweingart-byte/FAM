@@ -175,8 +175,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
   `verify_voice.py --fingerprint` measures drift (§176). [op-voice]
-- **Voice bank** (§147, §294): only searchFAM picks a voice; other surfaces draw one
-  per episode and keep it. Voice is not in the script key; audio is keyed on it. [op-voice-bank]
+- **Voice bank** (§147, §447): searchFAM alone picks; others draw one per episode;
+  a search plays its kept voice unless picked for it; audio keyed on voice. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made
   for you / Trending / Most played episodes today (24h, §181) / friends. Every choosing
@@ -213,8 +213,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   **public by default**, copies start private; `loadMixes` takes the bank
   before the 401 branch; the new-mix (+) is hidden until `/api/mixes` answers;
   unplayed 48h, a mix is dormant till opened (§359). [op-dailyfam-mixes] [mix-dormancy]
-- A mix's **listen time** is when its "ready" push is sent (own zone, only once
-  the edition is written), never when it is written; kept even where push is
+- A mix's **listen time** is when its "ready" push is sent, 0-15 min after (§448;
+  own zone, once the edition is written), never when written; kept where push is
   off; never shown to others. No suggested mix names. [mix-listen-time]
 - Faces on DailyFAM only, Instagram's, yours first (§297); vibes first; a
   swipe goes to the next friend's, the picture to the profile; Friends has
