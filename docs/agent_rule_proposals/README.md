@@ -7,21 +7,11 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-**Only a signature, no book change (PROBLEMS.md §468, §469).** Two lines of
-signing crossed: this branch's version 4 (`consuela.md` always 12 and
-`sonic.md` always 8, signed 2026-11-03, §464) and Main's versions 4 and 5
-(`mclovin.md` v2 and v3, §441, §443). Every book is already exactly as the
-owner signed it; only the manifest listing them all is new:
-`docs/agent_rules/MANIFEST.pending.json`, version 6. Until it is signed,
-`consuela.md` and `sonic.md` do not match the signed manifest, so Consuela
-and Sonic are held and the rule-book tests fail.
-
-To sign it: steps 2-3 below with two files only - download
-`MANIFEST.pending.json`, rename it `MANIFEST.json`, sign, and upload
-`MANIFEST.json` and `MANIFEST.json.sig`.
-
-Before: `mclovin.md` v3 (§443, version 5); v2 (§441, version 4);
-`consuela.md` with Perplexity (§412, version 3); `nando.md` rule 12 (§392).
+Nothing. Manifest version 6 - the merged books, `consuela.md` always 12
+and `sonic.md` always 8 beside `mclovin.md` v3 - was signed on 2026-11-06
+(PROBLEMS.md §470); `mclovin.md` v3 (§443, version 5); v2 (§441, version
+4); `consuela.md` with Perplexity (§412, version 3); `nando.md` rule 12
+(§392).
 
 ## Signing it (on the owner's Mac, with the owner's key)
 

@@ -30110,3 +30110,16 @@ file - passes again.
 signed as this branch's version 4 (§464). Until the owner signs version 6,
 Consuela and Sonic are held and the rule-book tests fail - by design: a
 book that does not match its signature never runs.
+
+## 470. The owner signed manifest version 6: the merged books (2026-11-06)
+
+The owner signed `MANIFEST.pending.json` (version 6, §469) on a second
+computer, from Downloads (7cc7b903): the commit holds exactly
+`MANIFEST.json` and `MANIFEST.json.sig`, and `MANIFEST.json` is the
+pending manifest byte for byte. `python tools/rulebook_manifest.py
+--verify`: every agent may run, signed with the same `owner.pub`. The
+first computer tried had no `famsign` environment and only LibreSSL,
+which cannot make an Ed25519 signature; signing needs OpenSSL 3.
+
+The pending manifest is deleted and the proposals README says nothing is
+waiting. The owner updates the copy held outside Claude.

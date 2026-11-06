@@ -466,3 +466,4 @@ and `limit` = Lines.
 | 30026 | 37 | 467. Consuela keeps the key sentences only, each one that stands alone (2026-11-05) |
 | 30063 | 13 | 468. This branch's sections renumbered: Main took §418-§461 (2026-11-06) |
 | 30076 | 38 | 469. The branch double-checked before its pull request, and the manifest for the merged books (2026-11-06) |
+| 30114 | 13 | 470. The owner signed manifest version 6: the merged books (2026-11-06) |
