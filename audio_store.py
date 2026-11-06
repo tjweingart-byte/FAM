@@ -212,6 +212,31 @@ class MemoryAudioStore:
         return {"store": self.kind, "objects": len(self.objects)}
 
 
+def r2_class(method: str) -> str:
+    """Cloudflare's billing class for one request (§480): writes, copies and
+    lists are Class A, reads and heads Class B, deletes free."""
+    method = (method or "").upper()
+    if method == "DELETE":
+        return "delete (free)"
+    if method in ("GET", "HEAD"):
+        return "class B"
+    return "class A"
+
+
+def _count_r2(part: str, ok: bool, why: str = "") -> None:
+    """Count one bucket request in `provider_usage` (§480). Never raises.
+
+    Only what FAM's server asks: a replay fetched by the listener's own app
+    from a signed link (§252) goes to Cloudflare directly and is in
+    Cloudflare's own analytics, not here."""
+    try:
+        import provider_usage
+
+        provider_usage.record("r2", ok=ok, detail=part, why="" if ok else why)
+    except Exception:  # noqa: BLE001 - counting never costs a request
+        pass
+
+
 class R2AudioStore:
     """A Cloudflare R2 bucket over its S3 API."""
 
@@ -248,12 +273,19 @@ class R2AudioStore:
         signed = sign(method, self.host, path, headers or {}, payload,
                       self._keys[0], self._keys[1],
                       _dt.datetime.now(_dt.timezone.utc))
+        part = r2_class(method)
         try:
-            return self._client().request(
+            resp = self._client().request(
                 method, f"https://{self.host}{_quote(path)}",
                 content=payload or None, headers=signed)
         except Exception as exc:
+            _count_r2(part, False, exc.__class__.__name__)
             raise AudioStoreError(f"{method} {name}: {exc.__class__.__name__}") from exc
+        # A 404 on a read is an answer (the object is gone), and Cloudflare
+        # bills it as an operation all the same.
+        _count_r2(part, resp.status_code < 400 or resp.status_code == 404,
+                  f"HTTP {resp.status_code}")
+        return resp
 
     @staticmethod
     def _check(resp, what: str) -> None:

@@ -2849,6 +2849,11 @@ async def canonical_key(query: str, client) -> str:
             system=CANONICAL_PROMPT,
             messages=[{"role": "user", "content": query}],
         )
+        # The day's spend (§481): folded into no episode's usage.
+        import metering
+
+        metering.count_call("canonical key", settings.canonical_key_model,
+                            getattr(message, "usage", None))
         if message.stop_reason == "refusal":
             return normalize_query(query)
         text = " ".join(b.text for b in message.content if b.type == "text")

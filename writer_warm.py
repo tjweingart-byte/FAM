@@ -77,8 +77,9 @@ async def _warm(client, model: str, effort: str, notes) -> None:
                              time.monotonic() - began)
         return
     pipeline_errors.step("writer warm-up", "search", "ok", time.monotonic() - began)
-    if notes is not None:
-        notes.usage.add_model_call(model, getattr(response, "usage", None))
+    import metering
+
+    metering.fold_call(notes, model, getattr(response, "usage", None))
 
 
 def warm_if_cold(client, notes=None) -> bool:

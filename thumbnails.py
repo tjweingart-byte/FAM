@@ -1190,6 +1190,11 @@ async def claude_writer(paths: list[str]) -> list[Scene]:
                        + listing}],
         ),
         timeout=float(settings.thumbnails_timeout_seconds))
+    # The day's spend (§481), priced at `metering.PRICES` there.
+    import metering
+
+    metering.count_call("thumbnails", settings.thumbnails_model,
+                        getattr(response, "usage", None))
     if getattr(response, "stop_reason", "") == "refusal":
         raise GenerationError("the scene writer declined")
     text = next(b.text for b in response.content if b.type == "text")
@@ -1324,10 +1329,23 @@ async def _google_post(model: str, prompt: str, key: str):
                 "generationConfig": {
                     "responseModalities": ["IMAGE"],
                     "imageConfig": {"aspectRatio": "4:3"}}}
-    async with httpx.AsyncClient(
-            timeout=settings.thumbnails_timeout_seconds) as http:
-        return await http.post(url, json=body,
-                               headers={"x-goog-api-key": key})
+    import provider_usage
+
+    try:
+        async with httpx.AsyncClient(
+                timeout=settings.thumbnails_timeout_seconds) as http:
+            resp = await http.post(url, json=body,
+                                   headers={"x-goog-api-key": key})
+    except Exception as exc:
+        provider_usage.record("gemini", ok=False, detail="images",
+                              why=type(exc).__name__)
+        raise
+    # Every image request, counted where it goes out (§480); what a made
+    # picture cost is `record_spend`'s, below, and the day's spend.
+    code = int(getattr(resp, "status_code", 0) or 0)
+    provider_usage.record("gemini", ok=200 <= code < 300, detail="images",
+                          why=f"HTTP {code}")
+    return resp
 
 
 async def _image_models(key: str) -> list[str]:
@@ -1335,10 +1353,19 @@ async def _image_models(key: str) -> list[str]:
     import httpx
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as http:
-            resp = await http.get(f"{_GOOGLE_API}models",
-                                  params={"pageSize": 1000},
-                                  headers={"x-goog-api-key": key})
+        import provider_usage
+
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as http:
+                resp = await http.get(f"{_GOOGLE_API}models",
+                                      params={"pageSize": 1000},
+                                      headers={"x-goog-api-key": key})
+        except Exception as exc:
+            provider_usage.record("gemini", ok=False, detail="model list",
+                                  why=type(exc).__name__)
+            raise
+        provider_usage.record("gemini", ok=resp.status_code == 200,
+                              detail="model list", why=f"HTTP {resp.status_code}")
         rows = (resp.json() or {}).get("models") or [] \
             if resp.status_code == 200 else []
     except Exception:  # noqa: BLE001
@@ -1456,6 +1483,10 @@ async def claude_checker(image: bytes, mime: str, subject: str
         ),
         timeout=float(settings.thumbnails_timeout_seconds))
     cost = _price_tokens(getattr(response, "usage", None))
+    import metering
+
+    metering.count_call("thumbnails", settings.thumbnails_model,
+                        getattr(response, "usage", None))
     if getattr(response, "stop_reason", "") == "refusal":
         raise GenerationError("the checker declined")
     text = next(b.text for b in response.content if b.type == "text")
@@ -1702,6 +1733,13 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
             raise StopRun(f"painter failed: {exc}") from exc
         spent += image_cost
         thumb_store.record_spend(node_id, 1, image_cost)
+        # And in the day's model spend beside Claude's (§481), priced as the
+        # tile store prices it (`THUMBNAILS_IMAGE_PRICE`).
+        import provider_usage
+
+        provider_usage.spend("thumbnails", "google:" + str(
+            _RESOLVED_MODEL or settings.thumbnails_image_model).split("/")[-1],
+            usd=image_cost)
         try:
             # Off the event loop: a Lanczos resize and a WebP encode are tens
             # of milliseconds each, and this runs inside a server.

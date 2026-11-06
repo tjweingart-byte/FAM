@@ -63,7 +63,12 @@ RECENT = 60
 #: this many, and the page says so (`steps_capped`).
 STEPS_READ = 50_000
 
-STAGES = ("brief", "live", "research", "writer", "edition", "episode", "voice")
+STAGES = ("brief", "live", "research", "writer", "edition", "episode", "voice",
+          # §482: recorded since §347 and §404 but never listed, so they had
+          # no explanation and no place in the stage counts until one happened.
+          "agents", "audio",
+          # §482: this store itself - rows that could not be written.
+          "tracking")
 ERROR = "error"
 NOTICE = "notice"
 
@@ -164,15 +169,17 @@ class ErrorStore:
             finally:
                 db.close()
 
-    def steps_since(self, at: float, limit: int = 0) -> list:
+    def steps_since(self, at: float, limit: int = 0, step: str = "") -> list:
         """The newest steps since `at`, at most `limit` (0 is no limit) -
         bounded so a busy week never makes the admin page read it whole
-        (review, §273)."""
+        (review, §273). `step` reads only that step's rows (§495: a watch
+        on one step is not crowded out of the bound by the rest)."""
         limit = int(limit or STEPS_READ)
+        where, args = ("AND step = ? ", (step,)) if step else ("", ())
         with closing(self._connect()) as db:
             cursor = db.execute(
                 "SELECT at, step, path, outcome, seconds FROM steps "
-                "WHERE at >= ? ORDER BY at DESC LIMIT ?", (at, limit))
+                f"WHERE at >= ? {where}ORDER BY at DESC LIMIT ?", (at, *args, limit))
             names = [c[0] for c in cursor.description]
             return [dict(zip(names, values)) for values in cursor]
 
@@ -211,6 +218,65 @@ _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
 _FLUSH_LOCK = threading.Lock()
 
+#: How keeping these rows has gone since this server started (§482). A row
+#: past `MAX_PENDING` while the store could not be written was dropped with
+#: no trace, and a failed write was one log line: the page that exists to
+#: show what went wrong could not show that it had gone wrong itself.
+_WRITES_EMPTY = {"last_written_at": None, "failures": 0,
+                 "last_failure_at": None, "last_failure": "",
+                 "last_dropped_at": None,
+                 "dropped": {"errors": 0, "steps": 0, "refusals": 0}}
+#: A drop keeps the store `behind` this long after it happened (§495): the
+#: count since boot stays on the page, but an incident about it can close.
+DROPPED_RECENT_SECONDS = 3600.0
+_WRITES: dict = {}
+
+
+def _clear_writes() -> None:
+    _WRITES.clear()
+    _WRITES.update({**_WRITES_EMPTY, "dropped": dict(_WRITES_EMPTY["dropped"])})
+
+
+_clear_writes()
+
+
+def _trim(held: list, kind: str) -> None:
+    """Under `_PENDING_LOCK`: keep the newest `MAX_PENDING`, counting the rest."""
+    over = len(held) - MAX_PENDING
+    if over > 0:
+        del held[:over]
+        _WRITES["dropped"][kind] = _WRITES["dropped"].get(kind, 0) + over
+        _WRITES["last_dropped_at"] = time.time()
+
+
+def _failed(what: str, exc: BaseException) -> None:
+    log.warning("could not %s pipeline errors: %s", what, exc)
+    with _PENDING_LOCK:
+        _WRITES["failures"] += 1
+        _WRITES["last_failure_at"] = time.time()
+        # The kind of error only: /api/health is public, and a database's
+        # message can name its host and user (the review). The whole message
+        # is in the log line above.
+        _WRITES["last_failure"] = f"could not {what} the store: {type(exc).__name__}"
+
+
+def status() -> dict:
+    """How the rows are being kept (§482), for /api/health and /admin:
+    rows waiting to be written, rows dropped since boot, the last failure.
+    `behind` is true while a failed write or open leaves rows waiting, or
+    for an hour after a row was dropped (§495: the count since boot stays,
+    but the alert closes once nothing more is lost). Never raises."""
+    with _PENDING_LOCK:
+        out = {**_WRITES, "dropped": dict(_WRITES["dropped"])}
+        out["waiting"] = len(_PENDING) + len(_PENDING_STEPS) + len(_PENDING_REFUSALS)
+    last_fail, last_ok = out["last_failure_at"], out["last_written_at"]
+    out["dropped_total"] = sum(out["dropped"].values())
+    dropped_at = out.get("last_dropped_at")
+    recent_drop = bool(dropped_at and time.time() - dropped_at < DROPPED_RECENT_SECONDS)
+    out["behind"] = bool(recent_drop or (
+        last_fail and (not last_ok or last_fail > last_ok) and out["waiting"]))
+    return out
+
 
 def store() -> ErrorStore:
     global _STORE
@@ -231,6 +297,7 @@ def reset(error_store: Optional[ErrorStore] = None) -> None:
         _PENDING_STEPS.clear()
         _PENDING_REFUSALS.clear()
         _LAST_FLUSH[0] = 0.0
+        _clear_writes()
     _category_cached.cache_clear()
 
 
@@ -251,7 +318,7 @@ def record(stage: str, kind: str, detail: str = "", query: str = "",
         entry = row(stage, kind, detail, query, severity)
         with _PENDING_LOCK:
             _PENDING.append(entry)
-            del _PENDING[:-MAX_PENDING]
+            _trim(_PENDING, "errors")
             due = (not _FLUSHING[0]
                    and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
             if due:
@@ -298,7 +365,7 @@ def step(name: str, path: str, outcome: str,
                  "seconds": None if seconds is None else round(float(seconds), 3)}
         with _PENDING_LOCK:
             _PENDING_STEPS.append(entry)
-            del _PENDING_STEPS[:-MAX_PENDING]
+            _trim(_PENDING_STEPS, "steps")
             due = (not _FLUSHING[0]
                    and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
             if due:
@@ -334,7 +401,7 @@ def refusal(call: str, model: str, path: str, query: str, message=None,
         }
         with _PENDING_LOCK:
             _PENDING_REFUSALS.append(entry)
-            del _PENDING_REFUSALS[:-MAX_PENDING]
+            _trim(_PENDING_REFUSALS, "refusals")
             due = (not _FLUSHING[0]
                    and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
             if due:
@@ -445,10 +512,13 @@ def flush() -> None:
     with _FLUSH_LOCK:
         with _PENDING_LOCK:
             _LAST_FLUSH[0] = time.monotonic()
+        with _PENDING_LOCK:
+            if not (_PENDING or _PENDING_STEPS or _PENDING_REFUSALS):
+                return
         try:
             target = store()
         except Exception as exc:  # noqa: BLE001
-            log.warning("could not open pipeline errors: %s", exc)
+            _failed("open", exc)
             return
         with _PENDING_LOCK:
             taken = list(_PENDING)
@@ -462,14 +532,17 @@ def flush() -> None:
         try:
             target.add(taken, steps=steps, refusals=refusals)
         except Exception as exc:  # noqa: BLE001
-            log.warning("could not write pipeline errors: %s", exc)
+            _failed("write", exc)
             with _PENDING_LOCK:
                 _PENDING[:0] = taken
-                del _PENDING[:-MAX_PENDING]
+                _trim(_PENDING, "errors")
                 _PENDING_STEPS[:0] = steps
-                del _PENDING_STEPS[:-MAX_PENDING]
+                _trim(_PENDING_STEPS, "steps")
                 _PENDING_REFUSALS[:0] = refusals
-                del _PENDING_REFUSALS[:-MAX_PENDING]
+                _trim(_PENDING_REFUSALS, "refusals")
+            return
+        with _PENDING_LOCK:
+            _WRITES["last_written_at"] = time.time()
 
 
 # --------------------------------------------------------------------------
@@ -692,6 +765,54 @@ EXPLAIN = (
          "On the pod: check those two settings, search its log for "
          "'registration', and rebuild it from Dockerfile.voice if its "
          "/health has no 'registering' field.")),
+    # §482: the agents' stage (§347, §350). Off by default; a row here means
+    # an agent was switched on and did not finish - the episode went on
+    # without it (every-agent.md, "always" 1).
+    ("agents", r": held$",
+     _ex("An agent is held",
+         "Netenyahu did not run an agent: it is switched on, but its rule "
+         "book is unsigned or changed, or it was held.",
+         "Nothing: the episode was made as it is without that agent.",
+         "The signed manifest does not cover the rule book in force, or an "
+         "agent was held after a breach.",
+         "Open Agents on this page: it says which agent and why. Rule books "
+         "are signed with tools/rulebook_manifest.py.")),
+    ("agents", r": (failed|timeout)$",
+     _ex("An agent's call did not finish",
+         "An agent asked its model and got no usable answer in time.",
+         "Nothing: the episode carried on without that agent's work.",
+         "The model was slow, busy or unreachable; a run of these is the "
+         "vendor, one is noise.",
+         "Look at the agent's last requests on the Agents page.")),
+    ("agents", r": wrong_model$",
+     _ex("An agent was answered by another model",
+         "The answer said it came from a model other than the one pinned.",
+         "Nothing: the answer was not used.",
+         "The model id in the agent's setting is an alias, or the vendor "
+         "swapped it.",
+         "Pin an exact model id in the agent's <AGENT>_MODEL setting.")),
+    ("agents", r": (misconfigured|unpriced)$",
+     _ex("An agent's model setting cannot be used",
+         "The agent's model setting is not a vendor and model FAM can call, "
+         "or has no price in metering.PRICES, so it is not called at all.",
+         "Nothing: the episode was made without that agent.",
+         "A typo in the setting, or a new model without a price row.",
+         "Fix the setting, or add the model's price to metering.PRICES.")),
+    ("audio", r"^upload failed",
+     _ex("An episode's audio was not kept",
+         "The finished audio could not be uploaded to the bucket.",
+         "Nothing now; its next play is voiced again instead of replayed.",
+         "The bucket refused or was unreachable, or its keys are wrong.",
+         "Check audio_store in /api/health; a run of these is the bucket.")),
+    ("tracking", r"^not written",
+     _ex("This page's own records are behind",
+         "Rows about what went wrong could not be written to the database, "
+         "so they are waiting in this server's memory, and past "
+         f"{MAX_PENDING:,} the oldest are dropped.",
+         "Nothing directly; this page is missing what it could not keep.",
+         "The database is unreachable, full, or refusing writes.",
+         "Check storage and the database in /api/health; the rows are "
+         "written as soon as it answers again.")),
     ("episode", r"^voice fell behind",
      _ex("The voice fell behind",
          "The voice made audio slower than it was played, so the listener "
@@ -823,6 +944,11 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
     for k in kinds.values():
         k["categories"] = [{"name": n, "count": c} for n, c in
                            sorted(k["categories"].items(), key=lambda kv: (-kv[1], kv[0]))]
+    # §482: the store's own trouble, as a kind of its own at the top of the
+    # page, the only place it can be seen - it is never a row in the store.
+    tracking = status()
+    if tracking["behind"]:
+        kinds[("tracking", "not written")] = _tracking_kind(tracking, now)
     by_stage = {s: {"day": 0, "week": 0} for s in STAGES}
     for k in kinds.values():
         s = by_stage.setdefault(k["stage"], {"day": 0, "week": 0})
@@ -848,4 +974,26 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
         "steps_capped": len(steps) >= STEPS_READ,
         # Every declined model call (§273): how often, for what, and where.
         "refusals": refusals_report(refused, steps, now),
+        # How the rows themselves are being kept (§482).
+        "tracking": tracking,
     }
+
+
+def _tracking_kind(tracking: dict, now: float) -> dict:
+    """The page's row for rows this store could not keep (§482)."""
+    dropped = tracking["dropped_total"]
+    parts = []
+    if tracking["waiting"]:
+        parts.append(f"{tracking['waiting']:,} waiting to be written")
+    if dropped:
+        parts.append(f"{dropped:,} dropped since this server started "
+                     f"({', '.join(f'{n:,} {k}' for k, n in tracking['dropped'].items() if n)})")
+    detail = "; ".join(parts) + (f" - {tracking['last_failure']}"
+                                 if tracking["last_failure"] else "")
+    at = tracking["last_failure_at"] or now
+    return {"stage": "tracking", "kind": "not written", "severity": ERROR,
+            "day": 1, "week": 1, "last_at": at, "last_detail": detail,
+            "last_query": "", "explain": explain("tracking", "not written", detail),
+            "categories": [], "times": [round(at)],
+            "examples": [{"at": at, "kind": "not written", "severity": ERROR,
+                          "detail": detail, "query": "", "category": ""}]}

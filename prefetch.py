@@ -1023,6 +1023,10 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
         # Started by a page draw, written for everybody: never on the clock of
         # the listener whose page it was (`listener_clock`).
         listener_clock.set_for_request("")
+        # Prefetch's spend, in the day's figure (§481).
+        import metering
+
+        metering.attribute_task("prefetch")
         try:
             outcome = await pf.run_once(listener, minutes=minutes)
             if outcome.get("outcomes"):

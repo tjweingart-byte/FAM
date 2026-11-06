@@ -471,3 +471,20 @@ and `limit` = Lines.
 | 30173 | 13 | 468. This branch's sections renumbered: Main took §418-§461 (2026-11-06) |
 | 30186 | 38 | 469. The branch double-checked before its pull request, and the manifest for the merged books (2026-11-06) |
 | 30224 | 13 | 470. The owner signed manifest version 6: the merged books (2026-11-06) |
+| 30237 | 75 | 480. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05) |
+| 30312 | 68 | 481. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05) |
+| 30380 | 35 | 482. Phase 4, piece 1c: the error rows keep their own record (2026-11-05) |
+| 30415 | 66 | 483. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06) |
+| 30481 | 43 | 484. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06) |
+| 30524 | 50 | 485. Phase 4, piece 2c: Cloudflare R2 in Keith's usage monitors (2026-11-06) |
+| 30574 | 45 | 486. Phase 4, piece 2d: Render in Keith's usage monitors (2026-11-06) |
+| 30619 | 63 | 487. Everything since Main double-checked: what an independent review found, and what was fixed (2026-11-06) |
+| 30682 | 59 | 488. Phase 4, piece 3a: Keith's incidents - one per cause, with a plan (2026-11-06) |
+| 30741 | 56 | 489. Phase 4, piece 3c: Keith's alerts on every admin page, "I fixed it", and urgent email (2026-11-06) |
+| 30797 | 55 | 490. Phase 4, piece 3b: Keith's closed list of fixes, observe only, and the fix report (2026-11-06) |
+| 30852 | 58 | 491. Phase 4, item 4: Keith checks each agent against its rule book, and watches what Phase 3 left him (2026-11-06) |
+| 30910 | 39 | 492. Phase 4, item 5: cost per episode against the plan - watched, never capped (2026-11-06) |
+| 30949 | 51 | 493. Phase 4, items 6 and 7: the /admin proposals, and the production switches as Phase 4 leaves them (2026-11-06) |
+| 31000 | 35 | 494. Phase 4, item 6 built: Keith's figures on /admin, as the owner approved them (2026-11-06) |
+| 31035 | 85 | 495. Phase 4, the second review of the whole branch: Keith's alerts open, stay and close as they say (2026-11-06) |
+| 31120 | 48 | 496. Phase 4, the third review: a claimed error kind no longer reopens itself, and an unread check is not a clean one (2026-11-06) |

@@ -38,6 +38,13 @@
   .grid { display:grid; gap:14px; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; }
   .kpi { background:var(--panel); padding:12px 14px; }
+  /* Keith's figures (§494): a share of a limit as a bar. */
+  .sharebar { height:6px; width:110px; background:var(--surface); border-radius:4px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px; }
+  .sharebar i { display:block; height:100%; background:var(--green); }
+  .sharebar i.warn { background:var(--amber); } .sharebar i.urgent { background:var(--rose); }
+  .lvl-warn { color:var(--amber); } .lvl-urgent { color:var(--rose); } .lvl-ok { color:var(--green); }
+  .kgrid { display:grid; grid-template-columns:1fr; gap:14px; margin-bottom:14px; }
+  @media (min-width:900px) { .kgrid { grid-template-columns:1fr 1fr; } }
   .kpi span { display:block; font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
   .kpi b { display:block; font-family:var(--serif); font-size:26px; line-height:1.15; font-variant-numeric:tabular-nums; }
   .kpi em { display:block; font-style:normal; font-size:11.5px; color:var(--muted); }
@@ -291,6 +298,7 @@
     <a href="#ask" data-nav="ask">Ask the database</a>
     <a href="#accounts" data-nav="accounts">Newest accounts</a>
     <a href="#agents" data-nav="agents">Agents</a>
+    <a href="#keith" data-nav="keith">Keith <span class="badge" id="navKeith" hidden></span></a>
     <div class="group">Inbox</div>
     <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
     <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
@@ -492,6 +500,16 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <p class="sub">Every request that went out to each data service, counted where it was sent (a cached answer is never counted; a refused one is). Days are UTC, when GNews resets. The limit is today's; in parentheses, what the next paid plan raises it to. BALLDONTLIE is one plan for every league, so each league it was asked about has a row of its own under it, saying where the requests went. When to buy each is in <b>docs/SCALING_TIMELINE.md</b>.</p>
       <div id="providers"></div>
     </section>
+    <section class="card section" id="usageCard">
+      <h2>What each service says it was used for</h2>
+      <p class="sub">Read hourly by Keith from each service's own figures (§483-§487): Render, MongoDB Atlas, Cloudflare R2, RunPod and Claude, against your plan or the monthly budget in <b>IT_BUDGETS</b>. A warning at 80%, urgent at 95% or when the month's pace will pass it, with the next plan's price. Nothing here is read until <b>AGENTS</b> and <b>IT_AGENT</b> are on.</p>
+      <div id="usageMonitors"></div>
+    </section>
+    <section class="card section" id="claudeSpendCard">
+      <h2>Claude's spend, by what spent it</h2>
+      <p class="sub">Every Claude answer is counted once (§481), priced at metering's list prices - listeners' episodes, each edition, prefetch, each agent. Paid searches, live data and tile pictures are counted beside it, not in Claude's total.</p>
+      <div id="claudeSpend"></div>
+    </section>
     <section class="card section" id="listensCard">
       <h2>Tapped against heard, last 24 hours</h2>
       <p class="sub">The server starts a <b>play</b> the moment it begins sending audio, before a word is heard. <b>What FAM can't stop playing</b>, <b>What your friends are listening to</b>, the friends' faces on a card and <b>What you missed last week</b> count only a <b>heard</b> listen: past 30 seconds, or 30% of a shorter episode, held to the time since the play began at the player's fastest speed - or finished. A big gap between tapped and heard on a question is people leaving early. Accounts only; nobody is named.</p>
@@ -512,10 +530,37 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="agentsLock"></div>
       <div id="agents"></div>
     </section>
+    <section class="card section" id="agentsWatchCard">
+      <h2>What Keith watches in the agents</h2>
+      <p class="sub">Shakespeare's two weeks with and without him (<b>EDITOR_TRIAL</b>), his tandem's outcomes against the week before, the share of sentences Mclovin let play unchecked (decided item 32), and the hourly rule-book checks (§491).</p>
+      <div id="agentsWatch"></div>
+    </section>
     <section class="card section">
       <h2>Latest agent requests</h2>
       <p class="sub">The last 25, newest first: the model asked and the one that answered, the rule-book version it ran under, and why it fell back when it did. No listener and none of what was said is ever recorded.</p>
       <div id="agentCalls"></div>
+    </section>
+    </div>
+
+    <div class="page" data-page="keith" data-title="Keith" hidden>
+    <section class="card section">
+      <h2>Open incidents</h2>
+      <p class="sub">One per cause, from FAM's own records (§488): what is broken, what a listener notices, what was tried, the fix recommended, and what is needed from you. The same alerts as the pop-up, here with their history. Read-only: fixes are switched in <b>IT_FIXES</b>.</p>
+      <div id="keithFilter" class="chips" style="margin-bottom:8px"></div>
+      <div id="keithOpen"></div>
+    </section>
+    <section class="card section">
+      <h2>Closed this week</h2>
+      <div id="keithClosed"></div>
+    </section>
+    <section class="card section">
+      <h2>The fix report</h2>
+      <p class="sub">What Keith did, when, and how he checked it - and, while a fix is off, what he would have done (§490).</p>
+      <div id="keithFixes"></div>
+    </section>
+    <section class="card section">
+      <h2>Cost per episode</h2>
+      <div id="keithCost"></div>
     </section>
     </div>
 
@@ -821,6 +866,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       return '<tr' + (sub ? ' class="subrow"' : '') + '><td>' + (sub ? '<span class="subname">' + esc(r.label) + '</span>' : esc(r.label)) +
         '</td><td class="n">' + today + '</td><td class="n">' +
         Number(r.yesterday).toLocaleString() + '</td><td class="n">' + Number(r.average).toLocaleString() +
+        '</td><td>' + allowanceCell(r.allowance) +
         '</td><td title="' + esc(r.limit + ' (' + r.next + ')') + '">' + esc(r.limit) +
         ' <span style="color:var(--muted)">(' + esc(r.next) + ')</span>' + said + '</td></tr>';
     }
@@ -834,8 +880,176 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         esc(r.label) + ': ' + esc(r.alert) + '</p>';
     }).join("");
     $("providers").innerHTML = alerts + '<div class="tbl"><table><thead><tr><th>Service</th><th>Today</th><th>Yesterday</th>' +
-      '<th>7-day average</th><th>Limit (next plan)</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+      '<th>7-day average</th><th>Used of its limit</th><th>Limit (next plan)</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
+
+  // ------------------------------------------------- Keith's figures (§494)
+  function shareBar(share, level) {
+    if (share == null) return "";
+    var w = Math.max(1, Math.min(100, Math.round(share * 100)));
+    return '<span class="sharebar"><i class="' + esc(level || "") + '" style="width:' + w + '%"></i></span>';
+  }
+  function levelOf(share) {
+    return share == null ? "" : (share >= 0.95 ? "urgent" : (share >= 0.8 ? "warn" : ""));
+  }
+  function allowanceCell(a) {
+    if (!a) return '<small style="color:var(--muted)">no limit to measure</small>';
+    if (a.kind !== "quota") return '<small style="color:var(--muted)">a pace: ' + Number(a.count).toLocaleString() +
+      ' ' + esc(a.unit) + ' a ' + esc(a.period) + '</small>';
+    if (a.used == null) return '<small style="color:var(--muted)">not read</small>';
+    var lvl = levelOf(a.share);
+    return shareBar(a.share, lvl) + '<small class="lvl-' + (lvl || "ok") + '">' + Math.round(a.share * 100) +
+      '% of this ' + esc(a.period) + "'s " + Number(a.count).toLocaleString() + '</small>';
+  }
+  function num(v, unit) {
+    if (v == null) return "—";
+    if (unit === "USD") return "$" + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 }) + (unit ? " " + esc(unit) : "");
+  }
+  function drawUsage(u) {
+    var services = (u && u.services) || [];
+    var rows = [];
+    services.forEach(function (svc) {
+      if (svc.never_read) {
+        rows.push('<tr><td>' + esc(svc.service) + '</td><td colspan="4"><small style="color:var(--muted)">not read yet</small></td></tr>');
+        return;
+      }
+      if (!svc.ok) {
+        rows.push('<tr><td>' + esc(svc.service) + '</td><td colspan="4"><small style="color:var(--muted)">' + esc(svc.why) + '</small></td></tr>');
+        return;
+      }
+      (svc.figures || []).forEach(function (f) {
+        var used = num(f.value, f.unit) + (f.limit ? ' of ' + num(f.limit, f.unit) : (f.unit === "USD" && f.period === "month" ? ' <small style="color:var(--muted)">(no budget set)</small>' : ''));
+        rows.push('<tr><td>' + esc(svc.service) + '</td><td>' + esc(f.name) + '</td><td>' +
+          shareBar(f.share, f.level === "ok" ? "" : f.level) + '<span class="lvl-' + esc(f.level || "ok") + '">' + used + '</span></td><td class="n">' +
+          (f.projected == null ? "—" : num(f.projected, f.unit)) + '</td><td>' + esc(f.next || "") + '</td></tr>');
+      });
+    });
+    var budgets = (u && u.budgets) || {};
+    var set = Object.keys(budgets).map(function (k) { return k + " $" + budgets[k]; }).join(", ");
+    $("usageMonitors").innerHTML = rows.length ? '<div class="tbl"><table><thead><tr><th>Service</th><th>Figure</th><th>Used</th>' +
+      '<th class="n">Projected this month</th><th>Next plan</th></tr></thead><tbody>' + rows.join("") + '</tbody></table></div>' +
+      '<p class="sub" style="margin-top:8px">Budgets set: ' + esc(set || "none (IT_BUDGETS)") + '</p>'
+      : '<p class="sub">Nothing read yet: the monitors run hourly once AGENTS and IT_AGENT are on.</p>';
+  }
+  function drawClaudeSpend(c) {
+    if (!c) { $("claudeSpend").innerHTML = '<p class="sub">Nothing counted yet.</p>'; return; }
+    var cl = c.claude || {}, all = c.all || {};
+    var rows = (c.by_source || []).map(function (g) {
+      return '<tr><td>' + esc(g.source) + '</td><td class="n">' + num(g.today, "USD") + '</td><td class="n">' +
+        num(g.month, "USD") + '</td><td class="n">' + Number(g.calls_today || 0).toLocaleString() + '</td></tr>';
+    }).join("");
+    $("claudeSpend").innerHTML = '<p class="sub"><b>Claude</b>: today ' + num(cl.today, "USD") + ' · yesterday ' +
+      num(cl.yesterday, "USD") + ' · this month ' + num(cl.month, "USD") +
+      (cl.unpriced_month ? ' · ' + Number(cl.unpriced_month).toLocaleString() + ' calls with no price' : '') +
+      ' &nbsp;·&nbsp; <b>everything counted</b> this month ' + num(all.month, "USD") + '</p>' +
+      '<div class="tbl"><table><thead><tr><th>What spent it</th><th class="n">Today</th><th class="n">This month</th>' +
+      '<th class="n">Calls today</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+  function drawCost(c) {
+    var old = document.querySelectorAll("#kpis .kpi.cost");
+    Array.prototype.forEach.call(old, function (el) { el.remove(); });
+    if (!c) return;
+    function tile(label, f) {
+      var v = f.cents_per_episode;
+      var cls = v == null ? "" : (f.well_above ? "lvl-urgent" : (f.ratio > 1 ? "lvl-warn" : "lvl-ok"));
+      return '<div class="kpi cost"><span>' + esc(label) + '</span><b class="' + cls + '">' +
+        (v == null ? "—" : v.toFixed(2) + "¢") + '</b><em>plan ' + f.plan_cents + '¢' +
+        (f.ratio != null ? ' · ' + f.ratio.toFixed(1) + '×' : ' · under ' + c.min_episodes + ' episodes') +
+        ' · alert at ' + c.well_above_at + '×</em></div>';
+    }
+    var html = tile("Agents per episode · " + c.days + " days", c.agents || {}) +
+      tile("Claude per episode · " + c.days + " days", c.claude || {}) +
+      '<div class="kpi cost"><span>Nightly agent jobs</span><b>' + num(c.nightly_usd_per_month, "USD") +
+      '</b><em>a month at this rate · any volume</em></div>';
+    $("kpis").insertAdjacentHTML("beforeend", html);
+    $("keithCost").innerHTML = '<div class="kpis">' + html + '</div><p class="sub">' +
+      Number(c.episodes || 0).toLocaleString() + ' episodes written in ' + c.days + ' days. ' + esc(c.note || "") + '</p>';
+  }
+  function drawAgentsWatch(w) {
+    if (!w) { $("agentsWatch").innerHTML = ""; return; }
+    var trial = w.trial || {}, arms = Object.keys(trial);
+    var trialHtml = arms.length ? '<table><thead><tr><th>Arm</th><th class="n">Episodes</th><th class="n">Listens</th></tr></thead><tbody>' +
+      arms.map(function (a) { return '<tr><td>' + esc(a) + '</td><td class="n">' + Number(trial[a].episodes || 0).toLocaleString() +
+        '</td><td class="n">' + Number(trial[a].listens || 0).toLocaleString() + '</td></tr>'; }).join("") + '</tbody></table>'
+      : '<p class="sub">No trial episodes yet (EDITOR_TRIAL).</p>';
+    var t = w.tandem || {}, today = t.today || {}, before = t.week_before || {};
+    var nT = Object.keys(today).reduce(function (s, k) { return s + today[k]; }, 0);
+    var nB = Object.keys(before).reduce(function (s, k) { return s + before[k]; }, 0);
+    var kinds = Object.keys(Object.assign({}, today, before));
+    var tandemHtml = kinds.length ? '<table><tbody>' + kinds.map(function (k) {
+      var a = nT ? Math.round((today[k] || 0) / nT * 100) : 0, b = nB ? Math.round((before[k] || 0) / nB * 100) : 0;
+      return '<tr><td>' + esc(k.replace(/_/g, " ")) + '</td><td class="n">' + a + '%</td><td><small>' + b + '% the week before</small></td></tr>';
+    }).join("") + '</tbody></table><p class="sub">' + nT + ' episodes today</p>' : '<p class="sub">No tandem outcomes yet (EDITOR_TANDEM).</p>';
+    var m = w.mclovin_unchecked || {};
+    var mHtml = m.today_sentences ? '<p style="font-family:var(--serif);font-size:24px;margin:0">' +
+      (m.rate != null ? (m.rate * 100).toFixed(1) + '%' : '—') + ' <small style="font:12px var(--sans)">today · ' +
+      (m.base != null ? (m.base * 100).toFixed(1) + '%' : '—') + ' the week before</small></p><p class="sub">' +
+      m.today + ' of ' + m.today_sentences + ' sentences · an alert when it more than doubles</p>'
+      : '<p class="sub">No sentences checked today.</p>';
+    var open = w.open_findings || [];
+    var checks = '<p class="sub">' + (w.last_checked ? 'last ' + esc(new Date(w.last_checked * 1000).toLocaleString()) : 'not run yet') + '</p>' +
+      (open.length ? '<p class="lvl-urgent">' + open.map(esc).join("<br>") + '</p>' : '<p class="lvl-ok">No breach found.</p>');
+    $("agentsWatch").innerHTML = '<div class="kgrid">' +
+      '<div class="card"><h2>Shakespeare\'s two weeks</h2>' + trialHtml + '</div>' +
+      '<div class="card"><h2>His tandem, last day</h2>' + tandemHtml + '</div>' +
+      '<div class="card"><h2>Mclovin\'s unchecked sentences</h2>' + mHtml + '</div>' +
+      '<div class="card"><h2>Rule-book checks</h2>' + checks + '</div></div>';
+  }
+  var keithFilter = "";
+  function drawKeith(inc, fixes) {
+    inc = inc || {};
+    var open = inc.open || [];
+    $("navKeith").textContent = open.length || "";
+    $("navKeith").hidden = !open.length;
+    var sources = {};
+    open.concat(inc.closed || []).forEach(function (r) { sources[r.source] = true; });
+    $("keithFilter").innerHTML = [""].concat(Object.keys(sources)).map(function (s) {
+      return '<button class="chip' + (s === keithFilter ? ' on' : '') + '" type="button" data-src="' + esc(s) + '">' +
+        esc(s || "all") + '</button>';
+    }).join("");
+    function keep(r) { return !keithFilter || r.source === keithFilter; }
+    function plan(p) {
+      p = p || {};
+      return [["Problem", p.problem], ["A listener notices", p.listener_notices], ["Tried", p.tried],
+              ["Recommended", p.recommended], ["Cost and risk", p.cost_and_risk], ["Needs from you", p.needs_from_owner]]
+        .filter(function (x) { return x[1]; }).map(function (x) { return '<b>' + esc(x[0]) + ':</b> ' + esc(x[1]); }).join(" ");
+    }
+    var when = function (t) { return t ? esc(new Date(t * 1000).toLocaleString()) : "—"; };
+    $("keithOpen").innerHTML = open.filter(keep).length ? '<div class="tbl"><table><thead><tr><th>Incident</th><th>Opened</th>' +
+      '<th class="n">Seen</th><th>Plan</th></tr></thead><tbody>' + open.filter(keep).map(function (r) {
+        return '<tr><td><span class="lvl-' + esc(r.severity === "notice" ? "ok" : r.severity) + '">' + esc(r.severity) + '</span> ' +
+          esc(r.title) + (r.reopened ? ' <small>(reopened ' + r.reopened + '×)</small>' : '') + '</td><td>' + when(r.opened_at) +
+          '</td><td class="n">' + r.seen + '</td><td><small>' + plan(r.plan) + '</small></td></tr>';
+      }).join("") + '</tbody></table></div>' : '<p class="sub">Nothing open.</p>';
+    var closed = (inc.closed || []).filter(keep);
+    $("keithClosed").innerHTML = closed.length ? '<div class="tbl"><table><thead><tr><th>Incident</th><th>Opened</th>' +
+      '<th class="n">Seen</th><th>Closed</th><th>Why</th></tr></thead><tbody>' + closed.map(function (r) {
+        return '<tr><td>' + esc(r.title) + '</td><td>' + when(r.opened_at) + '</td><td class="n">' + r.seen +
+          '</td><td>' + when(r.closed_at) + '</td><td>' + esc(r.closed_why) + '</td></tr>';
+      }).join("") + '</tbody></table></div>' : '<p class="sub">Nothing closed this week.</p>';
+    fixes = fixes || {};
+    var list = fixes.fixes || [];
+    $("keithFixes").innerHTML = '<p class="sub">Fixes on: ' + esc((fixes.enabled || []).join(", ") || "none - Keith observes only") +
+      ' · available: ' + esc((fixes.available || []).join(", ")) + '</p>' + (list.length ? '<div class="tbl"><table><thead><tr><th>When</th>' +
+      '<th>Fix</th><th>Mode</th><th>Outcome</th><th>How it was checked</th><th>Incident</th></tr></thead><tbody>' + list.map(function (f) {
+        return '<tr><td>' + when(f.at) + '</td><td>' + esc(f.fix) + '</td><td>' + (f.mode === "observe" ? "off" : "on") +
+          '</td><td class="lvl-' + (f.outcome === "verified" ? "ok" : (f.outcome === "failed" ? "urgent" : "")) + '">' + esc(f.outcome) +
+          '</td><td>' + esc(f.how) + '</td><td><small>' + esc(f.cause) + '</small></td></tr>';
+      }).join("") + '</tbody></table></div>' : '<p class="sub">No fixes this week.</p>');
+  }
+  var keithData = { inc: null, fixes: null };
+  function loadKeith() {
+    return api("/api/admin/fixes").then(function (f) {
+      keithData.fixes = f; drawKeith(keithData.inc, keithData.fixes);
+    }).catch(function () {});
+  }
+  document.addEventListener("click", function (e) {
+    var chip = e.target.closest && e.target.closest("#keithFilter .chip");
+    if (!chip) return;
+    keithFilter = chip.getAttribute("data-src") || "";
+    drawKeith(keithData.inc, keithData.fixes);
+  });
 
   // ------------------------------------------------------- pipeline errors
   function drawErrors(r) {
@@ -1231,6 +1445,15 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       drawChart(s.signups);
       drawRecent(s.recent_accounts);
       drawProviders(s.providers);
+      // Keith's figures (§494): cost per episode, the usage monitors,
+      // Claude's spend by source, what he watches in the agents, his page.
+      drawCost(s.cost_per_episode);
+      drawUsage(s.usage_monitors);
+      drawClaudeSpend(s.claude_spend);
+      drawAgentsWatch(s.agents_watch);
+      keithData.inc = s.incidents;
+      drawKeith(keithData.inc, keithData.fixes);
+      loadKeith();
       drawRouting(s.routing);
       drawListens(s.listens);
       drawErrors(s.pipeline_errors);
@@ -1889,5 +2112,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   toGate();
 })();
 </script>
+<!-- Keith's alerts on every admin page (§489). -->
+<script src="/admin/keith-alerts.js" defer></script>
 </body>
 </html>

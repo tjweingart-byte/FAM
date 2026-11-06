@@ -371,6 +371,33 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    ("it", "tag_sync", 5, "it_agent"))
 _QUEUED_DAYS: set = set()
 
+#: Background work queued every hour (§483): (agent, kind, switch). One
+#: task keyed by the UTC hour, so a restart never runs an hour twice and an
+#: hour the loop was down is not made up. Keith's usage monitors read each
+#: service's own usage figures - reads only, nothing spent.
+HOURLY: tuple = (("it", "usage", "it_agent"),)
+
+#: Background work queued more often than hourly (§488): (agent, kind,
+#: switch, the setting naming its period in seconds). One task per period,
+#: keyed by the period's UTC start - as hourly work is by its hour. Keith's
+#: incidents round reads what FAM already records; it calls nothing outside.
+FREQUENT: tuple = (("it", "watch", "it_agent", "it_watch_seconds"),)
+
+
+def _period_key(seconds: float, now: Optional[datetime.datetime] = None) -> str:
+    when = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(
+        datetime.timezone.utc)
+    period = max(60, int(seconds or 300))
+    start = int(when.timestamp()) // period * period
+    return datetime.datetime.fromtimestamp(
+        start, datetime.timezone.utc).strftime("%Y-%m-%dT%H%M")
+
+
+def _hour_key(now: Optional[datetime.datetime] = None) -> str:
+    when = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(
+        datetime.timezone.utc)
+    return when.strftime("%Y-%m-%dT%H")
+
 
 def schedule(now: Optional[datetime.datetime] = None, handlers: Optional[dict] = None) -> int:
     """Queue today's scheduled tasks that are due, for agents that are on
@@ -385,6 +412,12 @@ def schedule(now: Optional[datetime.datetime] = None, handlers: Optional[dict] =
         local = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(
             ZoneInfo("America/New_York"))
         day = local.date().isoformat()
+        # Only the current day's, hour's and periods' keys are kept (§495):
+        # the set is a shortcut past the store, which refuses a repeat anyway.
+        current = {day, _hour_key(now)} | {
+            _period_key(getattr(settings, every, 300), now)
+            for _a, _k, _s, every in FREQUENT}
+        _QUEUED_DAYS.intersection_update({k for k in _QUEUED_DAYS if k[2] in current})
         for agent, kind, hour, switch in SCHEDULE:
             if (agent, kind) not in handlers or not getattr(settings, switch, False):
                 continue
@@ -393,6 +426,24 @@ def schedule(now: Optional[datetime.datetime] = None, handlers: Optional[dict] =
             if tasks.store().add(agent, kind, day, {"day": day}) == tasks.ADDED:
                 added += 1
             _QUEUED_DAYS.add((agent, kind, day))
+        hour = _hour_key(now)
+        for agent, kind, switch in HOURLY:
+            if (agent, kind) not in handlers or not getattr(settings, switch, False):
+                continue
+            if (agent, kind, hour) in _QUEUED_DAYS:
+                continue
+            if tasks.store().add(agent, kind, hour, {"hour": hour}) == tasks.ADDED:
+                added += 1
+            _QUEUED_DAYS.add((agent, kind, hour))
+        for agent, kind, switch, every in FREQUENT:
+            if (agent, kind) not in handlers or not getattr(settings, switch, False):
+                continue
+            key = _period_key(getattr(settings, every, 300), now)
+            if (agent, kind, key) in _QUEUED_DAYS:
+                continue
+            if tasks.store().add(agent, kind, key, {"period": key}) == tasks.ADDED:
+                added += 1
+            _QUEUED_DAYS.add((agent, kind, key))
     except Exception:  # noqa: BLE001 - the loop outlives any one round
         log.exception("netenyahu could not queue the scheduled work")
     return added

@@ -2244,6 +2244,65 @@ class Settings:
                 "fam,gdelt,tiingo,balldontlie,perplexity,gnews").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
+    # **Keith's usage monitors** (§483, keith.md "always" 6): the owner's
+    # monthly budget per service in dollars, "runpod=300,anthropic=200".
+    # Empty: the spend is shown with no share of anything. A warning at
+    # IT_WARN_SHARE of a limit, urgent at IT_URGENT_SHARE or when the month's
+    # pace will pass it. Read hourly, only while IT_AGENT is on.
+    it_budgets: str = field(
+        default_factory=lambda: os.environ.get("IT_BUDGETS", "").strip())
+    # Keith's incidents (§488): how often a round reads FAM's records (never
+    # faster than Netenyahu's own tick), and how many of one kind of error in
+    # an hour open an incident.
+    it_watch_seconds: float = _env_float("IT_WATCH_SECONDS", 300.0)
+    # Keith's fixes the owner has switched on (§490), by name:
+    # reverify_voice, rerun_job, hold_agent. Empty: observe only - each fix
+    # that would apply is written to the fix report as "would".
+    it_fixes: str = field(default_factory=lambda: os.environ.get("IT_FIXES", "").strip())
+    # Where an urgent incident is emailed (decided items 10 and 23: the
+    # owner's Admin@familiarize.net), set in the environment, never here.
+    it_alert_email: str = field(
+        default_factory=lambda: os.environ.get("IT_ALERT_EMAIL", "").strip())
+    it_incident_errors: int = _env_int("IT_INCIDENT_ERRORS", 3)
+    # What an episode costs against the owner's plan (§492): the agents per
+    # episode against IT_COST_PLAN_AGENTS_CENTS (the Cost table's 0.45), all
+    # of Claude per episode against IT_COST_PLAN_CLAUDE_CENTS (the owner's
+    # 1.0), over IT_COST_DAYS; IT_COST_WELL_ABOVE times the plan is urgent
+    # and emailed. Watched, never capped.
+    it_cost_plan_agents_cents: float = _env_float("IT_COST_PLAN_AGENTS_CENTS", 0.45)
+    it_cost_plan_claude_cents: float = _env_float("IT_COST_PLAN_CLAUDE_CENTS", 1.0)
+    it_cost_days: float = _env_float("IT_COST_DAYS", 7.0)
+    it_cost_well_above: float = _env_float("IT_COST_WELL_ABOVE", 1.5)
+    it_warn_share: float = _env_float("IT_WARN_SHARE", 0.80)
+    it_urgent_share: float = _env_float("IT_URGENT_SHARE", 0.95)
+    # Atlas's monitor (§484): which project and cluster the Admin API is asked
+    # about. Not secrets; its read-only key pair, ATLAS_PUBLIC_KEY and
+    # ATLAS_PRIVATE_KEY, comes through FAM_SECRETS.
+    atlas_project_id: str = field(
+        default_factory=lambda: os.environ.get("ATLAS_PROJECT_ID", "").strip())
+    atlas_cluster: str = field(
+        default_factory=lambda: os.environ.get("ATLAS_CLUSTER", "").strip())
+    atlas_api_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "ATLAS_API_URL", "https://cloud.mongodb.com").strip())
+    # R2's monitor (§485): Cloudflare's GraphQL analytics, read with
+    # CLOUDFLARE_ANALYTICS_TOKEN (FAM_SECRETS) for the account R2_ACCOUNT_ID.
+    # Render's monitor (§486): the API, the `fam` service and its Postgres
+    # instance by name, read with RENDER_API_KEY (FAM_SECRETS); the workspace's
+    # included outbound bandwidth, copied from the owner's Billing page
+    # (Pro: 25 GB, 2026-11-06).
+    render_api_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "RENDER_API_URL", "https://api.render.com/v1").strip())
+    render_service_id: str = field(
+        default_factory=lambda: os.environ.get("RENDER_SERVICE_ID", "").strip())
+    render_postgres_name: str = field(
+        default_factory=lambda: os.environ.get("RENDER_POSTGRES_NAME", "fam-db").strip())
+    render_bandwidth_included_gb: float = _env_float("RENDER_BANDWIDTH_INCLUDED_GB", 25.0)
+    cloudflare_graphql_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "CLOUDFLARE_GRAPHQL_URL",
+            "https://api.cloudflare.com/client/v4/graphql").strip())
     # **Netenyahu's background loop** (§350): how often it claims due agent
     # tasks, and at most how many per round. Started only when `AGENTS=1`.
     overlord_tick_seconds: float = _env_float("OVERLORD_TICK_SECONDS", 300.0)

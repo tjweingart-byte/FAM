@@ -260,6 +260,20 @@ FAM_ENVIRONMENT = (
     "SUPERVISOR_GROUNDING_HIGH", "SUPERVISOR_GROUNDING_LOW",
     "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", "SUPERVISOR_SCREEN_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
+    # §483: Keith's usage monitors.
+    "IT_BUDGETS", "IT_WARN_SHARE", "IT_URGENT_SHARE",
+    # §488: Keith's incidents.
+    "IT_WATCH_SECONDS", "IT_INCIDENT_ERRORS", "IT_ALERT_EMAIL", "IT_FIXES",
+    # §492: cost per episode against the plan.
+    "IT_COST_PLAN_AGENTS_CENTS", "IT_COST_PLAN_CLAUDE_CENTS", "IT_COST_DAYS",
+    "IT_COST_WELL_ABOVE",
+    # §484: Atlas's monitor.
+    "ATLAS_PROJECT_ID", "ATLAS_CLUSTER", "ATLAS_API_URL",
+    # §485: R2's monitor.
+    "CLOUDFLARE_GRAPHQL_URL",
+    # §486: Render's monitor.
+    "RENDER_API_URL", "RENDER_SERVICE_ID", "RENDER_POSTGRES_NAME",
+    "RENDER_BANDWIDTH_INCLUDED_GB",
     # §397: whose material Consuela may store.
     "HOUSEKEEPER_APPROVED_PROVIDERS",
     # §399: her consolidation's dry run and batch sizes.
@@ -621,9 +635,23 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
 
     monkeypatch.setenv("PIPELINE_ERRORS_DB",
                        str(tmp_path / "stores" / "pipeline_errors.db"))
+    import incidents
+
     pipeline_errors.reset()
+    import agent_checks
+
+    incidents.reset()          # Keith's incidents share its database (§488)
+    agent_checks.reset()       # and his rule-book checks' last look (§491)
+    import cost_watch
+
+    cost_watch.LEDGER[0] = None    # and the cost watch's ledger (§492)
+    import keith_fixes
+
+    keith_fixes.reset()            # and his re-runs, once each (§495)
     yield
     pipeline_errors.reset()
+    incidents.reset()
+    agent_checks.reset()
 
 
 @pytest.fixture(autouse=True)

@@ -63,6 +63,8 @@ project keeps paying for: a number that looks like an answer.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import logging
 import os
 import sqlite3
@@ -214,7 +216,8 @@ class Usage:
     calls_unpriced: int = 0
 
     def add_model_call(self, model: str, usage: object,
-                       batched: bool = False) -> None:
+                       batched: bool = False, *, count: bool = True,
+                       source: str = "") -> None:
         """Fold in one Claude response's `usage` block.
 
         Takes the SDK object rather than numbers so every call site records the
@@ -225,7 +228,17 @@ class Usage:
         at `BATCH_DISCOUNT` off every token. The tokens are counted as they
         are; the discount is kept beside them in dollars, so a report still
         says how much was read and written and what it actually cost.
+
+        **Every call is also counted in the day's spend** (§481,
+        `provider_usage.spend`), by `source`: the ledger below holds a
+        listener's episodes and the agents' calls, while editions, prefetch
+        and the background calls priced themselves somewhere else or not at
+        all, so nothing said what Claude cost in a day. `count=False` only
+        where the same answer is folded in twice (an agent's call is folded
+        into its own record and into the episode's notes).
         """
+        if count:
+            count_call(source or current_source(), model, usage, batched)
         self.model = model or self.model
         self.model_calls += 1
         call = Usage(model=model,
@@ -252,14 +265,100 @@ class Usage:
     def add_research(self, searches: int, cost: float) -> None:
         self.web_searches += int(searches or 0)
         self.web_search_cost += float(cost or 0.0)
+        # The day's spend too (§481): searches are billed per request.
+        if searches or cost:
+            _count_billed("web searches", searches, cost)
 
     def add_live_call(self, calls: int, cost: float) -> None:
         """One provider request that actually went out. Never a cache hit."""
         self.live_calls += int(calls or 0)
         self.live_cost += float(cost or 0.0)
+        if cost:
+            _count_billed("live data", calls, cost)
 
     def as_dict(self) -> dict:
         return asdict(self)
+
+
+#: What is spending, for the day's spend (§481): set by a background job at
+#: its entry (`spend_source("edition:trending")`), inherited by every task it
+#: starts; unset, a call is a listener's episode.
+_SOURCE: contextvars.ContextVar = contextvars.ContextVar("fam_spend_source",
+                                                         default="")
+
+
+def current_source() -> str:
+    return _SOURCE.get() or "episodes"
+
+
+def attribute_task(name: str) -> None:
+    """For a task that is one job for its whole life (an edition's loop, a
+    prefetch cycle): every model call it and its children make is `name`'s."""
+    _SOURCE.set(str(name or ""))
+
+
+@contextlib.contextmanager
+def spend_source(name: str):
+    """Attribute every model call made inside to `name` in the day's spend."""
+    token = _SOURCE.set(str(name or ""))
+    try:
+        yield
+    finally:
+        _SOURCE.reset(token)
+
+
+def fold_call(notes, model: str, usage: object, batched: bool = False) -> None:
+    """One answer's tokens into `notes.usage` when there are notes, else
+    straight into the day's spend (§481, the review): a call made without
+    notes - a warm-up, a script streamed on its own - was billed and counted
+    nowhere. Never raises."""
+    folded = getattr(notes, "usage", None) if notes is not None else None
+    if folded is not None:
+        folded.add_model_call(model, usage, batched)
+    else:
+        count_call(current_source(), model, usage, batched)
+
+
+def count_call(source: str, model: str, usage: object,
+               batched: bool = False) -> None:
+    """Count one model answer in the day's spend (§481). Never raises.
+
+    For a call whose answer is not folded into any `Usage` (the story
+    composer, the category placer, the thumbnails' scenes and checks, the
+    admin page's questions): one line beside the call, so every Claude
+    answer reaches the same daily figure. Priced at `PRICES`; a model with no
+    rate is counted unpriced, never at $0."""
+    try:
+        import provider_usage
+
+        call = Usage(model=model,
+                     input_tokens=_int_attr(usage, "input_tokens"),
+                     output_tokens=_int_attr(usage, "output_tokens"),
+                     cache_read_tokens=_int_attr(usage, "cache_read_input_tokens"),
+                     cache_write_tokens=_int_attr(usage, "cache_creation_input_tokens"))
+        usd = None
+        if _token_lines(call) is not None:
+            usd = _claude_list_cost(call)
+            if batched:
+                usd -= usd * BATCH_DISCOUNT
+        provider_usage.spend(
+            source, model, input_tokens=call.input_tokens,
+            output_tokens=call.output_tokens,
+            cache_read_tokens=call.cache_read_tokens,
+            cache_write_tokens=call.cache_write_tokens, usd=usd)
+    except Exception as exc:  # noqa: BLE001 - counting never costs a call
+        log.warning("could not count a %s call's spend: %s", model, exc)
+
+
+def _count_billed(what: str, calls: int, cost: float) -> None:
+    """A search or live call's billed dollars in the day's spend (§481)."""
+    try:
+        import provider_usage
+
+        provider_usage.spend(current_source(), what, calls=int(calls or 0),
+                             usd=float(cost or 0.0))
+    except Exception as exc:  # noqa: BLE001 - counting never costs a call
+        log.warning("could not count %s spend: %s", what, exc)
 
 
 def _int_attr(obj: object, name: str) -> int:

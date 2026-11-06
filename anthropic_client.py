@@ -37,13 +37,42 @@ def build_http_client() -> anthropic.DefaultAsyncHttpxClient:
     are preserved; only the protocol version is overridden.
     """
     try:
-        return anthropic.DefaultAsyncHttpxClient(http2=settings.anthropic_http2)
+        return anthropic.DefaultAsyncHttpxClient(
+            http2=settings.anthropic_http2,
+            event_hooks={"response": [_count_response]})
     except ImportError as exc:  # http2=True without the `h2` package installed
         raise Http2Unavailable(
             "ANTHROPIC_HTTP2 is enabled but the 'h2' package is not installed. "
             "Install it with `pip install h2`, or leave ANTHROPIC_HTTP2 unset to "
             "use HTTP/1.1."
         ) from exc
+
+
+async def _count_response(response) -> None:
+    """Count every request Claude answered, retries included (§480).
+
+    Claude was the one paid service no count saw: its spend reached
+    `metering` per episode, but how many requests went out, and how many came
+    back refused (429 rate limits, 529 overloaded), was nowhere. One hook on
+    the one client every call is built from counts them all, the way
+    `live_sources._json` counts by host. A request that never got an answer
+    (a dropped connection) has no response, so it is not counted here; the
+    caller's own error record has it. Never raises.
+    """
+    try:
+        import provider_usage
+
+        code = int(getattr(response, "status_code", 0) or 0)
+        try:
+            path = str(response.request.url.path)
+        except Exception:  # noqa: BLE001 - a response built without a request
+            path = ""
+        detail = "batches" if "/batches" in path else (
+            "messages" if "/messages" in path else "other")
+        provider_usage.record("anthropic", ok=code < 400, detail=detail,
+                              why=f"HTTP {code}" if code >= 400 else "")
+    except Exception as exc:  # noqa: BLE001 - counting never costs a call
+        log.debug("could not count a Claude request: %s", exc)
 
 
 def build_async_client(api_key: str | None = None) -> anthropic.AsyncAnthropic:

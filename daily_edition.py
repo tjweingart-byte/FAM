@@ -1046,6 +1046,10 @@ async def run_forever(mix_store, generator=None, cache=None,
     if not _settings().daily_edition:
         log.info("daily edition: off (DAILY_EDITION=0)")
         return
+    # Everything this loop writes is the edition's in the day's spend (§481).
+    import metering
+
+    metering.attribute_task("edition:dailyfam")
     if generator is None or cache is None:
         # Said once, at boot, rather than every minute: nothing here changes
         # until the server restarts with a key.
@@ -1143,6 +1147,10 @@ def schedule_mix(mix, generator=None, cache=None,
         import listener_clock
 
         listener_clock.set_for_request("")
+        # And the edition's spend, in the day's figure (§481).
+        import metering
+
+        metering.attribute_task("edition:dailyfam")
         try:
             await _write()
         except asyncio.CancelledError:  # pragma: no cover - shutdown

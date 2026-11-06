@@ -35,7 +35,7 @@ from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
-from pydantic import AfterValidator, BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, ValidationError, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
 import audio_codec as audio_codec_mod
@@ -710,6 +710,21 @@ async def lifespan(_: FastAPI):
         import tag_sync
 
         tag_sync.register(SCRIPT_CACHE)
+        # And his usage monitors (§483): each service's own figures, hourly,
+        # read only.
+        import usage_monitors
+
+        usage_monitors.register()
+        # And his incidents (§488): one per cause, from FAM's own records,
+        # the listener reports among them. Observe only.
+        import incidents
+
+        incidents.register(FEEDBACK)
+        # And his checks that each agent keeps to its rule book (§491),
+        # reading a sample of what each left in the script cache.
+        import agent_checks
+
+        agent_checks.register(SCRIPT_CACHE)
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
@@ -850,10 +865,25 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(_move_images_to_bucket()))
     elif audio_store_mod.status().get("error"):
         log.error("audio store: %s", audio_store_mod.status()["error"])
+    # Every loop started above is watched (§488): one that stops with an
+    # error is an incident, where before it was gone in silence.
+    import incidents
+
+    for task in list(_BACKGROUND):
+        incidents.watch_task(task)
+    # The loops Keith's `rerun_job` may start again, once (§490): each takes
+    # no arguments and runs for the server's life.
+    import gdelt as _gdelt
+
+    incidents.restartable(_gdelt.run_forever, local_news_mod.run_forever,
+                          weather_mod.run_forever, _refresh_stories_forever,
+                          _drain_viral_loops_forever, _sweep_audio_forever)
     yield
     # Loops that live as long as the process end with it, rather than being
     # destroyed pending when the event loop closes under them.
-    for task in list(_BACKGROUND):
+    import keith_fixes
+
+    for task in list(_BACKGROUND) + list(keith_fixes.RUNNING):
         task.cancel()
     _BACKGROUND.clear()
 
@@ -1994,6 +2024,38 @@ async def voice_register(request: Request) -> dict:
             "ttl_seconds": settings.voice_registry_ttl}
 
 
+def _tracking_health() -> dict:
+    """`/api/health`'s `tracking` (§480, §482): how the records Keith reads are
+    being kept. Never raises; reads memory only, never a store."""
+    import pipeline_errors
+    import provider_usage
+
+    try:
+        return {"provider_usage": provider_usage.status(),
+                # §482: rows waiting, dropped, the last failed write.
+                "pipeline_errors": pipeline_errors.status()}
+    except Exception as exc:  # noqa: BLE001 - health never fails on a report
+        return {"error": type(exc).__name__}
+
+
+def _incidents_health() -> dict:
+    try:
+        import incidents
+
+        return incidents.health()
+    except Exception as exc:  # noqa: BLE001 - health never fails on a report
+        return {"error": type(exc).__name__}
+
+
+def _usage_monitors_health() -> dict:
+    try:
+        import usage_monitors
+
+        return usage_monitors.health()
+    except Exception as exc:  # noqa: BLE001 - health never fails on a report
+        return {"error": type(exc).__name__}
+
+
 @app.get("/api/health")
 async def health(request: Request) -> dict:
     # Built once and read twice: the list and the summary over it have to
@@ -2256,6 +2318,16 @@ async def health(request: Request) -> dict:
         # Whether a person is emailed when a report arrives (App Store 1.2's
         # 24 hours). Says why not, rather than leaving the inbox to be found.
         "report_alerts": REPORT_ALERTS.status(),
+        # How the usage and error records are being kept (§480, §482): when the
+        # last write landed, failures, what is waiting. A record that cannot
+        # be written used to be a log line and nothing else.
+        "tracking": _tracking_health(),
+        # Keith's usage monitors (§483): the budgets in force and this
+        # server's last reading of each service.
+        "usage_monitors": _usage_monitors_health(),
+        # Keith's open incidents by severity, and any background loop that
+        # stopped with an error in this server (§488).
+        "incidents": _incidents_health(),
         # Whether tier limits bite, and what they are. A server running with
         # them off looks identical from the outside to one running with them
         # on, and that is exactly the thing worth being able to ask.
@@ -11427,6 +11499,70 @@ async def admin_thumbnail_image(node_id: str, request: Request,
         raise HTTPException(status_code=404, detail="Not found")
     return Response(content=found[0], media_type=found[1],
                     headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin/keith-alerts.js", include_in_schema=False)
+async def admin_keith_alerts_script(request: Request):
+    """Keith's pop-up (§489), included by every admin page: it asks
+    `/api/admin/incidents`, which checks who is asking, and shows every
+    open alert until each is resolved (decided item 7). The script itself
+    holds nothing."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "keith_alerts.js"
+    return Response(page.read_text(encoding="utf-8"),
+                    # The charset said: the badge's flag is not ASCII, and
+                    # Starlette adds one only to text/* types.
+                    media_type="application/javascript; charset=utf-8",
+                    headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
+class IncidentFixed(BaseModel):
+    cause: str = Field(min_length=1, max_length=200)
+
+
+@app.get("/api/admin/incidents")
+async def admin_incidents(request: Request) -> dict:
+    """Keith's open incidents, worst first, those closed this week, and
+    whether an urgent one can be emailed (§489). Admins only."""
+    _require_admin(request)
+    import incidents
+
+    import keith_fixes
+
+    out = await asyncio.to_thread(incidents.report)
+    out["email"] = await asyncio.to_thread(incidents.email_ready)
+    # The fix report beside them (§490), as the pop-up's footer shows it.
+    out["fix_report"] = await asyncio.to_thread(keith_fixes.report)
+    return out
+
+
+@app.get("/api/admin/fixes")
+async def admin_fixes(request: Request, days: float = 7.0) -> dict:
+    """Keith's fix report, answerable at any moment (keith.md always 4):
+    what he fixed, how he checked it, and what he would have done while a
+    fix is off (§490). Admins only."""
+    _require_admin(request)
+    import keith_fixes
+
+    return await asyncio.to_thread(keith_fixes.report, max(0.0, min(days, 90.0)))
+
+
+@app.post("/api/admin/incidents/fixed")
+async def admin_incident_fixed(request: Request) -> dict:
+    """The owner says an incident is fixed: Keith re-checks rather than
+    believes (keith.md always 11), and says what he found. Admins only;
+    changes nothing but the incident's own row. Who is asking is checked
+    before the body is read (§495), so anyone else gets the 404 every admin
+    route gives, never a validation error."""
+    _require_admin(request)
+    import incidents
+
+    try:
+        req = IncidentFixed.model_validate(await request.json())
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(status_code=422, detail="cause is required") from exc
+    return await asyncio.to_thread(incidents.owner_fixed, req.cause)
 
 
 @app.get("/admin/quality", include_in_schema=False)

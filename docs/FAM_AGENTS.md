@@ -1708,10 +1708,10 @@ usage table, and gaps where usage was spent (`metering`) but not counted.
 | Plugin usage against each limit, and the next plan's | `provider_usage.report` (per provider per UTC day, limits from published plans, failures kept) |
 | Errors, with what they mean and what to do | `pipeline_errors` (`explain()`: title, what, what the listener heard, causes, act) and `/admin`'s errors |
 | Connections | `/api/health` (build, storage, archive, voice), `voice_control`'s ladder and supervisor, the database and Atlas reachability |
-| Spend | `metering` against each ceiling (prefetch, editions, grading, each agent's) |
+| Spend | `metering` against each ceiling (prefetch, editions, grading, each agent's); **cost per episode against the plan** (`cost_watch.py`, §492): the agents' episode calls per episode written against 0.45¢, all of Claude per episode against 1¢, over 7 days, 1.5x is urgent and emailed, the nightly jobs apart as dollars a month |
 | Background jobs | Each `run_forever` loop's last run: Trending and DailyFAM editions, story sweep, GDELT sync, local feeds, weather, pushes, the Viral Loops outbox |
-| Other agents | Netenyahu's view: on/off, failures, holds; each agent's rule book |
-| MongoDB Atlas, Render, RunPod, Cloudflare R2 | **Not watched today** - their own usage and billing APIs (Atlas Admin API, Render API, RunPod API, Cloudflare GraphQL analytics) |
+| Other agents | Netenyahu's view: on/off, failures, holds; each agent's rule book - and **`agent_checks.py` (§491)**, hourly: Sonic's user is not the writer's, Consuela's grace is 30 days, Mclovin's verdicts are his named ones, C3P0's titles state no results, Nando's nodes exist; Mclovin's unchecked share and Shakespeare's late / second_failed tandem share against the week before; the trial's episodes and listens per arm |
+| MongoDB Atlas, Render, RunPod, Cloudflare R2 | `usage_monitors.py` (§483), hourly as Netenyahu's `it:usage`, each service's own read API: **RunPod's spend** (`GET /v2/billing`: today, yesterday, the month and its projection) built; **Atlas** (§484: the Flex cluster's storage, `atlasSize`, and connections, `serverStatus`, against 5 GB and 500, its state and limit from the Admin API) built; **Cloudflare R2** (§485: the account's Class A and B operations this month and its storage, from GraphQL analytics, against the free monthly allowance, with the month's estimated charge past it) built; **Render** (§486: `fam`'s memory, `fam-db`'s storage and memory against its disk and plan, `fam`'s outbound bandwidth this month against the workspace's 25 GB) built; **Claude** (§487: FAM's own count of Claude's spend this month against `IT_BUDGETS`' `anthropic=`, nothing asked of Anthropic) built. Against the owner's plan, or the monthly budget in `IT_BUDGETS` |
 
 ### Guardrails
 
@@ -1735,7 +1735,7 @@ model or a channel.
 | Urgent alerts by email too | The pop-up only works when the owner is on the admin page | **Code:** an urgent alert is emailed (`mail.py`) as well as shown in the pop-up |
 | Every open alert shown on arrival | The owner wants alerts impossible to miss | **Code:** a pop-up on every admin page lists all open alerts until each is resolved |
 | One attempt per fix, then escalate | No loops on a broken thing | **Code** |
-| Starts observe-only (`IT_FIXES=0`) | Every fix is watched before it is trusted, like Consuela's dry run | **Code**; a person turns fixes on, one at a time |
+| Starts observe-only (`IT_FIXES` empty; built, §490) | Every fix is watched before it is trusted, like Consuela's dry run | **Code**; a person turns fixes on, one at a time |
 | Nothing secret or personal leaves | Errors can carry a query or a key ([listener-id-server], §144) | **Code:** `log_redaction.redact`, and only `explain()` text and counts reach a model or a channel - never the query |
 | "Fixed" from a person is checked, not believed | A wrong "fixed" hides an outage | **Code:** re-check, reopen if still failing |
 | Netenyahu decides about agents | One owner per decision | **Shape:** Keith asks Netenyahu; it cannot hold an agent itself |
@@ -1854,16 +1854,20 @@ pick from the list. After the shared preamble:
 | Setting (proposed) | What it is |
 |---|---|
 | `IT_AGENT` | `0` / `1` |
-| `IT_TICK_SECONDS` | 60 |
-| `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit |
-| `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
+| `IT_WATCH_SECONDS` | 300: how often the incidents round reads FAM's records (built, §488; no faster than Netenyahu's tick) |
+| `IT_INCIDENT_ERRORS` | 3: one kind of error this many times in an hour opens an incident (built, §488) |
+| `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit (built, §483) |
+| `IT_BUDGETS` | The owner's monthly budget per service in dollars, `runpod=300,anthropic=200`; empty shows the spend with no share (built, §483) |
+| `IT_FIXES` | Empty: observe only, each fix that would apply written to the fix report as "would"; then a list of those switched on - `reverify_voice`, `rerun_job` (once in the server's life, §495), `hold_agent` (built, §490) |
 | `IT_MODEL`, `IT_SUMMARY_MODEL` | `anthropic:claude-haiku-5-5` for incidents, `anthropic:claude-sonnet-5-5` for `/admin` summaries (decided 2026-10-30) |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |
-| `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_ADMIN_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only usage keys via `FAM_SECRETS` (proposed) |
+| `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_PUBLIC_KEY` + `ATLAS_PRIVATE_KEY` (with `ATLAS_PROJECT_ID`, `ATLAS_CLUSTER`), `CLOUDFLARE_ANALYTICS_TOKEN` | Usage keys via `FAM_SECRETS`; RunPod's is the voice's own (§483), Atlas's a Project Read Only key (§484) |
 
-Open: how you tell Keith something is fixed (a button in the pop-up is
-proposed). Decided (2026-10-28): urgent alerts go to Admin@familiarize.net;
+Decided (2026-11-06, §489): you tell Keith something is fixed with the
+pop-up's "I fixed it - check now", and he checks rather than believes. Built
+(§488-§489): incidents, the pop-up on every admin page, urgent email.
+Decided (2026-10-28): urgent alerts go to Admin@familiarize.net;
 improvements to existing pages and new pages or features both wait for the
 owner's yes (a before-and-after, or a slideshow); the pop-up on every admin
 page, and email for urgent alerts; first fixes in error and usage tracking;

@@ -535,8 +535,45 @@ def snapshot(now: Optional[float] = None) -> dict:
             "signups": series, "recent_accounts": recent,
             "top_searches": top_searches, "stores": stores,
             "providers": provider_usage.report(now),
+            # What the model calls cost, today and this month, by what spent
+            # it (§481) - the figure Claude's limit is measured against.
+            "claude_spend": provider_usage.spend_report(now),
+            # Each service's own usage, read hourly by Keith (§483).
+            "usage_monitors": _usage_monitors(now),
+            # Keith's incidents, open and recently closed (§488).
+            "incidents": _incidents(now),
+            # Mclovin's unchecked share, Shakespeare's tandem outcomes and
+            # the two weeks' progress (§491).
+            "agents_watch": _agents_watch(now),
+            # Cost per episode against the plan: the agents and all of
+            # Claude (§492, decided items 21 and 27).
+            "cost_per_episode": _cost_per_episode(now),
             "routing": live_routing.report(now),
             "pipeline_errors": pipeline_errors.report(now)}
+
+
+def _cost_per_episode(now: float) -> dict:
+    import cost_watch
+
+    return cost_watch.report(now)
+
+
+def _agents_watch(now: float) -> dict:
+    import agent_checks
+
+    return agent_checks.report(now)
+
+
+def _incidents(now: float) -> dict:
+    import incidents
+
+    return incidents.report(now)
+
+
+def _usage_monitors(now: float) -> dict:
+    import usage_monitors
+
+    return usage_monitors.report(now)
 
 
 # ----------------------------------------------------------------- recipes
@@ -806,6 +843,11 @@ async def _model_sql(question: str, schema_lines: str, error: str = "",
         ),
         timeout=30.0,
     )
+    # The day's spend (§481): an admin question is nobody's episode.
+    import metering
+
+    metering.count_call("admin questions", ask_model(),
+                        getattr(response, "usage", None))
     text = next(b.text for b in response.content if b.type == "text")
     return json.loads(text)
 

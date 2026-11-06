@@ -1313,6 +1313,10 @@ async def run_forever(generator=None, cache=None,
     if not settings.trending_bank and not settings.startup_write_ahead:
         log.info("trending bank: off (TRENDING_BANK=0)")
         return
+    # Everything this loop writes is the edition's in the day's spend (§481).
+    import metering
+
+    metering.attribute_task("edition:trending")
     log.info("trending bank: editions at %s %s; next at %s",
              ", ".join(f"{h:02d}:00" for h in hours()),
              settings.trending_bank_timezone, slot_id(next_slot()))

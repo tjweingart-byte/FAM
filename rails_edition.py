@@ -208,6 +208,10 @@ async def run_forever(generator=None, cache=None,
     if not _settings().rails_edition:
         log.info("rails edition: off (RAILS_EDITION=0)")
         return
+    # Everything this loop writes is the edition's in the day's spend (§481).
+    import metering
+
+    metering.attribute_task("edition:rails")
     if generator is None or cache is None:
         _LAST_ATTEMPT.update(slot=slot_id(last_slot()), detail=NO_WRITER,
                              at=time.time())

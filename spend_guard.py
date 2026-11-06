@@ -86,6 +86,14 @@ PAID_CREDENTIALS = (
     "MONGODB_URI",
     # §403: Sonic's own read-only user on the same cluster.
     "MONGODB_READ_URI",
+    # §484: Keith's read-only key for the Atlas Admin API. Free to use, but
+    # production's account: staging never asks about it.
+    "ATLAS_PUBLIC_KEY", "ATLAS_PRIVATE_KEY",
+    # §485: and his read-only token for Cloudflare's analytics, the same way.
+    "CLOUDFLARE_ANALYTICS_TOKEN",
+    # §486: and Render's API key. Not scoped by Render (it could change the
+    # account); Keith only reads with it, and staging never holds it.
+    "RENDER_API_KEY",
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",
