@@ -465,3 +465,4 @@ and `limit` = Lines.
 | 30082 | 43 | 474. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06) |
 | 30125 | 49 | 475. Phase 4, piece 2c: Cloudflare R2 in Keith's usage monitors (2026-11-06) |
 | 30174 | 45 | 476. Phase 4, piece 2d: Render in Keith's usage monitors (2026-11-06) |
+| 30219 | 63 | 477. Everything since Main double-checked: what an independent review found, and what was fixed (2026-11-06) |

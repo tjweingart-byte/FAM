@@ -30215,3 +30215,66 @@ read, GET only, in GB from MB and MiB, with the next plans; the disk's warn
 and urgent; a month's bandwidth on pace past 25 GB; what Render refuses
 listed and the key never kept; a unit not understood; a database not found;
 nothing answering; no key, nothing asked; staging).
+
+## 477. Everything since Main double-checked: what an independent review found, and what was fixed (2026-11-06)
+
+The owner: "double check all changes made to this point to avoid any
+mistakes." A fresh reviewer read the whole diff since Main (§470-§475, and
+skimmed §476) against CLAUDE.md's rules, ran the new tests, and edited
+nothing. Its verdict: **nothing that could cost a listener an episode, block
+the event loop or leak a key**; counting once, the Postgres SQL, the context
+variable (never set on a task that serves a listener), the locks, the hooks
+that never raise, the UTC arithmetic, the keys and staging all checked fine.
+Each finding was confirmed against the code, then fixed with a test that
+failed before:
+
+1. **"Claude spent today" counted money that was not Claude's.** The spend
+   table (§471) also holds paid searches, live data and the image model's
+   pictures, and `spend_report` added every row. A search, a live call and a
+   picture with no Claude call read "Claude spent today $0.06". The report
+   now gives `claude` (Claude's models alone - what Anthropic bills) and
+   `all`; Claude's row on /admin and its "not written yet" alert use
+   Claude's alone.
+2. **`anthropic=` in `IT_BUDGETS` was read and never used** - the documented
+   example set a budget nothing measured. Keith now has a fifth monitor,
+   `anthropic`: FAM's own count of Claude's spend today, yesterday and this
+   month (no call to Anthropic; the console shows the owner no Limits page,
+   §473) against `anthropic=`, with calls no price covers said beside it.
+3. **Some Claude calls were still never counted.** The brief, the writer
+   (live, batched and streamed on its own) and the warm-up folded their
+   answer into the episode's notes only when there were notes; a call made
+   without notes was billed and counted nowhere. `metering.fold_call` folds
+   into the notes when there are some and counts in the day's spend when
+   there are not, at all five places. The test that every Claude call is
+   counted read the next 60 lines for the words; it now parses the code and
+   requires a counting call in the same function as the request (it finds
+   all 21, and fails a function without one). **Left, and said:** a batch
+   the writer gives up on after cancelling it (`claude_batch`, "giving up on
+   its answers") may have answered some requests that are billed and never
+   read, so never counted - rare, and reading them would mean waiting on a
+   batch the design walks away from.
+4. **Section numbers in comments.** The renumbering (§475) moved every §462
+   to §470, but comments about the spend (§471) and the error rows (§472)
+   had all cited the umbrella §462. They now cite the section that says it.
+5. **RunPod "spend today" read $0.00 when RunPod had not billed the day
+   yet.** No row is now no figure (None), as "a missing number is never 0".
+6. **`/api/health` showed a failed write's whole message**, which for a
+   database can name its host and user, on a public page. The tracking
+   blocks now carry the kind of error only (`OSError`); the message stays in
+   the server log.
+7. **R2's estimated charge was projected on its own straight line**, which
+   reads $0 until the allowance is passed. It is now projected from the
+   operations' pace: 900k Class A by the 10th is on pace for $7.65 past the
+   allowance, and passes a $5 budget before the money is spent.
+
+Not changed, as the reviewer weighed them small: `/api/health` asking
+Postgres once whether the usage store exists (cached after a yes), and a
+monitor's reading written on the event loop once an hour with agents on.
+
+Tests: `tests/test_model_spend_471.py` (Claude's figure is Claude's alone; a
+call without notes counted; the stricter derived test),
+`tests/test_usage_monitors_473.py` (an unbilled day unknown, not $0; Claude
+measured against its budget), `tests/test_usage_monitors_r2_475.py` (the
+charge projected from the pace), and the tracking tests in
+`test_usage_tracking_470.py` and `test_error_tracking_472.py` (the kind of
+error, never its message).

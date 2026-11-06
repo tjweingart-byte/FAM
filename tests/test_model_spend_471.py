@@ -54,28 +54,28 @@ class _Usage:
 def test_every_model_answer_reaches_the_days_spend():
     metering.Usage().add_model_call("claude-haiku-5-5", _Usage(i=1_000_000, o=200_000))
     spent = provider_usage.spend_report()
-    assert spent["today"] == pytest.approx(0.10 + 0.10)
+    assert spent["claude"]["today"] == pytest.approx(0.10 + 0.10)
     assert spent["by_source"][0]["source"] == "episodes"
-    assert spent["calls_today"] == 1 and spent["unpriced_today"] == 0
+    assert spent["claude"]["calls_today"] == 1 and spent["claude"]["unpriced_today"] == 0
 
 
 def test_an_unpriced_model_is_counted_unpriced_never_at_nothing():
     metering.Usage().add_model_call("claude-unknown-9", _Usage(i=10, o=10))
     spent = provider_usage.spend_report()
-    assert spent["today"] == 0 and spent["unpriced_today"] == 1
+    assert spent["claude"]["today"] == 0 and spent["claude"]["unpriced_today"] == 1
 
 
 def test_a_batched_call_is_counted_at_the_batch_price():
     metering.Usage().add_model_call("claude-haiku-5-5", _Usage(i=1_000_000),
                                     batched=True)
-    assert provider_usage.spend_report()["today"] == pytest.approx(0.05)
+    assert provider_usage.spend_report()["claude"]["today"] == pytest.approx(0.05)
 
 
 def test_folding_an_answer_in_twice_counts_it_once():
     metering.Usage().add_model_call("claude-haiku-5-5", _Usage(i=1_000_000),
                                     count=False)
     assert provider_usage.spend_report() is None or \
-        provider_usage.spend_report()["calls_today"] == 0
+        provider_usage.spend_report()["claude"]["calls_today"] == 0
 
 
 def test_spend_is_attributed_to_the_job_that_spent_it():
@@ -92,7 +92,29 @@ def test_spend_is_attributed_to_the_job_that_spent_it():
     assert by["prefetch"]["today"] == pytest.approx(0.003)
     assert by["episodes"]["today"] == pytest.approx(0.50)
     # Claude's row on the page says what was spent.
-    assert "spent today $0.60" in rows(now=None)["anthropic"]["limit"]
+    assert "Claude spent today $0.60" in rows(now=None)["anthropic"]["limit"]
+
+
+def test_claude_s_figure_is_claude_s_alone():
+    """The review (§471): searches, paid live data and pictures share the
+    table, and were in "Claude spent today"."""
+    metering.Usage().add_research(1, 0.005)
+    metering.Usage().add_live_call(1, 0.01)
+    provider_usage.spend("thumbnails", "google:gemini-image", usd=0.04)
+    spent = provider_usage.spend_report()
+    assert spent["claude"]["today"] == 0 and spent["claude"]["calls_today"] == 0
+    assert spent["all"]["today"] == pytest.approx(0.055)
+    assert "Claude spent today $0.00" in rows(now=None)["anthropic"]["limit"]
+
+
+def test_a_call_made_without_notes_is_counted_all_the_same():
+    """The review (§471): the writer and the brief folded their answer into
+    the notes only when there were notes."""
+    metering.fold_call(None, "claude-haiku-5-5", _Usage(i=1_000_000))
+    notes = type("Notes", (), {"usage": metering.Usage()})()
+    metering.fold_call(notes, "claude-haiku-5-5", _Usage(i=1_000_000))
+    assert notes.usage.model_calls == 1
+    assert provider_usage.spend_report()["claude"]["calls_today"] == 2
 
 
 def test_an_agent_call_with_notes_is_counted_once(monkeypatch, tmp_path):
@@ -118,7 +140,7 @@ def test_an_agent_call_with_notes_is_counted_once(monkeypatch, tmp_path):
     assert result.status == models.OK, result.reason
     assert notes.usage.model_calls == 1
     spent = provider_usage.spend_report()
-    assert spent["calls_today"] == 1
+    assert spent["claude"]["calls_today"] == 1
     assert spent["by_source"][0]["source"] == "agent:housekeeper"
 
 
@@ -129,26 +151,59 @@ _FOLDED_ELSEWHERE = {
     "compare_models.py": "an operator's tool, run by hand",
     "diagnose_api.py": "an operator's tool, run by hand",
 }
-_CALL = re.compile(r"\.messages\.(create|stream)\(|\.batches\.create\(")
+_COUNTS = {"add_model_call", "count_call", "fold_call"}
+
+
+def _claude_requests(tree):
+    """(function, line) for every `.messages.create/stream(` or
+    `.batches.create(` call, with the innermost function around it."""
+    import ast
+
+    found = []
+
+    def visit(node, function):
+        for child in ast.iter_child_nodes(node):
+            inner = child if isinstance(child, (ast.FunctionDef,
+                                                ast.AsyncFunctionDef)) else function
+            if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute):
+                owner = child.func.value
+                if ((child.func.attr in ("create", "stream")
+                     and isinstance(owner, ast.Attribute) and owner.attr == "messages")
+                        or (child.func.attr == "create" and isinstance(owner, ast.Attribute)
+                            and owner.attr == "batches")):
+                    found.append((function, child.lineno))
+            visit(child, inner)
+
+    visit(tree, None)
+    return found
+
+
+def _counts_in(function) -> bool:
+    import ast
+
+    return any(isinstance(n, ast.Call) and (
+        (isinstance(n.func, ast.Attribute) and n.func.attr in _COUNTS)
+        or (isinstance(n.func, ast.Name) and n.func.id in _COUNTS))
+        for n in ast.walk(function))
 
 
 def test_every_claude_call_in_fam_reaches_the_days_spend():
     """Derived from the code, not listed by hand: every request to Claude in
-    FAM's modules is followed, in the same function, by the line that counts
-    its answer. A new call without one fails here."""
+    FAM's modules has, in the same function, a call that counts its answer
+    (`add_model_call`, `count_call` or `fold_call`). Tightened by the review
+    (§471): it once looked for the words in the next 60 lines."""
+    import ast
+
     missing = []
     files = sorted(ROOT.glob("*.py")) + sorted((ROOT / "agents").rglob("*.py"))
     for path in files:
         name = str(path.relative_to(ROOT))
         if name in _FOLDED_ELSEWHERE:
             continue
-        lines = path.read_text(encoding="utf-8").splitlines()
-        for i, line in enumerate(lines):
-            if not _CALL.search(line) or line.lstrip().startswith("#"):
-                continue
-            after = "\n".join(lines[i:i + 60])
-            if "add_model_call" not in after and "count_call" not in after:
-                missing.append(f"{name}:{i + 1}")
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for function, line in _claude_requests(tree):
+            if function is None or not _counts_in(function):
+                missing.append(f"{name}:{line}")
     assert not missing, f"Claude calls the day's spend never sees: {missing}"
 
 
@@ -162,6 +217,6 @@ def test_the_spend_table_on_postgres(tmp_path):
     metering.Usage().add_model_call("claude-haiku-5-5", _Usage(i=1_000_000))
     metering.Usage().add_model_call("claude-haiku-5-5", _Usage(i=1_000_000))
     provider_usage.record("anthropic")
-    assert provider_usage.spend_report()["today"] == pytest.approx(0.20)
+    assert provider_usage.spend_report()["claude"]["today"] == pytest.approx(0.20)
     provider_usage.reset(None)
     assert provider_usage.exists()

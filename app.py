@@ -2000,7 +2000,7 @@ async def voice_register(request: Request) -> dict:
 
 
 def _tracking_health() -> dict:
-    """`/api/health`'s `tracking` (§470): how the records Keith reads are
+    """`/api/health`'s `tracking` (§470, §472): how the records Keith reads are
     being kept. Never raises; reads memory only, never a store."""
     import pipeline_errors
     import provider_usage
@@ -2284,7 +2284,7 @@ async def health(request: Request) -> dict:
         # Whether a person is emailed when a report arrives (App Store 1.2's
         # 24 hours). Says why not, rather than leaving the inbox to be found.
         "report_alerts": REPORT_ALERTS.status(),
-        # How the usage and error records are being kept (§470): when the
+        # How the usage and error records are being kept (§470, §472): when the
         # last write landed, failures, what is waiting. A record that cannot
         # be written used to be a log line and nothing else.
         "tracking": _tracking_health(),

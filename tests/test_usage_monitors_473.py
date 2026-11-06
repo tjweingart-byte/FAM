@@ -208,3 +208,32 @@ def test_health_says_the_budgets_and_the_shares():
     body = TestClient(app.app).get("/api/health").json()["usage_monitors"]
     assert body["budgets"] == {} and body["warn_share"] == 0.8
     assert body["urgent_share"] == 0.95
+
+
+def test_a_day_runpod_has_not_billed_yet_is_unknown_not_zero(key):
+    """The review (§477): no row for today read as $0.00."""
+    got = read(billing({"2026-11-08": (4.0, 4.0)})[0])
+    assert by_name(got)["spend today"]["value"] is None
+    assert by_name(got)["spend yesterday"]["value"] is None
+    assert by_name(got)["spend this month"]["value"] == 4.0
+
+
+def test_claude_is_measured_from_fam_s_own_count_against_its_budget(monkeypatch, tmp_path):
+    """The review (§477): `anthropic=` in IT_BUDGETS was read and never used."""
+    import metering
+
+    provider_usage.reset(provider_usage.UsageStore(str(tmp_path / "u.db")))
+    use(monkeypatch, it_budgets="anthropic=200")
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    class U:
+        input_tokens, output_tokens = 0, 20_000_000            # $10 on Haiku
+        cache_read_input_tokens = cache_creation_input_tokens = 0
+
+    metering.Usage().add_model_call("claude-haiku-5-5", U())
+    metering.Usage().add_research(1, 0.5)                      # not Claude's
+    got = asyncio.run(UM.read_anthropic(now))
+    month = by_name(got)["Claude spend this month"]
+    assert got["ok"] and month["value"] == pytest.approx(10.0)
+    assert month["limit"] == 200.0 and month["share"] == 0.05
+    assert UM.MONITORS["anthropic"] is UM.read_anthropic

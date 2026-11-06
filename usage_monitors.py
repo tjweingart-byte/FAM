@@ -28,7 +28,7 @@ are kept in `provider_usage.db` (`monitor_readings`, 90 days).
 understood, is a reading with `ok: false` and why - never a figure of 0.
 
 Built: RunPod (2a, §473), Atlas (2b, §474), Cloudflare R2 (2c, §475),
-Render (2d, §476).
+Render (2d, §476), and Claude from FAM's own spend count (§477).
 """
 from __future__ import annotations
 
@@ -180,8 +180,12 @@ async def read_runpod(now: Optional[datetime.datetime] = None,
         figure("spend this month", month_total, "USD", "month",
                limit=budget, limit_source="IT_BUDGETS" if budget else "",
                now=now),
-        figure("spend today", round(total.get(today, 0.0), 4), "USD", "day"),
-        figure("spend yesterday", round(total.get(yesterday, 0.0), 4), "USD", "day"),
+        # No row for a day is RunPod not having billed it yet - unknown, not
+        # $0 (the review).
+        figure("spend today", round(total[today], 4) if today in total else None,
+               "USD", "day"),
+        figure("spend yesterday", round(total[yesterday], 4)
+               if yesterday in total else None, "USD", "day"),
         figure("serverless this month", month_serverless, "USD", "month"),
     ]
     return reading("runpod", figures, at=now.timestamp(),
@@ -464,9 +468,25 @@ async def read_r2(now: Optional[datetime.datetime] = None, client=None) -> dict:
             + max(0.0, (storage_gb or 0.0) - R2_FREE["storage_gb"])
             * R2_PRICE["storage_gb"])
     budget = budgets().get("r2")
-    figures.append(figure("estimated charge this month", round(over, 4), "USD",
-                          "month", limit=budget,
-                          limit_source="IT_BUDGETS" if budget else "", now=now))
+    charge = figure("estimated charge this month", round(over, 4), "USD",
+                    "month", limit=budget,
+                    limit_source="IT_BUDGETS" if budget else "", now=now)
+    # Projected from the operations' pace, not the charge's (the review): a
+    # charge is nothing until the allowance is passed, so its own straight
+    # line under-projects a month that will pass it.
+    elapsed, days = _month_fraction(now)
+    if elapsed >= PROJECT_AFTER_DAYS:
+        scale = days / elapsed
+        projected = (max(0, counts["class A"] * scale - R2_FREE["class A"])
+                     * R2_PRICE["class A"]
+                     + max(0, counts["class B"] * scale - R2_FREE["class B"])
+                     * R2_PRICE["class B"]
+                     + max(0.0, (storage_gb or 0.0) - R2_FREE["storage_gb"])
+                     * R2_PRICE["storage_gb"])
+        charge["projected"] = round(projected, 2)
+        if budget and projected > budget:
+            charge["level"] = URGENT
+    figures.append(charge)
     return reading("r2", figures, at=at, detail={
         "scope": "the whole Cloudflare account",
         "free_operations": counts["free"],
@@ -654,9 +674,38 @@ async def read_render(now: Optional[datetime.datetime] = None, client=None) -> d
     return reading("render", figures, at=at, detail=detail)
 
 
+# --------------------------------------------------------------------- Claude
+async def read_anthropic(now: Optional[datetime.datetime] = None,
+                         client=None) -> dict:
+    """Claude: what FAM's own spend table says Claude cost (§471) - today,
+    yesterday and this UTC month, Claude's models alone - against the
+    owner's monthly figure in `IT_BUDGETS` (`anthropic=`). The console shows
+    the owner no Limits page (§473), so FAM's count is the figure; nothing
+    is asked of Anthropic. Calls with no price are said beside it."""
+    import provider_usage
+
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    at = now.timestamp()
+    spent = provider_usage.spend_report(at)
+    if spent is None:
+        return reading("anthropic", [], ok=False, at=at,
+                       why="nothing counted yet (provider_usage's spend table)")
+    claude = spent["claude"]
+    budget = budgets().get("anthropic")
+    figures = [
+        figure("Claude spend this month", claude["month"], "USD", "month",
+               limit=budget, limit_source="IT_BUDGETS" if budget else "", now=now),
+        figure("Claude spend today", claude["today"], "USD", "day"),
+        figure("Claude spend yesterday", claude["yesterday"], "USD", "day"),
+    ]
+    return reading("anthropic", figures, at=at, detail={
+        "source": "FAM's own count of every Claude answer, priced at metering.PRICES",
+        "unpriced_calls_this_month": claude["unpriced_month"]})
+
+
 #: Every monitor built, by service.
 MONITORS = {"runpod": read_runpod, "atlas": read_atlas, "r2": read_r2,
-            "render": read_render}
+            "render": read_render, "anthropic": read_anthropic}
 
 
 # ------------------------------------------------------------------- running

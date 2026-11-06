@@ -817,7 +817,7 @@ async def _model_sql(question: str, schema_lines: str, error: str = "",
         ),
         timeout=30.0,
     )
-    # The day's spend (§470): an admin question is nobody's episode.
+    # The day's spend (§471): an admin question is nobody's episode.
     import metering
 
     metering.count_call("admin questions", ask_model(),

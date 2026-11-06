@@ -1615,8 +1615,7 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
     except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis here
         return "failed", None, f"EI call failed: {exc}"
 
-    if notes is not None:
-        notes.usage.add_model_call(settings.ei_model, getattr(response, "usage", None))
+    metering.fold_call(notes, settings.ei_model, getattr(response, "usage", None))
 
     # `output_config.format` guarantees valid JSON in the first text block -
     # but a refusal stops before any of that, and a refusal parsed as a brief

@@ -133,3 +133,14 @@ def test_without_the_token_nothing_is_asked(monkeypatch):
 def test_staging_never_holds_the_token_and_r2_is_a_monitor():
     assert "CLOUDFLARE_ANALYTICS_TOKEN" in spend_guard.PAID_CREDENTIALS
     assert UM.MONITORS["r2"] is UM.read_r2
+
+
+def test_the_charge_is_projected_from_the_operations_pace(r2, monkeypatch):
+    """The review (§477): 900k Class A by the 10th costs nothing yet, but is
+    on pace for 2.7M - $7.65 past the allowance - and passes a $5 budget."""
+    use(monkeypatch, it_budgets="r2=5")
+    charge = by_name(read(cloudflare({"PutObject": 900_000}, storage_bytes=1e9)[0]))[
+        "estimated charge this month"]
+    assert charge["value"] == 0
+    assert charge["projected"] == pytest.approx((900_000 / 9.625 * 30 - 1e6) * 4.5e-6, abs=0.01)
+    assert charge["level"] == "urgent"

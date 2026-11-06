@@ -3178,8 +3178,7 @@ class ScriptGenerator:
         # tokens are not attributed here they cannot be attributed anywhere.
         # Read from the final message rather than estimated from the text:
         # cache reads and writes are invisible in the output.
-        if notes is not None:
-            notes.usage.add_model_call(model, getattr(final, "usage", None))
+        metering.fold_call(notes, model, getattr(final, "usage", None))
         writer_warm.note_used(model, request["output_config"]["effort"])
         refused = _refusal_line(final)
         outcome = _writer_outcome(final, plan, notes, model,
@@ -3497,11 +3496,10 @@ class ScriptGenerator:
             over_budget=reader.over_budget)
         reader.note_if_short(outcome)
         _writer_ended("ahead", outcome, None, None)
-        if notes is not None:
-            # The model the batch answered with, as the API says it.
-            notes.usage.add_model_call(
-                getattr(message, "model", None) or writer_for(notes)[0],
-                getattr(message, "usage", None), batched=True)
+        # The model the batch answered with, as the API says it.
+        metering.fold_call(
+            notes, getattr(message, "model", None) or writer_for(notes)[0],
+            getattr(message, "usage", None), batched=True)
         refused = _refusal_line(message)
         if refused:
             pipeline_errors.record("writer", "refused (batch)", refused, plan.query)
@@ -3560,9 +3558,8 @@ class ScriptGenerator:
             # Small, but not free, and it happens on the episodes that already
             # cost the most - an under-written long one. Counting it is the
             # difference between "a 10-minute episode costs X" and a guess.
-            if notes is not None:
-                final = await stream.get_final_message()
-                notes.usage.add_model_call(model, getattr(final, "usage", None))
+            final = await stream.get_final_message()
+            metering.fold_call(notes, model, getattr(final, "usage", None))
 
 async def _demo() -> None:  # pragma: no cover - manual check
     plan = plan_episode("what is a heat pump", 2)

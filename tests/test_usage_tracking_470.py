@@ -132,10 +132,12 @@ def test_a_failed_write_is_said_on_the_page_and_kept(tmp_path, monkeypatch):
     provider_usage.flush()
     state = provider_usage.status()
     assert state["behind"] and state["waiting"] == 2 and state["failures"] >= 1
-    assert "disk full" in state["last_failure"]
+    # The kind of error, never its message: health is public (the review).
+    assert state["last_failure"] == "could not write the store: OSError"
     shown = rows(now=None)
     assert "not written yet" in shown["gnews"]["alert"]
-    assert "disk full" in shown["gnews"]["alert"]
+    assert "OSError" in shown["gnews"]["alert"]
+    assert "disk full" not in shown["gnews"]["alert"]
     assert "alert" not in shown["tiingo"]
     # Writable again: nothing was lost, and the alert goes.
     monkeypatch.setattr(usage, "add", real)

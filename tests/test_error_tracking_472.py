@@ -61,7 +61,9 @@ def test_rows_dropped_while_the_store_is_unwritable_are_counted(monkeypatch):
     pipeline_errors.flush()
     state = pipeline_errors.status()
     assert state["behind"] and state["dropped"]["errors"] == 2
-    assert state["waiting"] == 3 and "database unreachable" in state["last_failure"]
+    assert state["waiting"] == 3
+    # The kind of error, never its message: health is public (the review).
+    assert state["last_failure"] == "could not open the store: OSError"
     report = pipeline_errors.report()
     assert report["tracking"]["dropped_total"] == 2
     top = report["kinds"][0]

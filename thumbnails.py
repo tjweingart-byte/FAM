@@ -1190,7 +1190,7 @@ async def claude_writer(paths: list[str]) -> list[Scene]:
                        + listing}],
         ),
         timeout=float(settings.thumbnails_timeout_seconds))
-    # The day's spend (§470), priced at `metering.PRICES` there.
+    # The day's spend (§471), priced at `metering.PRICES` there.
     import metering
 
     metering.count_call("thumbnails", settings.thumbnails_model,
@@ -1733,7 +1733,7 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
             raise StopRun(f"painter failed: {exc}") from exc
         spent += image_cost
         thumb_store.record_spend(node_id, 1, image_cost)
-        # And in the day's model spend beside Claude's (§470), priced as the
+        # And in the day's model spend beside Claude's (§471), priced as the
         # tile store prices it (`THUMBNAILS_IMAGE_PRICE`).
         import provider_usage
 
