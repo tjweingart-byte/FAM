@@ -6258,14 +6258,6 @@ def _chosen_voice(user: str) -> str:
     return chosen if chosen and voice_bank.known(chosen) else ""
 
 
-def _has_chosen_voice(user: str) -> bool:
-    try:
-        return voice_bank.bank().has_choice(user)
-    except Exception:  # noqa: BLE001 - unknown is "chose": never override
-        log.exception("could not read whether a listener chose a voice")
-        return True
-
-
 def _kept_voice(plan, engine: str) -> str:
     """The bank slug this episode's audio is already kept in on `engine`, or
     "" (§294). Last played first; a voice that has left the bank is skipped."""
@@ -6283,15 +6275,20 @@ def _kept_voice(plan, engine: str) -> str:
     return ""
 
 
-def _episode_voice(user: str, where: str, plan, asked: str) -> Optional[str]:
+def _episode_voice(user: str, where: str, plan, asked: str,
+                   picked: bool = False) -> Optional[str]:
     """The voice this play is spoken in (§147). None is the default voice.
 
-    * **searchFAM** - the one surface with a voice picker: the voice the
-      request names, else the listener's kept choice. A listener who has
-      **never picked one** (§294) hears the voice the episode's audio is
-      already kept in, so a search somebody else voiced is a replay rather
-      than a second voicing on the GPU; the default when nothing is kept.
-      Any choice - the default included - is always honoured.
+    * **searchFAM** - the one surface with a voice picker. A voice picked for
+      this search (`picked`, §447: the listener chose one on the search page
+      or in the player since their last search) is honoured exactly. Left as
+      it was - the default, or the voice they last picked - the search plays
+      in the voice the episode's audio is already kept in, so a search
+      somebody else voiced is a replay rather than a second voicing on the
+      GPU; with nothing kept, the voice the request names, else the
+      listener's kept choice. (§294 did this only for a listener who had
+      never picked a voice; at the owner's direction it now holds for every
+      search that did not pick one.)
     * **Everywhere else** - the voice kept beside the episode's script, and
       for an episode with none, one drawn at random from the bank and kept,
       so the next play is the same voice and replays its kept audio. Explore
@@ -6310,9 +6307,9 @@ def _episode_voice(user: str, where: str, plan, asked: str) -> Optional[str]:
             slug = voice_bank.slug_of(asked)
         else:
             slug = _chosen_voice(user)
-        # The app always names the voice it shows, which for somebody who
-        # never chose is the default: that is not a choice.
-        if voice_bank.is_default(slug) and not _has_chosen_voice(user):
+        # The app always names the voice it shows - the default, or the last
+        # one picked - and naming it is not picking it for this search (§447).
+        if not picked:
             slug = _kept_voice(plan, engine) or slug
     else:
         key = _episode_key(plan)
@@ -10459,6 +10456,10 @@ async def audio(
     # A client that can ask which reading of a shared name the listener
     # means (§426). An older client never sends it and gets the likeliest.
     ask_reading: bool = Query(False),
+    # §447: the listener picked this search's voice on purpose. Without it a
+    # cached search plays in the voice its audio is already kept in.
+    voice_picked: bool = Query(False, description="The voice was picked for "
+                                                  "this search, not left as it was"),
 ):
     """Stream the episode.
 
@@ -10530,7 +10531,7 @@ async def audio(
                         surface=_surface(cached_only, topic_id, context))
 
     try:
-        pipeline = _make_pipeline(_episode_voice(user, where, plan, voice),
+        pipeline = _make_pipeline(_episode_voice(user, where, plan, voice, voice_picked),
                                   author=user)
     except TTSUnavailable as exc:
         # The server cannot speak at all. Nothing was generated and nothing was

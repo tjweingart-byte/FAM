@@ -844,6 +844,7 @@ class MeterStore:
             "unpriced_episodes": unpriced,
             "unpriced_models": sorted({r["model"] for r in rows if not r["priced"]}),
             "cache": _cache_effect(rows, hits),
+            "lengths": _lengths(rows),
             "fixed": fixed_costs(days),
         }
 
@@ -874,6 +875,41 @@ class MeterStore:
         except Exception:
             log.exception("could not anonymise usage rows for %r", user_id)
             return 0
+
+#: The surfaces whose length the listener chooses or the server fixes, in the
+#: order a report prints them (§449).
+LENGTH_SURFACES = ("search", "godeeper", "myfam", "explore", "other")
+
+
+def _lengths(rows) -> dict:
+    """How long episodes are, by surface (§449): what was asked for, and what
+    the voice actually made.
+
+    `requested_minutes` is the length the tap asked for. `voiced_minutes` is
+    the audio the GPU made, from the episodes it voiced (`audio_seconds` is 0
+    for a replay of kept audio, §132) - the number the GPU bill scales with,
+    and the one the scaling model's "search_minutes" stands for. A requested
+    length is a ceiling, not a quota, so voiced is usually shorter.
+    """
+    out = {}
+    seen = {(r["surface"] or "other") for r in rows}
+    for surface in [s for s in LENGTH_SURFACES if s in seen] + sorted(seen - set(LENGTH_SURFACES)):
+        group = [r for r in rows if (r["surface"] or "other") == surface]
+        voiced = [r["audio_seconds"] / 60.0 for r in group if r["audio_seconds"]]
+        asked = [float(r["minutes"]) for r in group if r["minutes"]]
+        counts: dict = {}
+        for m in asked:
+            label = f"{m:g}"
+            counts[label] = counts.get(label, 0) + 1
+        out[surface] = {
+            "episodes": len(group),
+            "voiced_episodes": len(voiced),
+            "requested_minutes": _spread(asked),
+            "requested_counts": dict(sorted(counts.items(), key=lambda kv: float(kv[0]))),
+            "voiced_minutes": _spread(voiced),
+        }
+    return out
+
 
 def _spread(values: list[float]) -> dict:
     """Mean, median, the tail, and the worst one.

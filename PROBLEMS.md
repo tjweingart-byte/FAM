@@ -29237,6 +29237,116 @@ with every reference to them and the test files named after them
 `test_supervisor_screen_model_442`) - the fourth time Main took this work's
 numbers (§386, §418, §423). Every other open branch stops at §433 or below.
 
+
+## 446. Chatterbox faster on the same card: the fast T3 loop, off until measured (2026-11-04)
+
+The owner (11.04): "start coding the PyTorch speed-ups on the branch", from
+the 1M-listener analysis, where RunPod is 96% of the infrastructure bill and
+one RTX 4090 makes ~4.6 s of audio a second (§75).
+
+**What was found in chatterbox-tts 0.1.7** (read from the wheel, the version
+`requirements-chatterbox.txt` pins). Guidance is already one batch of two, so
+that lever was taken. The waste is in `T3.inference`'s per-token loop: it
+asks every step for every layer's attentions and hidden states
+(`output_attentions=True, output_hidden_states=True`), which makes
+transformers 5.2 abandon SDPA for eager attention and materialise a
+(2, 16, n, n) matrix in all 30 layers per token; the English model never
+reads either (only the multilingual one's alignment analyzer does). It syncs
+with the CPU after every token (`if next_token == stop`), and rebuilds its
+wrapper and a tqdm bar per chunk.
+
+**`chatterbox_speed.py`** mirrors `ChatterboxTTS.generate` and `T3.inference`
+for 0.1.7's English model: the same CFG mix, repetition penalty,
+temperature, min-p, top-p and `multinomial` draws in the same order, so a
+seeded chunk (§176) draws the same numbers. It asks the transformer for its
+last hidden state only (attention stays on SDPA) and checks for the stop
+token every `CHATTERBOX_EOS_CHECK_EVERY` (16) tokens, discarding what was
+drawn after it. Optional `CHATTERBOX_BF16` (autocast on the transformer) and
+`CHATTERBOX_COMPILE` (`torch.compile`, dynamic shapes, cached with
+`TORCHINDUCTOR_CACHE_DIR`). `tts.ChatterboxEngine._synth_blocking` calls
+`chatterbox_speed.speak`, which is exactly `model.generate` unless
+`CHATTERBOX_FAST=1` *and* the installed chatterbox-tts is 0.1.7 *and* the
+model is the English Llama one; any other case falls back with one log line.
+The worker's identity reports `speed`.
+
+**Proven here, without a GPU:** with torch 2.6.0, transformers 5.2.0 and
+chatterbox-tts 0.1.7 in a scratch environment, a two-layer random T3 (full
+width) run through both loops with seeds 1-5 and stop checks every 1, 4 and
+16 tokens drew **identical speech tokens** every time
+(`tests/test_chatterbox_speed_446.py`; it skips where torch is absent, as in
+CI). A stop drawn mid-interval ends the chunk at the stop. SDPA against eager
+attention agrees to float rounding, not the bit, so on the real 520M model in
+float32 on a GPU a near-tied token may still differ: `tools/bench_voice_speed.py`
+counts that, and `verify_voice.py --fingerprint` decides.
+
+**Not measured:** the speed-up. It needs a card (REMOTE_VOICE.md, "Faster on
+the same card"). S3Gen is untouched; chatterbox-vllm's author found it ~70% of
+the time once T3 was fast, so it is the next stage to measure, not to guess.
+
+## 447. A search plays its kept voice unless a voice was picked for it (2026-11-04)
+
+The owner (11.04): "If a user deliberately selects a voice on that search,
+then the voice should be what they selected. If they don't (they leave it as
+the default, or their last selected voice), then it should be played in the
+voice of the cached episode."
+
+§294 did this only for a listener who had never picked a voice; any kept
+choice, the default included, was honoured, so a cached search heard by
+someone with a standing choice was voiced again on the GPU (~$13,600 a month
+at 1M listeners in the scaling model, with a guessed 30% mismatch rate).
+
+**Now:** `_episode_voice(…, picked)` - with `voice_picked=1` the request's
+voice is honoured exactly (the default included); without it a search plays
+in the voice its audio is kept in (`_kept_voice`), else the standing choice.
+The page sets `voicePickedForSearch` when a voice is picked from the search
+page's Voice bubble or the player's menu, never from Settings (a standing
+preference), sends it with the next search's audio request and clears it.
+The player's voice switch is a pick, so it still re-voices. `_has_chosen_voice`
+is gone. An installed client that never sends `voice_picked` gets the kept
+voice on a cached search - it still plays; only a picked voice is not
+re-voiced for it. Rule `op-voice-bank` carries the note.
+
+## 448. Mix "ready" pushes spread over fifteen minutes (2026-11-04)
+
+The owner (11.04): spreading the 07:00 push "is a no brainer, don't make it
+more than 15 minutes though". Listen times cluster on the hour, and the
+scaling model's 07:00 burst (2% of a day's voicings in ten minutes) needed
+2.5x the peak hour's workers at 1M.
+
+`push.spread_offset(mix, day)`: 0 to `SPREAD_SECONDS` (900) from a hash of
+the mix and its local day, so a restart does not move a push and nobody's is
+always last; `due` waits for listen time + offset. The grace window and
+"ready means written" are unchanged. Rule `mix-listen-time` carries the note.
+
+**Reviewed before the pull request** (11.06): a listen time late in the
+evening lost its push whenever the spread carried it past midnight - `due`
+asked only about *today's* listen time, which after midnight is the next
+evening. (The grace window always had the same hole; the spread made it
+common for 23:45-23:59.) `push.listen_moments` now offers yesterday's listen
+time beside today's, each under its own day's `sent` key, so the push goes
+out once, filed under the day it was for
+(`test_a_late_evening_listen_time_still_pushes_after_midnight`). Also from the
+review: `chatterbox_speed._version` is read once, not on every chunk.
+
+## 449. Search length measured from the ledger; the usage report ran again (2026-11-04)
+
+The owner (11.04): "Search length: measure it." The scaling model assumed a
+2.0-minute search; the default is 1.5.
+
+The ledger already holds it: every episode's surface, requested minutes and
+`audio_seconds`, which is what the GPU made (0 for a replay, §132).
+`MeterStore.report()` now has `lengths` by surface - requested minutes (mean,
+median, counts per length) and voiced minutes (mean, median, p90) - in
+`/api/usage` and in `tools/usage_report.py` under "Episode length".
+
+**And the report itself crashed** before printing anything: it read
+`by_plan["paid"]`, a tier renamed to plus/unlimited. Fixed; a test now renders
+a report. To measure production:
+
+    curl -s -H "X-Admin-Token: $FAM_ADMIN_TOKEN" "https://<fam host>/api/usage?days=30" | python -m json.tool
+
+and read `lengths.search.voiced_minutes`.
+
 ## 450. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04)
 
 The frozen packets and scripts behind §437 and §440 were gone (they live

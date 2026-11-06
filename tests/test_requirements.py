@@ -43,6 +43,11 @@ DELIBERATELY_OPTIONAL = {
     # what it cannot do rather than failing to import.
     "chatterbox": "requirements-chatterbox.txt",
     "torch": "requirements-chatterbox.txt",
+    # §446: the fast T3 loop's logits processors. Pinned by chatterbox-tts
+    # itself, imported only inside `chatterbox_speed` functions that run
+    # after `applies()` has found chatterbox-tts 0.1.7 installed; off the GPU
+    # worker the stock path never imports it.
+    "transformers": "requirements-chatterbox.txt",
     # Chatterbox's own dependency, asked only where its cache lives so the
     # worker can say which weights it holds (§176); tts.weights_revision()
     # falls back to the default cache path when it is missing.

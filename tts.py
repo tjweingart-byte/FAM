@@ -634,7 +634,8 @@ class ChatterboxEngine(TTSEngine):
         default recording when nothing resolved one. Two things changed in
         §176 and neither is a generation setting: the recording is prepared
         once rather than per chunk, and the chunk's sampling is seeded from
-        the voice and its words (`CHATTERBOX_SEEDED=0` removes the seed)."""
+        the voice and its words (`CHATTERBOX_SEEDED=0` removes the seed). §446:
+        `CHATTERBOX_FAST=1` runs the same settings through `chatterbox_speed`."""
         import numpy as np
         import torch
 
@@ -645,7 +646,12 @@ class ChatterboxEngine(TTSEngine):
             self._condition(model, reference, sha)
             if settings.chatterbox_seeded:
                 torch.manual_seed(chunk_seed(sha, text, settings.chatterbox_seed_salt))
-            wav = model.generate(text, **CHATTERBOX_GENERATION)
+            # §446: the same call through a loop without Chatterbox's waste
+            # when CHATTERBOX_FAST is on and the model is the one it mirrors;
+            # otherwise exactly `model.generate`. The settings are the voice.
+            import chatterbox_speed
+
+            wav = chatterbox_speed.speak(model, text, CHATTERBOX_GENERATION)
         samples = wav.squeeze(0).detach().cpu().numpy()
         del wav
         return pcm_from_float(samples), int(getattr(model, "sr", self.SAMPLE_RATE))

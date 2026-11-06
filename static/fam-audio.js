@@ -498,6 +498,10 @@ window.FamAudio = (function () {
               // Which surface the tap came from (§147): only a search picks
               // its voice and length, and only a search goes on Explore.
               (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "") +
+              // A voice picked for this search on purpose (§447): only then
+              // is a cached episode voiced again in it; otherwise it plays in
+              // the voice it is already kept in.
+              (listener && listener.voicePicked ? "&voice_picked=1" : "") +
               // One heard episode, replayed exactly (§173): the listening
               // history. Never generates - a 409 if it is no longer kept.
               (listener && listener.episode ? "&episode=" + encodeURIComponent(listener.episode) : "") +
