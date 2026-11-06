@@ -91,6 +91,9 @@ PAID_CREDENTIALS = (
     "ATLAS_PUBLIC_KEY", "ATLAS_PRIVATE_KEY",
     # §475: and his read-only token for Cloudflare's analytics, the same way.
     "CLOUDFLARE_ANALYTICS_TOKEN",
+    # §476: and Render's API key. Not scoped by Render (it could change the
+    # account); Keith only reads with it, and staging never holds it.
+    "RENDER_API_KEY",
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",

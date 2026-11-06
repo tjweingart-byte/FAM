@@ -265,6 +265,9 @@ FAM_ENVIRONMENT = (
     "ATLAS_PROJECT_ID", "ATLAS_CLUSTER", "ATLAS_API_URL",
     # §475: R2's monitor.
     "CLOUDFLARE_GRAPHQL_URL",
+    # §476: Render's monitor.
+    "RENDER_API_URL", "RENDER_SERVICE_ID", "RENDER_POSTGRES_NAME",
+    "RENDER_BANDWIDTH_INCLUDED_GB",
     # §397: whose material Consuela may store.
     "HOUSEKEEPER_APPROVED_PROVIDERS",
     # §399: her consolidation's dry run and batch sizes.

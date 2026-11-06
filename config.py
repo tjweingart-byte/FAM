@@ -2240,6 +2240,18 @@ class Settings:
             "ATLAS_API_URL", "https://cloud.mongodb.com").strip())
     # R2's monitor (§475): Cloudflare's GraphQL analytics, read with
     # CLOUDFLARE_ANALYTICS_TOKEN (FAM_SECRETS) for the account R2_ACCOUNT_ID.
+    # Render's monitor (§476): the API, the `fam` service and its Postgres
+    # instance by name, read with RENDER_API_KEY (FAM_SECRETS); the workspace's
+    # included outbound bandwidth, copied from the owner's Billing page
+    # (Pro: 25 GB, 2026-11-06).
+    render_api_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "RENDER_API_URL", "https://api.render.com/v1").strip())
+    render_service_id: str = field(
+        default_factory=lambda: os.environ.get("RENDER_SERVICE_ID", "").strip())
+    render_postgres_name: str = field(
+        default_factory=lambda: os.environ.get("RENDER_POSTGRES_NAME", "fam-db").strip())
+    render_bandwidth_included_gb: float = _env_float("RENDER_BANDWIDTH_INCLUDED_GB", 25.0)
     cloudflare_graphql_url: str = field(
         default_factory=lambda: os.environ.get(
             "CLOUDFLARE_GRAPHQL_URL",

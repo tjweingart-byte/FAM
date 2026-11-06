@@ -30170,3 +30170,48 @@ numbering this one, the other open branches were checked again:
 (merging Main), the same numbers as this branch's. The later branch moves:
 every heading, reference and test file name here moved by eight, nothing
 else changed. That branch is untouched.
+
+## 476. Phase 4, piece 2d: Render in Keith's usage monitors (2026-11-06)
+
+The last of item 2's monitors. The owner's Render figures (§473): `fam` on
+Standard (1 CPU, 2 GB, $25/mo; next Pro, 2 CPU / 4 GB, $85), workspace Pro
+with 25 GB of outbound bandwidth included ($0.15/GB past it), `fam-db` on
+0.1c-256mb ($6/mo; next 0.5c-1g at $19, then 1c-2g at $40) with a 1 GB disk
+($0.30/GB-month, grown in 5 GB steps, never shrunk) and autoscaling off.
+
+**What is read**, from Render's public API (`api.render.com/v1`, read 2026-11-06
+from `api-docs.render.com`), with `RENDER_API_KEY` through `FAM_SECRETS` -
+every request a GET:
+- `/services/{RENDER_SERVICE_ID}` for `fam`'s plan; `/metrics/memory` and
+  `/metrics/memory-limit` for its memory now (the last point of the hour)
+  against its plan's;
+- `/metrics/bandwidth` for `fam`'s outbound bandwidth since the 1st (UTC),
+  summed, against `RENDER_BANDWIDTH_INCLUDED_GB` (25, the owner's Billing
+  page) and projected over the month;
+- `/postgres?name=` for the instance named `RENDER_POSTGRES_NAME` (`fam-db`):
+  its plan, disk size and whether autoscaling is on; `/metrics/disk-usage`
+  for its storage against its disk; its memory against its plan's.
+Each with the next plan from the dashboard's own prices (`RENDER_NEXT`); a
+plan not in that table says where to look rather than guess a price. Every
+figure is converted to GB from the unit Render answers with; a unit not
+understood, a metric Render does not answer and a database not found are
+listed in `not_read`, never read as 0.
+
+**Render's keys are not scoped** (`render.com/docs/api`: scoped keys are in
+early access): this key could change the account. Keith's code only ever
+sends GETs - a test pins it - and `RENDER_API_KEY` joins
+`spend_guard.PAID_CREDENTIALS`, so staging never holds it. A scoped,
+read-only key can replace it when Render offers one.
+
+**To verify on the first real reading** - the API reference gives shapes, not
+semantics: that `/metrics/bandwidth`'s points sum to the month (the
+dashboard said 1.02 GB on 2026-11-06, workspace-wide; this reads `fam`
+alone), and how close Postgres's memory runs to its limit in normal use
+(a database keeps a cache, so 80% may be ordinary there - if so its warning
+is a false alarm to tune, said here rather than found later).
+
+Tests: `tests/test_usage_monitors_render_476.py` (the service and the database
+read, GET only, in GB from MB and MiB, with the next plans; the disk's warn
+and urgent; a month's bandwidth on pace past 25 GB; what Render refuses
+listed and the key never kept; a unit not understood; a database not found;
+nothing answering; no key, nothing asked; staging).

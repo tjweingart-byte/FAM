@@ -464,3 +464,4 @@ and `limit` = Lines.
 | 30016 | 66 | 473. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06) |
 | 30082 | 43 | 474. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06) |
 | 30125 | 49 | 475. Phase 4, piece 2c: Cloudflare R2 in Keith's usage monitors (2026-11-06) |
+| 30174 | 45 | 476. Phase 4, piece 2d: Render in Keith's usage monitors (2026-11-06) |

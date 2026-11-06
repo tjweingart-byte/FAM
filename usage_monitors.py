@@ -27,8 +27,8 @@ are kept in `provider_usage.db` (`monitor_readings`, 90 days).
 **Never raises.** A service that does not answer, or answers in a shape not
 understood, is a reading with `ok: false` and why - never a figure of 0.
 
-Built so far: RunPod (2a, §473), Atlas (2b, §474), Cloudflare R2 (2c,
-§475). Render follows.
+Built: RunPod (2a, §473), Atlas (2b, §474), Cloudflare R2 (2c, §475),
+Render (2d, §476).
 """
 from __future__ import annotations
 
@@ -479,8 +479,184 @@ async def read_r2(now: Optional[datetime.datetime] = None, client=None) -> dict:
                         "billed from the first GB at $0.01/GB-month")})
 
 
+# --------------------------------------------------------------------- Render
+#: The next plan up from the owner's, as the dashboard priced them
+#: (2026-11-06, §473). Render's API names a plan; anything not here says
+#: where to look rather than guess a price.
+RENDER_NEXT = {
+    # Web services ("compute plans").
+    "starter": "Standard (1 CPU, 2 GB), $25/month",
+    "standard": "Pro (2 CPU, 4 GB), $85/month",
+    # Postgres.
+    "basic_256mb": "Basic 1 GB (0.5 CPU), $19/month",
+    "basic_1gb": "1 CPU, 2 GB, $40/month",
+}
+RENDER_NEXT_UNKNOWN = "the next plan on the service's Compute page"
+RENDER_BANDWIDTH_NEXT = "$0.15 per GB past the workspace's included bandwidth"
+_GB_PER = {"b": 1e-9, "bytes": 1e-9, "byte": 1e-9, "kb": 1e-6, "mb": 1e-3,
+           "gb": 1.0, "tb": 1e3, "kib": 1024 / 1e9, "mib": 1024 ** 2 / 1e9,
+           "gib": 1024 ** 3 / 1e9}
+
+
+def _gb(value: float, unit: str) -> Optional[float]:
+    """`value` in `unit`, in GB; None for a unit not understood."""
+    per = _GB_PER.get(str(unit or "").strip().lower())
+    return None if per is None else float(value) * per
+
+
+async def _render_get(client, path: str, key: str, params=None):
+    """One GET to Render's API: (body, "") or (None, why). Never the body of
+    an error - it can carry the request."""
+    try:
+        response = await client.get(
+            f"{settings.render_api_url.rstrip('/')}{path}", params=params,
+            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"})
+    except Exception as exc:  # noqa: BLE001 - a monitor never raises
+        return None, f"{path}: no answer ({type(exc).__name__})"
+    if response.status_code >= 400:
+        return None, f"{path}: HTTP {response.status_code}"
+    try:
+        return response.json(), ""
+    except ValueError:
+        return None, f"{path}: not JSON"
+
+
+def _series_points(body) -> list:
+    """[(value, unit)] over every series in a metrics answer, oldest first."""
+    out = []
+    for series in body if isinstance(body, list) else []:
+        unit = (series or {}).get("unit", "")
+        for point in (series or {}).get("values") or []:
+            try:
+                out.append((str(point.get("timestamp", "")), float(point["value"]),
+                            point.get("unit", unit)))
+            except (KeyError, TypeError, ValueError):
+                continue
+    return [(v, u) for _, v, u in sorted(out, key=lambda p: p[0])]
+
+
+async def read_render(now: Optional[datetime.datetime] = None, client=None) -> dict:
+    """Render: `fam`'s memory against its plan's, `fam-db`'s storage against
+    its disk and its memory against its plan's, and `fam`'s outbound
+    bandwidth this month against the workspace's included bandwidth.
+
+    Read with `RENDER_API_KEY` (Render's keys are not scoped: Keith only ever
+    reads with it, and staging never holds it) for `RENDER_SERVICE_ID` and the
+    Postgres instance named `RENDER_POSTGRES_NAME`. A metric Render does not
+    answer, or answers in a unit not understood, is listed in `not_read`.
+    """
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    at = now.timestamp()
+    key = _secret("RENDER_API_KEY")
+    service = (settings.render_service_id or "").strip()
+    if not (key and service):
+        return reading("render", [], ok=False, at=at,
+                       why="not configured: RENDER_API_KEY and RENDER_SERVICE_ID "
+                           "are both needed")
+    import httpx
+
+    own = client is None
+    client = client or httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
+    figures, not_read, detail = [], [], {}
+    hour_ago = (now - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    recent = {"startTime": hour_ago, "endTime": stamp}
+
+    async def latest_gb(metric: str, resource: str, label: str) -> Optional[float]:
+        body, why = await _render_get(client, f"/metrics/{metric}", key,
+                                      {**recent, "resource": resource})
+        if body is None:
+            not_read.append(f"{label}: {why}")
+            return None
+        points = _series_points(body)
+        if not points:
+            not_read.append(f"{label}: no data points")
+            return None
+        value, unit = points[-1]
+        gb = _gb(value, unit)
+        if gb is None:
+            not_read.append(f"{label}: unit {unit!r} not understood")
+        return gb
+
+    try:
+        described, why = await _render_get(client, f"/services/{service}", key)
+        plan = ((described or {}).get("serviceDetails") or {}).get("plan", "")
+        detail["service_plan"] = plan or None
+        if described is None:
+            not_read.append(f"the service: {why}")
+        used = await latest_gb("memory", service, "fam's memory")
+        limit = await latest_gb("memory-limit", service, "fam's memory limit")
+        if used is not None:
+            figures.append(figure("fam memory", round(used, 4), "GB", "now",
+                                  limit=limit, limit_source="its plan (Render)",
+                                  next_plan=RENDER_NEXT.get(plan, RENDER_NEXT_UNKNOWN)))
+        # This month's outbound bandwidth, against the workspace's allowance.
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        body, why = await _render_get(client, "/metrics/bandwidth", key, {
+            "resource": service, "startTime": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "endTime": stamp})
+        if body is None:
+            not_read.append(f"fam's bandwidth: {why}")
+        else:
+            total, bad = 0.0, set()
+            for value, unit in _series_points(body):
+                gb = _gb(value, unit)
+                if gb is None:
+                    bad.add(unit)
+                else:
+                    total += gb
+            if bad:
+                not_read.append(f"fam's bandwidth: unit(s) {sorted(bad)} not understood")
+            else:
+                included = float(settings.render_bandwidth_included_gb or 0) or None
+                figures.append(figure(
+                    "fam outbound bandwidth this month", round(total, 4), "GB",
+                    "month", limit=included,
+                    limit_source="the workspace's included bandwidth",
+                    now=now, next_plan=RENDER_BANDWIDTH_NEXT))
+        # The database: found by name, its plan and disk, its use.
+        name = (settings.render_postgres_name or "").strip()
+        listed, why = await _render_get(client, "/postgres", key,
+                                        {"name": name, "limit": 20}) if name else (None, "")
+        rows = [row.get("postgres") or {} for row in
+                (listed if isinstance(listed, list) else []) if isinstance(row, dict)]
+        database = next((row for row in rows if row.get("name") == name), None)
+        if not name:
+            not_read.append("the database: RENDER_POSTGRES_NAME is empty")
+        elif database is None:
+            not_read.append(f"the database {name!r}: {why or 'not found'}")
+        else:
+            db_id, db_plan = database.get("id", ""), database.get("plan", "")
+            detail.update(postgres=name, postgres_plan=db_plan or None,
+                          disk_autoscaling=database.get("diskAutoscalingEnabled"))
+            disk_gb = database.get("diskSizeGB")
+            stored = await latest_gb("disk-usage", db_id, f"{name}'s storage")
+            if stored is not None:
+                figures.append(figure(
+                    f"{name} storage", round(stored, 4), "GB", "now",
+                    limit=float(disk_gb) if disk_gb else None,
+                    limit_source="its disk (Render)",
+                    next_plan="grow the disk: $0.30/GB-month, in steps of 5 GB"))
+            db_memory = await latest_gb("memory", db_id, f"{name}'s memory")
+            db_limit = await latest_gb("memory-limit", db_id, f"{name}'s memory limit")
+            if db_memory is not None:
+                figures.append(figure(
+                    f"{name} memory", round(db_memory, 4), "GB", "now",
+                    limit=db_limit, limit_source="its plan (Render)",
+                    next_plan=RENDER_NEXT.get(db_plan, RENDER_NEXT_UNKNOWN)))
+    finally:
+        if own:
+            await client.aclose()
+    detail["not_read"] = not_read
+    if not figures:
+        return reading("render", [], ok=False, at=at,
+                       why="; ".join(not_read) or "nothing answered", detail=detail)
+    return reading("render", figures, at=at, detail=detail)
+
+
 #: Every monitor built, by service.
-MONITORS = {"runpod": read_runpod, "atlas": read_atlas, "r2": read_r2}
+MONITORS = {"runpod": read_runpod, "atlas": read_atlas, "r2": read_r2,
+            "render": read_render}
 
 
 # ------------------------------------------------------------------- running
