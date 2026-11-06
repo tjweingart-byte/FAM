@@ -2182,7 +2182,7 @@ class Settings:
     supervisor_grounding_high: float = _env_float("SUPERVISOR_GROUNDING_HIGH", 0.8)
     supervisor_grounding_low: float = _env_float("SUPERVISOR_GROUNDING_LOW", 0.2)
     housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
-    housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
+    housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 6000)
     # **Consuela's consolidation** (§399): a dry run until the owner turns
     # it off - she chooses and the choice is reported, nothing is written.
     # Articles per call, and calls per run of her task.

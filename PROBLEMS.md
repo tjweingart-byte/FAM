@@ -29834,3 +29834,292 @@ prompt's order, with what Phase 3 left Keith to watch (Mclovin's unchecked
 sentences, the tandem's outcomes, the trial's progress). The Phase 3 prompt
 (`docs/PHASE3_FIRST_PROMPT.md`) is deleted, as it said to be when Phase 3
 was finished.
+
+## 462. The answer-key rules for Consuela and Sonic, proposed (2026-11-03)
+
+The first piece of `docs/TRAINING_NEXT_BRANCH.md`, at the owner's
+direction, with the wording the owner approved: the rules C3 and S4 of
+`docs/AGENTS_TRAINING_PLAN.md` need, as proposals. C3 and S4 themselves are
+not built.
+
+- `docs/agent_rule_proposals/consuela.md` - the signed book plus **always
+  12**: a stronger model chosen by the owner grades a sample of her work
+  each night, in the background (the sentences kept, each figure's
+  "happened"/"expected", each pair merged or kept apart); its grades only
+  teach and measure, never re-file, merge, restore or delete anything, and
+  never change an episode.
+- `docs/agent_rule_proposals/sonic.md` - the signed book plus **always 8**:
+  the same for a sample of finished episodes' history packets (each item's
+  relevance, anything the archive held that he missed); grades never change
+  the archive or an episode.
+
+Both follow `nando.md` rule 12 (§384). The grading model (proposed: Opus
+5.5) and the nightly sample are left out of the rules, as in Nando's, and
+decided when C3 and S4 are built. Sonic's never 3 (no other service) is
+unchanged: the answer key is FAM's, not a call Sonic makes.
+
+`tests/test_answer_key_proposals_462.py` holds each proposal to exactly its
+signed book plus that one rule, and fails once signed until the proposal is
+deleted. `tests/test_consuela_proposal_398.py` failed while any
+`consuela.md` proposal existed; its job was done at §412 and it is retired
+here, its check that never 8's list matches the approved providers moved
+into the new test.
+
+`docs/agent_rules/MANIFEST.pending.json` (version 4) is written as §412
+did: the proposals put in place, `--write`, the signed books restored with
+`git checkout`. Only `consuela.md`'s and `sonic.md`'s fingerprints differ
+from version 3. The proposals README gives the owner's route: download
+the two proposals and the pending manifest, sign, upload four files in one
+commit. Nothing runs differently until then; `AGENTS=0` changes nothing.
+
+## 463. The attribution case: a neutral rewording, at the owner's choice (2026-11-03)
+
+§407 found Haiku answering "unsure" to every grown pair that added
+", according to reports" - labelled *same*, arguably wrongly, since a
+reported claim is not an asserted one. Asked to choose (a neutral rewording
+that keeps the claim's certainty, or the label changed to *different*), the
+owner chose the rewording, so the grown cases keep testing real repeats in
+other words; relabelling would have left every grown case *different* and
+missed repeats measured on the core alone.
+
+`dedupe_cases._reword` replaces `_attribute`: the first of a fixed table of
+neutral swaps (`NEUTRAL_SWAPS`: after → following, began → started, bought
+→ purchased, despite → in spite of, nearly ↔ almost, ...) that the sentence
+holds, whole lowercase words only, and only when the names and the hedge
+are unchanged. No sentence with a quote, a number or an attribution is
+reworded: since §417 code keeps every reworded figure or quote apart, so
+such a pair would measure that rule, not the model. A sentence no swap fits
+makes no *same* case.
+
+**Measured with the key** on twelve news-style sentences standing in for
+production material (`dedupe_eval.run(grown=...)`, nothing recorded): 54
+cases, **0 wrong merges, no fallback, passed**. Every one of the 11 reworded
+pairs: Haiku and Sonnet both "same" - grown misses 6 → 0. The core's two
+misses are §417's by design (a reworded figure is merged only word for
+word).
+
+Tests: `tests/test_dedupe_reworded_463.py` (no swap adds a hedge, number,
+name or attribution; certainty kept; nothing reworded where code would keep
+the pair apart; lowercase whole words only; the grown *same* case is the
+rewording) and `tests/test_agents_training_407.py` updated.
+
+## 464. The owner signed the answer-key rules: Consuela always 12, Sonic always 8 (2026-11-03)
+
+The owner signed manifest version 4 (b6d2970): `consuela.md` and `sonic.md`
+are the §462 proposals byte for byte, and `MANIFEST.json` is the pending
+manifest the session wrote. `python tools/rulebook_manifest.py --verify`:
+every agent may run, signed with the same `owner.pub`. The commit held
+exactly the four files.
+
+Signed the §412 way - downloaded, signed in `famsign` from a key file saved
+from TextEdit and deleted with `rm -P`, uploaded in one commit. Two snags,
+both caught before signing: the browser saved the proposal as
+`consuela (1).md` beside the previous signing's `consuela.md`, and the
+previous `MANIFEST.json.sig` was still in Downloads. So the owner now
+works in a folder of their own (`FAM Rule Books/`: `signing/` emptied after
+each signing, `current/` the full signed set, `archive/vN date` each past
+one) and checks each file's SHA-256 before signing.
+
+The proposals and the pending manifest are deleted;
+`tests/test_answer_key_proposals_462.py` takes its signed branch. Nothing
+behaves differently yet: no code reads the two rules until C3 and S4 are
+built, which may now be. The owner updates the copy held outside Claude.
+
+## 465. C2 on production's first three nights: the thresholds stand, "chance" is a hedge, and her choices are not ready to file (2026-11-05)
+
+The owner ran the three reports on `fam` after three nights with
+`AGENTS=1 HOUSEKEEPER=1` (both dry runs on). Production runs Main, without
+§463.
+
+**`consuela_report.py --merges` was empty**, as it must be: in her dry run
+she files nothing, and the nightly dedupe compares filed facts. Real merge
+pairs come only once `HOUSEKEEPER_DRY_RUN=0`.
+
+**`consuela_dedupe_eval.py`: 104 cases, 0 wrong merges, no fallback,
+passed.** The 21 misses: the core's two, §417's by design, and 19 grown
+"attribution added" cases - 13 on sentences with a number (code keeps a
+reworded figure apart, so they could never be found repeats) and 6 Haiku
+"unsure" (§407's finding, now on real material). §463 removes both kinds.
+
+**The thresholds, before and after, on that run:**
+- `CANDIDATE_SIMILARITY` 0.80 → 0.90 would send 11 pairs to a model, not
+  15, with 0 wrong merges and 21 misses either way - but every true repeat
+  there is a light edit made in code (0.96 or more), and two outlets'
+  repeats are reworded far more. **Unchanged** until real pairs exist.
+- `FIGURE_SIMILARITY` 0.90: every two-values-one-moment pair 0.94-1.00 and
+  flagged; "two quarters' revenue" at 0.89 correctly not. **Unchanged.**
+- `WINDOW_DAYS` 3: every eval case is one day; not measurable yet.
+  **Unchanged.**
+- **The hedge list gains "chance"** (the owner's yes): her report kept
+  "Democrats have a 94% chance of controlling the House" as a figure with
+  status *outcome* - a forecast stored as a result, never 3. Narrowly: a
+  chance with a figure before it ("94% chance") or a chance of/to/that.
+  "Chance the Rapper" and "by chance" are not hedges; "missed a chance to
+  tie" becomes one, the safe direction (kept apart, never asserted). The
+  eval: 0 wrong merges before and after; one sentence no longer grows a
+  "hedge added" case, being hedged already. `tests/test_hedge_chance_465.py`.
+
+**Her choices** (`consuela_report.py --limit 40`: 16 chosen, 1 held), read
+against `consuela.md`, are not ready to file:
+- *Forecasts as outcomes* (never 3): the "94% chance" above, now fixed;
+  "speculators give Democrats a 78% likelihood of flipping it" also kept as
+  an *outcome* - "likelihood" is not in the list either.
+- *Not key sentences* (always 3): the NHL recap kept about 35 sentences,
+  nearly the whole article; an ESPN box score table kept as a "sentence".
+- *Fragments*: sentences cut at abbreviations - "ET (2300 GMT), and by 9
+  p.m." and "1, according to a Yahoo Finance analysis." (split at "Sept.").
+- *Page furniture kept*: "Add The Sporting News as a* *Preferred Source by
+  clicking here*", headlines run into the first sentence, `**` markup.
+- *Quotes lose their speaker*: a quote's later sentences are kept as
+  "sentence" ("We had a really hard start.", "I thought we were trying to
+  do too much."), and pronouns lose their subject ("He made his initial 51
+  of the season.").
+- *Repeats inside one article*: the same sentence kept twice ("And per
+  Polymarket, there is a 75% chance...", the Jackson Blake sentence). The
+  dedupe never compares two sentences of one article ("two sentences of
+  one article"), so they would stay.
+- *An opinion piece* (never 6): the Sporting News "Warriors predicted to
+  part ways" column was chosen, its speculation kept as plain sentences.
+- *Chosen with nothing kept*: four pages (two index pages, a video page,
+  euronews) are "chosen" with no sentence - no harm, but counted as chosen.
+
+The sweep shows what C1's eval cannot: it tests the dedupe, not the
+choosing. So the recommendation to the owner is **not to set
+`HOUSEKEEPER_DRY_RUN=0` yet**, and to decide which of these to fix first;
+the branch's brief covers the thresholds, not her choosing.
+
+## 466. Consuela is offered whole sentences of the article, once (2026-11-05)
+
+Fixes 1-4 of §465, at the owner's yes, all in code before the model reads
+(`housekeeper.sentences_of`). The words stay the publisher's: nothing is
+reworded, only cut differently or left out.
+
+1. **More hedges**: "likelihood" and "probability" join "chance" (§465).
+   Production kept "speculators give Democrats a 78% likelihood of flipping
+   it" as an *outcome*.
+2. **No cut at an abbreviation**: a piece ending in "p.m.", "Sept.", "Dr.",
+   "U.S." and the like is joined to the next (`_ABBREVIATION`), so "by 9
+   p.m." | "ET (0200 GMT...)" and "since Sept." | "1, according to..." are
+   one sentence each again. Only Consuela's splitting changes;
+   `evidence_digest.split_sentences`, which numbers the writer's evidence,
+   is untouched.
+3. **A sentence an article repeats is offered once**, compared by
+   `dedupe.normalise` - so "... sweep. ..." and "... sweep.", or
+   "**Jackson Blake**" and "Jackson Blake", are one; the first wording is
+   kept. The nightly dedupe never compares two sentences of one article, so
+   this is the only place such a repeat could go.
+4. **The page around the article is never offered** (`_CLUTTER`): a table
+   row (three or more `|`), "click here", "Preferred Source", newsletter,
+   subscribe/sign-up and "follow us" lines. `**` markup is left as written
+   - removing it would be rewording, and the owner did not ask for it.
+
+Measured on three of production's articles from the report (stand-in
+material in the session's scratchpad: the NHL recap, the Kalshi odds piece,
+the Reuters markets piece with the ESPN table and Sporting News line
+appended): before, 32 + 12 + 11 sentences offered, with two fragments, one
+repeat, one invitation and one table among them; after, 32 + 11 + 6, none.
+
+`tests/test_consuela_sentences_466.py`, every case word for word from the
+report; `test_consuela_consolidates_399.py`'s unreadable-figure case no
+longer uses a "subscribe" line as its sentence.
+
+## 467. Consuela keeps the key sentences only, each one that stands alone (2026-11-05)
+
+Fixes 5-6 of §465, at the owner's yes: her instructions now say what "key"
+means - what someone would need months from now to know what happened, at
+most `MAX_KEPT` (12) sentences an article, fewer when fewer will do - and
+that a kept sentence must make sense read alone: none that leans on an
+earlier one for who it is about ("He took a cross-ice feed...", "We had a
+really hard start."), and a quote only in the sentence that names its
+speaker. Her other instructions are unchanged. No code cap: cutting her
+picks in article order could drop a late result line, so the number is
+hers to keep, measured below.
+
+**Measured** on the three stand-in articles of §466 (production's own,
+after §466's sentences), two runs each: kept 29 + 10 + 6 = **45** before,
+11-12 + 4-5 + 5 = **21** after - the result, every goal, the odds and the
+dollar figures kept; no pronoun without its subject, no quote without its
+speaker. On batches of eight (the three repeated), six runs each: 99-141
+sentences kept before, 57-75 after; every batch answered, in 5-15 s.
+
+**The output limit was too small** (the owner's yes): `HOUSEKEEPER_MAX_TOKENS`
+1,500 → **6,000**, in `config.py` and `.env.example`. With effort "low" her
+reasoning counts against it: three articles used 540-1,313 output tokens
+with the old instructions and 1,405-1,925 with these, so at 1,500 every run
+of the new ones on three articles was cut off (`out_of_room`), and a batch
+of eight - production's size - would often have been with the old. A cut
+batch is left for the next run (`consuela left N articles for the next
+run` in the log), so production may have been losing batches since §399;
+its report does not show them. She pays only for what she writes: about a
+cent a batch on Haiku. Her 60 s timeout holds (15 s at most, measured).
+
+Found while measuring, not changed: an article whose title carries a
+bracketed number ("... (0)") made Haiku number the batch from 0, and
+`check` refused the answer twice. Real titles rarely do; the refusal is
+the safe way and the batch waits for the next run.
+
+`tests/test_consuela_keeps_less_467.py`.
+
+## 468. This branch's sections renumbered: Main took §418-§461 (2026-11-06)
+
+While this branch was open Main reached §461 (Phase 3), so its sections
+§418-§423 are §462-§467 here, with every reference and the test files
+named after them (`test_answer_key_proposals_462.py`,
+`test_dedupe_reworded_463.py`, `test_hedge_chance_465.py`,
+`test_consuela_sentences_466.py`, `test_consuela_keeps_less_467.py`). Main's
+own §418-§423 are other work. Main also signed `mclovin.md` v2 and v3
+(manifest versions 4 and 5) while this branch signed `consuela.md` and
+`sonic.md` as its own version 4, so neither signature covers the merged
+books: `MANIFEST.pending.json` (version 6) lists all of them, and the owner
+signs it once (§469).
+
+## 469. The branch double-checked before its pull request, and the manifest for the merged books (2026-11-06)
+
+At the owner's request, every change on this branch read again before the
+pull request into Main. Two patterns of §466 were too wide and are narrowed:
+
+- **The abbreviation list ignored case**, so a sentence ending "...the
+  board said no." would have been joined to the next as if "no." were
+  "No." (number). It is case-sensitive now: "a.m.", "p.m." and "vs."
+  lower-case as written, months and titles capitalised.
+- **The clutter filter dropped any sentence with "newsletter"** - "The
+  company's newsletter reported revenue of $2 billion" would have gone.
+  Only "sign up for / subscribe to our|the ..." lines are dropped now.
+
+`tests/test_consuela_sentences_466.py` pins both (and that an ordinary
+sentence about March is neither joined nor dropped). The rest read as
+intended: the hedge words (a figure before "chance", or "chance of/to/
+that", "likelihood", "probability"); a repeat inside one article compared
+by `dedupe.normalise`; `evidence_digest.split_sentences`, the writer's
+splitter, untouched; nothing reworded; `HOUSEKEEPER_MAX_TOKENS` 6,000 in
+`config.py` and `.env.example` alike.
+
+**Merging Main** (73 commits, Phase 3): no code conflict - Main had not
+touched `housekeeper.py`, `dedupe.py` or `dedupe_cases.py`. Conflicts were
+the log (§468), the proposals README, the manifest and
+`tests/test_consuela_proposal_398.py`, which Main had changed (GNews
+approved, §429) and this branch had retired: retired still, its provider
+check carried into `test_answer_key_proposals_462.py` with GNews.
+Main's Postgres fix (its §424) comes with the merge, so the Postgres CI job
+that failed on this branch's own commits - tests reading a store's SQLite
+file - passes again.
+
+**The manifest.** Main's signed `MANIFEST.json` (version 5) is kept, and
+`MANIFEST.pending.json` (version 6) differs from it in exactly
+`consuela.md` and `sonic.md`, whose fingerprints are those the owner
+signed as this branch's version 4 (§464). Until the owner signs version 6,
+Consuela and Sonic are held and the rule-book tests fail - by design: a
+book that does not match its signature never runs.
+
+## 470. The owner signed manifest version 6: the merged books (2026-11-06)
+
+The owner signed `MANIFEST.pending.json` (version 6, §469) on a second
+computer, from Downloads (7cc7b903): the commit holds exactly
+`MANIFEST.json` and `MANIFEST.json.sig`, and `MANIFEST.json` is the
+pending manifest byte for byte. `python tools/rulebook_manifest.py
+--verify`: every agent may run, signed with the same `owner.pub`. The
+first computer tried had no `famsign` environment and only LibreSSL,
+which cannot make an Ed25519 signature; signing needs OpenSSL 3.
+
+The pending manifest is deleted and the proposals README says nothing is
+waiting. The owner updates the copy held outside Claude.
