@@ -263,6 +263,9 @@ FAM_ENVIRONMENT = (
     "IT_BUDGETS", "IT_WARN_SHARE", "IT_URGENT_SHARE",
     # §488: Keith's incidents.
     "IT_WATCH_SECONDS", "IT_INCIDENT_ERRORS", "IT_ALERT_EMAIL", "IT_FIXES",
+    # §492: cost per episode against the plan.
+    "IT_COST_PLAN_AGENTS_CENTS", "IT_COST_PLAN_CLAUDE_CENTS", "IT_COST_DAYS",
+    "IT_COST_WELL_ABOVE",
     # §484: Atlas's monitor.
     "ATLAS_PROJECT_ID", "ATLAS_CLUSTER", "ATLAS_API_URL",
     # §485: R2's monitor.
@@ -638,6 +641,9 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
 
     incidents.reset()          # Keith's incidents share its database (§488)
     agent_checks.reset()       # and his rule-book checks' last look (§491)
+    import cost_watch
+
+    cost_watch.LEDGER[0] = None    # and the cost watch's ledger (§492)
     yield
     pipeline_errors.reset()
     incidents.reset()

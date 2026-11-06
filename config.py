@@ -2239,6 +2239,15 @@ class Settings:
     it_alert_email: str = field(
         default_factory=lambda: os.environ.get("IT_ALERT_EMAIL", "").strip())
     it_incident_errors: int = _env_int("IT_INCIDENT_ERRORS", 3)
+    # What an episode costs against the owner's plan (§492): the agents per
+    # episode against IT_COST_PLAN_AGENTS_CENTS (the Cost table's 0.45), all
+    # of Claude per episode against IT_COST_PLAN_CLAUDE_CENTS (the owner's
+    # 1.0), over IT_COST_DAYS; IT_COST_WELL_ABOVE times the plan is urgent
+    # and emailed. Watched, never capped.
+    it_cost_plan_agents_cents: float = _env_float("IT_COST_PLAN_AGENTS_CENTS", 0.45)
+    it_cost_plan_claude_cents: float = _env_float("IT_COST_PLAN_CLAUDE_CENTS", 1.0)
+    it_cost_days: float = _env_float("IT_COST_DAYS", 7.0)
+    it_cost_well_above: float = _env_float("IT_COST_WELL_ABOVE", 1.5)
     it_warn_share: float = _env_float("IT_WARN_SHARE", 0.80)
     it_urgent_share: float = _env_float("IT_URGENT_SHARE", 0.95)
     # Atlas's monitor (§484): which project and cluster the Admin API is asked

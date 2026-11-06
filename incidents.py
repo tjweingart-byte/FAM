@@ -68,7 +68,7 @@ EMAILS_PER_ROUND = 5
 
 #: Causes that are states, not events: closed as soon as a round no longer
 #: finds them (a level back to ok, a store writing again).
-STATE_SOURCES = ("usage", "tracking", "loop", "reports", "quota", "agents")
+STATE_SOURCES = ("usage", "tracking", "loop", "reports", "quota", "agents", "cost")
 
 
 def _settings():
@@ -477,6 +477,13 @@ def from_quotas(now: float) -> list:
     return out
 
 
+def from_cost(now: float) -> list:
+    """What an episode costs against the owner's plan (§492, `cost_watch`)."""
+    import cost_watch
+
+    return cost_watch.findings(now)
+
+
 def from_agents(now: float) -> list:
     """Each agent against its rule book, and what Phase 3 left Keith to watch
     (§491, `agent_checks`): at most hourly; between, the last findings stand."""
@@ -531,7 +538,8 @@ def findings(now: float) -> tuple[list, set]:
                         ("tracking", from_tracking), ("usage", from_usage),
                         ("loop", from_loops), ("reports", lambda: from_reports(now)),
                         ("quota", lambda: from_quotas(now)),
-                        ("agents", lambda: from_agents(now))):
+                        ("agents", lambda: from_agents(now)),
+                        ("cost", lambda: from_cost(now))):
         try:
             out.extend(get())
             read.add(source)

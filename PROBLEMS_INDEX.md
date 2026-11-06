@@ -479,3 +479,4 @@ and `limit` = Lines.
 | 30631 | 56 | 489. Phase 4, piece 3c: Keith's alerts on every admin page, "I fixed it", and urgent email (2026-11-06) |
 | 30687 | 55 | 490. Phase 4, piece 3b: Keith's closed list of fixes, observe only, and the fix report (2026-11-06) |
 | 30742 | 58 | 491. Phase 4, item 4: Keith checks each agent against its rule book, and watches what Phase 3 left him (2026-11-06) |
+| 30800 | 39 | 492. Phase 4, item 5: cost per episode against the plan - watched, never capped (2026-11-06) |

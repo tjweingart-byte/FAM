@@ -545,8 +545,17 @@ def snapshot(now: Optional[float] = None) -> dict:
             # Mclovin's unchecked share, Shakespeare's tandem outcomes and
             # the two weeks' progress (§491).
             "agents_watch": _agents_watch(now),
+            # Cost per episode against the plan: the agents and all of
+            # Claude (§492, decided items 21 and 27).
+            "cost_per_episode": _cost_per_episode(now),
             "routing": live_routing.report(now),
             "pipeline_errors": pipeline_errors.report(now)}
+
+
+def _cost_per_episode(now: float) -> dict:
+    import cost_watch
+
+    return cost_watch.report(now)
 
 
 def _agents_watch(now: float) -> dict:

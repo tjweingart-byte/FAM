@@ -30796,3 +30796,42 @@ states a result, and none when his titles are off; Nando's dead node, a page
 at a time coming round; the tandem's late share rising, and its outcome kept
 as a step; a breach in the round with `hold_agent` as "would", closing once
 mended; at most hourly; the trial in the report).
+
+## 492. Phase 4, item 5: cost per episode against the plan - watched, never capped (2026-11-06)
+
+Decided items 21 and 27, keith.md "always" 10. The owner first read the Cost
+table's "~$45 per 10,000 episodes (~0.45¢ an episode)" as $0.45 an episode;
+told the figures are per 10,000 and fell from the original ~0.8¢ to ~0.45¢
+with Shakespeare on Haiku, the owner chose two figures: "(a) and (b)" -
+the agents per episode against the Cost table, and all of Claude per episode
+against the owner's pricing estimate of 1¢ - and said `EDITOR_TANDEM` should
+be on (the owner's switch in Render, with `AGENTS=1` and `EDITOR_AGENT=1`;
+it stays off by default in code).
+
+`cost_watch.py`, over the last `IT_COST_DAYS` (7):
+- **(a) the agents per episode**: every agent call made for an episode
+  (`metering`'s `agent_calls` on the `search` and `ahead` surfaces) divided
+  by the episodes written (`episode_quality`'s rows: a tap, prefetch, both
+  editions), against `IT_COST_PLAN_AGENTS_CENTS` (0.45). The nightly jobs (the
+  `background` surface) cost the same at any volume, so they are shown beside
+  it as dollars a month - folded into a per-episode figure they would read
+  as several cents on a quiet week.
+- **(b) all of Claude per episode**: every Claude answer in the day's spend
+  (§481), agents included, over the same episodes, against
+  `IT_COST_PLAN_CLAUDE_CENTS` (1.0).
+More than `IT_COST_WELL_ABOVE` (1.5x) either plan is an urgent incident - so
+in the pop-up and emailed (§489). Under 50 episodes in the window, no figure.
+Private searches' and attachments' episodes are never recorded as episodes,
+so their cost is in the total and not the count: the figure reads slightly
+high, never low. **Nothing is held, slowed or stopped for cost** - a test
+pins that no fix applies to it. The figures are in `/admin`'s data
+(`cost_per_episode`); drawing them is one of item 6's proposals.
+
+**A slip of the standing rule, said:** item 4's full check was running when
+item 5's first edits were made (§442: never edit while `./dev.sh check`
+runs). That run was stopped, its result not used, and one fresh full check
+covers items 4 and 5 together.
+
+Tests: `tests/test_cost_watch_492.py` (both figures from the ledger and the
+spend with the nightly jobs apart; too few episodes; well above is urgent;
+the plan and the threshold are settings; cost never holds anything).
