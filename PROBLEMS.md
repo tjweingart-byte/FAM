@@ -30078,3 +30078,43 @@ understood; no key, nothing asked; readings kept and the latest reported; a
 monitor that raises; hourly only while Keith is on; the handler gated;
 health), `tests/test_agents_model_layer.py` (the monitors may reach Netenyahu
 and the roster, as the tag check does).
+
+## 466. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06)
+
+The archive's cluster, `fam-archive` in project `6add48a0a599673c1877a727`, is
+**Flex** (§465's figures). MongoDB's own pages (read 2026-11-06,
+`atlas/billing/atlas-flex-costs`, `atlas/reference/flex-limitations`): 5 GB of
+data and indexes, at most 500 connections, 500 operations a second as a hard
+limit, $8-$30 a month by operations a second, no storage auto-scaling, and the
+next tier Dedicated M10 from $60 a month.
+
+**What is read, and from where.** The Admin API (versioned, `Accept:
+application/vnd.atlas.2024-11-13+json`, the owner's Project Read Only key by
+HTTP Digest - `ATLAS_PUBLIC_KEY` and `ATLAS_PRIVATE_KEY` through
+`FAM_SECRETS`, `ATLAS_PROJECT_ID` and `ATLAS_CLUSTER` as plain settings)
+describes the Flex cluster: its state and its storage limit (`diskSizeGB`).
+It offers **no usage figures for a Flex cluster** - its measurements are per
+process, and its spec has no Flex metrics - so what is used is asked of the
+cluster itself: `atlasSize` (the Flex command for data plus indexes) and
+`serverStatus` (current connections), both reads, through Sonic's read-only
+user (`MONGODB_READ_URI`, §403) and the archive's own user only when he has
+none; a short-lived client of one connection, closed every time. Operations a
+second are not read: said in the reading, never guessed.
+
+**Figures:** storage used against 5 GB (the Admin API's figure, or Flex's
+published one when the API does not answer - said which), connections
+against 500, each with the next tier; `warn` at 80%, `urgent` at 95% as
+§465. Anything that could not be read is listed in the reading's
+`not_read`; a reading with nothing read is `ok: false` with every reason.
+Nothing is asked unless `ARCHIVE_BACKEND=atlas`; without the key pair the
+Admin API is not asked and the cluster's own figures still are. An error
+body is never kept. `ATLAS_PUBLIC_KEY` and `ATLAS_PRIVATE_KEY` join
+`spend_guard.PAID_CREDENTIALS` - free to use, but production's account, so
+staging never holds them.
+
+Tests: `tests/test_usage_monitors_atlas_466.py` (the request and the figures;
+warn and urgent; the published limit when the Admin API refuses, and the key
+never kept; what the cluster refuses said; nothing answering; a cluster no
+longer Flex; nothing asked off Atlas or without keys; staging; the read-only
+user first and the client closed, the archive's user said when used), and
+§465's poll test pinned to RunPod alone now there are two monitors.

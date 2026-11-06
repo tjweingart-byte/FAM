@@ -261,6 +261,9 @@ FAM_ENVIRONMENT = (
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
     # §465: Keith's usage monitors.
     "IT_BUDGETS", "IT_WARN_SHARE", "IT_URGENT_SHARE",
+    # §466: Atlas's monitor.
+    "ATLAS_PROJECT_ID", "ATLAS_CLUSTER", "ATLAS_API_URL",
+    "ATLAS_PUBLIC_KEY", "ATLAS_PRIVATE_KEY",
     # §397: whose material Consuela may store.
     "HOUSEKEEPER_APPROVED_PROVIDERS",
     # §399: her consolidation's dry run and batch sizes.

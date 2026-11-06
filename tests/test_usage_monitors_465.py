@@ -146,7 +146,9 @@ def test_no_key_asks_nothing(monkeypatch):
     assert not got["ok"] and "not configured" in got["why"] and seen == []
 
 
-def test_a_poll_keeps_each_reading_and_the_report_reads_the_latest(key, tmp_path):
+def test_a_poll_keeps_each_reading_and_the_report_reads_the_latest(key, tmp_path,
+                                                                    monkeypatch):
+    monkeypatch.setattr(UM, "MONITORS", {"runpod": UM.read_runpod})  # this one alone
     usage = provider_usage.UsageStore(str(tmp_path / "u.db"))
     provider_usage.reset(usage)
     assert UM.report()["services"] == [{"service": "runpod", "never_read": True}]

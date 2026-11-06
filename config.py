@@ -2228,6 +2228,16 @@ class Settings:
         default_factory=lambda: os.environ.get("IT_BUDGETS", "").strip())
     it_warn_share: float = _env_float("IT_WARN_SHARE", 0.80)
     it_urgent_share: float = _env_float("IT_URGENT_SHARE", 0.95)
+    # Atlas's monitor (§466): which project and cluster the Admin API is asked
+    # about. Not secrets; its read-only key pair, ATLAS_PUBLIC_KEY and
+    # ATLAS_PRIVATE_KEY, comes through FAM_SECRETS.
+    atlas_project_id: str = field(
+        default_factory=lambda: os.environ.get("ATLAS_PROJECT_ID", "").strip())
+    atlas_cluster: str = field(
+        default_factory=lambda: os.environ.get("ATLAS_CLUSTER", "").strip())
+    atlas_api_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "ATLAS_API_URL", "https://cloud.mongodb.com").strip())
     # **Netenyahu's background loop** (§350): how often it claims due agent
     # tasks, and at most how many per round. Started only when `AGENTS=1`.
     overlord_tick_seconds: float = _env_float("OVERLORD_TICK_SECONDS", 300.0)

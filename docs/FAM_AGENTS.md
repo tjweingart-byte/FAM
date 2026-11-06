@@ -1711,7 +1711,7 @@ usage table, and gaps where usage was spent (`metering`) but not counted.
 | Spend | `metering` against each ceiling (prefetch, editions, grading, each agent's) |
 | Background jobs | Each `run_forever` loop's last run: Trending and DailyFAM editions, story sweep, GDELT sync, local feeds, weather, pushes, the Viral Loops outbox |
 | Other agents | Netenyahu's view: on/off, failures, holds; each agent's rule book |
-| MongoDB Atlas, Render, RunPod, Cloudflare R2 | `usage_monitors.py` (§465), hourly as Netenyahu's `it:usage`, each service's own read API: **RunPod's spend** (`GET /v2/billing`: today, yesterday, the month and its projection) built; Atlas, Cloudflare R2 and Render next. Against the owner's plan, or the monthly budget in `IT_BUDGETS` |
+| MongoDB Atlas, Render, RunPod, Cloudflare R2 | `usage_monitors.py` (§465), hourly as Netenyahu's `it:usage`, each service's own read API: **RunPod's spend** (`GET /v2/billing`: today, yesterday, the month and its projection) built; **Atlas** (§466: the Flex cluster's storage, `atlasSize`, and connections, `serverStatus`, against 5 GB and 500, its state and limit from the Admin API) built; Cloudflare R2 and Render next. Against the owner's plan, or the monthly budget in `IT_BUDGETS` |
 
 ### Guardrails
 
@@ -1861,7 +1861,7 @@ pick from the list. After the shared preamble:
 | `IT_MODEL`, `IT_SUMMARY_MODEL` | `anthropic:claude-haiku-5-5` for incidents, `anthropic:claude-sonnet-5-5` for `/admin` summaries (decided 2026-10-30) |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |
-| `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_ADMIN_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only usage keys via `FAM_SECRETS` (proposed) |
+| `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_PUBLIC_KEY` + `ATLAS_PRIVATE_KEY` (with `ATLAS_PROJECT_ID`, `ATLAS_CLUSTER`), `CLOUDFLARE_ANALYTICS_TOKEN` | Usage keys via `FAM_SECRETS`; RunPod's is the voice's own (§465), Atlas's a Project Read Only key (§466) |
 
 Open: how you tell Keith something is fixed (a button in the pop-up is
 proposed). Decided (2026-10-28): urgent alerts go to Admin@familiarize.net;

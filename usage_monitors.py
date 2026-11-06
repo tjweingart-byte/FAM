@@ -27,7 +27,8 @@ are kept in `provider_usage.db` (`monitor_readings`, 90 days).
 **Never raises.** A service that does not answer, or answers in a shape not
 understood, is a reading with `ok: false` and why - never a figure of 0.
 
-Built so far: RunPod (2a). Atlas, Cloudflare R2 and Render follow (§465).
+Built so far: RunPod (2a, §465), Atlas (2b, §466). Cloudflare R2 and Render
+follow.
 """
 from __future__ import annotations
 
@@ -187,8 +188,146 @@ async def read_runpod(now: Optional[datetime.datetime] = None,
                    detail={"billing": "prepaid credit, topped up automatically"})
 
 
+# ---------------------------------------------------------------------- Atlas
+#: Flex's limits and the next tier, as MongoDB publishes them (checked
+#: 2026-11-06: docs/atlas/billing/atlas-flex-costs, reference/flex-limitations).
+FLEX_STORAGE_GB = 5.0
+FLEX_CONNECTIONS = 500
+FLEX_NEXT = "Dedicated M10, from $60/month (Flex itself is $8-$30/month by ops/sec)"
+#: The Admin API version the flex-cluster resource answers in.
+ATLAS_ACCEPT = "application/vnd.atlas.2024-11-13+json"
+
+
+def _secret(name: str) -> str:
+    import credentials
+
+    return (credentials.active(name) or "").strip()
+
+
+async def _atlas_cluster(client, now) -> tuple[Optional[dict], str]:
+    """The Admin API's description of the Flex cluster, or (None, why)."""
+    public, private = _secret("ATLAS_PUBLIC_KEY"), _secret("ATLAS_PRIVATE_KEY")
+    project = (settings.atlas_project_id or "").strip()
+    cluster = (settings.atlas_cluster or "").strip()
+    if not (public and private and project and cluster):
+        return None, ("not configured: ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, "
+                      "ATLAS_PROJECT_ID and ATLAS_CLUSTER are all needed")
+    import httpx
+
+    url = (f"{settings.atlas_api_url.rstrip('/')}/api/atlas/v2/groups/"
+           f"{project}/flexClusters/{cluster}")
+    try:
+        own = client is None
+        client = client or httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
+        try:
+            response = await client.get(url, headers={"Accept": ATLAS_ACCEPT},
+                                        auth=httpx.DigestAuth(public, private))
+        finally:
+            if own:
+                await client.aclose()
+    except Exception as exc:  # noqa: BLE001 - a monitor never raises
+        return None, f"the Admin API did not answer: {type(exc).__name__}"
+    if response.status_code == 404:
+        return None, (f"no Flex cluster {cluster!r} in the project: renamed, or "
+                      "moved to a dedicated tier this monitor does not read yet")
+    if response.status_code >= 400:
+        return None, f"HTTP {response.status_code} from the Admin API"
+    try:
+        body = response.json()
+        return body if isinstance(body, dict) else None, ""
+    except ValueError:
+        return None, "the Admin API's answer was not JSON"
+
+
+def _atlas_database() -> tuple[dict, str]:
+    """Storage and connections, asked of the cluster itself: `atlasSize` (the
+    Flex command for data plus indexes) and `serverStatus`. Sonic's read-only
+    user first (§403); the archive's own user when he has none. Reads only."""
+    uri, user = _secret("MONGODB_READ_URI"), "read-only user"
+    if not uri:
+        uri, user = _secret("MONGODB_URI"), "archive's user"
+    if not uri:
+        return {}, "no MONGODB_READ_URI or MONGODB_URI"
+    try:
+        from pymongo import MongoClient
+    except ImportError:
+        return {}, "pymongo is not installed (requirements-archive.txt)"
+    ms = int(TIMEOUT_SECONDS * 1000)
+    out: dict = {"user": user}
+    client = None
+    try:
+        client = MongoClient(uri, appname="fam-keith", maxPoolSize=1,
+                             serverSelectionTimeoutMS=ms, connectTimeoutMS=ms,
+                             socketTimeoutMS=ms)
+        admin = client["admin"]
+        try:
+            out["atlas_size"] = float(admin.command({"atlasSize": 1})["atlasSize"])
+        except Exception as exc:  # noqa: BLE001
+            out["atlas_size_why"] = f"atlasSize refused: {type(exc).__name__}"
+        try:
+            status = admin.command({"serverStatus": 1})
+            out["connections"] = int(status["connections"]["current"])
+        except Exception as exc:  # noqa: BLE001
+            out["connections_why"] = f"serverStatus refused: {type(exc).__name__}"
+        return out, ""
+    except Exception as exc:  # noqa: BLE001 - a monitor never raises
+        return {}, f"the database did not answer: {type(exc).__name__}"
+    finally:
+        if client is not None:
+            client.close()
+
+
+async def read_atlas(now: Optional[datetime.datetime] = None,
+                     client=None, database=None) -> dict:
+    """MongoDB Atlas: the archive's Flex cluster against Flex's limits.
+
+    The Admin API (a Project Read Only key, Digest auth) says the cluster's
+    state and its storage limit; the cluster itself says what is used. On a
+    Flex cluster the Admin API offers no per-process figures, so operations a
+    second are not read here - said, not guessed.
+    """
+    import asyncio
+
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    at = now.timestamp()
+    if (settings.archive_backend or "").strip().lower() != "atlas":
+        return reading("atlas", [], ok=False, at=at,
+                       why="the archive is not on Atlas (ARCHIVE_BACKEND)")
+    described, api_why = await _atlas_cluster(client, now)
+    if database is None:
+        found, db_why = await asyncio.to_thread(_atlas_database)
+    else:
+        found, db_why = database()
+    if described is None and not found:
+        return reading("atlas", [], ok=False, at=at,
+                       why="; ".join(w for w in (api_why, db_why) if w))
+    limit_gb = None
+    if described:
+        limit_gb = (described.get("providerSettings") or {}).get("diskSizeGB")
+    source = "the Admin API" if limit_gb else "Flex's published limit"
+    limit_gb = float(limit_gb or FLEX_STORAGE_GB)
+    figures = []
+    if "atlas_size" in found:
+        figures.append(figure("storage used", round(found["atlas_size"] / 1e9, 4),
+                              "GB", "now", limit=limit_gb, limit_source=source,
+                              next_plan=FLEX_NEXT))
+    if "connections" in found:
+        figures.append(figure("connections", found["connections"], "connections",
+                              "now", limit=FLEX_CONNECTIONS,
+                              limit_source="Flex's published limit",
+                              next_plan=FLEX_NEXT))
+    detail = {"state": (described or {}).get("stateName"),
+              "cluster": (described or {}).get("name") or settings.atlas_cluster,
+              "read_with": found.get("user"),
+              "not_read": [w for w in (api_why, db_why, found.get("atlas_size_why"),
+                                       found.get("connections_why"),
+                                       "operations a second: no Admin API figure on Flex")
+                           if w]}
+    return reading("atlas", figures, at=at, detail=detail)
+
+
 #: Every monitor built, by service.
-MONITORS = {"runpod": read_runpod}
+MONITORS = {"runpod": read_runpod, "atlas": read_atlas}
 
 
 # ------------------------------------------------------------------- running
