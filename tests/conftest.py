@@ -259,13 +259,15 @@ FAM_ENVIRONMENT = (
     "SUPERVISOR_GROUNDING_HIGH", "SUPERVISOR_GROUNDING_LOW",
     "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", "SUPERVISOR_SCREEN_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
-    # §473: Keith's usage monitors.
+    # §483: Keith's usage monitors.
     "IT_BUDGETS", "IT_WARN_SHARE", "IT_URGENT_SHARE",
-    # §474: Atlas's monitor.
+    # §488: Keith's incidents.
+    "IT_WATCH_SECONDS", "IT_INCIDENT_ERRORS",
+    # §484: Atlas's monitor.
     "ATLAS_PROJECT_ID", "ATLAS_CLUSTER", "ATLAS_API_URL",
-    # §475: R2's monitor.
+    # §485: R2's monitor.
     "CLOUDFLARE_GRAPHQL_URL",
-    # §476: Render's monitor.
+    # §486: Render's monitor.
     "RENDER_API_URL", "RENDER_SERVICE_ID", "RENDER_POSTGRES_NAME",
     "RENDER_BANDWIDTH_INCLUDED_GB",
     # §397: whose material Consuela may store.
@@ -629,9 +631,13 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
 
     monkeypatch.setenv("PIPELINE_ERRORS_DB",
                        str(tmp_path / "stores" / "pipeline_errors.db"))
+    import incidents
+
     pipeline_errors.reset()
+    incidents.reset()          # Keith's incidents share its database (§488)
     yield
     pipeline_errors.reset()
+    incidents.reset()
 
 
 @pytest.fixture(autouse=True)

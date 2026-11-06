@@ -1528,7 +1528,7 @@ async def compose(signals: list, now: Optional[float] = None) -> list:
                     len(signals))
         return [template(s, now) for s in signals]
 
-    # The day's spend (§471): the composer's answer is folded in nowhere else.
+    # The day's spend (§481): the composer's answer is folded in nowhere else.
     import metering
 
     metering.count_call("story composer", settings.stories_model,

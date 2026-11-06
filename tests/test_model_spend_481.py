@@ -1,4 +1,4 @@
-"""Keith's first fixes, piece 1b: the day's model spend (§471).
+"""Keith's first fixes, piece 1b: the day's model spend (§481).
 
 Only a listener's episodes and the agents reached `metering`'s ledger:
 editions, prefetch, the story composer, the category placer, the thumbnails
@@ -96,7 +96,7 @@ def test_spend_is_attributed_to_the_job_that_spent_it():
 
 
 def test_claude_s_figure_is_claude_s_alone():
-    """The review (§471): searches, paid live data and pictures share the
+    """The review (§481): searches, paid live data and pictures share the
     table, and were in "Claude spent today"."""
     metering.Usage().add_research(1, 0.005)
     metering.Usage().add_live_call(1, 0.01)
@@ -108,7 +108,7 @@ def test_claude_s_figure_is_claude_s_alone():
 
 
 def test_a_call_made_without_notes_is_counted_all_the_same():
-    """The review (§471): the writer and the brief folded their answer into
+    """The review (§481): the writer and the brief folded their answer into
     the notes only when there were notes."""
     metering.fold_call(None, "claude-haiku-5-5", _Usage(i=1_000_000))
     notes = type("Notes", (), {"usage": metering.Usage()})()
@@ -191,7 +191,7 @@ def test_every_claude_call_in_fam_reaches_the_days_spend():
     """Derived from the code, not listed by hand: every request to Claude in
     FAM's modules has, in the same function, a call that counts its answer
     (`add_model_call`, `count_call` or `fold_call`). Tightened by the review
-    (§471): it once looked for the words in the next 60 lines."""
+    (§481): it once looked for the words in the next 60 lines."""
     import ast
 
     missing = []

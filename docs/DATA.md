@@ -128,7 +128,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **trending_bank.db** (`TRENDING_BANK_DB`) | `trending_bank.py` | `editions`, `spend` | No, shared | 2 editions per day (+ startup slots) | n/a · **Wiped** |
 | **provider_usage.db** (`PROVIDER_USAGE_DB`) | `provider_usage.py` | `calls` | No, shared | Forever | n/a · **never wiped** (like metering) |
 | **live_routing.db** (`LIVE_ROUTING_DB`, §264) | `live_routing.py` | `episodes` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
-| **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py` | `errors` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
+| **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py`; `incidents.py` (§488) | `errors`, `steps`, `refusals`; Keith's `incidents` (one row per cause, kept 90 days after closing) | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **episode_quality.db** (`EPISODE_QUALITY_DB`, §309) | `episode_quality.py` (`QualityStore`) | `episodes`, `listens`, `labels` | `listens` only (the account that listened); `episodes` holds the typed question | 180 days (`KEEP_DAYS`); the evidence text until graded, at most 14 days (`EVIDENCE_DAYS`) | `listens` erased · **Wiped** |
 | **x_threads.db** (`X_THREADS_DB`, §321) | `x_threads.py` (`Store`) | `candidates`, `runs` | No listener; holds public X posts and their authors' handles | 7 days (`KEEP_DAYS`); runs 30 days | n/a · kept |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
@@ -311,20 +311,20 @@ stored**; it is computed from `events` and `preferences` on each request.
 **provider_usage.db** (`provider_usage.py`, §179): `calls` per UTC day per
 provider: `balldontlie` (and `balldontlie/<league>` per league, §275, §280), `parallel`, `perplexity`,
 `gdelt`, `polymarket`, `gnews`, `tiingo`, `wikidata`, `wikipedia`,
-`wikimedia_enterprise`, `nws`, `open_meteo`, `local_feeds`, and since §470
+`wikimedia_enterprise`, `nws`, `open_meteo`, `local_feeds`, and since §480
 `x`, `anthropic` (every Claude request, counted at the client; `/messages`,
 `/batches`), `gemini` (`/images`, `/model list`) and `r2` (`/class A`,
 `/class B`, `/delete (free)`). Counted in memory and flushed at most every
 10 s (`FLUSH_SECONDS`); a failed write keeps the counts and is said on the
-row and in `/api/health` → `tracking` (§470). Each limit is also a number
+row and in `/api/health` → `tracking` (§480). Each limit is also a number
 (`allowances()`): a daily or monthly quota with what was used and the share,
-a rate with none, or None. Feeds `/admin`. Its second table, `spend` (§471),
+a rate with none, or None. Feeds `/admin`. Its second table, `spend` (§481),
 is what model calls cost per UTC day by `source` (`episodes`, `edition:*`,
 `prefetch`, `agent:<role>`, the composer, the placer, thumbnails...) and model:
 calls, tokens, dollars at `metering.PRICES`, and calls with no price
 (`unpriced`, never $0). Every Claude answer is counted once there
 (`metering.Usage.add_model_call`, `metering.count_call`); no listener id.
-Its third, `monitor_readings` (§473), is Keith's usage monitors' readings of
+Its third, `monitor_readings` (§483), is Keith's usage monitors' readings of
 each service's own figures (RunPod's spend so far), one row per reading as
 JSON, kept 90 days. Since §211 `gdelt` counts the export-file downloads (~200 a day,
 whatever the traffic), never a listener's request. The licence check (§207, `provider_usage.licences()`) stores
@@ -509,8 +509,8 @@ source of truth.
 | Live facts | `live_facts.FACT_CACHE` | Scores, quotes, odds | Short, by status (in progress shortest) |
 | Sports sweep and scoreboard | `balldontlie_scores.CARDS`, `TEAMS`, `STANDINGS`, `SCHEDULES`, `SWEPT_AT` | Today's cards, catalogues, tables, schedules (§277) | 10 min to a day, per process |
 | GDELT download state | `gdelt.STATE` | Last success, last attempt, failures in a row, last error, last file (§211; the §207 breaker is deleted) | Process lifetime |
-| Provider counts (pending) | `provider_usage._PENDING`, `_PENDING_SPEND` | Requests and model spend not yet flushed to `provider_usage.db`; how writing has gone (`status()`, §470) | ≤ 10 s, or until a failed write succeeds |
-| Pipeline error rows (pending) | `pipeline_errors._PENDING*` | Errors, steps and refusals not yet written; past 2,000 of each the oldest are dropped and counted (`status()`, §472) | ≤ 10 s, or until a failed write succeeds |
+| Provider counts (pending) | `provider_usage._PENDING`, `_PENDING_SPEND` | Requests and model spend not yet flushed to `provider_usage.db`; how writing has gone (`status()`, §480) | ≤ 10 s, or until a failed write succeeds |
+| Pipeline error rows (pending) | `pipeline_errors._PENDING*` | Errors, steps and refusals not yet written; past 2,000 of each the oldest are dropped and counted (`status()`, §482) | ≤ 10 s, or until a failed write succeeds |
 | Weather lookups | `weather._POINTS`, `weather._PLACES` | NWS grid points, resolved places | Process lifetime |
 | robots.txt | `local_news._ROBOTS` | Per-host robots answers | Process lifetime |
 | Engagement table | `topics._ENGAGEMENT_CACHE` | Global click-through per tile | Rebuilt every 5 min |

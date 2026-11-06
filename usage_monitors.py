@@ -1,4 +1,4 @@
-"""Keith's usage monitors: each service's own usage, against the owner's plan (§473).
+"""Keith's usage monitors: each service's own usage, against the owner's plan (§483).
 
 keith.md "always" 6: "Watch every plugin's usage against its limits - data
 providers, Claude, Gemini, MongoDB Atlas, Render, RunPod and Cloudflare - and
@@ -27,8 +27,8 @@ are kept in `provider_usage.db` (`monitor_readings`, 90 days).
 **Never raises.** A service that does not answer, or answers in a shape not
 understood, is a reading with `ok: false` and why - never a figure of 0.
 
-Built: RunPod (2a, §473), Atlas (2b, §474), Cloudflare R2 (2c, §475),
-Render (2d, §476), and Claude from FAM's own spend count (§477).
+Built: RunPod (2a, §483), Atlas (2b, §484), Cloudflare R2 (2c, §485),
+Render (2d, §486), and Claude from FAM's own spend count (§487).
 """
 from __future__ import annotations
 
@@ -501,7 +501,7 @@ async def read_r2(now: Optional[datetime.datetime] = None, client=None) -> dict:
 
 # --------------------------------------------------------------------- Render
 #: The next plan up from the owner's, as the dashboard priced them
-#: (2026-11-06, §473). Render's API names a plan; anything not here says
+#: (2026-11-06, §483). Render's API names a plan; anything not here says
 #: where to look rather than guess a price.
 RENDER_NEXT = {
     # Web services ("compute plans").
@@ -677,10 +677,10 @@ async def read_render(now: Optional[datetime.datetime] = None, client=None) -> d
 # --------------------------------------------------------------------- Claude
 async def read_anthropic(now: Optional[datetime.datetime] = None,
                          client=None) -> dict:
-    """Claude: what FAM's own spend table says Claude cost (§471) - today,
+    """Claude: what FAM's own spend table says Claude cost (§481) - today,
     yesterday and this UTC month, Claude's models alone - against the
     owner's monthly figure in `IT_BUDGETS` (`anthropic=`). The console shows
-    the owner no Limits page (§473), so FAM's count is the figure; nothing
+    the owner no Limits page (§483), so FAM's count is the figure; nothing
     is asked of Anthropic. Calls with no price are said beside it."""
     import provider_usage
 

@@ -40,7 +40,7 @@ log = logging.getLogger("provider_usage")
 
 DAY = 86400
 
-#: The services the admin page reports, in the order it draws them. §470:
+#: The services the admin page reports, in the order it draws them. §480:
 #: X, Claude, Google's image model and the R2 bucket were spent on and never
 #: reported (X was counted and not shown; the other three were not counted).
 PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket",
@@ -68,12 +68,12 @@ LABELS = {
     "nws": "National Weather Service",
     "open_meteo": "Open-Meteo",
     "local_feeds": "Local news feeds",
-    # §470: every Claude request, counted at the client (`anthropic_client`),
+    # §480: every Claude request, counted at the client (`anthropic_client`),
     # and what it cost from `metering` (the `spend` table below).
     "anthropic": "Claude (Anthropic)",
-    # §470: the tile pictures' image model (`thumbnails._google_post`).
+    # §480: the tile pictures' image model (`thumbnails._google_post`).
     "gemini": "Google image model",
-    # §470: the audio and picture bucket (`audio_store.R2AudioStore`), by
+    # §480: the audio and picture bucket (`audio_store.R2AudioStore`), by
     # Cloudflare's operation class.
     "r2": "Cloudflare R2",
 }
@@ -144,13 +144,13 @@ def _plans() -> dict:
         "local_feeds": (
             "free; one conditional request per feed per poll",
             "no paid plan"),
-        # §470: billed per post read; FAM's own daily stop is counted in
+        # §480: billed per post read; FAM's own daily stop is counted in
         # posts by `x_threads`, so its row's allowance reads that store.
         "x": (
             f"pay per post read; FAM stops at "
             f"{int(settings.x_threads_daily_reads):,} posts/day (X_THREADS_DAILY_READS)",
             "a higher X_THREADS_DAILY_READS; X bills each post read"),
-        # §470: the account's usage tier sets its rate and monthly spend
+        # §480: the account's usage tier sets its rate and monthly spend
         # limits; which tier this deploy is on is not copied here yet.
         "anthropic": (
             "the usage tier's rate and monthly spend limits (tier not recorded here)",
@@ -205,7 +205,7 @@ def _allowance(count, period: str, unit: str = "requests") -> dict:
 
 
 def allowances() -> dict:
-    """provider (or provider/part) -> its limit as a number, or None (§470).
+    """provider (or provider/part) -> its limit as a number, or None (§480).
 
     The sentences in `_plans` say what each plan allows; nothing could be
     measured against them, so no warning could say "80% of the limit". These
@@ -356,7 +356,7 @@ def provider_for_host(host: str) -> str:
 
 class UsageStore:
     """`calls(day, provider, requests, failures)`, one row per provider-day;
-    `spend(day, source, model, ...)`, what the model calls cost per day (§471).
+    `spend(day, source, model, ...)`, what the model calls cost per day (§481).
     """
 
     def __init__(self, path: Optional[str] = None) -> None:
@@ -369,7 +369,7 @@ class UsageStore:
                               requests INTEGER NOT NULL DEFAULT 0,
                               failures INTEGER NOT NULL DEFAULT 0,
                               PRIMARY KEY (day, provider))""")
-            # §471: every model call's tokens and dollars, per UTC day, by
+            # §481: every model call's tokens and dollars, per UTC day, by
             # what spent it (`source`) and on which model - the listener's
             # episodes, the editions, prefetch, the composer, the agents.
             # `metering`'s ledger is per listener episode; this is the whole
@@ -388,7 +388,7 @@ class UsageStore:
                               usd                REAL NOT NULL DEFAULT 0,
                               unpriced           INTEGER NOT NULL DEFAULT 0,
                               PRIMARY KEY (day, source, model))""")
-            # §473: each usage monitor's reading of a service's own figures
+            # §483: each usage monitor's reading of a service's own figures
             # (RunPod's spend, Atlas's storage...), one row per reading, kept
             # `READINGS_DAYS`. `payload` is the reading as JSON.
             db.execute("""CREATE TABLE IF NOT EXISTS monitor_readings (
@@ -489,7 +489,7 @@ class UsageStore:
             db.execute("DELETE FROM monitor_readings")
 
 
-#: How long a monitor's readings are kept (§473).
+#: How long a monitor's readings are kept (§483).
 READINGS_DAYS = 90
 
 #: The spend table's summed columns, in order.
@@ -530,7 +530,7 @@ def reset(usage_store: Optional[UsageStore] = None) -> None:
 def exists() -> bool:
     """Whether there is anything to report. Reading never creates the store.
 
-    §470: asks `db.has_tables`, which knows Postgres. It asked for the SQLite
+    §480: asks `db.has_tables`, which knows Postgres. It asked for the SQLite
     file, which a Postgres deployment never has, so after every deploy the
     admin page read no usage at all until the first request was counted.
     """
@@ -546,13 +546,13 @@ def exists() -> bool:
 FLUSH_SECONDS = 10.0
 
 _PENDING: dict = {}
-#: Model spend not yet written (§471): (day, source, model) -> SPEND_FIELDS.
+#: Model spend not yet written (§481): (day, source, model) -> SPEND_FIELDS.
 _PENDING_SPEND: dict = {}
 _PENDING_LOCK = threading.Lock()
 _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
 
-#: How writing the counts has gone since this server started (§470). A write
+#: How writing the counts has gone since this server started (§480). A write
 #: that failed used to be a log line and nothing else; the counts waited in
 #: memory and nothing on /admin or /api/health said they were behind.
 _WRITES_EMPTY = {"last_written_at": None, "failures": 0,
@@ -626,7 +626,7 @@ def spend(source: str, model: str, *, input_tokens: int = 0,
           output_tokens: int = 0, cache_read_tokens: int = 0,
           cache_write_tokens: int = 0, usd: Optional[float] = None,
           calls: int = 1) -> None:
-    """Count what one model call cost (§471). Never raises, never waits.
+    """Count what one model call cost (§481). Never raises, never waits.
 
     Called by `metering.Usage.add_model_call` for every Claude answer and by
     the few calls that price themselves (the image model). `usd` None means
@@ -680,7 +680,7 @@ def _failed(what: str, exc: BaseException) -> None:
         _WRITES["failures"] += 1
         _WRITES["last_failure_at"] = time.time()
         # The kind of error only: /api/health is public, and a database's
-        # message can name its host and user (the review, §470). The whole
+        # message can name its host and user (the review, §480). The whole
         # message is in the log line above.
         _WRITES["last_failure"] = f"could not {what} the store: {type(exc).__name__}"
 
@@ -712,7 +712,7 @@ def _flush_locked() -> None:
         return
     try:
         # The spend only when there is some: a store's `add` took the
-        # counts alone before §471, and a stand-in for one still may.
+        # counts alone before §481, and a stand-in for one still may.
         if spent:
             target.add(taken, spent)
         else:
@@ -737,7 +737,7 @@ def _flush_locked() -> None:
 
 
 def status() -> dict:
-    """How the counts are being kept (§470), for /api/health and /admin.
+    """How the counts are being kept (§480), for /api/health and /admin.
 
     `behind` is true while counts are waiting in memory after a failed write
     or open - the store is behind, and the page's numbers are short by
@@ -786,7 +786,7 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
 
     `today` and `yesterday` are UTC days; `average` is over the last `days`
     days including today, so a service that has only just been switched on
-    reads low rather than high. `allowance` (§470) is the limit as a number,
+    reads low rather than high. `allowance` (§480) is the limit as a number,
     with what was used of it and the share for a daily or monthly quota.
     """
     now = time.time() if now is None else now
@@ -851,13 +851,13 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
 
 def is_claude(model: str) -> bool:
     """Whether a spend row's model is Claude's: Anthropic's bills are
-    measured on these alone (the review, §471)."""
+    measured on these alone (the review, §481)."""
     model = str(model or "").lower()
     return model.startswith("claude-") or model.startswith("anthropic:")
 
 
 def spend_report(now: Optional[float] = None) -> Optional[dict]:
-    """What was spent (§471): today, yesterday and this UTC month, in dollars
+    """What was spent (§481): today, yesterday and this UTC month, in dollars
     at `metering.PRICES` and the providers' own rates, by source and by
     model, with the calls no rate covers. `claude` is Claude's models alone -
     what Anthropic bills and its limit measures; `all` adds the paid
@@ -918,7 +918,7 @@ def spend_report(now: Optional[float] = None) -> Optional[dict]:
 #: Providers whose requests are also counted by part (`record(detail=...)`),
 #: each part a row under the provider: BALLDONTLIE by league (§275), GDELT
 #: by which file it fetched (10.16 #4), so "why so many" is on the page;
-#: the image model by what was asked and R2 by operation class (§470).
+#: the image model by what was asked and R2 by operation class (§480).
 BROKEN_DOWN = {
     "balldontlie": ("the account's plan", "shared by every league"),
     "gdelt": ("part of the ~200/day", "what the requests were for"),

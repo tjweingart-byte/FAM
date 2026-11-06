@@ -2219,16 +2219,21 @@ class Settings:
                 "fam,gdelt,tiingo,balldontlie,perplexity,gnews").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
-    # **Keith's usage monitors** (§473, keith.md "always" 6): the owner's
+    # **Keith's usage monitors** (§483, keith.md "always" 6): the owner's
     # monthly budget per service in dollars, "runpod=300,anthropic=200".
     # Empty: the spend is shown with no share of anything. A warning at
     # IT_WARN_SHARE of a limit, urgent at IT_URGENT_SHARE or when the month's
     # pace will pass it. Read hourly, only while IT_AGENT is on.
     it_budgets: str = field(
         default_factory=lambda: os.environ.get("IT_BUDGETS", "").strip())
+    # Keith's incidents (§488): how often a round reads FAM's records (never
+    # faster than Netenyahu's own tick), and how many of one kind of error in
+    # an hour open an incident.
+    it_watch_seconds: float = _env_float("IT_WATCH_SECONDS", 300.0)
+    it_incident_errors: int = _env_int("IT_INCIDENT_ERRORS", 3)
     it_warn_share: float = _env_float("IT_WARN_SHARE", 0.80)
     it_urgent_share: float = _env_float("IT_URGENT_SHARE", 0.95)
-    # Atlas's monitor (§474): which project and cluster the Admin API is asked
+    # Atlas's monitor (§484): which project and cluster the Admin API is asked
     # about. Not secrets; its read-only key pair, ATLAS_PUBLIC_KEY and
     # ATLAS_PRIVATE_KEY, comes through FAM_SECRETS.
     atlas_project_id: str = field(
@@ -2238,9 +2243,9 @@ class Settings:
     atlas_api_url: str = field(
         default_factory=lambda: os.environ.get(
             "ATLAS_API_URL", "https://cloud.mongodb.com").strip())
-    # R2's monitor (§475): Cloudflare's GraphQL analytics, read with
+    # R2's monitor (§485): Cloudflare's GraphQL analytics, read with
     # CLOUDFLARE_ANALYTICS_TOKEN (FAM_SECRETS) for the account R2_ACCOUNT_ID.
-    # Render's monitor (§476): the API, the `fam` service and its Postgres
+    # Render's monitor (§486): the API, the `fam` service and its Postgres
     # instance by name, read with RENDER_API_KEY (FAM_SECRETS); the workspace's
     # included outbound bandwidth, copied from the owner's Billing page
     # (Pro: 25 GB, 2026-11-06).

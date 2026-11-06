@@ -1,4 +1,4 @@
-"""Keith's usage monitors, piece 2c: Cloudflare R2 (§475).
+"""Keith's usage monitors, piece 2c: Cloudflare R2 (§485).
 
 The whole account's operations this month by billing class and its storage,
 from Cloudflare's GraphQL analytics, against R2's free monthly allowance,
@@ -136,7 +136,7 @@ def test_staging_never_holds_the_token_and_r2_is_a_monitor():
 
 
 def test_the_charge_is_projected_from_the_operations_pace(r2, monkeypatch):
-    """The review (§477): 900k Class A by the 10th costs nothing yet, but is
+    """The review (§487): 900k Class A by the 10th costs nothing yet, but is
     on pace for 2.7M - $7.65 past the allowance - and passes a $5 budget."""
     use(monkeypatch, it_budgets="r2=5")
     charge = by_name(read(cloudflare({"PutObject": 900_000}, storage_bytes=1e9)[0]))[

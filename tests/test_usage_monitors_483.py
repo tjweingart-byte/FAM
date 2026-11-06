@@ -1,4 +1,4 @@
-"""Keith's usage monitors, piece 2a: the common part and RunPod's spend (§473).
+"""Keith's usage monitors, piece 2a: the common part and RunPod's spend (§483).
 
 keith.md "always" 6: watch each service's usage against its limits and warn
 at 80%, urgently at 95% or when a limit will run out before it resets. The
@@ -211,7 +211,7 @@ def test_health_says_the_budgets_and_the_shares():
 
 
 def test_a_day_runpod_has_not_billed_yet_is_unknown_not_zero(key):
-    """The review (§477): no row for today read as $0.00."""
+    """The review (§487): no row for today read as $0.00."""
     got = read(billing({"2026-11-08": (4.0, 4.0)})[0])
     assert by_name(got)["spend today"]["value"] is None
     assert by_name(got)["spend yesterday"]["value"] is None
@@ -219,7 +219,7 @@ def test_a_day_runpod_has_not_billed_yet_is_unknown_not_zero(key):
 
 
 def test_claude_is_measured_from_fam_s_own_count_against_its_budget(monkeypatch, tmp_path):
-    """The review (§477): `anthropic=` in IT_BUDGETS was read and never used."""
+    """The review (§487): `anthropic=` in IT_BUDGETS was read and never used."""
     import metering
 
     provider_usage.reset(provider_usage.UsageStore(str(tmp_path / "u.db")))

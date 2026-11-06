@@ -229,7 +229,7 @@ class Usage:
         are; the discount is kept beside them in dollars, so a report still
         says how much was read and written and what it actually cost.
 
-        **Every call is also counted in the day's spend** (§471,
+        **Every call is also counted in the day's spend** (§481,
         `provider_usage.spend`), by `source`: the ledger below holds a
         listener's episodes and the agents' calls, while editions, prefetch
         and the background calls priced themselves somewhere else or not at
@@ -265,7 +265,7 @@ class Usage:
     def add_research(self, searches: int, cost: float) -> None:
         self.web_searches += int(searches or 0)
         self.web_search_cost += float(cost or 0.0)
-        # The day's spend too (§471): searches are billed per request.
+        # The day's spend too (§481): searches are billed per request.
         if searches or cost:
             _count_billed("web searches", searches, cost)
 
@@ -280,7 +280,7 @@ class Usage:
         return asdict(self)
 
 
-#: What is spending, for the day's spend (§471): set by a background job at
+#: What is spending, for the day's spend (§481): set by a background job at
 #: its entry (`spend_source("edition:trending")`), inherited by every task it
 #: starts; unset, a call is a listener's episode.
 _SOURCE: contextvars.ContextVar = contextvars.ContextVar("fam_spend_source",
@@ -309,7 +309,7 @@ def spend_source(name: str):
 
 def fold_call(notes, model: str, usage: object, batched: bool = False) -> None:
     """One answer's tokens into `notes.usage` when there are notes, else
-    straight into the day's spend (§471, the review): a call made without
+    straight into the day's spend (§481, the review): a call made without
     notes - a warm-up, a script streamed on its own - was billed and counted
     nowhere. Never raises."""
     folded = getattr(notes, "usage", None) if notes is not None else None
@@ -321,7 +321,7 @@ def fold_call(notes, model: str, usage: object, batched: bool = False) -> None:
 
 def count_call(source: str, model: str, usage: object,
                batched: bool = False) -> None:
-    """Count one model answer in the day's spend (§471). Never raises.
+    """Count one model answer in the day's spend (§481). Never raises.
 
     For a call whose answer is not folded into any `Usage` (the story
     composer, the category placer, the thumbnails' scenes and checks, the
@@ -351,7 +351,7 @@ def count_call(source: str, model: str, usage: object,
 
 
 def _count_billed(what: str, calls: int, cost: float) -> None:
-    """A search or live call's billed dollars in the day's spend (§471)."""
+    """A search or live call's billed dollars in the day's spend (§481)."""
     try:
         import provider_usage
 

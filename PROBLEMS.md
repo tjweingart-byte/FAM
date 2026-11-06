@@ -29835,13 +29835,13 @@ sentences, the tandem's outcomes, the trial's progress). The Phase 3 prompt
 (`docs/PHASE3_FIRST_PROMPT.md`) is deleted, as it said to be when Phase 3
 was finished.
 
-## 470. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05)
+## 480. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05)
 
 Phase 4 opens with decided item 7 and keith.md "always" 12: "your first fixes
 are to the records FAM keeps of its errors and of how much each plugin is
 used". The audit came first and went to the owner as a list; the owner said
-"Do 1a-1c". This is 1a, `provider_usage`; §471 is the money (`metering`) and
-§472 the error rows (`pipeline_errors`). Nothing here is an agent: Keith
+"Do 1a-1c". This is 1a, `provider_usage`; §481 is the money (`metering`) and
+§482 the error rows (`pipeline_errors`). Nothing here is an agent: Keith
 stays off, and these are the records he will read.
 
 **What the audit found in `provider_usage`, and what changed:**
@@ -29903,16 +29903,16 @@ diagnosis for whoever is looking now); no plan figure was guessed - the
 published ones were already in `_plans`, and R2's free tier and prices are
 Cloudflare's published ones.
 
-Tests: `tests/test_usage_tracking_470.py` (the four new rows; every limit a
+Tests: `tests/test_usage_tracking_480.py` (the four new rows; every limit a
 number or None; a month measured over the month; X in posts; `exists` asks
 the database; a failed write said on the row and on health, kept, then
 written; a store that will not open; Claude counted at the client; R2 by
 class; image requests), and `tests/test_provider_usage_179.py`'s list of rows
 extended.
 
-## 471. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05)
+## 481. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05)
 
-The second of Keith's first fixes (§470): "spend in `metering` not counted
+The second of Keith's first fixes (§480): "spend in `metering` not counted
 as usage". `metering`'s ledger is one row per listener episode (`app.py`,
 `METER.record`) plus one per agent call (§347). Everything else that spent on
 Claude reached it nowhere: the Trending, DailyFAM and rails editions and
@@ -29972,15 +29972,15 @@ daily figure beside Claude's - which this fixes.
 append-only), the per-listener and per-episode figures, and every price.
 Nothing new is called; counting never fails a call.
 
-Tests: `tests/test_model_spend_471.py` (an answer in the day's spend at the
+Tests: `tests/test_model_spend_481.py` (an answer in the day's spend at the
 list price; unpriced counted unpriced; the batch price; an answer folded twice
 counted once; the job that spent it; an agent's call with notes counted once
 under the agent; every Claude call in FAM reaches the spend; the table on
 Postgres).
 
-## 472. Phase 4, piece 1c: the error rows keep their own record (2026-11-05)
+## 482. Phase 4, piece 1c: the error rows keep their own record (2026-11-05)
 
-The third of Keith's first fixes (§470): `pipeline_errors`, the store `/admin`
+The third of Keith's first fixes (§480): `pipeline_errors`, the store `/admin`
 reads to say what went wrong.
 
 1. **Rows were dropped with no trace.** While the store could not be written,
@@ -29991,7 +29991,7 @@ reads to say what went wrong.
    write landed, how many failed, the last error, how many rows are waiting
    and how many were dropped; `behind` is true while rows wait after a
    failure, or once any was dropped. `/api/health` reports it (`tracking` →
-   `pipeline_errors`, beside §470's `provider_usage`) and the report carries
+   `pipeline_errors`, beside §480's `provider_usage`) and the report carries
    it as `tracking`.
 3. **The page could not show its own trouble.** It reads this store, and the
    store's trouble is never a row in it. While it is behind, the report puts
@@ -30009,15 +30009,15 @@ reads to say what went wrong.
 A write that fails still keeps its rows and tries again (unchanged); a flush
 with nothing waiting no longer opens the store.
 
-Tests: `tests/test_error_tracking_472.py` (dropped rows counted and shown at
+Tests: `tests/test_error_tracking_482.py` (dropped rows counted and shown at
 the top of the page with words; a failed write kept and said, then written;
 the agents and audio stages explained; health's `tracking`).
 
-## 473. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06)
+## 483. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06)
 
 Item 2 of Phase 4 (keith.md "always" 6): watch each service's own usage
 against the owner's plan - warn at 80%, urgently at 95% or when a limit will
-run out before it resets, with the next plan's price. `provider_usage` (§470)
+run out before it resets, with the next plan's price. `provider_usage` (§480)
 counts what FAM sends; these read what each service itself says. Piece 2a is
 the common part and RunPod.
 
@@ -30070,7 +30070,7 @@ built a "wrong" approval by putting "0" at the end of the right one - which
 failed this piece's first full check; it now changes the last character to
 one that differs.
 
-Tests: `tests/test_usage_monitors_473.py` (RunPod's spend read from its
+Tests: `tests/test_usage_monitors_483.py` (RunPod's spend read from its
 billing; no budget, no share; a budget's share, projection and levels; a pace
 that passes the budget is urgent; the first days not projected; a budget that
 does not read is ignored; a refusal said without its body; an answer not
@@ -30079,10 +30079,10 @@ monitor that raises; hourly only while Keith is on; the handler gated;
 health), `tests/test_agents_model_layer.py` (the monitors may reach Netenyahu
 and the roster, as the tag check does).
 
-## 474. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06)
+## 484. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06)
 
 The archive's cluster, `fam-archive` in project `6add48a0a599673c1877a727`, is
-**Flex** (§473's figures). MongoDB's own pages (read 2026-11-06,
+**Flex** (§483's figures). MongoDB's own pages (read 2026-11-06,
 `atlas/billing/atlas-flex-costs`, `atlas/reference/flex-limitations`): 5 GB of
 data and indexes, at most 500 connections, 500 operations a second as a hard
 limit, $8-$30 a month by operations a second, no storage auto-scaling, and the
@@ -30104,7 +30104,7 @@ second are not read: said in the reading, never guessed.
 **Figures:** storage used against 5 GB (the Admin API's figure, or Flex's
 published one when the API does not answer - said which), connections
 against 500, each with the next tier; `warn` at 80%, `urgent` at 95% as
-§473. Anything that could not be read is listed in the reading's
+§483. Anything that could not be read is listed in the reading's
 `not_read`; a reading with nothing read is `ok: false` with every reason.
 Nothing is asked unless `ARCHIVE_BACKEND=atlas`; without the key pair the
 Admin API is not asked and the cluster's own figures still are. An error
@@ -30112,19 +30112,19 @@ body is never kept. `ATLAS_PUBLIC_KEY` and `ATLAS_PRIVATE_KEY` join
 `spend_guard.PAID_CREDENTIALS` - free to use, but production's account, so
 staging never holds them.
 
-Tests: `tests/test_usage_monitors_atlas_474.py` (the request and the figures;
+Tests: `tests/test_usage_monitors_atlas_484.py` (the request and the figures;
 warn and urgent; the published limit when the Admin API refuses, and the key
 never kept; what the cluster refuses said; nothing answering; a cluster no
 longer Flex; nothing asked off Atlas or without keys; staging; the read-only
 user first and the client closed, the archive's user said when used), and
-§473's poll test pinned to RunPod alone now there are two monitors. The
+§483's poll test pinned to RunPod alone now there are two monitors. The
 first full check caught the two keys listed among the settings the tests
 clear for `config.py`: they are read through `credentials`, not `config.py`,
 so `tests/test_hermetic.py` refused them there.
 
-## 475. Phase 4, piece 2c: Cloudflare R2 in Keith's usage monitors (2026-11-06)
+## 485. Phase 4, piece 2c: Cloudflare R2 in Keith's usage monitors (2026-11-06)
 
-The owner's account is on **R2 Paid** (§473). Cloudflare's published prices
+The owner's account is on **R2 Paid** (§483). Cloudflare's published prices
 (read 2026-11-06, `developers.cloudflare.com/r2/pricing`): each month 1M Class
 A operations, 10M Class B and 10 GB-month of storage free, **for Standard
 storage only**; past that $4.50 per million Class A, $0.36 per million Class
@@ -30140,14 +30140,14 @@ Analytics: Read - `CLOUDFLARE_ANALYTICS_TOKEN` through `FAM_SECRETS` - for
 (`r2OperationsAdaptiveGroups`) and the latest storage
 (`r2StorageAdaptiveGroups`), for the **whole account**, because the free
 allowance is the account's. Counted by Cloudflare, so the replays a
-listener's app fetches from a signed link (§252) - which §470's counts at
+listener's app fetches from a signed link (§252) - which §480's counts at
 `audio_store` never see - are in it.
 
 **Figures:** Class A and Class B operations this month against the
 allowance, sorted by Cloudflare's own lists (an operation kind it does not
 list is counted apart and named, never guessed into a class); storage now
 against 10 GB; and the **estimated charge this month** past the allowance at
-the Standard prices, against `IT_BUDGETS`' `r2` when set. Levels as §473:
+the Standard prices, against `IT_BUDGETS`' `r2` when set. Levels as §483:
 operations projected over the month, so a pace that passes the allowance is
 urgent before it does. **Approximate for storage, and said so in the
 reading:** these datasets give storage for all classes together, the
@@ -30155,25 +30155,26 @@ allowance is Standard's only, and Infrequent Access is billed from its first
 GB. A refusal, an HTTP error, a token that cannot see the account or an
 answer not understood is a reading that says so; the token is never kept,
 and Cloudflare's error messages (which name fields and permissions) are.
-`CLOUDFLARE_ANALYTICS_TOKEN` joins `spend_guard.PAID_CREDENTIALS`, as §474's
+`CLOUDFLARE_ANALYTICS_TOKEN` joins `spend_guard.PAID_CREDENTIALS`, as §484's
 keys did.
 
-Tests: `tests/test_usage_monitors_r2_475.py` (the query and its variables;
+Tests: `tests/test_usage_monitors_r2_485.py` (the query and its variables;
 operations by class, free and unlisted kinds apart; the allowance's levels and
 the estimate at the published prices against a budget; a refused query; an
 HTTP error; an account the token cannot see; no token, nothing asked;
 staging).
 
-**This branch's sections renumbered, §462-§467 to §470-§475.** Before
+**This branch's sections renumbered, §462-§467 to §470-§475** (and later
+past that branch again, to §480-§485 - see §488). Before
 numbering this one, the other open branches were checked again:
 `claude/friendly-hopper-75zvoo` had renumbered its own to §462-§469 overnight
 (merging Main), the same numbers as this branch's. The later branch moves:
 every heading, reference and test file name here moved by eight, nothing
 else changed. That branch is untouched.
 
-## 476. Phase 4, piece 2d: Render in Keith's usage monitors (2026-11-06)
+## 486. Phase 4, piece 2d: Render in Keith's usage monitors (2026-11-06)
 
-The last of item 2's monitors. The owner's Render figures (§473): `fam` on
+The last of item 2's monitors. The owner's Render figures (§483): `fam` on
 Standard (1 CPU, 2 GB, $25/mo; next Pro, 2 CPU / 4 GB, $85), workspace Pro
 with 25 GB of outbound bandwidth included ($0.15/GB past it), `fam-db` on
 0.1c-256mb ($6/mo; next 0.5c-1g at $19, then 1c-2g at $40) with a 1 GB disk
@@ -30210,17 +30211,17 @@ alone), and how close Postgres's memory runs to its limit in normal use
 (a database keeps a cache, so 80% may be ordinary there - if so its warning
 is a false alarm to tune, said here rather than found later).
 
-Tests: `tests/test_usage_monitors_render_476.py` (the service and the database
+Tests: `tests/test_usage_monitors_render_486.py` (the service and the database
 read, GET only, in GB from MB and MiB, with the next plans; the disk's warn
 and urgent; a month's bandwidth on pace past 25 GB; what Render refuses
 listed and the key never kept; a unit not understood; a database not found;
 nothing answering; no key, nothing asked; staging).
 
-## 477. Everything since Main double-checked: what an independent review found, and what was fixed (2026-11-06)
+## 487. Everything since Main double-checked: what an independent review found, and what was fixed (2026-11-06)
 
 The owner: "double check all changes made to this point to avoid any
-mistakes." A fresh reviewer read the whole diff since Main (§470-§475, and
-skimmed §476) against CLAUDE.md's rules, ran the new tests, and edited
+mistakes." A fresh reviewer read the whole diff since Main (§480-§485, and
+skimmed §486) against CLAUDE.md's rules, ran the new tests, and edited
 nothing. Its verdict: **nothing that could cost a listener an episode, block
 the event loop or leak a key**; counting once, the Postgres SQL, the context
 variable (never set on a task that serves a listener), the locks, the hooks
@@ -30229,7 +30230,7 @@ Each finding was confirmed against the code, then fixed with a test that
 failed before:
 
 1. **"Claude spent today" counted money that was not Claude's.** The spend
-   table (§471) also holds paid searches, live data and the image model's
+   table (§481) also holds paid searches, live data and the image model's
    pictures, and `spend_report` added every row. A search, a live call and a
    picture with no Claude call read "Claude spent today $0.06". The report
    now gives `claude` (Claude's models alone - what Anthropic bills) and
@@ -30239,7 +30240,7 @@ failed before:
    example set a budget nothing measured. Keith now has a fifth monitor,
    `anthropic`: FAM's own count of Claude's spend today, yesterday and this
    month (no call to Anthropic; the console shows the owner no Limits page,
-   §473) against `anthropic=`, with calls no price covers said beside it.
+   §483) against `anthropic=`, with calls no price covers said beside it.
 3. **Some Claude calls were still never counted.** The brief, the writer
    (live, batched and streamed on its own) and the warm-up folded their
    answer into the episode's notes only when there were notes; a call made
@@ -30253,8 +30254,8 @@ failed before:
    its answers") may have answered some requests that are billed and never
    read, so never counted - rare, and reading them would mean waiting on a
    batch the design walks away from.
-4. **Section numbers in comments.** The renumbering (§475) moved every §462
-   to §470, but comments about the spend (§471) and the error rows (§472)
+4. **Section numbers in comments.** The renumbering (§485) moved every §462
+   to §480, but comments about the spend (§481) and the error rows (§482)
    had all cited the umbrella §462. They now cite the section that says it.
 5. **RunPod "spend today" read $0.00 when RunPod had not billed the day
    yet.** No row is now no figure (None), as "a missing number is never 0".
@@ -30271,10 +30272,69 @@ Not changed, as the reviewer weighed them small: `/api/health` asking
 Postgres once whether the usage store exists (cached after a yes), and a
 monitor's reading written on the event loop once an hour with agents on.
 
-Tests: `tests/test_model_spend_471.py` (Claude's figure is Claude's alone; a
+Tests: `tests/test_model_spend_481.py` (Claude's figure is Claude's alone; a
 call without notes counted; the stricter derived test),
-`tests/test_usage_monitors_473.py` (an unbilled day unknown, not $0; Claude
-measured against its budget), `tests/test_usage_monitors_r2_475.py` (the
+`tests/test_usage_monitors_483.py` (an unbilled day unknown, not $0; Claude
+measured against its budget), `tests/test_usage_monitors_r2_485.py` (the
 charge projected from the pace), and the tracking tests in
-`test_usage_tracking_470.py` and `test_error_tracking_472.py` (the kind of
+`test_usage_tracking_480.py` and `test_error_tracking_482.py` (the kind of
 error, never its message).
+
+## 488. Phase 4, piece 3a: Keith's incidents - one per cause, with a plan (2026-11-06)
+
+Item 3 of Phase 4 (keith.md "always" 1, 5, 9). The owner: "go ahead with item
+3", planned in three pieces: 3a incidents (this), 3b the closed list of
+fixes and the fix report, 3c the pop-up on every admin page and urgent email
+- the pop-up shown to the owner as a before-and-after first, as it changes
+the admin pages.
+
+**One incident per cause** (`incidents.py`), from what FAM already records -
+nothing new is asked of anyone:
+- a kind of error (stage and kind, folded as the admin page folds them) seen
+  `IT_INCIDENT_ERRORS` (3) times in the last hour - urgent at 30 - with the
+  explanation FAM already wrote for it (`pipeline_errors.explain`) as its
+  plan; notices never open one;
+- the usage and error records falling behind (§480, §482): urgent;
+- a usage monitor's figure at `warn` or `urgent` (§483-§487), its plan the
+  next plan and its price; a monitor that has stopped reading is a notice
+  ("not configured" and "not on Atlas" are a deployment's choice, not one);
+- a **background loop that stopped with an error**: every loop the app starts
+  is now watched (`incidents.watch_task`), where before one that died was
+  gone in silence (§480's audit). A loop that returns at boot because its
+  feature is off, or is cancelled at shutdown, is not one. A loop alive but
+  stuck needs each loop to beat, which is left for now and said;
+- listener reports open over 20 hours (App Store 1.2 asks for a day).
+The voice supervisor is covered through `pipeline_errors` (stage `voice`,
+§318).
+
+**Kept as one row per cause** (`incidents` in `pipeline_errors.db`, SQLite and
+Postgres): a cause that keeps happening is one incident whose `seen` and
+`last_seen` grow, its severity never lowered while open. An event incident
+closes after two quiet hours; a state (a level, a store, a loop, the
+reports) closes as soon as a round no longer finds it; either reopens - said,
+with how many times - if it comes back. A source that could not be read this
+round closes nothing. Each carries a **solution plan in code**: the problem,
+what a listener notices, what was tried (nothing: observe only), the fix
+recommended, its cost and risk, and what is needed from the owner. No model
+writes it yet (`IT_MODEL` is for 3b's write-ups, if at all).
+
+**Observe only, off by default.** The round, Netenyahu's `it:watch`, runs every
+`IT_WATCH_SECONDS` (300; Netenyahu's own tick is the floor) by a new
+`netenyahu.FREQUENT` schedule keyed by the period's UTC start, only while
+Keith may run (`AGENTS=1`, `IT_AGENT=1`, his rule book signed). It reads and
+writes its own rows only. Open incidents and those closed in the last week
+are in `/admin`'s data (`incidents`) and the counts by severity, with any
+stopped loop, in `/api/health`. Nothing on the admin page's code changed yet.
+
+**Renumbered again.** `claude/friendly-hopper-75zvoo` added §470 (the owner
+signed its manifest version 6) after this branch had moved to §470-§475, so
+this branch's sections moved once more, to §480-§488, leaving room; every
+heading, reference and test name moved with them, nothing else.
+
+Tests: `tests/test_incidents_488.py` (a kind of error past the floor is one
+incident with a plan, its count growing; notices never, a flood urgent; quiet
+closes, coming back reopens; a usage warning until the level falls; a
+monitor that cannot read, but not one not configured; records behind; a
+loop that dies, and one that returns does not; old reports; a source that
+cannot be read closes nothing; the round only reads; every five minutes only
+while Keith is on; the handler gated; health).

@@ -1,4 +1,4 @@
-"""Keith's usage monitors, piece 2d: Render (§476).
+"""Keith's usage monitors, piece 2d: Render (§486).
 
 `fam`'s memory against its plan's, `fam-db`'s storage against its disk and
 its memory against its plan's, and `fam`'s outbound bandwidth this month
