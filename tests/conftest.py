@@ -634,10 +634,14 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
     import incidents
 
     pipeline_errors.reset()
+    import agent_checks
+
     incidents.reset()          # Keith's incidents share its database (§488)
+    agent_checks.reset()       # and his rule-book checks' last look (§491)
     yield
     pipeline_errors.reset()
     incidents.reset()
+    agent_checks.reset()
 
 
 @pytest.fixture(autouse=True)

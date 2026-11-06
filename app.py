@@ -720,6 +720,11 @@ async def lifespan(_: FastAPI):
         import incidents
 
         incidents.register(FEEDBACK)
+        # And his checks that each agent keeps to its rule book (§491),
+        # reading a sample of what each left in the script cache.
+        import agent_checks
+
+        agent_checks.register(SCRIPT_CACHE)
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.

@@ -542,8 +542,17 @@ def snapshot(now: Optional[float] = None) -> dict:
             "usage_monitors": _usage_monitors(now),
             # Keith's incidents, open and recently closed (§488).
             "incidents": _incidents(now),
+            # Mclovin's unchecked share, Shakespeare's tandem outcomes and
+            # the two weeks' progress (§491).
+            "agents_watch": _agents_watch(now),
             "routing": live_routing.report(now),
             "pipeline_errors": pipeline_errors.report(now)}
+
+
+def _agents_watch(now: float) -> dict:
+    import agent_checks
+
+    return agent_checks.report(now)
 
 
 def _incidents(now: float) -> dict:

@@ -406,6 +406,9 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "incidents.py": {"roster", "netenyahu"},
         # And his fixes (§490): asking Netenyahu to hold an agent, no model.
         "keith_fixes.py": {"netenyahu"},
+        # And his rule-book checks (§491): reads what Mclovin kept and
+        # C3P0's own result test; no model.
+        "agent_checks.py": {"supervisor_checks", "supervisor_training", "contextualizer"},
         # The re-file of episodes written before Nando (§428): his code
         # steps and his check against the writer's words, no model.
         "refile_old.py": {"categorizer"},

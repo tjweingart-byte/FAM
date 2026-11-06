@@ -68,7 +68,7 @@ EMAILS_PER_ROUND = 5
 
 #: Causes that are states, not events: closed as soon as a round no longer
 #: finds them (a level back to ok, a store writing again).
-STATE_SOURCES = ("usage", "tracking", "loop", "reports", "quota")
+STATE_SOURCES = ("usage", "tracking", "loop", "reports", "quota", "agents")
 
 
 def _settings():
@@ -477,6 +477,14 @@ def from_quotas(now: float) -> list:
     return out
 
 
+def from_agents(now: float) -> list:
+    """Each agent against its rule book, and what Phase 3 left Keith to watch
+    (§491, `agent_checks`): at most hourly; between, the last findings stand."""
+    import agent_checks
+
+    return agent_checks.findings(now)
+
+
 def from_loops() -> list:
     with _LOOPS_LOCK:
         stopped = dict(LOOPS)
@@ -522,7 +530,8 @@ def findings(now: float) -> tuple[list, set]:
     for source, get in (("errors", lambda: from_errors(now)),
                         ("tracking", from_tracking), ("usage", from_usage),
                         ("loop", from_loops), ("reports", lambda: from_reports(now)),
-                        ("quota", lambda: from_quotas(now))):
+                        ("quota", lambda: from_quotas(now)),
+                        ("agents", lambda: from_agents(now))):
         try:
             out.extend(get())
             read.add(source)

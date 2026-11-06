@@ -30738,3 +30738,61 @@ provider near its quota is an incident; the report admins-only and beside
 the alerts; an unknown name switches nothing on), the browser test in
 `test_keith_alerts_489.py` (the fix report behind its button), and
 `test_incidents_488.py` (loops named by module).
+
+## 491. Phase 4, item 4: Keith checks each agent against its rule book, and watches what Phase 3 left him (2026-11-06)
+
+keith.md "always" 7 and decided item 32; the build prompt's list. The owner:
+"go ahead with item 4". `agent_checks.py`, a source of Keith's incidents
+round (§488), run at most hourly (between, the last findings stand, so an
+open breach is never closed by a round that did not look). Each check is
+written from the agent's signed rule book and reads what the agent left
+behind; none runs while its agent is off.
+
+**The checks:**
+- **Sonic never wrote** (sonic.md never 1): while he is on Atlas, his
+  connection (`MONGODB_READ_URI`) must be a different database user from the
+  archive's writer (`MONGODB_URI`) - the same user would let him write. Read
+  from the two addresses' users, never their passwords.
+- **Consuela's deletions are within grace** (every-agent.md always 8,
+  consuela.md always 11): a deletion cannot be sampled after it happens, so
+  what is checked is what decides it - her purge keeps
+  `HOUSEKEEPER_SUPERSEDED_DAYS`, which must be at least 30.
+- **Mclovin's verdicts are among his named failures**: every verdict kept in
+  the last day (`mclovin_flags`) names one of his checks
+  (`supervisor_checks.CHECKS`, and support) and one of his results (fail,
+  unsure, unchecked).
+- **C3P0's titles carry no results** (c3p0.md, [title-from-content]): while
+  his titles are on (`CONTEXTUALIZER_TITLES`), the episode's title is his
+  (§375); the newest 200 are read with his own `has_result`. His inputs are
+  not kept anywhere to sample; his code refuses a result before it leaves
+  (§370), said here rather than claimed checked.
+- **Nando's nodes exist**: 200 filed episodes an hour, by key, coming round
+  again, must name nodes the category tree holds (the nightly tag check,
+  §405, still reads them all).
+A breach is an **urgent incident naming the agent** (`breach:<role>:<check>`),
+so Keith's `hold_agent` (§490) applies to it - recorded as "would" until the
+owner switches it on; releasing a hold stays the owner's.
+
+**What Phase 3 left him to watch:**
+- **Mclovin's unchecked sentences** (decided item 32): today's share of his
+  sentences a check let play unchecked against the week before (from what he
+  keeps per episode, so it survives a deploy); a rise - more than double, and
+  at least a point more - over 50 sentences is a warning incident.
+- **Shakespeare's tandem outcomes** (§456): each episode's outcome is now kept
+  as a measured step (`editor tandem` in `pipeline_errors`' steps, 14 days),
+  not only counted in one process; a rise in `late` or `second_failed` over
+  20 episodes is a warning. Watching only - nothing is measured that spends
+  (decided item 43).
+- **The two weeks' progress** (`EDITOR_TRIAL`, §454): episodes and listens per
+  arm, in `/admin`'s data (`agents_watch`) beside the two shares, so the owner
+  knows when there is enough to read.
+
+Reads only. Nothing on the admin page's code changed: drawing `agents_watch`
+is one of item 6's proposals.
+
+Tests: `tests/test_agent_checks_491.py` (each breach and its absence, none
+while the agent is off; Mclovin's unchecked share rising; a C3P0 title that
+states a result, and none when his titles are off; Nando's dead node, a page
+at a time coming round; the tandem's late share rising, and its outcome kept
+as a step; a breach in the round with `hold_agent` as "would", closing once
+mended; at most hourly; the trial in the report).

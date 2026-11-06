@@ -1803,6 +1803,9 @@ def _tandem_count(state: str) -> None:
         editor._count(f"tandem_{state}")
     except Exception:  # noqa: BLE001
         pass
+    # Kept, not only counted in this process (§491): Keith watches for a
+    # rise in "late" and "second_failed" across deploys and servers.
+    pipeline_errors.step("editor tandem", "search", state)
 
 
 async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
