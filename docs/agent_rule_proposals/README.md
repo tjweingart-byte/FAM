@@ -7,10 +7,10 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-Nothing. `mclovin.md` v3 - "always" 9 names his nightly reviewer - was signed
-on 2026-11-04 (PROBLEMS.md §443, manifest version 5); v2 (one-sentence
-quotes, count only) on 2026-11-03 (§441, version 4); `consuela.md` with
-Perplexity on 2026-11-03 (§412, version 3); `nando.md` rule 12 on 2026-11-01
+Nothing. Manifest version 6 - the merged books, `consuela.md` always 12
+and `sonic.md` always 8 beside `mclovin.md` v3 - was signed on 2026-11-06
+(PROBLEMS.md §470); `mclovin.md` v3 (§443, version 5); v2 (§441, version
+4); `consuela.md` with Perplexity (§412, version 3); `nando.md` rule 12
 (§392).
 
 ## Signing it (on the owner's Mac, with the owner's key)

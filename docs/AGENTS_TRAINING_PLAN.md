@@ -1,6 +1,6 @@
 # Training Consuela and Sonic - a plan
 
-**Status: C1 and S1 built (§407); the rest is a plan for the owner.** Written 2026-11-02 at the
+**Status: C1 and S1 built (§407); the C3 and S4 rules signed (§462, §464); the rest is a plan for the owner.** Written 2026-11-02 at the
 owner's request, after Phase 2 built Consuela (the housekeeper, §399-§402)
 and Sonic (the retriever, §403). PROBLEMS.md §406 records it. Each piece
 below says what it needs from the owner before it starts.

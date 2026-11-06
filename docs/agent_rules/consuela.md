@@ -41,6 +41,13 @@ what will be valuable to FAM over time.
 11. Make every removal reversible: mark it, keep it 30 days, record why.
    The first passes over real data only report what they would do, until
    FAM's automated check shows you make no wrong merges.
+12. Let your answer key - a stronger model chosen by the owner - grade a
+    sample of your work each night, in the background: whether the
+    sentences you kept are the article's key ones, whether each figure's
+    "happened" or "expected" is right, and whether each pair you merged or
+    kept apart was right. Its grades only teach you and measure you; they
+    never re-file, merge, restore or delete anything, and never change an
+    episode.
 
 ## You must never
 

@@ -69,6 +69,8 @@ TASK = "consolidate"
 
 #: Most sentences one article offers the model; the rest are not read.
 MAX_SENTENCES = 40
+#: Most sentences she is asked to keep from one article (§467).
+MAX_KEPT = 12
 #: A held article is looked at again after this long (its node may be
 #: settled by then).
 HELD_RETRY_SECONDS = 24 * 3600.0
@@ -109,7 +111,19 @@ INSTRUCTIONS = (
     "win 4-2\" is expected; \"won 4-2\" happened. If you cannot tell, say "
     "unsure. A sentence may appear in more than one list, but never twice in "
     "one. An article with nothing worth keeping gets empty lists. Answer for "
-    "every article."
+    "every article.\n\n"
+    # §467: production's dry run kept nearly whole articles, and sentences
+    # that mean nothing alone. Measured before and after on its own articles.
+    "Keep only the key sentences: what someone would need, months from now, "
+    "to know what happened - the result, who did it, when, the figures that "
+    "matter, and the one or two quotes that say the most. At most "
+    f"{MAX_KEPT} sentences an article, fewer when fewer will do. Leave out "
+    "moment-by-moment detail a result already covers, and colour.\n\n"
+    "Keep only a sentence that makes sense read alone: leave out one that "
+    "leans on an earlier sentence for who or what it is about (\"He took a "
+    "cross-ice feed...\", \"We had a really hard start.\"). A quote is kept "
+    "only in a sentence that names its speaker; the quote's other sentences "
+    "are left out."
 )
 
 
@@ -120,7 +134,23 @@ INSTRUCTIONS = (
 HEDGE = re.compile(
     r"\b(expect(?:s|ed)?|set to|could|would|will|may|might|forecast(?:s|ed)?|"
     r"project(?:s|ed|ion)|predict(?:s|ed|ion)?|likely|poised|on track|"
-    r"aims? to|plans? to|preview|odds|estimate[sd]?)\b", re.I)
+    r"aims? to|plans? to|preview|odds|estimate[sd]?|"
+    # "a 94% chance of winning" is a forecast (§465) - narrowly: a chance
+    # with a figure before it, or a chance of/to/that something.
+    r"\d+(?:\.\d+)?%? chance|chances? (?:of|to|that)|likelihood|"
+    r"probabilit(?:y|ies))\b", re.I)
+#: An abbreviation a sentence does not end on (§466): a piece ending in one
+#: was cut too soon ("by 9 p.m." | "ET (0200 GMT)...", "since Sept." | "1,
+#: according to..."), so it is joined to the next.
+_ABBREVIATION = re.compile(
+    r"\b(?:[ap]\.m|vs|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec|Mr|Mrs|Ms|Dr|"
+    r"St|Jr|Sr|No|U\.S|U\.K|Gov|Sen|Rep|Gen|Lt|Col|Sgt|Prof)\.[\"'”’)]*$")
+#: The page around an article, not the article (§466): a table row, an
+#: invitation to click, subscribe or follow. Dropped before the model reads.
+_CLUTTER = re.compile(
+    r"(?:\|[^|]*){3,}|click(?:ing)? here|preferred source|"
+    r"subscribe to (?:our|the)|sign up for (?:our|the)|all rights reserved|"
+    r"follow us on", re.I)
 _QUOTE_MARK = re.compile(r"[\"“”]|(?:^|\s)[‘'][A-Z]")
 
 
@@ -135,15 +165,35 @@ def passages_of(record: dict) -> list:
     return out
 
 
+def _whole(pieces: list) -> list:
+    """The pieces with any cut at an abbreviation mended (§466)."""
+    out: list = []
+    for piece in pieces:
+        if out and _ABBREVIATION.search(out[-1]):
+            out[-1] = f"{out[-1]} {piece}"
+        else:
+            out.append(piece)
+    return out
+
+
 def sentences_of(record: dict) -> list:
-    """The record's approved passages, numbered as the model sees them."""
+    """The record's approved passages, numbered as the model sees them:
+    whole sentences (never cut at "p.m." or "Sept."), no table rows or
+    invitations to click, and a sentence the article repeats - even with
+    other markup or punctuation - once (§466). The words are the
+    publisher's; nothing is reworded."""
     import evidence_digest
+    from agents import dedupe
 
     out: list = []
+    seen: set = set()
     for passage in passages_of(record):
-        for sentence in evidence_digest.split_sentences(passage):
-            if sentence not in out:
-                out.append(sentence)
+        for sentence in _whole(evidence_digest.split_sentences(passage)):
+            key = dedupe.normalise(sentence)
+            if not key or key in seen or _CLUTTER.search(sentence):
+                continue
+            seen.add(key)
+            out.append(sentence)
     return out[:MAX_SENTENCES]
 
 

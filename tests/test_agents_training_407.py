@@ -44,9 +44,9 @@ def test_each_change_is_made_in_code_and_known_to_be_what_it_is():
         '"We will win," Jones said.'
     assert dc._swap_subject("Apple rose sharply today.", ["Microsoft"]) == \
         "Microsoft rose sharply today."
-    assert dc._attribute("The council approved the budget.") == \
-        "The council approved the budget, according to reports."
-    assert dc._attribute("The council approved it, officials said.") is None
+    assert dc._reword("The council approved the budget after a long debate.") == \
+        "The council approved the budget following a long debate."
+    assert dc._reword("The council approved it, officials said.") is None
 
 
 def test_the_grown_cases_carry_their_answers_and_the_disputes_stay_apart():
@@ -54,7 +54,7 @@ def test_the_grown_cases_carry_their_answers_and_the_disputes_stay_apart():
     answers = {c[0].split(":")[1].strip(): c[1] for c in cases if c[0].startswith("grown")}
     assert answers["number changed"] == answers["hedge added"] == "different"
     assert answers["moment moved"] == answers["speaker swapped"] == "different"
-    assert answers["subject swapped"] == "different" and answers["attribution added"] == "same"
+    assert answers["subject swapped"] == "different" and answers["reworded"] == "same"
     disputed = [c for c in cases if c[0].startswith("disputed")]
     assert len(disputed) == 1 and disputed[0][1] == "different"
     assert len(cases) <= dc.MAX_CASES
