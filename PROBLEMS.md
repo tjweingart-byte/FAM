@@ -30886,3 +30886,38 @@ in code). §461's table, true to the code as Phase 4 leaves it:
 Nothing was changed in `render.yaml`. No rule book changed in Phase 4; the
 signed manifest (version 6) still covers all eight, so nothing waits to be
 signed.
+
+## 494. Phase 4, item 6 built: Keith's figures on /admin, as the owner approved them (2026-11-06)
+
+The owner, of §493's five pictures: "yes to all five, build them". Built in
+`admin_ui/tracker.html`, each from data the tracker already sends (§480-§492),
+read-only like the rest of the page:
+
+1. **Cost per episode on the Overview** - three tiles after the others: the
+   agents per episode and all of Claude per episode over seven days, each with
+   its plan, the ratio and the alert threshold, coloured past the plan and
+   rose past 1.5x; and the nightly jobs as dollars a month. Under 50 episodes,
+   the tile says so instead of a figure.
+2. **The usage monitors on "Outside service requests"** - a "Used of its
+   limit" column on every provider row and part (a share bar for a daily or
+   monthly quota; a pace said as a pace; "no limit to measure" said), and a
+   new card, "What each service says it was used for": every figure Keith
+   read from Render, Atlas, R2, RunPod and Claude, with its share, its
+   projection and the next plan, the budgets in force beneath; a service not
+   read yet, or that could not be read, says why.
+3. **Claude's spend by what spent it** - a card beneath: Claude's today,
+   yesterday and month, calls with no price, everything counted this month,
+   and a row per source.
+4. **The Agents page** - a card of four beneath the agents table: the two
+   weeks' episodes and listens per arm, the tandem's outcomes against the
+   week before, Mclovin's unchecked share, and the rule-book checks' last
+   look and any breach.
+5. **A Keith page** (menu, under Tracker, with a badge counting open
+   incidents): open incidents with their plans, filterable by kind; those
+   closed this week with why; the fix report with which fixes are on; and
+   cost per episode.
+
+Tests: `tests/test_admin_keith_494.py` - the snapshot carries every figure,
+and in a browser, on the real page signed in through its own form, with data
+the real tracker code built from the stores: each of the five draws, the
+filter works, and nothing on the page throws.

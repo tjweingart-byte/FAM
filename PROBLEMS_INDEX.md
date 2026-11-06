@@ -481,3 +481,4 @@ and `limit` = Lines.
 | 30742 | 58 | 491. Phase 4, item 4: Keith checks each agent against its rule book, and watches what Phase 3 left him (2026-11-06) |
 | 30800 | 39 | 492. Phase 4, item 5: cost per episode against the plan - watched, never capped (2026-11-06) |
 | 30839 | 51 | 493. Phase 4, items 6 and 7: the /admin proposals, and the production switches as Phase 4 leaves them (2026-11-06) |
+| 30890 | 35 | 494. Phase 4, item 6 built: Keith's figures on /admin, as the owner approved them (2026-11-06) |
