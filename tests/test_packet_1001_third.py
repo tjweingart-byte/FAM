@@ -411,3 +411,21 @@ def test_pushes_spread_over_fifteen_minutes_and_no_more(tmp_path, monkeypatch):
     if offset:
         assert push.due(store, pushes, at + offset - 1) == []
     assert [m.id for m, _ in push.due(store, pushes, at + offset)] == [mix.id]
+
+
+def test_a_late_evening_listen_time_still_pushes_after_midnight(tmp_path, monkeypatch):
+    """§448 review: 23:55 plus its spread can land after midnight, where
+    "today's" listen time is the next evening. It goes out, once, filed under
+    the day it was for."""
+    store, mix = _mix_at(tmp_path, listen_at="23:55")
+    pushes = push.PushStore(str(tmp_path / "m.db"))
+    monkeypatch.setattr(push, "_edition_ready", lambda now: True)
+    at = _local(2026, 10, 2, 23, 55)
+    # Force the spread past midnight for this mix and day.
+    monkeypatch.setattr(push, "spread_offset", lambda mix_id, day: 12 * 60)
+    assert push.due(store, pushes, at + 5 * 60) == []
+    after_midnight = at + 13 * 60  # 00:08 on 10-03
+    assert [(m.id, d) for m, d in push.due(store, pushes, after_midnight)] \
+        == [(mix.id, "2026-10-02")]
+    pushes.mark_sent(mix.id, "2026-10-02", 1)
+    assert push.due(store, pushes, after_midnight + 60) == []

@@ -23,6 +23,11 @@ one tidy packet of the history a request needs, for Shakespeare and the writer.
 6. Label everything you bring back as history - what was true on its date.
 7. Finish within your time limit. If you are late, the episode goes ahead
    without history.
+8. Let your answer key - a stronger model chosen by the owner - grade a
+   sample of finished episodes' history packets each night, in the
+   background: whether each item was relevant to the question, and whether
+   the archive held something you missed. Its grades only teach you and
+   measure you; they never change the archive or an episode.
 
 ## You must never
 

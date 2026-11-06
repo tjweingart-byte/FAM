@@ -2148,13 +2148,35 @@ class Settings:
     # runs both Haiku and Sonnet (decided item 37). On searchFAM: low.
     editor_effort: str = field(
         default_factory=lambda: os.environ.get("EDITOR_EFFORT", "high").strip())
-    supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
+    # Decided item 37's two weeks (§454): with it on, half the episodes
+    # written ahead of the tap - by a hash of the question and length - are
+    # written without Shakespeare, and each records its arm, so listening
+    # (left in 20 s, heard 85%) can be compared. Off: he plans every one.
+    editor_trial: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_TRIAL", "0")
+        not in ("0", "false", "False", ""))
+    # Shakespeare on searchFAM, in tandem with the writer (§456): he plans
+    # (`EDITOR_SEARCH_MODEL`, low effort) while the writer opens from the
+    # packets as today; once `EDITOR_TANDEM_OPENING_WORDS` are spoken the
+    # writer waits for his plan until `EDITOR_TANDEM_WAIT_SECONDS` from its
+    # start, and a second writer call writes the rest from it. Late or no
+    # plan: the first call carries on as today. Never in front of the first
+    # word. Off: search is written as it always was.
+    editor_tandem: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_TANDEM", "0")
+        not in ("0", "false", "False", ""))
+    editor_tandem_opening_words: int = _env_int("EDITOR_TANDEM_OPENING_WORDS", 30)
+    editor_tandem_wait_seconds: float = _env_float("EDITOR_TANDEM_WAIT_SECONDS", 7.0)
+    # 2 s and 500 tokens, the owner's (§453): at 1 s and 300 most of his
+    # second looks timed out or ran out of room (§452). Also the deadline
+    # for one sentence's code checks, which take well under a millisecond.
+    supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 2.0)
     # The small model on pages the source screen cannot settle (§442): ahead
     # of the tap only, one call an episode, so it may take its time.
     supervisor_screen_timeout_seconds: float = _env_float(
         "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", 20.0)
     supervisor_screen_max_tokens: int = _env_int("SUPERVISOR_SCREEN_MAX_TOKENS", 2000)
-    supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
+    supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 500)
     # **Mclovin's sentence checks** (§435): which ones send a failing
     # sentence back to the writer; the rest only count. A check joins this
     # list once the planted-mistake eval passes it (§440,
@@ -2185,7 +2207,7 @@ class Settings:
     supervisor_grounding_high: float = _env_float("SUPERVISOR_GROUNDING_HIGH", 0.8)
     supervisor_grounding_low: float = _env_float("SUPERVISOR_GROUNDING_LOW", 0.2)
     housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
-    housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
+    housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 6000)
     # **Consuela's consolidation** (§399): a dry run until the owner turns
     # it off - she chooses and the choice is reported, nothing is written.
     # Articles per call, and calls per run of her task.

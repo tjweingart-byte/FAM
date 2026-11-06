@@ -228,7 +228,10 @@ def test_a_figure_code_cannot_read_is_kept_as_a_sentence(archive, monkeypatch):
     _settings(monkeypatch, housekeeper_dry_run=False)
     monkeypatch.setattr(models, "ask", _FakeModel(hk.Picks(articles=[
         _pick(1, key=(), quotes=(), figures=((5, "happened"),))])))
-    _intake(archive, "https://espn.com/a")
+    # The fifth sentence names no figure code can read. (Not SENTENCES' own
+    # fifth: a "subscribe" line is never offered since §466.)
+    _intake(archive, "https://espn.com/a", sentences=SENTENCES[:4] + [
+        "Fans stayed long after the final whistle to cheer the comeback."])
     _run()
     assert [(f[0], f[2]) for f in _facts(archive)] == [("sentence", "{}")]
 

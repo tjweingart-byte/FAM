@@ -335,8 +335,14 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
 
 
 def report() -> dict:
+    from config import settings
+
     with _LOCK:
-        return {"since_boot": dict(SINCE_BOOT)}
+        # Whether decided item 37's two weeks are running (§454).
+        return {"since_boot": dict(SINCE_BOOT),
+                "trial": bool(getattr(settings, "editor_trial", False)),
+                # Beside the writer on searchFAM (§456).
+                "tandem": bool(getattr(settings, "editor_tandem", False))}
 
 
 def reset() -> None:

@@ -46,7 +46,7 @@ import db as store_db
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from paths import data_path
@@ -274,6 +274,23 @@ def listen_moment(mix, now: float) -> Optional[tuple]:
     return moment.timestamp(), local_now.date().isoformat()
 
 
+def listen_moments(mix, now: float) -> list:
+    """Yesterday's listen time and today's, each (timestamp, local date).
+
+    Yesterday's is here because a push may land after midnight: a 23:55
+    listen time plus its spread (§448), or the grace window, crosses into the
+    next local day, where "today's" listen time is still hours away. Asking
+    only about today lost those pushes. Each day keeps its own `sent` key."""
+    today = listen_moment(mix, now)
+    if today is None:
+        return []
+    zone = _zone(getattr(mix, "listen_tz", ""))
+    h, m = (int(x) for x in mix.listen_at.split(":"))
+    before = (datetime.fromtimestamp(now, zone) - timedelta(days=1)).replace(
+        hour=h, minute=m, second=0, microsecond=0)
+    return [(before.timestamp(), before.date().isoformat()), today]
+
+
 def spread_offset(mix_id: str, day: str) -> int:
     """Seconds after its listen time this mix's push goes out today (§448):
     0 to `SPREAD_SECONDS`, the same for a mix all day and different from day
@@ -288,14 +305,17 @@ def due(mix_store, push_store: PushStore, now: Optional[float] = None) -> list:
     out = []
     ready = None
     for mix in mix_store.with_listen_time():
-        moment = listen_moment(mix, now)
-        if moment is None or not mix.items:
+        if not mix.items:
             continue
-        at, day = moment
-        if not (at + spread_offset(mix.id, day) <= now < at + GRACE_SECONDS):
+        moment = None
+        for at, day in listen_moments(mix, now):
+            if (at + spread_offset(mix.id, day) <= now < at + GRACE_SECONDS
+                    and not push_store.was_sent(mix.id, day)):
+                moment = (at, day)
+                break
+        if moment is None:
             continue
-        if push_store.was_sent(mix.id, day):
-            continue
+        _at, day = moment
         if ready is None:
             ready = _edition_ready(now)
         if not ready:

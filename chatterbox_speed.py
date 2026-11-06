@@ -51,6 +51,7 @@ torch at all - the build container, CI.
 """
 from __future__ import annotations
 
+import functools
 import logging
 import os
 from typing import Optional
@@ -73,7 +74,9 @@ SPEECH_VOCAB = 6561
 _why_not: dict = {}
 
 
+@functools.lru_cache(maxsize=1)
 def _version() -> str:
+    """The installed chatterbox-tts, read once: `applies()` asks per chunk."""
     try:
         from importlib.metadata import version
 

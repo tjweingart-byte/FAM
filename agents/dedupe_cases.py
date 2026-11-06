@@ -14,7 +14,7 @@ without anyone labelling it (decided item 30):
 | a day or month moved ("Monday" → "Tuesday") | different | a moment the models must notice |
 | a speaker swapped ("..., Smith said" → "..., Jones said") | different | one quote, two speakers |
 | a named subject swapped for another kept name | different | two subjects, one claim |
-| an attribution added (", according to reports.") | same | a real repeat in other words |
+| a neutral word swapped ("after" → "following") | same | a real repeat in other words |
 
 **And the pairs her two models disagreed on** in a night's dedupe (the first
 look said "same", the second opinion did not; recorded as `disputed` in
@@ -25,6 +25,13 @@ The sample is deterministic - sources in a fixed order by their text's hash,
 at most `MAX_SOURCES` - so two runs over the same archive ask the same
 questions and their scores compare. With no material (a fresh deployment)
 nothing is added and the core still runs.
+
+The "same" case was ", according to reports" added until §463: Haiku
+answered "unsure" to every one, arguably rightly - a reported claim is not
+an asserted one - so the owner chose a rewording that keeps the claim's
+certainty. It is made only from a sentence with no number and no quote:
+since §417 code keeps every reworded figure or quote apart, so such a pair
+could never be found a repeat, and would measure the rule, not the model.
 """
 from __future__ import annotations
 
@@ -133,10 +140,45 @@ def _swap_subject(text: str, pool: list) -> Optional[str]:
     return re.sub(rf"\b{re.escape(first)}\b", other, text, count=1) if other else None
 
 
-def _attribute(text: str) -> Optional[str]:
-    if _QUOTE.search(text) or re.search(r"\b(said|says|according to)\b", text):
+#: Neutral swaps: each pair says the same thing with the same certainty -
+#: no hedge, number, name, moment, direction or negation moves. Whole
+#: lowercase words only; the first that a sentence holds is swapped.
+NEUTRAL_SWAPS = (
+    ("after", "following"),
+    ("began", "started"),
+    ("begins", "starts"),
+    ("ended", "finished"),
+    ("bought", "purchased"),
+    ("despite", "in spite of"),
+    ("nearly", "almost"),
+    ("almost", "nearly"),
+    ("approximately", "roughly"),
+    ("quickly", "rapidly"),
+    ("large", "big"),
+    ("big", "large"),
+    ("because of", "due to"),
+    ("received", "got"),
+    ("chose", "picked"),
+)
+
+
+def _reword(text: str) -> Optional[str]:
+    """The sentence with one neutral word swapped - a real repeat in other
+    words - or None when it holds a quote, a number or an attribution, or
+    no swap leaves its names and its hedge exactly as they were."""
+    from agents import dedupe
+
+    if (_QUOTE.search(text) or _NUMBER.search(text)
+            or re.search(r"\b(said|says|according to)\b", text)):
         return None
-    return text.rstrip(" .") + ", according to reports."
+    for old, new in NEUTRAL_SWAPS:
+        pattern = rf"\b{re.escape(old)}\b"
+        if re.search(pattern, text):
+            other = re.sub(pattern, new, text, count=1)
+            if (dedupe.names(other) == dedupe.names(text)
+                    and dedupe.hedged(other) == dedupe.hedged(text)):
+                return other
+    return None
 
 
 def grow(sources: Optional[list] = None, disputed: Optional[list] = None) -> list:
@@ -154,7 +196,7 @@ def grow(sources: Optional[list] = None, disputed: Optional[list] = None) -> lis
                 ("moment moved", "different", _move_moment(text)),
                 ("speaker swapped", "different", _swap_speaker(text, pool)),
                 ("subject swapped", "different", _swap_subject(text, pool)),
-                ("attribution added", "same", _attribute(text)))
+                ("reworded", "same", _reword(text)))
         for change, expected, other in made:
             if other and other != text:
                 label = f"grown: {change}: {text[:40]}"
