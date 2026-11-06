@@ -371,6 +371,18 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    ("it", "tag_sync", 5, "it_agent"))
 _QUEUED_DAYS: set = set()
 
+#: Background work queued every hour (§465): (agent, kind, switch). One
+#: task keyed by the UTC hour, so a restart never runs an hour twice and an
+#: hour the loop was down is not made up. Keith's usage monitors read each
+#: service's own usage figures - reads only, nothing spent.
+HOURLY: tuple = (("it", "usage", "it_agent"),)
+
+
+def _hour_key(now: Optional[datetime.datetime] = None) -> str:
+    when = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(
+        datetime.timezone.utc)
+    return when.strftime("%Y-%m-%dT%H")
+
 
 def schedule(now: Optional[datetime.datetime] = None, handlers: Optional[dict] = None) -> int:
     """Queue today's scheduled tasks that are due, for agents that are on
@@ -393,6 +405,15 @@ def schedule(now: Optional[datetime.datetime] = None, handlers: Optional[dict] =
             if tasks.store().add(agent, kind, day, {"day": day}) == tasks.ADDED:
                 added += 1
             _QUEUED_DAYS.add((agent, kind, day))
+        hour = _hour_key(now)
+        for agent, kind, switch in HOURLY:
+            if (agent, kind) not in handlers or not getattr(settings, switch, False):
+                continue
+            if (agent, kind, hour) in _QUEUED_DAYS:
+                continue
+            if tasks.store().add(agent, kind, hour, {"hour": hour}) == tasks.ADDED:
+                added += 1
+            _QUEUED_DAYS.add((agent, kind, hour))
     except Exception:  # noqa: BLE001 - the loop outlives any one round
         log.exception("netenyahu could not queue the scheduled work")
     return added

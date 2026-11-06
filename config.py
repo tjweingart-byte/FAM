@@ -2219,6 +2219,15 @@ class Settings:
                 "fam,gdelt,tiingo,balldontlie,perplexity,gnews").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
+    # **Keith's usage monitors** (§465, keith.md "always" 6): the owner's
+    # monthly budget per service in dollars, "runpod=300,anthropic=200".
+    # Empty: the spend is shown with no share of anything. A warning at
+    # IT_WARN_SHARE of a limit, urgent at IT_URGENT_SHARE or when the month's
+    # pace will pass it. Read hourly, only while IT_AGENT is on.
+    it_budgets: str = field(
+        default_factory=lambda: os.environ.get("IT_BUDGETS", "").strip())
+    it_warn_share: float = _env_float("IT_WARN_SHARE", 0.80)
+    it_urgent_share: float = _env_float("IT_URGENT_SHARE", 0.95)
     # **Netenyahu's background loop** (§350): how often it claims due agent
     # tasks, and at most how many per round. Started only when `AGENTS=1`.
     overlord_tick_seconds: float = _env_float("OVERLORD_TICK_SECONDS", 300.0)

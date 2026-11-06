@@ -1711,7 +1711,7 @@ usage table, and gaps where usage was spent (`metering`) but not counted.
 | Spend | `metering` against each ceiling (prefetch, editions, grading, each agent's) |
 | Background jobs | Each `run_forever` loop's last run: Trending and DailyFAM editions, story sweep, GDELT sync, local feeds, weather, pushes, the Viral Loops outbox |
 | Other agents | Netenyahu's view: on/off, failures, holds; each agent's rule book |
-| MongoDB Atlas, Render, RunPod, Cloudflare R2 | **Not watched today** - their own usage and billing APIs (Atlas Admin API, Render API, RunPod API, Cloudflare GraphQL analytics) |
+| MongoDB Atlas, Render, RunPod, Cloudflare R2 | `usage_monitors.py` (§465), hourly as Netenyahu's `it:usage`, each service's own read API: **RunPod's spend** (`GET /v2/billing`: today, yesterday, the month and its projection) built; Atlas, Cloudflare R2 and Render next. Against the owner's plan, or the monthly budget in `IT_BUDGETS` |
 
 ### Guardrails
 
@@ -1855,7 +1855,8 @@ pick from the list. After the shared preamble:
 |---|---|
 | `IT_AGENT` | `0` / `1` |
 | `IT_TICK_SECONDS` | 60 |
-| `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit |
+| `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit (built, §465) |
+| `IT_BUDGETS` | The owner's monthly budget per service in dollars, `runpod=300,anthropic=200`; empty shows the spend with no share (built, §465) |
 | `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
 | `IT_MODEL`, `IT_SUMMARY_MODEL` | `anthropic:claude-haiku-5-5` for incidents, `anthropic:claude-sonnet-5-5` for `/admin` summaries (decided 2026-10-30) |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |

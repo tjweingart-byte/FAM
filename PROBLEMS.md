@@ -30012,3 +30012,63 @@ with nothing waiting no longer opens the store.
 Tests: `tests/test_error_tracking_464.py` (dropped rows counted and shown at
 the top of the page with words; a failed write kept and said, then written;
 the agents and audio stages explained; health's `tracking`).
+
+## 465. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06)
+
+Item 2 of Phase 4 (keith.md "always" 6): watch each service's own usage
+against the owner's plan - warn at 80%, urgently at 95% or when a limit will
+run out before it resets, with the next plan's price. `provider_usage` (§462)
+counts what FAM sends; these read what each service itself says. Piece 2a is
+the common part and RunPod.
+
+**The owner's figures, from the dashboards (2026-11-06)**, for 2b-2d: `fam` on
+Render Standard (1 CPU, 2 GB, $25/mo; next 2c-4g at $85), workspace Pro, 25 GB
+bandwidth included (1.02 GB used this month; $0.15/GB past it); `fam-db`
+0.1c-256mb ($6/mo; next 0.5c-1g at $19), 1 GB storage, 56.75% used,
+autoscaling off ($0.30/GB-month; grows in steps of 5 GB, never shrinks);
+Atlas `fam-archive` Flex, 5 GB (19.55 MB used), 500 connections; Cloudflare
+R2 Paid (the monthly free allowance first); RunPod serverless endpoint `FAM`,
+24 GB GPUs, up to 6 workers, prepaid credit that **tops itself up**. Seen
+there and told to the owner, not changed (keith.md "never" 1): `fam-db` at
+~23 MB a day is full in about 19 days; `fam`'s Health Check Path is empty
+and Auto-Deploy off, though `render.yaml` sets `/api/health` and `true`.
+
+**RunPod is measured by spend, not credit** (the owner: "Runpod automatically
+tops up ... Just total spend"). `usage_monitors.read_runpod` asks RunPod's
+billing history (`GET /v2/billing`, daily buckets over the UTC month) with the
+key FAM already holds, and reads the spend today, yesterday, this month and
+the serverless part. A month's figure is projected from its pace once three
+days have passed (on the 1st one busy hour would read as an overrun).
+
+**A budget only when the owner sets one.** A plan-less service has no limit to
+measure; `IT_BUDGETS` (`runpod=300,anthropic=200`, dollars a month) gives
+one. Without it the spend is shown with no share - never a share of nothing.
+With it: `warn` at `IT_WARN_SHARE` (0.80), `urgent` at `IT_URGENT_SHARE`
+(0.95) or when the projection passes the budget. A part that does not read
+as `service=dollars` is ignored and logged. Claude's monthly figure joins
+`IT_BUDGETS` when the owner has it (the console showed him no Limits page).
+
+**Hourly, read only, off by default.** Netenyahu gains `HOURLY`, one task per
+UTC hour (`it:usage:2026-11-10T14`), so a restart never reads an hour twice;
+the handler reads only while Keith may run (`AGENTS=1`, `IT_AGENT=1`, his
+rule book signed). Every reading is kept in `provider_usage.db`
+(`monitor_readings`, 90 days, SQLite and Postgres), in `/admin`'s data
+(`usage_monitors`) and, per server, in `/api/health` (`usage_monitors`). A
+service that does not answer, refuses, or answers in a shape not understood
+is a reading that says so - never a figure of 0 - and an error body is never
+kept (it can carry a request's headers). Nothing on the admin page's code
+changed: drawing these is a before-and-after for the owner. Alerts from the
+levels - the pop-up and urgent email - are item 3.
+
+**The production switch, as §461's table now reads for Keith:** `IT_AGENT=1`
+turns on the daily tag check (§405) and the hourly usage monitors; cost $0
+(reads of free APIs). `IT_BUDGETS` empty by default.
+
+Tests: `tests/test_usage_monitors_465.py` (RunPod's spend read from its
+billing; no budget, no share; a budget's share, projection and levels; a pace
+that passes the budget is urgent; the first days not projected; a budget that
+does not read is ignored; a refusal said without its body; an answer not
+understood; no key, nothing asked; readings kept and the latest reported; a
+monitor that raises; hourly only while Keith is on; the handler gated;
+health), `tests/test_agents_model_layer.py` (the monitors may reach Netenyahu
+and the roster, as the tag check does).

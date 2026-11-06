@@ -259,6 +259,8 @@ FAM_ENVIRONMENT = (
     "SUPERVISOR_GROUNDING_HIGH", "SUPERVISOR_GROUNDING_LOW",
     "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", "SUPERVISOR_SCREEN_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
+    # §465: Keith's usage monitors.
+    "IT_BUDGETS", "IT_WARN_SHARE", "IT_URGENT_SHARE",
     # §397: whose material Consuela may store.
     "HOUSEKEEPER_APPROVED_PROVIDERS",
     # §399: her consolidation's dry run and batch sizes.

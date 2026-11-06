@@ -538,8 +538,16 @@ def snapshot(now: Optional[float] = None) -> dict:
             # What the model calls cost, today and this month, by what spent
             # it (§463) - the figure Claude's limit is measured against.
             "claude_spend": provider_usage.spend_report(now),
+            # Each service's own usage, read hourly by Keith (§465).
+            "usage_monitors": _usage_monitors(now),
             "routing": live_routing.report(now),
             "pipeline_errors": pipeline_errors.report(now)}
+
+
+def _usage_monitors(now: float) -> dict:
+    import usage_monitors
+
+    return usage_monitors.report(now)
 
 
 # ----------------------------------------------------------------- recipes

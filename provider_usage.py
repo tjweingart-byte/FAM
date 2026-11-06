@@ -388,6 +388,38 @@ class UsageStore:
                               usd                REAL NOT NULL DEFAULT 0,
                               unpriced           INTEGER NOT NULL DEFAULT 0,
                               PRIMARY KEY (day, source, model))""")
+            # §465: each usage monitor's reading of a service's own figures
+            # (RunPod's spend, Atlas's storage...), one row per reading, kept
+            # `READINGS_DAYS`. `payload` is the reading as JSON.
+            db.execute("""CREATE TABLE IF NOT EXISTS monitor_readings (
+                              at      REAL NOT NULL,
+                              service TEXT NOT NULL,
+                              level   TEXT NOT NULL DEFAULT '',
+                              payload TEXT NOT NULL DEFAULT '{}')""")
+            db.execute("CREATE INDEX IF NOT EXISTS monitor_readings_at "
+                       "ON monitor_readings (service, at)")
+
+    def add_reading(self, service: str, level: str, payload: str,
+                    at: float) -> None:
+        """Keep one monitor reading, and drop those past `READINGS_DAYS`."""
+        with self._lock:
+            db = self._connect()
+            try:
+                with db:
+                    db.execute("INSERT INTO monitor_readings (at, service, level, "
+                               "payload) VALUES (?, ?, ?, ?)",
+                               (at, service, level, payload))
+                    db.execute("DELETE FROM monitor_readings WHERE at < ?",
+                               (at - READINGS_DAYS * DAY,))
+            finally:
+                db.close()
+
+    def readings_since(self, at: float) -> list:
+        """`[(at, service, level, payload)]` since `at`, newest first."""
+        with closing(self._connect()) as db:
+            return [tuple(r) for r in db.execute(
+                "SELECT at, service, level, payload FROM monitor_readings "
+                "WHERE at >= ? ORDER BY at DESC", (at,))]
 
     def _connect(self) -> sqlite3.Connection:
         db = store_db.connect(self.path, timeout=5, isolation_level=None)
@@ -454,7 +486,11 @@ class UsageStore:
         with self._lock, closing(self._connect()) as db:
             db.execute("DELETE FROM calls")
             db.execute("DELETE FROM spend")
+            db.execute("DELETE FROM monitor_readings")
 
+
+#: How long a monitor's readings are kept (§465).
+READINGS_DAYS = 90
 
 #: The spend table's summed columns, in order.
 SPEND_FIELDS = ("calls", "input_tokens", "output_tokens", "cache_read_tokens",

@@ -323,7 +323,10 @@ is what model calls cost per UTC day by `source` (`episodes`, `edition:*`,
 `prefetch`, `agent:<role>`, the composer, the placer, thumbnails...) and model:
 calls, tokens, dollars at `metering.PRICES`, and calls with no price
 (`unpriced`, never $0). Every Claude answer is counted once there
-(`metering.Usage.add_model_call`, `metering.count_call`); no listener id. Since §211 `gdelt` counts the export-file downloads (~200 a day,
+(`metering.Usage.add_model_call`, `metering.count_call`); no listener id.
+Its third, `monitor_readings` (§465), is Keith's usage monitors' readings of
+each service's own figures (RunPod's spend so far), one row per reading as
+JSON, kept 90 days. Since §211 `gdelt` counts the export-file downloads (~200 a day,
 whatever the traffic), never a listener's request. The licence check (§207, `provider_usage.licences()`) stores
 nothing: it reads `GNEWS_PLAN`, `FINNHUB_PLAN` and whether an Open-Meteo key
 is set, and reports `commercial_ready` on `/api/health`.

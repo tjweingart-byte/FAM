@@ -710,6 +710,11 @@ async def lifespan(_: FastAPI):
         import tag_sync
 
         tag_sync.register(SCRIPT_CACHE)
+        # And his usage monitors (§465): each service's own figures, hourly,
+        # read only.
+        import usage_monitors
+
+        usage_monitors.register()
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
@@ -2008,6 +2013,15 @@ def _tracking_health() -> dict:
         return {"error": f"{type(exc).__name__}: {exc}"[:200]}
 
 
+def _usage_monitors_health() -> dict:
+    try:
+        import usage_monitors
+
+        return usage_monitors.health()
+    except Exception as exc:  # noqa: BLE001 - health never fails on a report
+        return {"error": f"{type(exc).__name__}: {exc}"[:200]}
+
+
 @app.get("/api/health")
 async def health(request: Request) -> dict:
     # Built once and read twice: the list and the summary over it have to
@@ -2274,6 +2288,9 @@ async def health(request: Request) -> dict:
         # last write landed, failures, what is waiting. A record that cannot
         # be written used to be a log line and nothing else.
         "tracking": _tracking_health(),
+        # Keith's usage monitors (§465): the budgets in force and this
+        # server's last reading of each service.
+        "usage_monitors": _usage_monitors_health(),
         # Whether tier limits bite, and what they are. A server running with
         # them off looks identical from the outside to one running with them
         # on, and that is exactly the thing worth being able to ask.
