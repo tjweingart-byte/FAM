@@ -710,7 +710,7 @@ async def lifespan(_: FastAPI):
         import tag_sync
 
         tag_sync.register(SCRIPT_CACHE)
-        # And his usage monitors (§465): each service's own figures, hourly,
+        # And his usage monitors (§473): each service's own figures, hourly,
         # read only.
         import usage_monitors
 
@@ -2000,14 +2000,14 @@ async def voice_register(request: Request) -> dict:
 
 
 def _tracking_health() -> dict:
-    """`/api/health`'s `tracking` (§462): how the records Keith reads are
+    """`/api/health`'s `tracking` (§470): how the records Keith reads are
     being kept. Never raises; reads memory only, never a store."""
     import pipeline_errors
     import provider_usage
 
     try:
         return {"provider_usage": provider_usage.status(),
-                # §464: rows waiting, dropped, the last failed write.
+                # §472: rows waiting, dropped, the last failed write.
                 "pipeline_errors": pipeline_errors.status()}
     except Exception as exc:  # noqa: BLE001 - health never fails on a report
         return {"error": f"{type(exc).__name__}: {exc}"[:200]}
@@ -2284,11 +2284,11 @@ async def health(request: Request) -> dict:
         # Whether a person is emailed when a report arrives (App Store 1.2's
         # 24 hours). Says why not, rather than leaving the inbox to be found.
         "report_alerts": REPORT_ALERTS.status(),
-        # How the usage and error records are being kept (§462): when the
+        # How the usage and error records are being kept (§470): when the
         # last write landed, failures, what is waiting. A record that cannot
         # be written used to be a log line and nothing else.
         "tracking": _tracking_health(),
-        # Keith's usage monitors (§465): the budgets in force and this
+        # Keith's usage monitors (§473): the budgets in force and this
         # server's last reading of each service.
         "usage_monitors": _usage_monitors_health(),
         # Whether tier limits bite, and what they are. A server running with

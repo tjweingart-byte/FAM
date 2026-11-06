@@ -371,7 +371,7 @@ SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the sam
                    ("it", "tag_sync", 5, "it_agent"))
 _QUEUED_DAYS: set = set()
 
-#: Background work queued every hour (§465): (agent, kind, switch). One
+#: Background work queued every hour (§473): (agent, kind, switch). One
 #: task keyed by the UTC hour, so a restart never runs an hour twice and an
 #: hour the loop was down is not made up. Keith's usage monitors read each
 #: service's own usage figures - reads only, nothing spent.

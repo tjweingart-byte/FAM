@@ -1313,7 +1313,7 @@ async def run_forever(generator=None, cache=None,
     if not settings.trending_bank and not settings.startup_write_ahead:
         log.info("trending bank: off (TRENDING_BANK=0)")
         return
-    # Everything this loop writes is the edition's in the day's spend (§462).
+    # Everything this loop writes is the edition's in the day's spend (§470).
     import metering
 
     metering.attribute_task("edition:trending")

@@ -1,4 +1,4 @@
-"""Keith's first fixes, piece 1c: `pipeline_errors` keeps its own record (§464).
+"""Keith's first fixes, piece 1c: `pipeline_errors` keeps its own record (§472).
 
 Past 2,000 waiting rows the oldest were dropped with no trace, a failed
 write was a log line, and the `agents` and `audio` stages had no

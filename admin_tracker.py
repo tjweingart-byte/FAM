@@ -536,9 +536,9 @@ def snapshot(now: Optional[float] = None) -> dict:
             "top_searches": top_searches, "stores": stores,
             "providers": provider_usage.report(now),
             # What the model calls cost, today and this month, by what spent
-            # it (§463) - the figure Claude's limit is measured against.
+            # it (§471) - the figure Claude's limit is measured against.
             "claude_spend": provider_usage.spend_report(now),
-            # Each service's own usage, read hourly by Keith (§465).
+            # Each service's own usage, read hourly by Keith (§473).
             "usage_monitors": _usage_monitors(now),
             "routing": live_routing.report(now),
             "pipeline_errors": pipeline_errors.report(now)}
@@ -817,7 +817,7 @@ async def _model_sql(question: str, schema_lines: str, error: str = "",
         ),
         timeout=30.0,
     )
-    # The day's spend (§462): an admin question is nobody's episode.
+    # The day's spend (§470): an admin question is nobody's episode.
     import metering
 
     metering.count_call("admin questions", ask_model(),

@@ -1711,7 +1711,7 @@ usage table, and gaps where usage was spent (`metering`) but not counted.
 | Spend | `metering` against each ceiling (prefetch, editions, grading, each agent's) |
 | Background jobs | Each `run_forever` loop's last run: Trending and DailyFAM editions, story sweep, GDELT sync, local feeds, weather, pushes, the Viral Loops outbox |
 | Other agents | Netenyahu's view: on/off, failures, holds; each agent's rule book |
-| MongoDB Atlas, Render, RunPod, Cloudflare R2 | `usage_monitors.py` (§465), hourly as Netenyahu's `it:usage`, each service's own read API: **RunPod's spend** (`GET /v2/billing`: today, yesterday, the month and its projection) built; **Atlas** (§466: the Flex cluster's storage, `atlasSize`, and connections, `serverStatus`, against 5 GB and 500, its state and limit from the Admin API) built; Cloudflare R2 and Render next. Against the owner's plan, or the monthly budget in `IT_BUDGETS` |
+| MongoDB Atlas, Render, RunPod, Cloudflare R2 | `usage_monitors.py` (§473), hourly as Netenyahu's `it:usage`, each service's own read API: **RunPod's spend** (`GET /v2/billing`: today, yesterday, the month and its projection) built; **Atlas** (§474: the Flex cluster's storage, `atlasSize`, and connections, `serverStatus`, against 5 GB and 500, its state and limit from the Admin API) built; **Cloudflare R2** (§475: the account's Class A and B operations this month and its storage, from GraphQL analytics, against the free monthly allowance, with the month's estimated charge past it) built; Render next. Against the owner's plan, or the monthly budget in `IT_BUDGETS` |
 
 ### Guardrails
 
@@ -1855,13 +1855,13 @@ pick from the list. After the shared preamble:
 |---|---|
 | `IT_AGENT` | `0` / `1` |
 | `IT_TICK_SECONDS` | 60 |
-| `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit (built, §465) |
-| `IT_BUDGETS` | The owner's monthly budget per service in dollars, `runpod=300,anthropic=200`; empty shows the spend with no share (built, §465) |
+| `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit (built, §473) |
+| `IT_BUDGETS` | The owner's monthly budget per service in dollars, `runpod=300,anthropic=200`; empty shows the spend with no share (built, §473) |
 | `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
 | `IT_MODEL`, `IT_SUMMARY_MODEL` | `anthropic:claude-haiku-5-5` for incidents, `anthropic:claude-sonnet-5-5` for `/admin` summaries (decided 2026-10-30) |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |
-| `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_PUBLIC_KEY` + `ATLAS_PRIVATE_KEY` (with `ATLAS_PROJECT_ID`, `ATLAS_CLUSTER`), `CLOUDFLARE_ANALYTICS_TOKEN` | Usage keys via `FAM_SECRETS`; RunPod's is the voice's own (§465), Atlas's a Project Read Only key (§466) |
+| `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_PUBLIC_KEY` + `ATLAS_PRIVATE_KEY` (with `ATLAS_PROJECT_ID`, `ATLAS_CLUSTER`), `CLOUDFLARE_ANALYTICS_TOKEN` | Usage keys via `FAM_SECRETS`; RunPod's is the voice's own (§473), Atlas's a Project Read Only key (§474) |
 
 Open: how you tell Keith something is fixed (a button in the pop-up is
 proposed). Decided (2026-10-28): urgent alerts go to Admin@familiarize.net;

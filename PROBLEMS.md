@@ -29835,13 +29835,13 @@ sentences, the tandem's outcomes, the trial's progress). The Phase 3 prompt
 (`docs/PHASE3_FIRST_PROMPT.md`) is deleted, as it said to be when Phase 3
 was finished.
 
-## 462. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05)
+## 470. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05)
 
 Phase 4 opens with decided item 7 and keith.md "always" 12: "your first fixes
 are to the records FAM keeps of its errors and of how much each plugin is
 used". The audit came first and went to the owner as a list; the owner said
-"Do 1a-1c". This is 1a, `provider_usage`; §463 is the money (`metering`) and
-§464 the error rows (`pipeline_errors`). Nothing here is an agent: Keith
+"Do 1a-1c". This is 1a, `provider_usage`; §471 is the money (`metering`) and
+§472 the error rows (`pipeline_errors`). Nothing here is an agent: Keith
 stays off, and these are the records he will read.
 
 **What the audit found in `provider_usage`, and what changed:**
@@ -29903,16 +29903,16 @@ diagnosis for whoever is looking now); no plan figure was guessed - the
 published ones were already in `_plans`, and R2's free tier and prices are
 Cloudflare's published ones.
 
-Tests: `tests/test_usage_tracking_462.py` (the four new rows; every limit a
+Tests: `tests/test_usage_tracking_470.py` (the four new rows; every limit a
 number or None; a month measured over the month; X in posts; `exists` asks
 the database; a failed write said on the row and on health, kept, then
 written; a store that will not open; Claude counted at the client; R2 by
 class; image requests), and `tests/test_provider_usage_179.py`'s list of rows
 extended.
 
-## 463. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05)
+## 471. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05)
 
-The second of Keith's first fixes (§462): "spend in `metering` not counted
+The second of Keith's first fixes (§470): "spend in `metering` not counted
 as usage". `metering`'s ledger is one row per listener episode (`app.py`,
 `METER.record`) plus one per agent call (§347). Everything else that spent on
 Claude reached it nowhere: the Trending, DailyFAM and rails editions and
@@ -29972,15 +29972,15 @@ daily figure beside Claude's - which this fixes.
 append-only), the per-listener and per-episode figures, and every price.
 Nothing new is called; counting never fails a call.
 
-Tests: `tests/test_model_spend_463.py` (an answer in the day's spend at the
+Tests: `tests/test_model_spend_471.py` (an answer in the day's spend at the
 list price; unpriced counted unpriced; the batch price; an answer folded twice
 counted once; the job that spent it; an agent's call with notes counted once
 under the agent; every Claude call in FAM reaches the spend; the table on
 Postgres).
 
-## 464. Phase 4, piece 1c: the error rows keep their own record (2026-11-05)
+## 472. Phase 4, piece 1c: the error rows keep their own record (2026-11-05)
 
-The third of Keith's first fixes (§462): `pipeline_errors`, the store `/admin`
+The third of Keith's first fixes (§470): `pipeline_errors`, the store `/admin`
 reads to say what went wrong.
 
 1. **Rows were dropped with no trace.** While the store could not be written,
@@ -29991,7 +29991,7 @@ reads to say what went wrong.
    write landed, how many failed, the last error, how many rows are waiting
    and how many were dropped; `behind` is true while rows wait after a
    failure, or once any was dropped. `/api/health` reports it (`tracking` →
-   `pipeline_errors`, beside §462's `provider_usage`) and the report carries
+   `pipeline_errors`, beside §470's `provider_usage`) and the report carries
    it as `tracking`.
 3. **The page could not show its own trouble.** It reads this store, and the
    store's trouble is never a row in it. While it is behind, the report puts
@@ -30009,15 +30009,15 @@ reads to say what went wrong.
 A write that fails still keeps its rows and tries again (unchanged); a flush
 with nothing waiting no longer opens the store.
 
-Tests: `tests/test_error_tracking_464.py` (dropped rows counted and shown at
+Tests: `tests/test_error_tracking_472.py` (dropped rows counted and shown at
 the top of the page with words; a failed write kept and said, then written;
 the agents and audio stages explained; health's `tracking`).
 
-## 465. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06)
+## 473. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06)
 
 Item 2 of Phase 4 (keith.md "always" 6): watch each service's own usage
 against the owner's plan - warn at 80%, urgently at 95% or when a limit will
-run out before it resets, with the next plan's price. `provider_usage` (§462)
+run out before it resets, with the next plan's price. `provider_usage` (§470)
 counts what FAM sends; these read what each service itself says. Piece 2a is
 the common part and RunPod.
 
@@ -30070,7 +30070,7 @@ built a "wrong" approval by putting "0" at the end of the right one - which
 failed this piece's first full check; it now changes the last character to
 one that differs.
 
-Tests: `tests/test_usage_monitors_465.py` (RunPod's spend read from its
+Tests: `tests/test_usage_monitors_473.py` (RunPod's spend read from its
 billing; no budget, no share; a budget's share, projection and levels; a pace
 that passes the budget is urgent; the first days not projected; a budget that
 does not read is ignored; a refusal said without its body; an answer not
@@ -30079,10 +30079,10 @@ monitor that raises; hourly only while Keith is on; the handler gated;
 health), `tests/test_agents_model_layer.py` (the monitors may reach Netenyahu
 and the roster, as the tag check does).
 
-## 466. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06)
+## 474. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06)
 
 The archive's cluster, `fam-archive` in project `6add48a0a599673c1877a727`, is
-**Flex** (§465's figures). MongoDB's own pages (read 2026-11-06,
+**Flex** (§473's figures). MongoDB's own pages (read 2026-11-06,
 `atlas/billing/atlas-flex-costs`, `atlas/reference/flex-limitations`): 5 GB of
 data and indexes, at most 500 connections, 500 operations a second as a hard
 limit, $8-$30 a month by operations a second, no storage auto-scaling, and the
@@ -30104,7 +30104,7 @@ second are not read: said in the reading, never guessed.
 **Figures:** storage used against 5 GB (the Admin API's figure, or Flex's
 published one when the API does not answer - said which), connections
 against 500, each with the next tier; `warn` at 80%, `urgent` at 95% as
-§465. Anything that could not be read is listed in the reading's
+§473. Anything that could not be read is listed in the reading's
 `not_read`; a reading with nothing read is `ok: false` with every reason.
 Nothing is asked unless `ARCHIVE_BACKEND=atlas`; without the key pair the
 Admin API is not asked and the cluster's own figures still are. An error
@@ -30112,12 +30112,61 @@ body is never kept. `ATLAS_PUBLIC_KEY` and `ATLAS_PRIVATE_KEY` join
 `spend_guard.PAID_CREDENTIALS` - free to use, but production's account, so
 staging never holds them.
 
-Tests: `tests/test_usage_monitors_atlas_466.py` (the request and the figures;
+Tests: `tests/test_usage_monitors_atlas_474.py` (the request and the figures;
 warn and urgent; the published limit when the Admin API refuses, and the key
 never kept; what the cluster refuses said; nothing answering; a cluster no
 longer Flex; nothing asked off Atlas or without keys; staging; the read-only
 user first and the client closed, the archive's user said when used), and
-§465's poll test pinned to RunPod alone now there are two monitors. The
+§473's poll test pinned to RunPod alone now there are two monitors. The
 first full check caught the two keys listed among the settings the tests
 clear for `config.py`: they are read through `credentials`, not `config.py`,
 so `tests/test_hermetic.py` refused them there.
+
+## 475. Phase 4, piece 2c: Cloudflare R2 in Keith's usage monitors (2026-11-06)
+
+The owner's account is on **R2 Paid** (§473). Cloudflare's published prices
+(read 2026-11-06, `developers.cloudflare.com/r2/pricing`): each month 1M Class
+A operations, 10M Class B and 10 GB-month of storage free, **for Standard
+storage only**; past that $4.50 per million Class A, $0.36 per million Class
+B, $0.015 per GB-month. Infrequent Access - where `kept/` lives (§237) - has
+no free allowance: $0.01 per GB-month, $9 and $0.90 per million operations,
+$0.01 per GB retrieved, 30 days minimum. Deletes are free. No plan to change:
+past the allowance R2 simply bills.
+
+**What is read.** One GraphQL query to Cloudflare's analytics
+(`api.cloudflare.com/client/v4/graphql`, the owner's token with only Account
+Analytics: Read - `CLOUDFLARE_ANALYTICS_TOKEN` through `FAM_SECRETS` - for
+`R2_ACCOUNT_ID`): this UTC month's operations by `actionType`
+(`r2OperationsAdaptiveGroups`) and the latest storage
+(`r2StorageAdaptiveGroups`), for the **whole account**, because the free
+allowance is the account's. Counted by Cloudflare, so the replays a
+listener's app fetches from a signed link (§252) - which §470's counts at
+`audio_store` never see - are in it.
+
+**Figures:** Class A and Class B operations this month against the
+allowance, sorted by Cloudflare's own lists (an operation kind it does not
+list is counted apart and named, never guessed into a class); storage now
+against 10 GB; and the **estimated charge this month** past the allowance at
+the Standard prices, against `IT_BUDGETS`' `r2` when set. Levels as §473:
+operations projected over the month, so a pace that passes the allowance is
+urgent before it does. **Approximate for storage, and said so in the
+reading:** these datasets give storage for all classes together, the
+allowance is Standard's only, and Infrequent Access is billed from its first
+GB. A refusal, an HTTP error, a token that cannot see the account or an
+answer not understood is a reading that says so; the token is never kept,
+and Cloudflare's error messages (which name fields and permissions) are.
+`CLOUDFLARE_ANALYTICS_TOKEN` joins `spend_guard.PAID_CREDENTIALS`, as §474's
+keys did.
+
+Tests: `tests/test_usage_monitors_r2_475.py` (the query and its variables;
+operations by class, free and unlisted kinds apart; the allowance's levels and
+the estimate at the published prices against a budget; a refused query; an
+HTTP error; an account the token cannot see; no token, nothing asked;
+staging).
+
+**This branch's sections renumbered, §462-§467 to §470-§475.** Before
+numbering this one, the other open branches were checked again:
+`claude/friendly-hopper-75zvoo` had renumbered its own to §462-§469 overnight
+(merging Main), the same numbers as this branch's. The later branch moves:
+every heading, reference and test file name here moved by eight, nothing
+else changed. That branch is untouched.

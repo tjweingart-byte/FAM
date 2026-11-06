@@ -259,10 +259,12 @@ FAM_ENVIRONMENT = (
     "SUPERVISOR_GROUNDING_HIGH", "SUPERVISOR_GROUNDING_LOW",
     "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", "SUPERVISOR_SCREEN_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
-    # §465: Keith's usage monitors.
+    # §473: Keith's usage monitors.
     "IT_BUDGETS", "IT_WARN_SHARE", "IT_URGENT_SHARE",
-    # §466: Atlas's monitor.
+    # §474: Atlas's monitor.
     "ATLAS_PROJECT_ID", "ATLAS_CLUSTER", "ATLAS_API_URL",
+    # §475: R2's monitor.
+    "CLOUDFLARE_GRAPHQL_URL",
     # §397: whose material Consuela may store.
     "HOUSEKEEPER_APPROVED_PROVIDERS",
     # §399: her consolidation's dry run and batch sizes.

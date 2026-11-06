@@ -311,20 +311,20 @@ stored**; it is computed from `events` and `preferences` on each request.
 **provider_usage.db** (`provider_usage.py`, §179): `calls` per UTC day per
 provider: `balldontlie` (and `balldontlie/<league>` per league, §275, §280), `parallel`, `perplexity`,
 `gdelt`, `polymarket`, `gnews`, `tiingo`, `wikidata`, `wikipedia`,
-`wikimedia_enterprise`, `nws`, `open_meteo`, `local_feeds`, and since §462
+`wikimedia_enterprise`, `nws`, `open_meteo`, `local_feeds`, and since §470
 `x`, `anthropic` (every Claude request, counted at the client; `/messages`,
 `/batches`), `gemini` (`/images`, `/model list`) and `r2` (`/class A`,
 `/class B`, `/delete (free)`). Counted in memory and flushed at most every
 10 s (`FLUSH_SECONDS`); a failed write keeps the counts and is said on the
-row and in `/api/health` → `tracking` (§462). Each limit is also a number
+row and in `/api/health` → `tracking` (§470). Each limit is also a number
 (`allowances()`): a daily or monthly quota with what was used and the share,
-a rate with none, or None. Feeds `/admin`. Its second table, `spend` (§463),
+a rate with none, or None. Feeds `/admin`. Its second table, `spend` (§471),
 is what model calls cost per UTC day by `source` (`episodes`, `edition:*`,
 `prefetch`, `agent:<role>`, the composer, the placer, thumbnails...) and model:
 calls, tokens, dollars at `metering.PRICES`, and calls with no price
 (`unpriced`, never $0). Every Claude answer is counted once there
 (`metering.Usage.add_model_call`, `metering.count_call`); no listener id.
-Its third, `monitor_readings` (§465), is Keith's usage monitors' readings of
+Its third, `monitor_readings` (§473), is Keith's usage monitors' readings of
 each service's own figures (RunPod's spend so far), one row per reading as
 JSON, kept 90 days. Since §211 `gdelt` counts the export-file downloads (~200 a day,
 whatever the traffic), never a listener's request. The licence check (§207, `provider_usage.licences()`) stores
@@ -509,8 +509,8 @@ source of truth.
 | Live facts | `live_facts.FACT_CACHE` | Scores, quotes, odds | Short, by status (in progress shortest) |
 | Sports sweep and scoreboard | `balldontlie_scores.CARDS`, `TEAMS`, `STANDINGS`, `SCHEDULES`, `SWEPT_AT` | Today's cards, catalogues, tables, schedules (§277) | 10 min to a day, per process |
 | GDELT download state | `gdelt.STATE` | Last success, last attempt, failures in a row, last error, last file (§211; the §207 breaker is deleted) | Process lifetime |
-| Provider counts (pending) | `provider_usage._PENDING`, `_PENDING_SPEND` | Requests and model spend not yet flushed to `provider_usage.db`; how writing has gone (`status()`, §462) | ≤ 10 s, or until a failed write succeeds |
-| Pipeline error rows (pending) | `pipeline_errors._PENDING*` | Errors, steps and refusals not yet written; past 2,000 of each the oldest are dropped and counted (`status()`, §464) | ≤ 10 s, or until a failed write succeeds |
+| Provider counts (pending) | `provider_usage._PENDING`, `_PENDING_SPEND` | Requests and model spend not yet flushed to `provider_usage.db`; how writing has gone (`status()`, §470) | ≤ 10 s, or until a failed write succeeds |
+| Pipeline error rows (pending) | `pipeline_errors._PENDING*` | Errors, steps and refusals not yet written; past 2,000 of each the oldest are dropped and counted (`status()`, §472) | ≤ 10 s, or until a failed write succeeds |
 | Weather lookups | `weather._POINTS`, `weather._PLACES` | NWS grid points, resolved places | Process lifetime |
 | robots.txt | `local_news._ROBOTS` | Per-host robots answers | Process lifetime |
 | Engagement table | `topics._ENGAGEMENT_CACHE` | Global click-through per tile | Rebuilt every 5 min |

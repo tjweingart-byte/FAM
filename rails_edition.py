@@ -208,7 +208,7 @@ async def run_forever(generator=None, cache=None,
     if not _settings().rails_edition:
         log.info("rails edition: off (RAILS_EDITION=0)")
         return
-    # Everything this loop writes is the edition's in the day's spend (§462).
+    # Everything this loop writes is the edition's in the day's spend (§470).
     import metering
 
     metering.attribute_task("edition:rails")

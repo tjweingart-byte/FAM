@@ -1,4 +1,4 @@
-"""Keith's usage monitors: each service's own usage, against the owner's plan (§465).
+"""Keith's usage monitors: each service's own usage, against the owner's plan (§473).
 
 keith.md "always" 6: "Watch every plugin's usage against its limits - data
 providers, Claude, Gemini, MongoDB Atlas, Render, RunPod and Cloudflare - and
@@ -27,8 +27,8 @@ are kept in `provider_usage.db` (`monitor_readings`, 90 days).
 **Never raises.** A service that does not answer, or answers in a shape not
 understood, is a reading with `ok: false` and why - never a figure of 0.
 
-Built so far: RunPod (2a, §465), Atlas (2b, §466). Cloudflare R2 and Render
-follow.
+Built so far: RunPod (2a, §473), Atlas (2b, §474), Cloudflare R2 (2c,
+§475). Render follows.
 """
 from __future__ import annotations
 
@@ -326,8 +326,161 @@ async def read_atlas(now: Optional[datetime.datetime] = None,
     return reading("atlas", figures, at=at, detail=detail)
 
 
+# ------------------------------------------------------------- Cloudflare R2
+#: R2's published prices and free allowance (checked 2026-11-06,
+#: developers.cloudflare.com/r2/pricing). The free allowance is monthly and
+#: covers Standard storage only; Infrequent Access has none.
+R2_FREE = {"class A": 1_000_000, "class B": 10_000_000, "storage_gb": 10.0}
+R2_PRICE = {"class A": 4.50 / 1e6, "class B": 0.36 / 1e6, "storage_gb": 0.015}
+R2_CLASS_A = frozenset((
+    "ListBuckets", "PutBucket", "ListObjects", "PutObject", "CopyObject",
+    "CompleteMultipartUpload", "CreateMultipartUpload",
+    "LifecycleStorageTierTransition", "ListMultipartUploads", "UploadPart",
+    "UploadPartCopy", "ListParts", "PutBucketEncryption", "PutBucketCors",
+    "PutBucketLifecycleConfiguration"))
+R2_CLASS_B = frozenset((
+    "HeadBucket", "HeadObject", "GetObject", "UsageSummary",
+    "GetBucketEncryption", "GetBucketLocation", "GetBucketCors",
+    "GetBucketLifecycleConfiguration"))
+R2_FREE_OPS = frozenset(("DeleteObject", "DeleteBucket", "AbortMultipartUpload"))
+R2_NEXT = "pay as you go past the free allowance - no plan to change"
+
+_R2_QUERY = """
+query FamR2($account: string!, $start: Time!, $end: Time!) {
+  viewer {
+    accounts(filter: {accountTag: $account}) {
+      operations: r2OperationsAdaptiveGroups(
+          limit: 10000, filter: {datetime_geq: $start, datetime_leq: $end}) {
+        sum { requests }
+        dimensions { actionType }
+      }
+      storage: r2StorageAdaptiveGroups(
+          limit: 1, filter: {datetime_geq: $start, datetime_leq: $end},
+          orderBy: [datetime_DESC]) {
+        max { payloadSize metadataSize objectCount }
+        dimensions { datetime }
+      }
+    }
+  }
+}
+"""
+
+
+async def read_r2(now: Optional[datetime.datetime] = None, client=None) -> dict:
+    """Cloudflare R2, the whole account: this UTC month's operations by
+    billing class and the storage now, from Cloudflare's GraphQL analytics
+    (`CLOUDFLARE_ANALYTICS_TOKEN`, Account Analytics: Read). Counted by
+    Cloudflare, so the replays a listener's app fetches from a signed link
+    (§252), which FAM never sees, are in it.
+
+    Measured against the free monthly allowance, with what the month would
+    cost past it at the published prices - measured against `IT_BUDGETS`'
+    `r2` when set. Approximate for storage: the free allowance covers
+    Standard storage only, FAM keeps `kept/` in Infrequent Access (§237),
+    and these datasets do not split storage by class - said in the reading.
+    """
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    at = now.timestamp()
+    token = _secret("CLOUDFLARE_ANALYTICS_TOKEN")
+    account = (settings.r2_account_id or "").strip()
+    if not (token and account):
+        return reading("r2", [], ok=False, at=at,
+                       why="not configured: CLOUDFLARE_ANALYTICS_TOKEN and "
+                           "R2_ACCOUNT_ID are both needed")
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    variables = {"account": account,
+                 "start": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                 "end": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
+    try:
+        import httpx
+
+        own = client is None
+        client = client or httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
+        try:
+            response = await client.post(
+                settings.cloudflare_graphql_url,
+                json={"query": _R2_QUERY, "variables": variables},
+                headers={"Authorization": f"Bearer {token}"})
+        finally:
+            if own:
+                await client.aclose()
+    except Exception as exc:  # noqa: BLE001 - a monitor never raises
+        return reading("r2", [], ok=False, at=at,
+                       why=f"no answer: {type(exc).__name__}")
+    if response.status_code >= 400:
+        return reading("r2", [], ok=False, at=at,
+                       why=f"HTTP {response.status_code} from Cloudflare's analytics")
+    try:
+        body = response.json()
+        if body.get("errors"):
+            # The messages name fields and permissions, never the token.
+            said = "; ".join(str(e.get("message", ""))[:120]
+                             for e in body["errors"][:3])
+            return reading("r2", [], ok=False, at=at,
+                           why=f"Cloudflare refused the query: {said}")
+        accounts = body["data"]["viewer"]["accounts"]
+        if not accounts:
+            return reading("r2", [], ok=False, at=at,
+                           why="the token cannot see this account (R2_ACCOUNT_ID)")
+        groups = accounts[0].get("operations") or []
+        stored = accounts[0].get("storage") or []
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        return reading("r2", [], ok=False, at=at,
+                       why=f"an answer not understood: {type(exc).__name__}")
+    counts = {"class A": 0, "class B": 0, "free": 0, "unknown": 0}
+    unknown: set = set()
+    for g in groups:
+        kind = str((g.get("dimensions") or {}).get("actionType") or "")
+        n = int((g.get("sum") or {}).get("requests") or 0)
+        if kind in R2_CLASS_A:
+            counts["class A"] += n
+        elif kind in R2_CLASS_B:
+            counts["class B"] += n
+        elif kind in R2_FREE_OPS:
+            counts["free"] += n
+        else:
+            counts["unknown"] += n
+            unknown.add(kind)
+    figures = [
+        figure("class A operations this month", counts["class A"], "operations",
+               "month", limit=R2_FREE["class A"],
+               limit_source="R2's free monthly allowance", now=now, next_plan=R2_NEXT),
+        figure("class B operations this month", counts["class B"], "operations",
+               "month", limit=R2_FREE["class B"],
+               limit_source="R2's free monthly allowance", now=now, next_plan=R2_NEXT),
+    ]
+    storage_gb = None
+    if stored:
+        top = stored[0].get("max") or {}
+        storage_gb = round((float(top.get("payloadSize") or 0)
+                            + float(top.get("metadataSize") or 0)) / 1e9, 4)
+        figures.append(figure("storage", storage_gb, "GB", "now",
+                              limit=R2_FREE["storage_gb"],
+                              limit_source="R2's free storage (Standard only)",
+                              next_plan=R2_NEXT))
+    # What the month would cost past the free allowance, at Standard prices.
+    over = (max(0, counts["class A"] - R2_FREE["class A"]) * R2_PRICE["class A"]
+            + max(0, counts["class B"] - R2_FREE["class B"]) * R2_PRICE["class B"]
+            + max(0.0, (storage_gb or 0.0) - R2_FREE["storage_gb"])
+            * R2_PRICE["storage_gb"])
+    budget = budgets().get("r2")
+    figures.append(figure("estimated charge this month", round(over, 4), "USD",
+                          "month", limit=budget,
+                          limit_source="IT_BUDGETS" if budget else "", now=now))
+    return reading("r2", figures, at=at, detail={
+        "scope": "the whole Cloudflare account",
+        "free_operations": counts["free"],
+        "unclassified_operations": counts["unknown"],
+        "unclassified_kinds": sorted(unknown)[:10],
+        "objects": int(((stored[0].get("max") or {}).get("objectCount") or 0))
+        if stored else None,
+        "approximate": ("storage is all classes together; the free allowance "
+                        "is Standard's only, and Infrequent Access (kept/) is "
+                        "billed from the first GB at $0.01/GB-month")})
+
+
 #: Every monitor built, by service.
-MONITORS = {"runpod": read_runpod, "atlas": read_atlas}
+MONITORS = {"runpod": read_runpod, "atlas": read_atlas, "r2": read_r2}
 
 
 # ------------------------------------------------------------------- running

@@ -1480,7 +1480,7 @@ async def place(store: "CategoryStore", subjects: list[str],
                     "their keyless parents", exc, len(subjects))
         return 0
 
-    # The day's spend (§462): the placer's answer is folded in nowhere else.
+    # The day's spend (§470): the placer's answer is folded in nowhere else.
     import metering
 
     metering.count_call("category placer", settings.categories_model,

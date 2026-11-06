@@ -1,4 +1,4 @@
-"""Keith's usage monitors, piece 2a: the common part and RunPod's spend (§465).
+"""Keith's usage monitors, piece 2a: the common part and RunPod's spend (§473).
 
 keith.md "always" 6: watch each service's usage against its limits and warn
 at 80%, urgently at 95% or when a limit will run out before it resets. The

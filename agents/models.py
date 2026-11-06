@@ -485,7 +485,7 @@ async def _ask(request, notes, client, started, sent=None) -> AgentResult:
                     sent=True, **kw)
 
     call = metering.Usage()
-    # Counted once in the day's spend, under the agent (§462); folded into
+    # Counted once in the day's spend, under the agent (§470); folded into
     # the episode's notes without counting it again.
     call.add_model_call(spec.price_key, answer.usage, source=f"agent:{request.agent}")
     if notes is not None and getattr(notes, "usage", None) is not None:

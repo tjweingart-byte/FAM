@@ -49,7 +49,7 @@ def build_http_client() -> anthropic.DefaultAsyncHttpxClient:
 
 
 async def _count_response(response) -> None:
-    """Count every request Claude answered, retries included (§462).
+    """Count every request Claude answered, retries included (§470).
 
     Claude was the one paid service no count saw: its spend reached
     `metering` per episode, but how many requests went out, and how many came

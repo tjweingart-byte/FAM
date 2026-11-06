@@ -1,4 +1,4 @@
-"""Keith's usage monitors, piece 2b: MongoDB Atlas (§466).
+"""Keith's usage monitors, piece 2b: MongoDB Atlas (§474).
 
 The archive's Flex cluster against Flex's limits: the Admin API (a Project
 Read Only key, Digest auth) for its state and storage limit, the cluster's

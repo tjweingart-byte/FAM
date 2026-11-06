@@ -213,7 +213,7 @@ class MemoryAudioStore:
 
 
 def r2_class(method: str) -> str:
-    """Cloudflare's billing class for one request (§462): writes, copies and
+    """Cloudflare's billing class for one request (§470): writes, copies and
     lists are Class A, reads and heads Class B, deletes free."""
     method = (method or "").upper()
     if method == "DELETE":
@@ -224,7 +224,7 @@ def r2_class(method: str) -> str:
 
 
 def _count_r2(part: str, ok: bool, why: str = "") -> None:
-    """Count one bucket request in `provider_usage` (§462). Never raises.
+    """Count one bucket request in `provider_usage` (§470). Never raises.
 
     Only what FAM's server asks: a replay fetched by the listener's own app
     from a signed link (§252) goes to Cloudflare directly and is in

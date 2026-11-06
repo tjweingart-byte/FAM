@@ -400,7 +400,7 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "history_archive.py": {"roster", "housekeeper", "retriever"},
         # Keith's tag check (§405) reads his lock and registers his task.
         "tag_sync.py": {"roster", "netenyahu"},
-        # And his usage monitors (§465), the same way: reads, no model.
+        # And his usage monitors (§473), the same way: reads, no model.
         "usage_monitors.py": {"roster", "netenyahu"},
         # The re-file of episodes written before Nando (§428): his code
         # steps and his check against the writer's words, no model.

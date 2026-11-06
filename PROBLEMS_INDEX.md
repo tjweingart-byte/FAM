@@ -458,8 +458,9 @@ and `limit` = Lines.
 | 29665 | 76 | 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04) |
 | 29741 | 53 | 460. The second double-check, and the Cost table from measured figures (2026-11-05) |
 | 29794 | 44 | 461. The owner's answers after Phase 3, the production switches, and the Phase 4 prompt (2026-11-05) |
-| 29838 | 75 | 462. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05) |
-| 29913 | 68 | 463. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05) |
-| 29981 | 35 | 464. Phase 4, piece 1c: the error rows keep their own record (2026-11-05) |
-| 30016 | 66 | 465. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06) |
-| 30082 | 43 | 466. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06) |
+| 29838 | 75 | 470. Phase 4, piece 1a: what the usage table counts - Keith's first fixes (2026-11-05) |
+| 29913 | 68 | 471. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05) |
+| 29981 | 35 | 472. Phase 4, piece 1c: the error rows keep their own record (2026-11-05) |
+| 30016 | 66 | 473. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06) |
+| 30082 | 43 | 474. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06) |
+| 30125 | 49 | 475. Phase 4, piece 2c: Cloudflare R2 in Keith's usage monitors (2026-11-06) |

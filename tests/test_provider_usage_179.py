@@ -39,7 +39,7 @@ def test_every_provider_the_owner_named_is_reported_in_order():
         "Wikidata", "Wikipedia", "Wikimedia Enterprise",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds",
-        # §462: spent on and not reported until Keith's first fixes.
+        # §470: spent on and not reported until Keith's first fixes.
         "X", "Claude (Anthropic)", "Google image model", "Cloudflare R2"]
     for row in rows:
         assert row["limit"] and row["next"]

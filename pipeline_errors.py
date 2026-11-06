@@ -64,10 +64,10 @@ RECENT = 60
 STEPS_READ = 50_000
 
 STAGES = ("brief", "live", "research", "writer", "edition", "episode", "voice",
-          # §462: recorded since §347 and §404 but never listed, so they had
+          # §470: recorded since §347 and §404 but never listed, so they had
           # no explanation and no place in the stage counts until one happened.
           "agents", "audio",
-          # §462: this store itself - rows that could not be written.
+          # §470: this store itself - rows that could not be written.
           "tracking")
 ERROR = "error"
 NOTICE = "notice"
@@ -216,7 +216,7 @@ _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
 _FLUSH_LOCK = threading.Lock()
 
-#: How keeping these rows has gone since this server started (§462). A row
+#: How keeping these rows has gone since this server started (§470). A row
 #: past `MAX_PENDING` while the store could not be written was dropped with
 #: no trace, and a failed write was one log line: the page that exists to
 #: show what went wrong could not show that it had gone wrong itself.
@@ -252,7 +252,7 @@ def _failed(what: str, exc: BaseException) -> None:
 
 
 def status() -> dict:
-    """How the rows are being kept (§462), for /api/health and /admin:
+    """How the rows are being kept (§470), for /api/health and /admin:
     rows waiting to be written, rows dropped since boot, the last failure.
     `behind` is true while a failed write or open leaves rows waiting, or
     once any row was dropped. Never raises."""
@@ -753,7 +753,7 @@ EXPLAIN = (
          "On the pod: check those two settings, search its log for "
          "'registration', and rebuild it from Dockerfile.voice if its "
          "/health has no 'registering' field.")),
-    # §462: the agents' stage (§347, §350). Off by default; a row here means
+    # §470: the agents' stage (§347, §350). Off by default; a row here means
     # an agent was switched on and did not finish - the episode went on
     # without it (every-agent.md, "always" 1).
     ("agents", r": held$",
@@ -932,7 +932,7 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
     for k in kinds.values():
         k["categories"] = [{"name": n, "count": c} for n, c in
                            sorted(k["categories"].items(), key=lambda kv: (-kv[1], kv[0]))]
-    # §462: the store's own trouble, as a kind of its own at the top of the
+    # §470: the store's own trouble, as a kind of its own at the top of the
     # page, the only place it can be seen - it is never a row in the store.
     tracking = status()
     if tracking["behind"]:
@@ -962,13 +962,13 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
         "steps_capped": len(steps) >= STEPS_READ,
         # Every declined model call (§273): how often, for what, and where.
         "refusals": refusals_report(refused, steps, now),
-        # How the rows themselves are being kept (§462).
+        # How the rows themselves are being kept (§470).
         "tracking": tracking,
     }
 
 
 def _tracking_kind(tracking: dict, now: float) -> dict:
-    """The page's row for rows this store could not keep (§462)."""
+    """The page's row for rows this store could not keep (§470)."""
     dropped = tracking["dropped_total"]
     parts = []
     if tracking["waiting"]:

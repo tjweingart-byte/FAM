@@ -1,4 +1,4 @@
-"""Keith's first fixes, piece 1b: the day's model spend (§463).
+"""Keith's first fixes, piece 1b: the day's model spend (§471).
 
 Only a listener's episodes and the agents reached `metering`'s ledger:
 editions, prefetch, the story composer, the category placer, the thumbnails

@@ -1046,7 +1046,7 @@ async def run_forever(mix_store, generator=None, cache=None,
     if not _settings().daily_edition:
         log.info("daily edition: off (DAILY_EDITION=0)")
         return
-    # Everything this loop writes is the edition's in the day's spend (§462).
+    # Everything this loop writes is the edition's in the day's spend (§470).
     import metering
 
     metering.attribute_task("edition:dailyfam")
@@ -1147,7 +1147,7 @@ def schedule_mix(mix, generator=None, cache=None,
         import listener_clock
 
         listener_clock.set_for_request("")
-        # And the edition's spend, in the day's figure (§462).
+        # And the edition's spend, in the day's figure (§470).
         import metering
 
         metering.attribute_task("edition:dailyfam")

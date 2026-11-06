@@ -63,7 +63,7 @@ def test_the_list_changes_nothing_and_names_its_approval(archive, tmp_path):
 def test_any_other_approval_or_an_edited_list_is_refused(archive, tmp_path):
     path = tmp_path / "w.json"
     digest = wr.write_list(wr.listing(archive), path)
-    # One character off - never the same one (§465: "0" alone was the right
+    # One character off - never the same one (§473: "0" alone was the right
     # digest whenever the digest ended in 0, one run in sixteen).
     off = digest[:-1] + ("1" if digest[-1] == "0" else "0")
     for wrong in ("", "yes", off):

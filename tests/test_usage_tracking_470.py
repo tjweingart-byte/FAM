@@ -1,4 +1,4 @@
-"""Keith's first fixes, piece 1a: what `provider_usage` counts (§462).
+"""Keith's first fixes, piece 1a: what `provider_usage` counts (§470).
 
 The audit (decided item 7, keith.md "always" 12) found X counted and never
 shown; Claude, Google's image model and the R2 bucket never counted; no limit

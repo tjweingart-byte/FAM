@@ -168,7 +168,7 @@ async def check(data_url: str, usage=None) -> Verdict:
         except Exception:  # noqa: BLE001 - metering never fails an upload
             log.exception("image_check: could not meter the call")
     else:
-        # Not folded into a listener's usage, still in the day's spend (§462).
+        # Not folded into a listener's usage, still in the day's spend (§470).
         import metering
 
         metering.count_call("photo check", settings.image_check_model,

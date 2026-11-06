@@ -1190,7 +1190,7 @@ async def claude_writer(paths: list[str]) -> list[Scene]:
                        + listing}],
         ),
         timeout=float(settings.thumbnails_timeout_seconds))
-    # The day's spend (§462), priced at `metering.PRICES` there.
+    # The day's spend (§470), priced at `metering.PRICES` there.
     import metering
 
     metering.count_call("thumbnails", settings.thumbnails_model,
@@ -1340,7 +1340,7 @@ async def _google_post(model: str, prompt: str, key: str):
         provider_usage.record("gemini", ok=False, detail="images",
                               why=type(exc).__name__)
         raise
-    # Every image request, counted where it goes out (§462); what a made
+    # Every image request, counted where it goes out (§470); what a made
     # picture cost is `record_spend`'s, below, and the day's spend.
     code = int(getattr(resp, "status_code", 0) or 0)
     provider_usage.record("gemini", ok=200 <= code < 300, detail="images",
@@ -1733,7 +1733,7 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
             raise StopRun(f"painter failed: {exc}") from exc
         spent += image_cost
         thumb_store.record_spend(node_id, 1, image_cost)
-        # And in the day's model spend beside Claude's (§462), priced as the
+        # And in the day's model spend beside Claude's (§470), priced as the
         # tile store prices it (`THUMBNAILS_IMAGE_PRICE`).
         import provider_usage
 
