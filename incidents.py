@@ -60,6 +60,11 @@ CLOSE_AFTER_SECONDS = 2 * 3600
 REPORT_HOURS = 20
 #: How long closed incidents are kept.
 KEEP_DAYS = 90
+#: After the owner says an error kind is fixed, this long with none of it,
+#: and Keith closes it - checked, not believed (keith.md "always" 11).
+CLAIM_QUIET_SECONDS = 30 * 60
+#: At most this many urgent emails in one round.
+EMAILS_PER_ROUND = 5
 
 #: Causes that are states, not events: closed as soon as a round no longer
 #: finds them (a level back to ok, a store writing again).
@@ -94,7 +99,8 @@ class IncidentStore:
                               detail     TEXT NOT NULL DEFAULT '{}',
                               plan       TEXT NOT NULL DEFAULT '{}',
                               emailed_at REAL,
-                              closed_why TEXT NOT NULL DEFAULT '')""")
+                              closed_why TEXT NOT NULL DEFAULT '',
+                              fixed_claim_at REAL)""")
 
     def _connect(self):
         db = store_db.connect(self.path, timeout=5, isolation_level=None)
@@ -102,7 +108,7 @@ class IncidentStore:
         return db
 
     _COLUMNS = ("cause, source, severity, title, opened_at, last_seen, closed_at, "
-                "seen, reopened, detail, plan, emailed_at, closed_why")
+                "seen, reopened, detail, plan, emailed_at, closed_why, fixed_claim_at")
 
     def _rows(self, where: str, args: tuple) -> list:
         with closing(self._connect()) as db:
@@ -136,7 +142,7 @@ class IncidentStore:
                        json.dumps(finding.get("plan") or {}))
             if row is None:
                 db.execute(f"INSERT INTO incidents ({self._COLUMNS}) VALUES "
-                           "(?, ?, ?, ?, ?, ?, NULL, 1, 0, ?, ?, NULL, '')",
+                           "(?, ?, ?, ?, ?, ?, NULL, 1, 0, ?, ?, NULL, '', NULL)",
                            (finding["cause"], payload[0], payload[1], payload[2],
                             now, now, payload[3], payload[4]))
                 return "opened"
@@ -144,7 +150,8 @@ class IncidentStore:
                 db.execute("UPDATE incidents SET source = ?, severity = ?, title = ?, "
                            "detail = ?, plan = ?, opened_at = ?, last_seen = ?, "
                            "closed_at = NULL, seen = 1, reopened = reopened + 1, "
-                           "emailed_at = NULL, closed_why = '' WHERE cause = ?",
+                           "emailed_at = NULL, closed_why = '', fixed_claim_at = NULL "
+                           "WHERE cause = ?",
                            (*payload, now, now, finding["cause"]))
                 return "reopened"
             # Never quieter than it was while it stays open: a worse round
@@ -162,6 +169,12 @@ class IncidentStore:
                        "WHERE cause = ? AND closed_at IS NULL", (now, why[:200], cause))
             db.execute("DELETE FROM incidents WHERE closed_at IS NOT NULL "
                        "AND closed_at < ?", (now - KEEP_DAYS * 86400,))
+
+    def claim_fixed(self, cause: str, at: Optional[float]) -> None:
+        """When the owner said it was fixed (None clears it)."""
+        with self._lock, closing(self._connect()) as db:
+            db.execute("UPDATE incidents SET fixed_claim_at = ? WHERE cause = ? "
+                       "AND closed_at IS NULL", (at, cause))
 
     def mark_emailed(self, cause: str, now: float) -> None:
         with self._lock, closing(self._connect()) as db:
@@ -258,11 +271,13 @@ def from_errors(now: float) -> list:
     pipeline_errors.flush()
     rows = pipeline_errors.store().since(now - 3600)
     counts: dict = {}
+    last: dict = {}
     for r in rows:
         if r["severity"] != pipeline_errors.ERROR:
             continue
         key = (r["stage"], pipeline_errors.family(r["kind"]))
         counts[key] = counts.get(key, 0) + 1
+        last[key] = max(last.get(key, 0.0), float(r["at"]))
     floor = max(1, int(getattr(_settings(), "it_incident_errors", 3) or 3))
     out = []
     for (stage, kind), n in counts.items():
@@ -273,7 +288,7 @@ def from_errors(now: float) -> list:
             f"errors:{stage}:{kind}", "errors", URGENT if n >= ERRORS_URGENT else WARN,
             f"{said.get('title') or kind}: {n} in the last hour",
             detail={"stage": stage, "kind": kind, "last_hour": n,
-                    "hint": said.get("hint", "")},
+                    "last_at": last[(stage, kind)], "hint": said.get("hint", "")},
             problem=said.get("what", ""), heard=said.get("heard", ""),
             recommended=said.get("act", ""),
             cost_risk=f"Likely causes: {said.get('causes', '') or 'not written yet'}",
@@ -414,6 +429,22 @@ def watch(now: Optional[float] = None) -> dict:
         causes = set()
         for f in found:
             causes.add(f["cause"])
+            row = target.get(f["cause"])
+            claim = (row or {}).get("fixed_claim_at") if row and row["closed_at"] is None else None
+            if claim and f["source"] == "errors":
+                last_at = float(f["detail"].get("last_at") or 0)
+                if last_at <= claim:
+                    # Nothing new since the owner said fixed: close once quiet
+                    # long enough, and until then leave it as it is.
+                    if now - claim >= CLAIM_QUIET_SECONDS:
+                        target.close(f["cause"], "you said fixed; Keith saw none "
+                                     f"for {CLAIM_QUIET_SECONDS // 60} minutes after", now)
+                        done["closed"].append(f["cause"])
+                    continue
+                f["detail"]["after_your_fix"] = (
+                    "still happening after you said it was fixed, at "
+                    + time.strftime("%H:%M UTC", time.gmtime(claim)))
+                target.claim_fixed(f["cause"], None)
             what = target.seen(f, now)
             if what == "seen":
                 done["seen"] += 1
@@ -422,16 +453,101 @@ def watch(now: Optional[float] = None) -> dict:
         for row in target.open_incidents():
             if row["cause"] in causes or row["source"] not in read:
                 continue
+            if row["fixed_claim_at"] and row["source"] == "errors":
+                target.close(row["cause"], "you said fixed; Keith found none since", now)
+                done["closed"].append(row["cause"])
+                continue
             if row["source"] in STATE_SOURCES:
                 target.close(row["cause"], "no longer found", now)
                 done["closed"].append(row["cause"])
             elif now - row["last_seen"] >= CLOSE_AFTER_SECONDS:
                 target.close(row["cause"], "quiet for two hours", now)
                 done["closed"].append(row["cause"])
+        done["emailed"] = email_urgent(now)
     except Exception as exc:  # noqa: BLE001 - the round never raises
         log.warning("incidents: the round failed: %s", exc)
         done["error"] = type(exc).__name__
     return done
+
+
+def owner_fixed(cause: str, now: Optional[float] = None) -> dict:
+    """The owner says this is fixed: Keith checks rather than believes
+    (keith.md "always" 11). A state is re-read now and closed only if it is
+    gone; an error kind is watched, and closed once
+    `CLAIM_QUIET_SECONDS` pass with none of it. Never raises."""
+    now = time.time() if now is None else now
+    try:
+        row = store().get(cause)
+        if row is None or row["closed_at"] is not None:
+            return {"state": "closed", "message": "Already closed."}
+        if row["source"] == "errors":
+            store().claim_fixed(cause, now)
+            return {"state": "watching",
+                    "message": f"Keith closes it once {CLAIM_QUIET_SECONDS // 60} "
+                               "minutes pass with none of it, and says so if it "
+                               "happens again."}
+        found, read = findings(now)
+        if row["source"] not in read:
+            return {"state": "unknown",
+                    "message": "Keith could not re-check it just now; it stays open."}
+        again = next((f for f in found if f["cause"] == cause), None)
+        if again is not None:
+            again["detail"]["after_your_fix"] = (
+                "still found when Keith re-checked after you said it was fixed, at "
+                + time.strftime("%H:%M UTC", time.gmtime(now)))
+            store().seen(again, now)
+            return {"state": "still_open",
+                    "message": "Keith re-checked: it is still there. " + again["title"]}
+        store().close(cause, "you said fixed; Keith's re-check no longer finds it", now)
+        return {"state": "closed", "message": "Keith re-checked: it is gone. Closed."}
+    except Exception as exc:  # noqa: BLE001
+        log.warning("incidents: could not check %r: %s", cause, exc)
+        return {"state": "unknown", "message": f"The check failed: {type(exc).__name__}"}
+
+
+def email_ready() -> dict:
+    """Whether an urgent incident can be emailed, and if not, why."""
+    import mail
+
+    to = (getattr(_settings(), "it_alert_email", "") or "").strip()
+    if not to:
+        return {"ready": False, "to": "", "why": "IT_ALERT_EMAIL is not set"}
+    status = mail.status()
+    if not status.get("available"):
+        return {"ready": False, "to": to, "why": status.get("reason", "")}
+    return {"ready": True, "to": to, "why": ""}
+
+
+def email_urgent(now: float) -> list:
+    """Email each open urgent incident not emailed yet - once, and again only
+    if it reopens (decided items 10 and 23). A failed send is tried next
+    round; the pop-up shows it either way. Returns the causes sent."""
+    ready = email_ready()
+    if not ready["ready"]:
+        return []
+    import mail
+
+    sent = []
+    for row in store().open_incidents():
+        if len(sent) >= EMAILS_PER_ROUND:
+            break
+        if row["severity"] != URGENT or row["emailed_at"]:
+            continue
+        plan = row["plan"] or {}
+        body = "\n".join([
+            row["title"], "",
+            f"Problem: {plan.get('problem', '')}",
+            f"What a listener notices: {plan.get('listener_notices', '')}",
+            f"Tried: {plan.get('tried', '')}",
+            f"Recommended: {plan.get('recommended', '')}",
+            f"Cost and risk: {plan.get('cost_and_risk', '')}",
+            f"Needed from you: {plan.get('needs_from_owner', '')}", "",
+            "Every open alert is on any /admin page until it is resolved.",
+            "- Keith (FAM)"])
+        if mail.send(ready["to"], f"[FAM urgent] {row['title']}"[:200], body):
+            store().mark_emailed(row["cause"], now)
+            sent.append(row["cause"])
+    return sent
 
 
 async def handler(_task: str) -> None:

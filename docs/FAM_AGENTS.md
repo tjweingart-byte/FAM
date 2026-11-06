@@ -1864,8 +1864,10 @@ pick from the list. After the shared preamble:
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |
 | `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_PUBLIC_KEY` + `ATLAS_PRIVATE_KEY` (with `ATLAS_PROJECT_ID`, `ATLAS_CLUSTER`), `CLOUDFLARE_ANALYTICS_TOKEN` | Usage keys via `FAM_SECRETS`; RunPod's is the voice's own (§483), Atlas's a Project Read Only key (§484) |
 
-Open: how you tell Keith something is fixed (a button in the pop-up is
-proposed). Decided (2026-10-28): urgent alerts go to Admin@familiarize.net;
+Decided (2026-11-06, §489): you tell Keith something is fixed with the
+pop-up's "I fixed it - check now", and he checks rather than believes. Built
+(§488-§489): incidents, the pop-up on every admin page, urgent email.
+Decided (2026-10-28): urgent alerts go to Admin@familiarize.net;
 improvements to existing pages and new pages or features both wait for the
 owner's yes (a before-and-after, or a slideshow); the pop-up on every admin
 page, and email for urgent alerts; first fixes in error and usage tracking;

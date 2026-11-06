@@ -2230,6 +2230,10 @@ class Settings:
     # faster than Netenyahu's own tick), and how many of one kind of error in
     # an hour open an incident.
     it_watch_seconds: float = _env_float("IT_WATCH_SECONDS", 300.0)
+    # Where an urgent incident is emailed (decided items 10 and 23: the
+    # owner's Admin@familiarize.net), set in the environment, never here.
+    it_alert_email: str = field(
+        default_factory=lambda: os.environ.get("IT_ALERT_EMAIL", "").strip())
     it_incident_errors: int = _env_int("IT_INCIDENT_ERRORS", 3)
     it_warn_share: float = _env_float("IT_WARN_SHARE", 0.80)
     it_urgent_share: float = _env_float("IT_URGENT_SHARE", 0.95)

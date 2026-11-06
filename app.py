@@ -11486,6 +11486,49 @@ async def admin_thumbnail_image(node_id: str, request: Request,
                     headers={"Cache-Control": "no-store"})
 
 
+@app.get("/admin/keith-alerts.js", include_in_schema=False)
+async def admin_keith_alerts_script(request: Request):
+    """Keith's pop-up (§489), included by every admin page: it asks
+    `/api/admin/incidents`, which checks who is asking, and shows every
+    open alert until each is resolved (decided item 7). The script itself
+    holds nothing."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "keith_alerts.js"
+    return Response(page.read_text(encoding="utf-8"),
+                    # The charset said: the badge's flag is not ASCII, and
+                    # Starlette adds one only to text/* types.
+                    media_type="application/javascript; charset=utf-8",
+                    headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
+class IncidentFixed(BaseModel):
+    cause: str = Field(min_length=1, max_length=200)
+
+
+@app.get("/api/admin/incidents")
+async def admin_incidents(request: Request) -> dict:
+    """Keith's open incidents, worst first, those closed this week, and
+    whether an urgent one can be emailed (§489). Admins only."""
+    _require_admin(request)
+    import incidents
+
+    out = await asyncio.to_thread(incidents.report)
+    out["email"] = await asyncio.to_thread(incidents.email_ready)
+    return out
+
+
+@app.post("/api/admin/incidents/fixed")
+async def admin_incident_fixed(req: IncidentFixed, request: Request) -> dict:
+    """The owner says an incident is fixed: Keith re-checks rather than
+    believes (keith.md always 11), and says what he found. Admins only;
+    changes nothing but the incident's own row."""
+    _require_admin(request)
+    import incidents
+
+    return await asyncio.to_thread(incidents.owner_fixed, req.cause)
+
+
 @app.get("/admin/quality", include_in_schema=False)
 async def admin_quality_page(request: Request):
     """Episode quality (§309) is a page of `/admin` since §310, beside the

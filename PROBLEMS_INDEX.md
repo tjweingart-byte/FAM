@@ -467,3 +467,4 @@ and `limit` = Lines.
 | 30175 | 45 | 486. Phase 4, piece 2d: Render in Keith's usage monitors (2026-11-06) |
 | 30220 | 63 | 487. Everything since Main double-checked: what an independent review found, and what was fixed (2026-11-06) |
 | 30283 | 59 | 488. Phase 4, piece 3a: Keith's incidents - one per cause, with a plan (2026-11-06) |
+| 30342 | 56 | 489. Phase 4, piece 3c: Keith's alerts on every admin page, "I fixed it", and urgent email (2026-11-06) |

@@ -30338,3 +30338,59 @@ monitor that cannot read, but not one not configured; records behind; a
 loop that dies, and one that returns does not; old reports; a source that
 cannot be read closes nothing; the round only reads; every five minutes only
 while Keith is on; the handler gated; health).
+
+## 489. Phase 4, piece 3c: Keith's alerts on every admin page, "I fixed it", and urgent email (2026-11-06)
+
+Decided items 7, 10 and 23, and keith.md "always" 9 and 11. The pop-up
+changes the admin pages, so it went to the owner first as a before-and-after
+(a mock in the pages' own colours, with made-up alerts); the owner: "I
+approve the 3c design. Go forward with it." Built as approved:
+
+- **The pop-up** (`admin_ui/keith_alerts.js`, served at
+  `/admin/keith-alerts.js` and included by all four admin pages - the
+  tracker, thumbnails, waitlist and X): whenever the owner opens an admin
+  page with alerts open, every open incident, worst first, each with its
+  severity, how long it has been open, how often seen, whether it was
+  emailed, and its solution plan (open for an urgent one, behind "Show the
+  plan" otherwise), with a link to its section of /admin. It reads
+  `/api/admin/incidents` with the page's own admin session, so before the
+  owner signs in it gets a 404 and shows nothing, then asks again until it
+  answers. **Closing it hides it for that page view only** - it cannot
+  silence an alert (keith.md never 6) - and a "⚑ N open alerts" badge stays
+  in the corner and brings it back. Checked in a browser at desktop and
+  phone widths; the badge clears the tracker's own buttons.
+- **"I fixed it - check now"** answers the open question in Keith's tab (how
+  the owner tells Keith something is fixed): Keith checks rather than
+  believes (always 11). A state (a usage level, a store, a loop, the
+  reports) is re-read at once and closed only if it is gone; if it is still
+  there, the alert stays and says so. An error kind cannot be proven gone in
+  an instant, so Keith watches it and closes it once half an hour passes with
+  none of it - and if it happens after the owner said fixed, the alert says
+  that, in rose, and stays. `POST /api/admin/incidents/fixed`, admins only,
+  changes nothing but the incident's own row.
+- **Urgent email** (decided items 10, 23): each open urgent incident is
+  emailed once, through `mail.py`, to `IT_ALERT_EMAIL` - set in the
+  environment, never in code (the owner set it to Admin@familiarize.net) -
+  with its title and plan, and never a listener's words (an incident holds
+  none). Again only if it reopens; at most five a round; a failed send is
+  tried the next round, and the pop-up shows it either way. Without the
+  address, or with no working sender (or on staging), nothing is sent and
+  the pop-up's footer says why.
+
+**A bug the browser test caught:** the script was served as
+`application/javascript` without a charset, and Starlette adds one only to
+`text/*`, so the badge's flag arrived garbled. It is served with
+`charset=utf-8` now.
+
+**Main** took `claude/friendly-hopper-75zvoo`'s §470 meanwhile; this branch's
+§480-§489 stay clear of it, and Main is merged in before the branch is called
+ready.
+
+Tests: `tests/test_keith_alerts_489.py` (a state closes only when the re-check
+no longer finds it; an error kind after half an hour with none; one after
+"fixed" said and kept open; urgent emailed once with its plan, again on
+reopening, never a warning; no address or no sender sends nothing, a failed
+send tried again; only an admin reads or answers; every admin page includes
+the script, served with its charset; and in a browser: the alerts with their
+plans, "I fixed it" posting and saying what Keith found, closing for the
+page view, the badge bringing it back).
