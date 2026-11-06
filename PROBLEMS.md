@@ -30064,6 +30064,12 @@ levels - the pop-up and urgent email - are item 3.
 turns on the daily tag check (§405) and the hourly usage monitors; cost $0
 (reads of free APIs). `IT_BUDGETS` empty by default.
 
+**A flaky test found by the check, fixed:** `test_withdraw_refused_430`
+built a "wrong" approval by putting "0" at the end of the right one - which
+*is* the right one whenever the digest ends in 0, one run in sixteen. It
+failed this piece's first full check; it now changes the last character to
+one that differs.
+
 Tests: `tests/test_usage_monitors_465.py` (RunPod's spend read from its
 billing; no budget, no share; a budget's share, projection and levels; a pace
 that passes the budget is urgent; the first days not projected; a budget that
