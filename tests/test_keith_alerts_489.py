@@ -182,7 +182,12 @@ OPEN = {"open": [
      "last_seen": T0, "seen": 3, "reopened": 0, "emailed_at": None,
      "fixed_claim_at": None, "detail": {}, "plan": {"problem": "slow"}}],
     "closed": [], "counts": {"urgent": 1, "warn": 1},
-    "email": {"ready": True, "to": "admin@familiarize.net", "why": ""}}
+    "email": {"ready": True, "to": "admin@familiarize.net", "why": ""},
+    # §490: the fix report beside the alerts.
+    "fix_report": {"enabled": [], "available": ["hold_agent", "rerun_job", "reverify_voice"],
+                   "fixes": [{"at": T0, "cause": "errors:voice:no worker", "opened_at": T0,
+                              "fix": "reverify_voice", "mode": "observe",
+                              "outcome": "would", "how": "would re-verify the voice ladder now"}]}}
 
 
 def test_the_pop_up_in_a_browser():
@@ -231,6 +236,11 @@ def test_the_pop_up_in_a_browser():
         page.wait_for_function("document.querySelector('.keith-said').textContent"
                                ".includes('still there')")
         assert posted == [{"cause": "usage:render:fam-db storage"}]
+        # The fix report (§490): behind its button, saying what is off.
+        assert not page.is_visible(".keith-fix-report")
+        page.click(".keith-fix-btn")
+        report = page.inner_text(".keith-fix-report")
+        assert "off - would" in report and "none - Keith observes only" in report
         # Closing hides it for this page view; the badge stays, and brings it back.
         page.click(".keith-close")
         assert page.query_selector("#keith-alerts") is None

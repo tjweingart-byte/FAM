@@ -30683,3 +30683,58 @@ send tried again; only an admin reads or answers; every admin page includes
 the script, served with its charset; and in a browser: the alerts with their
 plans, "I fixed it" posting and saying what Keith found, closing for the
 page view, the badge bringing it back).
+
+## 490. Phase 4, piece 3b: Keith's closed list of fixes, observe only, and the fix report (2026-11-06)
+
+keith.md "always" 2-4 and "never" 7. The owner: "go ahead with 3b".
+`keith_fixes.py`, run after each incidents round (§488) on the event loop.
+
+**The closed list**, each already a function in the code, each proven by a
+real check before it counts:
+- `reverify_voice` - for repeated voice errors (`errors:voice:*`): ask the
+  voice ladder for a fresh, verified address now
+  (`voice_control.current(force=True)`), which calls the worker; verified when
+  one answers. It starts and stops nothing ([voice-address-discovered]).
+- `rerun_job` - for a background loop that stopped with an error (§488): start
+  it again, once, if the app registered it as restartable
+  (`incidents.restartable`: the GDELT sync, local feeds, weather, the story
+  sweep, the outbox drain, the audio sweep - each a zero-argument loop for
+  the server's life); verified when it is still running a minute later, and
+  watched again like any loop. Loops are now named by module and function
+  (three are each `run_forever`).
+- `hold_agent` - for an agent that broke its rule book (item 4's checks will
+  open these, `breach:<role>:...`): ask Netenyahu to hold it
+  (`netenyahu.hold`); verified when Netenyahu's store, read back, holds it.
+  Releasing a hold stays the owner's act.
+
+**Not built, and why:** "hold a background sweep until a provider's limit
+resets". Every rationed provider already stops itself at its own ceiling
+(GNews's guard, Tiingo's stops, Wikimedia's monthly stop, X's daily reads,
+the image model's daily images), so a hold would repeat it. Instead **a data
+provider at 80% of its daily or monthly quota is an incident** (§480's
+allowances, `incidents.from_quotas`; urgent at 95%), with the next plan.
+
+**Observe only until the owner switches each on** (`IT_FIXES`, empty by
+default; an unknown name switches nothing on). While off, each fix that would
+apply is written to the fix report as `would`, once per incident, so the
+owner watches what Keith would have done before trusting it. On, a fix runs
+**once per incident opening, never twice**; its outcome (`verified`,
+`failed`, or `pending` for a re-run until its minute is up) is written to
+the report and into the incident's plan ("Keith tried ... (verified)", or
+"... it did not work, and he does not try it twice - this is yours"), and the
+round keeps that line rather than rewriting it.
+
+**The fix report, answerable at any moment** (always 4): `incident_fixes` in
+`pipeline_errors.db` (90 days), `GET /api/admin/fixes` (admins only), and
+beside the alerts - the pop-up's footer gains "Fix report (N)" (the approved
+design's "Fix report" link), listing each fix and "would" with when, how it
+was checked and for which incident, and which fixes are on.
+
+Tests: `tests/test_keith_fixes_490.py` (off: "would", once, nothing done; on:
+the voice re-verified once by a real call and the plan kept; a failed fix the
+owner's, not tried again; a loop started again once and verified a minute
+later; a loop not registered has no fix; an agent held and read back; a
+provider near its quota is an incident; the report admins-only and beside
+the alerts; an unknown name switches nothing on), the browser test in
+`test_keith_alerts_489.py` (the fix report behind its button), and
+`test_incidents_488.py` (loops named by module).

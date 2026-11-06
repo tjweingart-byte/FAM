@@ -135,8 +135,9 @@ def test_a_background_loop_that_dies_is_an_incident(stores):
         await asyncio.sleep(0)
 
     asyncio.run(run())
-    assert list(INC.LOOPS) == ["test_a_background_loop_that_dies_is_an_incident"
-                               ".<locals>.sweep_forever"]
+    # Named by module and function: three loops are each `run_forever` (§490).
+    assert list(INC.LOOPS) == ["test_incidents_488.test_a_background_loop_that_dies"
+                               "_is_an_incident.<locals>.sweep_forever"]
     INC.watch(T0)
     [row] = INC.report(T0)["open"]
     assert row["severity"] == "urgent" and row["detail"]["error"] == "RuntimeError"

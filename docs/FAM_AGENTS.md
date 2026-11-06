@@ -1735,7 +1735,7 @@ model or a channel.
 | Urgent alerts by email too | The pop-up only works when the owner is on the admin page | **Code:** an urgent alert is emailed (`mail.py`) as well as shown in the pop-up |
 | Every open alert shown on arrival | The owner wants alerts impossible to miss | **Code:** a pop-up on every admin page lists all open alerts until each is resolved |
 | One attempt per fix, then escalate | No loops on a broken thing | **Code** |
-| Starts observe-only (`IT_FIXES=0`) | Every fix is watched before it is trusted, like Consuela's dry run | **Code**; a person turns fixes on, one at a time |
+| Starts observe-only (`IT_FIXES` empty; built, §490) | Every fix is watched before it is trusted, like Consuela's dry run | **Code**; a person turns fixes on, one at a time |
 | Nothing secret or personal leaves | Errors can carry a query or a key ([listener-id-server], §144) | **Code:** `log_redaction.redact`, and only `explain()` text and counts reach a model or a channel - never the query |
 | "Fixed" from a person is checked, not believed | A wrong "fixed" hides an outage | **Code:** re-check, reopen if still failing |
 | Netenyahu decides about agents | One owner per decision | **Shape:** Keith asks Netenyahu; it cannot hold an agent itself |
@@ -1858,7 +1858,7 @@ pick from the list. After the shared preamble:
 | `IT_INCIDENT_ERRORS` | 3: one kind of error this many times in an hour opens an incident (built, §488) |
 | `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit (built, §483) |
 | `IT_BUDGETS` | The owner's monthly budget per service in dollars, `runpod=300,anthropic=200`; empty shows the spend with no share (built, §483) |
-| `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
+| `IT_FIXES` | Empty: observe only, each fix that would apply written to the fix report as "would"; then a list of those switched on - `reverify_voice`, `rerun_job`, `hold_agent` (built, §490) |
 | `IT_MODEL`, `IT_SUMMARY_MODEL` | `anthropic:claude-haiku-5-5` for incidents, `anthropic:claude-sonnet-5-5` for `/admin` summaries (decided 2026-10-30) |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |

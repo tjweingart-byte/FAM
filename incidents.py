@@ -68,7 +68,7 @@ EMAILS_PER_ROUND = 5
 
 #: Causes that are states, not events: closed as soon as a round no longer
 #: finds them (a level back to ok, a store writing again).
-STATE_SOURCES = ("usage", "tracking", "loop", "reports")
+STATE_SOURCES = ("usage", "tracking", "loop", "reports", "quota")
 
 
 def _settings():
@@ -135,7 +135,7 @@ class IncidentStore:
     def seen(self, finding: dict, now: float) -> str:
         """Record a finding: `opened`, `reopened` or `seen` (already open)."""
         with self._lock, closing(self._connect()) as db:
-            row = db.execute("SELECT closed_at, seen, severity FROM incidents "
+            row = db.execute("SELECT closed_at, seen, severity, plan FROM incidents "
                              "WHERE cause = ?", (finding["cause"],)).fetchone()
             payload = (finding["source"], finding["severity"], finding["title"],
                        json.dumps(finding.get("detail") or {}),
@@ -157,6 +157,12 @@ class IncidentStore:
             # Never quieter than it was while it stays open: a worse round
             # raises it, a calmer one does not hide that it was worse.
             severity = max(row[2], finding["severity"], key=lambda s: RANK.get(s, 0))
+            # What a fix recorded as tried (§490) outlives the round's rewrite.
+            kept = json.loads(row[3] or "{}").get("tried", "")
+            if kept.startswith("Keith "):
+                plan = dict(finding.get("plan") or {})
+                plan["tried"] = kept
+                payload = payload[:4] + (json.dumps(plan),)
             db.execute("UPDATE incidents SET severity = ?, title = ?, detail = ?, "
                        "plan = ?, last_seen = ?, seen = seen + 1 WHERE cause = ?",
                        (severity, payload[2], payload[3], payload[4], now,
@@ -181,9 +187,60 @@ class IncidentStore:
             db.execute("UPDATE incidents SET emailed_at = ? WHERE cause = ?",
                        (now, cause))
 
+    # -- the fix report (§490) ------------------------------------------
+    def _fix_table(self, db) -> None:
+        db.execute("""CREATE TABLE IF NOT EXISTS incident_fixes (
+                          at        REAL NOT NULL,
+                          cause     TEXT NOT NULL,
+                          opened_at REAL NOT NULL,
+                          fix       TEXT NOT NULL,
+                          mode      TEXT NOT NULL,
+                          outcome   TEXT NOT NULL,
+                          how       TEXT NOT NULL DEFAULT '')""")
+
+    def add_fix(self, cause: str, opened_at: float, fix: str, mode: str,
+                outcome: str, how: str, at: float) -> None:
+        with self._lock, closing(self._connect()) as db:
+            self._fix_table(db)
+            db.execute("INSERT INTO incident_fixes (at, cause, opened_at, fix, mode, "
+                       "outcome, how) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                       (at, cause, opened_at, fix, mode, outcome, how[:500]))
+            db.execute("DELETE FROM incident_fixes WHERE at < ?",
+                       (at - KEEP_DAYS * 86400,))
+
+    def fixes_since(self, at: float) -> list:
+        with closing(self._connect()) as db:
+            self._fix_table(db)
+            cursor = db.execute("SELECT at, cause, opened_at, fix, mode, outcome, how "
+                                "FROM incident_fixes WHERE at >= ? ORDER BY at DESC",
+                                (at,))
+            names = [c[0] for c in cursor.description]
+            return [dict(zip(names, values)) for values in cursor]
+
+    def tried(self, cause: str, opened_at: float, fix: str) -> list:
+        """What was already recorded for this fix on this opening."""
+        with closing(self._connect()) as db:
+            self._fix_table(db)
+            return [r[0] for r in db.execute(
+                "SELECT outcome FROM incident_fixes WHERE cause = ? AND opened_at = ? "
+                "AND fix = ?", (cause, opened_at, fix))]
+
+    def set_tried(self, cause: str, text: str) -> None:
+        """What the plan says was tried, after a fix."""
+        row = self.get(cause)
+        if row is None:
+            return
+        plan = dict(row["plan"] or {})
+        plan["tried"] = text[:500]
+        with self._lock, closing(self._connect()) as db:
+            db.execute("UPDATE incidents SET plan = ? WHERE cause = ?",
+                       (json.dumps(plan), cause))
+
     def clear(self) -> None:
         with self._lock, closing(self._connect()) as db:
             db.execute("DELETE FROM incidents")
+            self._fix_table(db)
+            db.execute("DELETE FROM incident_fixes")
 
 
 _STORE: list = [None]
@@ -223,10 +280,7 @@ def watch_task(task) -> None:
     """Note it if this background task ever stops with an error. A task that
     returns (a feature switched off says so and returns at boot) or is
     cancelled at shutdown is not an incident. Never raises."""
-    try:
-        name = getattr(task.get_coro(), "__qualname__", "") or task.get_name()
-    except Exception:  # noqa: BLE001
-        name = "a background task"
+    name = loop_name(task)
 
     def done(finished) -> None:
         try:
@@ -244,6 +298,29 @@ def watch_task(task) -> None:
         task.add_done_callback(done)
     except Exception:  # noqa: BLE001
         pass
+
+
+def loop_name(task) -> str:
+    """`module.function` for a task's coroutine (three loops are each called
+    `run_forever`), read while it still runs."""
+    try:
+        coro = task.get_coro()
+        frame = getattr(coro, "cr_frame", None)
+        module = frame.f_globals.get("__name__", "") if frame is not None else ""
+        qualname = getattr(coro, "__qualname__", "") or task.get_name()
+        return f"{module}.{qualname}" if module else qualname
+    except Exception:  # noqa: BLE001
+        return "a background task"
+
+
+#: Loops a fix may start again once (§490): `module.function` -> the
+#: zero-argument coroutine function. Registered by the app at startup.
+RESTARTABLE: dict = {}
+
+
+def restartable(*functions) -> None:
+    for fn in functions:
+        RESTARTABLE[f"{fn.__module__}.{fn.__qualname__}"] = fn
 
 
 #: The listener reports, set at startup (`register`): the app's store.
@@ -364,6 +441,42 @@ def from_usage() -> list:
     return out
 
 
+def from_quotas(now: float) -> list:
+    """A data provider's daily or monthly quota (§480's `allowance`) at the
+    warning share (§490): a rationed provider stops itself at its ceiling,
+    so this says so before a rail or a score goes missing."""
+    import provider_usage
+
+    s = _settings()
+    warn = float(getattr(s, "it_warn_share", 0.8) or 0.8)
+    urgent = float(getattr(s, "it_urgent_share", 0.95) or 0.95)
+    out = []
+    for row in provider_usage.report(now):
+        parts = [row] + list(row.get("breakdown") or [])
+        for part in parts:
+            allowance = part.get("allowance") or {}
+            share = allowance.get("share")
+            if allowance.get("kind") != "quota" or share is None or share < warn:
+                continue
+            label = part.get("label") if part is not row else row["label"]
+            name = row["label"] if part is row else f"{row['label']} ({label})"
+            out.append(finding(
+                f"quota:{row['provider']}:{part.get('league', '')}", "quota",
+                URGENT if share >= urgent else WARN,
+                f"{name}: {share:.0%} of its {allowance['period']}'s "
+                f"{allowance['count']:,} {allowance['unit']}",
+                detail={"used": allowance.get("used"), "count": allowance["count"],
+                        "period": allowance["period"]},
+                problem=f"{allowance.get('used'):,} of {allowance['count']:,} "
+                        f"{allowance['unit']} used this {allowance['period']}.",
+                heard="At the ceiling FAM stops asking it until the "
+                      f"{allowance['period']} resets: what it feeds goes stale.",
+                recommended=f"Next plan: {row.get('next') or 'see the services page'}.",
+                cost_risk=row.get("next") or "",
+                needs="Your decision on the plan; Keith never changes one."))
+    return out
+
+
 def from_loops() -> list:
     with _LOOPS_LOCK:
         stopped = dict(LOOPS)
@@ -408,7 +521,8 @@ def findings(now: float) -> tuple[list, set]:
     out, read = [], set()
     for source, get in (("errors", lambda: from_errors(now)),
                         ("tracking", from_tracking), ("usage", from_usage),
-                        ("loop", from_loops), ("reports", lambda: from_reports(now))):
+                        ("loop", from_loops), ("reports", lambda: from_reports(now)),
+                        ("quota", lambda: from_quotas(now))):
         try:
             out.extend(get())
             read.add(source)
@@ -560,6 +674,11 @@ async def handler(_task: str) -> None:
         log.info("incidents not watched: %s", roster.status("it")["why_not"])
         return
     await asyncio.to_thread(watch)
+    # Then his closed list of fixes: observe only until each is switched on
+    # (§490). On the event loop: a fix may start a task or call the voice.
+    import keith_fixes
+
+    await keith_fixes.act()
 
 
 def register(feedback_store=None) -> None:

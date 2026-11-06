@@ -262,7 +262,7 @@ FAM_ENVIRONMENT = (
     # §483: Keith's usage monitors.
     "IT_BUDGETS", "IT_WARN_SHARE", "IT_URGENT_SHARE",
     # §488: Keith's incidents.
-    "IT_WATCH_SECONDS", "IT_INCIDENT_ERRORS", "IT_ALERT_EMAIL",
+    "IT_WATCH_SECONDS", "IT_INCIDENT_ERRORS", "IT_ALERT_EMAIL", "IT_FIXES",
     # §484: Atlas's monitor.
     "ATLAS_PROJECT_ID", "ATLAS_CLUSTER", "ATLAS_API_URL",
     # §485: R2's monitor.

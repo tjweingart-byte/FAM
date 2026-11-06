@@ -2230,6 +2230,10 @@ class Settings:
     # faster than Netenyahu's own tick), and how many of one kind of error in
     # an hour open an incident.
     it_watch_seconds: float = _env_float("IT_WATCH_SECONDS", 300.0)
+    # Keith's fixes the owner has switched on (§490), by name:
+    # reverify_voice, rerun_job, hold_agent. Empty: observe only - each fix
+    # that would apply is written to the fix report as "would".
+    it_fixes: str = field(default_factory=lambda: os.environ.get("IT_FIXES", "").strip())
     # Where an urgent incident is emailed (decided items 10 and 23: the
     # owner's Admin@familiarize.net), set in the environment, never here.
     it_alert_email: str = field(

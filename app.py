@@ -866,6 +866,13 @@ async def lifespan(_: FastAPI):
 
     for task in list(_BACKGROUND):
         incidents.watch_task(task)
+    # The loops Keith's `rerun_job` may start again, once (§490): each takes
+    # no arguments and runs for the server's life.
+    import gdelt as _gdelt
+
+    incidents.restartable(_gdelt.run_forever, local_news_mod.run_forever,
+                          weather_mod.run_forever, _refresh_stories_forever,
+                          _drain_viral_loops_forever, _sweep_audio_forever)
     yield
     # Loops that live as long as the process end with it, rather than being
     # destroyed pending when the event loop closes under them.
@@ -11513,9 +11520,24 @@ async def admin_incidents(request: Request) -> dict:
     _require_admin(request)
     import incidents
 
+    import keith_fixes
+
     out = await asyncio.to_thread(incidents.report)
     out["email"] = await asyncio.to_thread(incidents.email_ready)
+    # The fix report beside them (§490), as the pop-up's footer shows it.
+    out["fix_report"] = await asyncio.to_thread(keith_fixes.report)
     return out
+
+
+@app.get("/api/admin/fixes")
+async def admin_fixes(request: Request, days: float = 7.0) -> dict:
+    """Keith's fix report, answerable at any moment (keith.md always 4):
+    what he fixed, how he checked it, and what he would have done while a
+    fix is off (§490). Admins only."""
+    _require_admin(request)
+    import keith_fixes
+
+    return await asyncio.to_thread(keith_fixes.report, max(0.0, min(days, 90.0)))
 
 
 @app.post("/api/admin/incidents/fixed")

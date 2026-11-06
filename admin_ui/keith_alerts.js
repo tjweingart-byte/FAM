@@ -124,11 +124,26 @@
     var list = el("div", { style: "max-height:62vh;overflow-y:auto" }, open.map(item));
     var closeBtn = el("button", { type: "button", "class": "keith-close", style: BTN, text: "Close until the next page I open" });
     closeBtn.onclick = close;
+    // The fix report (§490): what Keith did, how he checked it, and what he
+    // would have done while a fix is off.
+    var report = data.fix_report || {};
+    var fixes = report.fixes || [];
+    var fixList = el("div", { "class": "keith-fix-report", style: "padding:0 18px 12px;font:11.5px " + C.mono + ";color:" + C.muted },
+      fixes.length ? fixes.slice(0, 30).map(function (f) {
+        return el("div", { style: "padding:3px 0;border-top:1px solid " + C.line,
+          text: [when(f.at), f.fix, (f.mode === "observe" ? "off - " : "") + f.outcome, f.how, f.cause].join(" · ") });
+      }) : [el("div", { text: "No fixes this week." })]);
+    fixList.appendChild(el("div", { style: "padding-top:6px;color:" + C.faint,
+      text: "Fixes on: " + ((report.enabled || []).join(", ") || "none - Keith observes only") +
+            " (IT_FIXES; available: " + (report.available || []).join(", ") + ")" }));
+    fixList.hidden = true;
+    var fixBtn = el("button", { type: "button", "class": "keith-fix-btn", style: BTN, text: "Fix report (" + fixes.length + ")" });
+    fixBtn.onclick = function () { fixList.hidden = !fixList.hidden; };
     var foot = el("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px;font-size:12px;color:" + C.muted }, [
       el("span", { text: "Closed this week: " + ((data.closed || []).length) +
         (email.ready ? " · urgent alerts are emailed to " + email.to
                      : " · urgent email is off: " + (email.why || "not set up")) }),
-      closeBtn]);
+      el("span", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [fixBtn, closeBtn])]);
     var modal = el("div", { role: "dialog", "aria-modal": "true", "aria-labelledby": "keith-title",
       style: "width:min(720px,94vw);background:" + C.panel + ";border:1px solid " + C.line +
              ";border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);color:" + C.ink + ";font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" }, [
@@ -136,7 +151,7 @@
         el("h2", { id: "keith-title", text: "Keith: " + open.length + " open alert" + (open.length === 1 ? "" : "s"),
                    style: "font-family:" + C.serif + ";font-size:19px;margin:0" }),
         el("small", { text: "shown on every admin page until each is resolved", style: "font:11px " + C.mono + ";color:" + C.muted })]),
-      list, foot]);
+      list, foot, fixList]);
     var scrim = el("div", { id: "keith-alerts",
       style: "position:fixed;inset:0;z-index:9999;background:rgba(10,8,14,.72);display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow-y:auto" }, [modal]);
     scrim.addEventListener("click", function (e) { if (e.target === scrim) close(); });
