@@ -30835,3 +30835,54 @@ covers items 4 and 5 together.
 Tests: `tests/test_cost_watch_492.py` (both figures from the ledger and the
 spend with the nightly jobs apart; too few episodes; well above is urgent;
 the plan and the threshold are settings; cost never holds anything).
+
+## 493. Phase 4, items 6 and 7: the /admin proposals, and the production switches as Phase 4 leaves them (2026-11-06)
+
+The owner: "go ahead with item 6 and 7".
+
+**Item 6 - `/admin` as Keith's** (decided items 4 and 9). Five proposals went to
+the owner as pictures in the admin pages' own style, with made-up figures,
+none built: four improvements to existing pages, each a before-and-after -
+(1) cost per episode on the Overview (§492's two figures and the nightly
+jobs as three tiles), (2) the usage monitors on "Outside service requests"
+(a share bar on each provider row, and a table of what Render, Atlas, R2,
+RunPod and Claude say, with projections and the next plan), (3) Claude's
+spend by what spent it (§481), (4) the Agents page's trial, tandem, Mclovin's
+unchecked share and rule-book checks (§491) - and one new page as a
+slideshow, (5) a "Keith" page: incidents with their history and the full fix
+report. Each is built only on the owner's yes, through the normal checks,
+and can be undone.
+
+**Item 7 - the production switches** (the `fam` service, set in Render's
+dashboard; none is in `render.yaml` and none needs to be; all off by default
+in code). §461's table, true to the code as Phase 4 leaves it:
+
+| Variable | Turns on | Cost |
+|---|---|---|
+| `AGENTS=1` | the master switch: Netenyahu's background loop (code, every 5 min) and the rule books' signature check; nothing else runs without it | $0 |
+| `CONTEXTUALIZER=1` | C3P0 inside EI's brief call: same-name things told apart (and asked), public figures only, plugins chosen, the title | ~$0.0002 an episode (est.) |
+| `CATEGORIZER=1` | Nando: one tree node per request (Haiku on ties); nightly: follow, judge up to 50 on Opus, train | <$0.0001 an episode; ~$15-20 a month nightly (est.) |
+| `RETRIEVER=1` | Sonic: one dated history packet, code only; on Atlas needs `MONGODB_READ_URI` (a different user from `MONGODB_URI` - Keith checks, §491) | $0 |
+| `EDITOR_AGENT=1` | Shakespeare ahead of the tap (Haiku 5.5 high); with `EDITOR_TANDEM=1` beside the writer on every episode a listener waits on (the owner wants it on, 2026-11-06); with `EDITOR_TRIAL=1` the two weeks | $0.004 a plan ahead (measured); ~$0.003-0.0035 an episode in tandem |
+| `SUPERVISOR=1` | Mclovin: the source screen, the per-sentence checks, one rewrite of a failed sentence, Haiku on unsettled pages ahead of the tap, the nightly Opus review; support off | ~$0.0001 an episode; ~$13 a month nightly |
+| `HOUSEKEEPER=1` | Consuela: files packets into the archive, nightly dedupe, comb, the 90-day pass, the group totals | ~$0.0006 an episode (est.) |
+| `HOUSEKEEPER_DRY_RUN` | default 1: she reports and writes nothing; 0 lets her write. Her dedupe has its own `HOUSEKEEPER_DEDUPE_DRY_RUN` | - |
+| `IT_AGENT=1` | **Keith (Phase 4)**: the nightly tag check (§405); the hourly usage monitors - RunPod, Atlas, R2, Render, Claude (§483-§487); every five minutes, incidents from FAM's records with a plan each, the rule-book checks hourly, cost per episode (§488, §491, §492); the pop-up on every admin page and urgent email (§489); his fixes as "would" until switched on (§490) | $0 - reads and code; no model call is made yet |
+
+**Keith's own settings** (all optional; the defaults are the owner's figures):
+
+| Variable | What it is | Default |
+|---|---|---|
+| `IT_ALERT_EMAIL` | where urgent alerts are emailed, once each (needs `SMTP_*` and `MAIL_FROM`) | empty - set to Admin@familiarize.net |
+| `IT_FIXES` | the fixes switched on: `reverify_voice`, `rerun_job`, `hold_agent` - one at a time, after watching the fix report's "would" | empty: observe only |
+| `IT_BUDGETS` | monthly budgets in dollars per service for a share and warnings: `runpod=`, `anthropic=`, `r2=` | empty: spend shown, no share |
+| `IT_COST_PLAN_AGENTS_CENTS`, `IT_COST_PLAN_CLAUDE_CENTS`, `IT_COST_WELL_ABOVE`, `IT_COST_DAYS` | cost per episode against the plan (§492) | 0.45, 1.0, 1.5x, 7 days |
+| `IT_WARN_SHARE`, `IT_URGENT_SHARE` | a limit's warning and urgent shares | 0.80, 0.95 |
+| `IT_WATCH_SECONDS`, `IT_INCIDENT_ERRORS` | how often incidents are read; errors an hour that open one | 300, 3 |
+| `RENDER_SERVICE_ID`, `RENDER_POSTGRES_NAME`, `RENDER_BANDWIDTH_INCLUDED_GB` | Render's monitor (§486) | -, `fam-db`, 25 |
+| `ATLAS_PROJECT_ID`, `ATLAS_CLUSTER` | Atlas's monitor (§484); only while `ARCHIVE_BACKEND=atlas` | - |
+| in `FAM_SECRETS` | `RENDER_API_KEY`, `ATLAS_PUBLIC_KEY`, `ATLAS_PRIVATE_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN`; RunPod's monitor uses the existing `RUNPOD_API_KEY` | - |
+
+Nothing was changed in `render.yaml`. No rule book changed in Phase 4; the
+signed manifest (version 6) still covers all eight, so nothing waits to be
+signed.
