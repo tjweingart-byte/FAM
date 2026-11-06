@@ -30117,4 +30117,7 @@ warn and urgent; the published limit when the Admin API refuses, and the key
 never kept; what the cluster refuses said; nothing answering; a cluster no
 longer Flex; nothing asked off Atlas or without keys; staging; the read-only
 user first and the client closed, the archive's user said when used), and
-§465's poll test pinned to RunPod alone now there are two monitors.
+§465's poll test pinned to RunPod alone now there are two monitors. The
+first full check caught the two keys listed among the settings the tests
+clear for `config.py`: they are read through `credentials`, not `config.py`,
+so `tests/test_hermetic.py` refused them there.

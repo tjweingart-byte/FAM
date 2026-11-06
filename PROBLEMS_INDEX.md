@@ -462,4 +462,4 @@ and `limit` = Lines.
 | 29913 | 68 | 463. Phase 4, piece 1b: the day's model spend - money spent and never counted (2026-11-05) |
 | 29981 | 35 | 464. Phase 4, piece 1c: the error rows keep their own record (2026-11-05) |
 | 30016 | 66 | 465. Phase 4, piece 2a: Keith's usage monitors, and RunPod's spend (2026-11-06) |
-| 30082 | 40 | 466. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06) |
+| 30082 | 43 | 466. Phase 4, piece 2b: Atlas in Keith's usage monitors (2026-11-06) |
