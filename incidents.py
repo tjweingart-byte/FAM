@@ -187,15 +187,19 @@ class IncidentStore:
             db.execute("UPDATE incidents SET fixed_claim_at = ? WHERE cause = ? "
                        "AND closed_at IS NULL", (at, cause))
 
-    def note(self, cause: str, key: str, text: str) -> None:
-        """One line in an open incident's detail (§495)."""
+    def note(self, cause: str, key: str, text: str,
+             last_seen: Optional[float] = None) -> None:
+        """One line in an open incident's detail (§495), and when its cause
+        was last seen, if that is later (§496: never "quiet" just after
+        "still happening")."""
         row = self.get(cause)
         if row is None or row["closed_at"] is not None:
             return
         detail = {**(row["detail"] or {}), key: text[:300]}
+        seen_at = max(float(row["last_seen"]), float(last_seen or 0))
         with self._lock, closing(self._connect()) as db:
-            db.execute("UPDATE incidents SET detail = ? WHERE cause = ?",
-                       (json.dumps(detail), cause))
+            db.execute("UPDATE incidents SET detail = ?, last_seen = ? WHERE cause = ?",
+                       (json.dumps(detail), seen_at, cause))
 
     def mark_emailed(self, cause: str, now: float) -> None:
         with self._lock, closing(self._connect()) as db:
@@ -275,7 +279,6 @@ def reset(incident_store: Optional[IncidentStore] = None) -> None:
         _STORE[0] = incident_store
     with _LOOPS_LOCK:
         LOOPS.clear()
-        ERRORS_LAST.clear()
     COUNTS.update(at=None, open={})
     FEEDBACK[0] = None
 
@@ -356,10 +359,18 @@ def finding(cause: str, source: str, severity: str, title: str, *,
                      "needs_from_owner": needs}}
 
 
-#: Each error kind's newest row in the last hour, from the round's read
-#: (§495): an owner's "fixed" is checked against it even once the kind has
-#: fallen below the floor that opens an incident.
-ERRORS_LAST: dict = {}
+def _last_error_since(row: dict, at: float) -> float:
+    """The newest error of an incident's kind since `at` (the owner's claim),
+    or 0.0: read from the store, so a claim is checked however long ago it
+    was and whether or not the kind is above the floor (§495, §496)."""
+    import pipeline_errors
+
+    stage, kind = (row.get("detail") or {}).get("stage"), (row.get("detail") or {}).get("kind")
+    if not stage or not kind:
+        return 0.0
+    return max((float(r["at"]) for r in pipeline_errors.store().since(at)
+                if r["severity"] == pipeline_errors.ERROR and r["stage"] == stage
+                and pipeline_errors.family(r["kind"]) == kind), default=0.0)
 
 
 def from_errors(now: float) -> list:
@@ -378,9 +389,6 @@ def from_errors(now: float) -> list:
         key = (r["stage"], pipeline_errors.family(r["kind"]))
         counts[key] = counts.get(key, 0) + 1
         last[key] = max(last.get(key, 0.0), float(r["at"]))
-    with _LOOPS_LOCK:
-        ERRORS_LAST.clear()
-        ERRORS_LAST.update({f"errors:{stage}:{kind}": at for (stage, kind), at in last.items()})
     floor = max(1, int(getattr(_settings(), "it_incident_errors", 3) or 3))
     out = []
     for (stage, kind), n in counts.items():
@@ -588,6 +596,11 @@ def watch(now: Optional[float] = None) -> dict:
         for f in found:
             causes.add(f["cause"])
             row = target.get(f["cause"])
+            if (row and row["closed_at"] is not None and f["source"] == "errors"
+                    and float(f["detail"].get("last_at") or 0) <= row["closed_at"]):
+                # Nothing since it closed (§496): the hour still counts the
+                # errors from before, which are no reason to reopen it.
+                continue
             claim = (row or {}).get("fixed_claim_at") if row and row["closed_at"] is None else None
             if claim and f["source"] == "errors":
                 last_at = float(f["detail"].get("last_at") or 0)
@@ -614,13 +627,14 @@ def watch(now: Optional[float] = None) -> dict:
             claim = row["fixed_claim_at"]
             if claim and row["source"] == "errors":
                 # Below the floor now, but checked, not believed (§495): any of
-                # it since the claim keeps it open; none closes it once quiet.
-                with _LOOPS_LOCK:
-                    last_at = ERRORS_LAST.get(row["cause"], 0.0)
+                # it since the claim - however long ago the claim (§496) -
+                # keeps it open; none closes it once quiet.
+                last_at = _last_error_since(row, claim)
                 if last_at > claim:
                     target.note(row["cause"], "after_your_fix",
                                 "still happening after you said it was fixed, at "
-                                + time.strftime("%H:%M UTC", time.gmtime(claim)))
+                                + time.strftime("%H:%M UTC", time.gmtime(claim)),
+                                last_seen=last_at)
                     target.claim_fixed(row["cause"], None)
                 elif now - claim >= CLAIM_QUIET_SECONDS:
                     target.close(row["cause"], "you said fixed; Keith saw none "
@@ -663,8 +677,10 @@ def owner_fixed(cause: str, now: Optional[float] = None) -> dict:
             import asyncio
             import usage_monitors
 
+            from agents import roster
+
             service = cause.split(":")[1] if cause.count(":") >= 2 else ""
-            if service in usage_monitors.MONITORS:
+            if service in usage_monitors.MONITORS and roster.status("it")["may_run"]:
                 asyncio.run(usage_monitors.poll(only={service}))
         found, read = findings(now, fresh=True)
         if row["source"] not in read:

@@ -240,3 +240,90 @@ def test_netenyahu_keeps_only_the_current_keys(monkeypatch):
     netenyahu.schedule(datetime.datetime(2026, 11, 6, 12, tzinfo=datetime.timezone.utc),
                        handlers={})
     assert not any(str(k[2]).startswith("old-") for k in netenyahu._QUEUED_DAYS)
+
+
+# ------------------------------------------------- the third review (§496)
+def test_a_claimed_kind_closed_after_the_half_hour_does_not_reopen(stores):
+    """The hour still counts the errors from before the claim: no reason to
+    reopen (or re-email) what Keith just confirmed fixed."""
+    errors(40, T0)                                           # urgent
+    INC.watch(T0)
+    INC.owner_fixed("errors:brief:timeout", T0 + 60)
+    INC.watch(T0 + 60 + INC.CLAIM_QUIET_SECONDS)
+    row = INC.store().get("errors:brief:timeout")
+    assert row["closed_at"] is not None
+    done = INC.watch(T0 + 60 + INC.CLAIM_QUIET_SECONDS + 300)   # still in the hour
+    assert done["reopened"] == []
+    assert INC.store().get("errors:brief:timeout")["closed_at"] is not None
+    errors(5, T0 + 3000)                                     # it comes back
+    assert INC.watch(T0 + 3000)["reopened"] == ["errors:brief:timeout"]
+
+
+def test_still_happening_is_not_followed_by_quiet_for_two_hours(stores):
+    errors(5, T0)
+    INC.watch(T0)
+    claim = T0 + 5400                                        # 90 minutes on
+    INC.owner_fixed("errors:brief:timeout", claim)
+    errors(1, claim + 600)                                   # one, below the floor
+    INC.watch(claim + 900)
+    row = INC.store().get("errors:brief:timeout")
+    assert "still happening" in row["detail"]["after_your_fix"]
+    assert row["last_seen"] == claim + 600
+    INC.watch(T0 + 7300)                     # two hours from the first, not the last
+    assert INC.store().get("errors:brief:timeout")["closed_at"] is None
+
+
+def test_a_claim_is_checked_against_errors_older_than_the_hour(stores):
+    """A round late by over an hour still sees an error since the claim."""
+    errors(5, T0)
+    INC.watch(T0)
+    INC.owner_fixed("errors:brief:timeout", T0 + 60)
+    errors(1, T0 + 600)
+    INC.watch(T0 + 600 + 3700)                               # the error is past the hour
+    row = INC.store().get("errors:brief:timeout")
+    assert row["closed_at"] is None and "still happening" in row["detail"]["after_your_fix"]
+
+
+def test_a_check_that_cannot_read_keeps_its_last_findings(stores, monkeypatch):
+    breach = INC.finding("breach:categorizer:dead-node", "agents", INC.URGENT, "dead")
+    monkeypatch.setattr(AC, "nando_nodes_exist", lambda cache: [breach])
+    assert [f["cause"] for f in AC.findings(T0, force=True)] == [breach["cause"]]
+
+    def broken(cache):
+        raise LookupError("no tree")
+
+    monkeypatch.setattr(AC, "nando_nodes_exist", broken)
+    assert [f["cause"] for f in AC.findings(T0 + 3600, force=True)] == [breach["cause"]]
+
+
+def test_nando_with_no_tree_raises_rather_than_reading_clean(monkeypatch):
+    import config
+    import dataclasses
+
+    import topics
+
+    monkeypatch.setattr(config, "settings", dataclasses.replace(
+        config.settings, agents=True, categorizer=True))
+    monkeypatch.setattr(topics, "category_tree", lambda: None)
+
+    class Cache:
+        def tagged(self, after="", limit=500):
+            return [("a", "gone", 1, [])]
+
+    with pytest.raises(LookupError):
+        AC.nando_nodes_exist(Cache())
+
+
+def test_i_fixed_it_does_not_poll_a_service_while_keith_is_off(stores, monkeypatch):
+    import usage_monitors as UM
+
+    INC.store().seen(INC.finding("usage:r2:storage", "usage", INC.WARN, "R2 storage"), T0)
+    polled = []
+
+    async def poll(**k):
+        polled.append(k)
+        return []
+
+    monkeypatch.setattr(UM, "poll", poll)
+    INC.owner_fixed("usage:r2:storage", T0 + 60)             # AGENTS off by default
+    assert polled == []

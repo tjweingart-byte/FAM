@@ -134,7 +134,7 @@ def report(now: Optional[float] = None) -> dict:
                 "usd": round(usd, 4) if usd is not None else None}
 
     return {
-        "days": days, "episodes": episodes, "min_episodes": MIN_EPISODES,
+        "days": days, "span_days": round(span, 2), "episodes": episodes, "min_episodes": MIN_EPISODES,
         "well_above_at": well_above,
         "agents": per(agents["episode"] if agents else None,
                       float(getattr(s, "it_cost_plan_agents_cents", 0.45) or 0)),
@@ -154,6 +154,7 @@ def findings(now: Optional[float] = None) -> list:
 
     out = []
     r = report(now)
+    since_day = time.strftime("%Y-%m-%d", time.gmtime(r["since"]))
     for key, label, setting in (("agents", "The agents", "IT_COST_PLAN_AGENTS_CENTS"),
                                 ("claude", "Claude", "IT_COST_PLAN_CLAUDE_CENTS")):
         f = r[key]
@@ -161,11 +162,14 @@ def findings(now: Optional[float] = None) -> list:
             continue
         out.append(INC.finding(
             f"cost:{key}", "cost", INC.URGENT,
-            f"{label} cost {f['cents_per_episode']:.2f}¢ an episode over "
-            f"{r['days']:g} days - {f['ratio']:.1f}x the plan's {f['plan_cents']:g}¢",
-            detail={**f, "episodes": r["episodes"], "days": r["days"]},
-            problem=f"${f['usd']:,.2f} over {r['episodes']:,} episodes written in "
-                    f"{r['days']:g} days, against {f['plan_cents']:g}¢ ({setting}).",
+            f"{label} cost {f['cents_per_episode']:.2f}¢ an episode since "
+            f"{since_day} - {f['ratio']:.1f}x the plan's {f['plan_cents']:g}¢",
+            detail={**f, "episodes": r["episodes"], "days": r["days"],
+                    "since": r["since"]},
+            # Whole UTC days (§495), so 7 to 8 of them: the dates say which.
+            problem=f"${f['usd']:,.2f} over {r['episodes']:,} episodes written since "
+                    f"{since_day} UTC ({r['span_days']:.1f} days), against "
+                    f"{f['plan_cents']:g}¢ ({setting}).",
             heard="Nothing: cost is watched, never capped - no agent is held "
                   "or slowed for it (decided item 21).",
             recommended="Look at Claude's spend by source and model on /admin "

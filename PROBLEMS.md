@@ -31006,3 +31006,51 @@ The small ones:
 
 Not merged: Main has moved on (#227) since this branch last took it in,
 and the owner said not to merge or open a pull request yet.
+
+## 496. Phase 4, the third review: a claimed error kind no longer reopens itself, and an unread check is not a clean one (2026-11-06)
+
+The owner: "Check all changes made in this branch again". A third
+independent reviewer read the whole branch against Main cold, with §495's
+fixes. They found that §495's fixes held: the payload indexes, the re-run
+once, the threads, Nando's pass, the endpoint's order and the pruning are
+all right. They found one real defect, which predates §495 and which §495
+left in place, and a few small ones. Each fix has a test that failed before
+it (`tests/test_keith_review_495.py`, the §496 part).
+
+1. **An error kind the owner said was fixed closed, then reopened at once.**
+   The kind is counted over a rolling hour, but a claim closes after 30
+   quiet minutes, while the errors from before the claim are still in the
+   hour. The next round found it again, the row was closed, so `seen()`
+   reopened it. If it was urgent, it was emailed again, minutes after Keith
+   had confirmed it fixed. This is the common case: an owner says "fixed"
+   soon after the errors. Now an error finding with nothing newer than the
+   close (`last_at <= closed_at`) never reopens it. Errors after the close
+   reopen it as before.
+2. **"Quiet for two hours" just after "still happening".** An error below
+   the floor after a claim noted "still happening" but left `last_seen` as
+   it was. `note()` now moves `last_seen` to that error.
+3. **A claim was checked against the last hour only.** A round late by over
+   an hour (Netenyahu skips ticks in an edition window) closed the incident
+   as "saw none" when there had been some. Now
+   `incidents._last_error_since` reads the store from the claim on, and
+   `ERRORS_LAST` is gone.
+4. **An agent check that could not read counted as clean.** For example,
+   Nando with no tree, or a store that would not answer. The "agents"
+   source still counted as read, so an open breach closed as "no longer
+   found" and reopened, and was re-emailed, once the check worked again: the
+   same flapping §495 item 3 fixed for clean pages, by another route. Now
+   `agent_checks.findings` keeps each check's last findings when it raises.
+   Nando's and C3P0's checks raise on a failed read, or on no tree, rather
+   than returning nothing.
+5. **Smaller fixes:**
+   - Cost per episode's titles name the first whole day ("since
+     2026-10-30") and its 7-8 days, not "7 days".
+   - "I fixed it" polls a usage service again only while Keith may run.
+
+Left as they are, on purpose:
+- One C3P0 title in a day that states a result is a breach. His own filter
+  refuses such titles before they leave, so one getting through is the
+  breach.
+- A re-run loop that dies after its minute's check keeps "verified" in its
+  plan. It is never retried (`RERUN_ONCE`), and the fix report shows the
+  check's time.

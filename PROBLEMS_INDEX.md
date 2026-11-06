@@ -483,3 +483,4 @@ and `limit` = Lines.
 | 30839 | 51 | 493. Phase 4, items 6 and 7: the /admin proposals, and the production switches as Phase 4 leaves them (2026-11-06) |
 | 30890 | 35 | 494. Phase 4, item 6 built: Keith's figures on /admin, as the owner approved them (2026-11-06) |
 | 30925 | 85 | 495. Phase 4, the second review of the whole branch: Keith's alerts open, stay and close as they say (2026-11-06) |
+| 31010 | 48 | 496. Phase 4, the third review: a claimed error kind no longer reopens itself, and an unread check is not a clean one (2026-11-06) |

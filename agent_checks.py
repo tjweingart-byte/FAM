@@ -170,14 +170,12 @@ def c3p0_titles_carry_no_results(now: float) -> list:
         return []
     import pipeline_errors as PE
 
-    try:
-        if not PE.exists():
-            return []
-        PE.flush()
-        rows = PE.store().steps_since(now - 86400, step="c3p0 title")
-    except Exception as exc:  # noqa: BLE001
-        log.warning("could not read C3P0's titles: %s", exc)
+    if not PE.exists():
         return []
+    PE.flush()
+    # A failed read raises (§496): `findings` keeps the last answer, rather
+    # than an unread check reading as clean and closing an open breach.
+    rows = PE.store().steps_since(now - 86400, step="c3p0 title")
     stated = sum(1 for r in rows if r["outcome"] == "result")
     if stated:
         return [_breach("contextualizer", "title-result",
@@ -206,18 +204,18 @@ def nando_nodes_exist(cache) -> list:
     if cache is None or not (s.agents and getattr(s, "categorizer", False)) \
             or not hasattr(cache, "tagged"):
         return []
-    try:
-        import topics
+    import topics
 
-        tree = topics.category_tree()
-        rows = cache.tagged(after=_NANDO["after"], limit=SAMPLE)
-        if not rows and _NANDO["after"]:
-            _nando_pass_ended()
-            rows = cache.tagged(after="", limit=SAMPLE)
-    except Exception as exc:  # noqa: BLE001
-        log.warning("could not read Nando's filings: %s", exc)
-        return []
-    if tree is None or not rows:
+    # A failed read, or no tree to read against, raises (§496): `findings`
+    # keeps the last answer rather than closing a breach it did not look at.
+    tree = topics.category_tree()
+    if tree is None:
+        raise LookupError("no category tree to check Nando's nodes against")
+    rows = cache.tagged(after=_NANDO["after"], limit=SAMPLE)
+    if not rows and _NANDO["after"]:
+        _nando_pass_ended()
+        rows = cache.tagged(after="", limit=SAMPLE)
+    if not rows:
         return []
     _NANDO["seen"] |= {str(node) for _key, node, *_rest in rows if node}
     _NANDO["after"] = rows[-1][0]
@@ -364,16 +362,22 @@ def findings(now: Optional[float] = None, force: bool = False) -> list:
     if not force and now - _LAST["at"] < EVERY_SECONDS:
         return list(_LAST["findings"])
     out: list = []
-    for check in (sonic_never_writes, consuela_keeps_grace,
-                  lambda: mclovin_names_his_failures(now),
-                  lambda: c3p0_titles_carry_no_results(now),
-                  lambda: nando_nodes_exist(CACHE[0]),
-                  lambda: mclovin_unchecked(now)[0],
-                  lambda: tandem_outcomes(now)[0]):
+    before = _LAST.setdefault("by_check", {})
+    for name, check in (("sonic", sonic_never_writes), ("consuela", consuela_keeps_grace),
+                        ("mclovin", lambda: mclovin_names_his_failures(now)),
+                        ("c3p0", lambda: c3p0_titles_carry_no_results(now)),
+                        ("nando", lambda: nando_nodes_exist(CACHE[0])),
+                        ("unchecked", lambda: mclovin_unchecked(now)[0]),
+                        ("tandem", lambda: tandem_outcomes(now)[0])):
         try:
-            out.extend(check())
+            got = list(check())
         except Exception as exc:  # noqa: BLE001 - one check never stops the rest
-            log.warning("agent check failed: %s", exc)
+            # Not looked at is not clean (§496): its last findings stand, so
+            # an open breach is neither closed nor reopened (and re-emailed).
+            log.warning("agent check %s failed: %s", name, type(exc).__name__)
+            got = list(before.get(name, []))
+        before[name] = got
+        out.extend(got)
     _LAST.update(at=now, findings=out)
     return out
 
@@ -389,6 +393,6 @@ def report(now: Optional[float] = None) -> dict:
 
 
 def reset() -> None:
-    _LAST.update(at=0.0, findings=[])
+    _LAST.update(at=0.0, findings=[], by_check={})
     CACHE[0] = None
     _NANDO.update(after="", seen=set(), last_pass=set())
