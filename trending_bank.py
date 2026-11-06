@@ -861,6 +861,13 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     # And its writer is the editions' own, when one is set (§269).
     notes.edition = True
     plan = await generator.understand(plan, notes)
+    # A name that means two things the story did not settle (§426).
+    import script_generator
+
+    if script_generator.ambiguous_readings(plan, notes)[0]:
+        return {"status": "ambiguous", "key": key,
+                "dollars": prefetch._dollars(notes),
+                "detail": "a name in it means more than one thing; the tap asks"}
     if getattr(plan.brief, "outcome_dependent", False):
         return {"status": "volatile", "key": key,
                 "dollars": prefetch._dollars(notes),
@@ -1027,6 +1034,10 @@ async def write_batched(stories: list, generator, cache, minutes: int,
             if message is not None:
                 sentences = generator.sentences_from_message(prepared, notes,
                                                              message)
+                # Mclovin's failures rewritten once or left out (§435).
+                import script_generator
+                sentences = await script_generator.settle_repairs(
+                    generator, prepared, notes, sentences)
             else:
                 if alive is not None:
                     alive()

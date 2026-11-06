@@ -1,4 +1,4 @@
-"""Consuela keeps the key sentences only, each one that stands alone (§423)."""
+"""Consuela keeps the key sentences only, each one that stands alone (§467)."""
 from __future__ import annotations
 
 from agents import housekeeper as hk
@@ -26,7 +26,7 @@ def test_the_old_rules_are_all_still_there():
 
 
 def test_room_for_a_batch_of_eight_answers():
-    # Measured (§423): 3 articles used up to 1,925 output tokens with these
+    # Measured (§467): 3 articles used up to 1,925 output tokens with these
     # instructions; 1,500 cut batches off ("out_of_room").
     assert settings.housekeeper_max_tokens >= 6000
     assert settings.housekeeper_batch_articles <= 8

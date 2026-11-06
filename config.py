@@ -826,11 +826,11 @@ class Settings:
     # The category tree is unaffected: it reads every story the pool holds.
     stories_news_interval_seconds: float = _env_float(
         "STORIES_NEWS_INTERVAL_SECONDS", 7200.0)
-    # Finnhub's floor. Two hours since §191, at the owner's direction: what
+    # The markets sweep's floor (Tiingo). Two hours since §191, at the owner's direction: what
     # matters is a large move, which is still a large move two hours later,
     # and markets are heading for 24-hour trading, so it is not limited to
-    # the US session. Was fifteen minutes (§156), which was ~1,400 quotes a
-    # day, most of them overnight. Twelve symbols a sweep: ~144 a day.
+    # the US session. Was fifteen minutes (§156). On Tiingo the whole
+    # watchlist is one request a sweep: twelve a day.
     stories_markets_interval_seconds: float = _env_float(
         "STORIES_MARKETS_INTERVAL_SECONDS", 7200.0)
     # How often a followed sport is swept while one of its games is on
@@ -1007,11 +1007,11 @@ class Settings:
     stories_polymarket: bool = field(
         default_factory=lambda: os.environ.get("STORIES_POLYMARKET", "0")
         not in ("0", "false", "False", ""))
-    # The symbols Finnhub is asked about each sweep. Empty is the named list
-    # in `story_sources.WATCHLIST`; the free tier has no movers endpoint, so a
-    # fixed watchlist is the honest cheap version of "what moved today".
-    finnhub_watchlist: str = field(
-        default_factory=lambda: os.environ.get("FINNHUB_WATCHLIST", "").strip())
+    # The symbols the markets sweep quotes (one Tiingo request). Empty is
+    # the named list in `story_sources.WATCHLIST`; a fixed watchlist is the
+    # honest cheap version of "what moved today".
+    markets_watchlist: str = field(
+        default_factory=lambda: os.environ.get("MARKETS_WATCHLIST", "").strip())
 
     # --- GDELT -----------------------------------------------------------
     # A second article index beside the web search, and the source behind the story
@@ -1351,7 +1351,8 @@ class Settings:
         not in ("0", "false", "False", ""))
     balldontlie_api_key: str = field(
         default_factory=lambda: os.environ.get("BALLDONTLIE_API_KEY", "").strip())
-    # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat. One
+    # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat |
+    # all-access (every sport and endpoint, §419; FAM's plan). One
     # account covers every league. Nothing in an answer says which plan a key
     # is on, so the deploy says it, and an endpoint the plan does not reach
     # is not asked (`balldontlie.ENDPOINT_TIERS`). Free reaches players and
@@ -1372,43 +1373,25 @@ class Settings:
     balldontlie_base: str = field(
         default_factory=lambda: os.environ.get(
             "BALLDONTLIE_BASE", "https://api.balldontlie.io").strip().rstrip("/"))
-    # --- API-Sports' free plans while developing (§290, temporary) --------
-    # One key for every sport. With it set, every league `api_sports.LEAGUES`
-    # maps goes to API-Sports while BALLDONTLIE is absent or on its free
-    # plan; API_SPORTS_LEAGUES names them instead (BALLDONTLIE keys: nfl,
-    # nba, mlb, nhl, epl ...). Deleted when FAM goes commercial.
-    api_sports_key: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_KEY", "").strip())
-    api_sports_leagues: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_LEAGUES", "").strip())
-    # The free plan: 100 requests a day per sport, reset at 00:00 UTC, and
-    # about 10 a minute. The myFAM sweep stops while the reserve is left.
-    api_sports_daily_requests: int = _env_int("API_SPORTS_DAILY_REQUESTS", 100)
-    api_sports_per_minute: int = _env_int("API_SPORTS_PER_MINUTE", 10)
-    api_sports_lookup_reserve: int = _env_int("API_SPORTS_LOOKUP_RESERVE", 40)
-    finnhub_key: str = field(
-        default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
-    # --- Tiingo's free plan while developing (§290, temporary) -----------
-    # Markets: a quote from IEX and a ticker search. With the key set it is
-    # the markets provider (ahead of Finnhub) unless LIVE_MARKETS_PROVIDER
-    # names one. Free is 50 requests an hour, 1,000 a day and 500 tickers a
-    # month, personal use only; the two ceilings below are FAM's own stops.
+    # --- Tiingo: market prices (§290, §418) -------------------------------
+    # Markets: a quote from IEX and a ticker search; the only markets
+    # provider. With the key set it is the markets provider. TIINGO_PLAN is
+    # the plan bought: free | power | commercial | redistribution. The free
+    # plan has FAM's own stops (45/hour, 950/day); a paid plan has none
+    # (§421). The two ceilings set a stop on any plan; 0 means "from the plan".
     tiingo_api_key: str = field(
         default_factory=lambda: os.environ.get("TIINGO_API_KEY", "").strip())
-    tiingo_hourly_requests: int = _env_int("TIINGO_HOURLY_REQUESTS", 45)
-    tiingo_daily_requests: int = _env_int("TIINGO_DAILY_REQUESTS", 950)
+    tiingo_hourly_requests: int = _env_int("TIINGO_HOURLY_REQUESTS", 0)
+    tiingo_daily_requests: int = _env_int("TIINGO_DAILY_REQUESTS", 0)
     tiingo_plan: str = field(
         default_factory=lambda: os.environ.get("TIINGO_PLAN", "free").strip().lower())
     # Which plan each licensed provider is on, as bought on its dashboard
     # (§207). Nothing in the provider's answer says so, and the free plans of
     # both are licensed for development / personal use only - so the deploy
     # says it, and `/admin` and `/api/health` flag a free plan in use.
-    # GNews: free | essential | business | enterprise. Finnhub: free |
-    # commercial (any other word is read as a paid plan).
+    # GNews: free | essential | business | enterprise.
     gnews_plan: str = field(
         default_factory=lambda: os.environ.get("GNEWS_PLAN", "free").strip().lower())
-    finnhub_plan: str = field(
-        default_factory=lambda: os.environ.get("FINNHUB_PLAN", "free").strip().lower())
     ap_elections_key: str = field(
         default_factory=lambda: os.environ.get("AP_ELECTIONS_KEY", "").strip())
     ddhq_key: str = field(
@@ -2054,8 +2037,9 @@ class Settings:
     # 2026-10-30): `vendor:model-id`, an exact model and never a moving
     # alias, and never `MODEL` - an empty value means the agent makes no
     # model call (code only). `agents/models.py` refuses anything else. The
-    # editor's ahead-of-the-tap model is Sonnet until the owner decides on
-    # the comparison (§346); the grounding checker is not a model setting.
+    # editor's ahead-of-the-tap model is Haiku 5.5 at high effort, the owner's
+    # choice on the comparison (§437, §440); the grounding checker is not a
+    # model setting.
     overlord_planner_model: str = field(
         default_factory=lambda: os.environ.get("OVERLORD_PLANNER_MODEL", "").strip())
     contextualizer_model: str = field(
@@ -2073,13 +2057,19 @@ class Settings:
         default_factory=lambda: os.environ.get("RETRIEVER_MODEL", "").strip())
     editor_model: str = field(
         default_factory=lambda: os.environ.get(
-            "EDITOR_MODEL", "anthropic:claude-sonnet-5-5").strip())
+            "EDITOR_MODEL", "anthropic:claude-haiku-5-5").strip())
     editor_search_model: str = field(
         default_factory=lambda: os.environ.get(
             "EDITOR_SEARCH_MODEL", "anthropic:claude-haiku-5-5").strip())
     supervisor_model: str = field(
         default_factory=lambda: os.environ.get(
             "SUPERVISOR_MODEL", "anthropic:claude-haiku-5-5").strip())
+    # Mclovin's nightly reviewer (§440, step 4): the stronger model that
+    # reviews his verdicts on real episodes, sentence by sentence, in the
+    # background - Opus, as Nando's answer key (§381).
+    supervisor_judge_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_JUDGE_MODEL", "anthropic:claude-opus-5-5").strip())
     supervisor_screen_model: str = field(
         default_factory=lambda: os.environ.get(
             "SUPERVISOR_SCREEN_MODEL", "anthropic:claude-haiku-5-5").strip())
@@ -2126,9 +2116,71 @@ class Settings:
     nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 50)
     editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
     editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
-    editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 4000)
-    supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
-    supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
+    # Measured (§437): at high effort Haiku 5.5 spent 4,000 tokens thinking
+    # and was cut off before answering; the answer itself is a few hundred.
+    editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 16000)
+    # Shakespeare's effort ahead of the tap (§437): high, as the comparison
+    # runs both Haiku and Sonnet (decided item 37). On searchFAM: low.
+    editor_effort: str = field(
+        default_factory=lambda: os.environ.get("EDITOR_EFFORT", "high").strip())
+    # Decided item 37's two weeks (§454): with it on, half the episodes
+    # written ahead of the tap - by a hash of the question and length - are
+    # written without Shakespeare, and each records its arm, so listening
+    # (left in 20 s, heard 85%) can be compared. Off: he plans every one.
+    editor_trial: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_TRIAL", "0")
+        not in ("0", "false", "False", ""))
+    # Shakespeare on searchFAM, in tandem with the writer (§456): he plans
+    # (`EDITOR_SEARCH_MODEL`, low effort) while the writer opens from the
+    # packets as today; once `EDITOR_TANDEM_OPENING_WORDS` are spoken the
+    # writer waits for his plan until `EDITOR_TANDEM_WAIT_SECONDS` from its
+    # start, and a second writer call writes the rest from it. Late or no
+    # plan: the first call carries on as today. Never in front of the first
+    # word. Off: search is written as it always was.
+    editor_tandem: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_TANDEM", "0")
+        not in ("0", "false", "False", ""))
+    editor_tandem_opening_words: int = _env_int("EDITOR_TANDEM_OPENING_WORDS", 30)
+    editor_tandem_wait_seconds: float = _env_float("EDITOR_TANDEM_WAIT_SECONDS", 7.0)
+    # 2 s and 500 tokens, the owner's (§453): at 1 s and 300 most of his
+    # second looks timed out or ran out of room (§452). Also the deadline
+    # for one sentence's code checks, which take well under a millisecond.
+    supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 2.0)
+    # The small model on pages the source screen cannot settle (§442): ahead
+    # of the tap only, one call an episode, so it may take its time.
+    supervisor_screen_timeout_seconds: float = _env_float(
+        "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", 20.0)
+    supervisor_screen_max_tokens: int = _env_int("SUPERVISOR_SCREEN_MAX_TOKENS", 2000)
+    supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 500)
+    # **Mclovin's sentence checks** (§435): which ones send a failing
+    # sentence back to the writer; the rest only count. A check joins this
+    # list once the planted-mistake eval passes it (§440,
+    # `tools/mclovin_eval.py`); figures have not yet. The one-sentence quote
+    # limit enforces since the owner signed mclovin.md v2 (§441).
+    supervisor_enforce: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_ENFORCE",
+            "quote,quote_length,website,advice,superlative,dates,mixed").strip())
+    # The writer's one rewrite of a failing sentence: its time limit (the
+    # sentences behind it wait in order) and how many an episode may ask.
+    # Late, or past the count, the sentence is left out.
+    supervisor_repair_timeout_seconds: float = _env_float(
+        "SUPERVISOR_REPAIR_TIMEOUT_SECONDS", 2.0)
+    supervisor_max_repairs: int = _env_int("SUPERVISOR_MAX_REPAIRS", 4)
+    # His nightly review's one call per sentence, and how many sentences a
+    # night (§440): half his flags, half a sample of what he passed.
+    supervisor_judge_timeout_seconds: float = _env_float(
+        "SUPERVISOR_JUDGE_TIMEOUT_SECONDS", 60.0)
+    supervisor_judge_max_tokens: int = _env_int("SUPERVISOR_JUDGE_MAX_TOKENS", 4000)
+    supervisor_review_per_run: int = _env_int("SUPERVISOR_REVIEW_PER_RUN", 40)
+    # **The grounding checker** (§440, step 5; §438): which one, empty for
+    # none - none is installed until the owner decides on §438's analysis -
+    # and the scores that pass, fail and leave unsure (the unsure band
+    # takes the small model's second look while `support` is enforced).
+    supervisor_grounding: str = field(
+        default_factory=lambda: os.environ.get("SUPERVISOR_GROUNDING", "").strip())
+    supervisor_grounding_high: float = _env_float("SUPERVISOR_GROUNDING_HIGH", 0.8)
+    supervisor_grounding_low: float = _env_float("SUPERVISOR_GROUNDING_LOW", 0.2)
     housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
     housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 6000)
     # **Consuela's consolidation** (§399): a dry run until the owner turns
@@ -2155,15 +2207,16 @@ class Settings:
     housekeeper_comb_days: float = _env_float("HOUSEKEEPER_COMB_DAYS", 7.0)
     # **Whose material Consuela may store** (§397, decided items 8 and 25;
     # consuela.md, never 8): the providers the owner has approved - GDELT
-    # (with its citation), Tiingo, BALLDONTLIE (2026-10-28) and Perplexity
-    # (2026-11-02) - and FAM's own records. Read only while Consuela runs;
-    # `history_archive.REFUSED` (Parallel's terms; Finnhub and API-Sports,
-    # item 41) cannot be approved here.
+    # (with its citation), Tiingo, BALLDONTLIE (2026-10-28), Perplexity
+    # (2026-11-02) and GNews (2026-11-03; Polymarket pending) - and FAM's own
+    # records. Applied to everything the archive keeps, whether or not
+    # Consuela runs (§429); `history_archive.REFUSED` (Parallel's terms;
+    # Finnhub and API-Sports, no longer used) cannot be approved here.
     housekeeper_approved_providers: tuple = field(
         default_factory=lambda: tuple(
             p.strip().lower() for p in os.environ.get(
                 "HOUSEKEEPER_APPROVED_PROVIDERS",
-                "fam,gdelt,tiingo,balldontlie,perplexity").split(",") if p.strip()))
+                "fam,gdelt,tiingo,balldontlie,perplexity,gnews").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
     # **Netenyahu's background loop** (§350): how often it claims due agent
@@ -2251,11 +2304,16 @@ class Settings:
                 f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "
                 f"web search backend. Use one of: same, "
                 f"{', '.join(WEB_RESEARCH_BACKENDS)}.")
-        if self.balldontlie_tier not in ("free", "all-star", "goat"):
+        if self.balldontlie_tier not in ("free", "all-star", "goat", "all-access"):
             raise ValueError(
                 f"BALLDONTLIE_TIER={self.balldontlie_tier!r} is not one of "
-                "BALLDONTLIE's plans: free, all-star, goat. Refusing rather "
+                "BALLDONTLIE's plans: free, all-star, goat, all-access. Refusing rather "
                 "than guessing a plan upward and spending refused requests.")
+        if self.tiingo_plan not in ("free", "power", "commercial", "redistribution"):
+            raise ValueError(
+                f"TIINGO_PLAN={self.tiingo_plan!r} is not one of Tiingo's "
+                "plans: free, power, commercial, redistribution. Refusing "
+                "rather than guessing its request limits.")
         if self.parallel_mode not in ("turbo", "fast", "basic", "advanced"):
             raise ValueError(
                 f"PARALLEL_MODE={self.parallel_mode!r} is not one of Parallel's "

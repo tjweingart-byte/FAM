@@ -1,4 +1,4 @@
-"""What Consuela is offered is whole sentences of the article, once (§422).
+"""What Consuela is offered is whole sentences of the article, once (§466).
 
 Each case is word for word from production's dry run (2026-11-05)."""
 from __future__ import annotations
@@ -44,6 +44,17 @@ def test_a_sentence_the_article_repeats_is_offered_once_in_its_first_words():
 def test_the_page_around_the_article_is_never_offered(clutter):
     real = "Curry made 11 of 12 free throws, missing his final attempt late."
     assert _offered(f"{real} {clutter}") == [real]
+
+
+@pytest.mark.parametrize("text", [
+    "After a long meeting the board said no. The vote was held again on Friday.",
+    "The company's newsletter reported revenue of $2 billion for the quarter.",
+    "Shares of Apple rose 2% on Monday, the most since March.",
+])
+def test_ordinary_sentences_are_neither_joined_nor_dropped(text):
+    assert " ".join(_offered(text)) == text
+    if text.startswith("After a long"):
+        assert len(_offered(text)) == 2
 
 
 def test_nothing_is_reworded():

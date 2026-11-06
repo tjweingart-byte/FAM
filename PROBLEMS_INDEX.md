@@ -418,9 +418,51 @@ and `limit` = Lines.
 | 27698 | 46 | 415. Totals about groups of listeners: groups of 100 or more, never a person (2026-11-03) |
 | 27744 | 13 | 416. docs/BACKEND.md brought up to Phase 2 (2026-11-03) |
 | 27757 | 80 | 417. The review before the pull request (2026-11-03) |
-| 27837 | 37 | 418. The answer-key rules for Consuela and Sonic, proposed (2026-11-03) |
-| 27874 | 31 | 419. The attribution case: a neutral rewording, at the owner's choice (2026-11-03) |
-| 27905 | 22 | 420. The owner signed the answer-key rules: Consuela always 12, Sonic always 8 (2026-11-03) |
-| 27927 | 63 | 421. C2 on production's first three nights: the thresholds stand, "chance" is a hedge, and her choices are not ready to file (2026-11-05) |
-| 27990 | 35 | 422. Consuela is offered whole sentences of the article, once (2026-11-05) |
-| 28025 | 37 | 423. Consuela keeps the key sentences only, each one that stands alone (2026-11-05) |
+| 27837 | 66 | 418. API-Sports and Finnhub are removed; BALLDONTLIE and Tiingo are paid for (2026-11-02) |
+| 27903 | 19 | 419. BALLDONTLIE's plan is ALL-ACCESS (2026-11-03) |
+| 27922 | 16 | 420. Tiingo is credited on the Terms page (2026-11-03) |
+| 27938 | 20 | 421. A paid Tiingo plan has no stop in code; GNews on Essential (2026-11-03) |
+| 27958 | 14 | 422. GNews, BALLDONTLIE, Tiingo and Open-Meteo are all paid for (2026-11-03) |
+| 27972 | 74 | 423. The costs on the Haiku writer, the launch plans for sports and markets, and the batched writer test (2026-11-03) |
+| 28046 | 37 | 424. Main's Postgres job was red: tests that read a store's SQLite file by hand (2026-11-03) |
+| 28083 | 43 | 425. Finishing Phase 1, piece 1: facts, never advice (2026-11-03) |
+| 28126 | 72 | 426. Finishing Phase 1, piece 2a: ask the listener when a name means two things - the server (2026-11-03) |
+| 28198 | 31 | 427. Finishing Phase 1, piece 2b: the search screens ask which one (2026-11-03) |
+| 28229 | 43 | 428. Finishing Phase 1, piece 3: re-filing the episodes written before Nando, a list first (2026-11-03) |
+| 28272 | 43 | 429. The owner's guardrails: accusations, private people, and what the archive may keep (2026-11-03) |
+| 28315 | 31 | 430. Withdrawing what the archive kept from API-Sports and Finnhub: a list first (2026-11-03) |
+| 28346 | 48 | 431. Finishing Phase 1, piece 4: public figures only - and Phase 1 is done (2026-11-03) |
+| 28394 | 44 | 432. The review before the pull request: the reading joins the question (2026-11-03) |
+| 28438 | 60 | 433. A listen is something heard, not a tap (2026-11-03) |
+| 28498 | 75 | 434. Phase 3, piece 1: Mclovin's source screen - opinion and blogs out of both packets (2026-11-03) |
+| 28573 | 86 | 435. Phase 3, piece 2: Mclovin checks each sentence while the writer writes (2026-11-03) |
+| 28659 | 42 | 436. The owner's answers on Mclovin's checks: quotes one sentence at most, superlatives counted (2026-11-03) |
+| 28701 | 117 | 437. Phase 3, piece 3: Shakespeare plans the episode ahead of the tap, and the comparison that decides his model (2026-11-03) |
+| 28818 | 93 | 438. Phase 3, piece 4: the grounding checker, analysed before anything is built - and what Mclovin costs the first word (2026-11-03) |
+| 28911 | 33 | 439. Perplexity's refused field taken out, and one sentence of anyone's words in every episode (2026-11-03) |
+| 28944 | 135 | 440. Shakespeare on Haiku, and Mclovin trained: planted mistakes, scored checks, tightened rules, a nightly review, the grounding checker's place (2026-11-03) |
+| 29079 | 34 | 441. The owner signed mclovin.md v2: a quote is one sentence at most, and enforced (2026-11-03) |
+| 29113 | 61 | 442. The owner's answers: straight to Main, the nightly review in Mclovin's book, and the small model on unsettled pages (2026-11-04) |
+| 29174 | 15 | 443. The owner signed mclovin.md v3: his nightly review is in his own book (2026-11-04) |
+| 29189 | 41 | 444. HHEM-2.1-Open measured on one CPU: too slow and too big as it ships (2026-11-04) |
+| 29230 | 10 | 445. This branch's sections renumbered: Main took §433 (2026-11-04) |
+| 29240 | 68 | 450. Finishing Phase 3, piece 1: the evaluation data recreated, and §440's table reproduced (2026-11-04) |
+| 29308 | 89 | 451. Finishing Phase 3, piece 2: HHEM measured for accuracy, and as int8 ONNX on one thread (2026-11-04) |
+| 29397 | 52 | 452. The owner's direction: support is Mclovin's verdict, not a checker's - and Mclovin measured on it (2026-11-04) |
+| 29449 | 18 | 453. Mclovin's per-sentence limits raised to 2 s and 500 tokens; support stays off (2026-11-04) |
+| 29467 | 62 | 454. Finishing Phase 3, piece 4: Shakespeare's two weeks, built behind a switch - and his place on searchFAM (2026-11-04) |
+| 29529 | 44 | 455. Shakespeare on searchFAM: alongside the writer, and his call measured at low and medium effort (2026-11-04) |
+| 29573 | 58 | 456. Shakespeare on searchFAM: low effort keeps quality, and he plans beside the writer (2026-11-04) |
+| 29631 | 20 | 457. Finishing Phase 3, piece 5: the review's two small fixes (2026-11-04) |
+| 29651 | 14 | 458. This branch's sections renumbered past the other open branch's (2026-11-04) |
+| 29665 | 76 | 459. The branch double-checked: what an independent review found, and what was fixed (2026-11-04) |
+| 29741 | 53 | 460. The second double-check, and the Cost table from measured figures (2026-11-05) |
+| 29794 | 44 | 461. The owner's answers after Phase 3, the production switches, and the Phase 4 prompt (2026-11-05) |
+| 29838 | 37 | 462. The answer-key rules for Consuela and Sonic, proposed (2026-11-03) |
+| 29875 | 31 | 463. The attribution case: a neutral rewording, at the owner's choice (2026-11-03) |
+| 29906 | 22 | 464. The owner signed the answer-key rules: Consuela always 12, Sonic always 8 (2026-11-03) |
+| 29928 | 63 | 465. C2 on production's first three nights: the thresholds stand, "chance" is a hedge, and her choices are not ready to file (2026-11-05) |
+| 29991 | 35 | 466. Consuela is offered whole sentences of the article, once (2026-11-05) |
+| 30026 | 37 | 467. Consuela keeps the key sentences only, each one that stands alone (2026-11-05) |
+| 30063 | 13 | 468. This branch's sections renumbered: Main took §418-§461 (2026-11-06) |
+| 30076 | 38 | 469. The branch double-checked before its pull request, and the manifest for the merged books (2026-11-06) |

@@ -342,20 +342,18 @@ def cache_key(
     short. Model is included so changing MODEL doesn't serve stale output from
     the previous one.
     """
-    payload = json.dumps(
-        {
-            "q": canonical or normalize_query(query),
-            "m": as_minutes(minutes),
-            # A follow-up is a different episode from the same words asked cold.
-            "ctx": canonical_context or "",
-            # A researched episode is a different thing from an instant one.
-            "search": bool(searched),
-            "model": settings.model,
-            "wpm": settings.target_wpm,
-            "v": 2,  # bump to invalidate everything after a prompt change
-        },
-        sort_keys=True,
-    )
+    fields = {
+        "q": canonical or normalize_query(query),
+        "m": as_minutes(minutes),
+        # A follow-up is a different episode from the same words asked cold.
+        "ctx": canonical_context or "",
+        # A researched episode is a different thing from an instant one.
+        "search": bool(searched),
+        "model": settings.model,
+        "wpm": settings.target_wpm,
+        "v": 2,  # bump to invalidate everything after a prompt change
+    }
+    payload = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -375,18 +373,16 @@ def key_bucket(
     retires the old vectors instead of comparing coordinates that no longer
     mean the same thing.
     """
-    payload = json.dumps(
-        {
-            "m": as_minutes(minutes),
-            "ctx": canonical_context or "",
-            "search": bool(searched),
-            "model": settings.model,
-            "wpm": settings.target_wpm,
-            "space": embeddings.space(),
-            "v": 2,
-        },
-        sort_keys=True,
-    )
+    fields = {
+        "m": as_minutes(minutes),
+        "ctx": canonical_context or "",
+        "search": bool(searched),
+        "model": settings.model,
+        "wpm": settings.target_wpm,
+        "space": embeddings.space(),
+        "v": 2,
+    }
+    payload = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
 
 
@@ -1141,6 +1137,22 @@ class MemoryScriptCache:
     def tagged(self, after: str = "", limit: int = 500) -> list:
         return [(k, n, self.sourced_at(k), []) for k, n in
                 sorted(self._category_nodes.items()) if k > after][:limit]
+
+    def unfiled(self, after: str = "", limit: int = 500) -> list:
+        now = time.time()
+        out = []
+        for key in sorted(self._data):
+            if key <= after or self._category_nodes.get(key):
+                continue
+            entry = self._data[key]
+            if entry[0] < now:
+                continue
+            out.append({"key": key, "query": entry[3] or "",
+                        "title": self._titles.get(key, ""),
+                        "category": self._categories.get(key, ""),
+                        "summary": self._summaries.get(key, ""),
+                        "sourced": self.sourced_at(key)})
+        return out[:limit]
 
     # -- audio (§132) -------------------------------------------------------
 
@@ -2372,6 +2384,23 @@ class SqliteScriptCache:
                 (node, max(1, int(limit)))).fetchall()]
         except Exception:
             log.exception("script cache node read failed")
+            return []
+
+    def unfiled(self, after: str = "", limit: int = 500) -> list:
+        """Kept episodes Nando never filed (no `category_node`), after `after`,
+        by key: what the re-file of episodes written before him reads (§428).
+        Each a dict of key, query, title, category words, summary, sourced."""
+        try:
+            rows = self._conn().execute(
+                "SELECT key, query, title, category, summary, "
+                f"{_SOURCED} FROM scripts WHERE key > ? AND category_node = '' "
+                "AND expires >= ? ORDER BY key LIMIT ?",
+                (after, time.time(), max(1, int(limit)))).fetchall()
+            return [{"key": k, "query": q or "", "title": t or "", "category": c or "",
+                     "summary": s or "", "sourced": src}
+                    for k, q, t, c, s, src in rows]
+        except Exception:
+            log.exception("script cache unfiled read failed")
             return []
 
     def tagged(self, after: str = "", limit: int = 500) -> list:

@@ -21,8 +21,15 @@ def _fn(name):
     return INDEX.split("function " + name + "(", 1)[1].split("\n  }\n", 1)[0]
 
 
+#: Each test tile's question: a play carries the question it served.
+QUESTIONS = {"t": "q", "a": "x", "b": "y"}
+
+
 def _play(store, user, topic_id, at):
-    store.record(T.Event(user, "play", topic_id, "", at=at))
+    """A friend's listen, heard past its threshold (§433): a tap alone puts
+    no face on a card."""
+    store.record(T.Event(user, "play", topic_id, QUESTIONS[topic_id], at=at))
+    store.mark_heard(user, QUESTIONS[topic_id], at + 60)
 
 
 def test_newest_listener_first_and_one_face_per_person(tmp_path):

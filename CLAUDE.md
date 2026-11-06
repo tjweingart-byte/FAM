@@ -74,7 +74,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   their briefs/scripts are built before the tap. `EPISODE_INTELLIGENCE=0`
   restores old latency. No preamble to disguise a wait; no text before its
   material. [spec-amended-for-search]
-- A slow answer is a scheduling choice (starting earlier: 18.30s → 0.12s). [slow-is-scheduling]
+- A slow answer is a scheduling choice (18.30s → 0.12s). [slow-is-scheduling]
 - Prefetch-on-typing-pause was removed at the user's request; never re-add. [no-typing-prefetch]
 - **Rails written whole** 05:00/17:00 ET (§359): every held story, sports
   kept to the next; draws warm briefs. [myfam-warms-briefs] [rails-edition]
@@ -317,12 +317,12 @@ Research and truth
   reports (§275) by the scoreboard; unlisted≠fit. [player-facts]
   Code routes named teams/listings (§265); it only asks. [live-route]
 - **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
-- **Sports are BALLDONTLIE's** (§277, §280); free plans till
-  commercial: API-Sports scores, Tiingo prices (§290). [sports-balldontlie]
+- **Sports are BALLDONTLIE's (ALL-ACCESS, §419), markets Tiingo's** (§277,
+  §280, §418); API-Sports and Finnhub are gone. [sports-balldontlie]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one
   of their games is on, only if myFAM was drawn recently; other leagues are
-  looked up on demand; Finnhub every 2h, round the clock; a refused
+  looked up on demand; Tiingo every 2h, round the clock; a refused
   endpoint is not re-asked that day. [sweep-on-demand]
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
@@ -398,8 +398,9 @@ Browse surfaces
   its subject (`STARTUP_WRITE_AHEAD`, §174); `cold` is derived; startup plays never feed
   `popular_facets`; tiles claim no results or digits. [card-hook-startup]
 - **What you missed last week** is a rail, not a popup (cached episodes
-  others played 3-7 days ago that this listener never heard, no live-feed, no
-  top-up, §141). [missed-rail]
+  others heard 3-7 days ago, unheard by you; no live-feed or top-up, §141). [missed-rail]
+- **Heard, not tapped** (§433): crowd rows and faces count 30s/30% (server
+  clock) or a finish; people first. [heard-not-tapped]
 - Trending is chosen before any personal rail, from its own edition, so it never
   competes with Made for you for tiles. [trending-floor]
 - **Two crowd rows, not blended**: `most_played` is FAM's plays; Trending is the
@@ -541,11 +542,11 @@ Every change ends the same way, without being asked [ship-loop]:
   `.github/workflows/ci.yml` by hand. [landing-smoke]
 - CI runs Python 3.12, this container 3.11 - reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
-- Fonts differ here and in CI; suspect them on layout disagreements. [fonts-env]
+- Fonts differ here and in CI; suspect them first. [fonts-env]
 - No API key here: writing quality and latency are unverified. [no-api-key]
-- `tools/shots.py`, `stall_probe.py`, `compare_search.py` exist because claims were wrong without them. [shots-probes]
-- Deleting CSS broke the app twice: use `tools/check_css.py` and `tools/shots.py`. [css-deletion]
-- A top-level name declared twice in `static/index.html` silently wins; `tools/check_js.py` catches it. [js-dup-names]
+- `tools/shots.py`, `stall_probe.py`, `compare_search.py`: claims were wrong without them. [shots-probes]
+- Deleting CSS broke the app twice: `tools/check_css.py`, `tools/shots.py`. [css-deletion]
+- A top-level name declared twice in `static/index.html` silently wins (`tools/check_js.py`). [js-dup-names]
 - **A setting is settled only where it is copied** - `.env.example` must agree
   with `config.py`; interface literals pinned to their variable. [settings-copied]
 - `PROBLEMS.md` is the engineering log - add to it rather than starting new notes. [problems-log]

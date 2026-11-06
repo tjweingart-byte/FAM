@@ -80,49 +80,61 @@ def test_an_unknown_source_name_costs_one_source_and_not_the_server(monkeypatch)
 
 
 # --------------------------------------------------------------------------
-# Finnhub: a price is a measurement, never a verdict
+# Markets (Tiingo since §418): a price is a measurement, never a verdict
 # --------------------------------------------------------------------------
 QUOTES = {
-    "NVDA": {"c": 119.4, "dp": -6.2, "t": 1789000000},
-    "AAPL": {"c": 232.1, "dp": 0.4, "t": 1789000000},   # did not move enough
-    "SPY":  {"c": 581.0, "dp": 3.4, "t": 1789000000},
-    "XOM":  {"c": 0, "dp": None, "t": 0},               # unreadable
+    "NVDA": {"ticker": "NVDA", "last": 119.4, "prevClose": 127.29},  # -6.2%
+    "AAPL": {"ticker": "AAPL", "last": 232.1, "prevClose": 231.17},  # +0.4%
+    "SPY":  {"ticker": "SPY", "last": 581.0, "prevClose": 561.9},   # +3.4%
+    "XOM":  {"ticker": "XOM", "last": None, "prevClose": None},    # unreadable
 }
+STAMP = "2026-10-13T15:00:00+00:00"
 
 
-def fake_quotes(monkeypatch):
+def markets(monkeypatch, **kw):
+    """Tiingo as the markets provider, the IEX answer stubbed."""
+    import live_sources
+    import tiingo
+
+    patched = dataclasses.replace(config.settings, tiingo_api_key="k",
+                                  live_markets_provider="", **kw)
+    for module in (story_sources, live_sources, tiingo):
+        monkeypatch.setattr(module, "settings", patched)
+    monkeypatch.setattr(tiingo, "RATION", tiingo.Ration())
+    asked = []
+
     async def _json(url, headers, params, timeout):
-        return QUOTES.get(params.get("symbol"), {})
+        asked.append(url)
+        wanted = [t.upper() for t in params.get("tickers", "").split(",") if t]
+        return [dict(QUOTES[t], lastSaleTimestamp=STAMP) for t in wanted if t in QUOTES]
 
-    monkeypatch.setattr(story_sources, "_json", _json)
+    monkeypatch.setattr(live_sources, "_json", _json)
+    return asked
 
 
-def test_finnhub_reports_what_moved_and_ignores_what_did_not(monkeypatch):
-    fake_quotes(monkeypatch)
-    with_settings(monkeypatch, finnhub_key="k",
-                  finnhub_watchlist="NVDA,AAPL,SPY,XOM",
-                  stories_market_move_percent=3.0)
-    rows = run(story_sources.FinnhubSignals().collect(8))
+def test_the_sweep_reports_what_moved_and_ignores_what_did_not(monkeypatch):
+    asked = markets(monkeypatch, markets_watchlist="NVDA,AAPL,SPY,XOM",
+                    stories_market_move_percent=3.0)
+    rows = run(story_sources.TiingoSignals().collect(8))
     assert [r.subject for r in rows] == ["Nvidia", "the S&P 500"]
     assert rows[0].strength == 1.0, "the biggest mover leads"
     assert rows[0].domain == stories.MARKETS
+    assert len(asked) == 1, "the whole watchlist is one request"
 
 
-def test_a_finnhub_observation_says_what_moved_and_not_why(monkeypatch):
+def test_an_observation_says_what_moved_and_not_why(monkeypatch):
     """The whole reason a price is safe to put on a tile: "down six percent"
     is true whatever the reason, and the reason is what the episode is for."""
-    fake_quotes(monkeypatch)
-    with_settings(monkeypatch, finnhub_key="k", finnhub_watchlist="NVDA")
-    said = run(story_sources.FinnhubSignals().collect(8))[0].observation
+    markets(monkeypatch, markets_watchlist="NVDA")
+    said = run(story_sources.TiingoSignals().collect(8))[0].observation
     assert "down about 6.2 percent" in said
     assert "nothing here says why" in said
-    assert "delay" in said, "a delayed quote must say it is delayed"
+    assert "IEX's last sale" in said, "the price says where it came from"
 
 
 def test_a_quiet_market_produces_no_tiles_rather_than_dull_ones(monkeypatch):
-    fake_quotes(monkeypatch)
-    with_settings(monkeypatch, finnhub_key="k", finnhub_watchlist="AAPL")
-    assert run(story_sources.FinnhubSignals().collect(8)) == []
+    markets(monkeypatch, markets_watchlist="AAPL")
+    assert run(story_sources.TiingoSignals().collect(8)) == []
 
 
 def test_the_sweep_keeps_every_watchlist_quote_for_a_tap(monkeypatch):
@@ -130,82 +142,44 @@ def test_the_sweep_keeps_every_watchlist_quote_for_a_tap(monkeypatch):
     session it was taken in - and only the watchlist, never the market."""
     import live_sources
 
-    async def _json(url, headers, params, timeout):
-        if url.endswith("/stock/market-status"):
-            return {"isOpen": False}
-        return QUOTES.get(params.get("symbol"), {})
-
-    monkeypatch.setattr(story_sources, "_json", _json)
     monkeypatch.setattr(live_sources, "QUOTES", {})
-    with_settings(monkeypatch, finnhub_key="k",
-                  finnhub_watchlist="NVDA,AAPL,XOM",
-                  stories_market_move_percent=3.0)
-    run(story_sources.FinnhubSignals().collect(8))
+    markets(monkeypatch, markets_watchlist="NVDA,AAPL,XOM",
+            stories_market_move_percent=3.0)
+    run(story_sources.TiingoSignals().collect(8))
     assert set(live_sources.QUOTES) == {"NVDA", "AAPL"}, (
         "both readable quotes kept, the unreadable one not")
-    assert live_sources.swept_quote("aapl")["is_open"] is False
+    assert live_sources.swept_quote("aapl")["data"]["c"] == 232.1
 
 
 def test_a_tap_uses_the_swept_quote_only_in_the_same_session(monkeypatch):
-    import asyncio
     import time as _time
-    from datetime import datetime, timezone
 
-    import live_facts
     import live_sources
+    import tiingo
 
-    asked = []
-
-    async def _json(url, headers, params, timeout):
-        asked.append(url.rsplit("/", 1)[-1])
-        return {"c": 300.0, "dp": 1.0,
-                "t": datetime.now(timezone.utc).timestamp()}
-
-    monkeypatch.setattr(live_sources, "_json", _json)
+    asked = markets(monkeypatch)
     monkeypatch.setattr(live_sources, "QUOTES", {})
-    source = live_sources.FinnhubSource()
-    entity = live_facts.Entity(domain="markets", provider="Finnhub", id="AAPL",
+    source = tiingo.TiingoSource()
+    entity = live_facts.Entity(domain="markets", provider="Tiingo", id="AAPL",
                                label="Apple")
     live_sources.remember_quote(
         "AAPL", {"c": 231.5, "dp": -1.0, "t": _time.time() - 17 * 3600}, False)
 
-    async def closed():
-        return False
-
-    monkeypatch.setattr(source, "market_open", closed)
-    facts = asyncio.run(source.fetch(entity))
+    monkeypatch.setattr(tiingo, "session", lambda now=None, last_sale=None: False)
+    facts = run(source.fetch(entity))
     assert asked == [], "a closed market's swept close needs no quote request"
     assert facts.market_closed and "231.50" in " ".join(facts.facts)
 
-    async def opened():
-        return True
-
-    monkeypatch.setattr(source, "market_open", opened)
-    facts = asyncio.run(source.fetch(entity))
-    assert asked == ["quote"], "the session changed, so the quote is asked live"
-    assert "300.00" in " ".join(facts.facts)
-
-    # A swept quote too old to use even in its own session costs no round
-    # trip: the quote and the session are asked together, as before.
-    asked.clear()
-    live_sources.remember_quote(
-        "AAPL", {"c": 231.5, "dp": -1.0, "t": _time.time() - 3 * 3600}, True)
-    sessions = []
-
-    async def counted():
-        sessions.append(1)
-        return True
-
-    monkeypatch.setattr(source, "market_open", counted)
-    facts = asyncio.run(source.fetch(entity))
-    assert asked == ["quote"] and sessions == [1]
-    assert "300.00" in " ".join(facts.facts)
+    monkeypatch.setattr(tiingo, "session", lambda now=None, last_sale=None: True)
+    facts = run(source.fetch(entity))
+    assert len(asked) == 1, "the session changed, so the quote is asked live"
+    assert "232.10" in " ".join(facts.facts)
 
 
-def test_finnhub_without_a_key_is_off_and_says_which_key(monkeypatch):
-    with_settings(monkeypatch, finnhub_key="")
-    ok, why = story_sources.FinnhubSignals().diagnose()
-    assert not ok and "FINNHUB_KEY" in why
+def test_markets_without_a_key_are_off_and_say_which_key(monkeypatch):
+    with_settings(monkeypatch, tiingo_api_key="")
+    ok, why = story_sources.TiingoSignals().diagnose()
+    assert not ok and "TIINGO_API_KEY" in why
 
 
 # --------------------------------------------------------------------------

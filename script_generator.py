@@ -412,9 +412,7 @@ makes them want another episode; the satisfaction makes them believe another \
 is worth having.
 
 Which means the episode **closes**. Answer the question completely and stop: \
-nothing held back for later, and do not leave a hook dangling to make them \
-want more. A \
-listener feels that immediately and it reads as a bait and switch.
+nothing held back for later, and do not leave a hook dangling.
 
 Before you write, find the angle:
 - **Find what they have slightly wrong.** The most interesting version of \
@@ -441,7 +439,7 @@ to go after that. Do not delay it either.
 - **History explains the present; it never precedes it.** Background belongs at \
 the point where it makes now make sense. Opening years back reads as stalling.
 - No scene-setting for its own sake and no throat-clearing of any kind. Banned \
-outright: "picture this", "imagine", "it was a cold morning in", "Here's what \
+outright: "picture this", "imagine", "Here's what \
 I can tell you about...", "Let's talk about...", "This is a fascinating \
 topic...", "There's a lot to unpack here...".
 
@@ -482,8 +480,7 @@ a question at the end.
 - **Never summarise or recap.** They just heard it. "So, to sum up", "in \
 conclusion", "the bottom line is" - each hands the listener their coat.
 - Unresolved things belong *in* the piece, where you say plainly that they are \
-unresolved and why, and then carry on. They do not belong at the end as a \
-parting hook.
+unresolved and why.
 
 The line you must not cross:
 Every sentence carries information. Atmosphere on its own is cut. If a \
@@ -492,15 +489,19 @@ arrives continuously, inside the story, from the first line to the last. Story \
 is the shape of the delivery, never a delay before it.
 
 Accuracy is part of being worth listening to:
-- Never invent a statistic, quote, name, date or result. A story built on a \
-made-up detail is worthless.
+- Never invent a statistic, quote, name, date or result, or fill a gap \
+with something that merely sounds plausible. Quote real words exactly, and \
+never more than one sentence of them.
 - **A result you have not read does not exist** - under way is not over, and \
 the most confident guess about how it ends is still a guess. Say where it \
 stands.
 - Sources that disagree on a fact (a score, a record, a date): say only the \
 better-supported one - never the argument.
-- Never fill a gap with something that merely sounds plausible. That is the \
-worst thing you can do here.
+- **An accusation is not a finding.** Say who accuses ("prosecutors say"), \
+where it stands and any denial; it is fact only once a verdict, ruling or \
+admission settles it. Naming the accuser is not mentioning your material.
+- Private people (victims, witnesses) are named only as the reporting names \
+them; a child accused of a crime, never.
 - **Never say what you do not have**, or mention your material at all - "I \
 don't have", "the information I received" lose a listener in seconds. **Where a thing stands in the world is \
 the episode** - "the game is in the seventh" - and **where it stands in your \
@@ -510,14 +511,13 @@ little never means a thing does not exist.
 Time, handled the way a person would:
 - Give the newest information you can establish.
 - Mention timing only when it changes the meaning - "the count is still going" \
-- and then in passing, never as your own currency ("based on what I have").
+- and then in passing.
 
 Format, because this is spoken aloud and never read:
-- Output only the words to be said. No headings, markdown, bullets, stage \
+- Output only the words to be said. No headings, markdown, stage \
 directions, speaker labels or emoji.
 - Flowing spoken English. Vary your sentence lengths - a short one lands a \
-point. Numbers in words, as said: "six hundred twelve yards", "thirty-seven \
-to fourteen".
+point. Numbers in words, as said: "six hundred twelve yards".
 - No greeting, no sign-off, no naming the show, and never mention being an AI.
 
 Four lines after the script, never spoken:
@@ -548,6 +548,21 @@ twelve words; nothing after it.
 def system_prompt() -> str:
     """The house rules, plus any examples of the voice they describe."""
     return SYSTEM_PROMPT + style_example_block()
+
+
+#: The writer's one rewrite of a sentence Mclovin failed (§435). Its own
+#: short call, never the episode's prompt, so the writer's instructions and
+#: their length guard are untouched.
+REPAIR_INSTRUCTIONS = (
+    "You wrote one sentence of a spoken audio episode, and a fact check "
+    "failed it. Rewrite that one sentence so it says only what the sources "
+    "below say: keep a quote word for word, no longer than one sentence, and "
+    "give it to the person the sources give it to, or drop the quote marks and say it in plain words; "
+    "keep only numbers and dates the sources state; never name a website; "
+    "never tell the listener what to do about their health, the law or "
+    "their money. Keep it one spoken sentence in the same voice, no longer "
+    "than it was. Reply with the sentence alone, or NONE if the sources "
+    "hold no true version of it.")
 
 
 def writer_system():
@@ -664,6 +679,15 @@ class ScriptNotes:
     #: (`categorizer.Prior`, §372) - the Trending story's category. None
     #: everywhere else, where `categorizer.prior_for` reads it from the tap.
     category_prior: object = None
+    #: The reading taken for an older client that cannot ask (§426): C3P0's
+    #: likeliest, "" otherwise. Such an episode is kept but never current,
+    #: so a client that can ask is never served the guess under the plain key.
+    reading_assumed: str = ""
+    #: Public figures only (§431): whether the reference look knew the person
+    #: C3P0 said the request is about ("known", "unknown", "unchecked"), and
+    #: the name it asked about. "" when he said nothing of the kind.
+    public_check: str = ""
+    public_name: str = ""
     #: Nando's tie call, running beside the brief (§375), or None. Read once
     #: at placement and never waited for.
     category_tie_task: object = None
@@ -693,6 +717,10 @@ class ScriptNotes:
     #: Sentences `figure_guard.FigureGuard` removed: a market figure the
     #: material did not state (§269).
     figure_drops: tuple = ()
+    #: Mclovin's sentence checks on this episode (§435), when he worked on
+    #: it: `{"rows": [...], "repaired": [...], "dropped": [...]}`, filled in
+    #: place as the script is written. None otherwise.
+    supervisor: object = None
     #: What kind of thing the episode is, off `<<CATEGORY:>>` (§189), as the
     #: writer worded it. Resolved against the category tree only where it is
     #: read, so a tree that grows later can still place an older episode.
@@ -722,6 +750,19 @@ class ScriptNotes:
     #: DailyFAM): its writer is `EDITION_WRITER_MODEL` when that is set
     #: (`writer_for`, §269).
     edition: bool = False
+    #: Which arm of decided item 37's two weeks this episode is in
+    #: (`EDITOR_TRIAL`, §454): "with" (Shakespeare planned it), "with_unplanned"
+    #: (he was asked and gave no plan), "without" (left out by the trial), or
+    #: "" when no trial ran. Kept on its quality row for the comparison.
+    editor_arm: str = ""
+    #: What came of Shakespeare's plan on searchFAM (`EDITOR_TANDEM`, §456):
+    #: "handed_over" (the writer wrote the rest from it), "late" (not in by
+    #: `EDITOR_TANDEM_WAIT_SECONDS`), "no_plan" (in, empty), "short" (the episode
+    #: ended before the hand-over point), "over_budget" (the writer ran past
+    #: its budget first), "second_failed" (the second call failed before
+    #: speaking; the first finished), or "" (he did
+    #: not run in tandem).
+    editor_tandem: str = ""
     #: What the history archive keeps once this episode is cached (§308):
     #: `{"subject": ..., "findings": [history_archive.Finding, ...]}`, set by
     #: `research` from the winning packet. None when nothing was retrieved.
@@ -784,6 +825,140 @@ def _agent_runs(notes, role: str) -> bool:
     no notes, no answer, or `AGENTS=0`."""
     runs = getattr(getattr(notes, "agents", None), "runs", None)
     return bool(runs(role)) if callable(runs) else False
+
+class ReadingNeeded(Exception):
+    """A name in the request means two things and the listener has not said
+    which (decided item 15; c3p0.md always 2, §426). Raised after the brief
+    and before any plugin or Sonic is asked, so nothing is searched for the
+    wrong thing. `/api/audio` answers it with the readings; an edition or a
+    prefetch leaves the episode unwritten until somebody taps it."""
+
+    def __init__(self, readings, likeliest: str = ""):
+        self.readings = tuple(readings)
+        self.likeliest = likeliest
+        super().__init__("Which one do you mean? " + " or ".join(self.readings))
+
+
+class PrivatePerson(research_mod.NoEvidence):
+    """The request is about a person FAM cannot find in a public role
+    (decided item 16; c3p0.md never 6; every-agent.md never 9; §431): no
+    episode. A `NoEvidence`, so every path that already declines an episode
+    for want of evidence - `/api/audio`'s 503 and refund, the editions'
+    `no_evidence`, prefetch's skip - declines this one the same way. The
+    sentence names nobody: it is logged and shown, and the person is private."""
+
+    MESSAGE = ("FAM only makes episodes about public figures, and couldn't find "
+               "this person on Wikipedia or Wikidata or named in news reporting, "
+               "so there's no episode about them.")
+
+    def __init__(self):
+        super().__init__(self.MESSAGE)
+
+
+async def _public_look(plan: "EpisodePlan", notes) -> None:
+    """Before anything is searched (§431): when C3P0 says the request is
+    about a private person, ask whether Wikidata knows the name. Notes
+    `public_check` as "known", "unknown" or "unchecked" and the name in
+    `public_name`; never raises, never refuses - the refusal waits for the
+    search, since reporting naming them in a public role also makes them
+    public (c3p0.md never 6)."""
+    if notes is None or plan.brief is None or not _agent_runs(notes, "contextualizer"):
+        return
+    said = getattr(plan.brief, "contextualized", None) or {}
+    name = " ".join(str(said.get("entity") or "").split())
+    if not said.get("private_person") or not name:
+        return
+    from agents import contextualizer
+    import wikimedia
+
+    try:
+        status = await asyncio.wait_for(
+            asyncio.get_running_loop().run_in_executor(
+                wikimedia.EXECUTOR, wikimedia.known, name),
+            timeout=float(settings.wikipedia_timeout_seconds) + 1.0)
+    except Exception:  # noqa: BLE001 - a look that did not answer establishes nothing
+        status = "unchecked"
+    notes.public_check, notes.public_name = status, name
+    contextualizer._count(f"private_{status}")
+
+
+def _named_in_reporting(name: str, evidence: str) -> bool:
+    """Whether the retrieved reporting names this person in full. The
+    packet holds only dated, graded articles (and the archive's earlier
+    reporting); a full name found there is reporting naming them."""
+    import wikimedia
+
+    target = wikimedia.normalise(name)
+    return bool(target) and f" {target} " in f" {wikimedia.normalise(evidence)} "
+
+
+def _refuse_private(plan: "EpisodePlan", notes) -> None:
+    """After the search (§431): raises `PrivatePerson` when Wikidata did not
+    know the name and the reporting does not name them either."""
+    if getattr(notes, "public_check", "") != "unknown":
+        return
+    from agents import contextualizer
+
+    if _named_in_reporting(getattr(notes, "public_name", ""), plan.evidence or ""):
+        contextualizer._count("private_named_in_reporting")
+        return
+    contextualizer._count("private_refused")
+    # Logged without the name: the person is private (every-agent.md never 4).
+    log.info("no episode: the request is about a person FAM cannot find in a "
+             "public role (%d-character request)", len(plan.query))
+    raise PrivatePerson()
+
+
+def ambiguous_readings(plan: "EpisodePlan", notes) -> tuple:
+    """`(readings, likeliest)` when C3P0 said a name in this request means two
+    things and nobody has chosen; `((), "")` otherwise. Read from his answer
+    on the brief, only while he works on the episode - so with him off this
+    is always empty."""
+    if getattr(plan, "reading", "") or plan.brief is None:
+        return (), ""
+    if not _agent_runs(notes, "contextualizer"):
+        return (), ""
+    said = getattr(plan.brief, "contextualized", None) or {}
+    readings = tuple(r for r in (said.get("readings") or ()) if str(r).strip())
+    if not said.get("ambiguous") or len(readings) < 2:
+        return (), ""
+    return readings, str(said.get("likeliest") or "").strip()
+
+
+def _settle_reading(plan: "EpisodePlan", notes) -> "EpisodePlan":
+    """Stop to ask, or take the likeliest reading, when C3P0 said a name is
+    ambiguous (§426). Raises `ReadingNeeded` for a client that can ask and
+    for anything written ahead of the tap (c3p0.md always 2: "leave it
+    unwritten until someone taps it"); an older client gets C3P0's likeliest
+    reading, told to the writer, and the episode is never current under the
+    plain key. Unchanged when nothing is ambiguous or C3P0 is off."""
+    readings, likeliest = ambiguous_readings(plan, notes)
+    if not readings:
+        return plan
+    from agents import contextualizer
+
+    ahead = bool(getattr(notes, "ahead", False) or getattr(notes, "prefetch", False))
+    if ahead or plan.ask_reading or not likeliest:
+        if ahead:
+            contextualizer._count("reading_unwritten")
+        elif plan.ask_reading:
+            contextualizer._count("reading_asked")
+            key = getattr(notes, "caption_key", "")
+            if key:
+                live_captions.publish_readings(key, readings, likeliest)
+        else:
+            # An older client and no likeliest: nothing to take but a guess,
+            # so it is written as before, broader, with nothing chosen.
+            contextualizer._count("reading_none_likely")
+            return plan
+        log.info("reading needed for %r: %s", plan.query, " / ".join(readings))
+        raise ReadingNeeded(readings, likeliest)
+    contextualizer._count("reading_assumed")
+    brief = copy.copy(plan.brief)
+    brief.reading = likeliest
+    notes.reading_assumed = likeliest
+    return dataclasses.replace(plan, brief=brief)
+
 
 def _mark(notes: "ScriptNotes | None", name: str) -> None:
     """Record one pre-writing stage on the episode's clock, if it has one."""
@@ -948,6 +1123,24 @@ class EpisodePlan:
     #: other reader keep `evidence`. **Never in the cache key**, as
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
+    #: Shakespeare's plan for the writer (§437, `agents.editor.writer_block`):
+    #: what to open on, each part's purpose and the sources' own sentences
+    #: under it, what to land on. "" when he did not plan this episode - then
+    #: the prompt is byte for byte what it was. Never in the cache key: how
+    #: an episode is prepared, like `evidence_digest`.
+    editor_outline: str = ""
+    #: The reading the listener chose when a name means two things (decided
+    #: item 15, §426): "Manchester United" for "how did United do". It is
+    #: also written into `query` ("how did United do (Manchester United)",
+    #: `app._validated_plan`), which is how the key and every surface that
+    #: names an episode by its question carry it (§432); here it tells the
+    #: brief and the writer which thing was meant. "" when never asked.
+    reading: str = ""
+    #: The client can ask the listener which reading they mean (`ask_reading=1`
+    #: on `/api/audio`): an ambiguous brief then stops before anything is
+    #: searched (`ReadingNeeded`). An older client never sends it and gets
+    #: the likeliest reading instead ([old-clients]). Never in the key.
+    ask_reading: bool = False
 
     @property
     def images(self) -> list:
@@ -1242,7 +1435,7 @@ for the script.
 <evidence>
 {plan.evidence_digest or plan.evidence}
 </evidence>
-"""
+{plan.editor_outline}"""
 
     # A live state outranks everything, so it goes in front of the evidence it
     # outranks - the instructions that follow refer to it as already read.
@@ -1541,6 +1734,136 @@ def _take_pronunciations(buffer: str, notes: "ScriptNotes | None",
 _BATCH_SLICE = 48
 
 
+@dataclass
+class Repair:
+    """A sentence Mclovin failed (§435), on its way back to the writer once.
+    `_ScriptReader` hands these out in place of the sentence; whoever is
+    reading the stream asks for the rewrite (`ScriptGenerator._repair`), so
+    the sentences behind it wait in order. Only while Mclovin works."""
+
+    sentence: str
+    why: str
+    #: The reader that failed it, whose guards and checks judge the rewrite.
+    reader: object = None
+    #: True when no check failed it but the grounding checker was unsure
+    #: (§440): the small model's second look decides before any rewrite.
+    second_look: bool = False
+
+
+#: The writer's second call in tandem (§456), after its own instructions.
+TANDEM_CONTINUE = """
+
+<already_spoken>
+{spoken}
+</already_spoken>
+The sentences above are this episode's opening, already spoken to the \
+listener. Write the rest of the episode from the very next sentence, using \
+the plan: never repeat, restate or start again, and keep to about {words} \
+more words. Every other instruction still holds, the closing lines included."""
+
+
+def _tandem_plan(plan: "EpisodePlan", notes) -> "Optional[asyncio.Future]":
+    """Shakespeare's plan for a searchFAM episode, started now, beside the
+    writer (§456) - or None: `EDITOR_TANDEM` off, an episode written ahead
+    of the tap (he planned it in `prepare`), a prefetch warm, no packets, or
+    he does not work on it (Netenyahu: switches, a private search, an
+    attached file). Never raises."""
+    try:
+        if (not getattr(settings, "editor_tandem", False) or notes is None
+                or getattr(notes, "ahead", False) or getattr(notes, "prefetch", False)
+                or not plan.evidence or plan.editor_outline
+                or not _agent_runs(notes, "editor")):
+            return None
+        from agents import editor
+
+        async def plan_it() -> str:
+            try:
+                return await editor.outline(plan, notes, ahead=False)
+            except Exception:  # noqa: BLE001 - the editor never costs an episode
+                log.warning("Shakespeare's tandem plan failed", exc_info=True)
+                return ""
+
+        return asyncio.ensure_future(plan_it())
+    except Exception:  # noqa: BLE001
+        log.warning("could not start Shakespeare in tandem", exc_info=True)
+        return None
+
+
+def _plan_of(tandem) -> str:
+    """His plan, if it is in and is one; "" otherwise. Never raises."""
+    if not tandem.done() or tandem.cancelled() or tandem.exception() is not None:
+        return ""
+    return tandem.result() or ""
+
+
+def _tandem_count(state: str) -> None:
+    try:
+        from agents import editor
+
+        editor._count(f"tandem_{state}")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
+    """The plan with Shakespeare's outline for the writer (§437), when he
+    works on this episode and it is written ahead of the tap - an edition or
+    the write-ahead, never a prefetch warm (whose script is not written from
+    this plan) and not searchFAM yet (the owner, 2026-11-03: in tandem there,
+    designed once the first chunk's wait is measured). Otherwise the same
+    plan. Never raises."""
+    if (notes is None or not getattr(notes, "ahead", False)
+            or getattr(notes, "prefetch", False) or not plan.evidence
+            or not _agent_runs(notes, "editor")):
+        return plan
+    trial = editor_trial_arm(plan)
+    if trial == "without":
+        notes.editor_arm = "without"
+        return plan
+    try:
+        from agents import editor
+
+        block = await editor.outline(plan, notes, ahead=True)
+    except Exception:  # noqa: BLE001 - the editor never costs an episode
+        log.warning("Shakespeare could not plan; the writer reads the packets",
+                    exc_info=True)
+        block = ""
+    if trial:
+        notes.editor_arm = "with" if block else "with_unplanned"
+    return dataclasses.replace(plan, editor_outline=block) if block else plan
+
+
+def editor_trial_arm(plan: "EpisodePlan") -> str:
+    """Decided item 37's two weeks (§454): "with" or "without" by a hash of
+    the question and its length - so the same story is always in the same
+    arm, and a rewrite never moves it - or "" when `EDITOR_TRIAL` is off."""
+    from config import settings
+
+    if not getattr(settings, "editor_trial", False):
+        return ""
+    import zlib
+
+    question = " ".join(str(plan.query or "").lower().split())
+    seed = f"{question}|{getattr(plan, 'minutes', '')}".encode()
+    return "with" if zlib.crc32(seed) % 2 == 0 else "without"
+
+
+async def settle_repairs(generator, plan, notes, sentences: list) -> list:
+    """A batched script's sentences with Mclovin's failures rewritten once or
+    left out, in order (§435). A list with none - always, while Mclovin is
+    off - is returned as it is, and the generator is not touched."""
+    if not any(isinstance(s, Repair) for s in sentences):
+        return sentences
+    out = []
+    for sentence in sentences:
+        if isinstance(sentence, Repair):
+            sentence = await generator._repair(plan, notes, sentence)
+            if not sentence:
+                continue
+        out.append(sentence)
+    return out
+
+
 class _ScriptReader:
     """Turns the writer's text into speech-ready sentences, as it arrives.
 
@@ -1568,6 +1891,54 @@ class _ScriptReader:
         # it was given (§269).
         self.figures = figure_guard.FigureGuard(plan)
         self.shared = _names_are_shared(plan)
+        # Mclovin's checks (§435), beside the guards - only while Netenyahu
+        # lets him work on this episode. None otherwise, and nothing changes.
+        self.mclovin = None
+        if _agent_runs(notes, "supervisor"):
+            try:
+                from agents import supervisor_checks
+
+                self.mclovin = supervisor_checks.Checker(plan, notes)
+                if notes is not None:
+                    notes.supervisor = self.mclovin.summary
+            except Exception:  # noqa: BLE001 - a check never costs an episode
+                log.warning("Mclovin's checks could not start; writing without them",
+                            exc_info=True)
+                self.mclovin = None
+
+    def _checked(self, sentence: str):
+        """The sentence, or a `Repair` when an enforced check fails it."""
+        if self.mclovin is None:
+            return sentence
+        verdict = self.mclovin.check(sentence)
+        if verdict.failing:
+            return Repair(sentence, verdict.reasons(), self)
+        if verdict.unsure:
+            return Repair(sentence, "; ".join(c.why for c in verdict.unsure), self,
+                          second_look=True)
+        return sentence
+
+    def _note_drops(self) -> None:
+        """What the guards dropped, on the notes. At `finish`, and again
+        after a rewrite is rechecked: the final sentence's rewrite is checked
+        after `finish`, so a drop there would otherwise never reach them (§457)."""
+        if self.notes is None:
+            return
+        self.notes.meta_openings = (tuple(self.guard.dropped)
+                                    + tuple(self.material.dropped))
+        self.notes.score_drops = tuple(self.scores.dropped)
+        self.notes.figure_drops = tuple(self.figures.dropped)
+
+    def recheck(self, text: str) -> bool:
+        """Whether the writer's rewrite may be spoken: the same guards (not
+        the opening guard, whose moment has passed) and Mclovin's checks."""
+        if not text or not (self.scores.allow(text) and self.figures.allow(text)
+                            and self.material.allow(text)):
+            self._note_drops()
+            return False
+        if self.mclovin is None:
+            return True
+        return not self.mclovin.check(text).failing
 
     @property
     def over_budget(self) -> bool:
@@ -1617,7 +1988,7 @@ class _ScriptReader:
                     and self.figures.allow(sentence) \
                     and self.material.allow(sentence) and self.guard.allow(sentence):
                 self.emitted_words += count_words(sentence)
-                out.append(sentence)
+                out.append(self._checked(sentence))
         self.buffer = speech + marker + rest
         return out
 
@@ -1635,7 +2006,7 @@ class _ScriptReader:
             tail = ""
         if tail and self.scores.allow(tail) and self.figures.allow(tail) \
                 and self.material.allow(tail) and self.guard.allow(tail):
-            out.append(tail)
+            out.append(self._checked(tail))
         # Nothing but disclaimer is still better than nothing at all.
         rescued = self.guard.rescue()
         if rescued:
@@ -1659,10 +2030,7 @@ class _ScriptReader:
                                 or extract_title(self.buffer))
             self.notes.summary = extract_summary(self.buffer)
             self.notes.category = extract_category(self.buffer)
-            self.notes.meta_openings = (tuple(self.guard.dropped)
-                                        + tuple(self.material.dropped))
-            self.notes.score_drops = tuple(self.scores.dropped)
-            self.notes.figure_drops = tuple(self.figures.dropped)
+            self._note_drops()
             # What the quality record judges it against (§309).
             self.notes.written_from = (getattr(self.plan, "evidence_digest", "")
                                        or getattr(self.plan, "evidence", "")
@@ -1682,7 +2050,7 @@ class _ScriptReader:
                     f"{'s' if len(dropped) != 1 else ''}", dropped[0],
                     self.plan.query, pipeline_errors.NOTICE)
         self.finished_words = self.emitted_words + sum(
-            count_words(line) for line in out)
+            count_words(getattr(line, "sentence", line)) for line in out)
         return out
 
     def note_if_short(self, outcome: str) -> None:
@@ -1906,6 +2274,27 @@ class ScriptGenerator:
 
     async def research(self, plan: EpisodePlan,
                        notes: ScriptNotes | None = None) -> EpisodePlan:
+        """`_research`, with Mclovin's source screen in force when Netenyahu
+        lets him work on this episode (§434): every rung, the second look,
+        GDELT, the local ladder and the archive's facts are screened for
+        opinion and blog posts, keeping the asked-for person's own views
+        (`opinion_requested`). Without him, exactly `_research`."""
+        if not _agent_runs(notes, "supervisor"):
+            return await self._research(plan, notes)
+        from agents import supervisor
+
+        asked = getattr(getattr(notes, "research_plan", None), "opinion_requested", "")
+        with supervisor.screening(asked or ""):
+            out = await self._research(plan, notes)
+            # Ahead of the tap only (§442): the pages code could not settle,
+            # judged by the small model in one call; nobody is waiting.
+            if notes is not None and (getattr(notes, "ahead", False)
+                                      or getattr(notes, "prefetch", False)):
+                out = await supervisor.settle_unsettled(out, notes)
+            return out
+
+    async def _research(self, plan: EpisodePlan,
+                        notes: ScriptNotes | None = None) -> EpisodePlan:
         """Retrieve the evidence this episode is written from, before it is written.
 
         Returns the plan to write from: the same one when nothing was found,
@@ -2263,7 +2652,10 @@ class ScriptGenerator:
         # whole point of prefetching contextual relevance: the seconds it costs
         # on search are the seconds a warmed brief removes here, and a miss
         # costs one dictionary lookup.
-        warmed = prefetch.warm_brief(plan.query, plan.minutes, plan.context)
+        # Never for a chosen reading (§426): the warmed brief is the one that
+        # did not know which thing was meant.
+        warmed = (None if plan.reading
+                  else prefetch.warm_brief(plan.query, plan.minutes, plan.context))
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
             _publish_title(notes, warmed)
@@ -2306,6 +2698,9 @@ class ScriptGenerator:
         # first word is held to `EI_TIMEOUT_SECONDS`.
         if ahead:
             extra["ahead"] = True
+        # The reading the listener chose (§426), only when there is one.
+        if plan.reading:
+            extra["reading"] = plan.reading
         try:
             brief = await episode_intelligence.understand(
                 plan.query, plan.minutes, plan.context, notes, **extra)
@@ -2316,6 +2711,8 @@ class ScriptGenerator:
             if task is not None:
                 task.cancel()
             raise
+        if plan.reading:
+            brief.reading = plan.reading
         _publish_title(notes, brief)
         _take_c3p0_title(notes, brief)
         # Contextualised (§311): where the request sits in the category
@@ -2401,6 +2798,12 @@ class ScriptGenerator:
             # warmed, degraded or switched-off brief is understood here.
             _mark(notes, "brief_understood")
             _mark(notes, "brief_ready")
+            # A name that means two things and nobody chose (decided item 15,
+            # §426): asked before any plugin, Sonic included, is called.
+            plan = _settle_reading(plan, notes)
+            # Public figures only (decided item 16, §431): is the person
+            # this is about known to the reference look? Before any search.
+            await _public_look(plan, notes)
             # A brief that named no live domain still asks a provider when the
             # question names something one covers (§265) - decided in code,
             # spending nothing, and changing nothing but who is asked.
@@ -2437,10 +2840,22 @@ class ScriptGenerator:
                 pick = ("" if unsure else said.get("node", "")) or tie
                 placed = categorizer.place(plan.brief, plan.query, field, prior, pick,
                                            unsure=unsure)
+                if tie and pick == tie and not plan.reading:
+                    # Never a guess (decided item 15, §426, settling §377):
+                    # his tie call does not choose between the readings of a
+                    # name code left undecided. C3P0 asks the listener; until
+                    # one is chosen it is filed as if the call had not
+                    # answered - broader, or nowhere.
+                    bare = categorizer.suggest(plan.brief, plan.query, field, prior, "",
+                                               unsure)
+                    if bare.ambiguous:
+                        placed = categorizer.place(plan.brief, plan.query, field,
+                                                   prior, "", unsure=unsure)
                 ahead_now = bool(getattr(notes, "ahead", False)
                                  or getattr(notes, "prefetch", False))
                 if (not placed.node and ahead_now and not unsure
-                        and not said.get("node") and placed.candidates):
+                        and not said.get("node") and placed.candidates
+                        and not placed.ambiguous):
                     # Ahead of the tap nobody waits: Nando's own call is
                     # simply awaited, within its own time limit (§379).
                     pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,
@@ -2571,6 +2986,9 @@ class ScriptGenerator:
             evidence_digest=cut,
             thin_on=research_plan.thin_on, local=research_plan.local,
             forecast=forecast, players=players)
+        # Unknown to the reference look and not named in the reporting
+        # either: a private person, and no episode (§431).
+        _refuse_private(plan, notes)
 
         # The weather the local ladder fetched when the town had nothing
         # (§194) reaches the writer the way any live state does - one block,
@@ -2646,7 +3064,8 @@ class ScriptGenerator:
         # (§264), one row for /admin. In memory; written off this path.
         live_routing.record(plan.query, plan.brief,
                             routed_miss if plan.live is None else plan.live)
-        return plan
+        # Shakespeare's plan (§437), last: once both packets are in.
+        return await _with_editor(plan, notes)
 
     async def stream_sentences(
         self, plan: EpisodePlan, notes: ScriptNotes | None = None
@@ -2677,7 +3096,8 @@ class ScriptGenerator:
         rather than asking for them again.
         """
         reader = _ScriptReader(plan, notes)
-        for sentence in reader.opening():
+        opened = reader.opening()
+        for sentence in opened:
             yield sentence
 
         _mark(notes, "writer_request")
@@ -2688,6 +3108,19 @@ class ScriptGenerator:
         model = request["model"]
         if notes is not None:
             notes.writer_model = model   # for the quality record (§309)
+        # Shakespeare on searchFAM, in tandem (§456): his plan starts once
+        # the writer's request is built, beside it, never in front of the
+        # first word. None when he does not work on this episode or
+        # `EDITOR_TANDEM` is off.
+        tandem = _tandem_plan(plan, notes)
+        if tandem is not None:
+            inner = self._stream_tandem(plan, notes, reader, request, tandem, opened)
+            try:
+                async for sentence in inner:
+                    yield sentence
+            finally:
+                await inner.aclose()
+            return
         path = _writer_path(notes)
         started = time.monotonic()
         first_word = None
@@ -2699,6 +3132,10 @@ class ScriptGenerator:
                     if first_word is None and event:
                         first_word = time.monotonic() - started
                     for sentence in reader.feed(event):
+                        if isinstance(sentence, Repair):
+                            sentence = await self._repair(plan, notes, sentence)
+                            if not sentence:
+                                continue
                         spoken += 1
                         yield sentence
                     # Safety valve: a model that ignores the budget must not
@@ -2710,6 +3147,10 @@ class ScriptGenerator:
 
                 if stopped_early:
                     for sentence in reader.finish():
+                        if isinstance(sentence, Repair):
+                            sentence = await self._repair(plan, notes, sentence)
+                            if not sentence:
+                                continue
                         yield sentence
                     final = await stream.get_final_message()
                 else:
@@ -2719,6 +3160,10 @@ class ScriptGenerator:
                     final = await stream.get_final_message()
                     cut_off = getattr(final, "stop_reason", None) == "max_tokens"
                     for sentence in reader.finish(cut_off=cut_off):
+                        if isinstance(sentence, Repair):
+                            sentence = await self._repair(plan, notes, sentence)
+                            if not sentence:
+                                continue
                         yield sentence
         except Exception as exc:
             # Said on /admin's errors (§269), then raised exactly as before -
@@ -2750,6 +3195,176 @@ class ScriptGenerator:
                                     spoken=spoken)
             yield refused
 
+    # -- Shakespeare in tandem on searchFAM (§456) --------------------------
+    async def _stream_tandem(self, plan: EpisodePlan, notes: ScriptNotes | None,
+                             reader: "_ScriptReader", request: dict,
+                             tandem: "asyncio.Future", opened: list = ()
+                             ) -> AsyncIterator[str]:
+        """`stream_prepared`'s writing with Shakespeare planning beside it.
+
+        The writer opens from the packets exactly as without him. Once a
+        sentence and `EDITOR_TANDEM_OPENING_WORDS` are spoken (their audio
+        covers the wait), it waits for his plan until
+        `EDITOR_TANDEM_WAIT_SECONDS` from its start. A plan in time: the first
+        call is no longer read, its unfinished sentence is set aside, and a
+        second writer call writes the rest from the plan and what was spoken -
+        read by the same reader, so every guard, Mclovin's checks and the word
+        budget carry on. Late, empty or failed - or a second call that fails
+        before it has said anything - the first call carries on as today.
+        Each call is metered from its own final message; reading the first
+        to its end for that never costs the episode (§459)."""
+        model = request["model"]
+        path = _writer_path(notes)
+        started = time.monotonic()
+        spoken: list = list(opened)
+        opening_words = max(1, int(settings.editor_tandem_opening_words))
+        wait = float(settings.editor_tandem_wait_seconds)
+        ctx = {"first_word": None, "over": False, "spoke": False, "final": None}
+        state = "short"         # the episode ended before the hand-over point
+
+        async def read(events, stop_at: int = 0):
+            """Sentences from one call's text, as `stream_prepared` reads
+            them; returns at the word budget, or once a sentence and
+            `stop_at` words are spoken."""
+            async for event in events:
+                if ctx["first_word"] is None and event:
+                    ctx["first_word"] = time.monotonic() - started
+                for sentence in reader.feed(event):
+                    if isinstance(sentence, Repair):
+                        sentence = await self._repair(plan, notes, sentence)
+                        if not sentence:
+                            continue
+                    spoken.append(sentence)
+                    ctx["spoke"] = True
+                    yield sentence
+                if reader.over_budget:
+                    ctx["over"] = True
+                    return
+                if stop_at and len(spoken) > len(opened) \
+                        and count_words(" ".join(spoken)) >= stop_at:
+                    return
+
+        async def finish(stream_):
+            """The tail, in the order `stream_prepared` keeps: past the
+            budget it is spoken before the rest of the stream is read;
+            otherwise after, so a script cut off by its ceiling does not
+            speak half a sentence (§270)."""
+            if ctx["over"]:
+                tail = reader.finish()
+            else:
+                ctx["final"] = await stream_.get_final_message()
+                tail = reader.finish(
+                    cut_off=getattr(ctx["final"], "stop_reason", None) == "max_tokens")
+            for sentence in tail:
+                if isinstance(sentence, Repair):
+                    sentence = await self._repair(plan, notes, sentence)
+                    if not sentence:
+                        continue
+                spoken.append(sentence)
+                ctx["spoke"] = True
+                yield sentence
+            if ctx["over"]:
+                ctx["final"] = await stream_.get_final_message()
+
+        try:
+            async with self.client.messages.stream(**request) as stream:
+                events = stream.text_stream
+                async for sentence in read(events, stop_at=opening_words):
+                    yield sentence
+                handed = False
+                if not ctx["over"] and len(spoken) > len(opened) \
+                        and count_words(" ".join(spoken)) >= opening_words:
+                    left = wait - (time.monotonic() - started)
+                    if not tandem.done() and left > 0:
+                        await asyncio.wait({tandem}, timeout=left)
+                    block = _plan_of(tandem)
+                    if block:
+                        handed = True
+                    else:
+                        state = "late" if not tandem.done() else "no_plan"
+                if handed:
+                    set_aside = reader.buffer
+                    reader.buffer = ""          # the first call's unfinished sentence
+                    second = self._continuation_kwargs(
+                        dataclasses.replace(plan, editor_outline=block), notes, spoken, reader)
+                    second["model"] = model     # the same writer, billed as sent
+                    ctx["spoke"] = False
+                    try:
+                        async with self.client.messages.stream(**second) as stream2:
+                            async for sentence in read(stream2.text_stream):
+                                yield sentence
+                            async for sentence in finish(stream2):
+                                yield sentence
+                        state = "handed_over"
+                    except Exception:  # noqa: BLE001 - checked just below
+                        if ctx["spoke"]:
+                            raise              # it had begun: the episode is its
+                        # Nothing said yet: the first call finishes the episode.
+                        log.warning("Shakespeare's tandem: the second writer call failed "
+                                    "before speaking; the first carries on", exc_info=True)
+                        reader.buffer = set_aside
+                        handed = False
+                        state = "second_failed"
+                    if handed:
+                        # The first call's own tokens, read from its own answer;
+                        # a failure here never costs an episode already spoken.
+                        try:
+                            first = await stream.get_final_message()
+                            if notes is not None:
+                                notes.usage.add_model_call(model, getattr(first, "usage", None))
+                        except Exception:  # noqa: BLE001
+                            log.warning("Shakespeare's tandem: the first writer call's usage "
+                                        "could not be read", exc_info=True)
+                if not handed:
+                    if not ctx["over"]:     # past the budget, nothing more is read
+                        async for sentence in read(events):
+                            yield sentence
+                    else:
+                        state = "over_budget"
+                    async for sentence in finish(stream):
+                        yield sentence
+        except Exception as exc:
+            pipeline_errors.record("writer", f"{model} failed",
+                                   f"{type(exc).__name__}: {exc}", plan.query)
+            pipeline_errors.mark_recorded(exc)
+            _writer_ended(path, "failed", ctx["first_word"], time.monotonic() - started)
+            _tandem_count("failed")
+            raise
+        finally:
+            if not tandem.done():
+                # Nothing waits on his plan any more: stop it spending.
+                tandem.cancel()
+        final = ctx["final"]
+        if notes is not None:
+            notes.editor_tandem = state
+            if state != "handed_over":
+                # A plan that did not shape the episode is not on its record.
+                notes.editor = None
+            notes.usage.add_model_call(model, getattr(final, "usage", None))
+        _tandem_count(state)
+        writer_warm.note_used(model, request["output_config"]["effort"])
+        refused = _refusal_line(final)
+        outcome = _writer_outcome(final, plan, notes, model, over_budget=reader.over_budget)
+        reader.note_if_short(outcome)
+        _writer_ended(path, outcome, ctx["first_word"], time.monotonic() - started)
+        if refused:
+            pipeline_errors.record("writer", "refused", refused, plan.query)
+            pipeline_errors.refusal("writer", model, path, plan.query, final,
+                                    spoken=len(spoken) - len(opened))
+            yield refused
+
+    def _continuation_kwargs(self, plan: EpisodePlan, notes: ScriptNotes | None,
+                             spoken: list, reader: "_ScriptReader") -> dict:
+        """The writer's second call (§456): its own request for this plan -
+        Shakespeare's outline in it - with what was already spoken and how
+        many words are left, under the same system block."""
+        kwargs = self._request_kwargs(plan, notes)
+        left = max(0, int(plan.max_words) - int(reader.emitted_words))
+        block = kwargs["messages"][0]["content"][-1]
+        block["text"] = block["text"] + TANDEM_CONTINUE.format(
+            spoken=" ".join(spoken), words=left)
+        return kwargs
+
     # -- the same writing, answered through the Batches API (§179) --------
     #
     # For the two editions only: they write before anybody taps, so the half
@@ -2759,6 +3374,82 @@ class ScriptGenerator:
     # is read back by the same `_ScriptReader` a stream feeds
     # (`sentences_from_message`) - so a batched episode is parsed, guarded and
     # budgeted exactly as a streamed one is.
+
+    # -- Mclovin's one repair (§435) ---------------------------------------
+    async def _repair(self, plan: EpisodePlan, notes: ScriptNotes | None,
+                      item: "Repair") -> str:
+        """The writer's one rewrite of a sentence Mclovin failed, or "" when
+        it is left out (mclovin.md "always" 5, "never" 2 and 4).
+
+        One small call to the episode's own writer - Mclovin gives verdicts,
+        the writer writes - with the failing sentence, what is wrong with it
+        and the packet sources most like it. The sentences behind it wait in
+        order, never past `SUPERVISOR_REPAIR_TIMEOUT_SECONDS`; a rewrite that
+        is late, empty, fails the guards or fails a check again is left out,
+        and so is every failure past `SUPERVISOR_MAX_REPAIRS`. Never raises."""
+        reader = item.reader
+        checker = getattr(reader, "mclovin", None)
+        summary = getattr(checker, "summary", None) or {}
+        def dropped(why: str) -> str:
+            summary.setdefault("dropped", []).append({"text": item.sentence[:240],
+                                                     "failed": item.why, "why": why})
+            log.warning("Mclovin: left out (%s; %s): %r", item.why, why,
+                        item.sentence[:160])
+            from agents import supervisor_checks
+
+            supervisor_checks._count("repair_dropped")
+            return ""
+        if checker is None:
+            return item.sentence
+        if item.second_look:
+            # Only the grounding checker's unsure band (§440, step 5): the
+            # small model's one look, with the sources beside the sentence.
+            from agents import grounding
+
+            sources = "\n\n".join(b.text.strip()[:2500] for b in checker.nearest(item.sentence))
+            # A prefetch warm is ahead of the tap too, whether or not
+            # `ahead` is set (`ScriptNotes.ahead`).
+            answer = await grounding.second_look(
+                item.sentence, sources,
+                ahead=bool(getattr(notes, "ahead", False) or getattr(notes, "prefetch", False)))
+            summary.setdefault("second_looks", []).append(
+                {"text": item.sentence[:240], "answer": answer or "unchecked"})
+            if answer != "no":
+                # Supported - or out of time or unsure: it plays, recorded
+                # (decided item 32).
+                return item.sentence
+            item = Repair(item.sentence, "the sources do not support it", reader)
+        if checker.repairs >= max(0, int(settings.supervisor_max_repairs)):
+            return dropped("past the episode's rewrites")
+        checker.repairs += 1
+        from agents import supervisor_checks
+
+        supervisor_checks._count("repair_asked")
+        model, _effort = writer_for(notes)
+        try:
+            message = await asyncio.wait_for(self.client.messages.create(
+                model=model, max_tokens=300, system=REPAIR_INSTRUCTIONS,
+                messages=[{"role": "user", "content": supervisor_checks.repair_prompt(
+                    checker, item.sentence, item.why)}]),
+                timeout=max(0.1, float(settings.supervisor_repair_timeout_seconds)))
+        except asyncio.TimeoutError:
+            return dropped("the rewrite was late")
+        except Exception as exc:  # noqa: BLE001 - a repair never costs an episode
+            return dropped(f"the rewrite failed: {type(exc).__name__}")
+        if notes is not None:
+            notes.usage.add_model_call(model, getattr(message, "usage", None))
+        text = clean_for_speech("".join(
+            getattr(block, "text", "") or "" for block in (getattr(message, "content", None) or [])
+            if getattr(block, "type", "") == "text").strip())
+        if not text or text.strip(" .").upper() == "NONE":
+            return dropped("the writer had no true version")
+        if not reader.recheck(text):
+            return dropped("the rewrite failed again")
+        summary.setdefault("repaired", []).append({"text": item.sentence[:240],
+                                                  "failed": item.why, "now": text[:240]})
+        supervisor_checks._count("repair_kept")
+        reader.emitted_words += count_words(text) - count_words(item.sentence)
+        return text
 
     async def batch_request(self, plan: EpisodePlan,
                             notes: ScriptNotes | None = None
@@ -2798,6 +3489,8 @@ class ScriptGenerator:
         cut_off = (not reader.over_budget
                    and getattr(message, "stop_reason", None) == "max_tokens")
         out.extend(reader.finish(cut_off=cut_off))
+        # Mclovin's failures (§435) are `Repair`s here, for `settle_repairs`,
+        # which the editions call next; with him off there are none.
         outcome = _writer_outcome(
             message, plan, notes, getattr(message, "model", None)
             or writer_for(notes)[0], batched=True,

@@ -47,8 +47,12 @@ def store():
 
 
 def play(store, user, topic_id, kind="play", tags=(), at=None):
-    store.record(T.Event(user, kind, topic_id, "", tags,
-                         at=at if at is not None else time.time()))
+    at = at if at is not None else time.time()
+    store.record(T.Event(user, kind, topic_id, "", tags, at=at))
+    # Heard past its threshold (§433): the crowd and friends rows count
+    # nothing less.
+    if kind == "play":
+        store.mark_heard(user, "", at, topic_id)
 
 
 def story(subject, tags, domain=stories.ATTENTION, first_seen=None, strength=1.0):
@@ -383,6 +387,7 @@ def test_the_cache_is_asked_about_the_rail_and_not_the_traffic(store):
     for n in range(300):
         store.record(T.Event(f"u{n}", "play", "", f"question number {n}", (),
                              at=now - n))
+        store.mark_heard(f"u{n}", f"question number {n}", now - n)
     asked = []
 
     def probe(query):
@@ -399,6 +404,7 @@ def test_a_searched_episode_is_counted_and_shown_as_itself(store):
     q = "why did the port strike end so fast"
     for listener in ("u1", "u2", "u3"):
         store.record(T.Event(listener, "play", "", q, (), at=time.time()))
+        store.mark_heard(listener, q, time.time())
     picks = T.rank_most_played(store, episode_info=cached(q))
     assert [t.query for t in picks] == [q]
     assert picks[0].id.startswith("ep-")
@@ -441,9 +447,11 @@ def test_the_friends_rail_holds_cached_episodes_only(store):
 
 
 def test_an_episode_a_friend_created_is_on_their_rail(store):
-    """Listened to *or created*: the cache's first writer is a friend. The
-    same friend playing it too is still one friend on it."""
+    """Created *and heard* (§433): the cache's first writer is a friend who
+    heard it - asking for an episode and leaving is not listening. The same
+    friend playing it too is still one friend on it."""
     q = "how does a port strike end"
+    store.mark_heard("friend", q, time.time())
     made = [{"query": q, "author": "friend", "created": time.time(),
              "title": "The Port Strike"},
             {"query": "a strangers question", "author": "stranger",
@@ -459,6 +467,7 @@ def test_an_episode_a_friend_created_is_on_their_rail(store):
     store.record(T.Event("friend", "play", "", q, (), at=time.time()))
     store.record(T.Event("pal", "play", "", "a lone question", (),
                          at=time.time()))
+    store.mark_heard("pal", "a lone question", time.time() + 1)
     picks = T.rank_friends(store, ["friend", "pal"], set(),
                            episode_info=cached(q, "a lone question"),
                            authored=made)
@@ -531,7 +540,7 @@ def test_an_empty_trending_rail_with_an_empty_pool_still_names_the_gap(store):
 # --- what you missed last week --------------------------------------------
 #
 # The owner's rule: cached episodes only, none written from Polymarket,
-# Finnhub or the sports feed, nothing from the background browse path, and the
+# the markets feed or the sports feed, nothing from the background browse path, and the
 # most-listened stories this listener missed in the last week - more than
 # three days ago.
 

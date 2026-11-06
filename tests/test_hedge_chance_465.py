@@ -1,4 +1,4 @@
-"""C2: "a 94% chance of" is a forecast, in code (§421).
+"""C2: "a 94% chance of" is a forecast, in code (§465).
 
 Found in production's dry run: "Democrats have a 94% chance of controlling
 the House" was kept as a figure with status *outcome* - a prediction stored

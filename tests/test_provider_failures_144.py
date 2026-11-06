@@ -22,14 +22,21 @@ import pytest
 import gdelt
 import live_sources
 import log_redaction
+import tiingo
 
 
 def run(coro):
     return asyncio.run(coro)
 
 
+@pytest.fixture(autouse=True)
+def _fresh_ration(monkeypatch):
+    monkeypatch.setattr(tiingo, "RATION", tiingo.Ration())
+
+
 # --------------------------------------------------------------------------
-# Finnhub: a topic is not a ticker
+# A topic is not a ticker (Finnhub's lesson; the markets source is Tiingo's
+# since §418, and the rule stands)
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("subject", [
     "Startup and venture capital industry news",
@@ -56,35 +63,35 @@ class _Brief:
         self.query = subject
 
 
-def test_a_topic_never_reaches_finnhub(monkeypatch):
+def test_a_topic_never_reaches_the_ticker_search(monkeypatch):
     asked = []
 
     async def _json(url, headers, params, timeout):
         asked.append(params)
-        return {"result": []}
+        return []
 
     monkeypatch.setattr(live_sources, "_json", _json)
-    got = run(live_sources.FinnhubSource().resolve(
+    got = run(tiingo.TiingoSource().resolve(
         _Brief("Startup and venture capital industry news")))
     assert got is None and asked == []
 
 
 def test_a_422_on_lookup_is_no_match_not_a_failure(monkeypatch):
     async def _json(url, headers, params, timeout):
-        raise live_sources.ProviderHTTPError(422, "finnhub.io/api/v1/search")
+        raise live_sources.ProviderHTTPError(422, "api.tiingo.com/tiingo/utilities/search")
 
     monkeypatch.setattr(live_sources, "_json", _json)
-    assert run(live_sources.FinnhubSource().resolve(_Brief("Nvidia"))) is None
+    assert run(tiingo.TiingoSource().resolve(_Brief("Nvidia"))) is None
 
 
 @pytest.mark.parametrize("status", [401, 403, 429, 500])
 def test_a_key_or_plan_problem_is_still_a_failure(monkeypatch, status):
     async def _json(url, headers, params, timeout):
-        raise live_sources.ProviderHTTPError(status, "finnhub.io/api/v1/search")
+        raise live_sources.ProviderHTTPError(status, "api.tiingo.com/tiingo/utilities/search")
 
     monkeypatch.setattr(live_sources, "_json", _json)
     with pytest.raises(live_sources.ProviderHTTPError):
-        run(live_sources.FinnhubSource().resolve(_Brief("Nvidia")))
+        run(tiingo.TiingoSource().resolve(_Brief("Nvidia")))
 
 
 # --------------------------------------------------------------------------

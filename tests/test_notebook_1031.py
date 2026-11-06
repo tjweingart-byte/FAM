@@ -62,16 +62,20 @@ def test_view_more_deals_sixteen():
 # --- 3. "7 friends listened" ---------------------------------------------------
 
 def _play(store, user, topic_id="", text="", at=None):
-    store.record(T.Event(user, "play", topic_id, text, at=at or time.time()))
+    at = at or time.time()
+    store.record(T.Event(user, "play", topic_id, text, at=at))
+    # Heard past its threshold (§433): a tap alone puts no face on a card.
+    store.mark_heard(user, text, at, topic_id)
 
 
 def test_friends_listened_counts_people_not_plays(tmp_path):
     store = T.EventStore(str(tmp_path / "e.db"))
     tile = {"id": "tile-1", "query": "What is happening with the Fed?"}
-    _play(store, "ana", "tile-1")
-    _play(store, "ana", "tile-1")            # one friend, twice
+    fed = tile["query"]   # a play carries the question it served
+    _play(store, "ana", "tile-1", fed)
+    _play(store, "ana", "tile-1", fed)       # one friend, twice
     _play(store, "ben", "", "what is happening with the fed")  # by question
-    _play(store, "stranger", "tile-1")      # not a friend
+    _play(store, "stranger", "tile-1", fed)  # not a friend
     got = T.friends_listened(store, ["ana", "ben"], [tile])
     assert got == {"tile-1": 2}
 
@@ -89,7 +93,7 @@ def test_the_feed_marks_tiles_with_a_count_only(monkeypatch, tmp_path):
     monkeypatch.setattr(appmod, "EVENTS", store)
     monkeypatch.setattr(appmod.SOCIAL, "friends",
                         lambda user, limit=500: [{"user_id": "ana"}])
-    _play(store, "ana", "a")
+    _play(store, "ana", "a", "x")
     tiles = [{"id": "a", "query": "x"}, {"id": "b", "query": "y"}]
     faces = appmod._mark_friends_listened("me", tiles)
     assert tiles[0]["friends_listened"] == 1
@@ -109,9 +113,12 @@ def test_both_card_shapes_draw_the_chip_and_never_a_zero():
     assert "seedFriendsHtml(t)" in _fn("renderSection")
     assert INDEX.count("+ seedFriendsHtml(t)") == 2
     assert "right:8px" in _rule(".seed-card .seed-friends")
-    # The subject gives way on a narrow card rather than sitting under it.
+    # On a narrow card the faces step up above the subject; the category is
+    # never cut to an ellipsis to make room for them.
     assert "has-friends" in _fn("seedThumbOpen")
-    assert "text-overflow:ellipsis" in _rule(".seed-thumb.has-friends .seed-tag")
+    assert "bottom:30px" in _rule(".seed-thumb.has-friends .seed-friends")
+    assert ".seed-thumb.has-friends .seed-tag" not in INDEX
+    assert "white-space:normal" in _rule(".seed-thumb.has-img .seed-tag")
 
 
 # --- 4. the best available picture ----------------------------------------------

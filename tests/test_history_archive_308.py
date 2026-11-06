@@ -63,9 +63,11 @@ def archive(monkeypatch, tmp_path):
 
 
 def _finding(url="https://www.reuters.com/a", passages=("One.", "Two."),
-             published="2026-10-20", grade="primary"):
+             published="2026-10-20", grade="primary", provider="perplexity"):
+    # A real finding always names its search (`research._findings`); one
+    # that names none is unknown, and never kept (§429).
     return ha.Finding(url=url, title="A title", host="reuters.com", grade=grade,
-                      published=published, passages=tuple(passages))
+                      published=published, passages=tuple(passages), provider=provider)
 
 
 # --- what a packet hands the archive --------------------------------------
@@ -407,7 +409,8 @@ class _Database(dict):
 
 def test_atlas_intake_is_one_upsert_per_article():
     store = ha.AtlasBackend(database=_Database())
-    store.intake([_finding()], "Eagles", "nfl", NOW.timestamp())
+    # No provider here: this test is about the upsert's shape, not §358's split.
+    store.intake([_finding(provider="")], "Eagles", "nfl", NOW.timestamp())
     kind, query, update, upsert = [c for c in store.intake_c.calls
                                    if c[0] == "update_one"][0]
     assert upsert and query == {"_id": ha.url_id("https://www.reuters.com/a")}

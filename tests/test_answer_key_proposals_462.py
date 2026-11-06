@@ -1,4 +1,4 @@
-"""The proposed answer-key rules for Consuela and Sonic (§418): each
+"""The proposed answer-key rules for Consuela and Sonic (§462): each
 proposal is its signed book plus exactly one rule in the shape of
 `nando.md` rule 12, and goes once the owner has signed it."""
 from __future__ import annotations
@@ -55,10 +55,11 @@ def test_the_rule_is_nandos_rule_12_in_shape(book):
 
 def test_the_list_matches_what_the_code_approves():
     # Kept from tests/test_consuela_proposal_398.py, retired here: Perplexity
-    # was signed into consuela.md's never 8 (§412).
+    # was signed into consuela.md's never 8 (§412); GNews approved by the
+    # owner on 2026-11-03 (§429); Polymarket pending.
     import history_archive as ha
     from config import settings
 
     approved = {p for p in settings.housekeeper_approved_providers if ha.approved(p)}
-    assert approved == {"fam", "gdelt", "tiingo", "balldontlie", "perplexity"}
+    assert approved == {"fam", "gdelt", "tiingo", "balldontlie", "perplexity", "gnews"}
     assert "Perplexity)." in (SIGNED / "consuela.md").read_text(encoding="utf-8")

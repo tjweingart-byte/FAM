@@ -109,10 +109,12 @@ ROSTER: dict = {a.role: a for a in (
     _agent("supervisor",
            "Screens sources and checks every sentence against the two packets as it "
            "is written",
-           ("screen", "check a sentence", "check the script"),
-           (SEARCH, AHEAD), "check",
+           ("screen", "check a sentence", "check the script", "review"),
+           (SEARCH, AHEAD, BACKGROUND), "check",
            ((SEARCH, "supervisor_timeout_seconds", "supervisor_max_tokens"),
-            (AHEAD, "supervisor_timeout_seconds", "supervisor_max_tokens")),
+            (AHEAD, "supervisor_timeout_seconds", "supervisor_max_tokens"),
+            # His nightly review (§440, step 4).
+            (BACKGROUND, "supervisor_judge_timeout_seconds", "supervisor_judge_max_tokens")),
            "Today's code guards; a check out of time plays its sentence unchecked "
            "and the miss is recorded", True),
     _agent("housekeeper",

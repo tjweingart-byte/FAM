@@ -17,6 +17,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import db as store_db  # noqa: E402  (a store's file, or its schema in Postgres, §243)
 import audio_store  # noqa: E402
 import history_archive as ha  # noqa: E402
 import tag_sync  # noqa: E402
@@ -92,13 +93,12 @@ def test_every_kind_of_drift_is_named(world):
 
 
 def test_an_archive_record_written_before_404_is_untagged(world):
-    import sqlite3
     from contextlib import closing
 
     episode = _episode(world, "k1")
     # A record written before §404 has no node (a later write without one
     # never forgets it, so it is made here as the old code left it).
-    with closing(sqlite3.connect(world.archive.path)) as db, db:
+    with closing(store_db.connect(world.archive.path)) as db, db:
         db.execute("UPDATE episode_sources SET node = '' WHERE episode = ?", (episode,))
     assert _kinds(tag_sync.run(world.scripts, record=False)) == {"archive untagged": 1}
 

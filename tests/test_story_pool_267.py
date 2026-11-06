@@ -370,7 +370,7 @@ def test_gdelts_sweep_is_the_one_source_that_measures():
     import story_sources
 
     assert "measured=True" in inspect.getsource(story_sources.GdeltSignals)
-    for name in ("TrendingRegistrySignals", "FinnhubSignals",
+    for name in ("TrendingRegistrySignals", "TiingoSignals",
                  "PolymarketSignals"):
         assert "measured=True" not in inspect.getsource(
             getattr(story_sources, name)), name

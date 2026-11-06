@@ -3,11 +3,170 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v1 |
-| **As of** | 2026-09-30 (code at `Main` after PR #81, plus §179: prompt caching, edition batching, RunPod REST v2, provider counts) |
+| **As of** | 2026-11-03 (section 0, §423: the Haiku writer, the launch plans for sports and markets, the batched writer test). Sections 1-6 are 2026-09-30 (code at `Main` after PR #81, plus §179) with `Current` notes where section 0 replaces them |
 | **Audience** | Founders, anyone pricing a plan or approving spend |
 | **Companion docs** | [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md) (when to change each service, by stage), [`BACKEND.md`](BACKEND.md) (what calls what), [`DATA.md`](DATA.md) (what is stored), `METERING.md` (the per-listener ledger) |
 
 > **Current (PROBLEMS.md §274, §279, §280):** Exa and API-Sports are no longer in the code. Research is Parallel, then Perplexity, then GDELT; sports are BALLDONTLIE's (one plan, `BALLDONTLIE_TIER`); reference facts are Wikimedia Enterprise and Wikidata (§278). The metering column `exa_usd` is `web_search_usd`. Where the figures below name Exa or API-Sports, they are the history they were measured on.
+
+> **Current (PROBLEMS.md §423, the owner, 2026-11-03):** the brief and the writer are both on Haiku 5.5, so a new episode costs about **1.1¢**, not $0.06; sports are BALLDONTLIE's **ALL-ACCESS, $299.99 a month** (§419) and markets **Tiingo's redistribution licence, $249 a month all in**, from launch; **Finnhub and API-Sports are removed from the code** (§418) once FAM is commercial (free plans while developing, §290). Section 0 has the figures in force; where sections 1-6 differ, section 0 wins.
+
+## 0. The figures in force (2026-11-03, §423)
+
+Every figure here is an **Estimate** from **Code** prices and prompt sizes
+(`metering.PRICES`, `research.SEARCH_COSTS`, `metering.GPU_USD_PER_HOUR`,
+§359's measured prompt sizes), except the two plan prices the owner gave
+(**List price**, 2026-11-03). No production month has been measured;
+`python tools/usage_report.py --days 30` replaces them once there is traffic.
+
+### 0.1 One episode
+
+Prompt sizes (§359): the brief ~12.6k tokens in and ~3.6k out over its three
+Haiku calls; the writer ~12.2k in and ~2k out at `EFFORT=low`. Haiku 5.5 is
+$0.10 / $0.50 per million tokens. Search is $1 per 1,000 requests on
+Perplexity and on Parallel (the second look), about 1.5 requests an episode.
+The voice is a 1.5-minute episode (`BROWSE_MINUTES`) at 4.6x realtime, ~20 GPU
+seconds at $0.69/h.
+
+| Step | Who | Model or service | On demand (searchFAM, Go Deeper) | Batched (rails, mixes, Trending) |
+|---|---|---|---|---|
+| Brief | EI, with C3P0 and Nando | Haiku 5.5, medium on the tap / high ahead | ≈ $0.003 | ≈ $0.003 |
+| Research | plugins, Sonic (Atlas) | Perplexity, Parallel; the rest free | ≈ $0.0015 | ≈ $0.0015 |
+| Write | writer (Shakespeare when built) | Haiku 5.5, low; Batch API at half price ahead | ≈ $0.002 | ≈ $0.001 |
+| Voice | - | Chatterbox on RunPod, first play only | ≈ $0.004 | ≈ $0.004, on the first tap |
+| **Total** | | | **≈ $0.011** | **≈ $0.0096** (≈ $0.0056 written, $0.004 when first played) |
+| Replay of a kept episode | | R2, $0 egress | ≈ $0 | ≈ $0 |
+
+So a new episode is about **1.1¢** and a replay costs nothing measurable.
+`financials.NEW_EPISODE_USD` (0.011) is the Projections tab's figure until
+recorded spend replaces it.
+
+### 0.2 The batched writer test: Haiku high against Sonnet medium
+
+The owner is to run the batched writer on Haiku 5.5 at high effort against
+Sonnet 5.5 at medium effort. Estimated before it runs, with the Batch API's
+half price on both; the writer's output is assumed at ~2k tokens (Haiku low,
+today), ~5k (Haiku high) and ~3.5k (Sonnet medium), reasoning included.
+Sonnet's range is with and without its cached instructions (~8k of the 12.2k
+input read at a tenth; inside a batch the cache is best-effort).
+
+| Batched, per script | Haiku low (today) | Haiku high | Sonnet medium |
+|---|---|---|---|
+| Writer | $0.0011 | $0.0019 | $0.022-0.030 |
+| Script written (brief + search + writer) | $0.0056 | $0.0064 | $0.027-0.034 |
+| Whole episode, voiced on first tap | ≈ 1.0¢ | ≈ 1.0¢ | ≈ 3.1-3.8¢ |
+| Rails + Trending, ~5,100 scripts a month | $29 | $33 | $138-173 |
+| Each 100 active mix subjects a day (~3,000 a month) | $17 | $19 | $81-102 |
+
+Sonnet adds about **$105-140 a month** on the rails and Trending, and
+**$62-83 a month per 100 active mix subjects**. Because the key holds no
+listener, these grow with stories and subjects, never with the audience.
+Shakespeare (Sonnet ahead of the tap, not built) is not in these figures:
+`docs/FAM_AGENTS.md`, Cost, estimates him at ~$0.012 an episode ahead.
+
+### 0.3 Fixed costs a month
+
+| Service | What for | Before launch | From launch |
+|---|---|---|---|
+| Render web (`fam`, Standard: 1 CPU, 2 GB) | the API | $25 | $25 (Pro $85 past one instance's load) |
+| Render staging (`fam-staging`, Starter + 1 GB disk) | zero-spend staging | $7.25 | $7.25 |
+| Render Postgres | every store (§243, §339) | $19 (Basic-1gb) | $19; Pro-4gb $55 at ~100k |
+| Cloudflare R2 | kept audio, pictures | < $1 | a few dollars; $0 egress |
+| MongoDB Atlas | the history archive | Flex $8-30 | M10 $57 from ~1,000 listeners |
+| RunPod | the voice | $0 idle, $0.69/h working; 20 GB volume ~$1.40 | an active worker ~$343 (`SCALING_TIMELINE.md`) |
+| **BALLDONTLIE** | scores, standings, players, every league | free tier | **ALL-ACCESS $299.99** (§419) |
+| **Tiingo** | market facts and cards | free (personal use) | **$249 redistribution licence, all in** |
+| GNews | the Trending edition | free (development) | EUR 49.99 (~$54) |
+| Open-Meteo | weather outside the US | keyless (non-commercial) | $29 |
+| Finnhub, API-Sports | removed from the code (§418) | - | $0 |
+| Polymarket, GDELT, NWS, town RSS, Wikipedia, Wikidata | forecasts, discovery, weather, local, reference | free | free |
+
+**Search, by audience** (pay as you go, $1 per 1,000 requests each; about
+one Perplexity request and half a Parallel request per new episode; new
+episodes a month are section 0.5's search episodes plus ~5,100 rails and
+Trending scripts plus 30 per active mix subject - about 7k / 19k / 118k /
+770k at 100 / 1k / 10k / 100k listeners):
+
+| Monthly listeners | 100 | 1,000 | 10,000 | 100,000 |
+|---|---|---|---|---|
+| Perplexity | $7 | $19 | $118 | $770 |
+| Parallel ($5 free credit a month) | $4 | $9 | $59 | $385 |
+
+**Claude, by audience** (the pitch deck's backend slide, §423). The same new
+episodes a month, split by how they are written: on demand (the search
+episodes of section 0.5) at ≈ $0.005 of Claude each (brief $0.003 + writer
+$0.002), and ahead (~5,100 rails and Trending scripts plus 30 per active mix
+subject) at ≈ $0.004 each (the writer at batch price), plus ≈ $40 a month of
+shared background calls (the story composer and category placer, section 0.4,
+midpoint of $25-55):
+
+| Monthly listeners | 100 | 1,000 | 10,000 | 100,000 |
+|---|---|---|---|---|
+| New episodes on demand | 1,275 | 10,500 | 82,500 | 675,000 |
+| New episodes written ahead | 5,700 | 8,100 | 35,100 | 95,100 |
+| Claude | $69 | $125 | $593 | $3,795 |
+
+**Plugins and AI together** (what the slide's right-hand panel shows; the
+voice GPU, servers and databases are not in it - section 0.5 has the whole
+bill):
+
+| Monthly listeners | 100 | 1,000 | 10,000 | 100,000 |
+|---|---|---|---|---|
+| Data plans (from launch) | $632 | $632 | $632 | $632 |
+| Search (Perplexity + Parallel) | $11 | $28 | $177 | $1,155 |
+| Claude | $69 | $125 | $593 | $3,795 |
+| **Total** | **$712** | **$785** | **$1,402** | **$5,582** |
+
+The assumptions behind both: 15 searches per listener a month; 85% / 70% /
+55% / 45% of them need a new episode (the rest replay a kept one); ~5,100
+rails and Trending scripts a month whatever the audience; 30 a month per
+active mix subject at 20 / 100 / 1,000 / 3,000 subjects; ~1.5 search requests
+per new episode. Claude nearly matches the data plans at 10,000 listeners and
+is about two thirds of this total at 100,000.
+
+**Data plans at launch: $299.99 + $249 + $29 + EUR 49.99 a month, about $632**
+(EUR at 1.08, `financials.EUR_TO_USD`). That is the largest fixed line before the audience
+is large: at 1,000 listeners it is about half the bill.
+
+### 0.4 Shared background writing a month
+
+| Job | Schedule | Estimate |
+|---|---|---|
+| Rails edition (`rails_edition.py`) | 05:00 and 17:00 ET, every held story (≤ 96) | ~150 scripts a day × $0.0056 ≈ **$25** (§359 had $20 with search left out) |
+| Trending edition (`trending_bank.py`) | 05:00 and 17:00 ET, 10 each | ~600 a month ≈ **$4** |
+| DailyFAM mixes (`daily_edition.py`) | 05:00 ET, one per distinct active subject | **$0.17 per subject a month** ($0.0056 × 30) |
+| Story composer and category placer | every 15 min when new stories / every 2 h | **$25-55** (`MODEL`, Sonnet 5; ceilings in 3.3) |
+| Prefetched briefs | when myFAM is drawn | under the $2/day ceiling; ~$0.003 a brief |
+
+`financials.py`'s Projections tab takes **$60** as the base (was $120).
+
+### 0.5 By audience size (estimate)
+
+Same listener behaviour as section 4.1 (15 searches a month, cache-miss rate
+85% → 45%); distinct active mix subjects assumed at 20 / 100 / 1,000 / 3,000
+(the mixes' ceiling is lifted, §359); first plays streamed as Opus at 24 kbps
+(~0.18 MB a minute, §237) and replays from R2 at $0 egress, so bandwidth is
+an upper bound. Plans from launch; the 100-listener column is before it.
+
+| | **100 MAU** | **1,000 MAU** | **10,000 MAU** | **100,000 MAU** |
+|---|---|---|---|---|
+| New search episodes | 1,275 | 10,500 | 82,500 | 675,000 |
+| Search episodes, $0.011 each | $14 | $116 | $908 | $7,425 |
+| Background writing (0.4) | $63 | $77 | $230 | $570 |
+| Bandwidth | ~$0 | ~$2 | ~$18 | ~$180 |
+| Render (web, staging) | $32 | $32 | $92 | ~$300 (several instances) |
+| Postgres, R2, Atlas | ~$40 | ~$80 | ~$95 | ~$250 |
+| Data plans (0.3) | $0 (free tiers) | $632 | $632 | $632 |
+| Voice: active worker | $0 | $343 | $343 | $343 + more flex workers (in the episode $) |
+| **Total (estimate)** | **≈ $150** | **≈ $1,280** | **≈ $2,330** | **≈ $9,680** |
+| **Per MAU** | **≈ $1.50** | **≈ $1.28** | **≈ $0.23** | **≈ $0.10** |
+
+What changed from section 4.2: the writer's move to Haiku cut the cost of a
+new episode about fivefold, so **fixed plans, not episodes, are most of the
+bill until about 10,000 listeners**; at 100,000 search episodes are about
+three quarters of it again. A Sonnet batched writer (0.2) would add about
+$170-220 a month at 1,000 listeners and $2,000-2,600 at 100,000, nearly all
+of it from the mixes' subjects.
 
 ## How to read the numbers
 
@@ -79,6 +238,8 @@ the most important number in this report.
 ## 2. Unit costs: what one episode costs
 
 ### 2.1 Claude (Anthropic)
+
+> **Current (§272, §286, §423):** the writer is Haiku 5.5 at low effort (`WRITER_MODEL`) and the brief Haiku 5.5 at medium; section 0.1 has the per-call figures. The Sonnet figures below are what the episode cost before.
 
 The production model is `claude-sonnet-5`. It is set in `render.yaml`
 (`MODEL`) and is the default in `config.py`, and the tile composer, category
@@ -171,6 +332,8 @@ rather than one per listener.
 | Canonical cache key | `cache.py:1638`, Haiku | **Off** (`CACHE_SEMANTIC_KEY=0`) | ~$0.0002/request if turned on |
 
 ### 2.2 Exa (retrieval)
+
+> **Current (§274, §357, §423):** Exa is gone. Search is Perplexity, then Parallel as the second look, then GDELT; Perplexity and Parallel are $1 per 1,000 requests (`research.SEARCH_COSTS`), about $0.0015 an episode.
 
 - **How it is used:** every new episode is researched (`SEARCH_MODE=always`).
   Each search is `type="fast"`, `num_results=8`, with highlights
@@ -268,6 +431,8 @@ live: `/api/health` reports it.
 
 ### 2.4 Total cost of one episode
 
+> **Current (§423):** about **$0.011** a new episode on demand and **$0.0096** batched; section 0.1. The table below is the Sonnet writer's and Exa's.
+
 | Event | Claude | Exa | GPU | Bandwidth | **Total (estimate)** |
 |---|---|---|---|---|---|
 | New 2-min search episode | $0.040 | $0.015 | $0.005 | $0.0008 | **≈ $0.06** |
@@ -304,6 +469,8 @@ So cost per listener is almost entirely the cache-miss rate times $0.06.
 
 ### 3.2 Data providers
 
+> **Current (§423):** BALLDONTLIE's plan is ALL-ACCESS, $299.99 a month (§419), and Tiingo's redistribution licence $249 a month all in, from launch; Finnhub and API-Sports are removed from the code (§418). The launch licences are GNews Essential, Open-Meteo Standard, BALLDONTLIE and Tiingo, about $632 a month together (section 0.3).
+
 | Provider | What FAM uses it for | Current plan in code | Free-tier ceiling | Next tier (list) |
 |---|---|---|---|---|
 | **GNews** | Trending edition only | `GNEWS_DAILY_REQUESTS=90`. Uses about 26 requests per edition, 2 editions/day ≈ **52/day** | 100 req/day, 10 articles per call. For development use; check the terms before charging money. | Essential **€49.99/mo**: 1,000/day, 25 articles |
@@ -333,6 +500,8 @@ traffic is: about **$95-100/month** together at list price. Since §207
 | **Apple Developer Program** | The iOS app and Sign in with Apple | $99/year | Flat |
 
 ### 3.3 Background generation (shared by every listener)
+
+> **Current (§423):** on the Haiku writer, section 0.4: rails ~$25, Trending ~$4, $0.17 per active mix subject, a $60 base on Projections.
 
 These run on timers with nobody tapping. Each has a ceiling written in code,
 so none of them can run away.
@@ -368,6 +537,8 @@ should be replaced from `usage_report.py` once there is traffic.
 | Average episode | 2 min, $0.06 new | §2.4 |
 
 ### 4.2 Monthly cost by audience size (estimate)
+
+> **Current (§423):** replaced by section 0.5 (≈ $150 / $1,300 / $2,350 / $9,700 a month). The table below is the Sonnet writer's.
 
 | | **100 MAU** | **1,000 MAU** | **10,000 MAU** | **100,000 MAU** |
 |---|---|---|---|---|
@@ -511,12 +682,16 @@ forced by the one-instance ceiling, not by price.
 
 ### 5.7 API-Sports
 
+> **Current (§280, §290, §423):** removed from the code (§418). Sports are BALLDONTLIE's, ALL-ACCESS at $299.99 a month (§419).
+
 | Limit | Where it bites | Action |
 |---|---|---|
 | Free 100/day, **shared** between live facts and story cards | One sport's scoreboard refreshes about every 14 min. A second sport halves it. Episode lookups eat into the same allowance. | **$19/mo (7,500/day)** is the cheapest real upgrade in this report: 75x the allowance. |
 | Counted **per process** | More than one worker multiplies spend | Set `API_SPORTS_DAILY_REQUESTS` to each sport's plan divided by the number of workers; `/admin` shows API-Sports' own count, which covers every worker |
 
 ### 5.8 Finnhub
+
+> **Current (§423):** removed from the code (§418). Markets are Tiingo's, on its redistribution licence at $249 a month all in.
 
 | Limit | Where it bites | Action |
 |---|---|---|
@@ -547,8 +722,9 @@ the episode continues without the fact.
    $0-vs-$200-500/month fixed-cost question, and the repo describes both.
 3. **Run `usage_report.py` after the first real month** and replace §4's
    assumptions with measured miss rates and per-episode costs.
-5. **Buy commercial licences** for GNews and Finnhub before charging anyone,
-   and API-Sports $19 as soon as more than one sport is wanted.
+5. **Buy the launch plans** before charging anyone (§423): GNews Essential,
+   Open-Meteo Standard, BALLDONTLIE (ALL-ACCESS, $299.99/mo) and Tiingo's
+   redistribution licence ($249/mo all in). Finnhub and API-Sports are gone (§418).
 6. **Plan the Opus transport** before 10k MAU. Bandwidth is the line that
    grows fastest after Claude.
 7. **Plan the move off single-disk SQLite** before outgrowing one Render Pro

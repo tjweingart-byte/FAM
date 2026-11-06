@@ -50,14 +50,14 @@ def _series(subject, metric="score"):
 
 def test_the_owner_s_approvals_are_the_default():
     assert set(ha.settings.housekeeper_approved_providers) == {
-        "fam", "gdelt", "tiingo", "balldontlie", "perplexity"}
+        "fam", "gdelt", "tiingo", "balldontlie", "perplexity", "gnews"}   # GNews: §429
     for name in ("GDELT", "Tiingo", "BALLDONTLIE scores", "BALLDONTLIE", "perplexity",
-                 "fam"):
+                 "fam", "GNews"):
         assert ha.approved(name), name
 
 
 @pytest.mark.parametrize("name", ["parallel", "Finnhub", "API-Sports", "Polymarket",
-                                  "gnews", "", "fake scoreboard (NOT REAL DATA)"])
+                                  "", "fake scoreboard (NOT REAL DATA)"])
 def test_everyone_else_is_not_approved(name):
     assert not ha.approved(name)
 
@@ -93,8 +93,12 @@ FOUND = [_finding("https://a.com/1", "perplexity"), _finding("https://a.com/2", 
          _finding("https://a.com/3", ""), _finding("https://a.com/4", "parallel")]
 
 
-def test_with_consuela_off_the_intake_keeps_what_it_kept_before_her(archive):
-    assert [f.provider for f in ha._kept(FOUND)] == ["perplexity", "gdelt", ""]
+def test_with_consuela_off_only_approved_providers_reach_the_intake_too(archive):
+    """The owner (§429): the approval list governs everything FAM keeps,
+    not only what Consuela keeps."""
+    assert ha.consuela_runs() is False
+    assert [f.provider for f in ha._kept(FOUND)] == ["perplexity", "gdelt"]
+    assert ha.STATS["not_approved"] == 1 and ha.STATS["never_kept"] == 1
 
 
 def test_with_consuela_on_only_approved_providers_reach_the_intake(archive, consuela):

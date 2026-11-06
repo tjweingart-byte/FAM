@@ -1,4 +1,4 @@
-"""The eval's "same" case is a neutral rewording, not an attribution (§419)."""
+"""The eval's "same" case is a neutral rewording, not an attribution (§463)."""
 from __future__ import annotations
 
 import pytest

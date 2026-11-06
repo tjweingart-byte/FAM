@@ -26,7 +26,7 @@ at most `MAX_SOURCES` - so two runs over the same archive ask the same
 questions and their scores compare. With no material (a fresh deployment)
 nothing is added and the core still runs.
 
-The "same" case was ", according to reports" added until §419: Haiku
+The "same" case was ", according to reports" added until §463: Haiku
 answered "unsure" to every one, arguably rightly - a reported claim is not
 an asserted one - so the owner chose a rewording that keeps the claim's
 certainty. It is made only from a sentence with no number and no quote:

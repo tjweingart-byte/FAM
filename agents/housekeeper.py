@@ -69,7 +69,7 @@ TASK = "consolidate"
 
 #: Most sentences one article offers the model; the rest are not read.
 MAX_SENTENCES = 40
-#: Most sentences she is asked to keep from one article (§423).
+#: Most sentences she is asked to keep from one article (§467).
 MAX_KEPT = 12
 #: A held article is looked at again after this long (its node may be
 #: settled by then).
@@ -112,7 +112,7 @@ INSTRUCTIONS = (
     "unsure. A sentence may appear in more than one list, but never twice in "
     "one. An article with nothing worth keeping gets empty lists. Answer for "
     "every article.\n\n"
-    # §423: production's dry run kept nearly whole articles, and sentences
+    # §467: production's dry run kept nearly whole articles, and sentences
     # that mean nothing alone. Measured before and after on its own articles.
     "Keep only the key sentences: what someone would need, months from now, "
     "to know what happened - the result, who did it, when, the figures that "
@@ -135,20 +135,20 @@ HEDGE = re.compile(
     r"\b(expect(?:s|ed)?|set to|could|would|will|may|might|forecast(?:s|ed)?|"
     r"project(?:s|ed|ion)|predict(?:s|ed|ion)?|likely|poised|on track|"
     r"aims? to|plans? to|preview|odds|estimate[sd]?|"
-    # "a 94% chance of winning" is a forecast (§421) - narrowly: a chance
+    # "a 94% chance of winning" is a forecast (§465) - narrowly: a chance
     # with a figure before it, or a chance of/to/that something.
     r"\d+(?:\.\d+)?%? chance|chances? (?:of|to|that)|likelihood|"
     r"probabilit(?:y|ies))\b", re.I)
-#: An abbreviation a sentence does not end on (§422): a piece ending in one
+#: An abbreviation a sentence does not end on (§466): a piece ending in one
 #: was cut too soon ("by 9 p.m." | "ET (0200 GMT)...", "since Sept." | "1,
 #: according to..."), so it is joined to the next.
 _ABBREVIATION = re.compile(
-    r"\b(?:[ap]\.m|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec|Mr|Mrs|Ms|Dr|"
-    r"St|Jr|Sr|No|vs|U\.S|U\.K|Gov|Sen|Rep|Gen|Lt|Col|Sgt|Prof)\.[\"'”’)]*$", re.I)
-#: The page around an article, not the article (§422): a table row, an
+    r"\b(?:[ap]\.m|vs|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec|Mr|Mrs|Ms|Dr|"
+    r"St|Jr|Sr|No|U\.S|U\.K|Gov|Sen|Rep|Gen|Lt|Col|Sgt|Prof)\.[\"'”’)]*$")
+#: The page around an article, not the article (§466): a table row, an
 #: invitation to click, subscribe or follow. Dropped before the model reads.
 _CLUTTER = re.compile(
-    r"(?:\|[^|]*){3,}|click(?:ing)? here|preferred source|newsletter|"
+    r"(?:\|[^|]*){3,}|click(?:ing)? here|preferred source|"
     r"subscribe to (?:our|the)|sign up for (?:our|the)|all rights reserved|"
     r"follow us on", re.I)
 _QUOTE_MARK = re.compile(r"[\"“”]|(?:^|\s)[‘'][A-Z]")
@@ -166,7 +166,7 @@ def passages_of(record: dict) -> list:
 
 
 def _whole(pieces: list) -> list:
-    """The pieces with any cut at an abbreviation mended (§422)."""
+    """The pieces with any cut at an abbreviation mended (§466)."""
     out: list = []
     for piece in pieces:
         if out and _ABBREVIATION.search(out[-1]):
@@ -180,7 +180,7 @@ def sentences_of(record: dict) -> list:
     """The record's approved passages, numbered as the model sees them:
     whole sentences (never cut at "p.m." or "Sept."), no table rows or
     invitations to click, and a sentence the article repeats - even with
-    other markup or punctuation - once (§422). The words are the
+    other markup or punctuation - once (§466). The words are the
     publisher's; nothing is reworded."""
     import evidence_digest
     from agents import dedupe

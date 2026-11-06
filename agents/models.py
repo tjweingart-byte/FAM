@@ -616,6 +616,28 @@ def health() -> dict:
         out["contextualizer"] = contextualizer.report()
     except Exception:  # noqa: BLE001
         out["contextualizer"] = None
+    try:
+        from agents import supervisor
+
+        # Mclovin's source screen: pages read, dropped by kind, kept as an
+        # asked-for opinion, unsettled (§434).
+        out["supervisor"] = supervisor.report()
+        from agents import supervisor_checks
+
+        # His sentence checks and the writer's rewrites (§435).
+        out["supervisor"]["checks"] = supervisor_checks.report()
+        out["supervisor"]["repairs"] = {
+            "timeout_seconds": settings.supervisor_repair_timeout_seconds,
+            "max_per_episode": settings.supervisor_max_repairs}
+    except Exception:  # noqa: BLE001
+        out["supervisor"] = None
+    try:
+        from agents import editor
+
+        # Shakespeare's outlines: calls by outcome, numbers dropped (§437).
+        out["editor"] = editor.report()
+    except Exception:  # noqa: BLE001
+        out["editor"] = None
     out["overlord"] = {"loop": bool(settings.agents),
                        "tick_seconds": settings.overlord_tick_seconds,
                        "max_tasks_per_tick": settings.overlord_max_tasks_per_tick}
