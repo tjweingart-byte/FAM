@@ -644,6 +644,9 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
     import cost_watch
 
     cost_watch.LEDGER[0] = None    # and the cost watch's ledger (§492)
+    import keith_fixes
+
+    keith_fixes.reset()            # and his re-runs, once each (§495)
     yield
     pipeline_errors.reset()
     incidents.reset()

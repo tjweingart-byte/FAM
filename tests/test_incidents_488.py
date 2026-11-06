@@ -208,4 +208,4 @@ def test_health_and_admin_say_the_incidents():
     import app
 
     body = TestClient(app.app).get("/api/health").json()["incidents"]
-    assert body == {"open": {}, "loops_stopped": []}
+    assert body == {"open": {}, "counted_at": None, "loops_stopped": []}

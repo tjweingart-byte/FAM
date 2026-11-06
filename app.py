@@ -35,7 +35,7 @@ from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
-from pydantic import AfterValidator, BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, ValidationError, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
 import audio_codec as audio_codec_mod
@@ -881,7 +881,9 @@ async def lifespan(_: FastAPI):
     yield
     # Loops that live as long as the process end with it, rather than being
     # destroyed pending when the event loop closes under them.
-    for task in list(_BACKGROUND):
+    import keith_fixes
+
+    for task in list(_BACKGROUND) + list(keith_fixes.RUNNING):
         task.cancel()
     _BACKGROUND.clear()
 
@@ -2033,7 +2035,7 @@ def _tracking_health() -> dict:
                 # §482: rows waiting, dropped, the last failed write.
                 "pipeline_errors": pipeline_errors.status()}
     except Exception as exc:  # noqa: BLE001 - health never fails on a report
-        return {"error": f"{type(exc).__name__}: {exc}"[:200]}
+        return {"error": type(exc).__name__}
 
 
 def _incidents_health() -> dict:
@@ -2051,7 +2053,7 @@ def _usage_monitors_health() -> dict:
 
         return usage_monitors.health()
     except Exception as exc:  # noqa: BLE001 - health never fails on a report
-        return {"error": f"{type(exc).__name__}: {exc}"[:200]}
+        return {"error": type(exc).__name__}
 
 
 @app.get("/api/health")
@@ -11546,13 +11548,19 @@ async def admin_fixes(request: Request, days: float = 7.0) -> dict:
 
 
 @app.post("/api/admin/incidents/fixed")
-async def admin_incident_fixed(req: IncidentFixed, request: Request) -> dict:
+async def admin_incident_fixed(request: Request) -> dict:
     """The owner says an incident is fixed: Keith re-checks rather than
     believes (keith.md always 11), and says what he found. Admins only;
-    changes nothing but the incident's own row."""
+    changes nothing but the incident's own row. Who is asking is checked
+    before the body is read (§495), so anyone else gets the 404 every admin
+    route gives, never a validation error."""
     _require_admin(request)
     import incidents
 
+    try:
+        req = IncidentFixed.model_validate(await request.json())
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(status_code=422, detail="cause is required") from exc
     return await asyncio.to_thread(incidents.owner_fixed, req.cause)
 
 

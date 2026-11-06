@@ -13,9 +13,13 @@ cost." The owner (2026-11-06) asked for two figures:
   per-episode figure that would read huge on a quiet week.
 * **(b) all of Claude per episode** - every Claude answer the day's spend
   counted (§481), agents included, divided by the same episodes - against
-  `IT_COST_PLAN_CLAUDE_CENTS` (1.0: the owner's pricing estimate).
+  `IT_COST_PLAN_CLAUDE_CENTS` (1.0: the owner's pricing estimate). The
+  agents' nightly jobs are taken out of it (§495), as they are out of (a):
+  at low volume they alone would read well above the plan.
 
-Over the last `IT_COST_DAYS` (7). "Well above" is `IT_COST_WELL_ABOVE` (1.5x)
+Over the last `IT_COST_DAYS` (7), from the start of that UTC day (§495):
+Claude's spend is kept by day, so the episodes and the agents' calls are
+counted over the same whole days. "Well above" is `IT_COST_WELL_ABOVE` (1.5x)
 the plan: an urgent incident, so it is emailed (§489) and in the pop-up. Below
 `MIN_EPISODES` written, no figure is read (a handful of episodes is noise).
 **Watched, never capped**: nothing here stops, holds or slows anything.
@@ -109,10 +113,15 @@ def report(now: Optional[float] = None) -> dict:
     now = time.time() if now is None else now
     s = _settings()
     days = max(1.0, float(getattr(s, "it_cost_days", 7) or 7))
+    # From the start of the first UTC day: the spend table's own grain.
     since = now - days * DAY
+    since -= since % DAY
+    span = (now - since) / DAY
     episodes = _episodes(since)
     agents = _agent_spend(since)
     claude = _claude_spend(since)
+    if claude is not None and agents:
+        claude = max(0.0, claude - agents["nightly"])
     well_above = float(getattr(s, "it_cost_well_above", 1.5) or 1.5)
 
     def per(usd, plan_cents) -> dict:
@@ -130,10 +139,12 @@ def report(now: Optional[float] = None) -> dict:
         "agents": per(agents["episode"] if agents else None,
                       float(getattr(s, "it_cost_plan_agents_cents", 0.45) or 0)),
         "claude": per(claude, float(getattr(s, "it_cost_plan_claude_cents", 1.0) or 0)),
-        "nightly_usd_per_month": (round(agents["nightly"] / days * 30, 2)
+        "nightly_usd_per_month": (round(agents["nightly"] / span * 30, 2)
                                   if agents else None),
+        "since": since,
         "note": "episodes written to the cache; private searches' cost is in "
-                "the total, not the count, so it reads slightly high",
+                "the total, not the count, so it reads slightly high; the "
+                "agents' nightly jobs are apart from both figures",
     }
 
 

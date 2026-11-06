@@ -709,12 +709,17 @@ MONITORS = {"runpod": read_runpod, "atlas": read_atlas, "r2": read_r2,
 
 
 # ------------------------------------------------------------------- running
-async def poll(now: Optional[datetime.datetime] = None, client=None) -> list:
-    """Read every monitor once, keep each reading, and return them. Never raises."""
+async def poll(now: Optional[datetime.datetime] = None, client=None,
+               only: Optional[set] = None) -> list:
+    """Read every monitor once (or those in `only`: the owner's "I fixed it"
+    re-reads its own service, §495), keep each reading, and return them.
+    Never raises."""
     import provider_usage
 
     out = []
     for service, read in MONITORS.items():
+        if only is not None and service not in only:
+            continue
         try:
             got = await read(now, client)
         except Exception as exc:  # noqa: BLE001 - one monitor never stops the rest
@@ -772,9 +777,11 @@ def report(now: Optional[float] = None, days: int = 31) -> dict:
 
 def health() -> dict:
     """`/api/health`'s `usage_monitors`: the budgets in force, and this
-    process's last reading of each service. Memory only."""
+    process's last reading of each service. Memory only. A reading's `why`
+    stays on /admin (§495): it can carry a provider's own error text, and
+    health is public."""
     return {"budgets": budgets(),
             "warn_share": float(settings.it_warn_share),
             "urgent_share": float(settings.it_urgent_share),
-            "last": {s: {"at": r["at"], "ok": r["ok"], "level": r["level"],
-                         "why": r["why"]} for s, r in LAST.items()}}
+            "last": {s: {"at": r["at"], "ok": r["ok"], "level": r["level"]}
+                     for s, r in LAST.items()}}

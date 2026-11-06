@@ -64,14 +64,17 @@ def test_both_figures_per_episode_with_the_nightly_jobs_apart(world):
     agent_call(ledger, 0.30)                                # 100 episodes: 0.3¢ each
     agent_call(ledger, 0.10, surface="ahead")
     agent_call(ledger, 7.00, surface="background", agent="supervisor")
-    claude(0.50)
+    claude(7.50)                                            # the nightly 7.00 included
     r = CW.report(NOW)
     assert r["episodes"] == 100
     assert r["agents"]["cents_per_episode"] == pytest.approx(0.4)
     assert r["agents"]["plan_cents"] == 0.45 and r["agents"]["well_above"] is False
     assert r["claude"]["cents_per_episode"] == pytest.approx(0.5)
     assert r["claude"]["plan_cents"] == 1.0
-    assert r["nightly_usd_per_month"] == pytest.approx(7.00 / 7 * 30, abs=0.01)
+    # Over whole UTC days (§495), as Claude's spend is kept.
+    assert r["since"] % 86400 == 0 and NOW - r["since"] >= 7 * 86400
+    span = (NOW - r["since"]) / 86400
+    assert r["nightly_usd_per_month"] == pytest.approx(7.00 / span * 30, abs=0.01)
 
 
 def test_too_few_episodes_is_no_figure(world):

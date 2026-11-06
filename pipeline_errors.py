@@ -169,15 +169,17 @@ class ErrorStore:
             finally:
                 db.close()
 
-    def steps_since(self, at: float, limit: int = 0) -> list:
+    def steps_since(self, at: float, limit: int = 0, step: str = "") -> list:
         """The newest steps since `at`, at most `limit` (0 is no limit) -
         bounded so a busy week never makes the admin page read it whole
-        (review, §273)."""
+        (review, §273). `step` reads only that step's rows (§495: a watch
+        on one step is not crowded out of the bound by the rest)."""
         limit = int(limit or STEPS_READ)
+        where, args = ("AND step = ? ", (step,)) if step else ("", ())
         with closing(self._connect()) as db:
             cursor = db.execute(
                 "SELECT at, step, path, outcome, seconds FROM steps "
-                "WHERE at >= ? ORDER BY at DESC LIMIT ?", (at, limit))
+                f"WHERE at >= ? {where}ORDER BY at DESC LIMIT ?", (at, *args, limit))
             names = [c[0] for c in cursor.description]
             return [dict(zip(names, values)) for values in cursor]
 
@@ -222,7 +224,11 @@ _FLUSH_LOCK = threading.Lock()
 #: show what went wrong could not show that it had gone wrong itself.
 _WRITES_EMPTY = {"last_written_at": None, "failures": 0,
                  "last_failure_at": None, "last_failure": "",
+                 "last_dropped_at": None,
                  "dropped": {"errors": 0, "steps": 0, "refusals": 0}}
+#: A drop keeps the store `behind` this long after it happened (§495): the
+#: count since boot stays on the page, but an incident about it can close.
+DROPPED_RECENT_SECONDS = 3600.0
 _WRITES: dict = {}
 
 
@@ -240,6 +246,7 @@ def _trim(held: list, kind: str) -> None:
     if over > 0:
         del held[:over]
         _WRITES["dropped"][kind] = _WRITES["dropped"].get(kind, 0) + over
+        _WRITES["last_dropped_at"] = time.time()
 
 
 def _failed(what: str, exc: BaseException) -> None:
@@ -257,13 +264,16 @@ def status() -> dict:
     """How the rows are being kept (§482), for /api/health and /admin:
     rows waiting to be written, rows dropped since boot, the last failure.
     `behind` is true while a failed write or open leaves rows waiting, or
-    once any row was dropped. Never raises."""
+    for an hour after a row was dropped (§495: the count since boot stays,
+    but the alert closes once nothing more is lost). Never raises."""
     with _PENDING_LOCK:
         out = {**_WRITES, "dropped": dict(_WRITES["dropped"])}
         out["waiting"] = len(_PENDING) + len(_PENDING_STEPS) + len(_PENDING_REFUSALS)
     last_fail, last_ok = out["last_failure_at"], out["last_written_at"]
     out["dropped_total"] = sum(out["dropped"].values())
-    out["behind"] = bool(out["dropped_total"] or (
+    dropped_at = out.get("last_dropped_at")
+    recent_drop = bool(dropped_at and time.time() - dropped_at < DROPPED_RECENT_SECONDS)
+    out["behind"] = bool(recent_drop or (
         last_fail and (not last_ok or last_fail > last_ok) and out["waiting"]))
     return out
 

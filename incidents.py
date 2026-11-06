@@ -135,8 +135,8 @@ class IncidentStore:
     def seen(self, finding: dict, now: float) -> str:
         """Record a finding: `opened`, `reopened` or `seen` (already open)."""
         with self._lock, closing(self._connect()) as db:
-            row = db.execute("SELECT closed_at, seen, severity, plan FROM incidents "
-                             "WHERE cause = ?", (finding["cause"],)).fetchone()
+            row = db.execute("SELECT closed_at, seen, severity, plan, detail FROM "
+                             "incidents WHERE cause = ?", (finding["cause"],)).fetchone()
             payload = (finding["source"], finding["severity"], finding["title"],
                        json.dumps(finding.get("detail") or {}),
                        json.dumps(finding.get("plan") or {}))
@@ -163,6 +163,11 @@ class IncidentStore:
                 plan = dict(finding.get("plan") or {})
                 plan["tried"] = kept
                 payload = payload[:4] + (json.dumps(plan),)
+            # So does what was found after the owner said it was fixed (§495).
+            note = json.loads(row[4] or "{}").get("after_your_fix", "")
+            if note and not (finding.get("detail") or {}).get("after_your_fix"):
+                payload = payload[:3] + (json.dumps({**(finding.get("detail") or {}),
+                                                     "after_your_fix": note}),) + payload[4:]
             db.execute("UPDATE incidents SET severity = ?, title = ?, detail = ?, "
                        "plan = ?, last_seen = ?, seen = seen + 1 WHERE cause = ?",
                        (severity, payload[2], payload[3], payload[4], now,
@@ -181,6 +186,16 @@ class IncidentStore:
         with self._lock, closing(self._connect()) as db:
             db.execute("UPDATE incidents SET fixed_claim_at = ? WHERE cause = ? "
                        "AND closed_at IS NULL", (at, cause))
+
+    def note(self, cause: str, key: str, text: str) -> None:
+        """One line in an open incident's detail (§495)."""
+        row = self.get(cause)
+        if row is None or row["closed_at"] is not None:
+            return
+        detail = {**(row["detail"] or {}), key: text[:300]}
+        with self._lock, closing(self._connect()) as db:
+            db.execute("UPDATE incidents SET detail = ? WHERE cause = ?",
+                       (json.dumps(detail), cause))
 
     def mark_emailed(self, cause: str, now: float) -> None:
         with self._lock, closing(self._connect()) as db:
@@ -260,6 +275,8 @@ def reset(incident_store: Optional[IncidentStore] = None) -> None:
         _STORE[0] = incident_store
     with _LOOPS_LOCK:
         LOOPS.clear()
+        ERRORS_LAST.clear()
+    COUNTS.update(at=None, open={})
     FEEDBACK[0] = None
 
 
@@ -339,6 +356,12 @@ def finding(cause: str, source: str, severity: str, title: str, *,
                      "needs_from_owner": needs}}
 
 
+#: Each error kind's newest row in the last hour, from the round's read
+#: (§495): an owner's "fixed" is checked against it even once the kind has
+#: fallen below the floor that opens an incident.
+ERRORS_LAST: dict = {}
+
+
 def from_errors(now: float) -> list:
     """An error kind seen `IT_INCIDENT_ERRORS` times in the last hour."""
     import pipeline_errors
@@ -355,6 +378,9 @@ def from_errors(now: float) -> list:
         key = (r["stage"], pipeline_errors.family(r["kind"]))
         counts[key] = counts.get(key, 0) + 1
         last[key] = max(last.get(key, 0.0), float(r["at"]))
+    with _LOOPS_LOCK:
+        ERRORS_LAST.clear()
+        ERRORS_LAST.update({f"errors:{stage}:{kind}": at for (stage, kind), at in last.items()})
     floor = max(1, int(getattr(_settings(), "it_incident_errors", 3) or 3))
     out = []
     for (stage, kind), n in counts.items():
@@ -484,12 +510,12 @@ def from_cost(now: float) -> list:
     return cost_watch.findings(now)
 
 
-def from_agents(now: float) -> list:
+def from_agents(now: float, fresh: bool = False) -> list:
     """Each agent against its rule book, and what Phase 3 left Keith to watch
     (§491, `agent_checks`): at most hourly; between, the last findings stand."""
     import agent_checks
 
-    return agent_checks.findings(now)
+    return agent_checks.findings(now, force=fresh)
 
 
 def from_loops() -> list:
@@ -530,15 +556,16 @@ def from_reports(now: float) -> list:
         needs="Your review of each report.")]
 
 
-def findings(now: float) -> tuple[list, set]:
+def findings(now: float, fresh: bool = False) -> tuple[list, set]:
     """Every finding this round, and the sources that were read (a source that
-    could not be read closes nothing)."""
+    could not be read closes nothing). `fresh` (the owner's "I fixed it",
+    §495) runs the agents' checks now rather than standing on the hour's."""
     out, read = [], set()
     for source, get in (("errors", lambda: from_errors(now)),
                         ("tracking", from_tracking), ("usage", from_usage),
                         ("loop", from_loops), ("reports", lambda: from_reports(now)),
                         ("quota", lambda: from_quotas(now)),
-                        ("agents", lambda: from_agents(now)),
+                        ("agents", lambda: from_agents(now, fresh)),
                         ("cost", lambda: from_cost(now))):
         try:
             out.extend(get())
@@ -584,9 +611,21 @@ def watch(now: Optional[float] = None) -> dict:
         for row in target.open_incidents():
             if row["cause"] in causes or row["source"] not in read:
                 continue
-            if row["fixed_claim_at"] and row["source"] == "errors":
-                target.close(row["cause"], "you said fixed; Keith found none since", now)
-                done["closed"].append(row["cause"])
+            claim = row["fixed_claim_at"]
+            if claim and row["source"] == "errors":
+                # Below the floor now, but checked, not believed (§495): any of
+                # it since the claim keeps it open; none closes it once quiet.
+                with _LOOPS_LOCK:
+                    last_at = ERRORS_LAST.get(row["cause"], 0.0)
+                if last_at > claim:
+                    target.note(row["cause"], "after_your_fix",
+                                "still happening after you said it was fixed, at "
+                                + time.strftime("%H:%M UTC", time.gmtime(claim)))
+                    target.claim_fixed(row["cause"], None)
+                elif now - claim >= CLAIM_QUIET_SECONDS:
+                    target.close(row["cause"], "you said fixed; Keith saw none "
+                                 f"for {CLAIM_QUIET_SECONDS // 60} minutes after", now)
+                    done["closed"].append(row["cause"])
                 continue
             if row["source"] in STATE_SOURCES:
                 target.close(row["cause"], "no longer found", now)
@@ -595,6 +634,7 @@ def watch(now: Optional[float] = None) -> dict:
                 target.close(row["cause"], "quiet for two hours", now)
                 done["closed"].append(row["cause"])
         done["emailed"] = email_urgent(now)
+        _count(target.open_incidents(), now)
     except Exception as exc:  # noqa: BLE001 - the round never raises
         log.warning("incidents: the round failed: %s", exc)
         done["error"] = type(exc).__name__
@@ -604,7 +644,8 @@ def watch(now: Optional[float] = None) -> dict:
 def owner_fixed(cause: str, now: Optional[float] = None) -> dict:
     """The owner says this is fixed: Keith checks rather than believes
     (keith.md "always" 11). A state is re-read now and closed only if it is
-    gone; an error kind is watched, and closed once
+    gone (read fresh: a usage service is polled again and the agents'
+    checks run now, §495); an error kind is watched, and closed once
     `CLAIM_QUIET_SECONDS` pass with none of it. Never raises."""
     now = time.time() if now is None else now
     try:
@@ -617,7 +658,15 @@ def owner_fixed(cause: str, now: Optional[float] = None) -> dict:
                     "message": f"Keith closes it once {CLAIM_QUIET_SECONDS // 60} "
                                "minutes pass with none of it, and says so if it "
                                "happens again."}
-        found, read = findings(now)
+        if row["source"] == "usage":
+            # Re-read the service now, not the hour's reading (§495).
+            import asyncio
+            import usage_monitors
+
+            service = cause.split(":")[1] if cause.count(":") >= 2 else ""
+            if service in usage_monitors.MONITORS:
+                asyncio.run(usage_monitors.poll(only={service}))
+        found, read = findings(now, fresh=True)
         if row["source"] not in read:
             return {"state": "unknown",
                     "message": "Keith could not re-check it just now; it stays open."}
@@ -720,19 +769,28 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
     except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
         log.warning("could not read the incidents: %s", exc)
         return {"open": [], "closed": [], "counts": {}, "error": type(exc).__name__}
-    counts: dict = {}
-    for r in open_:
-        counts[r["severity"]] = counts.get(r["severity"], 0) + 1
+    counts = _count(open_, now)
     return {"open": open_, "closed": closed, "counts": counts}
 
 
+#: Open incidents by severity as last read (a round or /admin), for
+#: `/api/health` (§495): health reads memory, never the store.
+COUNTS: dict = {"at": None, "open": {}}
+
+
+def _count(open_rows: list, now: float) -> dict:
+    counts: dict = {}
+    for r in open_rows:
+        counts[r["severity"]] = counts.get(r["severity"], 0) + 1
+    COUNTS.update(at=now, open=counts)
+    return counts
+
+
 def health() -> dict:
-    """`/api/health`'s `incidents`: open counts by severity, and the loops
-    that stopped in this process. Never raises."""
-    try:
-        counts = report()["counts"] if exists() else {}
-    except Exception:  # noqa: BLE001
-        counts = {}
+    """`/api/health`'s `incidents`: open counts by severity as last read, when,
+    and the loops that stopped in this process. Memory only (§495): health
+    runs on the event loop and never opens or creates a store."""
     with _LOOPS_LOCK:
         loops = sorted(LOOPS)
-    return {"open": counts, "loops_stopped": loops}
+    return {"open": dict(COUNTS["open"]), "counted_at": COUNTS["at"],
+            "loops_stopped": loops}

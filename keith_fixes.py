@@ -12,7 +12,7 @@ code:
   fresh, verified address now (`voice_control.current(force=True)`), which
   calls the worker. Verified when it answers. It starts and stops nothing.
 * `rerun_job` - for a background loop that stopped with an error: start it
-  again, once, if it is one the app registered as restartable
+  again, once in the server's life (§495), if it is one the app registered as restartable
   (`incidents.RESTARTABLE`: the GDELT sync, local feeds, weather, the story
   sweep, the outbox drain, the audio sweep). Verified when it is still
   running a minute later.
@@ -48,6 +48,12 @@ RERUN_VERIFY_SECONDS = 60.0
 
 #: Loops started again in this process: cause -> (task, started).
 RERUNS: dict = {}
+#: Loops already started again once in this process (§495): never twice,
+#: however often the incident closes and reopens.
+RERUN_ONCE: set = set()
+#: Restarted loops, held so they are not collected (asyncio keeps only a
+#: weak reference) and cancelled with the server's own loops at shutdown.
+RUNNING: set = set()
 
 
 def enabled() -> set:
@@ -79,7 +85,8 @@ def _loop_name(incident: dict) -> str:
 
 
 def _rerun_applies(incident: dict) -> bool:
-    return _loop_name(incident) in INC.RESTARTABLE
+    name = _loop_name(incident)
+    return name in INC.RESTARTABLE and name not in RERUN_ONCE
 
 
 async def _rerun_run(incident: dict) -> tuple[str, str]:
@@ -89,9 +96,12 @@ async def _rerun_run(incident: dict) -> tuple[str, str]:
     except Exception as exc:  # noqa: BLE001
         return "failed", f"{name} could not be started again ({type(exc).__name__})"
     INC.watch_task(task)
+    RERUN_ONCE.add(name)
+    RUNNING.add(task)
+    task.add_done_callback(RUNNING.discard)
+    # The incident stays open (its loop still listed) until the check a
+    # minute on: closed then, it never reopens into a second attempt (§495).
     RERUNS[incident["cause"]] = (task, time.time())
-    with INC._LOOPS_LOCK:
-        INC.LOOPS.pop(name, None)       # running again; it reopens if it dies
     return "pending", (f"{name} started again; checked in "
                        f"{int(RERUN_VERIFY_SECONDS)} s that it is still running")
 
@@ -105,9 +115,9 @@ async def _hold_run(incident: dict) -> tuple[str, str]:
     from agents import netenyahu
 
     role = incident["detail"]["role"]
-    netenyahu.hold(role, f"Keith: {incident['title']}"[:200])
+    await asyncio.to_thread(netenyahu.hold, role, f"Keith: {incident['title']}"[:200])
     try:
-        held = netenyahu._read_held()             # the store, read back
+        held = await asyncio.to_thread(netenyahu._read_held)   # the store, read back
     except Exception as exc:  # noqa: BLE001
         return "failed", f"asked Netenyahu to hold {role}; could not read it back ({type(exc).__name__})"
     if role in held:
@@ -133,20 +143,25 @@ async def act(now: Optional[float] = None) -> list:
     tried on this opening. Returns what was recorded. Never raises."""
     now = time.time() if now is None else now
     done = []
+    # The store's reads and writes go to a thread (§495): this runs on the
+    # event loop, and a fix itself may start a task there.
+    off = asyncio.to_thread
     try:
-        store = INC.store()
-        done.extend(_settle_reruns(store, now))
+        store = await off(INC.store)
+        done.extend(await off(_settle_reruns, store, now))
         on = enabled()
-        for incident in store.open_incidents():
+        for incident in await off(store.open_incidents):
             for name, (applies, run, words) in FIXES.items():
                 try:
                     if not applies(incident):
                         continue
-                    tried = store.tried(incident["cause"], incident["opened_at"], name)
+                    tried = await off(store.tried, incident["cause"],
+                                      incident["opened_at"], name)
                     if name not in on:
                         if not tried:
-                            store.add_fix(incident["cause"], incident["opened_at"], name,
-                                          "observe", "would", f"would {words}", now)
+                            await off(store.add_fix, incident["cause"],
+                                      incident["opened_at"], name, "observe", "would",
+                                      f"would {words}", now)
                             done.append((incident["cause"], name, "would"))
                         continue
                     if any(t != "would" for t in tried):
@@ -155,10 +170,11 @@ async def act(now: Optional[float] = None) -> list:
                     if outcome == "pending" and incident["cause"] in RERUNS:
                         # Timed on the round's own clock, as it is checked.
                         RERUNS[incident["cause"]] = (RERUNS[incident["cause"]][0], now)
-                    store.add_fix(incident["cause"], incident["opened_at"], name,
-                                  "act", outcome, how, now)
+                    await off(store.add_fix, incident["cause"], incident["opened_at"],
+                              name, "act", outcome, how, now)
                     done.append((incident["cause"], name, outcome))
-                    _tell_the_plan(store, incident["cause"], name, outcome, how, now)
+                    await off(_tell_the_plan, store, incident["cause"], name, outcome,
+                              how, now)
                 except Exception as exc:  # noqa: BLE001 - one fix never stops the rest
                     log.warning("fix %s on %s failed to run: %s", name,
                                 incident["cause"], exc)
@@ -181,6 +197,11 @@ def _settle_reruns(store, now: float) -> list:
         else:
             how = f"still running {int(now - started)} s after it was started again"
             outcome = "verified"
+            # Running again: the incident closes on the next round. If it
+            # stops later it reopens, and is the owner's - never re-run twice.
+            name = cause.split(":", 1)[1]
+            with INC._LOOPS_LOCK:
+                INC.LOOPS.pop(name, None)
         store.add_fix(cause, opened, "rerun_job", "act", outcome, how, now)
         _tell_the_plan(store, cause, "rerun_job", outcome, how, now)
         out.append((cause, "rerun_job", outcome))
@@ -198,6 +219,13 @@ def _tell_the_plan(store, cause: str, fix: str, outcome: str, how: str,
     else:
         text = f"Keith tried {fix} at {at}: {how} (verified)."
     store.set_tried(cause, text)
+
+
+def reset() -> None:
+    """For tests: no re-runs pending, made or held in this process."""
+    RERUNS.clear()
+    RERUN_ONCE.clear()
+    RUNNING.clear()
 
 
 def report(days: float = 7.0, now: Optional[float] = None) -> dict:

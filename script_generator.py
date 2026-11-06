@@ -3585,6 +3585,16 @@ def _take_c3p0_title(notes: "ScriptNotes | None", brief) -> None:
     title = ((getattr(brief, "contextualized", None) or {}).get("title", "") or "").strip()
     if title:
         notes.c3p0_title = content_filter.scrub(title)
+        # Kept as a step, never the words (§495): Keith checks his titles
+        # carry no result against what he gave, not what the episode ended
+        # up titled (a writer's or an admin's title is not his).
+        try:
+            from agents import contextualizer
+
+            pipeline_errors.step("c3p0 title", _writer_path(notes),
+                                 "result" if contextualizer.has_result(title) else "clean")
+        except Exception:  # noqa: BLE001 - a count never stops an episode
+            pass
 
 
 def _publish_title(notes: "ScriptNotes | None", brief) -> None:

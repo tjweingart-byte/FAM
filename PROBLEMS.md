@@ -30921,3 +30921,88 @@ Tests: `tests/test_admin_keith_494.py` - the snapshot carries every figure,
 and in a browser, on the real page signed in through its own form, with data
 the real tracker code built from the stores: each of the five draws, the
 filter works, and nothing on the page throws.
+
+## 495. Phase 4, the second review of the whole branch: Keith's alerts open, stay and close as they say (2026-11-06)
+
+The owner: "Double check all changes made in this branch, and get the
+branch ready to merge into main" - then "Do not merge anything here, or
+open a [pull request] yet". An independent reviewer read
+`git diff origin/Main...HEAD` (§480-§494) cold. Nothing reached a listener,
+leaked a key, broke on Postgres or turned on by default. Nine defects were
+in how Keith's incidents open and close, plus six small ones. Each was confirmed
+against the code. Each fix has a test that failed before it
+(`tests/test_keith_review_495.py`, and the rewritten C3P0, Nando and
+cost tests in `test_agent_checks_491.py` and `test_cost_watch_492.py`).
+
+1. **A tracking alert never closed.** `pipeline_errors.status()` was `behind`
+   once any row had been dropped since boot, so `tracking:pipeline_errors`
+   stayed open (and urgent) until a restart. Now a drop keeps it behind for
+   `DROPPED_RECENT_SECONDS` (an hour, `last_dropped_at`); the count since boot
+   stays on the page.
+2. **`rerun_job` could loop.** It took the loop out of `LOOPS` at once, so
+   the next round closed the incident ("no longer found") before the
+   minute's check. A loop that died again reopened with a new `opened_at`,
+   the fix ran again, and the email went again, with no limit. Now:
+   - the incident stays open until the check;
+   - `LOOPS` is cleared only once the check verifies the loop;
+   - a loop is re-run once in the server's life (`RERUN_ONCE`). After that a
+     reopening is the owner's.
+   - The restarted task is held (`RUNNING`), since asyncio keeps only a weak
+     reference, and it is cancelled with the server's loops at shutdown.
+3. **Nando's dead-node breach flapped.** It read one page an hour and judged
+   each page alone, so a clean page between two bad ones closed it and the
+   next reopened it (and re-emailed it). Now the dead nodes are gathered
+   across a whole pass. The breach stands until a whole pass is clean, and
+   each node is checked against today's tree, so a node put back closes it.
+4. **Claude's cost figure (b) included the nightly jobs.** At low volume, the
+   agents' fixed nightly spend alone read as "well above" 1¢. The spend is
+   kept by UTC day, while the episodes were counted over a rolling seven
+   days. Now (b) takes out the ledger's `background` agent spend (as (a)
+   always did), and all three figures run from the start of the first whole
+   UTC day (`since`).
+5. **`/api/health` read the incidents store** on the event loop, and on a
+   deployment where `pipeline_errors.db` existed it created the `incidents`
+   table even with the agents off. Now health reads `incidents.COUNTS`, set
+   by each round and each `/admin` read, and says when (`counted_at`). It
+   never opens a store.
+6. **The note "still happening after you said it was fixed" was lost** on
+   the next round's rewrite of the detail. `seen()` now keeps it while the
+   incident stays open, as it keeps a "Keith tried ..." line.
+7. **An error kind the owner said was fixed closed too soon.** Once it fell
+   below the floor that opens an incident, it closed at the next round, even
+   with new errors after the claim and before the 30-minute quiet. Each
+   kind's newest row in the hour is now kept from the round's read
+   (`ERRORS_LAST`). Any error since the claim keeps the incident open and
+   says so. None closes it only once `CLAIM_QUIET_SECONDS` have passed.
+8. **"I fixed it" stood on the hour's findings.** The agents' checks and the
+   usage readings are hourly, so the re-check believed what it had found
+   before the fix. Now `owner_fixed` re-polls the incident's own usage
+   service (`poll(only=...)`) and runs the agents' checks at once
+   (`findings(fresh=True)`), as §489 said it did.
+9. **C3P0's title check could blame titles that were not his.** It read
+   the newest episodes' titles, which can be the writer's or an admin's, and
+   put those titles (from listeners' questions) into the incident and the
+   email. Now each title C3P0 gives is kept as a step, `c3p0 title`:
+   `clean` or `result` by his own `has_result`, never the words. The check
+   counts those steps.
+
+The small ones:
+- `keith_fixes.act` did its store reads and writes on the event loop. They
+  now go to a thread, and so do `hold_agent`'s.
+- `/api/admin/incidents/fixed` validated the body before checking who was
+  asking. It now gives the 404 every admin route gives first.
+- `/api/health` carried `str(exc)` and each monitor's `why` (a provider's
+  own error text). Now it carries the type name only, and the `why` stays
+  on `/admin`.
+- `tandem_outcomes` read up to 50,000 steps of every kind.
+  `steps_since(step=...)` now filters in SQL.
+- Netenyahu's `_QUEUED_DAYS` grew by about 300 keys a day. It now keeps only
+  the current day's, hour's and periods' keys; the task store refuses a
+  repeat anyway.
+- `/admin/keith-alerts.js` is gated like `/admin` itself: served when an
+  admin is configured, holding no data. The data comes from
+  `/api/admin/incidents`, which checks who is asking. That was left as it
+  is, on purpose.
+
+Not merged: Main has moved on (#227) since this branch last took it in,
+and the owner said not to merge or open a pull request yet.

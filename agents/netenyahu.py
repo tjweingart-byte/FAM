@@ -412,6 +412,12 @@ def schedule(now: Optional[datetime.datetime] = None, handlers: Optional[dict] =
         local = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(
             ZoneInfo("America/New_York"))
         day = local.date().isoformat()
+        # Only the current day's, hour's and periods' keys are kept (§495):
+        # the set is a shortcut past the store, which refuses a repeat anyway.
+        current = {day, _hour_key(now)} | {
+            _period_key(getattr(settings, every, 300), now)
+            for _a, _k, _s, every in FREQUENT}
+        _QUEUED_DAYS.intersection_update({k for k in _QUEUED_DAYS if k[2] in current})
         for agent, kind, hour, switch in SCHEDULE:
             if (agent, kind) not in handlers or not getattr(settings, switch, False):
                 continue

@@ -1858,7 +1858,7 @@ pick from the list. After the shared preamble:
 | `IT_INCIDENT_ERRORS` | 3: one kind of error this many times in an hour opens an incident (built, §488) |
 | `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit (built, §483) |
 | `IT_BUDGETS` | The owner's monthly budget per service in dollars, `runpod=300,anthropic=200`; empty shows the spend with no share (built, §483) |
-| `IT_FIXES` | Empty: observe only, each fix that would apply written to the fix report as "would"; then a list of those switched on - `reverify_voice`, `rerun_job`, `hold_agent` (built, §490) |
+| `IT_FIXES` | Empty: observe only, each fix that would apply written to the fix report as "would"; then a list of those switched on - `reverify_voice`, `rerun_job` (once in the server's life, §495), `hold_agent` (built, §490) |
 | `IT_MODEL`, `IT_SUMMARY_MODEL` | `anthropic:claude-haiku-5-5` for incidents, `anthropic:claude-sonnet-5-5` for `/admin` summaries (decided 2026-10-30) |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |

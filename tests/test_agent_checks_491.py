@@ -124,15 +124,43 @@ class Cache:
         return [r for r in self.rows if r[0] > after][:limit]
 
 
-def test_a_c3p0_title_stating_a_result_is_a_breach(monkeypatch):
+def test_a_c3p0_title_stating_a_result_is_a_breach(monkeypatch, stores):
+    """Read from his own titles, kept as steps (§495), never the episode's
+    title - a writer's or an admin's is not his - and never the words."""
+    import time
+
+    now = time.time()                       # steps past 14 days go on write
     use(monkeypatch, agents=True, contextualizer=True, contextualizer_titles=True)
-    clean = Cache(["What the Fed is weighing this week", "How the Eagles' line held up"])
-    assert AC.c3p0_titles_carry_no_results(clean, NOW) == []
-    result = Cache(["Eagles beat Giants 24-17"])
-    [breach] = AC.c3p0_titles_carry_no_results(result, NOW)
+    PE.store().add([], steps=[{"at": now - 600, "step": "c3p0 title", "path": "search",
+                               "outcome": "clean", "seconds": None}])
+    assert AC.c3p0_titles_carry_no_results(now) == []
+    PE.store().add([], steps=[{"at": now - 500, "step": "c3p0 title", "path": "search",
+                               "outcome": "result", "seconds": None}])
+    [breach] = AC.c3p0_titles_carry_no_results(now)
     assert breach["cause"] == "breach:contextualizer:title-result"
+    assert "1 of C3P0's 2 titles" in breach["title"]
+    assert breach["detail"]["stated"] == 1 and "examples" not in breach["detail"]
     use(monkeypatch, agents=True, contextualizer=True, contextualizer_titles=False)
-    assert AC.c3p0_titles_carry_no_results(result, NOW) == []   # not his titles
+    assert AC.c3p0_titles_carry_no_results(now) == []          # not his titles
+
+
+def test_c3p0_s_title_is_kept_as_a_step_without_its_words(monkeypatch):
+    import script_generator as SG
+
+    use(monkeypatch, agents=True, contextualizer=True, contextualizer_titles=True)
+    seen = []
+    monkeypatch.setattr(SG, "_agent_runs", lambda notes, role: True)
+    monkeypatch.setattr(SG, "settings", dataclasses.replace(SG.settings,
+                                                            contextualizer_titles=True))
+    monkeypatch.setattr(SG.pipeline_errors, "step", lambda *a, **k: seen.append(a))
+
+    class Brief:
+        contextualized = {"title": "Eagles beat Giants 24-17"}
+
+    notes = SG.ScriptNotes()
+    SG._take_c3p0_title(notes, Brief())
+    assert notes.c3p0_title and seen and seen[0][0] == "c3p0 title"
+    assert seen[0][2] == "result" and "Eagles" not in repr(seen)
 
 
 # ----------------------------------------------------------------------- Nando
@@ -149,15 +177,22 @@ def test_a_node_nando_filed_under_that_the_tree_lacks_is_a_breach(monkeypatch):
 
 
 def test_nando_s_filings_are_read_a_page_at_a_time_and_come_round(monkeypatch):
+    """A breach stands until a whole pass is clean (§495): a clean page
+    between two bad ones never closes and reopens it."""
     import topics
 
     use(monkeypatch, agents=True, categorizer=True)
-    monkeypatch.setattr(topics, "category_tree", lambda: {"n": object()})
+    tree = {"n": object()}
+    monkeypatch.setattr(topics, "category_tree", lambda: tree)
     monkeypatch.setattr(AC, "SAMPLE", 2)
     cache = Cache(tagged=[("a", "n", 1, []), ("b", "n", 1, []), ("c", "gone", 1, [])])
-    assert AC.nando_nodes_exist(cache) == []                # a, b
-    assert causes(AC.nando_nodes_exist(cache)) == ["breach:categorizer:dead-node"]  # c
-    assert AC.nando_nodes_exist(cache) == []                # round again: a, b
+    assert AC.nando_nodes_exist(cache) == []                # a, b: nothing yet
+    dead = ["breach:categorizer:dead-node"]
+    assert causes(AC.nando_nodes_exist(cache)) == dead      # c: the pass ends
+    assert causes(AC.nando_nodes_exist(cache)) == dead      # a, b: still stands
+    assert causes(AC.nando_nodes_exist(cache)) == dead      # c again
+    tree["gone"] = object()                                 # the node is back
+    assert AC.nando_nodes_exist(cache) == []
 
 
 # ---------------------------------------------------------------- Shakespeare

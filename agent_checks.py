@@ -22,12 +22,13 @@ on a sample of what the agent left behind:
   and one of his results.
 * **C3P0's titles carry no results** (c3p0.md; [title-from-content]): while
   his titles are on (`CONTEXTUALIZER_TITLES`), the episode's title is his
-  (§375); a sample of the newest titles is read with his own `has_result`.
-  His inputs are not kept anywhere to sample; his code refuses them before
-  they leave (§370).
+  (§375); each title he gives is kept as a step, `clean` or `result` by his
+  own `has_result`, never the words (§495). His inputs are not kept
+  anywhere to sample; his code refuses them before they leave (§370).
 * **Nando's nodes exist** (nando.md): a page of his filed episodes
   names nodes the category tree holds: 200 filed episodes an hour, by key,
-  coming round again (the nightly tag check, §405, reads them all at night).
+  coming round again (the nightly tag check, §405, reads them all at night);
+  a breach stands until a whole pass is clean (§495).
 
 And what Phase 3 left Keith to watch:
 
@@ -158,33 +159,46 @@ def mclovin_names_his_failures(now: float) -> list:
     return []
 
 
-def c3p0_titles_carry_no_results(cache, now: float) -> list:
+def c3p0_titles_carry_no_results(now: float) -> list:
+    """C3P0's own titles over the last day (§495): kept as a step when he
+    gives one (`c3p0 title`: `clean` or `result`, never the words), so a
+    writer's or an admin's title is never blamed on him and no listener's
+    words reach an incident or an email."""
     s = _settings()
-    if cache is None or not (s.agents and getattr(s, "contextualizer", False)
-                             and getattr(s, "contextualizer_titles", False)):
+    if not (s.agents and getattr(s, "contextualizer", False)
+            and getattr(s, "contextualizer_titles", False)):
         return []
-    from agents import contextualizer
+    import pipeline_errors as PE
 
     try:
-        rows = cache.recent(limit=SAMPLE)
+        if not PE.exists():
+            return []
+        PE.flush()
+        rows = PE.store().steps_since(now - 86400, step="c3p0 title")
     except Exception as exc:  # noqa: BLE001
-        log.warning("could not read the newest episodes: %s", exc)
+        log.warning("could not read C3P0's titles: %s", exc)
         return []
-    found = [r.get("title", "") for r in rows
-             if r.get("title") and contextualizer.has_result(r["title"])]
-    if found:
+    stated = sum(1 for r in rows if r["outcome"] == "result")
+    if stated:
         return [_breach("contextualizer", "title-result",
-                        f"{len(found)} of the newest titles state a result",
-                        "While C3P0's titles are on, the episode's title is his; "
-                        "these state an outcome, which a title never does "
-                        f"([title-from-content]): {'; '.join(found[:3])}.",
-                        examples=found[:10])]
+                        f"{stated} of C3P0's {len(rows)} titles today state a result",
+                        "While his titles are on, the episode's title is his; "
+                        f"{stated} he gave in the last day state an outcome, which "
+                        "a title never does ([title-from-content]). The titles "
+                        "themselves are not kept here: they come from listeners' "
+                        "questions.", titles=len(rows), stated=stated)]
     return []
 
 
-#: Where the last page of Nando's filings ended: each round reads the next
-#: `SAMPLE`, by key, and comes round again (as the nightly check does).
-_NANDO_AFTER: list = [""]
+#: Nando's pages (§495): where the last page ended, the nodes seen so far in
+#: this pass, and those of the last whole pass. A breach stands until a
+#: whole pass is clean, so a clean page between two bad ones never closes
+#: and reopens it.
+_NANDO: dict = {"after": "", "seen": set(), "last_pass": set()}
+
+
+def _nando_pass_ended() -> None:
+    _NANDO.update(after="", last_pass=set(_NANDO["seen"]), seen=set())
 
 
 def nando_nodes_exist(cache) -> list:
@@ -196,18 +210,22 @@ def nando_nodes_exist(cache) -> list:
         import topics
 
         tree = topics.category_tree()
-        rows = cache.tagged(after=_NANDO_AFTER[0], limit=SAMPLE)
-        if not rows and _NANDO_AFTER[0]:
-            _NANDO_AFTER[0] = ""
+        rows = cache.tagged(after=_NANDO["after"], limit=SAMPLE)
+        if not rows and _NANDO["after"]:
+            _nando_pass_ended()
             rows = cache.tagged(after="", limit=SAMPLE)
     except Exception as exc:  # noqa: BLE001
         log.warning("could not read Nando's filings: %s", exc)
         return []
     if tree is None or not rows:
         return []
-    _NANDO_AFTER[0] = rows[-1][0]
-    dead = sorted({str(node) for _key, node, *_rest in rows
-                   if node and tree.get(node) is None})
+    _NANDO["seen"] |= {str(node) for _key, node, *_rest in rows if node}
+    _NANDO["after"] = rows[-1][0]
+    if len(rows) < SAMPLE:
+        _nando_pass_ended()
+    # Every node seen in this pass and the last, against today's tree: a node
+    # put back closes the breach on the next round.
+    dead = sorted(n for n in _NANDO["seen"] | _NANDO["last_pass"] if tree.get(n) is None)
     if dead:
         return [_breach("categorizer", "dead-node",
                         f"{len(dead)} node(s) Nando filed episodes under are not in the tree",
@@ -279,8 +297,7 @@ def tandem_outcomes(now: float) -> tuple[list, dict]:
         if not PE.exists():
             return [], {}
         PE.flush()
-        rows = [r for r in PE.store().steps_since(now - 8 * 86400)
-                if r["step"] == "editor tandem"]
+        rows = PE.store().steps_since(now - 8 * 86400, step="editor tandem")
     except Exception as exc:  # noqa: BLE001
         log.warning("could not read Shakespeare's tandem: %s", exc)
         return [], {}
@@ -349,7 +366,7 @@ def findings(now: Optional[float] = None, force: bool = False) -> list:
     out: list = []
     for check in (sonic_never_writes, consuela_keeps_grace,
                   lambda: mclovin_names_his_failures(now),
-                  lambda: c3p0_titles_carry_no_results(CACHE[0], now),
+                  lambda: c3p0_titles_carry_no_results(now),
                   lambda: nando_nodes_exist(CACHE[0]),
                   lambda: mclovin_unchecked(now)[0],
                   lambda: tandem_outcomes(now)[0]):
@@ -374,4 +391,4 @@ def report(now: Optional[float] = None) -> dict:
 def reset() -> None:
     _LAST.update(at=0.0, findings=[])
     CACHE[0] = None
-    _NANDO_AFTER[0] = ""
+    _NANDO.update(after="", seen=set(), last_pass=set())
