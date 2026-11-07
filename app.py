@@ -993,8 +993,11 @@ ATTACHMENTS = attachments_mod.AttachmentStore()
 DEMO_MODE = not settings.anthropic_api_key
 
 
-def _wake_remote_voice() -> None:
+def _wake_remote_voice(force: bool = False) -> None:
     """Fire-and-forget: start a remote GPU booting, if one is configured.
+
+    `force` is for an episode about to be written (§497): its wake is never
+    throttled by the open's, which may have been lost or already idled away.
 
     Deliberately not awaited. The wake is worth several seconds when it lands
     and must be worth zero when it does not, so nothing here may raise, block,
@@ -1006,7 +1009,8 @@ def _wake_remote_voice() -> None:
     try:
         import remote_voice
 
-        task = asyncio.create_task(remote_voice.RemoteChatterboxEngine.wake())
+        task = asyncio.create_task(
+            remote_voice.RemoteChatterboxEngine.wake(force=force))
         # Held so the loop cannot garbage-collect a running task, and dropped
         # the moment it finishes.
         _WAKES.add(task)
@@ -10356,8 +10360,24 @@ async def progress(
     try:
         pipeline = _make_pipeline()
     except TTSUnavailable:
-        return live_captions.read_progress("")
-    return await pipeline.progress_for(plan)
+        return dict(live_captions.read_progress(""), voice_wait=_voice_wait())
+    return dict(await pipeline.progress_for(plan), voice_wait=_voice_wait())
+
+
+def _voice_wait() -> float | None:
+    """How long the voice may take to answer, in seconds, or None (§497).
+
+    The loading screen's own limit used to be a flat 45 s from the tap, and a
+    cold serverless worker alone takes longer than that (73 s measured on
+    10.27): the app gave up on episodes the server was still making. A
+    responsive server now tells it how long its voice is allowed, and the
+    interface waits that long once the script is handed over - the number is
+    `REMOTE_VOICE_TIMEOUT`, read here, never copied into the page. None for a
+    voice on this machine, which has no cold start to wait out.
+    """
+    if settings.voice_backend != "remote":
+        return None
+    return float(settings.remote_voice_timeout)
 
 
 @app.get("/api/next")
@@ -10610,7 +10630,7 @@ async def audio(
     # out of the database, and a GPU booted for it is a bill for nothing.
     stored = getattr(pipeline, "has_stored_audio", None)
     if stored is None or not await stored(plan):
-        _wake_remote_voice()
+        _wake_remote_voice(force=True)
     elif fmt == "pcm" and not link_failed:
         # A replay sent through this server as PCM (§294): every byte of
         # it is Render bandwidth. Counted beside the links, so health says

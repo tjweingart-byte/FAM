@@ -488,3 +488,4 @@ and `limit` = Lines.
 | 31000 | 35 | 494. Phase 4, item 6 built: Keith's figures on /admin, as the owner approved them (2026-11-06) |
 | 31035 | 85 | 495. Phase 4, the second review of the whole branch: Keith's alerts open, stay and close as they say (2026-11-06) |
 | 31120 | 48 | 496. Phase 4, the third review: a claimed error kind no longer reopens itself, and an unread check is not a clean one (2026-11-06) |
+| 31168 | 53 | 497. Episodes stuck at "Generating the audio": the app gave up before a cold voice could answer (2026-11-07) |

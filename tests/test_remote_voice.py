@@ -328,7 +328,7 @@ def test_the_request_carries_the_contract(monkeypatch):
     client = install(monkeypatch, completed())
     speak()
     sent = client.posts[0]
-    assert sent["url"] == "https://api.runpod.ai/v2/endpoint-1/runsync"
+    assert sent["url"] == "https://api.runpod.ai/v2/endpoint-1/runsync?wait=15000"
     assert sent["json"]["input"]["text"] == "Hello there."
     assert sent["json"]["input"]["format"] == "pcm_s16le"
     assert sent["json"]["input"]["sample_rate"] == 24000

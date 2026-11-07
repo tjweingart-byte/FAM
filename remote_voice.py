@@ -104,6 +104,14 @@ WIRE_FORMAT = "pcm_s16le"
 #: envelope, not an engine.
 TRANSPORTS = ("runpod", "http")
 
+#: How long `/runsync` may hold one chunk before it hands back a job id
+#: (RunPod's `?wait=`, in milliseconds; its own default is 90 s). A warm
+#: worker answers a chunk in a second or two, well inside this, so the happy
+#: path is unchanged. A cold one used to sit inside that single request for a
+#: minute and a half with no id in hand, so a listener who gave up left a job
+#: nobody could cancel (§497). Past this the job is polled, and is cancellable.
+RUNSYNC_WAIT_MS = 15000
+
 #: The route `voice_worker/server.py` serves the contract on, and the only part
 #: of the URL this side invents. `REMOTE_VOICE_URL` is the pod's *base* URL.
 SYNTH_ROUTE = "/synth"
@@ -317,6 +325,8 @@ class RemoteChatterboxEngine(TTSEngine):
     #: wake for exactly the first minute of a container's life, which is
     #: the cold start it exists to hide.
     _woken_at: float = float("-inf")
+    #: Cancels in flight, held so the loop cannot collect one mid-request.
+    _cancels: set = set()
     #: A route the worker named itself, kept as (base url, route) so a
     #: reconfigured endpoint is not answered with the old one's answer.
     _found_route: tuple[str, str] | None = None
@@ -561,7 +571,7 @@ class RemoteChatterboxEngine(TTSEngine):
         client = self._http(config)
         url = url or config.url
         token = token or config.api_key
-        response = await client.post(f"{url}/runsync",
+        response = await client.post(f"{url}/runsync?wait={RUNSYNC_WAIT_MS}",
                                      json={"input": payload},
                                      headers=self._headers(token))
         body = self._decode_json(response, "runsync")
@@ -570,34 +580,71 @@ class RemoteChatterboxEngine(TTSEngine):
         # minute or more, and four status requests a second for all of it
         # bought nothing a listener could hear.
         pause = 0.25
-        while True:
-            status = str(body.get("status", "")).upper()
-            if status == "COMPLETED":
-                output = body.get("output")
-                if not isinstance(output, dict):
+        job_id = ""
+        try:
+            while True:
+                status = str(body.get("status", "")).upper()
+                if status == "COMPLETED":
+                    output = body.get("output")
+                    if not isinstance(output, dict):
+                        raise RemoteVoiceError(
+                            "RunPod reported COMPLETED with no output object; "
+                            "the worker returned "
+                            f"{type(output).__name__}. Check the endpoint's logs.")
+                    return output
+                if status in ("FAILED", "CANCELLED", "TIMED_OUT"):
                     raise RemoteVoiceError(
-                        "RunPod reported COMPLETED with no output object; the "
-                        "worker returned "
-                        f"{type(output).__name__}. Check the endpoint's logs.")
-                return output
-            if status in ("FAILED", "CANCELLED", "TIMED_OUT"):
-                raise RemoteVoiceError(
-                    f"RunPod job {status}: {body.get('error') or 'no reason given'}")
-            job_id = body.get("id")
-            if not job_id:
-                raise RemoteVoiceError(
-                    f"RunPod answered {status or 'nothing'} with no job id: "
-                    f"{str(body)[:300]}")
-            if time.monotonic() >= deadline:
-                raise RemoteVoiceError(
-                    f"RunPod job {job_id} was still {status} after "
-                    f"{config.timeout:.0f}s. A cold worker can exceed this - "
-                    "raise REMOTE_VOICE_TIMEOUT, or keep a worker warm.")
-            await asyncio.sleep(pause)
-            pause = min(1.0, pause * 1.5)
-            polled = await client.get(f"{url}/status/{job_id}",
-                                      headers=self._headers(token))
-            body = self._decode_json(polled, f"status/{job_id}")
+                        f"RunPod job {status}: "
+                        f"{body.get('error') or 'no reason given'}")
+                job_id = str(body.get("id") or "")
+                if not job_id:
+                    raise RemoteVoiceError(
+                        f"RunPod answered {status or 'nothing'} with no job id: "
+                        f"{str(body)[:300]}")
+                if time.monotonic() >= deadline:
+                    self._cancel_later(client, url, token, job_id)
+                    raise RemoteVoiceError(
+                        f"RunPod job {job_id} was still {status} after "
+                        f"{config.timeout:.0f}s. A cold worker can exceed this - "
+                        "raise REMOTE_VOICE_TIMEOUT, or keep a worker warm.")
+                await asyncio.sleep(pause)
+                pause = min(1.0, pause * 1.5)
+                polled = await client.get(f"{url}/status/{job_id}",
+                                          headers=self._headers(token))
+                body = self._decode_json(polled, f"status/{job_id}")
+        except asyncio.CancelledError:
+            # Nobody will hear this chunk: the listener left, or the episode
+            # was closed early. A queued job would otherwise still run when a
+            # worker boots - billed, and in front of whatever the listener
+            # asks for next (§497).
+            if job_id:
+                self._cancel_later(client, url, token, job_id)
+            raise
+
+    @classmethod
+    def _cancel_later(cls, client, url: str, token: str, job_id: str) -> None:
+        """Ask RunPod to drop a job, without waiting for the answer.
+
+        Fired from a cancellation, so it must not be awaited there; and it is a
+        courtesy to the queue, so it never raises. A job that finished in the
+        meantime is simply not cancelled.
+        """
+        async def cancel() -> None:
+            try:
+                await client.post(f"{url}/cancel/{job_id}", json={},
+                                  headers=cls._headers(token), timeout=5.0)
+                log.info("remote voice: cancelled RunPod job %s nobody will hear",
+                         job_id)
+            except Exception as exc:  # noqa: BLE001 - a courtesy, never a cost
+                log.debug("remote voice: could not cancel job %s (%s)",
+                          job_id, type(exc).__name__)
+
+        try:
+            task = asyncio.get_running_loop().create_task(cancel())
+        except RuntimeError:  # pragma: no cover - no loop to run it on
+            return
+        cls._cancels.add(task)
+        task.add_done_callback(cls._cancels.discard)
 
     async def _call_http(self, payload: dict, config: RemoteConfig,
                          url: str = "", token: str = "") -> dict:
@@ -940,19 +987,23 @@ class RemoteChatterboxEngine(TTSEngine):
     # -- the cold start ----------------------------------------------------
 
     @classmethod
-    async def wake(cls) -> None:
+    async def wake(cls, force: bool = False) -> None:
         """Ask for a worker now, so one exists by the time there is audio to make.
 
-        Fired when a request arrives, alongside script generation rather than
-        in front of it. Never raises and never blocks: a failed wake costs the
-        cold start it was trying to hide and nothing else, so it must not be
-        able to cost an episode.
+        Fired when the app opens or returns (throttled by
+        `REMOTE_VOICE_WAKE_INTERVAL`), and with `force` when an episode is
+        about to be written (§497). The episode's wake is never throttled: the
+        open's wake may have been lost, or its worker may already have idled
+        away, and on a warm worker the empty job costs a fraction of a second
+        and restarts its idle clock. Never raises and never blocks: a failed
+        wake costs the cold start it was trying to hide and nothing else, so
+        it must not be able to cost an episode.
         """
         config = cls.config()
         if config.problem() or config.transport != "runpod":
             return  # nothing to wake: an always-on pod is already up
         now = time.monotonic()
-        if now - cls._woken_at < settings.remote_voice_wake_interval:
+        if not force and now - cls._woken_at < settings.remote_voice_wake_interval:
             return  # already asked recently; another job would just queue
         cls._woken_at = now
         try:
