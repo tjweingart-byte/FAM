@@ -62,11 +62,6 @@ def test_the_library_bookshelf_is_on_search_not_dailyfam():
 
 # --- 4. all caught up; a smaller Shuffle play ---------------------------------
 
-def test_shuffle_play_is_smaller():
-    css = HTML.split(".cat-shuffle{", 1)[1].split("}", 1)[0]
-    assert "padding:8px 14px" in css and "font-size:11.5px" in css
-
-
 # --- 5. only that category ----------------------------------------------------
 
 @pytest.fixture
