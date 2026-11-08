@@ -157,6 +157,12 @@ def test_a_category_still_walks_its_own_branch_first(tree):
 
 # --- 5. All on exploreFAM -------------------------------------------------------
 
+def test_all_is_still_a_feed_the_server_deals():
+    # The page's dropdown went with exploreFAM (the 11.3 packet); an
+    # installed client still asks for the "all" feed.
+    assert "all" in appmod.EXPLORE_FEEDS
+
+
 class _Cache:
     def __init__(self, rows):
         self.rows = rows

@@ -226,3 +226,28 @@ def test_trending_and_its_view_more_drop_a_waved_off_story_too():
         assert "waved_off = (not_wanted(universe, store.not_interested(user_id))" in src
         assert "world_live = [t for t in world_live if t.id not in waved_off]" in src
         assert "world_held = [t for t in world_held if t.id not in waved_off]" in src
+
+
+def test_a_waved_off_crowd_tile_stays_gone():
+    """A Most played / missed / friends tile is an `episode_tile`, never in
+    the universe of known tiles: its recorded id must still be excluded."""
+    tile = T.episode_tile("why tides turn")
+    assert tile.id in T.not_wanted([], [(tile.id, "why tides turn")])
+
+
+def test_the_post_episode_grid_skips_a_waved_off_tile(store):
+    first = T.rank_next_up(store, "u")
+    assert first
+    target = first[0].id
+    store.record(T.Event("u", T.NOT_INTERESTED, target, "", ()))
+    assert target not in [t.id for t in T.rank_next_up(store, "u")]
+
+
+def test_see_all_forgets_a_waved_off_tile():
+    act = _fn("tileNotInterested")
+    assert "railTiles[k] = (railTiles[k] || []).filter(" in act
+
+
+def test_an_android_long_press_opens_the_sheet_once():
+    hold = _fn("armVibeHolds")
+    assert "if(!opened) openVibeTileMenu(" in hold

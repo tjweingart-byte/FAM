@@ -9283,6 +9283,10 @@
     var tile = myFamTopics[topicId];
     if(!tile) return;
     recordFamEvent("not_interested", topicId, tile.query || tile.title || "");
+    // Out of the rails' memory too, or "See all" draws it again from there.
+    Object.keys(railTiles).forEach(function(k){
+      railTiles[k] = (railTiles[k] || []).filter(function(t){ return t.id !== topicId; });
+    });
     Array.prototype.forEach.call(
       document.querySelectorAll('[data-topic="' + (window.CSS && CSS.escape ? CSS.escape(topicId) : topicId) + '"]'),
       function(el){ el.remove(); });
@@ -15874,9 +15878,14 @@
         if(held){ held = false; e.preventDefault(); e.stopImmediatePropagation(); }
       }, true);
       // A right-click on a computer is the same question.
+      // On Android a long press fires this as well: the hold already
+      // opened the sheet, so it is not opened twice, and the click that may
+      // follow is still swallowed.
       tile.addEventListener("contextmenu", function(e){
-        e.preventDefault(); cancel(); held = false;
-        openVibeTileMenu(+tile.getAttribute("data-hold"));
+        e.preventDefault();
+        var opened = held;
+        cancel(); held = true;
+        if(!opened) openVibeTileMenu(+tile.getAttribute("data-hold"));
       });
     });
   }

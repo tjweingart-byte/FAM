@@ -3633,7 +3633,12 @@ def not_wanted(universe: Iterable["Topic"],
     """The ids of every tile in `universe` this listener said "not
     interested" to (11.3 #2): by tile id, or by its question, so the same
     episode offered under another tile is gone too. Excluded from every
-    rail exactly as a repeat is."""
+    rail exactly as a repeat is.
+
+    The recorded ids are always in the answer, whether or not the tile is in
+    `universe`: a crowd rail's tile (`ep-…`, from `episode_tile`) is never in
+    it, and leaving its id out let a waved-off Most played tile come back on
+    the next load. `repeats` starts from every heard id for the same reason."""
     ids: set[str] = set()
     questions: set[str] = set()
     for topic_id, text in rows:
@@ -3644,8 +3649,8 @@ def not_wanted(universe: Iterable["Topic"],
             questions.add(question)
     if not ids and not questions:
         return set()
-    return {t.id for t in universe
-            if t.id in ids or _norm_question(t.query) in questions}
+    return ids | {t.id for t in universe
+                  if t.id in ids or _norm_question(t.query) in questions}
 
 
 def answer_moves(topic: "Topic") -> bool:
@@ -6253,7 +6258,12 @@ def rank_next_up(
     )
     mine = _played_ids(events)
     damp = fatigue(store.impression_occasions(user_id), mine) if user_id else {}
-    exclude = set(mine) | ({after_id} if after_id else set())
+    # Nor a tile they said "not interested" to (11.3 #2): this grid starts
+    # its first pick by itself in fifteen seconds. Kept apart so the last
+    # resort below, which drops the played rule, does not drop this one.
+    waved_off = ({tid for tid, _ in store.not_interested(user_id) if tid}
+                 if user_id else set())
+    exclude = set(mine) | waved_off | ({after_id} if after_id else set())
 
     picks: list[Topic] = []
     taken = set(exclude)
@@ -6294,7 +6304,8 @@ def rank_next_up(
     # A grid of three is the honest shortfall; a fourth tile from an
     # inventory this listener is not shown is not.
     if len(picks) < size:
-        taken = {t.id for t in picks} | ({after_id} if after_id else set())
+        taken = ({t.id for t in picks} | waved_off
+                 | ({after_id} if after_id else set()))
         add(inventory)
     return picks[:size]
 

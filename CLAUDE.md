@@ -221,7 +221,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   field; variety never gives way (≤2 per heading, capped top-up); no
   minor-league game from another continent unless followed; market moves on
   any money taste; ranks every held story. Weights (§202): search 1.5, play 1,
-  finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2. [mfy-field-variety]
+  finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2,
+  not interested -1.5 (§498). [mfy-field-variety]
 - **Taste is a subject tree** (§202): the most specific subject takes the
   whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
   teams seeded under their leagues, never one whose name is also an everyday
@@ -230,8 +231,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   `INTEREST_WEIGHT` (2.0), never decayed or lowered by a skip; facets and
   named subjects both count. [interests-constant]
 - **"Not interested" only in a tile's ⋯** (§498, reversing §171 there):
-  `not_interested` (-1.5) keeps that tile off your rails; no card button;
-  `hide` stays retired. [no-not-interested]
+  `not_interested` (-1.5) keeps that tile off every rail, Trending and the
+  post-episode grid; no card button; `hide` stays retired. [no-not-interested]
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
   length once the player has it, else the minutes) and finished episodes'
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]

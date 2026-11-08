@@ -628,6 +628,18 @@ def test_a_page_of_counts_matches_one_episode_at_a_time(tmp_path):
         assert many[(q, m)] == s.episode_counts(q, m, "a"), (q, m)
 
 
+def test_a_thumb_does_not_zero_the_play_count(client):
+    # The server half, kept for installed clients: the reel that sent the
+    # thumb went with exploreFAM (the 11.3 packet).
+    appmod.SCRIPT_CACHE.put("k1", ["A sentence."], 600, "why volcanoes erupt",
+                            "", 3, origin="search")
+    appmod.SCRIPT_CACHE.record_play("k1")
+    body = client.post("/api/rate", json={"query": "why volcanoes erupt",
+                                          "minutes": 3, "value": 1,
+                                          "key": "k1"}).json()
+    assert body["plays"] == 1
+
+
 def test_a_friends_mix_does_not_take_over_a_running_playlist():
     # A friend's mix is a tile that opens it since §345; the row's own play
     # button (`playPersonMix`) went with the row.

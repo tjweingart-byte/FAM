@@ -31304,3 +31304,25 @@ Tests: `tests/test_packet_1103.py`; the explore-only tests across ten files
 were removed or turned into "it is gone" checks (`test_explorefam_is_gone_from_the_app`);
 the browser smoke run lost its five reel checks and gained "Not interested
 takes a tile off the page".
+
+**Double-checked (the owner asked for a review of the whole branch).** An
+independent review of the diff, plus my own pass, found five gaps in #3 and
+#2, all fixed with tests:
+- A waved-off **crowd** tile (Most played, What you missed, friends) came
+  back on the next load: those are `episode_tile`s (`ep-…`), never in the
+  universe `not_wanted` matched against. It now always returns the recorded
+  ids, as `repeats` starts from every heard id.
+- **Trending** never saw the choice, though its cards carry the same ⋯; it
+  now drops the waved-off story for that listener, in the rail and its View
+  more - the same personal exception as a heard story (§136), recorded at
+  `trending-floor` and `op-myfam`.
+- **Made for you's "See all"** drew the tile again from the client's
+  `railTiles`; `tileNotInterested` now forgets it there.
+- **The post-episode grid**, which starts its first tile by itself, ignored
+  the choice; `rank_next_up` excludes it, its last-resort fill included.
+- A second **category** tap queued the page again on top of the first
+  batch; a category play now replaces its own earlier entries
+  (`fromCategory`), leaving what the listener queued.
+Also: an Android long press fires `contextmenu` too, which opened the vibe
+sheet twice; and two server halves of deleted Explore tests (`/api/rate`'s
+play count, the "all" feed) were put back, since the server keeps both.
