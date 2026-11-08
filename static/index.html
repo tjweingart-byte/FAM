@@ -11674,7 +11674,8 @@
     return { title: ep.title || ep.query, prompt: ep.query,
              minutes: ep.minutes || BROWSE_MINUTES,
              source: categoryLabelOf(catPage.node) || "Category", surface: "",
-             cachedOnly: true, thumb: ep.thumb || "", titleOverridden: true };
+             cachedOnly: true, thumb: ep.thumb || "", titleOverridden: true,
+             fromCategory: true };
   }
   function playCategoryList(list){
     if(!list.length) return;
@@ -11684,6 +11685,9 @@
                             cachedOnly: true, exploreMinutes: first.minutes || BROWSE_MINUTES,
                             titleOverridden: true };
     generate("_category");
+    // A second tap replaces what the first queued rather than piling the
+    // page on again; anything the listener queued themselves stays.
+    for(var i = QUEUE.length - 1; i >= 0; i--){ if(QUEUE[i].fromCategory) QUEUE.splice(i, 1); }
     list.slice(1).forEach(function(ep){ QUEUE.push(categoryQueueEntry(ep)); });
     drawMixSkip(!!mixPlay);
   }

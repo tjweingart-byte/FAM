@@ -208,3 +208,21 @@ def test_made_for_you_has_the_whole_width():
     # The exploreFAM pill beside it squeezed "Made for you, Saturday
     # afternoon" to a word a line at a larger text size.
     assert "feed-head-row" not in _fn("renderMyFamFeed")
+
+
+def test_a_second_category_tap_replaces_what_the_first_queued():
+    listed = _fn("playCategoryList")
+    assert "if(QUEUE[i].fromCategory) QUEUE.splice(i, 1);" in listed
+    assert listed.index("QUEUE.splice") < listed.index("QUEUE.push")
+    assert "fromCategory: true" in _fn("categoryQueueEntry")
+
+
+def test_trending_and_its_view_more_drop_a_waved_off_story_too():
+    """Trending ranks only on the world, but like a heard story (§136) a
+    story the listener waved off is not offered back to them there."""
+    import inspect
+    for fn in (T.build_feed, T.build_section):
+        src = inspect.getsource(fn)
+        assert "waved_off = (not_wanted(universe, store.not_interested(user_id))" in src
+        assert "world_live = [t for t in world_live if t.id not in waved_off]" in src
+        assert "world_held = [t for t in world_held if t.id not in waved_off]" in src

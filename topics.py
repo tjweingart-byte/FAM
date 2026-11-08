@@ -4840,8 +4840,9 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
     # And every tile they said "not interested" to (11.3 #2), the same way.
-    if user_id:
-        mine = set(mine) | not_wanted(universe, store.not_interested(user_id))
+    waved_off = (not_wanted(universe, store.not_interested(user_id))
+                 if user_id else set())
+    mine = set(mine) | waved_off
     # What this listener has actually said, for `rank_from_history`'s broad
     # match check. Read once for the page, like the fatigue table, and off
     # the events already in hand.
@@ -4896,6 +4897,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # direction): it comes back as a follow-up if the story has moved on, or
     # the next trending story takes its place. See `trending_for`.
     world_live, world_held = world_inventory(live, live_held, heard, now)
+    # Not even Trending offers back a story they waved off (11.3 #2): the
+    # same personal exception as a heard story above, and nothing more of
+    # them reaches the world row's order.
+    world_live = [t for t in world_live if t.id not in waved_off]
+    world_held = [t for t in world_held if t.id not in waved_off]
     world_first = rank_world(world_live, country, world_held)
     # A follow-up's story is reserved as well, so no personal rail offers the
     # original beside the "what's new" episode about it.
@@ -5284,8 +5290,9 @@ def build_section(store: EventStore, user_id: str, key: str,
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
     # And every tile they said "not interested" to (11.3 #2), the same way.
-    if user_id:
-        mine = set(mine) | not_wanted(universe, store.not_interested(user_id))
+    waved_off = (not_wanted(universe, store.not_interested(user_id))
+                 if user_id else set())
+    mine = set(mine) | waved_off
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because
@@ -5333,6 +5340,8 @@ def build_section(store: EventStore, user_id: str, key: str,
         # played (§134). Grouped by where each story is trending (§135): the
         # screen is the whole of Trending, worldwide and region by region.
         world_live, world_held = world_inventory(live, live_held, heard, now)
+        world_live = [t for t in world_live if t.id not in waved_off]
+        world_held = [t for t in world_held if t.id not in waved_off]
         groups = trending_groups(world_live, country, world_held)
         picks = [t for g in groups for t in g["topics"]][:limit]
     else:
