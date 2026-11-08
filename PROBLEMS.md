@@ -31164,3 +31164,56 @@ Left as they are, on purpose:
 - A re-run loop that dies after its minute's check keeps "verified" in its
   plan. It is never retried (`RERUN_ONCE`), and the fix report shows the
   check's time.
+
+## 497. Episodes stuck at "Generating the audio": the app gave up before a cold voice could answer (2026-11-07)
+
+Reported by testers (11.06): a search checks off four steps, sits on
+"Generating the audio", then says "That is taking longer than expected. Is
+the server running?" - two or three times in a row.
+
+**Why.** The loading screen gave up a flat 45 s after the tap
+(`generate()`), covering the brief, retrieval, the writer *and* the first
+audio. A cold serverless worker alone takes 73 s (measured 10.27, §329), and
+the server waits for it up to `REMOTE_VOICE_TIMEOUT` (180 s). So whenever the
+worker was cold, the phone abandoned an episode the server was still making.
+The app-open wake (§329) did not cover it: a listener who opens the app and
+searches at once reaches the voice ~25 s after the wake, with the worker
+still ~50 s from ready - and that search's own wake was suppressed by
+`REMOTE_VOICE_WAKE_INTERVAL` because the open's had gone out under a minute
+before. And a chunk waiting on a cold worker sat inside one `/runsync` call
+for RunPod's default 90 s with no job id in hand, so when the listener left
+nothing could cancel it: it ran (billed) when the worker booted, in front of
+the retry.
+
+**Now:**
+
+1. **The page waits for the voice, not a flat 45 s.** 45 s is how long the
+   server may say *nothing* (`GEN_QUIET_MS`); every step `/api/progress`
+   checks off starts it again. `/api/progress` now carries `voice_wait`
+   (`REMOTE_VOICE_TIMEOUT` when the voice is remote, else null, read in
+   `app._voice_wait`, never copied into the page); once the script is handed
+   to the voice the page waits that long plus `GEN_VOICE_MARGIN_MS`. A poll
+   answered by a process not making the episode (`known: false`) gets the
+   same allowance from the tap. A server that never answers still fails at
+   45 s with the old sentence; a voice that overruns its own limit says
+   "The voice is taking longer than expected to start". The five steps and
+   their floors are unchanged - the wait is still honest, only longer when
+   the voice is cold.
+2. **Every episode wakes the voice.** `/api/audio`'s wake is
+   `wake(force=True)`: never throttled by the open's, which may have been
+   lost or already idled away; on a warm worker the empty job costs a
+   fraction of a second and restarts its idle clock. The open and
+   foreground wakes stay throttled.
+3. **Audio nobody will hear is cancelled.** `/runsync?wait=15000`
+   (`RUNSYNC_WAIT_MS`): a warm chunk still answers inside the call, a cold
+   one hands back its id after 15 s and is polled. A chunk cancelled while
+   polling (the listener left, the episode closed early) or past
+   `REMOTE_VOICE_TIMEOUT` is sent `POST /cancel/{id}`, fire-and-forget,
+   never raising (`_cancel_later`).
+
+**Not changed, and why the cold start still exists.** Active workers stay
+at 0 until launch (the owner: not enough traffic yet). The console checks
+that decide how often a listener meets a cold worker - idle timeout, GPU
+supply in the network volume's data center, builds - are in
+REMOTE_VOICE.md, "When episodes stall at Generating the audio".
+`tests/test_voice_wait_497.py`.

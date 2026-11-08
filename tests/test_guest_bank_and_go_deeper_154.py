@@ -83,7 +83,7 @@ def test_a_guest_view_more_is_the_bank(client):
 
 def test_a_guest_bank_tap_with_nothing_kept_is_refused_before_any_cost(client, monkeypatch):
     woke: list = []
-    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda **_: woke.append(1))
     topic = T.BANK_BY_ID["fed-next-move"]
     r = client.get("/api/audio", params={"q": topic.query, "minutes": 2, "fmt": "pcm",
                                          "surface": "myfam", "topic_id": topic.id})
@@ -125,7 +125,7 @@ def test_a_kept_episode_plays_for_a_guest(client, monkeypatch):
         return True
 
     monkeypatch.setattr(PodcastPipeline, "has_stored_audio", kept)
-    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: None)
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda **_: None)
     topic = T.BANK_BY_ID["sleep-science"]
     r = client.get("/api/audio", params={"q": topic.query, "minutes": 2, "fmt": "pcm",
                                          "surface": "myfam", "topic_id": topic.id})
@@ -228,7 +228,7 @@ def test_opening_the_app_wakes_the_voice_for_an_account_only(client, monkeypatch
     with the audio request hides nothing: it is sent from `/api/auth/me`,
     which the app asks first on every open. A guest plays kept audio only."""
     woke: list = []
-    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda **_: woke.append(1))
     client.get("/api/auth/me")
     assert woke == [], "a guest's open woke the GPU"
     signed_in(client, "wake-on-open@example.com")
@@ -241,7 +241,7 @@ def test_returning_to_the_app_wakes_the_voice_for_an_account_only(client, monkey
     """A phone that kept the app in the background never asks `/api/auth/me`
     again, so a return to the foreground asks `/api/voice/wake`."""
     woke: list = []
-    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda **_: woke.append(1))
     r = client.post("/api/voice/wake")
     assert r.status_code == 200 and r.json() == {"woke": False}
     assert woke == []
@@ -257,7 +257,7 @@ def test_a_waitlisted_account_never_wakes_the_voice(monkeypatch):
     import accounts
 
     woke: list = []
-    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda **_: woke.append(1))
     waiting = accounts.Listener(user_id="u1", email="w@example.com",
                                 has_account=True, status="waitlisted")
     active = accounts.Listener(user_id="u2", email="a@example.com",

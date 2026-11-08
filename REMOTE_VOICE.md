@@ -564,6 +564,47 @@ If measurement says the wake is not covering it, in order of preference:
 3. **Switch to `REMOTE_VOICE_TRANSPORT=http`.** At that point you are paying
    for an always-on card and should compare against `Dockerfile.gpu` directly.
 
+Since §497 the app waits for a cold worker instead of giving up at 45 s: once
+the script is handed over it waits `REMOTE_VOICE_TIMEOUT` (from
+`/api/progress`'s `voice_wait`). Every episode request sends its own wake, and
+a chunk nobody will hear is cancelled (`/cancel/{id}`), so an abandoned
+attempt no longer runs in front of the retry.
+
+### When episodes stall at "Generating the audio"
+
+What to check in the RunPod console (runpod.io → **Serverless** → the FAM
+voice endpoint), in this order:
+
+1. **Idle timeout.** Endpoint → **Manage** → **Edit Endpoint** → *Idle
+   Timeout*. It should read **180** seconds (§329). If it reads 5 (RunPod's
+   default), the worker the app-open wake boots shuts down seconds after it
+   loads, and almost every episode meets a cold one. Save; it takes effect
+   for the next worker.
+2. **Whether jobs wait for a worker.** Endpoint → **Requests**. Open a
+   recent job: *Delay Time* is time in the queue (the cold start), *Execution
+   Time* is the speaking. A delay of 60-90 s means a normal cold start; several
+   minutes means no worker could start (step 3). Jobs marked **CANCELLED**
+   are ones the app dropped because nobody was waiting any more (§497).
+3. **GPU supply.** Endpoint → **Workers**. Workers shown as *Throttled*, or
+   none starting while jobs are queued, mean no card of the chosen types is
+   free in the network volume's data center - the volume pins every worker
+   there. Edit Endpoint → *GPU Configuration*: tick more than one GPU type
+   (24 GB: RTX 4090, RTX A5000, RTX 3090, with the order as a priority).
+   Storage → the network volume shows which data center it is in; a volume
+   in a busier one is the longer fix.
+4. **A fresh build.** Endpoint → **Builds**. RunPod rebuilds the image on
+   every push to `Main`; the first worker after a new build pulls the whole
+   image, which is minutes, not 73 s. Several stalls right after a merge are
+   this, and they stop once one worker has booted on the new build.
+5. **FlashBoot and max workers.** Edit Endpoint: *FlashBoot* **on**; *Max
+   Workers* **4** (one card speaks one chunk at a time; the app sends up to
+   `REMOTE_VOICE_CONCURRENCY` chunks at once).
+6. **Execution timeout.** Edit Endpoint → *Execution Timeout* **600** s, so
+   a first job that downloads the weights is not killed.
+
+Then, on FAM's side, `/api/health` → `tts.remote.reachable` should be `ok`
+and `tts.control.held.rung` `serverless`; `/admin` lists any voice failures.
+
 ## What this does *not* do
 
 **No fallback, ever.** A remote voice that fails raises with the reason
