@@ -13,7 +13,7 @@ HTML = open(os.path.join(ROOT, "static", "index.html"), encoding="utf-8").read()
 def test_every_screen_starts_with_its_own_status_bar_strip():
     screens = re.findall(r'<section class="screen" id="(screen-[a-z]+)">\s*(<[^>]*>)', HTML)
     # 29 since the 11.3 packet took exploreFAM's reel away.
-    # 28 since §499 folded the category screen into myFAM's chips.
+    # 28 since §500 folded the category screen into myFAM's chips.
     assert len(screens) >= 28
     missing = [sid for sid, first in screens if 'class="screen-top"' not in first]
     assert missing == [], f"screens without a .screen-top strip first: {missing}"

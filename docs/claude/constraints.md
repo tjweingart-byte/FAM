@@ -1076,7 +1076,7 @@
   searches for the event and not a theme it stands for. Names only, never a
   headline, and all of it inside `query` so `key_for` needs no new field.
 <!-- rule:trending-floor -->
-> **Current (PROBLEMS.md §498, the owner's 11.3 packet):** one personal exception joins the heard story (§136): a story the listener said "Not interested" to (a tile's ⋯) is not offered to them on Trending or its View more. It removes that one story for that one listener and changes nothing else in the world row's order - no taste, fatigue or engagement reaches it.
+> **Current (PROBLEMS.md §499, the owner's 11.3 packet):** one personal exception joins the heard story (§136): a story the listener said "Not interested" to (a tile's ⋯) is not offered to them on Trending or its View more. It removes that one story for that one listener and changes nothing else in the world row's order - no taste, fatigue or engagement reaches it.
 > **Current (PROBLEMS.md §168):** Since §134/§139 Trending is chosen first from its own GNews edition and never draws on the live pool, so the reservation below is history.
 
 - **Trending keeps four tiles, and takes them before anything else chooses.**
@@ -1720,7 +1720,7 @@
   what shipped and keeps the type it shipped with.
 
 <!-- rule:large-text -->
-- **Larger text on the phone never breaks a screen** *(PROBLEMS.md §498, the
+- **Larger text on the phone never breaks a screen** *(PROBLEMS.md §499, the
   owner's 11.3 packet: "When someone has their phone settings set so that the
   font of the text is bigger, the layout gets messed up on FAM. Please make
   sure this isn't a problem.")*. The owner's screenshot was "Made for you,

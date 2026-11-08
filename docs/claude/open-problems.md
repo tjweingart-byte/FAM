@@ -126,7 +126,7 @@
    which existed only to measure it. The interface now shows an honest wait
    that names what it is waiting for and counts the seconds.
 <!-- rule:op-myfam -->
-> **Current (PROBLEMS.md §498, the owner's 11.3 packet):** one personal exception joins the heard story (§136): a story the listener said "Not interested" to (a tile's ⋯) is not offered to them on Trending or its View more. It removes that one story for that one listener and changes nothing else in the world row's order - no taste, fatigue or engagement reaches it.
+> **Current (PROBLEMS.md §499, the owner's 11.3 packet):** one personal exception joins the heard story (§136): a story the listener said "Not interested" to (a tile's ⋯) is not offered to them on Trending or its View more. It removes that one story for that one listener and changes nothing else in the world row's order - no taste, fatigue or engagement reaches it.
 > **Current (PROBLEMS.md §280):** API-Sports is removed; the live pool's sports source is BALLDONTLIE's sweep (`balldontlie_scores.make_signals`). Wherever the text below names API-Sports, read BALLDONTLIE.
 4. **myFAM is finished, and the bank is no longer the whole of it**
    *(PROBLEMS.md §102, `stories.py`, `MYFAM.md`).* The page was four rankings
@@ -373,7 +373,7 @@
   qualifies takes its place; nothing tops the section up.
 
 <!-- rule:no-not-interested -->
-> **Current (PROBLEMS.md §498, the owner's 11.3 packet, reversing §171 for one place):** a DailyFAM tile's ⋯ menu ends in **Not interested**. It records `topics.NOT_INTERESTED` (`not_interested`, weight -1.5, three skips deep) with the tile's id and question; `EventStore.not_interested` reads every such choice and `not_wanted` keeps that tile - by id or by question, and a crowd rail's `ep-…` tile by its recorded id - off every rail, beside "no repeats" in `build_feed` and `build_section`; off Trending and its View more (the same personal exception as a heard story, §136 - nothing else of the listener reaches Trending's order); and off the post-episode grid (`rank_next_up`, its last-resort fill included), which starts its first tile by itself. The client also drops it from `railTiles`, so "See all" does not draw it again. It teaches no familiar word and mints no subject. The tile leaves the page at once; a guest's choice is dropped like every guest event (§127). Still no button on the card, and `hide` stays retired: its old rows are not revived, since they were choices made under a control that was then withdrawn.
+> **Current (PROBLEMS.md §499, the owner's 11.3 packet, reversing §171 for one place):** a DailyFAM tile's ⋯ menu ends in **Not interested**. It records `topics.NOT_INTERESTED` (`not_interested`, weight -1.5, three skips deep) with the tile's id and question; `EventStore.not_interested` reads every such choice and `not_wanted` keeps that tile - by id or by question, and a crowd rail's `ep-…` tile by its recorded id - off every rail, beside "no repeats" in `build_feed` and `build_section`; off Trending and its View more (the same personal exception as a heard story, §136 - nothing else of the listener reaches Trending's order); and off the post-episode grid (`rank_next_up`, its last-resort fill included), which starts its first tile by itself. The client also drops it from `railTiles`, so "See all" does not draw it again. It teaches no familiar word and mints no subject. The tile leaves the page at once; a guest's choice is dropped like every guest event (§127). Still no button on the card, and `hide` stays retired: its old rows are not revived, since they were choices made under a control that was then withdrawn.
 - **There is no "not interested"** *(PROBLEMS.md §171, at the owner's
   direction: "This button and function should not be a feature. The
   algorithm should work naturally to put episodes the user is interested
@@ -393,7 +393,7 @@
   > event kind was added.
 
 <!-- rule:mfy-field-variety -->
-> **Current (PROBLEMS.md §498):** a ninth weight, `not_interested` -1.5 (three skips), from a tile's ⋯ menu - see `no-not-interested`.
+> **Current (PROBLEMS.md §499):** a ninth weight, `not_interested` -1.5 (three skips), from a tile's ⋯ menu - see `no-not-interested`.
 > **Current (PROBLEMS.md §202):** the weights are search 1.5, play 1, finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, and adding to a mix (`mix_add`) 2.
 
 - **Made for you: subjects are filed by field, variety never gives way, no
@@ -638,6 +638,74 @@
    until `/api/mixes` answers, shown by `renderMixList`, and hidden to start
    rather than shown and taken away, because a control that appears and then
    vanishes reads as a fault.
+> **Current (PROBLEMS.md §498, the 11.7 myFAM packet, at the owner's
+> direction):** the picker described above is gone - "too overcomplicated".
+> See the three rules below; `rank_bank` still answers `/api/topics` for
+> installed clients.
+
+<!-- rule:mix-made-by-naming -->
+**A mix is made by naming it, then filled from its own page** *(PROBLEMS.md
+§498, the 11.7 packet, Spotify's flow)*. The mixes screen's circled (+) is a
+**Create new mix** pill under the myFAM wordmark (still hidden until
+`/api/mixes` answers). The naming screen is the only step - a cover, a name,
+Create - and **Create makes the mix at once, empty**, and opens it. Topics go
+in from the mix's page, Spotify's playlist layout: the name with a **Change**
+pill, whose mix it is, share and invite, a **+ Add topics to mix** pill over
+the list, and **Recommended topics** with a (+) that adds at once. The
+recommendations are ranked **by what the listener plays**:
+`/api/mixes/recommended` is `topics.rank_catalogue` over the same `taste`
+profile every rail reads - a sort, never a filter, the catalogue's own order
+for somebody with no history. "+ Add topics to mix" is a search: teams and
+companies inside subjects ("eagles" -> NFL · Eagles), matching subjects, and
+whatever was typed, each saved the moment it is tapped (a tick takes it back
+out). **A (+) or a tick is an operation, never the whole list**: PATCH
+`add` / `remove`, merged by the server into the mix as it stands when it
+writes, so two quick taps, or two people on a joint mix, never undo each
+other. A whole `topic_ids` list is still taken (a reorder; older clients). The player's "Add to myFAM Playlist" is the third way in, unchanged.
+The second step - a picker of every subject with interest filters and an
+"anything specific?" panel under each - is removed, and with it the panel a
+recommendation's (+) used to open; a narrowed subject is one search away.
+
+<!-- rule:mix-topic-title -->
+**A long typed topic is shown under a short name, never whole** *(PROBLEMS.md
+§498, the owner's "most important thing" in the packet)*. "positive story of
+the day of things happening in the world" goes into the mix as **"Daily
+positive story"**; the prompt is still what the edition asks every morning.
+A client asks for a name by sending a typed entry **with no title**
+(`{"query": ...}`); `app._title_typed_topics` names it with
+`topic_title.short_title`: four words or fewer is its own title; otherwise one
+Haiku call (`TOPIC_TITLE_MODEL`, JSON, checked - at most five words, never
+the prompt back) **only where the listener's words may reach Anthropic**
+(`consent.py`), and a rule in code (`topic_title.heuristic`) whenever the
+call is not made or fails. An entry that carries a title keeps it - a reorder
+or edit never renames anything. Costed per listener (`topic_title` surface,
+spend but not an episode), paced like a paid call when one will be made, and
+at most `MAX_MODEL_PER_SAVE` named by model per save (the rest by rule). Not
+on a listening path.
+
+<!-- rule:joint-mixes -->
+**Joint mixes are Spotify's collaborative playlists** *(PROBLEMS.md §498)*.
+The owner's "Invite collaborators" makes one link (`/j/<token>`, the same
+every time); whoever opens it signed in joins (`POST /api/mixes/join`), and
+the mix sits in their myFAM beside their own. A **member may add, remove and
+reorder topics and nothing else** - name, cover, visibility, listen time,
+invites and deletion stay the owner's (403 `JOINT_OWNER_ONLY`). Each item
+stores who added it (`MixItem.added_by`, **stored, never served**); responses
+carry `people` faces (name, handle, picture, never an id) and an index per
+item, drawn as Spotify's face on each track. Still one mix: the edition
+writes it once, a member's play keeps it active, the push stays the owner's.
+"Make it yours alone" turns the link off and removes members; a member can
+leave; what anyone added stays. An erased member's items read as nobody's
+(`FORMER_MEMBER`, found in every mix their id is written into, including
+ones they left); a copy carries nobody's name. Up to `MAX_COLLABORATORS`. A
+suspended account cannot join, nor anybody blocked either way by the owner
+or any member (`moderation.is_apart`) - answered like a link turned off; a
+block made after joining stops the member's edits, and nobody is shown a
+face they are blocked from. **Joined mixes are listed only to a client that
+asks** (`/api/mixes?joint=1`): an older installed client would draw owner
+controls on them. A member's delete is a 403 that says to leave instead. Signed out, the
+invite waits and joins after the account's first steps (`finishEntry`).
+
 <!-- rule:friends-listened -->
 **Friends' faces on a card** (PROBLEMS.md §363, the owner's 10.31
 notebook: social proof makes somebody "more inclined, more comfortable

@@ -921,6 +921,18 @@ class Settings:
     # Somebody is waiting on the save; past this the photo is let through
     # unchecked rather than lost.
     image_check_timeout_seconds: float = _env_float("IMAGE_CHECK_TIMEOUT_SECONDS", 12.0)
+    # A short name for a long topic typed into a mix (topic_title.py, the
+    # 11.7 packet): one small model call when the topic is added, never on a
+    # listening path; with no key, no consent or 0 here, a rule in code names
+    # it instead, so a topic is never left untitled.
+    topic_title: bool = field(
+        default_factory=lambda: os.environ.get("TOPIC_TITLE", "1")
+        not in ("0", "false", "False", ""))
+    topic_title_model: str = field(
+        default_factory=lambda: os.environ.get("TOPIC_TITLE_MODEL") or SMALL_MODEL)
+    topic_title_max_tokens: int = _env_int("TOPIC_TITLE_MAX_TOKENS", 400)
+    # Somebody is waiting on the add; past this the rule names it.
+    topic_title_timeout_seconds: float = _env_float("TOPIC_TITLE_TIMEOUT_SECONDS", 4.0)
     # How far back the promotion sweep reads. Long enough that a subject
     # somebody was interested in last month still counts toward the listener
     # threshold, short enough that the vocabulary tracks what people are

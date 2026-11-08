@@ -44,7 +44,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 ET
   edition writes active mixes with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends). **Explore is
-  gone** (§498). myFAM and DailyFAM are personalised. [three-surfaces]
+  gone** (§499). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
   and briefs for likely taps; synthesise on tap. Cached episodes keep their
   audio beside the script (§132); prefetch warms text, never audio. [decouple-script-audio]
@@ -89,19 +89,19 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
-  says the day it was made, then a date past six days (§498). [dailyfam-catalogue]
-- **Categories are filter chips** (§229/§499): a row atop myFAM filters in
+  says the day it was made, then a date past six days (§499). [dailyfam-catalogue]
+- **Categories are filter chips** (§229/§500): a row atop myFAM filters in
   place; today's cache; a tap plays. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
 
-- **exploreFAM is out of the app** (§498): no reel, pill or swipe; a
+- **exploreFAM is out of the app** (§499): no reel, pill or swipe; a
   category plays in the player; `/api/explore`, comments kept for old
   clients; no dislike anywhere. [explore-reel]
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
   Your story only (§250); holding pauses; your story rings your face; (+)
   posts a note, no episode (§297); a vibe is deleted whole, from its story's ⋯
-  or held on your grid (§498). [vibe-caption]
+  or held on your grid (§499). [vibe-caption]
 - **A friend's vibe** has a reply / heart / share-to-your-story row (§282); a
   reply or like is a message carrying the episode. [story-reply]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
@@ -207,14 +207,15 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Refresh deal 16 (§363); no wheel, language picker, interest cap;
   impressions only damp (`FATIGUE_WEIGHT`); `FILL_ORDER` skips `UNSHELVED`.
   One bank: personalise order, not inventory. [op-taste-scoring]
-- **DailyFAM mixes**: hold subjects/topic ids, never audio; the picker is ranked
-  (`rank_bank`, a sort not a filter, does not exclude played); new mixes are
-  **public by default**, copies start private; `loadMixes` takes the bank
-  before the 401 branch; the new-mix (+) is hidden until `/api/mixes` answers;
-  unplayed 48h, a mix is dormant till opened (§359). [op-dailyfam-mixes] [mix-dormancy]
+- **DailyFAM mixes**: topic ids, never audio; **public by default**, copies
+  private; `loadMixes` takes the bank before the 401; dormant after 48h
+  unplayed (§359). [op-dailyfam-mixes] [mix-dormancy]
+- **A mix is made by naming it** (§498), then filled from its page; no
+  picker. [mix-made-by-naming] Long typed topics are named short.
+  [mix-topic-title] Joint: members edit topics only. [joint-mixes]
 - A mix's **listen time** is when its "ready" push is sent, 0-15 min after (§448;
   own zone, once the edition is written), never when written; kept where push is
-  off; never shown to others. No suggested mix names. [mix-listen-time]
+  off; never shown to others; no suggested names. [mix-listen-time]
 - Faces on DailyFAM only, Instagram's, yours first (§297); vibes first; a
   swipe goes to the next friend's, the picture to the profile; Friends has
   "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
@@ -223,7 +224,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   minor-league game from another continent unless followed; market moves on
   any money taste; ranks every held story. Weights (§202): search 1.5, play 1,
   finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2,
-  not interested -1.5 (§498). [mfy-field-variety]
+  not interested -1.5 (§499). [mfy-field-variety]
 - **Taste is a subject tree** (§202): the most specific subject takes the
   whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
   teams seeded under their leagues, never one whose name is also an everyday
@@ -231,7 +232,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Chosen interests never fade** (§202): added after normalisation at
   `INTEREST_WEIGHT` (2.0), never decayed or lowered by a skip; facets and
   named subjects both count. [interests-constant]
-- **"Not interested" only in a tile's ⋯** (§498, reversing §171 there):
+- **"Not interested" only in a tile's ⋯** (§499, reversing §171 there):
   `not_interested` (-1.5) keeps that tile off every rail, Trending and the
   post-episode grid; no card button; `hide` stays retired. [no-not-interested]
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
@@ -446,7 +447,7 @@ Accounts, tiers, sharing
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
   (§204); daily/my/your one rule, centred (§363); light (§250). [typefaces]
-- **Larger phone text never breaks a screen** (§498): heights are floors,
+- **Larger phone text never breaks a screen** (§499): heights are floors,
   headings never share a squeezed row. [large-text]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]

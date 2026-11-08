@@ -4340,6 +4340,33 @@ def rank_startup(profile: dict[str, float], exclude: set[str],
     return lead + rest
 
 
+def rank_catalogue(profile: dict[str, float]) -> list["Interest"]:
+    """Every subject a mix can follow, best match for this listener first -
+    the order of "Recommended topics" under a mix (11.7 packet: "based on the
+    topics that the user listens to").
+
+    The same taste profile every rail reads (`taste`: plays, finishes,
+    searches, picks, shares...), scored the way `_affinity` scores a tile -
+    a weighted sum over the subject's tags, damped by how many it carries.
+    **A sort and never a filter**, like `rank_bank`: the whole catalogue comes
+    back, ties in its own order, and with no profile the order is the
+    catalogue's, which is honest about a listener who has expressed nothing.
+    """
+    def score(interest: "Interest") -> float:
+        # Its catalogue tags plus whatever the grown vocabulary finds in its
+        # name - the tags a `mix_add` of it records (`mixes.taste_tags`), so
+        # following NFL and listening to NFL reach the same keys.
+        tags = tuple(sorted(set(interest.tags) | set(tags_for_text(interest.label))))
+        if not tags or not profile:
+            return 0.0
+        total = sum(profile.get(tag, 0.0) * tag_weight(tag) for tag in tags)
+        return total / math.sqrt(len(tags))
+
+    order = list(enumerate(INTEREST_CATALOGUE))
+    order.sort(key=lambda pair: (-score(pair[1]), pair[0]))
+    return [interest for _, interest in order]
+
+
 def rank_bank(profile: dict[str, float]) -> list[Topic]:
     """The whole bank, best match first. What the mix picker offers.
 

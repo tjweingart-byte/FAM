@@ -65,15 +65,17 @@ def test_dailyfam_suggests_no_mix_names():
     assert ".starter-chip" not in INDEX
 
 
-def test_the_new_mix_plus_is_circled():
+def test_the_new_mix_button_is_the_create_pill():
+    """Superseded (11.7 packet, §498): the circled (+) is a "Create new mix"
+    pill under the wordmark."""
     button = INDEX.split('id="newMixBtn"', 1)[1].split("</button>", 1)[0]
     head = INDEX.split('id="newMixBtn"', 1)[0].rsplit("<button", 1)[1]
-    assert "new-mix-plus" in head
-    assert "<svg" in button
-    css = INDEX.split("  .new-mix-plus{", 1)[1].split("}", 1)[0]
-    assert "border-radius:50%" in css and "border:1px solid var(--border-strong)" in css
+    assert "new-mix-pill" in head
+    assert "<svg" in button and "Create new mix" in button
+    css = INDEX.split("  .new-mix-pill{", 1)[1].split("}", 1)[0]
+    assert "border:1px solid var(--border-strong)" in css
     # Still hidden until /api/mixes answers (`showNewMixButton`).
-    assert ".new-mix-plus[hidden]{ display:none; }" in INDEX
+    assert ".new-mix-pill[hidden]{ display:none; }" in INDEX
 
 
 def test_old_clients_still_get_starters():

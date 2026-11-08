@@ -372,7 +372,7 @@ def _utc_day(at: float) -> str:
 #: Ledger rows that spend on Claude but write no episode (§225's photo check).
 #: Their cost counts under Claude; they never count as an episode written, or
 #: "cost of one new episode" on Projections would fall for every photo.
-NOT_EPISODES = frozenset({"photo_check"})
+NOT_EPISODES = frozenset({"photo_check", "topic_title"})
 
 
 def daily_ledger(now: Optional[float] = None) -> dict:

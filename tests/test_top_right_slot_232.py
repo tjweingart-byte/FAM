@@ -24,8 +24,10 @@ def _section(screen):
 
 
 def test_the_two_circles_wear_one_ring():
+    # The second circle, myFAM's (+), is the "Create new mix" pill now (11.7
+    # packet, §498); the pill wears the same ring.
     ring = "border:1px solid var(--border-strong)"
-    assert ring in _css(".myfam-head-btn") and ring in _css(".new-mix-plus")
+    assert ring in _css(".myfam-head-btn") and ring in _css(".new-mix-pill")
 
 
 def test_myfams_header_is_fixed_like_dailyfams():

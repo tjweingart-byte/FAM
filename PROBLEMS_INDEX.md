@@ -489,5 +489,6 @@ and `limit` = Lines.
 | 31035 | 85 | 495. Phase 4, the second review of the whole branch: Keith's alerts open, stay and close as they say (2026-11-06) |
 | 31120 | 48 | 496. Phase 4, the third review: a claimed error kind no longer reopens itself, and an unread check is not a clean one (2026-11-06) |
 | 31168 | 53 | 497. Episodes stuck at "Generating the audio": the app gave up before a cold voice could answer (2026-11-07) |
-| 31221 | 109 | 498. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
-| 31330 | 43 | 499. Categories as filter chips: option 2 of the deck (2026-11-08) |
+| 31221 | 108 | 498. The 11.7 myFAM packet: a mix is made by naming it, Spotify's playlist page, short names for long topics, joint mixes (2026-11-08) |
+| 31329 | 109 | 499. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
+| 31438 | 43 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
