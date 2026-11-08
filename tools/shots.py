@@ -33,7 +33,7 @@ SURFACES = [
     ("profile", "openProfile()"),
     ("messages", "openMessages()"),
     ("mixdetail", "setTab('playfam'); document.querySelectorAll('.mix-card')[0].click()"),
-    ("mixpicker", "openMixPicker && openMixPicker()"),
+    ("addtopics", "openAddTopics && openAddTopics()"),
     ("player", "setTab('myfam'); document.querySelectorAll('.gd-card')[0].click()"),
     # The first run, which is otherwise the hardest set of screens to look at
     # twice - they are shown once by design.

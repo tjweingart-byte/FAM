@@ -414,11 +414,17 @@
 
   .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }
   .myfam-dots-btn[hidden]{ display:none; }
-  /* The same circle as DailyFAM's bookshelf (§232): one size, one border,
-     one place on every page's top right. */
-  .new-mix-plus{ width:34px; height:34px; padding:0; border-radius:50%; display:flex; align-items:center;
-    justify-content:center; color:var(--text); border:1px solid var(--border-strong); }
-  .new-mix-plus[hidden]{ display:none; }
+  /* "Create new mix" (11.7 packet): a pill under the myFAM wordmark where
+     the circled (+) on the top right was. Outside the scroller like the
+     header above it, so it stays put while the mixes scroll. */
+  .new-mix-row{ flex:none; display:flex; justify-content:center; background:var(--bg);
+    position:relative; z-index:2; }
+  .new-mix-pill{ display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 16px;
+    margin:0 0 10px; border-radius:16px; background:var(--surface); color:var(--text);
+    border:1px solid var(--border-strong); font-family:'Geist',sans-serif; font-size:12px;
+    font-weight:700; cursor:pointer; }
+  .new-mix-pill:active{ background:rgba(var(--fg-rgb),0.06); }
+  .new-mix-pill[hidden]{ display:none; }
   /* Offline (27/09 packet): a card whose episode is not on this device is
      faded; one that is keeps full brightness and plays from here. */
   .seed-card.not-offline .seed-thumb{ opacity:0.35; filter:grayscale(0.7); }
@@ -1119,6 +1125,34 @@
     color:var(--text); font-family:'Geist',sans-serif; font-size:11.5px; font-weight:600; cursor:pointer; }
   .nm-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
   .nm-create:disabled{ opacity:0.35; cursor:default; transform:none; }
+  /* The mix page, Spotify's playlist layout (11.7 packet): the name with a
+     Change pill, whose mix it is, the share and invite buttons, then
+     "+ Add topics to mix" over the list and the recommendations. */
+  .mix-hero-body{ flex:1; min-width:0; }
+  .mix-hero-name{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .mix-change{ height:22px; padding:0 10px; border-radius:11px; background:var(--surface-2);
+    border:1px solid var(--border-strong); color:var(--text); font-family:'Geist',sans-serif;
+    font-size:10px; font-weight:700; cursor:pointer; }
+  .mix-people{ display:flex; align-items:center; gap:7px; margin-top:7px; background:none; border:none;
+    padding:0; color:var(--text); font-family:'Geist',sans-serif; font-size:11px; font-weight:600;
+    cursor:pointer; text-align:left; }
+  .mix-people .src-marks{ display:inline-flex; }
+  .mix-face{ width:20px; height:20px; font-size:8px; }
+  .mix-face img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0;
+    transition:opacity .2s; }
+  .mix-actions{ display:flex; align-items:center; gap:4px; margin:0 0 12px -6px; }
+  .mix-act{ width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+    background:none; border:none; color:var(--text-muted); cursor:pointer; border-radius:50%; }
+  .mix-act:active{ background:rgba(var(--fg-rgb),0.06); }
+  .mix-add-topics{ display:flex; align-items:center; justify-content:center; gap:7px; margin:0 auto 16px;
+    height:34px; padding:0 18px; border-radius:17px; background:var(--text); color:var(--bg);
+    border:none; font-family:'Geist',sans-serif; font-size:12px; font-weight:700; cursor:pointer; }
+  .mix-topic .mix-face{ position:absolute; left:28px; bottom:6px; width:16px; height:16px; font-size:7px;
+    border:1.5px solid var(--surface); }
+  .mix-topic.has-face{ position:relative; }
+  .at-search{ margin:0 18px 12px; }
+  .at-head{ font-family:'Geist Mono', monospace; font-size:9px; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--text-muted); margin:14px 0 8px; }
   .focus-all{ display:flex; align-items:center; gap:10px; width:100%; margin:2px 0 9px; padding:9px 10px;
     border-radius:9px; background:var(--bg); border:1px solid var(--border-strong); color:var(--text);
     font-family:'Geist',sans-serif; font-size:11px; text-align:left; cursor:pointer; }
@@ -4175,9 +4209,12 @@
                and hidden to start rather than shown and taken away, because a
                control that appears and then vanishes reads as a fault. The
                sign-up buttons `renderMixesLocked` draws are the way in. -->
-          <!-- Circled, so it reads as the way in (10.1 packet, third set). -->
-          <button class="myfam-dots-btn new-mix-plus" id="newMixBtn" onclick="openNewMix()"
-                  aria-label="New mix" hidden><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        </div>
+        <!-- "Create new mix" (11.7 packet): a pill under the wordmark in place
+             of the circled (+) top right. Still hidden until `/api/mixes`
+             says there is an account (`showNewMixButton`). -->
+        <div class="new-mix-row">
+          <button class="new-mix-pill" id="newMixBtn" onclick="openNewMix()" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Create new mix</button>
         </div>
         <div class="scroll">
           <!-- Other listeners' public mixes. Tapping the bar lists every
@@ -4283,7 +4320,7 @@
         <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="cancelNewMix()" aria-label="Cancel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
-          <h2 class="nm-step">Step 1 of 2 &middot; Name</h2>
+          <h2 class="nm-step">New mix</h2>
         </div>
         <div class="scroll nm-body">
           <button class="nm-folder" id="nmFolder" onclick="coverTapped('new')" aria-label="Choose a cover photo">
@@ -4296,37 +4333,32 @@
           <div class="nm-cover-hint" id="nmCoverHint">Tap to add a cover photo</div>
           <input type="file" id="coverFile" hidden accept="image/*" onchange="coverChosen(this)">
           <h3 class="nm-h">Name your mix</h3>
-          <p class="nm-sub">Name it after when you&rsquo;ll listen. You&rsquo;ll pick topics next.</p>
+          <p class="nm-sub">You&rsquo;ll add topics once it&rsquo;s made.</p>
           <input class="nm-input" id="nmInput" type="text" maxlength="40" autocomplete="off" autocorrect="off" spellcheck="false"
                  placeholder="Morning commute" aria-label="Mix name"
                  oninput="onNewMixName()" onkeydown="if(event.key==='Enter') confirmNewMix()">
-          <div class="nm-count" id="nmCount">0 / 40</div>
-          <div class="nm-label">Quick picks</div>
-          <div class="nm-chips" id="nmChips"></div>
         </div>
         <div style="padding:0 18px 18px;">
           <button class="np-save-btn nm-create" id="nmCreate" onclick="confirmNewMix()" disabled>Create</button>
         </div>
       </section>
 
-      <!-- ============ PLAYFAM — choose topics ============ -->
-      <section class="screen" id="screen-mixpicker">
+      <!-- ============ myFAM — add topics to a mix (11.7 packet) ============
+           Spotify's "Add to this playlist": search, tap (+), and it is in the
+           mix at once - no Save. Anything typed is a topic; a long prompt is
+           given a short name by the server (`topic_title.py`). -->
+      <section class="screen" id="screen-addtopics">
         <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
-          <span class="back" onclick="cancelMixPicker()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
-          <h2 id="pickerTitle">Choose topics</h2>
+          <span class="back" onclick="closeAddTopics()" aria-label="Back to the mix"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
+          <h2 id="addTopicsTitle">Add topics to mix</h2>
         </div>
-        <div style="padding:0 18px 10px;">
-          <input class="modal-input" id="pickerSearch" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                 placeholder="Search topics, or type your own"
-                 oninput="onPickerSearch()" onkeydown="if(event.key==='Enter') addTypedMixTopic()">
+        <div class="at-search">
+          <input class="modal-input" id="addTopicsSearch" type="search" enterkeyhint="done" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true"
+                 placeholder="Search topics, or type anything" aria-label="Search topics, or type anything"
+                 oninput="renderAddTopics()" onkeydown="if(event.key==='Enter') addTypedTopicToMix()">
         </div>
-        <div class="pk-chips" id="pickerChips"></div>
-        <div class="connect-sub" style="margin:0 18px 12px;" id="pickerCount">Nothing chosen yet.</div>
-        <div class="scroll" id="pickerBody"></div>
-        <div style="padding:0 18px 18px;">
-          <button class="np-save-btn" onclick="saveMixPicker()">Save mix</button>
-        </div>
+        <div class="scroll" id="addTopicsBody"></div>
       </section>
 
       <!-- ============ DETAIL (branch topic list) ============ -->
@@ -11674,16 +11706,6 @@
   //: bank's own. The picker's heading reads this rather than asserting.
   var topicBankRanked = false;
   var currentMixId = null;
-  var pickerSelection = [];
-  //: Specifics per followed topic in the picker: { "f:nfl": ["Eagles"] }.
-  var pickerFocus = {};
-  //: Followed topics that also get a briefing on the whole topic alongside
-  //: their specifics: { "f:nfl": true } -> "NFL · Eagles" and "NFL".
-  var pickerAll = {};
-  //: The followed topic whose "narrow it down" panel is open.
-  var pickerOpenFocus = null;
-  var pickerMixId = null;      // null => the picker is creating a new mix
-  var pickerNewName = "";
 
   function folderSVG(){
     return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -11838,17 +11860,27 @@
     if(btn) btn.hidden = !on;
   }
 
+  function jointLabel(m){
+    var people = m.people || [];
+    if(m.role === "member"){
+      var o = people[0] || {};
+      return "joint · " + (o.name || (o.handle ? "@" + o.handle : "another listener")) + "’s";
+    }
+    var others = people.length - 1;
+    return others > 0 ? "joint · with " + others + (others === 1 ? " other" : " others") : "joint";
+  }
+
   function renderMixList(){
     showNewMixButton(true);
     var html = "";
     if(!mixes.length){
       // No suggested mixes under this (10.1 packet, third set): "Morning",
       // "At the gym" and "Wind down" were removed at the owner's direction.
-      // The circled (+) in the header is the way to make one.
+      // The "Create new mix" pill under the wordmark is the way to make one.
       html += '<div class="mix-empty">No mixes yet. Make one for when you listen \u2014 the gym, the commute \u2014 and it\u2019s fresh every morning.</div>';
     }
-    // No inline "New mix" button here. Creating a mix is the "+" in the
-    // header, top right, and one control in one place is the whole of item 6:
+    // No inline "New mix" button here. Creating a mix is the "Create new mix"
+    // pill under the wordmark, and one control in one place is the whole of item 6:
     // this screen carried both, so the same action sat twice on one page and
     // the second copy pushed every mix card down.
 
@@ -11865,6 +11897,8 @@
         + (m.public ? "public" : "private") + '</span>'
         // Added from somebody else's public mix: whose it was.
         + (m.from ? ' · <span class="mix-by">from ' + escapeHtml(ownerLabel(m.from)) + '</span>' : '')
+        // A joint mix (11.7 packet): with whom, and whose it is.
+        + (m.joint ? ' · <span class="mix-by">' + escapeHtml(jointLabel(m)) + '</span>' : '')
         + '</div>'
         + '<div class="mix-preview">' + (escapeHtml(names) || "Nothing in it yet") + '</div>'
         + '</div>'
@@ -12169,8 +12203,6 @@
   function openMix(id){
     var m = mixById(id);
     if(!m) return;
-    // A "narrow it down" panel belongs to the mix it was opened under.
-    if(currentMixId !== id) recFocus = { id: null, picks: [], all: false };
     currentMixId = id;
     document.getElementById("mixTitle").textContent = m.name;
     if(m.sample){
@@ -12188,6 +12220,13 @@
       var again = mixById(currentMixId);
       if(again && again.id === id) rerenderMixKeepScroll(again);
     });
+    // And in the listener's own order, asked fresh each time a mix opens:
+    // what they have played since moves it (11.7 packet).
+    recServerOrder = null;
+    loadRecOrder(function(){
+      var again = mixById(currentMixId);
+      if(again && again.id === id){ recState.mixId = null; rerenderMixKeepScroll(again); }
+    });
   }
 
   // Tells the server the mix was opened, or one of its episodes started
@@ -12204,31 +12243,100 @@
     } catch(e) {}
   }
 
+  // ---------------- One mix's page: Spotify's playlist (11.7 packet) ----------------
+  // The cover, the name with a Change pill, whose mix it is (on a joint mix,
+  // everybody in it), share and invite, then **+ Add topics to mix** over
+  // the list and the recommendations - the three ways topics go in, with
+  // the player's "Add to myFAM Playlist". A member of a joint mix may add,
+  // remove and reorder topics; the name, cover, visibility and listen time
+  // stay the owner's, so a member's page draws none of those controls.
+  function mixFaceHTML(p, cls){
+    p = p || {};
+    var label = p.name || (p.handle ? "@" + p.handle : "");
+    return '<span class="src-mark mix-face' + (cls ? " " + cls : "") + '"'
+      + (label ? ' title="' + escapeHtml(label) + '"' : '')
+      + ' style="background:' + personHue(p.handle || p.name) + ';">'
+      + escapeHtml(deriveInitials(p.name || p.handle || "?"))
+      + (p.avatar ? '<img src="' + escapeHtml(p.avatar) + '" alt=""'
+          + ' onload="this.style.opacity=1" onerror="this.remove()">' : '')
+      + '</span>';
+  }
+  function mixOwnerFace(m){
+    if(m.people && m.people.length) return m.people[0];
+    var me = profileNow || {};
+    return { name: me.name || "", handle: me.handle || "", avatar: me.avatar || "" };
+  }
+  function mixPeopleLine(m){
+    var people = (m.people && m.people.length) ? m.people : [mixOwnerFace(m)];
+    var named = people.filter(function(p){ return p.name || p.handle; });
+    if(!named.length) return "";
+    var first = named[0].you ? "You" : (named[0].name || "@" + named[0].handle);
+    var label = named.length === 1 ? first
+      : named.length === 2 ? first + " and " + (named[1].you ? "you" : (named[1].name || "@" + named[1].handle))
+      : first + " + " + (named.length - 1);
+    return '<button class="mix-people" onclick="openMixPeople()">'
+      + '<span class="src-marks">' + named.slice(0, 3).map(function(p){ return mixFaceHTML(p); }).join("") + '</span>'
+      + '<span>' + escapeHtml(label) + '</span></button>';
+  }
+  function openMixPeople(){
+    var m = mixById(currentMixId);
+    if(!m || !(m.people && m.people.length)) return;
+    var rows = [{ group: escapeHtml(m.name) + " · a joint mix" }];
+    m.people.forEach(function(p){
+      rows.push({ label: '<span class="mix-pick">' + mixFaceHTML(p) + '<span class="mix-pick-body">'
+          + '<span class="mix-pick-name">' + escapeHtml(p.name || "@" + p.handle) + (p.you ? " (you)" : "") + '</span>'
+          + '<span class="mix-pick-meta">' + (p.owner ? "Owner" : "Can add topics") + '</span></span></span>',
+        action: function(){ if(p.handle && !p.you) openPersonProfile(p.handle, { name: p.name, avatar: p.avatar }); } });
+    });
+    showActionSheet(rows);
+  }
+
   function renderMixBody(m){
     var html = "";
-    var nBrief = (m.items || []).length;
+    var owner = m.role !== "member";
+    var items = m.items || [];
+    var nBrief = items.length;
     html += '<div class="mix-hero">'
-      + '<button class="mix-hero-art' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m)
-      + ' onclick="coverTapped(\'' + m.id + '\')" aria-label="' + (m.cover ? "Change" : "Add") + ' cover photo">'
+      + (owner
+          ? '<button class="mix-hero-art' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m)
+            + ' onclick="coverTapped(\'' + m.id + '\')" aria-label="' + (m.cover ? "Change" : "Add") + ' cover photo">'
+          : '<div class="mix-hero-art static' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>')
       + '<svg class="fold" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
       + 'stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>'
-      + '<span class="nm-cam" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+      + (owner ? '<span class="nm-cam" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
       + 'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>'
-      + '</button><div>'
-      + '<div class="mix-hero-t">' + escapeHtml(m.name) + '</div>'
-      + '<div class="mix-hero-s">' + nBrief + (nBrief === 1 ? " briefing" : " briefings") + ' \u00b7 daily \u00b7 '
-      + (m.public ? "public" : "private") + '</div>'
-      + '<button class="mix-hero-c" onclick="coverTapped(\'' + m.id + '\')">' + (m.cover ? "Change cover" : "Add a cover photo") + '</button>'
+      + '</button>' : '</div>')
+      + '<div class="mix-hero-body">'
+      + '<div class="mix-hero-name"><span class="mix-hero-t">' + escapeHtml(m.name) + '</span>'
+      + (owner ? '<button class="mix-change" onclick="renameMix()">Change</button>' : '') + '</div>'
+      + mixPeopleLine(m)
+      + '<div class="mix-hero-s">' + nBrief + (nBrief === 1 ? " briefing" : " briefings") + ' · daily · '
+      + (m.joint ? "joint" : (m.public ? "public" : "private")) + '</div>'
       + '</div></div>';
-    if(m.items && m.items.length){
+    // Share and invite, under the name as on Spotify; the menu is the
+    // header's three dots.
+    html += '<div class="mix-actions">'
+      + (owner ? '<button class="mix-act" onclick="shareMix()" aria-label="Share this mix">'
+        + '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6"/></svg></button>'
+        + '<button class="mix-act" onclick="inviteCollaborators()" aria-label="Invite collaborators">'
+        + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M19 8v6M16 11h6"/></svg></button>' : '')
+      + '</div>';
+    html += '<button class="mix-add-topics" onclick="openAddTopics()">'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+      + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to mix</button>';
+    if(items.length){
       html += '<button class="mix-play" onclick="playMix()">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
-        + '<path d="M8 5v14l11-7z"/></svg>Play today\u2019s ' + m.items.length
-        + (m.items.length === 1 ? " episode" : " episodes") + '</button>';
-      html += '<div class="mix-meta" style="margin:0 0 9px;">Today\u2019s edition \u00b7 '
+        + '<path d="M8 5v14l11-7z"/></svg>Play today’s ' + items.length
+        + (items.length === 1 ? " episode" : " episodes") + '</button>';
+      html += '<div class="mix-meta" style="margin:0 0 9px;">Today’s edition · '
         + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>';
-      html += '<div class="mix-list" id="mixOrder">' + (m.items || m.topics).map(function(t, i){
-        return '<div class="mix-topic" data-i="' + i + '">'
+      html += '<div class="mix-list" id="mixOrder">' + items.map(function(t, i){
+        // On a joint mix, the face of whoever added it (Spotify's).
+        var by = (m.joint && m.people && typeof t.added_by === "number") ? m.people[t.added_by] : null;
+        return '<div class="mix-topic' + (by ? " has-face" : "") + '" data-i="' + i + '">'
           // The handle (10.5 packet #3): drag to put the topics in the
           // order the playlist plays them.
           + '<button class="mix-drag" type="button" aria-label="Drag to reorder"'
@@ -12237,9 +12345,11 @@
           + '<circle cx="3" cy="3" r="1.4"/><circle cx="9" cy="3" r="1.4"/>'
           + '<circle cx="3" cy="8" r="1.4"/><circle cx="9" cy="8" r="1.4"/>'
           + '<circle cx="3" cy="13" r="1.4"/><circle cx="9" cy="13" r="1.4"/></svg></button>'
+          + (by ? mixFaceHTML(by) : '')
           + '<div class="mix-topic-body">'
           + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
-          + '<div class="mix-topic-sub">' + escapeHtml(t.subtitle || "") + '</div>'
+          + '<div class="mix-topic-sub">' + escapeHtml(by ? "Added by " + (by.you ? "you" : (by.name || "@" + by.handle))
+                                                          : (t.subtitle || "")) + '</div>'
           + '</div>'
           // By data attribute, not inside the handler: a followed item's id
           // carries the specific the listener typed, and "O'Brien" in a
@@ -12251,31 +12361,29 @@
           + '</div>';
       }).join("") + '</div>';
     } else {
-      html += '<div class="mix-empty">Nothing in this mix yet. Add the topics you want every day.</div>';
+      html += '<div class="mix-empty">Nothing in this mix yet. Add the topics you want a fresh briefing on every day.</div>';
     }
-    html += mixWhenHTML(m);
-    // Public mixes appear on the profile and in DailyFAM search, and a new
-    // mix is public by default (at the owner's direction).
-    //
-    // **The switch means public**: on (lit, open padlock) is Public, off
-    // (closed padlock) is Private. The word is beside the switch and the lock
-    // is on the knob, so the two halves of the state cannot be read
-    // separately.
-    html += '<div class="mix-vis" onclick="toggleMixVisibility()"'
-      + ' role="switch" aria-checked="' + (m.public ? "true" : "false") + '"'
-      + ' aria-label="Public">'
-      + '<div><div class="mix-vis-t">' + (m.public ? "Public" : "Private") + '</div>'
-      + '<div class="mix-vis-s">' + (m.public
-          ? "Public will be displayed on your profile"
-          : "Only you can see this mix") + '</div></div>'
-      + '<div class="mix-switch' + (m.public ? " on" : "") + '"><span>'
-      + (m.public ? lockOpenSVG() : lockClosedSVG()) + '</span></div>'
-      + '</div>';
-    html += '<button class="mix-new" onclick="editMixTopics()">'
-      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-      + 'stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
-      + ((m.items && m.items.length) ? 'Edit topics' : 'Add topics') + '</button>';
     html += recommendedHTML(m);
+    if(owner){
+      html += mixWhenHTML(m);
+      // Public mixes appear on the profile and in DailyFAM search, and a new
+      // mix is public by default (at the owner's direction).
+      //
+      // **The switch means public**: on (lit, open padlock) is Public, off
+      // (closed padlock) is Private. The word is beside the switch and the
+      // lock is on the knob, so the two halves of the state cannot be read
+      // separately.
+      html += '<div class="mix-vis" onclick="toggleMixVisibility()"'
+        + ' role="switch" aria-checked="' + (m.public ? "true" : "false") + '"'
+        + ' aria-label="Public">'
+        + '<div><div class="mix-vis-t">' + (m.public ? "Public" : "Private") + '</div>'
+        + '<div class="mix-vis-s">' + (m.public
+            ? "Public will be displayed on your profile"
+            : "Only you can see this mix") + '</div></div>'
+        + '<div class="mix-switch' + (m.public ? " on" : "") + '"><span>'
+        + (m.public ? lockOpenSVG() : lockClosedSVG()) + '</span></div>'
+        + '</div>';
+    }
     document.getElementById("mixBody").innerHTML = html;
   }
 
@@ -12453,8 +12561,31 @@
     return ids;
   }
 
+  // "Recommended topics" are ranked by what the listener plays (11.7
+  // packet): the server's order (`/api/mixes/recommended`, the taste
+  // profile every rail reads). Until it answers, or for somebody with no
+  // history, the catalogue in interest order, re-ranked by what the mix
+  // already follows.
+  var recServerOrder = null;
+  var recServerPersonal = false;
+  function loadRecOrder(then){
+    if(recServerOrder){ if(then) then(); return; }
+    fetch(withInterests("/api/mixes/recommended"))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(d && Array.isArray(d.order)){
+          recServerOrder = d.order;
+          recServerPersonal = !!d.personalised;
+          if(then) then();
+        }
+      }).catch(function(){});
+  }
+
   function recRanked(m){
     var inMix = mixItemIds(m), want = {};
+    if(recServerOrder && recServerPersonal){
+      return recServerOrder.filter(function(id){ return followById(id) && !inMix[id]; });
+    }
     (m.items || []).forEach(function(i){
       var f = facetsOf(itemTags(i.id));
       for(var k in f) want[k] = (want[k] || 0) + 1;
@@ -12499,7 +12630,8 @@
       recState.shown = recState.shown.concat(recNext(m, REC_COUNT - recState.shown.length));
     }
     if(!recState.shown.length) return "";
-    var basis = (m.items && m.items.length) ? "Topics to follow, based on this mix" : "Topics to follow, based on your interests";
+    var basis = recServerPersonal ? "Based on what you listen to"
+      : (m.items && m.items.length) ? "Topics to follow, based on this mix" : "Topics to follow, based on your interests";
     return '<div class="rec-head"><div><div class="rec-title">Recommended topics</div>'
       + '<div class="rec-sub">' + basis + '</div></div>'
       + '<button class="rec-shuffle" onclick="shuffleRecs()" aria-label="Shuffle recommendations">'
@@ -12510,10 +12642,9 @@
           var c = followById(id);
           if(!c) return "";
           var cat = facetLabel(c.tags);
-          if(recFocus.id === id) return recFocusHTML(c, id);
           return followRowHTML(c, false, "",
-            '<button class="mix-topic-act" aria-label="Follow ' + escapeHtml(c.label) + ' in this mix" '
-            + 'onclick="openRecFocus(\'' + id + '\')">+</button>',
+            '<button class="mix-topic-act" aria-label="Add ' + escapeHtml(c.label) + ' to this mix" '
+            + 'onclick="addRecTopic(\'' + id + '\')">+</button>',
             (cat ? cat + " \u00b7 " : "") + "new briefing every day");
         }).join("") + '</div>';
   }
@@ -12540,94 +12671,20 @@
     rerenderMixKeepScroll(m);
   }
 
-  // Tapping + on a recommendation asks "anything specific?" first, the same
-  // question the topics page asks - narrowing belongs at the moment of
-  // following, not in an edit screen found later.
-  var recFocus = { id: null, picks: [], all: false };
-
-  function openRecFocus(id){
-    recFocus = { id: id, picks: [], all: false };
+  // A recommendation's (+) puts the whole subject in the mix at once, as
+  // Spotify's does (11.7 packet). The "anything specific?" panel it used to
+  // open went with the picker; a team or a company is one search away on
+  // "Add topics to mix" ("eagles" -> NFL · Eagles).
+  function addRecTopic(id){
     var m = mixById(currentMixId);
-    if(m) rerenderMixKeepScroll(m);
-  }
-  function toggleRecAll(){
-    recFocus.all = !recFocus.all;
-    var m = mixById(currentMixId);
-    if(m) rerenderMixKeepScroll(m);
-  }
-  function closeRecFocus(){
-    recFocus = { id: null, picks: [], all: false };
-    var m = mixById(currentMixId);
-    if(m) rerenderMixKeepScroll(m);
-  }
-  function recFocusToggle(value){
-    var v = String(value || "").trim().replace(/[|~,]/g, " ").replace(/\s+/g, " ");
-    if(!v) return;
-    var at = recFocus.picks.map(function(x){ return x.toLowerCase(); }).indexOf(v.toLowerCase());
-    if(at !== -1) recFocus.picks.splice(at, 1);
-    else if(recFocus.picks.length >= 3){ toast("Up to 3 per topic"); return; }
-    else recFocus.picks.push(v);
-    var m = mixById(currentMixId);
-    if(m) rerenderMixKeepScroll(m);
-  }
-  function recFocusHTML(c, id){
-    var h = focusHint(c.id), picks = recFocus.picks;
-    var sugg = h.pick.filter(function(p){ return picks.indexOf(p) === -1; });
-    var label = picks.length
-      ? "Follow " + picks.join(", ") + (recFocus.all ? " + all " + c.label : "")
-      : "Follow all of " + c.label;
-    return '<div class="fol-wrap open">'
-      + followRowHTML(c, true, "",
-          '<button class="mix-topic-act" aria-label="Cancel" onclick="closeRecFocus()">\u00d7</button>',
-          picks.length ? picks.join(", ") + (recFocus.all ? " + all " + c.label : "") : "All " + c.label)
-      + '<div class="focus-panel">'
-      + '<div class="focus-q">Anything specific in ' + escapeHtml(c.label) + '?</div>'
-      + '<div class="focus-help">Each ' + escapeHtml(h.noun) + ' you pick gets its own daily briefing, '
-      + 'or follow all of ' + escapeHtml(c.label) + '.</div>'
-      + (picks.length ? '<div class="focus-chosen">' + picks.map(function(f){
-          return '<button class="focus-chip on" onclick="recFocusToggle(this.dataset.v)" data-v="' + escapeHtml(f) + '">'
-            + escapeHtml(f) + '<span aria-hidden="true">\u00d7</span></button>';
-        }).join("") + '</div>' : '')
-      + (sugg.length ? '<div class="focus-sugg">' + sugg.map(function(p){
-          return '<button class="focus-chip" onclick="recFocusToggle(this.dataset.v)" data-v="' + escapeHtml(p) + '">'
-            + escapeHtml(p) + '</button>';
-        }).join("") + '</div>' : '')
-      + (picks.length ? focusAllHTML(c, recFocus.all, "toggleRecAll()") : '')
-      + '<div class="focus-row">'
-      + '<input class="focus-input" id="recFocusInput" type="text" autocomplete="off" '
-      + 'placeholder="Type a ' + escapeHtml(h.noun) + (h.pick[0] ? ', e.g. ' + escapeHtml(h.pick[0]) : '') + '" '
-      + 'onkeydown="if(event.key===\'Enter\'){ recFocusToggle(this.value); }">'
-      + '</div>'
-      + '<button class="focus-follow" onclick="confirmRecFocus()">' + escapeHtml(label) + '</button>'
-      + '</div></div>';
-  }
-  function confirmRecFocus(){
-    var box = document.getElementById("recFocusInput");
-    if(box && box.value.trim()){
-      var v = box.value.trim().replace(/[|~,]/g, " ").replace(/\s+/g, " ");
-      if(recFocus.picks.length < 3 && recFocus.picks.indexOf(v) === -1) recFocus.picks.push(v);
-    }
-    var id = recFocus.id, picks = recFocus.picks.slice(), all = recFocus.all;
-    recFocus = { id: null, picks: [], all: false };
-    addRecTopic(id, picks, all);
-  }
-
-  function addRecTopic(id, focus, alsoAll){
-    var m = mixById(currentMixId);
-    if(!m) return;
-    var payload = (m.items || []).map(function(i){
-      return i.custom ? { query: i.query, title: i.title } : i.id;
-    });
-    if(mixItemIds(m)[id]) return;
-    (focus || []).forEach(function(f){ payload.push(joinFocusId(id, [f])); });
-    if(!(focus && focus.length) || alsoAll) payload.push(id);
+    if(!m || mixItemIds(m)[id]) return;
+    var payload = mixPayload(m);
+    payload.push(id);
     saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
       recState.shown = recState.shown.filter(function(x){ return x !== id; });
       rerenderMixKeepScroll(saved);
       var c = followById(id);
-      toast("Following " + ((focus && focus.length) ? focus.join(", ") + (alsoAll && c ? " + all " + c.label : "")
-        : (c ? c.label : "that"))
-        + " in " + saved.name);
+      toast("Added " + (c ? c.label : "that") + " to " + saved.name);
     });
   }
 
@@ -12822,14 +12879,145 @@
     // The example playlist is not kept anywhere, so there is nothing to
     // rename, share or delete.
     if(!m || m.sample) return;
-    showActionSheet([
+    // A member of a joint mix may add topics and leave; the rest is the
+    // owner's (11.7 packet).
+    if(m.role === "member"){
+      showActionSheet([
+        { label: "Add topics to mix", action: openAddTopics },
+        { label: "Who’s in this mix", action: openMixPeople },
+        { label: "Leave this mix", danger: true, action: leaveMix }
+      ]);
+      return;
+    }
+    var rows = [
       { label: m.public ? "Make private" : "Make public", action: toggleMixVisibility },
       { label: "Rename", action: renameMix },
       { label: m.cover ? "Change cover" : "Add a cover photo", action: function(){ coverTapped(m.id); } },
-      { label: "Edit topics", action: editMixTopics },
-      { label: "Share mix", action: shareMix },
-      { label: "Delete mix", action: deleteMix }
+      { label: "Add topics to mix", action: openAddTopics },
+      { label: "Invite collaborators", action: inviteCollaborators }
+    ];
+    if(m.joint) rows.push({ label: "Make it yours alone", action: stopJointMix });
+    rows.push({ label: "Share mix", action: shareMix });
+    rows.push({ label: "Delete mix", danger: true, action: deleteMix });
+    showActionSheet(rows);
+  }
+
+  // ---------------- Joint mixes (11.7 packet) ----------------
+  // Spotify's collaborative playlist. The owner's "Invite collaborators"
+  // makes one link (the same every time); whoever opens it signed in joins,
+  // and the mix sits in their myFAM beside their own. Members add, remove and
+  // reorder topics, each with the face of whoever added it.
+  function inviteCollaborators(){
+    var m = mixById(currentMixId);
+    if(!m || m.role === "member") return;
+    fetch("/api/mixes/" + encodeURIComponent(m.id) + "/invite", { method: "POST" })
+      .then(function(r){
+        return r.json().then(function(d){
+          if(!r.ok) throw new Error(d.error || d.detail || "Could not make an invite");
+          return d;
+        });
+      })
+      .then(function(d){
+        var url = new URL(d.url, location.href).href;
+        var text = "Help me build “" + m.name + "” on FAM — add the topics you want to hear.";
+        if(navigator.share){
+          navigator.share({ title: m.name, text: text, url: url }).catch(function(){});
+          return;
+        }
+        var line = text + " " + url;
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(line)
+            .then(function(){ toast("Invite link copied — anyone who opens it can add topics"); })
+            .catch(function(){ toast(line); });
+          return;
+        }
+        toast(line);
+      })
+      .catch(function(e){ toast(e.message); });
+  }
+  function stopJointMix(){
+    var m = mixById(currentMixId);
+    if(!m) return;
+    showActionSheet([
+      { group: "Make “" + escapeHtml(m.name) + "” yours alone? The invite link stops working and "
+          + "everyone else is taken off. The topics they added stay." },
+      { label: "Yes, make it mine alone", danger: true, action: function(){
+          fetch("/api/mixes/" + encodeURIComponent(m.id) + "/invite", { method: "DELETE" })
+            .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+            .then(function(saved){
+              if(saved && saved.id){
+                mixes[mixes.indexOf(m)] = saved;
+                renderMixList();
+                openMix(saved.id);
+              }
+              toast("It’s yours alone now");
+            })
+            .catch(function(){ toast("Could not change that mix"); });
+        } }
     ]);
+  }
+  function leaveMix(){
+    var m = mixById(currentMixId);
+    if(!m) return;
+    showActionSheet([
+      { group: "Leave “" + escapeHtml(m.name) + "”? It comes out of your myFAM; the topics you added stay." },
+      { label: "Leave", danger: true, action: function(){
+          fetch("/api/mixes/" + encodeURIComponent(m.id) + "/leave", { method: "POST" })
+            .then(function(r){ if(!r.ok) throw new Error(); })
+            .then(function(){
+              mixes = mixes.filter(function(x){ return x.id !== m.id; });
+              renderMixList();
+              openPlayFAM();
+              toast("You left " + m.name);
+            })
+            .catch(function(){ toast("Could not leave that mix"); });
+        } }
+    ]);
+  }
+  // An invite link lands on `/?join=<token>`. Signed in, it joins at once and
+  // opens the mix; signed out, the token waits for the sign-up or log-in
+  // (`joinPendingMix`, from `submitAuthForm`), because a mix needs an account.
+  var pendingJoin = "";
+  function openLinkedJoin(){
+    var token = "";
+    try { token = new URLSearchParams(location.search).get("join") || ""; } catch(e){}
+    if(!token) return;
+    try {
+      var u = new URL(location.href);
+      u.searchParams.delete("join");
+      history.replaceState(null, "", u.pathname + u.search + u.hash);
+    } catch(e){}
+    pendingJoin = token;
+    if(!AUTH.authenticated){
+      showActionSheet([
+        { group: "You’ve been invited to a joint mix. Sign up or log in to add topics to it." },
+        { label: "Sign up", action: function(){ openAuth("signup"); } },
+        { label: "Log in", action: function(){ openAuth("login"); } }
+      ]);
+      return;
+    }
+    joinPendingMix();
+  }
+  function joinPendingMix(){
+    var token = pendingJoin;
+    if(!token) return;
+    pendingJoin = "";
+    fetch("/api/mixes/join", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: token })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "Could not join that mix");
+        return d;
+      });
+    }).then(function(m){
+      setTab("playfam");
+      var existing = mixById(m.id);
+      if(existing) mixes[mixes.indexOf(existing)] = m; else mixes.push(m);
+      renderMixList();
+      openMix(m.id);
+      if(m.role === "member") toast("You’re in — add the topics you want to hear");
+    }).catch(function(e){ toast(e.message); });
   }
 
   // ---- A mix's listen time (10.1 packet, third set) ----
@@ -13461,8 +13649,14 @@
     return m && m.cover ? ' style="background-image:url(' + m.cover + ')"' : '';
   }
 
-  var NEW_MIX_PICKS = ["Morning commute", "At the gym", "Game day", "Lunch break", "Wind down", "Weekend catch-up"];
-
+  // ---------------- Naming a new mix (11.7 packet) ----------------
+  // The only step: a cover, a name, Create. Create makes the mix at once,
+  // empty, and opens it - adding topics is the ongoing part, done on the mix
+  // itself ("+ Add topics to mix", a recommendation's (+), or the player's
+  // "Add to myFAM Playlist"), the way a Spotify playlist is made. The second
+  // step this used to have - a picker of every topic with filters and a
+  // "narrow it down" panel under each - is gone at the owner's direction:
+  // too complicated.
   function openNewMix(prefill){
     var box = document.getElementById("nmInput");
     var returning = typeof prefill === "string";
@@ -13479,17 +13673,7 @@
     var prev = document.getElementById("nmPreview");
     prev.textContent = v || "Your mix";
     prev.classList.toggle("empty", !v);
-    document.getElementById("nmCount").textContent = box.value.length + " / 40";
     document.getElementById("nmCreate").disabled = !v;
-    document.getElementById("nmChips").innerHTML = NEW_MIX_PICKS.map(function(n){
-      return '<button class="nm-chip' + (n === v ? " on" : "") + '" onclick="pickNewMixName(this.textContent)">'
-        + escapeHtml(n) + '</button>';
-    }).join("");
-  }
-  function pickNewMixName(n){
-    var box = document.getElementById("nmInput");
-    box.value = n;
-    onNewMixName();
   }
   // Abandoning the naming screen abandons its cover too, so it cannot ride
   // along on the next mix made some other way.
@@ -13497,76 +13681,20 @@
   function confirmNewMix(){
     var value = document.getElementById("nmInput").value.trim();
     if(!value){ document.getElementById("nmInput").focus(); return; }
-    if(mixes.some(function(m){ return m.name.toLowerCase() === value.toLowerCase(); })){
+    if(mixes.some(function(m){ return m.role !== "member" && m.name.toLowerCase() === value.toLowerCase(); })){
       toast("You already have a mix called " + value);
       return;
     }
-    pickerMixId = null;
-    pickerNewName = value;
-    pickerSelection = [];
-    pickerFocus = {};
-    pickerAll = {};
-    pickerOpenFocus = null;
-    openMixPicker(value);
+    var btn = document.getElementById("nmCreate");
+    btn.disabled = true;
+    saveMix("POST", "/api/mixes", { name: value, topic_ids: [], cover: newMixCover }, function(m){
+      newMixCover = "";
+      openMix(m.id);
+    }, function(){ btn.disabled = false; });
   }
 
-  function editMixTopics(){
-    var m = mixById(currentMixId);
-    if(!m) return;
-    pickerMixId = m.id;
-    pickerNewName = m.name;
-    pickerFocus = {};
-    pickerAll = {};
-    pickerOpenFocus = null;
-    pickerSelection = [];
-    var whole = {};
-    (m.items || []).forEach(function(i){
-      if(i.custom){ pickerSelection.push({ id: i.id, query: i.query, title: i.title }); return; }
-      var sp = splitFocusId(i.id);
-      if(pickerSelection.indexOf(sp.base) === -1) pickerSelection.push(sp.base);
-      if(sp.focus.length){
-        var list = pickerFocus[sp.base] || (pickerFocus[sp.base] = []);
-        sp.focus.forEach(function(f){ if(list.indexOf(f) === -1) list.push(f); });
-      } else whole[sp.base] = true;
-    });
-    Object.keys(whole).forEach(function(b){ if(pickerFocus[b]) pickerAll[b] = true; });
-    openMixPicker(m.name);
-  }
-
-  function openMixPicker(name){
-    document.getElementById("pickerTitle").textContent = name;
-    var box = document.getElementById("pickerSearch");
-    if(box) box.value = "";
-    pickerFilter = null;
-    renderPickerChips();
-    renderMixPicker();
-    navigate("mixpicker");
-    ensureFollowCatalogue(function(){ renderPickerChips(); renderMixPicker(); });
-    // The chips are the listener's own interests - the same ones on their
-    // profile. Fetch the profile if it has not been opened yet this session.
-    if(!(profileNow && profileNow.interests_shown)){
-      fetch("/api/profile").then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(p){
-          if(!p) return;
-          profileNow = profileNow ? Object.assign(profileNow, { interests_shown: p.interests_shown })
-                                  : p;
-          renderPickerChips();
-        }).catch(function(){});
-    }
-  }
-
-  // ---------------- Interest filters on the picker ----------------
-  // The chosen chip, as "kind:id", or null for All. A key rather than an
-  // index: the chips change from the broad facets to the listener's own
-  // interests when /api/profile answers, and an index would then point at a
-  // different chip.
-  var pickerFilter = null;
-  function pickerRowKey(r){ return r.kind + ":" + r.id; }
-  function pickerFilterRow(){
-    if(pickerFilter === null) return null;
-    return pickerInterests().filter(function(r){ return pickerRowKey(r) === pickerFilter; })[0] || null;
-  }
-
+  // The listener's interests as rows, or the broad categories when they have
+  // chosen none - what `followRanked` orders the catalogue by.
   function pickerInterests(){
     var rows = (profileNow && profileNow.interests_shown) || [];
     if(rows.length) return rows.slice(0, 8);
@@ -13575,386 +13703,148 @@
     return Object.keys(labels).map(function(g){ return { id: g, label: labels[g], kind: "facet" }; });
   }
 
-  function renderPickerChips(){
-    var el = document.getElementById("pickerChips");
-    if(!el) return;
-    var rows = pickerInterests();
-    el.innerHTML = '<button class="pk-chip' + (pickerFilter === null ? " on" : "") + '" '
-      + 'onclick="setPickerFilter(null)">All</button>'
-      + rows.map(function(r){
-          return '<button class="pk-chip' + (pickerFilter === pickerRowKey(r) ? " on" : "") + '" '
-            + 'data-key="' + escapeHtml(pickerRowKey(r)) + '" '
-            + 'onclick="setPickerFilter(this.dataset.key)">' + escapeHtml(r.label) + '</button>';
-        }).join("");
+  // A mix's items as the server takes them back: ids, and a typed topic as
+  // its words and the name it already has (which is never renamed).
+  function mixPayload(m){
+    return (m.items || []).map(function(i){
+      return i.custom ? { query: i.query, title: i.title } : i.id;
+    });
   }
 
-  function setPickerFilter(key){
-    pickerFilter = (key === null || pickerFilter === key) ? null : key;
-    renderPickerChips();
-    renderMixPicker();
-    var body = document.getElementById("pickerBody");
-    if(body) body.scrollTop = 0;
+  // ---------------- Add topics to mix (11.7 packet) ----------------
+  // Spotify's "Add to this playlist", renamed: a search box, and every (+)
+  // saves at once. With nothing typed it lists what FAM recommends from what
+  // the listener plays; typing finds teams and companies inside subjects
+  // ("eagles" -> NFL · Eagles), matching subjects, and offers whatever was
+  // typed as a topic of its own. **A long typed prompt is never shown
+  // whole**: it is sent without a title and the server names it
+  // (`topic_title.py`) - "positive story of the day of things happening in
+  // the world" goes in as "Daily positive story".
+  var addTopicsMixId = null;
+  function openAddTopics(){
+    var m = mixById(currentMixId);
+    if(!m || m.sample) return;
+    addTopicsMixId = m.id;
+    var box = document.getElementById("addTopicsSearch");
+    if(box) box.value = "";
+    renderAddTopics();
+    navigate("addtopics");
+    ensureFollowCatalogue(renderAddTopics);
+    loadRecOrder(renderAddTopics);
   }
-
-  // What the listener has chosen: bank ids as strings, typed topics as
-  // objects. The server owns the rules; this only collects.
-  function selectionIndex(id){
-    for(var i = 0; i < pickerSelection.length; i++){
-      var sel = pickerSelection[i];
-      if(typeof sel === "string" ? sel === id : sel.id === id) return i;
-    }
-    return -1;
+  function closeAddTopics(){
+    if(addTopicsMixId && mixById(addTopicsMixId)) openMix(addTopicsMixId); else openPlayFAM();
   }
-  function typedSelections(){
-    return pickerSelection.filter(function(s){ return typeof s !== "string"; });
+  function addTopicsRow(c, id, title, sub, on){
+    return '<div class="mix-topic' + (on ? " chosen" : "") + '">'
+      + '<div class="fol-ic">' + catIcon(c ? c.icon : "leaf") + '</div>'
+      + '<div class="mix-topic-body">'
+      + '<div class="mix-topic-title">' + escapeHtml(title) + '</div>'
+      + '<div class="mix-topic-sub">' + escapeHtml(sub) + '</div></div>'
+      + '<button class="mix-topic-act" data-id="' + escapeHtml(id) + '" '
+      + 'aria-label="' + (on ? "Remove " : "Add ") + escapeHtml(title) + (on ? " from" : " to") + ' this mix" '
+      + 'onclick="toggleTopicInMix(this.dataset.id)">' + (on ? "✓" : "+") + '</button></div>';
   }
-
-  function onPickerSearch(){ renderMixPicker(); }
-
-  // Anything they type is a valid topic - there is no "no results". The bank
-  // is a shortcut, not a menu, so an unmatched search offers to add itself.
-  //
-  // **Named for the screen it belongs to, and that is the whole of the bug it
-  // fixes.** This was `addTypedTopic`, and so was the interests catalogue's
-  // version four thousand lines below it - two top-level declarations of one
-  // name in one script, so the later one won and this one never ran. The row
-  // rendered, the tap landed, and the catalogue's copy read `#catalogSearch`,
-  // found nothing on a screen that does not have it, and returned. Nothing
-  // threw: a mix could not be given a topic anybody typed, silently. A name
-  // that says which surface it serves cannot collide with the other one by
-  // accident, and `tools/check_js.py` now fails on any pair that does.
-  function addTypedMixTopic(){
-    var box = document.getElementById("pickerSearch");
-    var text = box.value.trim();
-    if(!text) return;
-    var id = "typed:" + text.toLowerCase();
-    if(selectionIndex(id) === -1){
-      pickerSelection.push({ id: id, query: text, title: text });
-    }
-    box.value = "";
-    renderMixPicker();
-  }
-
-  function renderMixPicker(){
-    var cat = followCatalogue();
-    var term = (document.getElementById("pickerSearch") || {}).value || "";
-    term = term.trim().toLowerCase();
-
-    var nBrief = pickerPayload().length;
-    document.getElementById("pickerCount").textContent = nBrief
-      ? nBrief + (nBrief === 1 ? " briefing" : " briefings") + " a day \u00b7 each one written fresh"
-      : "Pick the topics you want a fresh briefing on every day.";
-
+  function renderAddTopics(){
+    var el = document.getElementById("addTopicsBody");
+    var m = mixById(addTopicsMixId);
+    if(!el || !m) return;
+    var box = document.getElementById("addTopicsSearch");
+    var typed = box ? box.value.trim() : "";
+    var term = typed.toLowerCase();
+    var inMix = {};
+    (m.items || []).forEach(function(i){ inMix[String(i.id).toLowerCase()] = 1; });
     var html = "";
-
-    // Anything typed is a valid topic to follow - the list is a shortcut.
-    // Held back and placed under any team/company match, which is the more
-    // likely meaning of "eagles" than a topic of its own.
-    var typedOffer = "";
     if(term){
-      var typedId = "typed:" + term;
-      var already = selectionIndex(typedId) !== -1;
-      typedOffer += '<div class="mix-topic typed-offer' + (already ? " chosen" : "") + '" '
-        + 'onclick="addTypedMixTopic()">'
+      // Whatever they typed is a topic - there is no "no results".
+      var long = typed.split(/\s+/).length > 4;
+      html += '<div class="mix-topic typed-offer" onclick="addTypedTopicToMix()">'
+        + '<div class="fol-ic">' + catIcon("leaf") + '</div>'
         + '<div class="mix-topic-body">'
-        + '<div class="mix-topic-title">' + escapeHtml(document.getElementById("pickerSearch").value.trim()) + '</div>'
-        + '<div class="mix-topic-sub">' + (already ? "Already in this mix" : "Follow this as your own topic") + '</div>'
-        + '</div>'
-        + '<div class="mix-topic-act">' + (already ? "\u2713" : "+") + '</div>'
-        + '</div>';
-    }
-
-    // **Everything already in the mix, stacked together** (10.5 packet #4):
-    // followed topics, typed ones and older picks, in the mix's own order, so
-    // taking one out never means hunting for its tick among the
-    // recommendations. The list under it holds only what is not chosen.
-    // Above the list when nothing is typed; under the matches when something
-    // is, since then the listener is looking for something to add.
-    var chosenHTML = "";
-    var chosen = pickerSelection.filter(function(sel){
-      return typeof sel === "string" && sel.indexOf("f:") === 0 && followById(sel);
-    });
-    var extra = pickerSelection.filter(function(sel){
-      return typeof sel !== "string" || sel.indexOf("f:") !== 0;
-    });
-    if(chosen.length || extra.length){
-      chosenHTML += '<div class="mix-meta" style="margin:14px 0 8px;">In this mix \u00b7 '
-        + (chosen.length + extra.length) + '</div><div class="pk-chosen">';
-      chosenHTML += chosen.map(function(fid){
-        var c = followById(fid);
-        var focus = pickerFocus[fid] || [];
-        var open = pickerOpenFocus === fid;
-        var sub = focus.length
-          ? focus.join(", ") + (pickerAll[fid] ? " + all " + c.label : "")
-          : "All " + c.label;
-        return '<div class="fol-wrap' + (open ? " open" : "") + '">'
-          + followRowHTML(c, true, "toggleMixTopic(\'" + fid + "\')",
-              '<div class="mix-topic-act">\u2713</div>', sub)
-          + focusPanelHTML(c, fid, focus, open)
-          + '</div>';
-      }).join("");
-    }
-    if(extra.length){
-      chosenHTML += extra.map(function(sel){
-        var id = typeof sel === "string" ? sel : sel.id;
-        var b = typeof sel === "string" ? bankById(sel) : null;
-        var title = typeof sel === "string" ? (b ? b.title : sel) : sel.title;
-        // By data attribute: a typed topic's id is what they typed, and a
-        // quote or a backslash inside a quoted onclick argument is a row
-        // that cannot be removed.
-        return '<div class="mix-topic chosen" data-id="' + escapeHtml(id) + '" '
-          + 'onclick="toggleMixTopic(this.dataset.id)">'
-          + '<div class="mix-topic-body">'
-          + '<div class="mix-topic-title">' + escapeHtml(title) + '</div>'
-          + '<div class="mix-topic-sub">' + (typeof sel === "string" ? "Earlier pick" : "Added by you") + '</div>'
-          + '</div><div class="mix-topic-act">\u2713</div></div>';
-      }).join("");
-    }
-    if(chosenHTML) chosenHTML += '</div>';
-    if(!term) html += chosenHTML;
-
-    // Search reaches inside topics too: "Eagles" finds NFL · Eagles, so a
-    // listener who thinks in teams never has to know which topic holds one.
-    var hits = [];
-    if(term && term.length >= 2){
-      followRanked().forEach(function(c){
-        focusHint(c.id).pick.forEach(function(p){
-          if(p.toLowerCase().indexOf(term) !== -1 && c.id !== "sports") hits.push({ c: c, p: p });
+        + '<div class="mix-topic-title">' + escapeHtml(typed) + '</div>'
+        + '<div class="mix-topic-sub">' + (long ? "Add it · we’ll give it a short name"
+                                               : "Add as your own topic") + '</div></div>'
+        + '<button class="mix-topic-act" aria-label="Add it to this mix">+</button></div>';
+      // People think in teams: "eagles" finds NFL · Eagles.
+      var hits = [];
+      if(term.length >= 2){
+        followRanked().forEach(function(c){
+          if(c.id === "sports") return;
+          focusHint(c.id).pick.forEach(function(p){
+            if(p.toLowerCase().indexOf(term) !== -1) hits.push({ c: c, p: p });
+          });
         });
-      });
+      }
       hits = hits.slice(0, 5);
       if(hits.length){
-        html += '<div class="mix-meta" style="margin:14px 0 8px;">Teams, companies &amp; more</div>';
-        html += hits.map(function(hit){
-          var fid = "f:" + hit.c.id;
-          var on = selectionIndex(fid) !== -1 && (pickerFocus[fid] || []).indexOf(hit.p) !== -1;
-          return followRowHTML(hit.c, on,
-            on ? "" : "followWithFocus(\'" + fid + "\', this.dataset.v)",
-            '<div class="mix-topic-act">' + (on ? "\u2713" : "+") + '</div>',
-            on ? "Following in " + hit.c.label : hit.c.label + " \u00b7 follow just this")
-            .replace('<div class="mix-topic', '<div data-v="' + escapeHtml(hit.p) + '" class="mix-topic')
-            .replace('<div class="mix-topic-title">' + escapeHtml(hit.c.label),
-                     '<div class="mix-topic-title">' + escapeHtml(hit.p));
+        html += '<div class="at-head">Teams, companies &amp; more</div>' + hits.map(function(h){
+          var id = joinFocusId("f:" + h.c.id, [h.p]);
+          return addTopicsRow(h.c, id, h.c.label + " · " + h.p, h.c.label, !!inMix[id.toLowerCase()]);
         }).join("");
       }
-    }
-    if(typedOffer){
-      if(hits.length) html += '<div class="mix-meta" style="margin:14px 0 8px;">Or your own</div>';
-      html += typedOffer;
-    }
-
-    if(term) html += chosenHTML;
-    // Only what is not chosen: the chosen are all in the stack above.
-    var matches = followRanked().filter(function(c){
-      return selectionIndex("f:" + c.id) === -1
-        && (!term || c.label.toLowerCase().indexOf(term) !== -1);
-    });
-    var filterRow = pickerFilterRow();
-    if(filterRow){
-      matches = matches.filter(function(c){
-        // A pinned facet can arrive labelled as a topic; it is still a facet.
-        if(filterRow.kind === "topic" && !famTagLabels()[filterRow.id]){
-          var own = followById(filterRow.id);
-          if(own && own.id === c.id) return true;
-          // Same broad area as the interest (Soccer -> other Sport topics).
-          var ft = facetsOf(own ? own.tags : []), cf = facetsOf(c.tags);
-          return Object.keys(cf).some(function(k){ return ft[k]; });
-        }
-        return !!facetsOf(c.tags)[filterRow.id];
-      });
-    }
-    if(!cat.length){
-      html += '<div class="mix-empty">Topics could not load. Type one above to follow it.</div>';
-    } else if(!matches.length && !hits.length && !(chosenHTML && !term)){
-      html += '<div class="mix-empty" style="margin-top:14px;">No topics'
-        + (filterRow ? ' in ' + escapeHtml(filterRow.label) : '') + (term ? ' match that' : '')
-        + '. Follow it as your own topic above' + (filterRow ? ', or tap All' : '') + '.</div>';
-    } else if(matches.length){
-      html += '<div class="mix-meta" style="margin:14px 0 8px;">'
-        + (filterRow ? escapeHtml(filterRow.label) + " topics" + (term ? " \u00b7 matching" : "")
-           : term ? "Matching topics" : "Topics to follow") + '</div>';
-      html += matches.map(function(c){
-        var fid = "f:" + c.id;
-        return followRowHTML(c, false, "toggleMixTopic(\'" + fid + "\')",
-          '<div class="mix-topic-act">+</div>', facetLabel(c.tags) || "Topic");
-      }).join("");
-    }
-    document.getElementById("pickerBody").innerHTML = html;
-  }
-
-  // Under a followed topic: collapsed, one line saying what it covers and a
-  // way in; open, the chosen specifics, suggestions, and a box for your own.
-  function focusPanelHTML(c, fid, focus, open){
-    var h = focusHint(c.id);
-    var q = "\'" + fid + "\'";
-    if(!open){
-      return '<button class="focus-bar" onclick="openFocus(' + q + ')">'
-        + '<span class="focus-bar-l">' + (focus.length ? "Narrowed to" : "Narrow it down") + '</span>'
-        + '<span class="focus-bar-v">' + escapeHtml(focus.length
-            ? focus.join(", ") + (pickerAll[fid] ? " + all " + c.label : "")
-            : (h.pick[0] ? "e.g. " + h.pick[0] : "Optional")) + '</span>'
-        + '<span class="focus-bar-go">' + (focus.length ? "Edit" : "+") + '</span></button>';
-    }
-    var picks = h.pick.filter(function(p){ return focus.indexOf(p) === -1; });
-    return '<div class="focus-panel">'
-      + '<div class="focus-q">Anything specific in ' + escapeHtml(c.label) + '?</div>'
-      + '<div class="focus-help">Each ' + escapeHtml(h.noun) + ' you pick gets its own daily briefing. '
-      + 'Leave it empty to hear all of ' + escapeHtml(c.label) + '.</div>'
-      + (focus.length ? '<div class="focus-chosen">' + focus.map(function(f, i){
-          return '<button class="focus-chip on" onclick="removeFocus(' + q + ',' + i + ')" aria-label="Remove '
-            + escapeHtml(f) + '">' + escapeHtml(f) + '<span aria-hidden="true">\u00d7</span></button>';
-        }).join("") + '</div>' : '')
-      + (picks.length ? '<div class="focus-sugg">' + picks.map(function(p){
-          return '<button class="focus-chip" onclick="addFocus(' + q + ',this.dataset.v)" data-v="'
-            + escapeHtml(p) + '">' + escapeHtml(p) + '</button>';
-        }).join("") + '</div>' : '')
-      + (focus.length ? focusAllHTML(c, !!pickerAll[fid], "togglePickerAll(" + q + ")") : '')
-      + '<div class="focus-row">'
-      + '<input class="focus-input" id="focusInput" type="text" autocomplete="off" '
-      + 'placeholder="Type a ' + escapeHtml(h.noun) + (h.pick[0] ? ', e.g. ' + escapeHtml(h.pick[0]) : '') + '" '
-      + 'onkeydown="if(event.key===\'Enter\'){ addFocus(' + q + ', this.value, false, true); }">'
-      + '<button class="focus-done" onclick="closeFocus()">Done</button>'
-      + '</div></div>';
-  }
-
-  function followWithFocus(fid, value){
-    // Already following the whole of it: adding a team from search keeps
-    // the whole topic as a briefing of its own rather than swapping it out.
-    if(selectionIndex(fid) !== -1 && !(pickerFocus[fid] || []).length) pickerAll[fid] = true;
-    if(selectionIndex(fid) === -1) pickerSelection.push(fid);
-    addFocus(fid, value, true);
-    var box = document.getElementById("pickerSearch");
-    if(box) box.value = "";
-    pickerOpenFocus = fid;
-    renderMixPicker();
-    toast("Following " + value);
-  }
-
-  function openFocus(fid){ pickerOpenFocus = fid; renderMixPicker(); }
-
-  // "NFL · Eagles" and plain "NFL" side by side: the switch that adds the
-  // whole topic back as a briefing of its own.
-  function focusAllHTML(c, on, onclick){
-    return '<button class="focus-all' + (on ? " on" : "") + '" role="switch" aria-checked="' + on + '" onclick="' + onclick + '">'
-      + '<span><b>Also all of ' + escapeHtml(c.label) + '</b>'
-      + '<small>A separate briefing on the whole topic</small></span><span class="sw"></span></button>';
-  }
-  function togglePickerAll(fid){
-    pickerAll[fid] = !pickerAll[fid];
-    var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
-    renderMixPicker();
-    if(body) body.scrollTop = top;
-  }
-  function closeFocus(){
-    var box = document.getElementById("focusInput");
-    if(box && box.value.trim() && pickerOpenFocus){ addFocus(pickerOpenFocus, box.value, true); }
-    pickerOpenFocus = null;
-    renderMixPicker();
-  }
-  // `typed` is true only from the "Type a ..." box itself. Tapping one of the
-  // suggested chips highlights it and does nothing else - it used to put the
-  // cursor back in the box, which on a phone is the keyboard sliding up over
-  // the list somebody was choosing from. The keyboard is for the box, and
-  // opens only when the box is tapped (or was already being typed in).
-  function addFocus(fid, value, silent, typed){
-    var v = String(value || "").trim().replace(/[|~,]/g, " ").replace(/\s+/g, " ");
-    if(!v) return;
-    var list = pickerFocus[fid] || (pickerFocus[fid] = []);
-    if(list.map(function(x){ return x.toLowerCase(); }).indexOf(v.toLowerCase()) === -1){
-      if(list.length >= 3){ toast("Up to 3 per topic"); return; }
-      list.push(v);
-    }
-    if(silent) return;
-    var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
-    renderMixPicker();
-    if(body) body.scrollTop = top;
-    if(typed){
-      var box = document.getElementById("focusInput");
-      if(box) box.focus();
-    }
-  }
-  function removeFocus(fid, i){
-    var list = pickerFocus[fid] || [];
-    list.splice(i, 1);
-    if(!list.length) delete pickerAll[fid];
-    var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
-    renderMixPicker();
-    if(body) body.scrollTop = top;
-  }
-
-  function reloadTopicBank(){
-    fetch(withInterests("/api/topics?ranked=1"))
-      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){
-        topicBank = d.topics;
-        topicBankRanked = !!d.personalised;
-        renderMixPicker();
-      })
-      .catch(function(){ toast("Still cannot reach the topic list"); });
-  }
-
-  function toggleMixTopic(id){
-    var at = selectionIndex(id);
-    if(at === -1){
-      pickerSelection.push(id);
-      // Just followed: open "narrow it down" right away, where there is
-      // something useful to suggest.
-      if(String(id).indexOf("f:") === 0) pickerOpenFocus = id;
+      var matches = followRanked().filter(function(c){
+        return c.label.toLowerCase().indexOf(term) !== -1;
+      }).slice(0, 12);
+      if(matches.length){
+        html += '<div class="at-head">Topics</div>' + matches.map(function(c){
+          var id = "f:" + c.id;
+          return addTopicsRow(c, id, c.label, facetLabel(c.tags) || "Topic", !!inMix[id]);
+        }).join("");
+      }
     } else {
-      pickerSelection.splice(at, 1);
-      delete pickerFocus[id];
-      delete pickerAll[id];
-      if(pickerOpenFocus === id) pickerOpenFocus = null;
+      var order = recRanked(Object.assign({}, m, { items: [] })).slice(0, 15);
+      if(!order.length){
+        html += '<div class="mix-empty">Topics could not load. Type one above to add it.</div>';
+      } else {
+        html += '<div class="at-head">' + (recServerPersonal ? "Recommended for you" : "Topics to follow") + '</div>'
+          + order.map(function(id){
+            var c = followById(id);
+            if(!c) return "";
+            return addTopicsRow(c, id, c.label, (facetLabel(c.tags) || "Topic") + " · new briefing every day",
+                                !!inMix[id]);
+          }).join("");
+      }
     }
-    var body = document.getElementById("pickerBody"), top = body ? body.scrollTop : 0;
-    renderMixPicker();
-    if(body) body.scrollTop = top;
-    // A topic just added has moved up into the "In this mix" stack (10.5
-    // packet #4): bring it into view there, with its "narrow it down" open.
-    if(at === -1 && body){
-      var wraps = body.querySelectorAll(".pk-chosen .fol-wrap.open");
-      var row = wraps[wraps.length - 1];
-      if(row && row.scrollIntoView) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
+    el.innerHTML = html;
   }
-
-  function cancelMixPicker(){
-    if(pickerMixId) openMix(pickerMixId); else openNewMix(pickerNewName);
-  }
-
-  // One briefing per specific: following NFL with Eagles and Chiefs is two
-  // briefings, "NFL · Eagles" and "NFL · Chiefs", plus "NFL" itself when the
-  // listener also wants the whole league.
-  function pickerPayload(){
-    var out = [];
-    pickerSelection.forEach(function(sel){
-      if(typeof sel !== "string"){ out.push({ query: sel.query, title: sel.title }); return; }
-      if(sel.indexOf("f:") !== 0){ out.push(sel); return; }
-      var focus = pickerFocus[sel] || [];
-      if(!focus.length){ out.push(sel); return; }
-      focus.forEach(function(f){ out.push(joinFocusId(sel, [f])); });
-      if(pickerAll[sel]) out.push(sel);
+  // (+) adds, the tick takes it back out - both saved at once.
+  function toggleTopicInMix(id){
+    var m = mixById(addTopicsMixId);
+    if(!m || !id) return;
+    var payload = mixPayload(m);
+    var at = -1;
+    (m.items || []).forEach(function(i, n){ if(String(i.id).toLowerCase() === String(id).toLowerCase()) at = n; });
+    if(at === -1) payload.push(id); else payload.splice(at, 1);
+    var body = document.getElementById("addTopicsBody"), top = body ? body.scrollTop : 0;
+    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+      renderAddTopics();
+      if(body) body.scrollTop = top;
+      var label = splitFocusId(id).focus.join(", ") || ((followById(splitFocusId(id).base) || {}).label) || "that";
+      toast((at === -1 ? "Added " : "Removed ") + label + (at === -1 ? " to " : " from ") + saved.name);
     });
-    return out;
   }
-
-  function saveMixPicker(){
-    var fbox = document.getElementById("focusInput");
-    if(fbox && fbox.value.trim() && pickerOpenFocus) addFocus(pickerOpenFocus, fbox.value, true);
-    if(pickerMixId){
-      saveMix("PATCH", "/api/mixes/" + pickerMixId, { topic_ids: pickerPayload() },
-              function(m){ openMix(m.id); });
-    } else {
-      saveMix("POST", "/api/mixes",
-              { name: pickerNewName, topic_ids: pickerPayload(), cover: newMixCover },
-              function(m){ openMix(m.id); });
-    }
+  // Sent as its words alone: no title is the client saying "name this for
+  // me", and the server answers with the short name it chose.
+  function addTypedTopicToMix(){
+    var m = mixById(addTopicsMixId);
+    var box = document.getElementById("addTopicsSearch");
+    var text = box ? box.value.trim() : "";
+    if(!m || !text) return;
+    var payload = mixPayload(m);
+    payload.push({ query: text });
+    box.value = "";
+    renderAddTopics();
+    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+      var added = (saved.items || [])[(saved.items || []).length - 1];
+      renderAddTopics();
+      toast("Added “" + ((added && added.title) || text) + "” to " + saved.name);
+    }, function(){ if(box && !box.value) box.value = text; renderAddTopics(); });
   }
 
   // One place that talks to the server, so every refusal is surfaced the same
   // way. The server owns the rules (duplicate names, unknown topics); the
   // interface just shows what it says rather than guessing at them twice.
-  function saveMix(method, url, body, done){
+  function saveMix(method, url, body, done, failed){
     fetch(url, {
       method: method,
       headers: {"Content-Type": "application/json"},
@@ -13970,7 +13860,10 @@
       if(existing){ mixes[mixes.indexOf(existing)] = saved; } else { mixes.push(saved); }
       renderMixList();
       if(done) done(saved);
-    }).catch(function(err){ toast(err.message || "Could not save that mix"); });
+    }).catch(function(err){
+      toast(err.message || "Could not save that mix");
+      if(failed) failed(err);
+    });
   }
 
   function openMyFamTab(){
@@ -22564,6 +22457,8 @@
         btn.textContent = label;
         if(!AUTH.authenticated) return;    // the error is under the fields
         document.getElementById("authPassword").value = "";
+        // Came from a joint-mix invite: join it now there is an account.
+        if(pendingJoin) setTimeout(joinPendingMix, 400);
         // Anything chosen before signing up is theirs now, so it is written
         // through rather than left stranded in this browser.
         var local = localPrefs();
@@ -23781,7 +23676,7 @@
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.
-  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(checkTerms)
+  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(openLinkedJoin).then(checkTerms)
     // The activation step, when it is owed (§414) - after the Terms.
     .then(checkActivation);
 </script>

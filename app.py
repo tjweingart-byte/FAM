@@ -106,6 +106,7 @@ import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
 from paths import PROJECT_ROOT
 import mixes as mixes_mod
+import topic_title
 import mail as mail_mod
 import push as push_mod
 import listener_clock
@@ -229,7 +230,8 @@ async def _verify_small_models() -> None:
     refused: set = set()
     small = sorted({settings.ei_model, settings.stories_model,
                     settings.categories_model, settings.thumbnails_model,
-                    settings.image_check_model, settings.writer_model,
+                    settings.image_check_model, settings.topic_title_model,
+                    settings.writer_model,
                     settings.edition_writer_model or settings.model}
                    - {settings.model, ""})
     report: dict[str, str] = {}
@@ -6545,10 +6547,14 @@ async def list_mixes(request: Request):
     _read_limit(request)
     user = _require_account(request)
     people: dict = {}
+    own = MIXES.list_for_user(user)
+    joint = MIXES.joint_ids([m.id for m in own])
     return {
-        # A mix added from somebody else's says whose it was.
-        "mixes": [dict(m.as_dict(), **_source_label(m, people))
-                  for m in MIXES.list_for_user(user)],
+        # A mix added from somebody else's says whose it was; a joint mix
+        # (11.7 packet) says who is in it and who added what - the ones this
+        # listener owns, then the ones they were invited into.
+        "mixes": [_mix_out(m, user, people, m.id in joint) for m in own]
+                 + [_mix_out(m, user, people, True) for m in MIXES.joined(user)],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
@@ -6603,14 +6609,15 @@ async def create_mix(req: MixRequest, request: Request):
         if req.cover:
             mixes_mod.clean_cover(req.cover)
         await _check_photo(request, account, req.cover)
-        mix = MIXES.create(account, req.name or "", req.topic_ids or [],
+        topic_ids = await _title_typed_topics(request, account, req.topic_ids or [])
+        mix = MIXES.create(account, req.name or "", topic_ids,
                            req.cover or "", public=req.public is not False)
     except mixes_mod.MixError as exc:
         # Phrased for the listener: these are things they did, not faults.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _record_mix_adds(mix)
     _write_mix_ahead(mix)
-    return mix.as_dict()
+    return _mix_out(mix, account, {}, False)
 
 
 @app.patch("/api/mixes/{mix_id}")
@@ -6618,6 +6625,8 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
     kept = MIXES.get(account, mix_id)
+    if kept is None and MIXES.is_member(mix_id, account):
+        return await _update_joint_mix(mix_id, req, request, account)
     before = kept if req.topic_ids is not None else None
     if req.name is not None or req.cover or req.public:
         _require_can_post(account)
@@ -6631,17 +6640,111 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
         await _check_photo(request, account, req.cover,
                            before=(kept.cover if kept else "") or "")
     try:
-        mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public,
+        topic_ids = (await _title_typed_topics(request, account, req.topic_ids)
+                     if req.topic_ids is not None else None)
+        mix = MIXES.update(account, mix_id, req.name, topic_ids, req.public,
                            req.cover, req.listen_at, req.listen_tz)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if req.topic_ids is not None:
         _record_mix_adds(mix, before=before)
         _write_mix_ahead(mix, before=before)
-    return mix.as_dict()
+    return _mix_out(mix, account, {}, bool(MIXES.joint_ids([mix.id])))
 
 
-def _record_mix_adds(mix, before=None) -> None:
+#: What a member of a joint mix is told when they try to change what only
+#: its owner may.
+JOINT_OWNER_ONLY = ("Only the mix's owner can rename it, change its cover, "
+                    "make it public or private, or set its listen time.")
+
+
+async def _update_joint_mix(mix_id: str, req: "MixRequest", request: Request,
+                            account: str) -> dict:
+    """A member's PATCH on a joint mix (11.7 packet): topics only."""
+    if (req.name is not None or req.cover is not None or req.public is not None
+            or req.listen_at is not None or req.listen_tz is not None):
+        raise HTTPException(status_code=403, detail=JOINT_OWNER_ONLY)
+    if req.topic_ids is None:
+        mix = MIXES.get_editable(account, mix_id)
+        if mix is None:
+            raise HTTPException(status_code=404, detail="That mix no longer exists.")
+        return _mix_out(mix, account, {}, True)
+    _require_can_post(account)
+    before = MIXES.get_editable(account, mix_id)
+    try:
+        topic_ids = await _title_typed_topics(request, account, req.topic_ids)
+        mix = MIXES.update_items(account, mix_id, topic_ids)
+    except mixes_mod.MixError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _record_mix_adds(mix, before=before, by=account)
+    _write_mix_ahead(mix, before=before)
+    return _mix_out(mix, account, {}, True)
+
+
+async def _title_typed_topics(request: Request, account: str, raw: list) -> list:
+    """Give every newly typed topic a short name (11.7 packet, the owner's
+    "most important thing" on the mix screen): a typed entry sent with no
+    title - which is how a client says "name this for me" - is named by
+    `topic_title.short_title`, so "positive story of the day of things
+    happening in the world" goes into the mix as "Daily positive story".
+
+    An entry that carries a title keeps it: that is a topic already in the
+    mix being re-sent in a reorder or an edit, or a name the listener chose,
+    and neither is renamed behind their back. The model is asked only where
+    the listener's words may reach Anthropic (`consent.py`); otherwise, and
+    whenever the call fails, the rule in code names it."""
+    if not raw:
+        return list(raw or [])
+    allow = not _client_asks_consent(request) or CONSENT.given(account)
+    usage = metering.Usage()
+    out = []
+    for entry in raw:
+        if isinstance(entry, dict) and entry.get("query") and not str(entry.get("title") or "").strip():
+            title, how = await topic_title.short_title(
+                str(entry["query"]), allow_model=allow, usage=usage)
+            entry = dict(entry, title=title)
+            log.info("mix topic titled (%s): %r", how, title)
+        out.append(entry)
+    if usage.model_calls and account:
+        _record_usage(account, usage, surface="topic_title")
+    return out
+
+
+def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
+    """One mix as this viewer sees it.
+
+    The owner sees everything (`as_dict`); a member of a joint mix sees what
+    a stranger would (`public_dict`, so never the owner's listen time). A
+    joint mix also carries `people` - the owner first, then the members, each
+    a face: name, handle, picture, **never an id** - and each item's
+    `added_by` is an index into that list (Spotify's face on each track), or
+    absent when nobody on it can be named."""
+    mine = mix.user_id == viewer
+    body = mix.as_dict() if mine else mix.public_dict()
+    body.update(_source_label(mix, people))
+    body["role"] = "owner" if mine else "member"
+    body["joint"] = bool(joint)
+    if not joint:
+        return body
+    ids = [mix.user_id] + MIXES.members(mix.id)
+    faces = []
+    for uid in ids:
+        if uid not in people:
+            people[uid] = SOCIAL.person(uid)
+        p = people[uid] or {}
+        faces.append({"name": p.get("name") or "", "handle": p.get("handle") or "",
+                      "avatar": p.get("avatar") or "", "owner": uid == mix.user_id,
+                      "you": uid == viewer})
+    body["people"] = faces
+    index = {uid: n for n, uid in enumerate(ids)}
+    for item, out in zip(mix.items, body["items"]):
+        who = item.added_by or mix.user_id
+        if who in index:
+            out["added_by"] = index[who]
+    return body
+
+
+def _record_mix_adds(mix, before=None, by: str = "") -> None:
     """Log a `mix_add` for every item this write put into a mix (§202).
 
     Only what is new - an item already in the mix before this write was
@@ -6654,8 +6757,9 @@ def _record_mix_adds(mix, before=None) -> None:
         if item.id in had:
             continue
         try:
+            # Whoever added it - on a joint mix, that may be a member.
             EVENTS.record(topics_mod.Event(
-                mix.user_id, topics_mod.MIX_ADD, item.id, item.query,
+                by or mix.user_id, topics_mod.MIX_ADD, item.id, item.query,
                 mixes_mod.taste_tags(item)))
         except Exception:  # noqa: BLE001 - a taste signal never fails a save
             log.exception("could not record a mix add for %r", item.id)
@@ -6686,13 +6790,15 @@ async def open_mix(mix_id: str, request: Request,
     Never waits on a model call."""
     _read_limit(request)
     account = _require_account(request)
-    mix = MIXES.get(account, mix_id)
+    mix = MIXES.get_editable(account, mix_id)
     if mix is None:
         raise HTTPException(status_code=404, detail="That mix no longer exists.")
     dormant = not daily_edition.is_active(mix)
     writing = _write_mix_on_open(mix) if dormant else False
     if req is not None and req.played:
-        MIXES.note_played(account, mix_id)
+        # A member's play keeps a joint mix in the edition as surely as the
+        # owner's: it is stamped on the mix, whoever pressed play.
+        MIXES.note_played(mix.user_id, mix_id)
     return {"ok": True, "dormant": dormant, "writing": bool(writing)}
 
 
@@ -6796,6 +6902,94 @@ def _source_label(mix: "mixes_mod.Mix", people: dict) -> dict:
         # account has gone. "From another listener" would tell nobody anything.
         return {}
     return {"from": {"name": owner.get("name") or "", "handle": owner.get("handle") or ""}}
+
+
+@app.get("/api/mixes/recommended")
+async def recommended_topics(request: Request,
+                             interests: str = Query("", max_length=200)) -> dict:
+    """"Recommended topics" under a mix, in this listener's order (11.7
+    packet: "based on the topics that the user listens to").
+
+    Catalogue subject ids, best match first, from `topics.rank_catalogue`
+    over the same taste profile every rail reads. A sort, never a filter -
+    the whole catalogue comes back - and the client drops what the mix
+    already follows. Open to a guest, who has no history and so gets the
+    catalogue's own order (`personalised` false)."""
+    _read_limit(request)
+    user = _listener(request)
+    events = EVENTS.for_user(user) if user and _remembers(request) else []
+    profile = topics_mod.taste(events, interests=_interests_for(request, interests))
+    return {"order": ["f:" + i.id for i in topics_mod.rank_catalogue(profile)],
+            "personalised": bool(profile)}
+
+
+def _join_url(token: str, request: Request) -> str:
+    base = _public_base(request)
+    return f"{base}/j/{token}" if base else f"/j/{token}"
+
+
+@app.post("/api/mixes/{mix_id}/invite")
+async def invite_to_mix(mix_id: str, request: Request) -> dict:
+    """The owner's "Invite collaborators" (11.7 packet): the link that makes
+    whoever opens it, signed in, a member of this joint mix. The same link
+    every time until the owner turns it off. A private mix can be joint - an
+    invite is not a listing - so nothing here makes it public."""
+    _read_limit(request)
+    user = _require_account(request)
+    _require_can_post(user)
+    try:
+        token = MIXES.invite_token(user, mix_id)
+    except mixes_mod.MixError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    mix = MIXES.get(user, mix_id)
+    return {"url": _join_url(token, request), "name": mix.name if mix else "",
+            "members": len(MIXES.members(mix_id))}
+
+
+@app.delete("/api/mixes/{mix_id}/invite")
+async def stop_joint_mix(mix_id: str, request: Request) -> dict:
+    """The owner makes the mix theirs alone again: the invite stops working
+    and every member is taken off. What they added stays."""
+    _read_limit(request)
+    user = _require_account(request)
+    if not MIXES.stop_joint(user, mix_id):
+        raise HTTPException(status_code=404, detail="That mix no longer exists.")
+    mix = MIXES.get(user, mix_id)
+    return _mix_out(mix, user, {}, False) if mix else {"ok": True}
+
+
+class JoinRequest(BaseModel):
+    token: str = Field(..., min_length=1, max_length=64)
+
+
+@app.post("/api/mixes/join")
+async def join_mix(req: JoinRequest, request: Request) -> dict:
+    """Open an invite: this listener becomes a member of a joint mix, which
+    then sits in their myFAM beside their own. Needs an account, like any
+    mix; opening it twice, or your own, changes nothing."""
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        mix = MIXES.join(user, req.token)
+    except mixes_mod.MixError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _mix_out(mix, user, {}, True)
+
+
+@app.post("/api/mixes/{mix_id}/leave")
+async def leave_mix(mix_id: str, request: Request) -> dict:
+    """A member takes themselves off a joint mix."""
+    _read_limit(request)
+    if not MIXES.leave(_require_account(request), mix_id):
+        raise HTTPException(status_code=404, detail="You are not in that mix.")
+    return {"ok": True}
+
+
+@app.get("/j/{token}")
+async def open_mix_invite(token: str):
+    """Where an invite link lands: the app, which joins the mix once the
+    reader is signed in (`openLinkedJoin`)."""
+    return RedirectResponse(url=f"/?join={quote(token[:64], safe='')}", status_code=302)
 
 
 @app.get("/api/mixes/public")
