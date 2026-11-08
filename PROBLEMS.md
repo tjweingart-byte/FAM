@@ -31326,3 +31326,46 @@ independent review of the diff, plus my own pass, found five gaps in #3 and
 Also: an Android long press fires `contextmenu` too, which opened the vibe
 sheet twice; and two server halves of deleted Explore tests (`/api/rate`'s
 play count, the "all" feed) were put back, since the server keeps both.
+
+## 499. Categories as filter chips: option 2 of the deck (2026-11-08)
+
+The owner, after the categories deck of §498: "Do option 2 for the layout."
+Option 2 was **filter chips**: a row of category chips across the top of
+myFAM; tapping one filters the page in place, with no separate page.
+
+**Built.** On the screen that shows "myFAM" (`screen-playfam`), the first
+thing under the header is `#catChips`: All, the followed categories with a
+star (any node, "NFL" as well as Sport), the facets nobody here follows, and
+More. A chip (`pickCategory`) hides `#mixesPane` - the search, the line under
+it and the mixes - and draws `#catPanel`: today's most played in that
+category as a 16:9 picture with its title over it ("Most played in Sport
+today"; a tap plays it), **Play all N · M min** beside **Follow**, then the
+rest as rows with their pictures. The row becomes an X, the category, and
+its subcategories with something today (from the category's own answer, so
+narrowing keeps them); a second tap on a subcategory widens back. More
+(`openCategoryFind`) is the grid's old search - from the start of a word,
+facets and every tree node - and a result is picked like a chip. Play all and
+a tap go through `playCategoryList` as before (replay only; the rest queued;
+a second play replaces its own batch). Following is the same list write
+(`toggleFollowCategory`) and redraws the row.
+
+**Gone:** the grid under the mixes and its search box, the category screen
+(`screen-category`), its sort chips (A to Z, most recent), its title search,
+and Shuffle play - the deck's option drew none of them, and the order is
+most popular. The server still accepts `sort` and `q` for an installed
+client. `/api/categories/episodes` now carries each row's `thumb`, read
+locally the way the A to Z catalogue's rows are, inside a try so a picture
+never fails the page. The fixture preview gained `/api/categories` and a page
+per facet so the chips have something to show.
+
+**Checked:** the chips scroll sideways and never wrap a word, so larger
+phone text (`large-text`) grows them rather than breaking the row; the hero
+and the Play all row wrap rather than overflow. Tests in
+`tests/test_your_categories_229.py`; the smoke run's "Category chips filter
+the page in place".
+
+**Numbering.** The parallel 11.7 myFAM branch (`claude/adoring-franklin-g6hmtv`)
+also wrote its section as §498, and it edits the same screen (a "Create new
+mix" pill under the wordmark, above where these chips sit). Whichever branch
+reaches Main second renumbers its sections; the two screens' changes are in
+different lines and should merge without a hand edit.

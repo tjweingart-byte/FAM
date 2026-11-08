@@ -90,7 +90,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
   says the day it was made, then a date past six days (§498). [dailyfam-catalogue]
-- **Your categories** (§229/§253/§498): today's cache; a tap plays it, the rest queued; redesign pending. [your-categories]
+- **Categories are filter chips** (§229/§499): a row atop myFAM filters in
+  place; today's cache; a tap plays. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
 

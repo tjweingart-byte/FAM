@@ -252,35 +252,56 @@ def test_labels_read_as_headings():
 
 
 def test_finding_a_category_matches_from_the_start_of_a_word():
-    assert '(" " + label.toLowerCase()).indexOf(" " + q)' in _fn("renderMyCategories")
+    # "More" on the chip row (the 11.3 packet) finds any node this way.
+    assert '(" " + label.toLowerCase()).indexOf(" " + q)' in _fn("renderCategoryFind")
 
 
 # --- the screens -----------------------------------------------------------
 
 
-def test_the_mixes_screen_draws_the_categories_grid():
-    # §253: the grid sits under the mixes itself, with its search; there is
-    # no separate "Browse all" screen any more.
-    assert 'id="catSection"' in HTML and 'id="catFind"' in HTML
-    assert HTML.index('id="mixList"') < HTML.index('id="catSection"')
+def test_categories_are_a_row_of_chips_above_the_mixes():
+    # The 11.3 packet, option 2 of the owner's deck: no grid under the
+    # mixes and no category page - a chip row at the top filters in place.
+    assert 'id="catChips"' in HTML and 'id="catPanel"' in HTML
+    assert HTML.index('id="catChips"') < HTML.index('id="mixesPane"') < HTML.index('id="mixList"')
     assert "loadMyCategories();" in _fn("loadMixes")
-    assert 'screen-catbrowse' not in HTML and "Browse all" not in HTML
+    for gone in ('id="catSection"', 'id="catGrid"', 'id="screen-category"',
+                 "function openCategory(", "Shuffle play", "screen-catbrowse"):
+        assert gone not in HTML, gone
 
 
-def test_followed_categories_lead_the_grid_with_a_star():
-    draw = _fn("renderMyCategories")
-    # Followed first, then the facets not followed - each tile once.
-    assert "mine.map(" in draw and "!followed[f.id]" in draw
-    assert draw.index("mine.map(") < draw.index("catData.facets.filter(function(f){ return !followed")
-    assert "CAT_STAR" in _fn("categoryTileHTML")
+def test_followed_categories_lead_the_chips_with_a_star():
+    draw = _fn("renderCategoryChips")
+    # All, then followed, then the facets not followed - each chip once -
+    # then More.
+    assert 'catChipHTML("", "All", true' in draw
+    assert draw.index("mine.map(") < draw.index("!followed[f.id]") < draw.index("catchip-more")
+    assert "CAT_STAR" in _fn("catChipHTML")
 
 
-def test_the_category_page_sorts_and_searches_on_the_server():
+def test_a_chip_filters_the_page_in_place():
+    pick = _fn("pickCategory")
+    assert "showCategoryPanel(true)" in pick and "navigate(" not in pick
+    shown = _fn("showCategoryPanel")
+    assert '"catPanel").hidden = !on' in shown and '"mixesPane").hidden = on' in shown
+    # Inside a category the row is an X, the category and the level below.
+    draw = _fn("renderCategoryChips")
+    assert "catPage.subs.map(" in draw and "clearCategory()" in draw
     load = _fn("loadCategoryEpisodes")
-    assert "/api/categories/episodes?id=" in load
-    assert "&sort=" in load and "&q=" in load
-    for sort in ("popular", "az", "recent"):
-        assert f'data-sort="{sort}"' in HTML
+    assert "/api/categories/episodes?id=" in load and "&sort=popular" in load
+    assert "catPage.subs = d.subcategories" in load
+
+
+def test_the_panel_is_a_hero_play_all_follow_and_a_list():
+    panel = _fn("drawCategoryPanel")
+    assert "catp-hero" in panel and "playCategoryEpisode(0)" in panel
+    assert "playCategoryAll()" in panel and "toggleFollowCategory()" in panel
+    assert "eps.slice(1).map(" in panel
+
+
+def test_category_episodes_carry_their_picture(monkeypatch):
+    import inspect
+    assert "_picture_episodes, episodes" in inspect.getsource(appmod.category_episodes)
 
 
 def test_a_tap_plays_what_is_cached_and_nothing_else():
@@ -295,10 +316,8 @@ def test_a_tap_plays_what_is_cached_and_nothing_else():
     assert "cachedOnly: true" in _fn("categoryQueueEntry")
 
 
-def test_shuffle_play_deals_the_page_shuffled_into_the_player():
-    assert 'id="catShuffle"' in HTML and "Shuffle play" in HTML
-    shuffle = _fn("shuffleCategory")
-    assert "playCategoryList(shuffledPool(catPage.episodes))" in shuffle
+def test_play_all_plays_the_category_from_the_top():
+    assert "playCategoryList(catPage.episodes)" in _fn("playCategoryAll")
 
 
 def test_no_category_opens_a_reel():

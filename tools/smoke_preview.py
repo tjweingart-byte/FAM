@@ -3909,6 +3909,32 @@ def main() -> int:
             )
             assert leftovers == 0, f"{leftovers} old per-screen overlay(s) survive"
 
+        def category_chips_filter_the_page_in_place():
+            """The 11.3 packet, option 2: a chip row on the screen that
+            shows "myFAM"; a chip swaps the mixes for that category - a
+            picture, Play all, the rest - and the X brings the mixes back."""
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector("#catChips .catchip[data-cat]", timeout=10000)
+            chips = page.eval_on_selector_all("#catChips .catchip",
+                                              "e => e.map(x => x.textContent.trim())")
+            assert chips[0] == "All" and chips[-1] == "More", f"the chip row reads {chips}"
+            target = page.eval_on_selector(
+                "#catChips .catchip[data-cat]:not([data-cat=''])",
+                "e => e.getAttribute('data-cat')")
+            page.click(f'#catChips .catchip[data-cat="{target}"]')
+            page.wait_for_selector("#catPanel:not([hidden]) .catp-hero, #catPanel:not([hidden]) .sv-empty",
+                                   timeout=5000)
+            assert page.eval_on_selector("#mixesPane", "e => e.hidden"), \
+                "the mixes stayed under the category"
+            assert page.query_selector("#catChips .catchip-x"), "no way back to All"
+            if page.query_selector("#catPanel .catp-hero"):
+                assert page.query_selector("#catPanel .catp-play"), "no Play all"
+            page.click("#catChips .catchip-x")
+            page.wait_for_timeout(200)
+            assert page.eval_on_selector("#catPanel", "e => e.hidden"), \
+                "the X left the category showing"
+            assert not page.eval_on_selector("#mixesPane", "e => e.hidden")
+
         def not_interested_takes_a_tile_off_the_page():
             """The 11.3 packet #2: a tile's three dots end in Not interested,
             and choosing it takes that tile off the page at once."""
@@ -4250,6 +4276,7 @@ def main() -> int:
         check("A mix is shared from its menu", a_mix_is_shared_from_its_menu)
         check("The interests list is alphabetical", the_interests_list_is_alphabetical)
         check("Not interested takes a tile off the page", not_interested_takes_a_tile_off_the_page)
+        check("Category chips filter the page in place", category_chips_filter_the_page_in_place)
         check("Messages opens and closes", messages_sheet)
         check("YourFAM renders identity, friends, messages and shelf", profile)
         check("The player's X minimises into the mini bar",

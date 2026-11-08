@@ -715,40 +715,58 @@
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
     font-size:12px; font-weight:700; cursor:pointer; margin-bottom:11px; }
-  /* Categories (§229, §253), under the mixes: the grid, followed on top. */
-  .cat-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:19px; color:var(--text); }
-  #screen-playfam .dm-search.cat-find{ margin:0 0 12px; }
-  .cat-tile{ position:relative; }
-  .cat-tile-name{ display:block; padding-right:16px; }
-  .cat-star{ position:absolute; top:11px; right:11px; color:var(--copper); }
-  .cat-tile[class*="cat-f-"] .cat-star{ color:#F2C46B; }
-  .sv-title .cat-star{ position:static; vertical-align:-1px; }
-  /* A little smaller (10.12 packet #4): shorter, narrower, lighter type. */
-  .cat-shuffle{ width:auto; margin:6px 56px 4px; padding:8px 14px; font-size:11.5px; flex:none; }
-  .cat-shuffle svg{ width:13px; height:13px; }
-  .cat-shuffle:disabled{ opacity:0.45; cursor:default; }
-  .cat-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px;
-    margin:22px 0 10px; }
-  .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:4px 0 18px; }
-  .cat-tile{ min-height:92px; border-radius:16px; padding:13px 13px 14px; cursor:pointer; text-align:left;
-    border:0; color:var(--text); font-family:'Bricolage Grotesque', sans-serif;
-    font-weight:600; font-size:16px; line-height:1.15; background:var(--surface-2); }
-  .cat-tile small{ display:block; margin-top:6px; font-family:'Geist', sans-serif; font-weight:400;
-    font-size:10px; line-height:1.35; color:var(--text-muted); }
-  .cat-f-sports{ background:#56402F; } .cat-f-money{ background:#2F4A3E; }
-  .cat-f-business{ background:#4A4632; } .cat-f-tech{ background:#3B3A66; }
-  .cat-f-science{ background:#2C4A55; } .cat-f-health{ background:#3D4A30; }
-  .cat-f-culture{ background:#5A3A30; } .cat-f-world{ background:#2C415A; }
-  /* A toned tile is dark in both themes, so its words are always light;
-     an untoned one sits on the theme's surface and takes its text. */
-  .cat-tile[class*="cat-f-"]{ color:#F4EFE4; }
-  .cat-tile[class*="cat-f-"] small{ color:rgba(244,239,228,0.72); }
+  /* Categories as filter chips (the 11.3 packet, option 2): one row across
+     the top of the screen that shows "myFAM", scrolled sideways; the one
+     that is on is filled. Inside a category the row is an X, the category
+     and the level below it. Chips wrap no words and grow with the phone's
+     text size (`large-text`). */
+  .catchips{ display:flex; gap:7px; overflow-x:auto; scrollbar-width:none;
+    margin:4px -18px 0; padding:2px 18px 10px; }
+  .catchips::-webkit-scrollbar{ display:none; }
+  .catchips:empty{ display:none; }
+  .catchip{ flex:none; display:inline-flex; align-items:center; gap:5px; min-height:32px;
+    padding:6px 13px; border-radius:16px; border:1px solid var(--border-strong);
+    background:var(--bg); color:var(--text); font-family:'Geist', sans-serif;
+    font-size:12.5px; font-weight:600; white-space:nowrap; cursor:pointer; }
+  .catchip.on{ background:var(--text); color:var(--bg); border-color:var(--text); }
+  .catchip .cat-star{ color:var(--copper); }
+  .catchip.on .cat-star{ color:inherit; }
+  .catchip-x{ padding:6px 10px; }
+  .catchip-more{ color:var(--text-muted); border-style:dashed; }
+  .catchip-label{ align-self:center; font-size:12.5px; color:var(--text-muted); white-space:nowrap; }
+  #screen-playfam .dm-search.cat-find{ margin:4px 0 12px; }
+  .sv-title .cat-star{ vertical-align:-1px; color:var(--copper); }
+  /* The category, filtered in place: today's most played as a picture, then
+     Play all and Follow, then the rest. */
+  .catp-head{ display:flex; align-items:center; gap:10px; margin:6px 0 12px; }
+  .catp-name{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:19px;
+    color:var(--text); min-width:0; overflow-wrap:anywhere; }
+  .catp-hero{ position:relative; display:flex; flex-direction:column; justify-content:flex-end;
+    width:100%; min-height:150px; aspect-ratio:16/9; margin:4px 0 10px; padding:14px;
+    border:0; border-radius:16px; overflow:hidden; text-align:left; cursor:pointer;
+    background-color:var(--surface-2); background-size:cover; background-position:center;
+    color:#F4EFE4; }
+  .catp-hero::before{ content:""; position:absolute; inset:0;
+    background:linear-gradient(to bottom, rgba(10,9,13,0) 35%, rgba(10,9,13,0.78) 100%); }
+  .catp-hero > span{ position:relative; }
+  .catp-hero-t{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:18px;
+    line-height:1.2; overflow-wrap:anywhere; }
+  .catp-hero-k{ margin-top:4px; font-family:'Geist Mono', monospace; font-size:8.5px;
+    letter-spacing:0.1em; text-transform:uppercase; color:rgba(244,239,228,0.78); }
+  .catp-acts{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
+  .catp-play{ flex:1; min-width:150px; display:flex; align-items:center; justify-content:center; gap:7px;
+    min-height:38px; padding:8px 14px; border:0; border-radius:19px; background:var(--copper);
+    color:var(--ink); font-family:'Geist', sans-serif; font-size:13px; font-weight:700; cursor:pointer; }
+  .cat-f-sports{ background-color:#56402F; } .cat-f-money{ background-color:#2F4A3E; }
+  .cat-f-business{ background-color:#4A4632; } .cat-f-tech{ background-color:#3B3A66; }
+  .cat-f-science{ background-color:#2C4A55; } .cat-f-health{ background-color:#3D4A30; }
+  .cat-f-culture{ background-color:#5A3A30; } .cat-f-world{ background-color:#2C415A; }
   .hist-tabs[hidden]{ display:none; }
-  .cat-follow{ margin-left:auto; height:30px; padding:0 14px; border-radius:15px;
+  .cat-follow{ flex:none; min-height:34px; padding:0 14px; border-radius:17px;
     background:transparent; color:var(--text); border:1px solid var(--border-strong);
     font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; }
   .cat-follow.on{ background:var(--paper); color:var(--ink); border-color:var(--paper); }
-  #catList .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
+  #catPanel .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
     line-height:1.3; overflow-wrap:anywhere; }
   /* Inside a mix, and in the picker. */
   .mix-topic{ display:flex; align-items:center; gap:11px; padding:11px 12px; margin-bottom:9px;
@@ -3937,6 +3955,15 @@
                   aria-label="New mix" hidden><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
         </div>
         <div class="scroll">
+          <!-- **Categories as filter chips** (the 11.3 packet, option 2 of
+               the owner's deck): one row across the top - All, the ones
+               this listener follows with a star, the facets, and More to
+               find any category in the tree. Picking one filters this page
+               in place (`#catPanel` in place of `#mixesPane`); there is no
+               separate category page. Cached episodes only. -->
+          <div class="catchips" id="catChips" role="tablist" aria-label="Categories"></div>
+          <div id="catPanel" hidden></div>
+          <div id="mixesPane">
           <!-- Other listeners' public mixes. Tapping the bar lists every
                public mix; typing narrows it by mix name, by a topic in the
                mix, or by whose it is. Anybody can search and listen; adding
@@ -3954,20 +3981,6 @@
           </div>
           <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
-          <!-- Categories (§229, §253): every facet as a tile under the mixes,
-               the ones this listener follows on top with a star, and a
-               search over every category the tree holds ("NFL" is three
-               levels down). Drawn by `renderMyCategories`; a tap opens the
-               category's page; cached episodes only. -->
-          <div id="catSection">
-            <div class="cat-head"><div class="cat-h">Categories</div></div>
-            <div class="dm-search cat-find">
-              <svg class="dm-search-i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-              <input id="catFind" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                     placeholder="Find a category, like NFL" aria-label="Find a category"
-                     oninput="renderMyCategories()" onkeydown="if(event.key==='Enter') this.blur()">
-            </div>
-            <div id="catGrid"></div>
           </div>
         </div>
         <div class="tabbar">
@@ -3988,38 +4001,6 @@
           <div class="head-dots" onclick="openMixMenu()"><span></span><span></span><span></span></div>
         </div>
         <div class="scroll" id="mixBody"></div>
-      </section>
-
-      <!-- ============ CATEGORIES — one category's episodes today (§229) ============
-           Every episode made today in the category or under it, from the
-           cache only: nothing on this page writes an episode. Sorted and
-           searched by the server (`/api/categories/episodes`). -->
-      <section class="screen" id="screen-category">
-        <div class="screen-top" aria-hidden="true"></div>
-        <div class="back-row">
-          <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
-          <h2 id="catTitle">Category</h2>
-          <button class="cat-follow" id="catFollow" onclick="toggleFollowCategory()" hidden>Follow</button>
-        </div>
-        <!-- Shuffle play (§253): every episode on this page, shuffled, in
-             the player and its queue (11.3 packet; a reel until then). -->
-        <button class="mix-play cat-shuffle" id="catShuffle" onclick="shuffleCategory()" disabled>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
-          Shuffle play
-        </button>
-        <label class="yf-search">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input id="catSearch" type="search" autocomplete="off" spellcheck="false"
-                 placeholder="Search titles in this category" aria-label="Search titles in this category"
-                 oninput="onCategorySearch()">
-        </label>
-        <div class="hist-tabs" id="catSorts">
-          <button class="hist-tab on" data-sort="popular" onclick="setCategorySort('popular')">Most popular</button>
-          <button class="hist-tab" data-sort="az" onclick="setCategorySort('az')">A to Z</button>
-          <button class="hist-tab" data-sort="recent" onclick="setCategorySort('recent')">Most recent</button>
-        </div>
-        <div class="hist-tabs" id="catSubs" hidden></div>
-        <div class="scroll" id="catList"></div>
       </section>
 
       <!-- ============ DAILYFAM — somebody else's public mix ============ -->
@@ -11442,35 +11423,43 @@
     document.getElementById("mixList").innerHTML = html;
   }
 
-  // ---- Categories (§229, §253) ----
+  // ---- Categories (§229, §253; filter chips since the 11.3 packet) ----
   //
-  // Under the mixes: every facet as a tile, the categories this listener
-  // follows on top with a star (any node, "NFL" as well as Sport), and a
-  // search over every category the tree holds. Each opens a page of the
-  // episodes made in it today. Everything on these screens is a read of
-  // what is already cached - a tap plays it replay-only and nothing here
+  // **Option 2 of the owner's deck**: a row of chips across the top of the
+  // screen that shows "myFAM". "All" is the page as it always was; a chip
+  // filters the page in place to that category's episodes made today - the
+  // most played as a picture at the top, "Play all", Follow, and the rest as
+  // a list - and the row turns into an X, the category, and the categories
+  // one level below it that have something today. "More" finds any category
+  // the tree holds ("NFL" is three levels down). Everything here is a read
+  // of what is already cached: a tap plays it replay-only and nothing here
   // can cause an episode to be written. Following is kept for an account,
   // like a mix; anybody may browse.
   var catData = null;
   var catReq = 0;
-  var catPage = { root: "", node: "", sort: "popular", episodes: [] };
-  var catTimer = null;
+  var catPage = { root: "", node: "", episodes: [], subs: [], finding: false };
   function loadMyCategories(){
-    var el = document.getElementById("catGrid");
-    if(!el) return;
+    if(!document.getElementById("catChips")) return;
     fetch("/api/categories")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ catData = d; renderMyCategories(); })
+      .then(function(d){ catData = d; renderCategoryChips(); })
       .catch(function(){
-        if(catData){ renderMyCategories(); return; }
-        el.innerHTML = '<div class="mix-empty">The categories could not load. Try again in a moment.</div>';
+        // The chips simply are not drawn: the page under them still works,
+        // and a row of chips that leads nowhere would be worse.
+        if(catData) renderCategoryChips();
       });
   }
-  // One colour per facet, as the grid draws them.
+  // One colour per facet: the hero's backdrop when it has no picture.
   var CATEGORY_TONES = { sports: "cat-f-sports", money: "cat-f-money",
     business: "cat-f-business", tech: "cat-f-tech", science: "cat-f-science",
     health: "cat-f-health", culture: "cat-f-culture", world: "cat-f-world" };
   function categoryTone(facet){ return CATEGORY_TONES[facet] || ""; }
+  function categoryFacetOf(id){
+    if(!catData) return "";
+    for(var i = 0; i < catData.facets.length; i++){ if(catData.facets[i].id === id) return id; }
+    for(var j = 0; j < catData.all.length; j++){ if(catData.all[j].id === id) return catData.all[j].facet; }
+    return "";
+  }
   function categoryLabelOf(id){
     if(!catData) return id;
     for(var i = 0; i < catData.facets.length; i++){
@@ -11481,78 +11470,76 @@
     }
     return id;
   }
-  var CAT_STAR = '<svg class="cat-star" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-label="Following">'
+  var CAT_STAR = '<svg class="cat-star" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-label="Following">'
     + '<path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>';
-  function categoryTileHTML(id, label, facet, kids, followed, action){
-    return '<button class="cat-tile ' + categoryTone(facet) + (followed ? ' followed' : '')
-      + '" data-cat="' + escapeHtml(id) + '" onclick="' + (action || "openCategory")
-      + '(this.dataset.cat)">'
-      + (followed ? CAT_STAR : '') + '<span class="cat-tile-name">' + escapeHtml(label) + '</span>'
-      + (kids ? '<small>' + escapeHtml(kids) + '</small>' : '') + '</button>';
+  function catChipHTML(id, label, on, followed, action, extra){
+    return '<button type="button" class="catchip' + (on ? ' on' : '') + (extra || '') + '" role="tab"'
+      + ' aria-selected="' + (on ? 'true' : 'false') + '" data-cat="' + escapeHtml(id) + '"'
+      + ' onclick="' + action + '(this.dataset.cat)">'
+      + (followed ? CAT_STAR : '') + escapeHtml(label) + '</button>';
   }
-  // The grid, or - once something is typed - every category whose name
-  // has a word starting with it. Only `#catGrid` is redrawn, so the box
-  // keeps its focus while typing.
-  function renderMyCategories(){
-    var el = document.getElementById("catGrid");
-    if(!el || !catData) return;
-    var input = document.getElementById("catFind");
-    var q = input ? input.value.trim().toLowerCase() : "";
-    var mine = catData.saved ? catData.mine : [];
-    var followed = {};
-    mine.forEach(function(c){ followed[c.id] = true; });
-    if(q){
-      // From the start of a word: "nfl" is the NFL, not "conflict".
-      var starts = function(label){ return (" " + label.toLowerCase()).indexOf(" " + q) !== -1; };
-      var found = catData.facets.filter(function(f){ return starts(f.label); })
-        .map(function(f){ return { id: f.id, label: f.label, path: [] }; })
-        .concat(catData.all.filter(function(n){ return starts(n.label); }));
-      if(!found.length){
-        el.innerHTML = '<div class="sv-empty">No category called that yet.</div>';
-        return;
-      }
-      el.innerHTML = found.slice(0, 60).map(function(n){
-        return '<div class="sv-row" data-cat="' + escapeHtml(n.id) + '" onclick="openCategory(this.dataset.cat)">'
-          + '<div class="sv-main"><div class="sv-title">' + (followed[n.id] ? CAT_STAR + ' ' : '')
-          + escapeHtml(n.label) + '</div>'
-          + '<div class="sv-meta">' + escapeHtml((n.path || []).join(" › ").toUpperCase()) + '</div></div></div>';
-      }).join("");
+  // The row: All / followed / facets / More, or - inside a category - X,
+  // the category and what is under it.
+  function renderCategoryChips(){
+    var el = document.getElementById("catChips");
+    if(!el) return;
+    if(!catData){ el.innerHTML = ""; return; }
+    var x = '<button type="button" class="catchip catchip-x" onclick="clearCategory()" aria-label="All of myFAM">'
+      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+    if(catPage.finding){
+      el.innerHTML = x + '<span class="catchip-label">Find a category</span>';
       return;
     }
-    // Followed first, in the order they were followed, then the facets
-    // nobody here follows yet - each tile once.
-    var tiles = mine.map(function(c){
-      return categoryTileHTML(c.id, c.label, c.facet, (c.children || []).join(" · "), true);
-    }).concat(catData.facets.filter(function(f){ return !followed[f.id]; }).map(function(f){
-      var kids = (f.children || []).slice(0, 4).map(function(c){ return c.label; }).join(" · ");
-      return categoryTileHTML(f.id, f.label, f.id, kids, false);
-    }));
-    el.innerHTML = '<div class="cat-grid">' + tiles.join("") + '</div>';
+    if(!catPage.root){
+      var mine = catData.saved ? catData.mine : [];
+      var followed = {};
+      mine.forEach(function(c){ followed[c.id] = true; });
+      el.innerHTML = catChipHTML("", "All", true, false, "clearCategory")
+        + mine.map(function(c){ return catChipHTML(c.id, c.label, false, true, "pickCategory"); }).join("")
+        + catData.facets.filter(function(f){ return !followed[f.id]; })
+            .map(function(f){ return catChipHTML(f.id, f.label, false, false, "pickCategory"); }).join("")
+        + '<button type="button" class="catchip catchip-more" onclick="openCategoryFind()">More</button>';
+      return;
+    }
+    el.innerHTML = x
+      + catChipHTML(catPage.root, categoryLabelOf(catPage.root), catPage.node === catPage.root,
+                    isFollowed(catPage.root), "pickCategorySub")
+      + catPage.subs.map(function(s){
+          return catChipHTML(s.id, s.label, catPage.node === s.id, isFollowed(s.id), "pickCategorySub");
+        }).join("");
   }
-  function openCategory(id){
-    catPage = { root: id, node: id, sort: "popular", episodes: [] };
-    document.getElementById("catTitle").textContent = categoryLabelOf(id);
-    document.getElementById("catSearch").value = "";
-    document.getElementById("catSubs").hidden = true;
-    drawCategorySorts();
-    drawFollowButton();
-    navigate("category");
+  function showCategoryPanel(on){
+    document.getElementById("catPanel").hidden = !on;
+    document.getElementById("mixesPane").hidden = on;
+  }
+  function pickCategory(id){
+    if(!id){ clearCategory(); return; }
+    catPage = { root: id, node: id, episodes: [], subs: [], finding: false };
+    showCategoryPanel(true);
+    renderCategoryChips();
+    var scroller = document.querySelector("#screen-playfam .scroll");
+    if(scroller) scroller.scrollTop = 0;
     loadCategoryEpisodes();
+  }
+  // A second tap on the chip that is on goes back up to the category.
+  function pickCategorySub(id){
+    catPage.node = (id === catPage.node && id !== catPage.root) ? catPage.root : id;
+    renderCategoryChips();
+    loadCategoryEpisodes();
+  }
+  function clearCategory(){
+    catReq++;
+    catPage = { root: "", node: "", episodes: [], subs: [], finding: false };
+    showCategoryPanel(false);
+    renderCategoryChips();
   }
   function isFollowed(id){
     if(!catData || !catData.saved) return false;
     for(var i = 0; i < catData.mine.length; i++){ if(catData.mine[i].id === id) return true; }
     return false;
   }
-  function drawFollowButton(){
-    var btn = document.getElementById("catFollow");
-    var on = isFollowed(catPage.node);
-    btn.hidden = !catData;
-    btn.classList.toggle("on", on);
-    btn.textContent = on ? "Following" : "Follow";
-  }
   // The whole list is written at once, in order - the server keeps it
-  // exactly as sent, and the section redraws from what it says it kept.
+  // exactly as sent, and the row redraws from what it says it kept.
   // One write at a time: a second tap before the first answers would send
   // a list built from the same stale copy.
   var catFollowBusy = false;
@@ -11576,46 +11563,27 @@
       toast(at === -1 ? "Added to your categories" : "Removed from your categories");
       return fetch("/api/categories").then(function(r){ return r.ok ? r.json() : null; });
     }).then(function(d){
-      if(d){ catData = d; renderMyCategories(); }
-      drawFollowButton();
+      if(d) catData = d;
+      renderCategoryChips();
+      drawCategoryPanel();
     }).catch(function(err){ toast(err.message || "Could not save that"); })
       .then(function(){ catFollowBusy = false; });
   }
-  function drawCategorySorts(){
-    document.querySelectorAll("#catSorts .hist-tab").forEach(function(b){
-      b.classList.toggle("on", b.getAttribute("data-sort") === catPage.sort);
-    });
-  }
-  function setCategorySort(sort){
-    catPage.sort = sort;
-    drawCategorySorts();
-    loadCategoryEpisodes();
-  }
-  function setCategoryNode(id){
-    catPage.node = id;
-    document.getElementById("catTitle").textContent = categoryLabelOf(id);
-    drawFollowButton();
-    loadCategoryEpisodes();
-  }
-  function onCategorySearch(){
-    clearTimeout(catTimer);
-    catTimer = setTimeout(loadCategoryEpisodes, 250);
-  }
   function loadCategoryEpisodes(){
     var req = ++catReq;
-    var q = document.getElementById("catSearch").value.trim();
-    var el = document.getElementById("catList");
+    var el = document.getElementById("catPanel");
+    var node = catPage.node;
+    catPage.episodes = [];
     el.innerHTML = '<div class="sv-empty">Loading today’s episodes…</div>';
-    document.getElementById("catShuffle").disabled = true;
-    fetch("/api/categories/episodes?id=" + encodeURIComponent(catPage.node)
-          + "&sort=" + encodeURIComponent(catPage.sort)
-          + "&q=" + encodeURIComponent(q))
+    fetch("/api/categories/episodes?id=" + encodeURIComponent(node) + "&sort=popular")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         if(req !== catReq) return;
         catPage.episodes = d.episodes || [];
-        if(catPage.node === catPage.root) drawCategorySubs(d.subcategories || []);
-        drawCategoryEpisodes(q);
+        // The level below comes from the category's own answer, so
+        // narrowing to one of them keeps the row.
+        if(node === catPage.root){ catPage.subs = d.subcategories || []; renderCategoryChips(); }
+        drawCategoryPanel();
       })
       .catch(function(){
         if(req !== catReq) return;
@@ -11623,56 +11591,92 @@
           + '<button class="sample-note-btn" onclick="loadCategoryEpisodes()">Try again</button></div>';
       });
   }
-  // "Narrow it down": the categories one level below that have something
-  // today. Drawn from the root's answer, so narrowing keeps the chips.
-  function drawCategorySubs(subs){
-    var row = document.getElementById("catSubs");
-    if(!subs.length){ row.hidden = true; row.innerHTML = ""; return; }
-    row.hidden = false;
-    row.innerHTML = '<button class="hist-tab" data-cat="' + escapeHtml(catPage.root)
-      + '" onclick="pickCategorySub(this)">All</button>'
-      + subs.map(function(s){
-        return '<button class="hist-tab" data-cat="' + escapeHtml(s.id) + '" onclick="pickCategorySub(this)">'
-          + escapeHtml(s.label) + ' · ' + s.count + '</button>';
-      }).join("");
-    markCategorySub();
+  function catRowMeta(ep){
+    var meta = [String(ep.node_label || "").toUpperCase(), (ep.minutes || BROWSE_MINUTES) + " MIN"];
+    if(ep.plays) meta.push(ep.plays + (ep.plays === 1 ? " PLAY" : " PLAYS"));
+    return meta.filter(Boolean).join(" · ");
   }
-  function markCategorySub(){
-    document.querySelectorAll("#catSubs .hist-tab").forEach(function(b){
-      b.classList.toggle("on", b.getAttribute("data-cat") === catPage.node);
-    });
-  }
-  function pickCategorySub(btn){
-    setCategoryNode(btn.getAttribute("data-cat"));
-    markCategorySub();
-  }
-  function drawCategoryEpisodes(q){
-    var el = document.getElementById("catList");
+  // The picture of today's most played on top, Play all and Follow under
+  // it, then the rest in the same order.
+  function drawCategoryPanel(){
+    var el = document.getElementById("catPanel");
+    if(!el || !catPage.root || catPage.finding) return;
     var eps = catPage.episodes;
-    document.getElementById("catShuffle").disabled = !eps.length;
+    var label = categoryLabelOf(catPage.node);
+    var on = isFollowed(catPage.node);
+    var follow = catData ? '<button type="button" class="cat-follow' + (on ? ' on' : '')
+      + '" onclick="toggleFollowCategory()">' + (on ? "Following" : "Follow") + '</button>' : '';
     if(!eps.length){
-      el.innerHTML = q
-        ? '<div class="sv-empty">No title in here has those words today.</div>'
-        : '<div class="sv-empty">Nothing has been made in this category today yet. '
-          + 'Episodes come up here as people play and FAM writes them.</div>';
+      el.innerHTML = '<div class="catp-head"><div class="catp-name">' + escapeHtml(label) + '</div>' + follow + '</div>'
+        + '<div class="sv-empty">Nothing has been made in ' + escapeHtml(label) + ' today yet. '
+        + 'Episodes come up here as people play and FAM writes them.</div>';
       return;
     }
-    el.innerHTML = eps.map(function(ep, i){
-      var meta = [String(ep.node_label || "").toUpperCase(), (ep.minutes || BROWSE_MINUTES) + " MIN"];
-      if(ep.plays) meta.push(ep.plays + (ep.plays === 1 ? " PLAY" : " PLAYS"));
-      if(ep.mixes) meta.push("IN " + ep.mixes + (ep.mixes === 1 ? " MIX" : " MIXES"));
-      return '<div class="sv-row" onclick="playCategoryEpisode(' + i + ')">'
-        + '<div class="sv-art"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></div>'
-        + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
-        + escapeHtml(ep.title || ep.query) + '</div>'
-        + '<div class="sv-meta">' + escapeHtml(meta.join(" · ")) + '</div></div></div>';
+    var hero = eps[0];
+    var mins = eps.reduce(function(t, ep){ return t + (Number(ep.minutes) || BROWSE_MINUTES); }, 0);
+    var tone = categoryTone(categoryFacetOf(catPage.root));
+    el.innerHTML = '<button type="button" class="catp-hero ' + tone + (hero.thumb ? ' has-img' : '') + '"'
+      + ' onclick="playCategoryEpisode(0)"'
+      + (hero.thumb ? ' style="background-image:url(&quot;' + escapeHtml(hero.thumb) + '&quot;)"' : '') + '>'
+      + '<span class="catp-hero-t' + (hero.explicit ? ' is-explicit' : '') + '">' + escapeHtml(hero.title || hero.query) + '</span>'
+      + '<span class="catp-hero-k">Most played in ' + escapeHtml(label) + ' today</span></button>'
+      + '<div class="catp-acts"><button type="button" class="catp-play" onclick="playCategoryAll()">'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+      + 'Play all ' + eps.length + ' · ' + Math.max(1, Math.round(mins)) + ' min</button>' + follow + '</div>'
+      + eps.slice(1).map(function(ep, k){
+          var i = k + 1;
+          return '<div class="sv-row" onclick="playCategoryEpisode(' + i + ')">'
+            + '<div class="sv-art' + (ep.thumb ? ' has-img' : '') + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+            + (ep.thumb ? '<img src="' + escapeHtml(ep.thumb) + '" alt="" loading="lazy" decoding="async"'
+              + ' onerror="this.parentNode.classList.remove(\'has-img\'); this.remove()">' : '')
+            + '</div>'
+            + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
+            + escapeHtml(ep.title || ep.query) + '</div>'
+            + '<div class="sv-meta">' + escapeHtml(catRowMeta(ep)) + '</div></div></div>';
+        }).join("");
+  }
+  // **More**: every category the tree holds, found by a word it starts
+  // with ("nfl" is the NFL, not "conflict"). Only the results redraw, so
+  // the box keeps its focus while typing.
+  function openCategoryFind(){
+    catReq++;
+    catPage = { root: "", node: "", episodes: [], subs: [], finding: true };
+    showCategoryPanel(true);
+    renderCategoryChips();
+    document.getElementById("catPanel").innerHTML = '<div class="dm-search cat-find">'
+      + '<svg class="dm-search-i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'
+      + '<input id="catFind" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
+      + ' placeholder="Find a category, like NFL" aria-label="Find a category" oninput="renderCategoryFind()"'
+      + ' onkeydown="if(event.key===\'Enter\') this.blur()"></div><div id="catFound"></div>';
+    renderCategoryFind();
+    var box = document.getElementById("catFind");
+    if(box) box.focus();
+  }
+  function renderCategoryFind(){
+    var el = document.getElementById("catFound");
+    if(!el || !catData) return;
+    var input = document.getElementById("catFind");
+    var q = input ? input.value.trim().toLowerCase() : "";
+    var starts = function(label){ return !q || (" " + label.toLowerCase()).indexOf(" " + q) !== -1; };
+    var found = catData.facets.filter(function(f){ return starts(f.label); })
+      .map(function(f){ return { id: f.id, label: f.label, path: [] }; })
+      .concat(q ? catData.all.filter(function(n){ return starts(n.label); }) : []);
+    if(!found.length){
+      el.innerHTML = '<div class="sv-empty">No category called that yet.</div>';
+      return;
+    }
+    el.innerHTML = found.slice(0, 60).map(function(n){
+      return '<div class="sv-row" data-cat="' + escapeHtml(n.id) + '" onclick="pickCategory(this.dataset.cat)">'
+        + '<div class="sv-main"><div class="sv-title">' + (isFollowed(n.id) ? CAT_STAR + ' ' : '')
+        + escapeHtml(n.label) + '</div>'
+        + '<div class="sv-meta">' + escapeHtml((n.path || []).join(" › ").toUpperCase()) + '</div></div></div>';
     }).join("");
   }
   // **A category plays in the player** (the 11.3 packet, with exploreFAM
   // gone; it opened exploreFAM's reel since §253). A tap plays that episode
   // the way the catalogue plays one - replay only, never written - and
-  // queues the rest of the page after it in the page's order; Shuffle play
-  // does the same from a shuffled copy. Both go through the ordinary queue
+  // queues the rest of the category after it in its order; Play all does
+  // the same from the top. Both go through the ordinary queue
   // (§190), so Go to Queue shows what is coming and every row is removable.
   function categoryQueueEntry(ep){
     return { title: ep.title || ep.query, prompt: ep.query,
@@ -11700,10 +11704,11 @@
     if(!eps[i]) return;
     playCategoryList(eps.slice(i));
   }
-  function shuffleCategory(){
+  function playCategoryAll(){
     if(!catPage.episodes.length){ toast("Nothing has been made in this category today yet"); return; }
-    playCategoryList(shuffledPool(catPage.episodes));
+    playCategoryList(catPage.episodes);
   }
+
 
   function mixById(id){
     if(id === "sample") return sampleMix;

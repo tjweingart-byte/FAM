@@ -327,6 +327,29 @@ def load_fixtures() -> dict:
                               "angle": t.subtitle})
         interest[tag] = cards
 
+    # Categories as filter chips (the 11.3 packet): `/api/categories`'s
+    # shape with the eight facets and nothing followed, and each facet's
+    # episodes today from the Explore fixture and the bank, most played
+    # first - so the chips have something to filter to in a preview.
+    categories = {"facets": [{"id": tag, "label": label, "children": []}
+                             for tag, label in topics_mod.TAG_LABELS.items()],
+                  "all": [], "mine": [], "saved": False}
+    category_pages = {}
+    for tag, label in topics_mod.TAG_LABELS.items():
+        rows = [{"query": c["query"], "title": c["title"],
+                 "minutes": c["minutes"] or 1.5, "plays": 0, "key": "",
+                 "mixes": 0, "popularity": 0, "made_age_seconds": 0,
+                 "sourced_age_seconds": 0, "explicit": False, "node": tag,
+                 "node_label": label, "thumb": ""}
+                for c in interest.get(tag, [])][:8]
+        for row in rows:
+            row["plays"] = next((e["plays"] for e in explore["episodes"]
+                                 if e["query"] == row["query"]), 0)
+        rows.sort(key=lambda row: -row["plays"])
+        category_pages["/api/categories/episodes:" + tag] = {
+            "id": tag, "label": label, "facet": tag, "sort": "popular", "q": "",
+            "subcategories": [], "episodes": rows}
+
     # A guest's page (§154): the evergreen bank on every rail, and the example
     # DailyFAM playlist. Nothing is kept in a preview, so no tile is playable
     # and a guest's tap opens the sign-up sheet exactly as the server's 403
@@ -387,6 +410,8 @@ def load_fixtures() -> dict:
                         "name": "Attached file", "chars": 4200, "url": "",
                         "preview": "A stand-in for extracted text."},
         "/api/explore": explore,
+        "/api/categories": categories,
+        **category_pages,
         # Search DailyFAM's A to Z catalogue (10.2 feedback), in
         # `/api/myfam/catalog`'s shape: the Explore fixture's episodes by
         # title, each with the letter it is filed under.
@@ -2009,6 +2034,10 @@ __PREVIEW_PICTURE__
         threads: (gd.threads || []).filter(function (t) { return gdShown(t.thread); }),
         similar: (gd.similar || []).filter(function (t) { return gdShown(t.query); })
       });
+    }
+    if (path === "/api/categories/episodes") {
+      return json(FIXTURES["/api/categories/episodes:" + (qs.get("id") || "")]
+                  || { episodes: [], subcategories: [] });
     }
     if (FIXTURES[path]) return json(FIXTURES[path]);
     return json({ error: "Not available in the preview build." }, 404);
