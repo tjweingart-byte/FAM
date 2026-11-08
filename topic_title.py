@@ -41,6 +41,8 @@ SHORT_WORDS = 4
 #: one line per topic; past this it is a sentence again.
 MAX_WORDS = 5
 MAX_CHARS = 40
+#: How many typed topics one save may name by model; the rest by rule.
+MAX_MODEL_PER_SAVE = 3
 
 #: Asked of the model. The example is the owner's own.
 SYSTEM = (
@@ -187,6 +189,16 @@ async def short_title(query: str, *, allow_model: bool = True,
         if named:
             return named, "model"
     return heuristic(query), "rule"
+
+
+def will_call() -> bool:
+    """Whether a long prompt would be sent to the model now: the switch is
+    on and there is a key. The caller adds consent. What paces the call."""
+    from config import settings
+    if not settings.topic_title:
+        return False
+    import credentials
+    return bool(credentials.active("ANTHROPIC_API_KEY"))
 
 
 async def _ask_model(query: str, usage=None) -> Optional[str]:

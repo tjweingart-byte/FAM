@@ -673,7 +673,9 @@ the prompt back) **only where the listener's words may reach Anthropic**
 (`consent.py`), and a rule in code (`topic_title.heuristic`) whenever the
 call is not made or fails. An entry that carries a title keeps it - a reorder
 or edit never renames anything. Costed per listener (`topic_title` surface,
-spend but not an episode). Not on a listening path.
+spend but not an episode), paced like a paid call when one will be made, and
+at most `MAX_MODEL_PER_SAVE` named by model per save (the rest by rule). Not
+on a listening path.
 
 <!-- rule:joint-mixes -->
 **Joint mixes are Spotify's collaborative playlists** *(PROBLEMS.md §498)*.
@@ -688,7 +690,11 @@ item, drawn as Spotify's face on each track. Still one mix: the edition
 writes it once, a member's play keeps it active, the push stays the owner's.
 "Make it yours alone" turns the link off and removes members; a member can
 leave; what anyone added stays. An erased member's items read as nobody's
-(`FORMER_MEMBER`); a copy carries nobody's name. Up to `MAX_COLLABORATORS`.
+(`FORMER_MEMBER`, found in every mix their id is written into, including
+ones they left); a copy carries nobody's name. Up to `MAX_COLLABORATORS`. A
+suspended account cannot join, and nobody blocked either way by the owner
+(`moderation.is_apart`) - answered like a link turned off. Signed out, the
+invite waits and joins after the account's first steps (`finishEntry`).
 
 <!-- rule:friends-listened -->
 **Friends' faces on a card** (PROBLEMS.md §363, the owner's 10.31

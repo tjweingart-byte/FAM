@@ -327,4 +327,51 @@ def test_a_joint_mix_can_be_made_and_joined_from_the_page():
     assert '"/api/mixes/join"' in _fn("joinPendingMix")
     assert ".then(openLinkedJoin)" in INDEX
     # Signed out, the invite waits for the account.
-    assert "joinPendingMix" in _fn("submitAuthForm")
+    assert "joinPendingMix" in _fn("submitAuthForm") and "joinPendingMix" in _fn("finishEntry")
+
+
+# --- the double-check's fixes -----------------------------------------------------
+
+def test_a_member_who_left_and_then_erased_is_not_left_in_the_mix(tmp_path):
+    store = mixes_mod.MixStore(str(tmp_path / "mixes.db"))
+    mix = store.create("owner", "Joint", ["f:nfl"])
+    store.join("member", store.invite_token("owner", mix.id))
+    store.update_items("member", mix.id, ["f:nfl", "f:basketball"])
+    store.leave("member", mix.id)
+    store.forget("member")
+    kept = store.get("owner", mix.id)
+    assert [i.added_by for i in kept.items] == ["owner", mixes_mod.FORMER_MEMBER]
+
+
+def test_the_owner_opening_their_own_invite_is_not_joint(client):
+    signed_in(client, "own1@b.com", "Ona", "ona1")
+    made = client.post("/api/mixes", json={"name": "Solo"}).json()
+    token = client.post("/api/mixes/" + made["id"] + "/invite").json()["url"].rsplit("/j/", 1)[1]
+    body = client.post("/api/mixes/join", json={"token": token}).json()
+    assert body["role"] == "owner" and body["joint"] is False
+
+
+def test_somebody_blocked_cannot_join(client, other):
+    signed_in(client, "bl1@b.com", "Bea", "bea1")
+    made = client.post("/api/mixes", json={"name": "Private club"}).json()
+    token = client.post("/api/mixes/" + made["id"] + "/invite").json()["url"].rsplit("/j/", 1)[1]
+    blocked = signed_in(other, "bl2@b.com", "Ben", "ben2")
+    owner = client.get("/api/auth/me").json()["user_id"]
+    appmod.MODERATION.block(owner, blocked)
+    assert other.post("/api/mixes/join", json={"token": token}).status_code == 404
+    assert other.get("/api/mixes").json()["mixes"] == []
+
+
+def test_one_save_names_only_a_few_by_model(client, monkeypatch):
+    asked = []
+
+    async def fake(query, *, allow_model=True, usage=None):
+        asked.append(allow_model)
+        return topic_title.heuristic(query), "rule"
+
+    monkeypatch.setattr(topic_title, "short_title", fake)
+    signed_in(client, "cap1@b.com", "Cap", "cap1")
+    long_ones = [{"query": "tell me every day about the news in town number %d please" % n}
+                 for n in range(6)]
+    client.post("/api/mixes", json={"name": "Many", "topic_ids": long_ones})
+    assert asked.count(True) == topic_title.MAX_MODEL_PER_SAVE

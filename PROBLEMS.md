@@ -31288,3 +31288,15 @@ Rules: `mix-made-by-naming`, `mix-topic-title`, `joint-mixes`
 Unverified here, as always: the model's titles (no key in this container -
 the rule's are tested), and how the page reads on a phone beyond the
 preview's screenshots.
+
+**The double-check (same day).** Reading the whole diff again found five
+things, all fixed and tested: an erased member who had *left* a mix before
+erasing stayed in its items under their id (`forget` now finds every mix
+whose items name them); a suspended account, or somebody blocked either way
+by the owner, could join through the link (now refused like a link turned
+off); the owner opening their own invite came back marked joint; the title
+call was not paced and one save could queue twenty model calls (now
+`_rate_limit` when a call will be made, and at most `MAX_MODEL_PER_SAVE` per
+save); and an invite opened before signing up yanked a new account out of
+its first steps (now joined from `finishEntry`). The "Added ..." toast names
+the topic that was saved, not merely the last row.

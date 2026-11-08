@@ -1073,6 +1073,19 @@ class MixStore:
             (mix_id, user_id, time.time()))
         return mix
 
+    def owner_of_token(self, token: str) -> str:
+        """Whose mix an invite opens, or "" for one that opens nothing."""
+        token = str(token or "").strip()[:64]
+        if not token:
+            return ""
+        try:
+            row = self._conn().execute(
+                "SELECT user_id FROM mixes WHERE join_token = ?", (token,)).fetchone()
+        except Exception:
+            log.exception("could not read an invite")
+            return ""
+        return row[0] if row else ""
+
     def leave(self, user_id: str, mix_id: str) -> bool:
         """A member takes themselves off. What they added stays."""
         cur = self._conn().execute(
@@ -1152,11 +1165,14 @@ class MixStore:
         try:
             self._conn().execute(
                 "DELETE FROM mix_members WHERE mix_id NOT IN (SELECT id FROM mixes)")
-            joined = [r[0] for r in self._conn().execute(
-                "SELECT mix_id FROM mix_members WHERE user_id = ?", (user_id,))]
             removed += self._conn().execute(
                 "DELETE FROM mix_members WHERE user_id = ?", (user_id,)).rowcount or 0
-            for mix_id in joined:
+            # Every mix their name is written into - including ones they
+            # left before erasing - not only the ones they were still in.
+            written = [r[0] for r in self._conn().execute(
+                "SELECT id FROM mixes WHERE items LIKE ?",
+                ('%"added_by": ' + json.dumps(user_id) + '%',))]
+            for mix_id in written:
                 mix = self._get_any(mix_id)
                 if mix is None or not any(i.added_by == user_id for i in mix.items):
                     continue

@@ -13835,7 +13835,11 @@
     box.value = "";
     renderAddTopics();
     saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
-      var added = (saved.items || [])[(saved.items || []).length - 1];
+      // The one with these words: the server folds a repeat into the
+      // topic already there, so the last row is not always this one.
+      var added = (saved.items || []).filter(function(i){
+        return i.custom && String(i.query).toLowerCase() === text.toLowerCase().replace(/\s+/g, " ");
+      })[0];
       renderAddTopics();
       toast("Added “" + ((added && added.title) || text) + "” to " + saved.name);
     }, function(){ if(box && !box.value) box.value = text; renderAddTopics(); });
@@ -22457,8 +22461,6 @@
         btn.textContent = label;
         if(!AUTH.authenticated) return;    // the error is under the fields
         document.getElementById("authPassword").value = "";
-        // Came from a joint-mix invite: join it now there is an account.
-        if(pendingJoin) setTimeout(joinPendingMix, 400);
         // Anything chosen before signing up is theirs now, so it is written
         // through rather than left stranded in this browser.
         var local = localPrefs();
@@ -22471,6 +22473,8 @@
           var back = authReturn;
           authReturn = "";
           showScreen(back);
+          // Came from a joint-mix invite: join it now there is an account.
+          if(pendingJoin){ setTimeout(joinPendingMix, 400); return; }
           if(back === "playfam") loadMixes();
           if(back === "myfam") loadMyFamFeed();
           // The Profile tab is a door until there is an account and the whole
@@ -22966,6 +22970,10 @@
       ? beginEntryHandoff(document.querySelector(".screen.active")) : null;
     openMyFamTab();   // which loads the feed and Go Deeper
     if(handoff) handoff();
+    // A joint-mix invite opened before there was an account (11.7 packet):
+    // joined once the account's first steps are done, never in the middle
+    // of them.
+    if(AUTH.authenticated && pendingJoin) setTimeout(joinPendingMix, 400);
     // Somebody who just signed up or skipped in gets the same notifications a
     // returning listener does. Started here as well as in `bootToFirstScreen`
     // because those are the two ways into the app and neither passes through

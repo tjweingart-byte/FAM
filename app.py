@@ -6696,12 +6696,24 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
     if not raw:
         return list(raw or [])
     allow = not _client_asks_consent(request) or CONSENT.given(account)
+    # A paid call is paced like one (`limit-episodes`), and only when one
+    # will be made: an untitled long prompt, a key, the switch, the consent.
+    if allow and topic_title.will_call() and any(
+            isinstance(e, dict) and e.get("query") and not str(e.get("title") or "").strip()
+            and not topic_title.is_short(str(e["query"])) for e in raw):
+        _rate_limit(request)
     usage = metering.Usage()
     out = []
+    asked = 0
     for entry in raw:
         if isinstance(entry, dict) and entry.get("query") and not str(entry.get("title") or "").strip():
+            # One save names at most a few by model; the rest by rule, so a
+            # save is never a queue of model calls somebody waits through.
+            ask = allow and asked < topic_title.MAX_MODEL_PER_SAVE
+            if ask and not topic_title.is_short(str(entry["query"])):
+                asked += 1
             title, how = await topic_title.short_title(
-                str(entry["query"]), allow_model=allow, usage=usage)
+                str(entry["query"]), allow_model=ask, usage=usage)
             entry = dict(entry, title=title)
             log.info("mix topic titled (%s): %r", how, title)
         out.append(entry)
@@ -6969,11 +6981,20 @@ async def join_mix(req: JoinRequest, request: Request) -> dict:
     mix; opening it twice, or your own, changes nothing."""
     _read_limit(request)
     user = _require_account(request)
+    # A suspended account adds nothing strangers read; and somebody blocked
+    # either way cannot be put in a mix with the person who blocked them
+    # (`moderation.is_apart`) - the same answer as a link turned off.
+    _require_can_post(user)
+    owner = MIXES.owner_of_token(req.token)
+    if owner and owner != user and MODERATION.is_apart(owner, user):
+        raise HTTPException(status_code=404,
+                            detail="That invite has been turned off, or the mix no longer exists.")
     try:
         mix = MIXES.join(user, req.token)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _mix_out(mix, user, {}, True)
+    # The owner opening their own invite is not a member of anything.
+    return _mix_out(mix, user, {}, bool(MIXES.joint_ids([mix.id])))
 
 
 @app.post("/api/mixes/{mix_id}/leave")
