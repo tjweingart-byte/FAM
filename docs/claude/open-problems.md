@@ -655,7 +655,10 @@ profile every rail reads - a sort, never a filter, the catalogue's own order
 for somebody with no history. "+ Add topics to mix" is a search: teams and
 companies inside subjects ("eagles" -> NFL · Eagles), matching subjects, and
 whatever was typed, each saved the moment it is tapped (a tick takes it back
-out). The player's "Add to myFAM Playlist" is the third way in, unchanged.
+out). **A (+) or a tick is an operation, never the whole list**: PATCH
+`add` / `remove`, merged by the server into the mix as it stands when it
+writes, so two quick taps, or two people on a joint mix, never undo each
+other. A whole `topic_ids` list is still taken (a reorder; older clients). The player's "Add to myFAM Playlist" is the third way in, unchanged.
 The second step - a picker of every subject with interest filters and an
 "anything specific?" panel under each - is removed, and with it the panel a
 recommendation's (+) used to open; a narrowed subject is one search away.
@@ -692,8 +695,12 @@ writes it once, a member's play keeps it active, the push stays the owner's.
 leave; what anyone added stays. An erased member's items read as nobody's
 (`FORMER_MEMBER`, found in every mix their id is written into, including
 ones they left); a copy carries nobody's name. Up to `MAX_COLLABORATORS`. A
-suspended account cannot join, and nobody blocked either way by the owner
-(`moderation.is_apart`) - answered like a link turned off. Signed out, the
+suspended account cannot join, nor anybody blocked either way by the owner
+or any member (`moderation.is_apart`) - answered like a link turned off; a
+block made after joining stops the member's edits, and nobody is shown a
+face they are blocked from. **Joined mixes are listed only to a client that
+asks** (`/api/mixes?joint=1`): an older installed client would draw owner
+controls on them. A member's delete is a 403 that says to leave instead. Signed out, the
 invite waits and joins after the account's first steps (`finishEntry`).
 
 <!-- rule:friends-listened -->

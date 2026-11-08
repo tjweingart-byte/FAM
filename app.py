@@ -6439,6 +6439,25 @@ class MixRequest(BaseModel):
     #: Their IANA zone for `listen_at` (the browser's own); unreadable reads
     #: as the edition's zone.
     listen_tz: Optional[str] = Field(None, max_length=64)
+    #: Operations instead of the whole list (11.7 packet, §498): topics to
+    #: put in (ids, or {"query": ...} for a typed one) and ids to take out,
+    #: merged into the mix **as it stands when the server writes**. A (+)
+    #: sends these, so two quick taps - or two people on a joint mix - never
+    #: undo each other the way two whole-list PATCHes from stale copies did.
+    #: `topic_ids`, when sent, wins: it is a reorder or an older client.
+    add: Optional[list[Union[str, dict]]] = Field(None, max_length=mixes_mod.MAX_TOPICS)
+    remove: Optional[list[str]] = Field(None, max_length=mixes_mod.MAX_TOPICS)
+
+
+def _merged_topics(mix, add, remove) -> list:
+    """The mix's items as a `topic_ids` payload, with `remove` taken out and
+    `add` put on the end - read from the mix as it is now, with no await
+    between this and the write."""
+    gone = {str(r).lower() for r in (remove or [])}
+    out = [({"query": i.query, "title": i.title} if i.custom else i.id)
+           for i in mix.items if i.id.lower() not in gone]
+    out.extend(add or [])
+    return out
 
 
 def _attachments_for(user: str, ids: str) -> tuple:
@@ -6548,13 +6567,19 @@ async def list_mixes(request: Request):
     user = _require_account(request)
     people: dict = {}
     own = MIXES.list_for_user(user)
+    # Joined mixes go only to a client that asks (`joint=1`): an installed
+    # client that predates joint mixes would draw owner controls on them that
+    # can only refuse (`old-clients`).
+    wants_joint = request.query_params.get("joint") == "1"
     joint = MIXES.joint_ids([m.id for m in own])
     return {
         # A mix added from somebody else's says whose it was; a joint mix
         # (11.7 packet) says who is in it and who added what - the ones this
         # listener owns, then the ones they were invited into.
         "mixes": [_mix_out(m, user, people, m.id in joint) for m in own]
-                 + [_mix_out(m, user, people, True) for m in MIXES.joined(user)],
+                 + ([_mix_out(m, user, people, True) for m in MIXES.joined(user)
+                     if not MODERATION.is_apart(m.user_id, user)]
+                    if wants_joint else []),
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
@@ -6627,7 +6652,13 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
     kept = MIXES.get(account, mix_id)
     if kept is None and MIXES.is_member(mix_id, account):
         return await _update_joint_mix(mix_id, req, request, account)
-    before = kept if req.topic_ids is not None else None
+    if kept is None:
+        # Before anything is named or checked: a stranger's PATCH must not
+        # spend a paid title call on somebody else's mix.
+        raise HTTPException(status_code=404, detail="That mix no longer exists.")
+    ops = req.topic_ids is None and (req.add is not None or req.remove is not None)
+    edits_topics = req.topic_ids is not None or ops
+    before = kept if edits_topics else None
     if req.name is not None or req.cover or req.public:
         _require_can_post(account)
     if req.cover:
@@ -6640,13 +6671,20 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
         await _check_photo(request, account, req.cover,
                            before=(kept.cover if kept else "") or "")
     try:
-        topic_ids = (await _title_typed_topics(request, account, req.topic_ids)
-                     if req.topic_ids is not None else None)
+        if ops:
+            adds = await _title_typed_topics(request, account, req.add or [])
+            now = MIXES.get(account, mix_id)
+            if now is None:
+                raise mixes_mod.MixError("That mix no longer exists.")
+            topic_ids = _merged_topics(now, adds, req.remove)
+        else:
+            topic_ids = (await _title_typed_topics(request, account, req.topic_ids)
+                         if req.topic_ids is not None else None)
         mix = MIXES.update(account, mix_id, req.name, topic_ids, req.public,
                            req.cover, req.listen_at, req.listen_tz)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if req.topic_ids is not None:
+    if edits_topics:
         _record_mix_adds(mix, before=before)
         _write_mix_ahead(mix, before=before)
     return _mix_out(mix, account, {}, bool(MIXES.joint_ids([mix.id])))
@@ -6664,15 +6702,25 @@ async def _update_joint_mix(mix_id: str, req: "MixRequest", request: Request,
     if (req.name is not None or req.cover is not None or req.public is not None
             or req.listen_at is not None or req.listen_tz is not None):
         raise HTTPException(status_code=403, detail=JOINT_OWNER_ONLY)
-    if req.topic_ids is None:
-        mix = MIXES.get_editable(account, mix_id)
-        if mix is None:
-            raise HTTPException(status_code=404, detail="That mix no longer exists.")
-        return _mix_out(mix, account, {}, True)
-    _require_can_post(account)
     before = MIXES.get_editable(account, mix_id)
+    if before is None:
+        raise HTTPException(status_code=404, detail="That mix no longer exists.")
+    # A block made after joining is held to as well as one made before.
+    if MODERATION.is_apart(before.user_id, account):
+        raise HTTPException(status_code=404, detail="That mix no longer exists.")
+    ops = req.topic_ids is None and (req.add is not None or req.remove is not None)
+    if req.topic_ids is None and not ops:
+        return _mix_out(before, account, {}, True)
+    _require_can_post(account)
     try:
-        topic_ids = await _title_typed_topics(request, account, req.topic_ids)
+        if ops:
+            adds = await _title_typed_topics(request, account, req.add or [])
+            now = MIXES.get_editable(account, mix_id)
+            if now is None:
+                raise mixes_mod.MixError("That mix no longer exists.")
+            topic_ids = _merged_topics(now, adds, req.remove)
+        else:
+            topic_ids = await _title_typed_topics(request, account, req.topic_ids)
         mix = MIXES.update_items(account, mix_id, topic_ids)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -6738,7 +6786,9 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
     body["joint"] = bool(joint)
     if not joint:
         return body
-    ids = [mix.user_id] + MIXES.members(mix.id)
+    # Nobody the viewer is blocked from, either way, is shown to them.
+    ids = [mix.user_id] + [m for m in MIXES.members(mix.id)
+                           if m == viewer or not MODERATION.is_apart(m, viewer)]
     faces = []
     for uid in ids:
         if uid not in people:
@@ -6780,7 +6830,11 @@ def _record_mix_adds(mix, before=None, by: str = "") -> None:
 @app.delete("/api/mixes/{mix_id}")
 async def delete_mix(mix_id: str, request: Request):
     _read_limit(request)
-    if not MIXES.delete(_require_account(request), mix_id):
+    account = _require_account(request)
+    if not MIXES.delete(account, mix_id):
+        if MIXES.is_member(mix_id, account):
+            raise HTTPException(status_code=403, detail=(
+                "Only the mix's owner can delete it. You can leave it instead."))
         raise HTTPException(status_code=404, detail="That mix no longer exists.")
     return {"ok": True}
 
@@ -6986,7 +7040,10 @@ async def join_mix(req: JoinRequest, request: Request) -> dict:
     # (`moderation.is_apart`) - the same answer as a link turned off.
     _require_can_post(user)
     owner = MIXES.owner_of_token(req.token)
-    if owner and owner != user and MODERATION.is_apart(owner, user):
+    mix_id = MIXES.mix_id_of_token(req.token)
+    others = [m for m in MIXES.members(mix_id) if m != user] if mix_id else []
+    if owner and owner != user and (MODERATION.is_apart(owner, user) or any(
+            MODERATION.is_apart(m, user) for m in others)):
         raise HTTPException(status_code=404,
                             detail="That invite has been turned off, or the mix no longer exists.")
     try:

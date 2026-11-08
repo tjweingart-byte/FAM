@@ -2157,6 +2157,17 @@ __WRITING_SIM__
       var cur = rows("mixes").filter(function (m) { return m.id === mixId && m.user_id === UID; })[0];
       if (!cur) return json({ error: "That mix no longer exists." }, 404);
       if (method === "DELETE") return del("mixes", mixId).then(function () { paint(); return json({ ok: true }); });
+      // A (+) sends operations (§498), merged into the mix as it stands.
+      if (body.topic_ids === undefined && (body.add || body.remove)) {
+        var gone = (body.remove || []).map(function (r) { return String(r).toLowerCase(); });
+        body.topic_ids = String(cur.items || "").split(",").filter(Boolean).filter(function (sid) {
+          var f = mixFollowItem(sid, CATALOGUE);
+          var shown = f ? f.id : (BY_ID[sid] ? sid : mixTypedItem(sid.replace(/^q:/, "")).id);
+          return gone.indexOf(shown.toLowerCase()) === -1;
+        }).map(function (sid) {
+          return /^q:/.test(sid) ? { query: sid.slice(2) } : sid;
+        }).concat(body.add || []);
+      }
       return put("mixes", mixId, {
         user_id: UID,
         name: body.name !== undefined ? body.name : cur.name,

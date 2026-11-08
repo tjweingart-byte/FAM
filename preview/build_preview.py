@@ -1927,6 +1927,15 @@ __PREVIEW_PICTURE__
       if (method === "DELETE") { mixes.mixes.splice(at, 1); return json({ ok: true }); }
       var patch = JSON.parse((init && init.body) || "{}");
       var current = mixes.mixes[at];
+      // A (+) sends operations (§498), merged into the mix as it stands.
+      if (patch.topic_ids === undefined && (patch.add || patch.remove)) {
+        var gone = (patch.remove || []).map(function (r) { return String(r).toLowerCase(); });
+        patch.topic_ids = current.items.filter(function (i) {
+          return gone.indexOf(i.id.toLowerCase()) === -1;
+        }).map(function (i) {
+          return i.custom ? { query: i.query, title: i.title } : i.id;
+        }).concat(patch.add || []);
+      }
       mixes.mixes[at] = buildMix(id, patch.name || current.name,
         patch.topic_ids !== undefined ? patch.topic_ids : current.items,
         patch.public !== undefined ? patch.public : current.public,

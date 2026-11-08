@@ -31309,3 +31309,19 @@ filler, "world" and "new" are not filler at all, a prompt that asks weekly
 ("every friday") gets "Weekly", the first letter is not forced up on a name
 like "iPhone", and a test runs the previews' JS copy against the Python on
 the same prompts so the two cannot drift.
+
+**The third double-check (an independent reviewer, given the diff rather
+than these notes).** Nothing serious; fixed: every (+) PATCHed the whole
+list from the client's copy, so a second tap inside the first's title call -
+or a member adding while the owner did - silently dropped a topic (now `add`
+/ `remove` operations merged server-side when it writes); a stranger's PATCH
+named typed topics, spending a paid call, before ownership was checked (now
+404 first); `/api/mixes` listed joined mixes to installed clients that
+predate them, which drew owner controls that could only refuse (now only
+with `?joint=1`) and a member's delete said "no longer exists" (now a 403
+saying leave); two invite requests at once could mint two tokens and kill
+the first link (now minted only where none is, then read back); blocks were
+checked only between owner and joiner, only at join (now any member, at
+edit too, and faces filtered); and the client could write a saved mix to
+`mixes[-1]` (now kept by id). Left as is: the public listing labels a
+member's typed topic "Typed in by" the owner - the owner published it.

@@ -1028,15 +1028,14 @@ class MixStore:
         mix = self.get(owner, mix_id)
         if mix is None:
             raise MixError("That mix no longer exists.")
+        # Minted only where there is none, then read back: two requests at
+        # once agree on one link instead of the second killing the first's.
+        self._conn().execute(
+            "UPDATE mixes SET join_token = ? WHERE id = ? AND user_id = ? AND join_token = ''",
+            (secrets.token_urlsafe(12), mix_id, owner))
         row = self._conn().execute(
             "SELECT join_token FROM mixes WHERE id = ?", (mix_id,)).fetchone()
-        token = (row[0] if row else "") or ""
-        if not token:
-            token = secrets.token_urlsafe(12)
-            self._conn().execute(
-                "UPDATE mixes SET join_token = ? WHERE id = ? AND user_id = ?",
-                (token, mix_id, owner))
-        return token
+        return (row[0] if row else "") or ""
 
     def stop_joint(self, owner: str, mix_id: str) -> bool:
         """The owner makes it theirs alone again: the link stops working and
@@ -1072,6 +1071,19 @@ class MixStore:
             "INSERT OR IGNORE INTO mix_members (mix_id, user_id, joined_at) VALUES (?, ?, ?)",
             (mix_id, user_id, time.time()))
         return mix
+
+    def mix_id_of_token(self, token: str) -> str:
+        """Which mix an invite opens, or ""."""
+        token = str(token or "").strip()[:64]
+        if not token:
+            return ""
+        try:
+            row = self._conn().execute(
+                "SELECT id FROM mixes WHERE join_token = ?", (token,)).fetchone()
+        except Exception:
+            log.exception("could not read an invite")
+            return ""
+        return row[0] if row else ""
 
     def owner_of_token(self, token: str) -> str:
         """Whose mix an invite opens, or "" for one that opens nothing."""

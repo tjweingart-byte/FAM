@@ -181,7 +181,7 @@ def test_a_joint_mix_end_to_end(client, other):
     assert "listen_at" not in body
 
     # It is in the member's myFAM beside their own.
-    listed = other.get("/api/mixes").json()["mixes"]
+    listed = other.get("/api/mixes?joint=1").json()["mixes"]
     assert [m["id"] for m in listed] == [made["id"]]
 
     # A member adds a topic; it carries their face.
@@ -196,7 +196,7 @@ def test_a_joint_mix_end_to_end(client, other):
         assert refused.status_code == 403, change
 
     # The owner sees the member's addition, and who made it.
-    mine = client.get("/api/mixes").json()["mixes"][0]
+    mine = client.get("/api/mixes?joint=1").json()["mixes"][0]
     assert mine["joint"] is True and [i["added_by"] for i in mine["items"]] == [0, 1]
 
     # A reorder by the owner keeps who added what.
@@ -206,8 +206,8 @@ def test_a_joint_mix_end_to_end(client, other):
 
     # The member leaves; what they added stays.
     assert other.post("/api/mixes/" + made["id"] + "/leave").json() == {"ok": True}
-    assert other.get("/api/mixes").json()["mixes"] == []
-    after = client.get("/api/mixes").json()["mixes"][0]
+    assert other.get("/api/mixes?joint=1").json()["mixes"] == []
+    after = client.get("/api/mixes?joint=1").json()["mixes"][0]
     assert after["joint"] is False and len(after["items"]) == 2
 
 
@@ -218,7 +218,7 @@ def test_stopping_a_joint_mix_turns_the_link_off(client, other):
     signed_in(other, "s2@b.com", "Sue", "sue2")
     assert other.post("/api/mixes/join", json={"token": token}).status_code == 200
     client.delete("/api/mixes/" + made["id"] + "/invite")
-    assert other.get("/api/mixes").json()["mixes"] == []
+    assert other.get("/api/mixes?joint=1").json()["mixes"] == []
     assert other.post("/api/mixes/join", json={"token": token}).status_code == 404
 
 
@@ -229,8 +229,9 @@ def test_only_the_owner_can_invite_or_delete(client, other):
     signed_in(other, "o2@b.com", "Oli", "oli2")
     other.post("/api/mixes/join", json={"token": token})
     assert other.post("/api/mixes/" + made["id"] + "/invite").status_code == 404
-    assert other.delete("/api/mixes/" + made["id"]).status_code == 404
-    assert client.get("/api/mixes").json()["mixes"][0]["id"] == made["id"]
+    # A member's delete is refused with a reason (they can leave instead).
+    assert other.delete("/api/mixes/" + made["id"]).status_code == 403
+    assert client.get("/api/mixes?joint=1").json()["mixes"][0]["id"] == made["id"]
 
 
 def test_an_invite_needs_an_account(other):
@@ -359,7 +360,7 @@ def test_somebody_blocked_cannot_join(client, other):
     owner = client.get("/api/auth/me").json()["user_id"]
     appmod.MODERATION.block(owner, blocked)
     assert other.post("/api/mixes/join", json={"token": token}).status_code == 404
-    assert other.get("/api/mixes").json()["mixes"] == []
+    assert other.get("/api/mixes?joint=1").json()["mixes"] == []
 
 
 def test_one_save_names_only_a_few_by_model(client, monkeypatch):
@@ -410,3 +411,77 @@ def test_the_previews_rule_is_the_servers(tmp_path):
             + "\nconsole.log(JSON.stringify(%s.map(mixShortTitle)));" % json.dumps(prompts))
     out = subprocess.run([node, "-e", prog], capture_output=True, text=True, check=True).stdout
     assert json.loads(out) == [topic_title.heuristic(p) for p in prompts]
+
+
+# --- the third double-check (an independent review) -----------------------------
+
+def test_two_quick_adds_from_stale_copies_both_stay(client):
+    """Each (+) is an operation merged into the mix as it stands; two taps
+    sent from the same stale copy used to leave only the second."""
+    signed_in(client, "op1@b.com", "Opi", "opi1")
+    made = client.post("/api/mixes", json={"name": "Quick"}).json()
+    client.patch("/api/mixes/" + made["id"], json={"add": [{"query": "positive story of the day of things happening in the world"}]})
+    after = client.patch("/api/mixes/" + made["id"], json={"add": ["f:nfl"]}).json()
+    assert [i["title"] for i in after["items"]] == ["Daily positive story", "NFL"]
+    gone = client.patch("/api/mixes/" + made["id"], json={"remove": ["f:nfl"]}).json()
+    assert [i["title"] for i in gone["items"]] == ["Daily positive story"]
+
+
+def test_a_member_and_the_owner_adding_at_once_both_stay(client, other):
+    signed_in(client, "op2@b.com", "Own", "own2")
+    made = client.post("/api/mixes", json={"name": "Shared"}).json()
+    token = client.post("/api/mixes/" + made["id"] + "/invite").json()["url"].rsplit("/j/", 1)[1]
+    signed_in(other, "op3@b.com", "Mem", "mem3")
+    other.post("/api/mixes/join", json={"token": token})
+    client.patch("/api/mixes/" + made["id"], json={"add": ["f:nfl"]})
+    both = other.patch("/api/mixes/" + made["id"], json={"add": ["f:basketball"]}).json()
+    assert [i["id"] for i in both["items"]] == ["f:nfl", "f:basketball"]
+    assert [i["added_by"] for i in both["items"]] == [0, 1]
+
+
+def test_older_clients_are_not_given_joined_mixes(client, other):
+    signed_in(client, "old1@b.com", "Olga", "olga1")
+    made = client.post("/api/mixes", json={"name": "Older"}).json()
+    token = client.post("/api/mixes/" + made["id"] + "/invite").json()["url"].rsplit("/j/", 1)[1]
+    signed_in(other, "old2@b.com", "Otto", "otto2")
+    other.post("/api/mixes/join", json={"token": token})
+    assert other.get("/api/mixes").json()["mixes"] == []
+    assert len(other.get("/api/mixes?joint=1").json()["mixes"]) == 1
+    # A member trying to delete is told to leave instead, not "no longer exists".
+    refused = other.delete("/api/mixes/" + made["id"])
+    said = refused.json()
+    assert refused.status_code == 403 and "leave" in (said.get("error") or said.get("detail") or "").lower()
+
+
+def test_a_stranger_spends_no_title_call(client, other, monkeypatch):
+    called = []
+
+    async def fake(query, **kw):
+        called.append(query)
+        return "x", "rule"
+
+    monkeypatch.setattr(topic_title, "short_title", fake)
+    signed_in(client, "st1@b.com", "Sid", "sid1")
+    made = client.post("/api/mixes", json={"name": "Mine"}).json()
+    signed_in(other, "st2@b.com", "Sol", "sol2")
+    r = other.patch("/api/mixes/" + made["id"], json={"add": [{"query": "a long prompt about something every single day"}]})
+    assert r.status_code == 404 and called == []
+
+
+def test_somebody_blocked_by_a_member_cannot_join_or_be_seen(client, other, monkeypatch):
+    with TestClient(appmod.app) as third:
+        signed_in(client, "tb1@b.com", "Tia", "tia9")
+        made = client.post("/api/mixes", json={"name": "Three"}).json()
+        token = client.post("/api/mixes/" + made["id"] + "/invite").json()["url"].rsplit("/j/", 1)[1]
+        member = signed_in(other, "tb2@b.com", "Mo", "mo9")
+        other.post("/api/mixes/join", json={"token": token})
+        outsider = signed_in(third, "tb3@b.com", "Ox", "ox9")
+        appmod.MODERATION.block(member, outsider)
+        assert third.post("/api/mixes/join", json={"token": token}).status_code == 404
+
+
+def test_one_invite_link_however_many_ask_at_once(tmp_path):
+    store = mixes_mod.MixStore(str(tmp_path / "mixes.db"))
+    mix = store.create("owner", "Once")
+    links = {store.invite_token("owner", mix.id) for _ in range(5)}
+    assert len(links) == 1

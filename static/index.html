@@ -11701,6 +11701,10 @@
   // myFAM, so two people whose mixes both contain the Fed episode share one
   // script.
   var mixes = [];
+  // Every read of the listener's mixes asks for the joint ones too (11.7
+  // packet): the server leaves them out for a client that does not ask,
+  // since an older one would draw owner controls on them.
+  var MIXES_URL = "/api/mixes?joint=1";
   var topicBank = [];
   //: Whether `topicBank` came back in this listener's taste order or the
   //: bank's own. The picker's heading reads this rather than asserting.
@@ -11727,7 +11731,7 @@
     // account, and a failed mixes read is no reason to hide categories.
     loadMyCategories();
     Promise.all([
-      fetch("/api/mixes").then(function(r){
+      fetch(MIXES_URL).then(function(r){
         // 401 is not a failure: mixes are kept for you, and that is what an
         // account is for here. Saying "could not load" would be a lie about
         // a working server.
@@ -12678,9 +12682,7 @@
   function addRecTopic(id){
     var m = mixById(currentMixId);
     if(!m || mixItemIds(m)[id]) return;
-    var payload = mixPayload(m);
-    payload.push(id);
-    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+    saveMix("PATCH", "/api/mixes/" + m.id, { add: [id] }, function(saved){
       recState.shown = recState.shown.filter(function(x){ return x !== id; });
       rerenderMixKeepScroll(saved);
       var c = followById(id);
@@ -12946,7 +12948,7 @@
             .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
             .then(function(saved){
               if(saved && saved.id){
-                mixes[mixes.indexOf(m)] = saved;
+                keepMix(saved);
                 renderMixList();
                 openMix(saved.id);
               }
@@ -13012,8 +13014,7 @@
       });
     }).then(function(m){
       setTab("playfam");
-      var existing = mixById(m.id);
-      if(existing) mixes[mixes.indexOf(existing)] = m; else mixes.push(m);
+      keepMix(m);
       renderMixList();
       openMix(m.id);
       if(m.role === "member") toast("You’re in — add the topics you want to hear");
@@ -13504,7 +13505,7 @@
   }
   function openOwnMix(id){
     setTab("playfam");
-    fetch("/api/mixes").then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    fetch(MIXES_URL).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
       if(!d) return;
       mixes = d.mixes || [];
       renderMixList();
@@ -13703,12 +13704,13 @@
     return Object.keys(labels).map(function(g){ return { id: g, label: labels[g], kind: "facet" }; });
   }
 
-  // A mix's items as the server takes them back: ids, and a typed topic as
-  // its words and the name it already has (which is never renamed).
-  function mixPayload(m){
-    return (m.items || []).map(function(i){
-      return i.custom ? { query: i.query, title: i.title } : i.id;
-    });
+  // Put a mix the server answered with in place, by id - never by an index
+  // into an array that may have been replaced while a sheet was open.
+  function keepMix(saved){
+    if(!saved || !saved.id) return;
+    var at = -1;
+    mixes.forEach(function(x, i){ if(x.id === saved.id) at = i; });
+    if(at === -1) mixes.push(saved); else mixes[at] = saved;
   }
 
   // ---------------- Add topics to mix (11.7 packet) ----------------
@@ -13811,12 +13813,13 @@
   function toggleTopicInMix(id){
     var m = mixById(addTopicsMixId);
     if(!m || !id) return;
-    var payload = mixPayload(m);
     var at = -1;
     (m.items || []).forEach(function(i, n){ if(String(i.id).toLowerCase() === String(id).toLowerCase()) at = n; });
-    if(at === -1) payload.push(id); else payload.splice(at, 1);
     var body = document.getElementById("addTopicsBody"), top = body ? body.scrollTop : 0;
-    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+    // An operation, not the whole list (§498): merged into the mix as the
+    // server holds it, so a second quick tap - or somebody else in a joint
+    // mix - is never undone by this one.
+    saveMix("PATCH", "/api/mixes/" + m.id, at === -1 ? { add: [id] } : { remove: [id] }, function(saved){
       renderAddTopics();
       if(body) body.scrollTop = top;
       var label = splitFocusId(id).focus.join(", ") || ((followById(splitFocusId(id).base) || {}).label) || "that";
@@ -13830,11 +13833,9 @@
     var box = document.getElementById("addTopicsSearch");
     var text = box ? box.value.trim() : "";
     if(!m || !text) return;
-    var payload = mixPayload(m);
-    payload.push({ query: text });
     box.value = "";
     renderAddTopics();
-    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+    saveMix("PATCH", "/api/mixes/" + m.id, { add: [{ query: text }] }, function(saved){
       // The one with these words: the server folds a repeat into the
       // topic already there, so the last row is not always this one.
       var added = (saved.items || []).filter(function(i){
@@ -13860,8 +13861,7 @@
         return data;
       });
     }).then(function(saved){
-      var existing = mixById(saved.id);
-      if(existing){ mixes[mixes.indexOf(existing)] = saved; } else { mixes.push(saved); }
+      keepMix(saved);
       renderMixList();
       if(done) done(saved);
     }).catch(function(err){
@@ -20008,7 +20008,7 @@
       fetch("/api/episode/topic?q=" + encodeURIComponent(query)
             + "&title=" + encodeURIComponent(title))
         .then(function(r){ if(!r.ok) throw new Error(); return r.json(); }),
-      fetch("/api/mixes").then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      fetch(MIXES_URL).then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
     ]).then(function(res){
       var topic = res[0];
       mixes = res[1].mixes || [];
@@ -20036,9 +20036,6 @@
       + '<span class="mix-pick-meta">' + n + (n === 1 ? " briefing" : " briefings") + '</span></span></span>';
   }
   function addTopicToMix(m, entry, label){
-    var payload = (m.items || []).map(function(i){
-      return i.custom ? { query: i.query, title: i.title } : i.id;
-    });
     var id = typeof entry === "string" ? entry : "";
     var already = (m.items || []).some(function(i){
       return id ? i.id.toLowerCase() === id.toLowerCase()
@@ -20046,8 +20043,7 @@
     });
     if(already){ snack(label + " is already in " + m.name,
                        { label: "Open", run: function(){ openMix(m.id); } }); return; }
-    payload.push(entry);
-    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+    saveMix("PATCH", "/api/mixes/" + m.id, { add: [entry] }, function(saved){
       snack("Added to " + saved.name, { label: "Open", run: function(){ openMix(saved.id); } });
     });
   }
