@@ -230,8 +230,8 @@ async def _verify_small_models() -> None:
     refused: set = set()
     small = sorted({settings.ei_model, settings.stories_model,
                     settings.categories_model, settings.thumbnails_model,
-                    settings.image_check_model, settings.topic_title_model,
-                    settings.writer_model,
+                    settings.image_check_model, settings.writer_model,
+                    settings.topic_title_model,
                     settings.edition_writer_model or settings.model}
                    - {settings.model, ""})
     report: dict[str, str] = {}
