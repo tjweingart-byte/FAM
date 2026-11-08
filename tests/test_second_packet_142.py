@@ -306,15 +306,16 @@ def test_navigating_keeps_only_the_full_players_episode():
     # Each player says it owns the audio when it starts it.
     assert 'audioOwner = "player"' in js_function("populatePlayer")
     assert 'audioOwner = "playall"' in js_function("populatePlayAllTopic")
-    assert 'audioOwner = "reel"' in js_function("playReel")
     assert 'audioOwner = ""' in js_function("stopSpeech")
 
 
-def test_entering_explore_ends_a_minimised_episode():
-    """Reels own the audio there; a minimised episode left playing under a
-    card made the card's play button pause the wrong episode."""
+def test_explore_is_gone_so_no_tab_ends_a_minimised_episode():
+    """exploreFAM's reel owned the audio and ended a minimised episode on
+    the way in; the 11.3 packet took it out, so every tab keeps the mini
+    player's episode playing."""
     tab = js_function("setTab")
-    assert 'root === "explore"' in tab and "hideNowBar()" in tab
+    assert 'root === "explore"' not in tab and "hideNowBar()" not in tab
+    assert "function playReel(" not in INDEX
 
 
 def test_an_attached_episode_is_never_history():

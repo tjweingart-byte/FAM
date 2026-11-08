@@ -126,6 +126,7 @@
    which existed only to measure it. The interface now shows an honest wait
    that names what it is waiting for and counts the seconds.
 <!-- rule:op-myfam -->
+> **Current (PROBLEMS.md §499, the owner's 11.3 packet):** one personal exception joins the heard story (§136): a story the listener said "Not interested" to (a tile's ⋯) is not offered to them on Trending or its View more. It removes that one story for that one listener and changes nothing else in the world row's order - no taste, fatigue or engagement reaches it.
 > **Current (PROBLEMS.md §280):** API-Sports is removed; the live pool's sports source is BALLDONTLIE's sweep (`balldontlie_scores.make_signals`). Wherever the text below names API-Sports, read BALLDONTLIE.
 4. **myFAM is finished, and the bank is no longer the whole of it**
    *(PROBLEMS.md §102, `stories.py`, `MYFAM.md`).* The page was four rankings
@@ -372,6 +373,7 @@
   qualifies takes its place; nothing tops the section up.
 
 <!-- rule:no-not-interested -->
+> **Current (PROBLEMS.md §499, the owner's 11.3 packet, reversing §171 for one place):** a DailyFAM tile's ⋯ menu ends in **Not interested**. It records `topics.NOT_INTERESTED` (`not_interested`, weight -1.5, three skips deep) with the tile's id and question; `EventStore.not_interested` reads every such choice and `not_wanted` keeps that tile - by id or by question, and a crowd rail's `ep-…` tile by its recorded id - off every rail, beside "no repeats" in `build_feed` and `build_section`; off Trending and its View more (the same personal exception as a heard story, §136 - nothing else of the listener reaches Trending's order); and off the post-episode grid (`rank_next_up`, its last-resort fill included), which starts its first tile by itself. The client also drops it from `railTiles`, so "See all" does not draw it again. It teaches no familiar word and mints no subject. The tile leaves the page at once; a guest's choice is dropped like every guest event (§127). Still no button on the card, and `hide` stays retired: its old rows are not revived, since they were choices made under a control that was then withdrawn.
 - **There is no "not interested"** *(PROBLEMS.md §171, at the owner's
   direction: "This button and function should not be a feature. The
   algorithm should work naturally to put episodes the user is interested
@@ -391,6 +393,7 @@
   > event kind was added.
 
 <!-- rule:mfy-field-variety -->
+> **Current (PROBLEMS.md §499):** a ninth weight, `not_interested` -1.5 (three skips), from a tile's ⋯ menu - see `no-not-interested`.
 > **Current (PROBLEMS.md §202):** the weights are search 1.5, play 1, finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, and adding to a mix (`mix_add`) 2.
 
 - **Made for you: subjects are filed by field, variety never gives way, no

@@ -124,50 +124,7 @@ def test_the_explore_rail_is_gone():
     assert "searchingRailHTML" not in INDEX and "searching-tile" not in INDEX
 
 
-def test_search_and_dailyfam_carry_the_same_pill():
-    btn = INDEX.split('id="homeExploreBtn"', 1)[1].split("</button>", 1)[0]
-    assert "xfam-pill" in INDEX.split('id="homeExploreBtn"', 1)[0][-200:]
-    assert "explore<span" in btn and 'class="wm-a"' in btn and "xfam-arrow" in btn
-    pill = _fn("exploreFamPillHTML")
-    assert 'getElementById("homeExploreBtn")' in pill and "openExplore(\\'myfam\\')" in pill
-    feed = _fn("renderMyFamFeed")
-    assert 'sec.key === "from_history"' in feed and "feed-head-row" in feed
-
-
 # --- 8. Explore as a reel, with comments -------------------------------------
-
-def test_the_reel_has_the_five_actions_down_the_right():
-    explore = _screen("explore")
-    rail = explore.split('class="reel-actions"', 1)[1].split('class="reel-progress"', 1)[0]
-    order = [rail.index(m) for m in ('id="reelLike"', 'id="reelCommentBtn"',
-                                     'id="reelEcho"', "openShareModal()", "saveForLater()")]
-    assert order == sorted(order)
-    assert ".reel-actions{ flex:none; display:flex; flex-direction:column;" in INDEX
-
-
-def test_the_reel_shows_the_title_over_the_picture_with_the_players_menu():
-    explore = _screen("explore")
-    assert 'id="reelBg"' in explore and 'onclick="openReelMenu()"' in explore
-    assert "/api/episode/card" in _fn("drawReelPicture")
-    menu = _fn("openReelMenu")
-    for action in ("openShareModal", "toggleEcho", "saveForLater", "toggleReelCC",
-                   "openReelComments", "openQueue"):
-        assert action in menu, action
-    # No dislike anywhere (the owner, after the packet).
-    assert "dislike" not in menu.lower()
-
-
-def test_the_reel_keeps_both_transport_gestures():
-    explore = _screen("explore")
-    assert "skipAudio(-15)" in explore and "skipAudio(15)" in explore
-    assert 'class="reel-progress"' in explore
-
-
-def test_captions_slide_up_from_the_bottom_of_the_reel():
-    explore = _screen("explore")
-    assert 'id="reelCc"' in explore and 'onclick="toggleReelCC()"' in explore
-    assert "/api/transcript" in _fn("fetchReelCaptions")
-
 
 def test_comments_are_read_by_anyone_and_written_by_an_account(client):
     guest = client.get("/api/comments", params={"q": "why tides turn", "minutes": 3})
@@ -227,22 +184,6 @@ def test_only_the_author_deletes_and_a_deleted_listener_takes_their_comments(sto
     assert store.comment_counts_many([("why tides turn", 3)]) == {("why tides turn", 3): 0}
 
 
-def test_explore_cards_carry_their_comment_count():
-    src = (ROOT / "app.py").read_text()
-    assert '"comments": comment_counts[(entry["query"], entry["minutes"])]' in src
-    assert 'put("reelCommentN", ep.comments)' in _fn("drawReelStats")
-
-
-def test_the_comments_sheet_has_the_pictures_parts():
-    explore = _screen("explore")
-    sheet = explore.split('id="reelComments"', 1)[1]
-    assert 'id="rcEmoji"' in sheet and 'id="rcInput"' in sheet and 'id="rcList"' in sheet
-    item = _fn("rcItemHTML")
-    for part in ("rc-av", "rc-who", "rc-text", "Reply", "rc-like"):
-        assert part in item, part
-    assert "more replies" in _fn("drawReelComments")
-
-
 # --- 9. a caption on a vibe --------------------------------------------------
 
 def test_a_vibe_carries_its_caption_into_the_story(client):
@@ -294,12 +235,6 @@ def test_deleting_an_account_leaves_no_likes_on_replies_it_hosted(store):
 
 # --- the 10.5 packet, checked again (§210) ----------------------------------
 
-def test_a_guests_comment_sheet_hides_the_box_behind_the_sign_up():
-    # `.rc-compose{display:flex}` outranked `hidden`, so a guest saw the box
-    # drawn over "Sign up to comment".
-    assert ".rc-compose[hidden], .rc-emoji[hidden], .rc-gate[hidden]{ display:none; }" in INDEX
-
-
 @pytest.mark.parametrize("builder", ["build_preview.py", "build_live_preview.py"])
 def test_both_previews_answer_comments_the_card_and_a_caption(builder):
     # Without these the owner's preview could not show 10.5 #8 and #9: the
@@ -318,3 +253,14 @@ def test_the_live_preview_keeps_comments_in_the_shared_db():
     # Everybody who opens the page reads one thread, as on the server.
     src = (ROOT / "preview" / "build_live_preview.py").read_text()
     assert '"comments", "comment_likes"' in src
+
+
+def test_explorefam_is_gone_from_the_app():
+    """The 11.3 packet, at the owner's direction: exploreFAM came out of the
+    app entirely - its reel, its pills on search and beside Made for you,
+    and search's swipe. The server keeps `/api/explore` and comments for an
+    installed client (`old-clients`); nothing in this page reaches them."""
+    for gone in ('id="screen-explore"', 'id="homeExploreBtn"', 'id="myfamExploreBtn"',
+                 "function openExplore(", "function primeExplore(", "/api/explore?",
+                 "/api/comments", "exploreFamPillHTML", 'class="xfam-pill'):
+        assert gone not in INDEX, gone

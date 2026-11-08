@@ -149,7 +149,10 @@ def test_reported_content_says_what_it_is_and_where_reports_come_from():
     import moderation
     assert {k.capitalize() for k in moderation.KINDS} <= {
         "Episode", "Comment", "Vibe", "Note", "Person", "Group", "Message"}
-    for kind in ("episode", "vibe", "note", "person", "group", "comment"):
+    # Comments were reported from exploreFAM's reel, which the 11.3 packet
+    # took out of the app; the server still takes the kind from an
+    # installed client, so the admin row stays.
+    for kind in ("episode", "vibe", "note", "person", "group"):
         assert f'reportContent({{ kind: "{kind}"' in INDEX
     assert 'class="due' in TRACKER and "overdue by" in TRACKER
 
@@ -211,10 +214,11 @@ def test_a_report_reads_the_episode_that_played_even_once_stale(client, monkeypa
 
 
 def test_the_page_sends_the_episode_id_and_the_reel():
+    # The reel went with exploreFAM (the 11.3 packet): the two players remain.
     body = INDEX.split("var PLAYER_SCREENS", 1)[1].split("function close()", 1)[0]
-    assert "explore: 1" in body.split("\n", 1)[0]
-    assert body.count("FamAudio.episode()") == 2
-    assert 'audioOwner === "reel"' in body and "reelCurrent" in body
+    assert "explore" not in body.split("\n", 1)[0]
+    assert body.count("FamAudio.episode()") == 1
+    assert "reelCurrent" not in body
 
 
 # --- 4. GDELT --------------------------------------------------------------

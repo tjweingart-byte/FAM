@@ -88,10 +88,13 @@ def test_the_profile_picture_rings_and_plays_your_story():
 
 def test_the_story_menu_has_the_owners_five():
     body = _fn("openStoryMenu")
+    # "Remove from your story" became "Delete vibe" in the 11.3 packet: a
+    # vibe taken down from your story leaves your profile too.
     for label in ("Save for later", "Share", "Add to Queue", "Add topic to playlist",
-                  "Remove from your story"):
+                  "Delete vibe"):
         assert label in body, label
-    # Remove is only on your own.
+    assert "deleteVibeFromStory(v)" in body
+    # Delete is only on your own.
     assert "if(person.mine && v.id)" in body
     assert 'class="story-more" onclick="openStoryMenu()"' in INDEX
 

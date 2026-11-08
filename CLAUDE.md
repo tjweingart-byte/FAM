@@ -43,10 +43,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   story pool, plus **What you missed last week**), **DailyFAM** (named mixes of
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 ET
   edition writes active mixes with EI; public mixes searchable, (+)
-  copies one; the server owns the date and length a tap sends), and **Explore**
-  (not a tab; its pill (`explore-reel`) or search's swipe, §203; a dropdown
-  picks its feed, §255; the cache only, `cached_only`, never generates, never
-  your own). myFAM and DailyFAM are personalised. [three-surfaces]
+  copies one; the server owns the date and length a tap sends). **Explore is
+  gone** (§499). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
   and briefs for likely taps; synthesise on tap. Cached episodes keep their
   audio beside the script (§132); prefetch warms text, never audio. [decouple-script-audio]
@@ -90,19 +88,20 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
-  lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
-- **Your categories** (§229/§253/§255): today's cache; reels end "all caught up". [your-categories]
+  lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
+  says the day it was made, then a date past six days (§499). [dailyfam-catalogue]
+- **Categories are filter chips** (§229/§500): a row atop myFAM filters in
+  place; today's cache; a tap plays. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
 
-- **Explore is a reel** (§203): picture behind, title bottom left, like /
-  comment / vibe / share / save down the right, the player's ⋯; no dislike
-  anywhere, captions slide up; **comments** keyed `(query, minutes)`,
-  read by anyone, written with an account, one level of replies; the
-  exploreFAM pill opens it from search and beside Made for you. [explore-reel]
+- **exploreFAM is out of the app** (§499): no reel, pill or swipe; a
+  category plays in the player; `/api/explore`, comments kept for old
+  clients; no dislike anywhere. [explore-reel]
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
   Your story only (§250); holding pauses; your story rings your face; (+)
-  posts a note, no episode (§297). [vibe-caption]
+  posts a note, no episode (§297); a vibe is deleted whole, from its story's ⋯
+  or held on your grid (§499). [vibe-caption]
 - **A friend's vibe** has a reply / heart / share-to-your-story row (§282); a
   reply or like is a message carrying the episode. [story-reply]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
@@ -224,7 +223,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   field; variety never gives way (≤2 per heading, capped top-up); no
   minor-league game from another continent unless followed; market moves on
   any money taste; ranks every held story. Weights (§202): search 1.5, play 1,
-  finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2. [mfy-field-variety]
+  finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2,
+  not interested -1.5 (§499). [mfy-field-variety]
 - **Taste is a subject tree** (§202): the most specific subject takes the
   whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
   teams seeded under their leagues, never one whose name is also an everyday
@@ -232,9 +232,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Chosen interests never fade** (§202): added after normalisation at
   `INTEREST_WEIGHT` (2.0), never decayed or lowered by a skip; facets and
   named subjects both count. [interests-constant]
-- **No "not interested"** anywhere (§171): the ranking learns from plays,
-  skips and fatigue; `hide` is not an event kind; old rows are ignored.
-  Explore's "Interested?" ✕ is a skip, ✓ a pick (§195). [no-not-interested]
+- **"Not interested" only in a tile's ⋯** (§499, reversing §171 there):
+  `not_interested` (-1.5) keeps that tile off every rail, Trending and the
+  post-episode grid; no card button; `hide` stays retired. [no-not-interested]
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
   length once the player has it, else the minutes) and finished episodes'
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
@@ -447,6 +447,8 @@ Accounts, tiers, sharing
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
   (§204); daily/my/your one rule, centred (§363); light (§250). [typefaces]
+- **Larger phone text never breaks a screen** (§499): heights are floors,
+  headings never share a squeezed row. [large-text]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]
 - **The intro screen is not on the navigation stack**; screens opened over it

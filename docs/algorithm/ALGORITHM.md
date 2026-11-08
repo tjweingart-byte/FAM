@@ -22,7 +22,7 @@ Every action is logged with the subjects of what it was about. Each kind of acti
 | Signal | Weight | What it is |
 |---|---:|---|
 | `vibe` | 2.5 | VIBE! on an episode |
-| `pick` | 2.2 | A subject picked from a list (interests page, Explore's check) |
+| `pick` | 2.2 | A subject picked from a list (the interests page) |
 | `mix_add` | 2 | A subject or episode added to one of your mixes |
 | `share` | 2 | Sending an episode to someone |
 | `save` | 2 | Save for later |
@@ -30,6 +30,7 @@ Every action is logged with the subjects of what it was about. Each kind of acti
 | `complete` | 1.5 | Finishing an episode (85% heard) |
 | `play` | 1 | Starting an episode |
 | `skip` | -0.5 | Skipping an episode |
+| `not_interested` | -1.5 | Not interested, from a tile's three dots - the tile also leaves your rails |
 
 ## 2. A tree, not a list
 
@@ -159,4 +160,4 @@ How six tiles score (affinity, before the multipliers):
 | `READY_REACH` | 24 | How deep the rail looks for already-written episodes |
 | `STARTUP_PRIOR_STEP` | 0.08 | Cold start: drop per rank of a heading's popularity |
 
-Fingerprint `8ff02e6b227dbdaa`.
+Fingerprint `c528f925841f209f`.

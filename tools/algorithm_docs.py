@@ -148,7 +148,7 @@ def is_stale() -> bool:
 
 SIGNALS = [
     ("vibe", "VIBE! on an episode"),
-    ("pick", "A subject picked from a list (interests page, Explore's check)"),
+    ("pick", "A subject picked from a list (the interests page)"),
     ("mix_add", "A subject or episode added to one of your mixes"),
     ("share", "Sending an episode to someone"),
     ("save", "Save for later"),
@@ -156,6 +156,7 @@ SIGNALS = [
     ("complete", "Finishing an episode (85% heard)"),
     ("play", "Starting an episode"),
     ("skip", "Skipping an episode"),
+    ("not_interested", "Not interested, from a tile's three dots - the tile also leaves your rails"),
 ]
 
 

@@ -1076,6 +1076,7 @@
   searches for the event and not a theme it stands for. Names only, never a
   headline, and all of it inside `query` so `key_for` needs no new field.
 <!-- rule:trending-floor -->
+> **Current (PROBLEMS.md §499, the owner's 11.3 packet):** one personal exception joins the heard story (§136): a story the listener said "Not interested" to (a tile's ⋯) is not offered to them on Trending or its View more. It removes that one story for that one listener and changes nothing else in the world row's order - no taste, fatigue or engagement reaches it.
 > **Current (PROBLEMS.md §168):** Since §134/§139 Trending is chosen first from its own GNews edition and never draws on the live pool, so the reservation below is history.
 
 - **Trending keeps four tiles, and takes them before anything else chooses.**
@@ -1717,6 +1718,25 @@
   (§204). Headings are a sans now, so their fallback is
   `sans-serif`, never Georgia. `releases/web/<version>/` is an archive of
   what shipped and keeps the type it shipped with.
+
+<!-- rule:large-text -->
+- **Larger text on the phone never breaks a screen** *(PROBLEMS.md §499, the
+  owner's 11.3 packet: "When someone has their phone settings set so that the
+  font of the text is bigger, the layout gets messed up on FAM. Please make
+  sure this isn't a problem.")*. The owner's screenshot was "Made for you,
+  Saturday afternoon" squeezed to a word a line by the exploreFAM pill sharing
+  its row, the pill's words running into it. The rules that came out of it:
+  a fixed height on anything holding words is a floor (`min-height`), never a
+  ceiling - the "Pick up where you left off" cards were 80px/104px and cut
+  their own time-left line; a heading positioned from the middle
+  (`.myfam-header-fixed .wordmark`) is `white-space:nowrap`, or it may only use
+  half the header and breaks "dailyFAM" over two lines; and no heading shares
+  a row with a control that can squeeze it. Text is never locked against the
+  setting (`-webkit-text-size-adjust:none` would refuse the listener's own
+  choice). Checked by scaling every font on every `tools/shots.py` surface by
+  1.35 and 1.7 and listing text that overlaps other text or leaves the screen;
+  what remained at 1.7 were the small stacked friend faces, whose initials
+  crowd but stay inside their circles.
 
 <!-- rule:motion -->
 - **Motion never holds anything.** *(§292, the owner's picks from the motion

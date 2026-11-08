@@ -49,40 +49,7 @@ def test_the_players_collapse_button_is_the_home_logo():
     assert 'onclick="minimizePlayer()"' in HTML.split('id="playerDown"', 1)[1][:40]
 
 
-def test_the_reels_back_button_is_the_home_logo_too():
-    back = _screen("explore").split('class="reel-back"', 1)[1].split("</button>", 1)[0]
-    assert HOUSE in back and 'onclick="exploreBack()"' in back
-
-
 # --- 2. the feed dropdown -----------------------------------------------------
-
-def test_the_dropdown_sits_under_the_wordmark_with_five_choices():
-    head = _screen("explore").split('class="reel-head"', 1)[1].split('class="reel-gap"', 1)[0]
-    assert head.index('class="reel-brand"') < head.index('id="reelFeedBtn"')
-    feeds = HTML.split("var EXPLORE_FEEDS = [", 1)[1].split("];", 1)[0]
-    labels = re.findall(r'label: "([^"]+)"', feeds)
-    assert labels == ["All", "Made for you", "Trending", "Most recent",
-                      "What people are searching", "Explore"]
-    runs_out = re.findall(r'id: "(\w+)"[^}]*runsOut: true', feeds)
-    assert runs_out == ["made_for_you", "trending", "recent"]
-    assert 'id: "catalog", label: "Explore", shuffled: true' in feeds
-
-
-def test_a_feed_that_runs_out_shuffles_the_catalogue():
-    nxt = _fn("nextReel")
-    assert "feed.runsOut" in nxt and "shuffleCatalogAfter(feed.label)" in nxt
-    after = _fn("shuffleCatalogAfter")
-    assert "feed=catalog" in after and "shuffledPool(" in after
-    assert '"catalog"' in after
-    load = _fn("loadExplore")
-    assert '&feed=" + encodeURIComponent(feed)' in load
-    assert "shuffleCatalogAfter(" in load
-
-
-def test_the_dropdown_is_hidden_on_a_categorys_reel():
-    assert 'btn.hidden = reelFeed === "category"' in _fn("drawReelFeed")
-    assert "drawReelFeed();" in _fn("openCategoryReel")
-
 
 # --- 3. the bookshelf on search -----------------------------------------------
 
@@ -95,29 +62,7 @@ def test_the_library_bookshelf_is_on_search_not_dailyfam():
 
 # --- 4. all caught up; a smaller Shuffle play ---------------------------------
 
-def test_a_categorys_reel_ends_in_all_caught_up_with_four_categories():
-    done = _screen("explore").split('id="reelDone"', 1)[1].split('class="reel-progress"', 1)[0]
-    assert "You&rsquo;re all caught up" in done
-    assert "Explore a different category?" in done
-    nxt = _fn("nextReel")
-    assert 'reelFeed === "category"' in nxt and "showCategoryCaughtUp()" in nxt
-    assert "drawCaughtUpTiles();" in _fn("showCategoryCaughtUp")
-    assert "otherCategories(catPage.node, 4)" in _fn("drawCaughtUpTiles")
-    assert '"playOtherCategory"' in _fn("drawCaughtUpTiles")
-
-
-def test_shuffle_play_is_smaller():
-    css = HTML.split(".cat-shuffle{", 1)[1].split("}", 1)[0]
-    assert "padding:8px 14px" in css and "font-size:11.5px" in css
-
-
 # --- 5. only that category ----------------------------------------------------
-
-def test_a_late_explore_fetch_cannot_take_over_a_categorys_reel():
-    assert "reelEpoch++" in _fn("openCategoryReel")
-    for name in ("primeExplore", "loadExplore"):
-        assert "epoch !== reelEpoch" in _fn(name), name
-
 
 @pytest.fixture
 def tree():
@@ -225,18 +170,3 @@ def test_recent_keeps_only_the_keys_asked_for(make, tmp_path):
     assert {e["key"] for e in store.recent(10, keys=["a", "c"])} == {"a", "c"}
     assert len(store.recent(10)) == 3
 
-
-def test_a_feed_running_out_does_not_replace_the_listeners_choice():
-    assert "exploreFeed = exploreChoice;" in _fn("loadExplore")
-    assert "exploreChoice = id;" in _fn("chooseExploreFeed")
-    assert "exploreChoice" not in _fn("shuffleCatalogAfter")
-
-
-def test_behind_all_caught_up_only_the_way_back_works():
-    assert 'caughtUpShowing() && e.key !== "ArrowUp"' in HTML
-    assert "!caughtUpShowing()" in _fn("nextReel")
-
-
-def test_a_late_category_load_does_not_pull_the_listener_into_a_reel():
-    body = _fn("drawCategoryEpisodes")
-    assert 'here.id === "screen-category"' in body

@@ -23,19 +23,6 @@ def _section(screen):
     return INDEX[start:INDEX.index("</section>", start)]
 
 
-def test_search_pill_sits_in_the_headers_slot():
-    """Search's exploreFAM pill is where DailyFAM's and myFAM's circles are:
-    the fixed header's top padding and side inset, at the circles' height."""
-    header = _css(".myfam-header-fixed")
-    top, side = re.search(r"padding:(\d+)px (\d+)px", header).groups()
-    slot = _css(".home-explore")
-    assert "top:%spx" % top in slot and "right:%spx" % side in slot
-    assert "height:34px" in _css(".home-explore.xfam-pill")
-    assert "height:34px" in _css(".myfam-head-btn")
-    # myFAM's circled (+) became the "Create new mix" pill under the
-    # wordmark (11.7 packet, §498), so it is no longer in this slot.
-
-
 def test_the_two_circles_wear_one_ring():
     # The second circle, myFAM's (+), is the "Create new mix" pill now (11.7
     # packet, §498); the pill wears the same ring.
@@ -53,11 +40,6 @@ def test_myfams_header_is_fixed_like_dailyfams():
     page = _section("playfam")
     head = page.index('class="myfam-header myfam-header-fixed"')
     assert head < page.index('id="newMixBtn"') < page.index('<div class="scroll"')
-
-
-def test_the_pill_beside_made_for_you_is_small():
-    pill = _css(".xfam-pill")
-    assert "height:24px" in pill and "font-size:11px" in pill
 
 
 def test_the_loading_screen_counts_no_seconds():

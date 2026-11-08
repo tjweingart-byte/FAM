@@ -29,7 +29,6 @@ SURFACES = [
     ("myfam", "setTab('myfam')"),
     ("home", "setTab('home')"),
     ("dailyfam", "openPlayFAM()"),
-    ("explore", "openExplore()"),
     ("profile", "openProfile()"),
     ("messages", "openMessages()"),
     ("mixdetail", "setTab('playfam'); document.querySelectorAll('.mix-card')[0].click()"),

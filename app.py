@@ -8806,6 +8806,13 @@ async def category_episodes(
                       "comments": comments.get(pair, 0)})
     except Exception:  # noqa: BLE001
         log.exception("could not count a category page's reactions")
+    # The picture the player would draw for each (11.3 packet, the chips'
+    # hero and rows), as the A to Z catalogue's rows carry it: local reads
+    # only, "" when nothing is approved.
+    try:
+        await asyncio.to_thread(_picture_episodes, episodes)
+    except Exception:  # noqa: BLE001 - a picture is never worth a failed page
+        log.exception("could not picture a category's episodes")
     return {"id": node, "label": _category_label(node),
             "facet": topics_mod._root_facet(node), "sort": order,
             "q": q.strip(), "subcategories": subs, "episodes": episodes}

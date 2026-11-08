@@ -132,7 +132,7 @@ def test_myfam_search_finds_other_peoples_episodes_only(client):
 def test_messages_took_explores_place_on_the_tab_bar():
     assert 'data-tab="explore"' not in HTML
     bars = re.findall(r'<div class="tabbar">(.*?)\n        </div>', HTML, re.S)
-    assert len(bars) >= 6
+    assert len(bars) >= 5  # five since exploreFAM went (11.3)
     for bar in bars:
         assert 'data-tab="messages"' in bar
     messages = HTML[HTML.index('id="screen-messages"'):HTML.index('id="screen-thread"')]
@@ -150,13 +150,6 @@ def test_myfams_header_searches_and_its_search_bar_is_gone():
     assert 'onclick="openMessages()"' not in myfam.split('class="tabbar"')[0]
     assert "search-bar-lg" not in myfam
     assert 'id="screen-myfamsearch"' in HTML
-
-
-def test_explore_opens_from_beside_made_for_you():
-    # The rail is gone (10.5 packet #6); the exploreFAM pill beside "Made
-    # for you" is the way in (#7).
-    assert "Start scrolling" not in HTML and "searchingRailHTML" not in HTML
-    assert "exploreFamPillHTML()" in HTML
 
 
 # --- the player's (+) ------------------------------------------------------

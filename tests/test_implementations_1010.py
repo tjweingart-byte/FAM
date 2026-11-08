@@ -28,12 +28,10 @@ def _rule(selector):
 
 
 def test_every_wordmark_word_is_set_like_explore():
-    wordmark, reel = _rule(".wordmark"), _rule(".reel-brand")
-    for rule in (wordmark, reel, _rule(".xfam-pill")):
-        assert "font-family:'Bricolage Grotesque'" in rule
-    # explore's word has no weight of its own, so it is the regular 400;
-    # Daily / my / Your match it rather than the old 500.
-    assert "font-weight" not in reel
+    # exploreFAM went in the 11.3 packet; the wordmarks keep the regular 400
+    # they were set to match it in.
+    wordmark = _rule(".wordmark")
+    assert "font-family:'Bricolage Grotesque'" in wordmark
     assert "font-weight:400" in wordmark and "letter-spacing" not in wordmark
     # Lower case, like "my" (the owner's 10.31 notebook).
     for word in ('aria-label="dailyFAM">daily<', 'aria-label="myFAM">my<'):
@@ -79,7 +77,7 @@ def test_a_caption_wraps_between_words_at_the_canvas_width():
 
 
 def test_dark_surfaces_keep_dark_gold_in_light_mode():
-    rule = re.search(r'html\[data-theme="light"\] \.reel-stage, html\[data-theme="light"\] \.story,'
+    rule = re.search(r'html\[data-theme="light"\] \.story,'
                      r'\s*html\[data-theme="light"\] \.vcs\{([^}]*)\}', INDEX)
     dark = re.search(r"--copper:(#[0-9A-F]{6});", INDEX).group(1)
     assert rule and f"--copper:{dark};" in rule.group(1) and f"--gold:{dark};" in rule.group(1)
