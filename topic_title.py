@@ -77,21 +77,31 @@ _FRAMING = sorted((
     "the latest on", "the latest in", "latest news on", "latest news about",
     "news about", "a story about", "stories about", "a summary of", "summary of",
     "a recap of", "recap of", "please", "this week", "right now", "these days",
-    "lately", "recently",
+    "lately", "recently", "this season", "this year", "the latest from",
+    "the latest about", "a quick rundown of", "a rundown of", "rundown of",
+    "a quick update on", "a quick summary of", "how the", "how is", "how are",
 ), key=len, reverse=True)
 
 #: Phrases meaning "one a day", turned into a leading "Daily".
 _DAILY = ("of the day", "every day", "each day", "every morning", "each morning",
           "daily", "today", "today's", "todays", "for the day", "a day")
 
-#: Words that carry nothing on their own once the framing is gone.
+#: Phrases meaning "one a week", turned into a leading "Weekly". A weekday
+#: after "every" or "each" counts ("new music every friday").
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_WEEKLY = ("every week", "each week", "weekly", "once a week", "of the week") + tuple(
+    f"{lead} {day}" for lead in ("every", "each") for day in _WEEKDAYS)
+
+#: Words that carry nothing on their own once the framing is gone. Never a
+#: word the listener capitalised mid-prompt - "New York", "World Cup" - and
+#: not "world" or "new" at all, which begin too many names typed lowercase.
 _FILLER = {
     "a", "an", "the", "of", "about", "on", "in", "for", "to", "and", "with",
     "me", "my", "i", "some", "any", "all", "that", "this", "these", "those",
     "is", "are", "was", "be", "being", "what", "whats", "what's", "how",
     "which", "who", "it", "its", "it's", "things", "stuff", "there", "here",
-    "happening", "going", "new", "latest", "please", "just", "really", "very",
-    "from", "at", "by", "into", "around", "world",
+    "happening", "going", "latest", "please", "just", "really", "very",
+    "from", "at", "by", "into", "around", "quick", "going", "doing",
 }
 
 _WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9'&.+-]*")
@@ -102,7 +112,14 @@ def _tidy(text: str) -> str:
 
 
 def _cap_first(text: str) -> str:
-    return text[:1].upper() + text[1:] if text else text
+    """The first letter up - unless the first word is already a name with a
+    capital inside it ("iPhone", "eBay"), which is kept as typed."""
+    if not text:
+        return text
+    first = text.split(" ", 1)[0]
+    if any(c.isupper() for c in first[1:]):
+        return text
+    return text[:1].upper() + text[1:]
 
 
 def is_short(query: str) -> bool:
@@ -120,24 +137,27 @@ def heuristic(query: str) -> str:
         return _clip(_cap_first(text))
     low = " " + text.lower() + " "
     daily = any(" " + d + " " in low for d in _DAILY)
-    for phrase in _DAILY + tuple(_FRAMING):
+    weekly = not daily and any(" " + w + " " in low for w in _WEEKLY)
+    for phrase in _WEEKLY + _DAILY + tuple(_FRAMING):
         low = low.replace(" " + phrase + " ", " ")
     # Keep the listener's own capitals: walk the original words, keeping each
     # one whose lower case survived the stripping, in order.
     survivors = low.split()
     kept: list[str] = []
     at = 0
-    for word in _WORD.findall(text):
+    for n, word in enumerate(_WORD.findall(text)):
         w = word.lower()
         if at < len(survivors) and survivors[at] == w:
             at += 1
-            if w not in _FILLER:
+            # A capital the listener typed mid-prompt is a name, never filler.
+            if w not in _FILLER or (n > 0 and word[:1].isupper()):
                 kept.append(word)
     if not kept:
         # Everything was framing: fall back to the first few words as typed.
         kept = _WORD.findall(text)[:SHORT_WORDS]
-    words = kept[:MAX_WORDS - (1 if daily else 0)]
-    title = ("Daily " + " ".join(w if _is_name(w) else w.lower() for w in words)) if daily \
+    lead = "Daily" if daily else "Weekly" if weekly else ""
+    words = kept[:MAX_WORDS - (1 if lead else 0)]
+    title = (lead + " " + " ".join(w if _is_name(w) else w.lower() for w in words)) if lead \
         else _cap_first(" ".join(words))
     return _clip(title)
 

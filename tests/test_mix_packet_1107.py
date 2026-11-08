@@ -375,3 +375,38 @@ def test_one_save_names_only_a_few_by_model(client, monkeypatch):
                  for n in range(6)]
     client.post("/api/mixes", json={"name": "Many", "topic_ids": long_ones})
     assert asked.count(True) == topic_title.MAX_MODEL_PER_SAVE
+
+
+@pytest.mark.parametrize("prompt, title", [
+    ("what is going on with the New York Knicks this season", "New York Knicks"),
+    ("the latest from the World Health Organization on bird flu", "World Health Organization bird flu"),
+    ("give me a quick rundown of new music releases every friday", "Weekly new music releases"),
+    ("how the world cup qualifiers are going for the USMNT every day", "Daily world cup qualifiers USMNT"),
+    ("what is happening with iPhone 18 rumors lately", "iPhone 18 rumors"),
+])
+def test_names_survive_the_rule(prompt, title):
+    """The second double-check: "world" and "new" were filler, so "New York"
+    lost its first word; a capital typed mid-prompt is never filler now."""
+    assert topic_title.heuristic(prompt) == title
+
+
+def test_the_previews_rule_is_the_servers(tmp_path):
+    """Both previews name typed topics with a JS copy of `heuristic`; its
+    word lists come from this module, and its answers must match."""
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("no node")
+    sys.path.insert(0, str(ROOT / "preview"))
+    import build_preview as bp
+    prompts = ["positive story of the day of things happening in the world",
+               "what is going on with the New York Knicks this season",
+               "give me a quick rundown of new music releases every friday",
+               "what is happening with iPhone 18 rumors lately",
+               "news about bitcoin and the crypto markets and what moved them",
+               "Stanford football"]
+    prog = ("var MIX_RULES; " + bp.mix_items_js()
+            + "\nconsole.log(JSON.stringify(%s.map(mixShortTitle)));" % json.dumps(prompts))
+    out = subprocess.run([node, "-e", prog], capture_output=True, text=True, check=True).stdout
+    assert json.loads(out) == [topic_title.heuristic(p) for p in prompts]

@@ -748,7 +748,9 @@ MIX_ITEMS_JS = r"""
     var text = String(query || "").replace(/\s+/g, " ").trim().replace(/[?.! ]+$/, "");
     if (!text) return "";
     var words = text.match(/[A-Za-z0-9][A-Za-z0-9'&.+-]*/g) || [];
-    function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+    function cap(t) {
+      return /[A-Z]/.test(t.split(" ")[0].slice(1)) ? t : t.charAt(0).toUpperCase() + t.slice(1);
+    }
     function clip(t) {
       t = t.replace(/\s+/g, " ").trim();
       if (t.length <= R.max_chars) return t;
@@ -757,18 +759,23 @@ MIX_ITEMS_JS = r"""
     }
     if (words.length <= R.short_words) return clip(cap(text));
     var low = " " + text.toLowerCase() + " ";
-    var daily = R.daily.some(function (d) { return low.indexOf(" " + d + " ") !== -1; });
-    R.daily.concat(R.framing).forEach(function (ph) { low = low.split(" " + ph + " ").join(" "); });
+    function has(list) { return list.some(function (d) { return low.indexOf(" " + d + " ") !== -1; }); }
+    var daily = has(R.daily), weekly = !daily && has(R.weekly);
+    R.weekly.concat(R.daily, R.framing).forEach(function (ph) { low = low.split(" " + ph + " ").join(" "); });
     var surv = low.split(/\s+/).filter(Boolean), kept = [], at = 0;
-    words.forEach(function (w) {
+    words.forEach(function (w, n) {
       var l = w.toLowerCase();
-      if (at < surv.length && surv[at] === l) { at++; if (R.filler.indexOf(l) === -1) kept.push(w); }
+      if (at < surv.length && surv[at] === l) {
+        at++;
+        if (R.filler.indexOf(l) === -1 || (n > 0 && /^[A-Z]/.test(w))) kept.push(w);
+      }
     });
     if (!kept.length) kept = words.slice(0, R.short_words);
-    var take = kept.slice(0, R.max_words - (daily ? 1 : 0));
+    var lead = daily ? "Daily" : weekly ? "Weekly" : "";
+    var take = kept.slice(0, R.max_words - (lead ? 1 : 0));
     function isName(w) { return /[A-Z]/.test(w.slice(1)) || /\d/.test(w) || (/^[A-Z]/.test(w) && w.length > 1); }
-    return clip(daily ? "Daily " + take.map(function (w) { return isName(w) ? w : w.toLowerCase(); }).join(" ")
-                      : cap(take.join(" ")));
+    return clip(lead ? lead + " " + take.map(function (w) { return isName(w) ? w : w.toLowerCase(); }).join(" ")
+                     : cap(take.join(" ")));
   }
   function mixTypedItem(query, title) {
     query = String(query || "").replace(/\s+/g, " ").trim();
@@ -787,6 +794,7 @@ def mix_items_js() -> str:
     import topic_title
     return MIX_ITEMS_JS.replace("__MIX_RULES__", json.dumps({
         "title": {"framing": list(topic_title._FRAMING), "daily": list(topic_title._DAILY),
+                  "weekly": list(topic_title._WEEKLY),
                   "filler": sorted(topic_title._FILLER),
                   "short_words": topic_title.SHORT_WORDS,
                   "max_words": topic_title.MAX_WORDS, "max_chars": topic_title.MAX_CHARS},

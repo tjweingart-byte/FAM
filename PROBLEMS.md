@@ -31300,3 +31300,12 @@ call was not paced and one save could queue twenty model calls (now
 save); and an invite opened before signing up yanked a new account out of
 its first steps (now joined from `finishEntry`). The "Added ..." toast names
 the topic that was saved, not merely the last row.
+
+**The second double-check.** The title rule dropped words from names:
+"world" and "new" were filler, so "what is going on with the New York Knicks
+this season" came out "York Knicks season" and "world cup" lost "world"; and
+"iPhone" was capitalised to "IPhone". Now a capital typed mid-prompt is never
+filler, "world" and "new" are not filler at all, a prompt that asks weekly
+("every friday") gets "Weekly", the first letter is not forced up on a name
+like "iPhone", and a test runs the previews' JS copy against the Python on
+the same prompts so the two cannot drift.
