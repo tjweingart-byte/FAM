@@ -31496,3 +31496,42 @@ faults in the chips, all fixed with tests in
   post-episode grid: `generate` drops a category's queued rest when anything
   but a queue entry or another category play starts; what the listener
   queued themselves stays.
+
+## 501. A backend operations handbook, for the weeks the owner is away (2026-11-08)
+
+The owner: "I have built the entire backend and am the only person who knows
+how to operate it ... when I am not available to work on fam someone will
+need to be responsible for the backend. I want to put together a
+presentation and a series of documents that clearly lays out how to operate
+the backend. This should include Claude, GitHub, render, runpod, cloudfare,
+mongodb, and anything else we normally interact with. Also, include how to
+sign off on new agent documents."
+
+**Written** in `docs/operations/`, a draft the owner edits on the branch:
+`README.md` (the index and the five rules of the job), `00_SYSTEM_MAP.md`,
+`01_ACCESS.md` (each account, the role to grant, the alert inboxes, and the
+owner-only decisions), `02_GITHUB.md`, `03_CLAUDE.md`, `04_RENDER.md`,
+`05_RUNPOD.md`, `06_CLOUDFLARE.md`, `07_MONGODB.md`,
+`08_OTHER_SERVICES.md`, `09_AGENT_RULE_SIGNOFF.md` and `10_RUNBOOKS.md`.
+The deck is `slides.md`, built by `build_deck.py` into
+`FAM_Backend_Operations.pptx` (python-pptx, already in
+`requirements-docs.txt`). Every step is taken from the existing setup
+documents and `render.yaml`; nothing in the code changed.
+
+**What writing it found**, each left as a `TODO(owner)` in the handbook
+rather than guessed:
+- Every recent PR (#229-#231) went from a `claude/*` branch straight into
+  `Main`, and `staging` is level with `Main`: the staging-first flow of
+  §172 is not the one in use. The handbook recommends it while the owner
+  is away and leaves the choice open.
+- `docs/ONBOARDING.md` §7.1 still listed a production disk `fam-data`;
+  production has had no disk since §339. Corrected there to Postgres.
+- Signing a rule book needs the owner's key, and that is the point of the
+  lock (§343-§352). The operator reviews a proposal against a written
+  checklist; the owner still signs. Whether a second signing key should
+  exist is an owner decision, and would itself be a signed change.
+- Facts only the owner holds: the production and staging hosts, the SMTP
+  provider, whether `familiarize.net` is on Cloudflare, whether
+  production's archive is on Atlas yet, the database plan and its recovery
+  window, spend limits on Anthropic and RunPod, branch protection on
+  `Main` and `staging`, and how to reach the owner in an emergency.
