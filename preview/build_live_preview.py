@@ -2076,6 +2076,22 @@ __WRITING_SIM__
     if (path.indexOf("/api/mixes") === 0 && !EMAIL) {
       return json({ error: ACCOUNT_REQUIRED }, 401);
     }
+    // "Recommended topics" (11.7 packet): the catalogue's own order, what the
+    // server answers for somebody whose history it cannot rank.
+    if (path.indexOf("/api/mixes/recommended") === 0) {
+      return json({ order: CATALOGUE.map(function (c) { return "f:" + c.id; }), personalised: false });
+    }
+    // Joint mixes: the invite link, and turning it off. This build does not
+    // join anybody to anything.
+    var inviteVerb = path.match(/^\/api\/mixes\/([^/]+)\/invite$/);
+    if (inviteVerb) {
+      var inv = rows("mixes").filter(function (m) { return m.id === inviteVerb[1] && m.user_id === UID; })[0];
+      if (!inv) return json({ error: "That mix no longer exists." }, 404);
+      return json(method === "DELETE" ? shapeMix(inv) : { url: "/j/preview-" + inv.id, name: inv.name, members: 0 });
+    }
+    if (path === "/api/mixes/join") {
+      return json({ error: "That invite has been turned off, or the mix no longer exists." }, 404);
+    }
     if (path === "/api/mixes" && method === "GET") {
       return json({
         mixes: rows("mixes").filter(function (m) { return m.user_id === UID; }).map(shapeMix),
@@ -2141,6 +2157,17 @@ __WRITING_SIM__
       var cur = rows("mixes").filter(function (m) { return m.id === mixId && m.user_id === UID; })[0];
       if (!cur) return json({ error: "That mix no longer exists." }, 404);
       if (method === "DELETE") return del("mixes", mixId).then(function () { paint(); return json({ ok: true }); });
+      // A (+) sends operations (§498), merged into the mix as it stands.
+      if (body.topic_ids === undefined && (body.add || body.remove)) {
+        var gone = (body.remove || []).map(function (r) { return String(r).toLowerCase(); });
+        body.topic_ids = String(cur.items || "").split(",").filter(Boolean).filter(function (sid) {
+          var f = mixFollowItem(sid, CATALOGUE);
+          var shown = f ? f.id : (BY_ID[sid] ? sid : mixTypedItem(sid.replace(/^q:/, "")).id);
+          return gone.indexOf(shown.toLowerCase()) === -1;
+        }).map(function (sid) {
+          return /^q:/.test(sid) ? { query: sid.slice(2) } : sid;
+        }).concat(body.add || []);
+      }
       return put("mixes", mixId, {
         user_id: UID,
         name: body.name !== undefined ? body.name : cur.name,

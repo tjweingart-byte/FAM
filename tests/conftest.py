@@ -215,6 +215,7 @@ FAM_ENVIRONMENT = (
     # about the empty state do not expect.
     "APP_STORE_URL", "APP_HOME_URL", "APPLE_TEAM_ID", "APPLE_KEY_ID", "MODERATION_EMAIL", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
     "IMAGE_CHECK_MAX_TOKENS", "IMAGE_CHECK_TIMEOUT_SECONDS",
+    "TOPIC_TITLE", "TOPIC_TITLE_MODEL", "TOPIC_TITLE_MAX_TOKENS", "TOPIC_TITLE_TIMEOUT_SECONDS",
     # Which machine speaks, and how it is reached. A developer with a real
     # RunPod endpoint configured must run the same suite as CI: without these
     # cleared, `VOICE_BACKEND=remote` in their shell would point the engine

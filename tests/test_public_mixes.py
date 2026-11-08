@@ -330,15 +330,16 @@ def _html() -> str:
 def test_tapping_a_suggested_specific_does_not_open_the_keyboard():
     """The bug: a chip under "Narrow it down" called `box.focus()` on the
     "Type a ..." input, which on a phone slides the keyboard up. Only the box
-    itself - typing and pressing Enter in it - may put the cursor back."""
+    itself - typing and pressing Enter in it - may put the cursor back.
+
+    Superseded (11.7 packet, §498): the "Narrow it down" panel went with the
+    picker, so there are no suggested-specific chips left to focus anything.
+    A team is added from "Add topics to mix", whose rows never move focus."""
     html = _html()
-    body = html[html.index("function addFocus("):]
+    assert "function addFocus(" not in html and 'id="focusInput"' not in html
+    body = html[html.index("function toggleTopicInMix("):]
     body = body[:body.index("\n  }\n")]
-    assert re.search(r"if\(typed\)\{\s*var box = document.getElementById\(\"focusInput\"\);"
-                     r"\s*if\(box\) box.focus\(\);", body)
-    # The chips call it without `typed`; only the box's Enter passes it.
-    assert "addFocus(' + q + ',this.dataset.v)" in html
-    assert "addFocus(' + q + ', this.value, false, true)" in html
+    assert ".focus()" not in body
 
 
 def test_share_mix_is_in_the_mix_menu():

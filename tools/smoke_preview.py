@@ -2100,7 +2100,6 @@ def main() -> int:
                         return window.__realFetch(input, init);
                     };
                     topicBank = [];
-                    pickerSelection = [];
                 }""")
             try:
                 page.evaluate("openPlayFAM()")
@@ -2109,22 +2108,14 @@ def main() -> int:
                     "the stubbed 401 did not reach the locked branch"
                 assert page.evaluate("topicBank.length") > 0, \
                     "a locked mix list emptied the topic bank"
-                page.evaluate("openMixPicker('smoke')")
-                page.wait_for_timeout(250)
-                page.fill("#pickerSearch", "a topic nobody has in the bank")
-                page.wait_for_timeout(350)
-                body = page.text_content("#pickerBody")
-                assert "Could not load the topic list" not in body, \
-                    "the picker blamed the topic list for the account gate"
-                assert page.query_selector(".typed-offer"), \
-                    "searching the picker offered nothing to add"
+                # The picker this used to search went with the 11.7 packet;
+                # what is left to hold is the bank itself.
             finally:
                 # An arrow function with no return value: `window.fetch = ...`
                 # as an expression hands Playwright the function itself to
                 # serialise, and the failure it raises names fetch, so it
                 # reads exactly like the thing this check is testing.
                 page.evaluate("() => { window.fetch = window.__realFetch; }")
-                page.evaluate("() => { pickerSelection = []; }")
                 page.evaluate("openPlayFAM()")
                 page.wait_for_timeout(1000)
 
@@ -2827,73 +2818,66 @@ def main() -> int:
                 f"the menu ticks {ticked!r}, the chip says {chip!r}"
 
         def picker():
-            """Typing a topic into a mix and tapping it puts it in the mix.
+            """Typing a topic into a mix and tapping it puts it in the mix -
+            on "Add topics to mix" (11.7 packet), where every (+) saves at once.
 
             This used to stop at "the offer is on screen", which is the half
-            that worked: the row rendered, the tap landed, and nothing
-            happened, because two top-level functions in one script shared the
-            name `addTypedTopic` and the catalogue's copy won. Asserting a
-            control exists is not asserting it does anything - so the click
-            and its effect are checked here, on the screen, the way a listener
-            meets it."""
+            that worked once: the row rendered, the tap landed, and nothing
+            happened, because two top-level functions shared a name. Asserting
+            a control exists is not asserting it does anything - so the tap and
+            its effect are checked, on the screen, the way a listener meets it.
+
+            **A long prompt is never shown whole** (the owner's "most important
+            thing"): it goes in under a short name."""
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
             page.evaluate("document.querySelectorAll('.mix-card')[0].click()")
-            page.wait_for_timeout(400)
-            page.evaluate("editMixTopics()")
-            page.wait_for_selector("#screen-mixpicker.active .mix-topic",
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            page.click("#mixBody .mix-add-topics")
+            page.wait_for_selector("#screen-addtopics.active .mix-topic",
                                    timeout=10000, state="attached")
-            typed = "a topic nobody has in the bank"
-            before = page.evaluate("pickerSelection.length")
-            page.fill("#pickerSearch", typed)
-            page.wait_for_timeout(300)
-            offer = page.query_selector(".typed-offer")
+            before = page.evaluate("mixById(addTopicsMixId).items.length")
+            typed = "positive story of the day of things happening in the world"
+            page.fill("#addTopicsSearch", typed)
+            page.evaluate("renderAddTopics()")
+            offer = page.query_selector("#addTopicsBody .typed-offer")
             assert offer, "typing offers no way to add it"
-
+            assert "short name" in offer.inner_text(), offer.inner_text()
             offer.click()
-            page.wait_for_timeout(300)
-            assert page.evaluate("pickerSelection.length") == before + 1, \
-                "tapping the add button on a typed topic kept nothing"
-            assert page.evaluate(
-                "pickerSelection.some(function(s){ return s && s.query === "
-                + repr(typed).replace("'", '"') + "; })"), \
-                "what was typed is not what was added"
-
-            # And it is on the screen, under its own heading, with the search
-            # box cleared - a selection the listener cannot see is the same
-            # failure one step later. Lower-cased because `.mix-meta` is
-            # uppercased in CSS and innerText reports what is rendered.
-            body = page.inner_text("#pickerBody").lower()
-            assert typed in body, "the typed topic is not shown in the picker"
-            # "In this mix" since the 10.5 packet (#4): everything chosen is
-            # one stack.
-            assert "in this mix" in body, "the typed topic has no heading"
-            assert page.eval_on_selector("#pickerSearch", "e => e.value") == "", \
+            page.wait_for_timeout(500)
+            items = page.evaluate("mixById(addTopicsMixId).items")
+            assert len(items) == before + 1, "tapping a typed topic kept nothing"
+            added = items[-1]
+            assert added["query"] == typed, "what was typed is not what was asked"
+            assert added["title"] == "Daily positive story", added["title"]
+            assert page.eval_on_selector("#addTopicsSearch", "e => e.value") == "", \
                 "adding a typed topic left the search box full"
-            # Counted in briefings, which is what a narrowed subject makes
-            # several of (§137).
-            chosen = page.evaluate("pickerPayload().length")
-            assert f"{chosen} briefing" in page.inner_text("#pickerCount"), \
-                "the count did not notice the topic"
+            assert "Daily positive story" in (page.text_content("#toast") or ""), \
+                page.text_content("#toast")
 
-            # A subject to follow is the other half of the same screen.
-            page.evaluate("document.querySelectorAll('#pickerBody .mix-topic')"
-                          "[document.querySelectorAll('#pickerBody .mix-topic').length - 1].click()")
-            page.wait_for_timeout(300)
-            assert page.evaluate("pickerSelection.length") == before + 2, \
-                "tapping a subject to follow kept nothing"
+            # And on the mix itself, under its short name and never the prompt.
+            page.click("#screen-addtopics .back")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            rows = page.eval_on_selector_all(
+                "#mixBody .mix-list .mix-topic-title", "els => els.map(e => e.textContent)")
+            assert "Daily positive story" in rows and typed not in rows, rows
 
         def a_new_mix_follows_narrowed_subjects():
-            """The §137 flow end to end: name it on its own screen, follow NFL,
-            narrow it to the Eagles and keep the whole league too, find a team
-            by searching for it, save - and land in a mix whose rows are the
-            briefings chosen, with recommendations under them that are
-            subjects to follow and never something already followed.
+            """The 11.7 flow end to end: name it on its own screen, Create
+            makes it at once, empty, and opens it; "+ Add topics to mix" finds
+            a team inside a subject; a recommendation's (+) adds a subject;
+            and a play is today's edition narrowed to the team.
 
             Every step is a screen the listener meets, so every step is
             asserted on the screen rather than in a variable alone."""
             page.evaluate("openPlayFAM()")
             page.wait_for_selector(".mix-card", timeout=10000, state="attached")
-            page.evaluate("openNewMix()")
+            assert page.is_visible("#newMixBtn"), "no Create new mix pill"
+            assert "Create new mix" in page.inner_text("#newMixBtn")
+            page.click("#newMixBtn")
             page.wait_for_selector("#screen-newmix.active", timeout=5000)
+            assert "Step" not in page.inner_text("#screen-newmix"), \
+                "the naming screen still counts steps"
             assert page.eval_on_selector("#nmCreate", "e => e.disabled"), \
                 "Create is offered before the mix has a name"
             name = "Smoke %d" % int(time.time() * 1000 % 100000)
@@ -2905,70 +2889,54 @@ def main() -> int:
                 "the folder preview does not show the name"
             before = page.evaluate("mixes.length")
             page.click("#nmCreate")
-            page.wait_for_selector("#screen-mixpicker.active", timeout=5000)
-            assert page.evaluate("mixes.length") == before, \
-                "Create made the mix before a topic was chosen"
-            # Back keeps the name: the naming screen is step one of two.
-            page.evaluate("cancelMixPicker()")
-            page.wait_for_selector("#screen-newmix.active", timeout=5000)
-            assert page.eval_on_selector("#nmInput", "e => e.value") == name, \
-                "going back from the topics lost the name"
-            page.click("#nmCreate")
-            page.wait_for_selector("#screen-mixpicker.active .fol-ic",
-                                   timeout=10000, state="attached")
-            assert page.query_selector("#pickerChips .pk-chip.on"), \
-                "no interest filters over the topics"
-
-            # Follow NFL: "anything specific?" opens on its own.
-            page.evaluate("toggleMixTopic('f:nfl')")
-            page.wait_for_timeout(200)
-            panel = page.inner_text("#pickerBody .fol-wrap.open .focus-panel")
-            assert "Anything specific in NFL?" in panel, panel[:200]
-            page.click("#pickerBody .focus-sugg .focus-chip[data-v='Eagles']")
-            page.wait_for_timeout(200)
-            # Tapping a suggestion highlights it and nothing else: the cursor
-            # going back into "Type a team" is the keyboard sliding up on a
-            # phone (the 9.23 packet's bug).
-            assert page.evaluate("document.activeElement && document.activeElement.id") \
-                != "focusInput", "tapping a suggested team focused the type-a-team box"
-            assert page.query_selector("#pickerBody .focus-all"), \
-                "no way to keep all of NFL beside the Eagles"
-            page.click("#pickerBody .focus-all")
-            page.wait_for_timeout(200)
-            assert "2 briefings" in page.inner_text("#pickerCount"), \
-                page.inner_text("#pickerCount")
-
-            # Search reaches into the specifics: people think in teams.
-            page.fill("#pickerSearch", "lakers")
-            page.evaluate("onPickerSearch()")
-            page.wait_for_timeout(300)
-            body = page.inner_text("#pickerBody")
-            assert "Lakers" in body and "Basketball" in body, body[:300]
-            page.click("#pickerBody .mix-topic[data-v='Lakers']")
-            page.wait_for_timeout(200)
-            payload = page.evaluate("pickerPayload()")
-            assert payload == ["f:nfl~Eagles", "f:nfl", "f:basketball~Lakers"], payload
-
-            page.evaluate("saveMixPicker()")
             page.wait_for_selector("#screen-mixdetail.active", timeout=8000)
-            page.wait_for_timeout(400)
+            assert page.evaluate("mixes.length") == before + 1, \
+                "Create did not make the mix"
+            assert page.text_content("#mixTitle").strip() == name
+            body = page.inner_text("#mixBody")
+            assert "Add topics to mix" in body and "Change" in body, body[:300]
+            assert "Nothing in this mix yet" in body, body[:300]
+
+            # Add topics: search reaches into the specifics - people think in
+            # teams - and the (+) saves at once.
+            page.click("#mixBody .mix-add-topics")
+            page.wait_for_selector("#screen-addtopics.active", timeout=5000)
+            page.fill("#addTopicsSearch", "eagles")
+            page.evaluate("renderAddTopics()")
+            page.wait_for_timeout(200)
+            page.click("#addTopicsBody .mix-topic-act[data-id='f:nfl~Eagles']")
+            page.wait_for_timeout(500)
+            ids = page.evaluate("mixById(currentMixId).items.map(function(i){ return i.id; })")
+            assert ids == ["f:nfl~Eagles"], ids
+            assert page.query_selector(
+                "#addTopicsBody .mix-topic.chosen .mix-topic-act[data-id='f:nfl~Eagles']"), \
+                "an added team is not ticked"
+            page.click("#screen-addtopics .back")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            page.wait_for_timeout(300)
             rows = page.eval_on_selector_all(
                 "#mixBody .mix-list > .mix-topic .mix-topic-title",
                 "els => els.map(e => e.textContent)")
-            assert rows == ["NFL \u00b7 Eagles", "NFL", "Basketball \u00b7 Lakers"], rows
-            assert "edition \u00b7" in page.inner_text("#mixBody").lower(), \
+            assert rows == ["NFL · Eagles"], rows
+            assert "edition ·" in page.inner_text("#mixBody").lower(), \
                 "the edition is not dated"
 
-            # Recommendations: five subjects, none already followed, shuffled.
+            # Recommendations: five subjects, one tap adds, shuffled.
             recs = page.eval_on_selector_all(
                 "#mixBody .rec-list .mix-topic-title", "els => els.map(e => e.textContent)")
             assert len(recs) == 5, recs
-            assert "NFL" not in recs and "Basketball" not in recs, recs
+            page.click("#mixBody .rec-list .mix-topic-act")
+            page.wait_for_timeout(500)
+            after = page.evaluate("mixById(currentMixId).items.map(function(i){ return i.title; })")
+            assert after == ["NFL · Eagles", recs[0]], after
+            left = page.eval_on_selector_all(
+                "#mixBody .rec-list .mix-topic-title", "els => els.map(e => e.textContent)")
+            assert recs[0] not in left and len(left) == 5, left
             page.click("#mixBody .rec-shuffle")
             page.wait_for_timeout(200)
             again = page.eval_on_selector_all(
                 "#mixBody .rec-list .mix-topic-title", "els => els.map(e => e.textContent)")
-            assert len(again) == 5 and again != recs, (recs, again)
+            assert len(again) == 5 and again != left, (left, again)
 
             # A play is today's edition of the subject, narrowed to the team.
             prompt = page.evaluate("""() => {
@@ -4403,7 +4371,7 @@ def main() -> int:
         check("DailyFAM lists mixes", dailyfam)
         check("A playlist plays through, then stops", a_playlist_plays_through_and_then_stops)
         check("A playlist goes past an episode that fails", a_playlist_goes_past_an_episode_that_fails)
-        check("The new-mix + waits for an account",
+        check("Create new mix waits for an account",
               the_new_mix_button_waits_for_an_account)
         check("A locked mix list keeps the topic bank",
               a_locked_mix_list_keeps_the_topic_bank)
@@ -4414,8 +4382,8 @@ def main() -> int:
         check("Voice search counts down to Search now, and X stops it",
               voice_search_counts_down_to_search_now)
         check("\"Hey FAM\" opens voice search", hey_fam_opens_voice_search)
-        check("picker offers a typed topic", picker)
-        check("A new mix follows narrowed subjects", a_new_mix_follows_narrowed_subjects)
+        check("Add topics takes anything typed, under a short name", picker)
+        check("A new mix is made by naming it, then filled", a_new_mix_follows_narrowed_subjects)
         check("A mix cover is square and the avatar is not",
               a_cover_is_square_and_the_avatar_is_not)
         check("DailyFAM searches other people's mixes, and (+) adds one",

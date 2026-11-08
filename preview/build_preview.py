@@ -739,10 +739,48 @@ MIX_ITEMS_JS = r"""
     return String(query || "").replace(/,/g, " ").replace(/\s+/g, " ").trim()
       .slice(0, MIX_RULES.max_query);
   }
+  // `topic_title.heuristic`, the server's rule for naming a long typed
+  // topic when no model is asked (11.7 packet): its word lists are the
+  // server's own, passed in as MIX_RULES.title, so the two cannot drift. A
+  // preview never calls the model, so this is the name it shows.
+  function mixShortTitle(query) {
+    var R = MIX_RULES.title;
+    var text = String(query || "").replace(/\s+/g, " ").trim().replace(/[?.! ]+$/, "");
+    if (!text) return "";
+    var words = text.match(/[A-Za-z0-9][A-Za-z0-9'&.+-]*/g) || [];
+    function cap(t) {
+      return /[A-Z]/.test(t.split(" ")[0].slice(1)) ? t : t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    function clip(t) {
+      t = t.replace(/\s+/g, " ").trim();
+      if (t.length <= R.max_chars) return t;
+      var c = t.slice(0, R.max_chars), sp = c.lastIndexOf(" ");
+      return sp > 0 ? c.slice(0, sp) : c;
+    }
+    if (words.length <= R.short_words) return clip(cap(text));
+    var low = " " + text.toLowerCase() + " ";
+    function has(list) { return list.some(function (d) { return low.indexOf(" " + d + " ") !== -1; }); }
+    var daily = has(R.daily), weekly = !daily && has(R.weekly);
+    R.weekly.concat(R.daily, R.framing).forEach(function (ph) { low = low.split(" " + ph + " ").join(" "); });
+    var surv = low.split(/\s+/).filter(Boolean), kept = [], at = 0;
+    words.forEach(function (w, n) {
+      var l = w.toLowerCase();
+      if (at < surv.length && surv[at] === l) {
+        at++;
+        if (R.filler.indexOf(l) === -1 || (n > 0 && /^[A-Z]/.test(w))) kept.push(w);
+      }
+    });
+    if (!kept.length) kept = words.slice(0, R.short_words);
+    var lead = daily ? "Daily" : weekly ? "Weekly" : "";
+    var take = kept.slice(0, R.max_words - (lead ? 1 : 0));
+    function isName(w) { return /[A-Z]/.test(w.slice(1)) || /\d/.test(w) || (/^[A-Z]/.test(w) && w.length > 1); }
+    return clip(lead ? lead + " " + take.map(function (w) { return isName(w) ? w : w.toLowerCase(); }).join(" ")
+                     : cap(take.join(" ")));
+  }
   function mixTypedItem(query, title) {
     query = String(query || "").replace(/\s+/g, " ").trim();
     var item = { id: "q:" + query.toLowerCase().slice(0, 40), query: query,
-                 title: title || (query.charAt(0).toUpperCase() + query.slice(1)),
+                 title: title || mixShortTitle(query),
                  custom: true, subtitle: "Added by you", icon: "leaf" };
     item.daily_prompt = mixDailyPrompt(item);
     return item;
@@ -753,7 +791,13 @@ MIX_ITEMS_JS = r"""
 def mix_items_js() -> str:
     sys.path.insert(0, str(ROOT))
     import mixes as mixes_mod
+    import topic_title
     return MIX_ITEMS_JS.replace("__MIX_RULES__", json.dumps({
+        "title": {"framing": list(topic_title._FRAMING), "daily": list(topic_title._DAILY),
+                  "weekly": list(topic_title._WEEKLY),
+                  "filler": sorted(topic_title._FILLER),
+                  "short_words": topic_title.SHORT_WORDS,
+                  "max_words": topic_title.MAX_WORDS, "max_chars": topic_title.MAX_CHARS},
         "date": mixes_mod.DAILY_DATE, "longest": mixes_mod.LONGEST_DATE,
         "max_prompt": mixes_mod.MAX_PROMPT, "max_focus": mixes_mod.MAX_FOCUS,
         "max_query": mixes_mod.MAX_QUERY,
@@ -1813,6 +1857,24 @@ __PREVIEW_PICTURE__
       }, qs));
     }
     if (path === "/api/mixes" && method === "GET") return json(mixes);
+    // "Recommended topics" in the listener's order (11.7 packet). A preview
+    // has no listening history, so it is the catalogue's own order - what
+    // the server answers for somebody who has played nothing.
+    if (path.indexOf("/api/mixes/recommended") === 0) {
+      return json({ order: FIXTURES["/api/preferences"].catalogue.map(function (c) { return "f:" + c.id; }),
+                    personalised: false });
+    }
+    // Joint mixes: the invite link, and turning it off. Nobody else is in a
+    // preview to open it.
+    var inviteVerb = path.match(/^\/api\/mixes\/([^/]+)\/invite$/);
+    if (inviteVerb) {
+      var inv = mixes.mixes.filter(function (m) { return m.id === inviteVerb[1]; })[0];
+      if (!inv) return json({ error: "That mix no longer exists." }, 404);
+      return json(method === "DELETE" ? inv : { url: "/j/preview-" + inv.id, name: inv.name, members: 0 });
+    }
+    if (path === "/api/mixes/join") {
+      return json({ error: "That invite has been turned off, or the mix no longer exists." }, 404);
+    }
     if (path === "/api/mixes" && method === "POST") {
       var body = JSON.parse((init && init.body) || "{}");
       var made = buildMix("m" + (nextMixId++), body.name || "New mix",
@@ -1865,6 +1927,15 @@ __PREVIEW_PICTURE__
       if (method === "DELETE") { mixes.mixes.splice(at, 1); return json({ ok: true }); }
       var patch = JSON.parse((init && init.body) || "{}");
       var current = mixes.mixes[at];
+      // A (+) sends operations (§498), merged into the mix as it stands.
+      if (patch.topic_ids === undefined && (patch.add || patch.remove)) {
+        var gone = (patch.remove || []).map(function (r) { return String(r).toLowerCase(); });
+        patch.topic_ids = current.items.filter(function (i) {
+          return gone.indexOf(i.id.toLowerCase()) === -1;
+        }).map(function (i) {
+          return i.custom ? { query: i.query, title: i.title } : i.id;
+        }).concat(patch.add || []);
+      }
       mixes.mixes[at] = buildMix(id, patch.name || current.name,
         patch.topic_ids !== undefined ? patch.topic_ids : current.items,
         patch.public !== undefined ? patch.public : current.public,

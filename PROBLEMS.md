@@ -31217,3 +31217,111 @@ that decide how often a listener meets a cold worker - idle timeout, GPU
 supply in the network volume's data center, builds - are in
 REMOTE_VOICE.md, "When episodes stall at Generating the audio".
 `tests/test_voice_wait_497.py`.
+
+## 498. The 11.7 myFAM packet: a mix is made by naming it, Spotify's playlist page, short names for long topics, joint mixes (2026-11-08)
+
+The owner's 11.7 implementations packet for the mixes screen (the one the
+listener sees as **myFAM**, `screen-playfam` in code - §185). Five asks, all
+built:
+
+1. **"Create new mix" is a pill under the wordmark** where the circled (+)
+   was, top right. Same id (`newMixBtn`), still hidden until `/api/mixes`
+   answers, outside the scroller like the header.
+2. **Step 1 is the only step, and simpler.** The naming screen keeps the
+   cover and the name; the "Step 1 of 2" label, the counter and the quick
+   picks are gone. **Create makes the mix at once, empty** (`POST /api/mixes`
+   with `topic_ids: []`, which the server always allowed) and opens it.
+3. **The mix page is Spotify's playlist.** The name with a **Change** pill
+   (rename), whose mix it is, share and "invite collaborators" buttons, a
+   **+ Add topics to mix** pill (Spotify's "Add to this playlist", renamed),
+   the list, then **Recommended topics** whose (+) adds at once. They are
+   ranked **by what the listener plays**: `GET /api/mixes/recommended` is
+   the new `topics.rank_catalogue` over `topics.taste` (plays, finishes,
+   searches, picks, shares, chosen interests) - a sort, never a filter; each
+   subject scored on its catalogue tags plus what the grown vocabulary finds
+   in its name, as `mixes.taste_tags` records a `mix_add`. The listen time and
+   the public switch moved under the recommendations. "Add topics to mix" is
+   its own screen (`screen-addtopics`): a search; with nothing typed, the
+   recommendations; typing finds teams inside subjects, matching subjects and
+   the typed words as a topic; every (+) saves at once and a tick takes it
+   out. The player's "Add to myFAM Playlist" is unchanged.
+4. **Long typed topics are named short - the packet's "most important
+   thing".** A client sends a typed entry with no title to ask for a name;
+   `app._title_typed_topics` calls `topic_title.short_title`: four words or
+   fewer is its own title; longer, one Haiku call (`TOPIC_TITLE*` settings,
+   JSON schema, answer checked: at most five words, never the prompt back,
+   slurs filtered) only with the listener's consent where the client asks
+   (`consent.py`), else `topic_title.heuristic` - the framing ("tell me",
+   "things happening", "in the world") stripped, "Daily" for a prompt that
+   asks for one a day, names kept as typed. The owner's example comes out
+   "Daily positive story" by rule as well as by model. An entry that already
+   has a title is never renamed. Costed per listener on its own surface
+   (`topic_title`, in `financials.NOT_EPISODES`); boot checks its model.
+   Both previews name typed topics with a JS port of the rule whose word
+   lists are injected from `topic_title.py`, so they cannot drift.
+5. **Joint mixes.** `mixes.py` gains `mix_members` and a `join_token`
+   column; `POST/DELETE /api/mixes/{id}/invite` (owner), `POST
+   /api/mixes/join`, `POST /api/mixes/{id}/leave`, and `/j/<token>` landing on
+   `/?join=` (`openLinkedJoin`; signed out, the token waits for the sign-up,
+   `joinPendingMix`). Members may PATCH topics only (`MixStore.update_items`);
+   anything else is a 403. Who added each item is stored
+   (`MixItem.added_by`, via `stored_dict`) and never served: `app._mix_out`
+   turns it into `people` faces and an index per item. A member's `mix_add`
+   is their own taste signal; a member's play stamps the mix. `forget` takes
+   an owner's members with their mixes and leaves an erased member's items
+   under `FORMER_MEMBER`; a copy (`add_copy`) carries nobody's name.
+
+**Removed: step 2** - the picker (`screen-mixpicker`, `renderMixPicker`,
+`saveMixPicker`, `editMixTopics`, interest chips, the "anything specific?"
+focus panel) and the focus panel a recommendation's (+) opened. Narrowing to
+a team survives as a search on "Add topics to mix". `/api/topics?ranked=1`
+still answers for installed clients.
+
+Superseded assertions updated in place, each saying so:
+`test_packet_1001_third` (the circled (+)), `test_search_length_and_mix_gate`
+(the button's class), `test_top_right_slot_232` (the (+) in the top-right
+slot), `test_packet_1005` (the picker's stack). The smoke checks that drove
+the picker now drive the new flow end to end. `tests/test_mix_packet_1107.py`.
+Rules: `mix-made-by-naming`, `mix-topic-title`, `joint-mixes`
+(`docs/claude/open-problems.md`).
+
+Unverified here, as always: the model's titles (no key in this container -
+the rule's are tested), and how the page reads on a phone beyond the
+preview's screenshots.
+
+**The double-check (same day).** Reading the whole diff again found five
+things, all fixed and tested: an erased member who had *left* a mix before
+erasing stayed in its items under their id (`forget` now finds every mix
+whose items name them); a suspended account, or somebody blocked either way
+by the owner, could join through the link (now refused like a link turned
+off); the owner opening their own invite came back marked joint; the title
+call was not paced and one save could queue twenty model calls (now
+`_rate_limit` when a call will be made, and at most `MAX_MODEL_PER_SAVE` per
+save); and an invite opened before signing up yanked a new account out of
+its first steps (now joined from `finishEntry`). The "Added ..." toast names
+the topic that was saved, not merely the last row.
+
+**The second double-check.** The title rule dropped words from names:
+"world" and "new" were filler, so "what is going on with the New York Knicks
+this season" came out "York Knicks season" and "world cup" lost "world"; and
+"iPhone" was capitalised to "IPhone". Now a capital typed mid-prompt is never
+filler, "world" and "new" are not filler at all, a prompt that asks weekly
+("every friday") gets "Weekly", the first letter is not forced up on a name
+like "iPhone", and a test runs the previews' JS copy against the Python on
+the same prompts so the two cannot drift.
+
+**The third double-check (an independent reviewer, given the diff rather
+than these notes).** Nothing serious; fixed: every (+) PATCHed the whole
+list from the client's copy, so a second tap inside the first's title call -
+or a member adding while the owner did - silently dropped a topic (now `add`
+/ `remove` operations merged server-side when it writes); a stranger's PATCH
+named typed topics, spending a paid call, before ownership was checked (now
+404 first); `/api/mixes` listed joined mixes to installed clients that
+predate them, which drew owner controls that could only refuse (now only
+with `?joint=1`) and a member's delete said "no longer exists" (now a 403
+saying leave); two invite requests at once could mint two tokens and kill
+the first link (now minted only where none is, then read back); blocks were
+checked only between owner and joiner, only at join (now any member, at
+edit too, and faces filtered); and the client could write a saved mix to
+`mixes[-1]` (now kept by id). Left as is: the public listing labels a
+member's typed topic "Typed in by" the owner - the owner published it.

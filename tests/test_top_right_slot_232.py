@@ -32,12 +32,15 @@ def test_search_pill_sits_in_the_headers_slot():
     assert "top:%spx" % top in slot and "right:%spx" % side in slot
     assert "height:34px" in _css(".home-explore.xfam-pill")
     assert "height:34px" in _css(".myfam-head-btn")
-    assert "width:34px; height:34px" in _css(".new-mix-plus")
+    # myFAM's circled (+) became the "Create new mix" pill under the
+    # wordmark (11.7 packet, §498), so it is no longer in this slot.
 
 
 def test_the_two_circles_wear_one_ring():
+    # The second circle, myFAM's (+), is the "Create new mix" pill now (11.7
+    # packet, §498); the pill wears the same ring.
     ring = "border:1px solid var(--border-strong)"
-    assert ring in _css(".myfam-head-btn") and ring in _css(".new-mix-plus")
+    assert ring in _css(".myfam-head-btn") and ring in _css(".new-mix-pill")
 
 
 def test_myfams_header_is_fixed_like_dailyfams():

@@ -635,6 +635,74 @@
    until `/api/mixes` answers, shown by `renderMixList`, and hidden to start
    rather than shown and taken away, because a control that appears and then
    vanishes reads as a fault.
+> **Current (PROBLEMS.md §498, the 11.7 myFAM packet, at the owner's
+> direction):** the picker described above is gone - "too overcomplicated".
+> See the three rules below; `rank_bank` still answers `/api/topics` for
+> installed clients.
+
+<!-- rule:mix-made-by-naming -->
+**A mix is made by naming it, then filled from its own page** *(PROBLEMS.md
+§498, the 11.7 packet, Spotify's flow)*. The mixes screen's circled (+) is a
+**Create new mix** pill under the myFAM wordmark (still hidden until
+`/api/mixes` answers). The naming screen is the only step - a cover, a name,
+Create - and **Create makes the mix at once, empty**, and opens it. Topics go
+in from the mix's page, Spotify's playlist layout: the name with a **Change**
+pill, whose mix it is, share and invite, a **+ Add topics to mix** pill over
+the list, and **Recommended topics** with a (+) that adds at once. The
+recommendations are ranked **by what the listener plays**:
+`/api/mixes/recommended` is `topics.rank_catalogue` over the same `taste`
+profile every rail reads - a sort, never a filter, the catalogue's own order
+for somebody with no history. "+ Add topics to mix" is a search: teams and
+companies inside subjects ("eagles" -> NFL · Eagles), matching subjects, and
+whatever was typed, each saved the moment it is tapped (a tick takes it back
+out). **A (+) or a tick is an operation, never the whole list**: PATCH
+`add` / `remove`, merged by the server into the mix as it stands when it
+writes, so two quick taps, or two people on a joint mix, never undo each
+other. A whole `topic_ids` list is still taken (a reorder; older clients). The player's "Add to myFAM Playlist" is the third way in, unchanged.
+The second step - a picker of every subject with interest filters and an
+"anything specific?" panel under each - is removed, and with it the panel a
+recommendation's (+) used to open; a narrowed subject is one search away.
+
+<!-- rule:mix-topic-title -->
+**A long typed topic is shown under a short name, never whole** *(PROBLEMS.md
+§498, the owner's "most important thing" in the packet)*. "positive story of
+the day of things happening in the world" goes into the mix as **"Daily
+positive story"**; the prompt is still what the edition asks every morning.
+A client asks for a name by sending a typed entry **with no title**
+(`{"query": ...}`); `app._title_typed_topics` names it with
+`topic_title.short_title`: four words or fewer is its own title; otherwise one
+Haiku call (`TOPIC_TITLE_MODEL`, JSON, checked - at most five words, never
+the prompt back) **only where the listener's words may reach Anthropic**
+(`consent.py`), and a rule in code (`topic_title.heuristic`) whenever the
+call is not made or fails. An entry that carries a title keeps it - a reorder
+or edit never renames anything. Costed per listener (`topic_title` surface,
+spend but not an episode), paced like a paid call when one will be made, and
+at most `MAX_MODEL_PER_SAVE` named by model per save (the rest by rule). Not
+on a listening path.
+
+<!-- rule:joint-mixes -->
+**Joint mixes are Spotify's collaborative playlists** *(PROBLEMS.md §498)*.
+The owner's "Invite collaborators" makes one link (`/j/<token>`, the same
+every time); whoever opens it signed in joins (`POST /api/mixes/join`), and
+the mix sits in their myFAM beside their own. A **member may add, remove and
+reorder topics and nothing else** - name, cover, visibility, listen time,
+invites and deletion stay the owner's (403 `JOINT_OWNER_ONLY`). Each item
+stores who added it (`MixItem.added_by`, **stored, never served**); responses
+carry `people` faces (name, handle, picture, never an id) and an index per
+item, drawn as Spotify's face on each track. Still one mix: the edition
+writes it once, a member's play keeps it active, the push stays the owner's.
+"Make it yours alone" turns the link off and removes members; a member can
+leave; what anyone added stays. An erased member's items read as nobody's
+(`FORMER_MEMBER`, found in every mix their id is written into, including
+ones they left); a copy carries nobody's name. Up to `MAX_COLLABORATORS`. A
+suspended account cannot join, nor anybody blocked either way by the owner
+or any member (`moderation.is_apart`) - answered like a link turned off; a
+block made after joining stops the member's edits, and nobody is shown a
+face they are blocked from. **Joined mixes are listed only to a client that
+asks** (`/api/mixes?joint=1`): an older installed client would draw owner
+controls on them. A member's delete is a 403 that says to leave instead. Signed out, the
+invite waits and joins after the account's first steps (`finishEntry`).
+
 <!-- rule:friends-listened -->
 **Friends' faces on a card** (PROBLEMS.md §363, the owner's 10.31
 notebook: social proof makes somebody "more inclined, more comfortable

@@ -32,6 +32,7 @@ import hashlib
 import json
 import logging
 import re
+import secrets
 import sqlite3
 
 import db as store_db
@@ -66,6 +67,11 @@ MAX_FOCUS_PER_ITEM = 3
 #: A cover is a 360px square JPEG from the in-app cropper, 10-40 KB. The cap
 #: is on the base64 text, with room for a PNG from a client that did not crop.
 MAX_COVER_CHARS = 200_000
+#: How many people besides its owner may edit one joint mix (11.7 packet).
+MAX_COLLABORATORS = 10
+#: Written into `added_by` in place of somebody who erased their account, so
+#: their item reads as nobody's rather than, wrongly, the owner's.
+FORMER_MEMBER = "-"
 _COVER_PREFIXES = ("data:image/jpeg;base64,", "data:image/png;base64,",
                    "data:image/webp;base64,")
 
@@ -101,6 +107,18 @@ class MixItem:
     base: str = ""
     focus: tuple[str, ...] = ()
     topic_label: str = ""
+    #: Who put this item in the mix: the owner, or a collaborator on a joint
+    #: mix (11.7 packet). A listener id, so it is **stored and never served**
+    #: - `as_dict` leaves it out and the app turns it into a face
+    #: (`app._mix_out`). "" on rows older than joint mixes, read as the owner.
+    added_by: str = ""
+
+    def stored_dict(self) -> dict:
+        """What the database keeps: everything served, plus who added it."""
+        out = self.as_dict()
+        if self.added_by:
+            out["added_by"] = self.added_by
+        return out
 
     def as_dict(self) -> dict:
         out = {
@@ -130,7 +148,8 @@ class MixItem:
         return cls(d["id"], d["title"], d["query"], d["custom"],
                    d.get("subtitle", ""), d.get("icon", "leaf"),
                    bool(d.get("follow", False)), d.get("base", ""),
-                   tuple(d.get("focus", ())), d.get("topic_label", ""))
+                   tuple(d.get("focus", ())), d.get("topic_label", ""),
+                   str(d.get("added_by") or ""))
 
 
 #: Where the day goes in a daily prompt. Filled by whoever plays it - the
@@ -468,6 +487,16 @@ def clean_name(name: str) -> str:
     return name
 
 
+def stamp(items: Sequence[MixItem], by: str,
+          before: Sequence[MixItem] = ()) -> list[MixItem]:
+    """Who added each item: what it already said if it was in the mix
+    before this write, else `by`. A reorder or a removal changes nobody's
+    name on anything."""
+    had = {i.id.lower(): i.added_by for i in before}
+    return [replace(i, added_by=had[i.id.lower()] if i.id.lower() in had else by)
+            for i in items]
+
+
 def clean_items(raw: Sequence) -> list[MixItem]:
     """Normalise whatever the interface sent into an ordered list of items.
 
@@ -612,6 +641,22 @@ class MixStore:
             except sqlite3.OperationalError:
                 pass
             conn.execute("CREATE INDEX IF NOT EXISTS mixes_public ON mixes(public, updated_at)")
+            # Joint mixes (11.7 packet): the owner's invite link carries
+            # `join_token`; whoever opens it signed in becomes a member, and
+            # a member may add, remove and reorder topics - nothing else.
+            try:
+                conn.execute("ALTER TABLE mixes ADD COLUMN join_token TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS mix_members (
+                       mix_id    TEXT NOT NULL,
+                       user_id   TEXT NOT NULL,
+                       joined_at REAL NOT NULL,
+                       PRIMARY KEY (mix_id, user_id)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS mix_members_user ON mix_members(user_id)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -719,7 +764,7 @@ class MixStore:
         if not user_id:
             raise MixError("No listener id; mixes are saved per person.")
         name = clean_name(name)
-        items = clean_items(topic_ids)
+        items = stamp(clean_items(topic_ids), user_id)
         cover = clean_cover(cover)
         existing = self.list_for_user(user_id)
         if len(existing) >= MAX_MIXES_PER_USER:
@@ -734,7 +779,7 @@ class MixStore:
             "INSERT INTO mixes (id, user_id, name, topic_ids, created_at, updated_at, items,"
             " cover, public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (mix.id, user_id, name, ",".join(mix.topic_ids), now, now,
-             json.dumps([i.as_dict() for i in items]), cover, int(mix.public)),
+             json.dumps([i.stored_dict() for i in items]), cover, int(mix.public)),
         )
         return mix
 
@@ -763,7 +808,7 @@ class MixStore:
             if clash:
                 raise MixError(f"You already have a mix called {mix.name}.")
         if topic_ids is not None:
-            mix.items = clean_items(topic_ids)
+            mix.items = stamp(clean_items(topic_ids), user_id, mix.items)
         if public is not None:
             mix.public = bool(public)
         replaced = ""
@@ -787,7 +832,7 @@ class MixStore:
             " public = ?, cover = ?, listen_at = ?, listen_tz = ?"
             " WHERE id = ? AND user_id = ?",
             (mix.name, ",".join(mix.topic_ids), mix.updated_at,
-             json.dumps([i.as_dict() for i in mix.items]), int(mix.public),
+             json.dumps([i.stored_dict() for i in mix.items]), int(mix.public),
              mix.cover, mix.listen_at, mix.listen_tz, mix_id, user_id),
         )
         self._release_covers([replaced])
@@ -866,6 +911,8 @@ class MixStore:
         # somebody else's words about somebody else.
         items = [replace(i, subtitle=f"From {owner}'s mix" if owner else "From the original mix")
                  if i.custom else i for i in source.items]
+        # A copy is the copier's alone: nobody else's name rides along.
+        items = [replace(i, added_by="") for i in items]
         now = time.time()
         mix = Mix(uuid.uuid4().hex[:12], user_id, name, items, now, now,
                   cover=source.cover, source_id=source.id, source_user=source.user_id)
@@ -873,7 +920,7 @@ class MixStore:
             "INSERT INTO mixes (id, user_id, name, topic_ids, created_at, updated_at, items,"
             " cover, source_id, source_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (mix.id, user_id, name, ",".join(mix.topic_ids), now, now,
-             json.dumps([i.as_dict() for i in items]), mix.cover, source.id,
+             json.dumps([i.stored_dict() for i in items]), mix.cover, source.id,
              source.user_id),
         )
         return mix
@@ -899,8 +946,177 @@ class MixStore:
         cur = self._conn().execute(
             "DELETE FROM mixes WHERE id = ? AND user_id = ?", (mix_id, user_id)
         )
+        if cur.rowcount:
+            self._conn().execute("DELETE FROM mix_members WHERE mix_id = ?", (mix_id,))
         self._release_covers(covers)
         return bool(cur.rowcount)
+
+    # ---------------- Joint mixes (11.7 packet) ----------------
+    # Spotify's collaborative playlist: the owner shares an invite link, and
+    # whoever opens it signed in can add, remove and reorder the mix's
+    # topics. The mix stays the owner's - its name, cover, visibility, listen
+    # time and deletion are theirs alone - and the morning edition writes it
+    # once, as it always did, because it is still one mix.
+
+    def _get_any(self, mix_id: str) -> Optional[Mix]:
+        try:
+            row = self._conn().execute(
+                "SELECT " + _COLUMNS + " FROM mixes WHERE id = ?", (mix_id,)).fetchone()
+        except Exception:
+            log.exception("could not read mix")
+            return None
+        return self._row_to_mix(row) if row else None
+
+    def is_member(self, mix_id: str, user_id: str) -> bool:
+        if not mix_id or not user_id:
+            return False
+        try:
+            return self._conn().execute(
+                "SELECT 1 FROM mix_members WHERE mix_id = ? AND user_id = ?",
+                (mix_id, user_id)).fetchone() is not None
+        except Exception:
+            log.exception("could not read mix members")
+            return False
+
+    def members(self, mix_id: str) -> list[str]:
+        """Everybody but the owner who may edit this mix, first joined first."""
+        try:
+            return [r[0] for r in self._conn().execute(
+                "SELECT user_id FROM mix_members WHERE mix_id = ? ORDER BY joined_at",
+                (mix_id,))]
+        except Exception:
+            log.exception("could not read mix members")
+            return []
+
+    def joined(self, user_id: str) -> list[Mix]:
+        """The joint mixes this listener was invited into, oldest join first."""
+        if not user_id:
+            return []
+        try:
+            ids = [r[0] for r in self._conn().execute(
+                "SELECT mix_id FROM mix_members WHERE user_id = ? ORDER BY joined_at",
+                (user_id,))]
+        except Exception:
+            log.exception("could not list joined mixes")
+            return []
+        return [m for m in (self._get_any(i) for i in ids) if m is not None]
+
+    def get_editable(self, user_id: str, mix_id: str) -> Optional[Mix]:
+        """The mix if this listener owns it or is a member of it."""
+        mix = self.get(user_id, mix_id)
+        if mix is not None:
+            return mix
+        return self._get_any(mix_id) if self.is_member(mix_id, user_id) else None
+
+    def update_items(self, editor: str, mix_id: str, topic_ids: Sequence) -> Mix:
+        """A member's edit: the topics, in their order, and nothing else."""
+        mix = self.get_editable(editor, mix_id)
+        if mix is None:
+            raise MixError("That mix no longer exists.")
+        mix.items = stamp(clean_items(topic_ids), editor, mix.items)
+        mix.updated_at = time.time()
+        self._conn().execute(
+            "UPDATE mixes SET topic_ids = ?, updated_at = ?, items = ? WHERE id = ?",
+            (",".join(mix.topic_ids), mix.updated_at,
+             json.dumps([i.stored_dict() for i in mix.items]), mix_id),
+        )
+        return mix
+
+    def invite_token(self, owner: str, mix_id: str) -> str:
+        """The owner's invite for this mix, made the first time it is asked
+        for and the same link every time after, until `stop_joint`."""
+        mix = self.get(owner, mix_id)
+        if mix is None:
+            raise MixError("That mix no longer exists.")
+        # Minted only where there is none, then read back: two requests at
+        # once agree on one link instead of the second killing the first's.
+        self._conn().execute(
+            "UPDATE mixes SET join_token = ? WHERE id = ? AND user_id = ? AND join_token = ''",
+            (secrets.token_urlsafe(12), mix_id, owner))
+        row = self._conn().execute(
+            "SELECT join_token FROM mixes WHERE id = ?", (mix_id,)).fetchone()
+        return (row[0] if row else "") or ""
+
+    def stop_joint(self, owner: str, mix_id: str) -> bool:
+        """The owner makes it theirs alone again: the link stops working and
+        every member is taken off. What they added stays in the mix."""
+        if self.get(owner, mix_id) is None:
+            return False
+        self._conn().execute(
+            "UPDATE mixes SET join_token = '' WHERE id = ? AND user_id = ?", (mix_id, owner))
+        self._conn().execute("DELETE FROM mix_members WHERE mix_id = ?", (mix_id,))
+        return True
+
+    def join(self, user_id: str, token: str) -> Mix:
+        """Open an invite: this listener becomes a member of that mix.
+        Opening it again, or opening your own, changes nothing."""
+        if not user_id:
+            raise MixError("No listener id; mixes are saved per person.")
+        token = str(token or "").strip()[:64]
+        row = None
+        if token:
+            row = self._conn().execute(
+                "SELECT id, user_id FROM mixes WHERE join_token = ?", (token,)).fetchone()
+        if not row:
+            raise MixError("That invite has been turned off, or the mix no longer exists.")
+        mix_id, owner = row[0], row[1]
+        mix = self._get_any(mix_id)
+        if mix is None:
+            raise MixError("That invite has been turned off, or the mix no longer exists.")
+        if owner == user_id or self.is_member(mix_id, user_id):
+            return mix
+        if len(self.members(mix_id)) >= MAX_COLLABORATORS:
+            raise MixError(f"A joint mix holds up to {MAX_COLLABORATORS} people besides its owner.")
+        self._conn().execute(
+            "INSERT OR IGNORE INTO mix_members (mix_id, user_id, joined_at) VALUES (?, ?, ?)",
+            (mix_id, user_id, time.time()))
+        return mix
+
+    def mix_id_of_token(self, token: str) -> str:
+        """Which mix an invite opens, or ""."""
+        token = str(token or "").strip()[:64]
+        if not token:
+            return ""
+        try:
+            row = self._conn().execute(
+                "SELECT id FROM mixes WHERE join_token = ?", (token,)).fetchone()
+        except Exception:
+            log.exception("could not read an invite")
+            return ""
+        return row[0] if row else ""
+
+    def owner_of_token(self, token: str) -> str:
+        """Whose mix an invite opens, or "" for one that opens nothing."""
+        token = str(token or "").strip()[:64]
+        if not token:
+            return ""
+        try:
+            row = self._conn().execute(
+                "SELECT user_id FROM mixes WHERE join_token = ?", (token,)).fetchone()
+        except Exception:
+            log.exception("could not read an invite")
+            return ""
+        return row[0] if row else ""
+
+    def leave(self, user_id: str, mix_id: str) -> bool:
+        """A member takes themselves off. What they added stays."""
+        cur = self._conn().execute(
+            "DELETE FROM mix_members WHERE mix_id = ? AND user_id = ?", (mix_id, user_id))
+        return bool(cur.rowcount)
+
+    def joint_ids(self, mix_ids: Sequence[str]) -> set[str]:
+        """Which of these mixes have at least one member."""
+        ids = [m for m in mix_ids if m]
+        if not ids:
+            return set()
+        marks = ",".join("?" for _ in ids)
+        try:
+            return {r[0] for r in self._conn().execute(
+                f"SELECT DISTINCT mix_id FROM mix_members WHERE mix_id IN ({marks})",
+                tuple(ids))}
+        except Exception:
+            log.exception("could not read joint mixes")
+            return set()
 
     def _covers(self, where: str, args: tuple) -> list[str]:
         try:
@@ -955,6 +1171,30 @@ class MixStore:
                 removed += cur.rowcount or 0
             except Exception:
                 log.exception("could not erase %s for %r", table, user_id)
+        # Joint mixes: the ones they owned take their members with them; the
+        # ones they joined lose them, and keep what they added under nobody's
+        # name rather than theirs.
+        try:
+            self._conn().execute(
+                "DELETE FROM mix_members WHERE mix_id NOT IN (SELECT id FROM mixes)")
+            removed += self._conn().execute(
+                "DELETE FROM mix_members WHERE user_id = ?", (user_id,)).rowcount or 0
+            # Every mix their name is written into - including ones they
+            # left before erasing - not only the ones they were still in.
+            written = [r[0] for r in self._conn().execute(
+                "SELECT id FROM mixes WHERE items LIKE ?",
+                ('%"added_by": ' + json.dumps(user_id) + '%',))]
+            for mix_id in written:
+                mix = self._get_any(mix_id)
+                if mix is None or not any(i.added_by == user_id for i in mix.items):
+                    continue
+                items = [replace(i, added_by=FORMER_MEMBER) if i.added_by == user_id else i
+                         for i in mix.items]
+                self._conn().execute(
+                    "UPDATE mixes SET items = ? WHERE id = ?",
+                    (json.dumps([i.stored_dict() for i in items]), mix_id))
+        except Exception:
+            log.exception("could not erase joint-mix membership for %r", user_id)
         # Other listeners' copies of this listener's public mixes are theirs
         # and stay - but not with this listener's id written into them.
         try:

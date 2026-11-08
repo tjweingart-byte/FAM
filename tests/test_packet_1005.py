@@ -98,10 +98,12 @@ def test_the_server_keeps_the_order_it_is_sent(client):
 # --- 4. the chosen topics stacked together -----------------------------------
 
 def test_edit_topics_stacks_what_is_chosen_and_lists_only_the_rest():
-    body = _fn("renderMixPicker")
-    assert "In this mix" in body and 'class="pk-chosen"' in body
-    # The list under the stack holds only what is not chosen.
-    assert 'return selectionIndex("f:" + c.id) === -1' in body
+    """Superseded (11.7 packet, §498): the picker is gone. What is in the
+    mix is the mix page's own list, and "Add topics to mix" marks what is
+    already in it with a tick that takes it back out."""
+    assert "function renderMixPicker" not in INDEX
+    body = _fn("renderAddTopics")
+    assert "inMix[" in body and "toggleTopicInMix" in INDEX
 
 
 # --- 5. the bookshelf, and whole titles in the catalogue ---------------------
