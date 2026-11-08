@@ -323,3 +323,30 @@ def test_play_all_plays_the_category_from_the_top():
 def test_no_category_opens_a_reel():
     assert "function openCategoryReel(" not in HTML
     assert 'id="screen-explore"' not in HTML
+
+
+# --- the §500 review ---------------------------------------------------------
+
+def test_arriving_on_the_screen_opens_on_all():
+    body = HTML.split("function openPlayFAM(", 1)[1].split("\n  }\n", 1)[0]
+    assert "if(catPage.root || catPage.finding) clearCategory();" in body
+    assert body.index("clearCategory()") < body.index("loadMixes()")
+
+
+def test_a_late_categories_answer_cannot_undo_a_follow():
+    load = _fn("loadMyCategories")
+    assert "var req = ++catDataReq;" in load and "if(req !== catDataReq) return;" in load
+    follow = _fn("toggleFollowCategory")
+    assert "++catDataReq" in follow and "req === catDataReq ? d : null" in follow
+
+
+def test_following_mid_load_does_not_draw_an_empty_category():
+    assert "if(!catPage.loading) drawCategoryPanel();" in _fn("toggleFollowCategory")
+    load = _fn("loadCategoryEpisodes")
+    assert load.count("catPage.loading = false;") == 2 and "catPage.loading = true;" in load
+
+
+def test_starting_something_else_drops_a_categorys_queued_rest():
+    gen = HTML.split("function generate(key, albumContext){", 1)[1][:900]
+    assert 'key !== "_category"' in gen and 'indexOf("queue_") !== 0' in gen
+    assert "if(QUEUE[qi].fromCategory) QUEUE.splice(qi, 1);" in gen

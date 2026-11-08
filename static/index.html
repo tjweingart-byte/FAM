@@ -7470,6 +7470,14 @@
   var lastGenerate = null;   // for a retry after the consent question
   function generate(key, albumContext){
     lastGenerate = { key: key, albumContext: albumContext };
+    // Something else started (§500 review): the rest of a category's Play
+    // all is not this episode's "next". A queue entry or another category
+    // play keeps it; what the listener queued themselves always stays.
+    if(key !== "_category" && String(key).indexOf("queue_") !== 0
+       && typeof QUEUE !== "undefined" && QUEUE.some(function(q){ return q.fromCategory; })){
+      for(var qi = QUEUE.length - 1; qi >= 0; qi--){ if(QUEUE[qi].fromCategory) QUEUE.splice(qi, 1); }
+      if(typeof drawMixSkip === "function") drawMixSkip(!!mixPlay);
+    }
     // One tap is one request. The player's own topic row invites a re-tap -
     // it says "tap to generate new episode" - and a listener watching the
     // honest wait taps it again, which used to send a second identical
@@ -11269,6 +11277,9 @@
     // setTab already shows the screen and resets the back stack; navigating
     // on top of it would push the same screen twice and make Back a no-op.
     setTab("playfam");
+    // Every arrival opens on All (§500 review): a chip left on would hide
+    // the mixes behind yesterday's list after "Create new mix" or a mix.
+    if(catPage.root || catPage.finding) clearCategory();
     loadMixes();
   }
 
@@ -11476,11 +11487,15 @@
   var catData = null;
   var catReq = 0;
   var catPage = { root: "", node: "", episodes: [], subs: [], finding: false };
+  // Only the latest answer is kept: a slow one from before a follow must
+  // not overwrite the list the follow wrote.
+  var catDataReq = 0;
   function loadMyCategories(){
     if(!document.getElementById("catChips")) return;
+    var req = ++catDataReq;
     fetch("/api/categories")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ catData = d; renderCategoryChips(); })
+      .then(function(d){ if(req !== catDataReq) return; catData = d; renderCategoryChips(); })
       .catch(function(){
         // The chips simply are not drawn: the page under them still works,
         // and a row of chips that leads nowhere would be worse.
@@ -11599,11 +11614,14 @@
       });
     }).then(function(){
       toast(at === -1 ? "Added to your categories" : "Removed from your categories");
-      return fetch("/api/categories").then(function(r){ return r.ok ? r.json() : null; });
+      var req = ++catDataReq;
+      return fetch("/api/categories").then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ return req === catDataReq ? d : null; });
     }).then(function(d){
       if(d) catData = d;
       renderCategoryChips();
-      drawCategoryPanel();
+      // Mid-load the panel is the loading line; it redraws when that lands.
+      if(!catPage.loading) drawCategoryPanel();
     }).catch(function(err){ toast(err.message || "Could not save that"); })
       .then(function(){ catFollowBusy = false; });
   }
@@ -11612,11 +11630,13 @@
     var el = document.getElementById("catPanel");
     var node = catPage.node;
     catPage.episodes = [];
+    catPage.loading = true;
     el.innerHTML = '<div class="sv-empty">Loading today’s episodes…</div>';
     fetch("/api/categories/episodes?id=" + encodeURIComponent(node) + "&sort=popular")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         if(req !== catReq) return;
+        catPage.loading = false;
         catPage.episodes = d.episodes || [];
         // The level below comes from the category's own answer, so
         // narrowing to one of them keeps the row.
@@ -11625,6 +11645,7 @@
       })
       .catch(function(){
         if(req !== catReq) return;
+        catPage.loading = false;
         el.innerHTML = '<div class="sv-empty">Could not load this category right now. '
           + '<button class="sample-note-btn" onclick="loadCategoryEpisodes()">Try again</button></div>';
       });

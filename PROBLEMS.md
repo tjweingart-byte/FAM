@@ -31477,3 +31477,22 @@ so this branch's two sections were renumbered when Main was merged in: the
 11.3 packet is §499 and these chips §500. That packet's "Create new mix"
 pill sits in the header above the chip row; the two merged with no hand
 edit in `static/index.html`.
+
+**Double-checked before the pull request.** A second independent review of
+the chips and of the merge with Main found the merge and the renumbering
+clean (nothing either side calls what the other removed) and four small
+faults in the chips, all fixed with tests in
+`tests/test_your_categories_229.py`:
+- a chip left on survived leaving the screen, so coming back from "Create
+  new mix" or a mix showed yesterday's list over hidden mixes: every
+  `openPlayFAM` now opens on All;
+- a slow `/api/categories` answer could land after a follow's own re-read
+  and put back the list from before it, which the next follow would then
+  write: only the latest answer is kept (`catDataReq`);
+- Follow pressed while a subcategory loaded drew "Nothing has been made"
+  over the loading line: the panel waits for the load (`catPage.loading`);
+- the rest of a Play all stayed in the queue after something unrelated
+  started, so a later search played category episodes instead of the
+  post-episode grid: `generate` drops a category's queued rest when anything
+  but a queue entry or another category play starts; what the listener
+  queued themselves stays.
