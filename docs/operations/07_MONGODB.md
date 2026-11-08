@@ -1,97 +1,106 @@
 # 7. MongoDB Atlas: the history archive
 
-The archive is FAM's memory of past reporting. After every episode, the
-articles it read go into the archive. Beside every search, the archive is
-searched by meaning, and anything relevant from before the search's recency
-window is handed to the writer as dated **earlier reporting**. Consuela (the
-housekeeper agent) digests articles into facts; Sonic (the retriever agent)
-reads them. Full setup: `ARCHIVE.md`.
+After every episode, FAM files the news articles it used in an archive on
+**MongoDB Atlas**. When someone searches, FAM looks in the archive for
+earlier reporting on the subject and gives it to the writer, clearly dated.
 
-**The archive is never on an episode's critical path.** If Atlas is slow or
-down, the search waits at most half a second, and the episode is written
-exactly as it would be without it. So an Atlas problem is never an outage.
-It is a quality problem.
+**If the archive breaks, episodes still work.** FAM waits for it at most
+half a second, then carries on without it. So an archive problem is never
+an emergency. It just makes episodes slightly less informed.
 
 | | |
 |---|---|
-| Where | cloud.mongodb.com → project **FAM** → cluster (e.g. `fam-archive`), **Flex** tier, AWS Oregon (us-west-2) |
-| Database | `fam` (`ARCHIVE_DB_NAME`) |
-| Collections | `intake` (raw articles), `episode_sources`, `facts` (digested, with a vector index `facts_vector`), `live_series` (scores and prices over time) |
-| Users | A **read/write** user (in `MONGODB_URI`) for the app and Consuela; a **read-only** user (in `MONGODB_READ_URI`) for Sonic. Never the same string. |
-| On Render `fam` | `ARCHIVE_BACKEND=atlas`, `MONGODB_URI`, `MONGODB_READ_URI` |
-| Staging | Never reaches Atlas. Uses its own local file. |
+| Where | `https://cloud.mongodb.com` → project **FAM** → the cluster |
+| Two logins (database users) | one that can **read and write** (setting `MONGODB_URI` on Render), and one that can **only read**, used by the retriever agent Sonic (setting `MONGODB_READ_URI`) |
+| Staging | Never uses Atlas |
 
-**TODO(owner):** confirm production has `ARCHIVE_BACKEND=atlas` set (until
-it is, the archive is a local file), and write the cluster's name and tier
-here.
+**TODO(owner):** confirm production has `ARCHIVE_BACKEND` = `atlas` on
+Render, and write the cluster's name and tier here.
 
-## Is it working?
+---
 
-    curl -s https://<prod-host>/api/health | python3 -m json.tool | grep -A 30 '"archive"'
+## Task 1. Check it is working
 
-- `enabled: true`, `backend: atlas`
-- `intake_articles` and `episodes_linked` climbing day to day
-- `errors` at 0, `last_error` empty
-- `retriever.connection: atlas read-only user`
+1. Open `<production address>/api/health`. Find (Ctrl+F) `"archive"`.
 
-If `enabled` is false, `reason` says why in one sentence. Usually a missing
-`MONGODB_URI`, or Atlas refusing Render's address (below).
+   > **Check:**
+   > - `"enabled": true` and `"backend": "atlas"`
+   > - `"errors": 0`
+   > - `"intake_articles"` is higher than yesterday
+   >
+   > **If `enabled` is false:** the `"reason"` beside it says why in one
+   > sentence. The usual one is that Atlas is refusing the connection:
+   > go to [Task 2](#task-2-atlas-refuses-the-connection).
 
-## Common tasks
+---
 
-### Atlas refuses connections ("not authorized", timeouts)
+## Task 2. Atlas refuses the connection
 
-Atlas only accepts connections from listed addresses.
+Atlas only accepts connections from a list of approved internet addresses.
+If Render's address changes, it must be added.
 
-1. Render → `fam` → Settings → **Outbound IP addresses**: copy them.
-2. Atlas → **Security → Network Access**: each of those must be listed.
-   Add any that are missing.
-3. `/api/health` → `archive` should recover within a minute (the archive
-   backs off for a minute after a failure).
+1. Render → **fam** → **Settings** → find **Outbound IP Addresses**
+   (sometimes under **Connect** → **Outbound**). Copy each address.
+2. Atlas → **Security** (left menu) → **Network Access**.
+3. Compare the lists. For each Render address that is missing: **Add IP
+   Address** → paste it → **Confirm**.
 
-Render can change outbound addresses when a service moves. If the archive
-suddenly fails everywhere with no deploy, check this first.
+   > **Check:** the new address shows **Active** within a minute or two.
 
-### Rotate a database password
+4. Wait two minutes, then open `/api/health` → `"archive"`.
 
-1. Atlas → **Security → Database Access** → the user → Edit → generate a
-   new password.
-2. Build the new connection string (Database → Connect → Drivers → Python),
-   with the new password.
-3. Render → `fam` → Environment → `MONGODB_URI` (or `MONGODB_READ_URI` for
-   Sonic's user) → Save.
-4. Check `/api/health` → `archive`.
+   > **Check:** `"enabled": true`, and `"errors"` has stopped rising.
+   >
+   > **If not:** the reason now says something else. Paste it into a Claude
+   > session ("What does this mean and what should I check?") or send it to
+   > the owner.
 
-### Check or rebuild the indexes
+Never add `0.0.0.0/0` ("allow access from anywhere") without the owner.
 
-From your own computer, with the read/write connection string in your
-environment (never typed into a shared document):
+---
 
-    pip install -r requirements-archive.txt
-    MONGODB_URI='mongodb+srv://...' python tools/archive_setup.py
+## Task 3. Change a database password
 
-It connects, creates any missing index, writes a probe fact, finds it by
-vector search, deletes it, and ends **Everything answered**. Your
-computer's address must be in Network Access for this.
+Only if a password leaked, or the owner asks.
 
-### Scaling
+1. Atlas → **Security** → **Database Access**. Find the user (the
+   read/write one or the read-only one) → **Edit** → **Edit Password** →
+   **Autogenerate Secure Password** → **Copy** → **Update User**.
+2. Atlas → **Database** → the cluster's **Connect** → **Drivers** →
+   **Python**. Copy the connection string. Replace `<password>` in it with the
+   password from step 1.
+3. Render → **fam** → **Environment** → **Edit**. Paste it into
+   `MONGODB_URI` (for the read/write user) or `MONGODB_READ_URI` (for the
+   read-only one). **Never put the same string in both.**
+   **Save, rebuild, and deploy**.
+4. After `Deploy live`, open `/api/health` → `"archive"`.
 
-Move from Flex to **M10** at about 1,000 monthly listeners, or when Atlas
-warns the cluster is near its limits. It is a button in Atlas and FAM needs
-no change. It costs more (about $57/month against $8-30), so it is an owner
-decision. The trigger is in `docs/SCALING_TIMELINE.md`.
+   > **Check:** `"enabled": true`. For the read-only user, also find
+   > `"connection"` → `atlas read-only user`.
+
+---
 
 ## Emergency switches
 
-| Switch on Render `fam` | Effect |
+On Render **fam** → **Environment** ([how](04_RENDER.md#task-4-change-a-setting-environment-variable)).
+Tell the owner if you use one.
+
+| Set | Result |
 |---|---|
-| `ARCHIVE_RECALL=0` | Keep filing articles, but stop adding earlier reporting to episodes |
-| `ARCHIVE=0` | The archive off entirely |
+| `ARCHIVE_RECALL` = `0` | Articles are still filed, but no earlier reporting is added to episodes |
+| `ARCHIVE` = `0` | The archive is off completely |
 
-## Do not
+---
 
-- Delete collections or documents by hand. The agents' memory is in there,
-  and there is no rebuild from scratch.
-- Give the read-only user write rights, or reuse the read/write string for
-  `MONGODB_READ_URI`.
-- Open Network Access to `0.0.0.0/0` (anywhere) unless the owner agrees.
+## Scaling
+
+The cluster is on the small **Flex** tier. At about 1,000 monthly listeners,
+or if Atlas emails that the cluster is near its limits, it should move to
+**M10** (about $57/month). Forward the email to the owner: it is their
+decision.
+
+## Never
+
+- Delete collections or documents. The agents' memory is in there, and it
+  cannot be rebuilt.
+- Give the read-only user write rights.

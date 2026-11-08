@@ -1,165 +1,366 @@
-# 2. GitHub: branches, pull requests, CI, merging and reverting
+# 2. GitHub: getting a change to production, through staging
 
-Repository: **`tjweingart-byte/fam`**. The default branch is **`Main`**
-(capital M). Whatever is on `Main` is what production runs, within a few
-minutes of it landing there: Render redeploys the web server and RunPod
-rebuilds the voice worker from it.
+Everything here is done in the GitHub website. You do not need anything
+installed.
 
-## The words
+Repository: `https://github.com/tjweingart-byte/fam`
 
-| Word | Means |
+## The words you need
+
+| Word | What it means |
 |---|---|
-| **Branch** | A named line of work. `Main` is production. Every change is made on its own branch first. |
-| **Commit** | One saved set of changes on a branch, with a message saying why. |
-| **Push** | Sending commits from a computer (or a Claude session) up to GitHub. |
-| **Pull request (PR)** | A request to merge one branch into another. Where you read the change, CI runs, and the merge happens. |
-| **CI** | The automatic checks (`.github/workflows/ci.yml`): every test, the interface checks, the preview build and three browser smoke runs. Green tick = passed. Red cross = do not merge. |
-| **Merge** | Applying a PR's changes to the target branch. Merging into `Main` deploys. |
-| **Revert** | A new commit that undoes an earlier one. How a bad merge is taken back out. |
+| **Branch** | A separate copy of the code where a change is made. FAM has three kinds: **feature branches** (one per change; Claude's are named `claude/something`), **`staging`** (the test copy), and **`Main`** (production, with a capital M). |
+| **Pull request (PR)** | A request to copy the changes from one branch into another. You read it, wait for the checks, then press merge. |
+| **Base** and **compare** | In a PR, **base** is the branch being changed (where the work goes *to*). **compare** is where the work comes *from*. |
+| **Checks / CI** | Automatic tests GitHub runs on every PR. They take **about 30-40 minutes**. Green tick = passed. Red cross = failed. |
+| **Merge** | Doing it: the changes are copied into the base branch. |
+| **Revert** | A new PR that undoes an old one. |
 
-## How changes flow
-
-**What `STAGING.md` describes** (the intended flow):
+## The route every change takes
 
 ```
-feature branch --PR--> staging --(batched PR)--> Main
-                          |                        |
-                    fam-staging (zero spend)   fam (production)
+  claude/some-change  ──PR #1──►  staging  ──PR #2──►  Main
+                                     │                   │
+                              fam-staging updates   production updates
+                              (you test here)       (listeners get it)
 ```
 
-**What has actually been happening** (every recent merge, e.g. #229-#231):
-Claude works on a `claude/<name>` branch, the owner opens a PR from it
-**straight into `Main`**, and `staging` is kept level with `Main`.
+1. Merge the feature branch into **`staging`** (PR #1).
+2. Render puts it on **fam-staging**. You test it there.
+3. Merge **`staging`** into **`Main`** (PR #2).
+4. Render puts it on **production**. You check it.
+5. Bring **`staging`** level with **`Main`** again (a quick PR #3).
 
-**TODO(owner):** choose which one the operator follows. The recommendation
-is the intended flow while you are away: PRs into `staging` during the week,
-the operator tries them on `fam-staging`, and one `staging` → `Main` PR when
-the batch is good. It puts a test step between a Claude change and
-listeners.
+Several feature branches can go into `staging` before you do steps 3-5
+once for all of them. That is a "batch".
 
-## Everyday tasks in the GitHub website
+> **TODO(owner):** recent PRs (#229-#231) went straight from `claude/...`
+> into `Main`. This handbook uses the route above while the owner is away,
+> because it puts a test between Claude's change and listeners. Confirm.
 
-You do not need git on your computer for any of this.
+---
 
-### See what is waiting
+## Before you start: two quick checks
 
-**Pull requests** tab. Each open PR shows its branch, its target (the
-"base", `Main` or `staging`), and a green tick or red cross for CI.
+**Check 1. Is `Main` healthy?**
+1. Open the repository → **Actions** tab.
+2. On the left, click **CI**. Click the **Branch** filter and choose `Main`.
 
-### Open a pull request from a branch Claude pushed
+> **Check:** the top run has a **green tick**.
+>
+> **If not:** a red cross means production's code is already failing its
+> tests. Do not merge anything else. Go to
+> [10_RUNBOOKS.md → CI is red on Main](10_RUNBOOKS.md#ci-is-red-on-main).
 
-1. **Pull requests → New pull request.**
-2. **base:** `staging` (or `Main`, see above). **compare:** the
-   `claude/...` branch the session named.
-3. **Create pull request.** Title: what it does, in a sentence. Body: paste
-   Claude's summary.
-4. Wait for CI. It takes a few minutes. The PR page shows the checks under
-   the description.
+**Check 2. Is `staging` level with `Main`?**
+1. Open `https://github.com/tjweingart-byte/fam/compare/staging...Main`
 
-### Read a PR before merging
+> **Check:** it says `There isn't anything to compare` or
+> `staging and Main are identical`. That means `staging` already has
+> everything production has.
+>
+> **If not:** it lists commits that are on `Main` but not `staging`. Do
+> [Step 6](#step-6-bring-staging-level-with-main) first, then come back.
 
-- **Files changed** tab: skim it. You are checking that it touches what was
-  asked and nothing else. A docs change that also edits `app.py` is a
-  question to ask.
-- **Look for files in `docs/agent_rules/`, `CODEOWNERS`, `agents/rulebooks.py`,
-  `tools/rulebook_manifest.py` or `tests/test_agent_rulebooks.py`.** Those
-  need the owner ([09_AGENT_RULE_SIGNOFF.md](09_AGENT_RULE_SIGNOFF.md)).
-- **Look for a changed rule in `CLAUDE.md` or `docs/claude/`.** That is an
-  owner decision ([01_ACCESS.md](01_ACCESS.md#owner-only-decisions)).
-- **Look for a changed database shape** (a new or renamed column or table
-  in a `*.py` store). Take a database backup before merging it
-  ([04_RENDER.md](04_RENDER.md#backups)).
-- **Checks must be green.** Never merge red. Never "fix" red by deleting or
-  skipping a test.
+---
 
-### Merge
+## Step 1. Merge a feature branch into `staging`
 
-**Merge pull request → Confirm merge.** Use the default "Create a merge
-commit" (that is what the history uses). Then:
+You need the branch name. A Claude session names it at the end of its
+reply, e.g. `claude/backend-operations-docs-jzbx0p`.
 
-1. Watch the deploy in Render → `fam` → Events ([04_RENDER.md](04_RENDER.md#a-deploy)).
-2. Open `<prod-host>/api/health` and check `build.commit` is the new merge
-   commit.
-3. Play one new episode and one replay.
+1. Open the repository. Click the **Pull requests** tab.
+2. Click the green **New pull request** button.
+3. Set the two drop-downs at the top:
+   - **base:** `staging`
+   - **compare:** the feature branch (type part of its name to find it)
 
-Leave the branch in place after the merge; old `claude/*` branches are
-harmless.
+   > **Check:** you see `Able to merge` in green, and below it a list of
+   > commits and changed files.
+   >
+   > **If not:**
+   > - `Can't automatically merge` in red means the branch clashes with
+   >   `staging`. You can still create the PR; then see
+   >   [Conflicts](#this-branch-has-conflicts).
+   > - `There isn't anything to compare` means the base is wrong, or the
+   >   branch is already merged. Check the two drop-downs.
 
-### Undo a merge (revert)
+4. Click **Create pull request**.
+5. **Title:** one sentence about what it does. **Description:** paste
+   Claude's summary. Click **Create pull request** again.
 
-The fastest safe undo. It does not rewrite history.
+   > **Check:** a page for the new PR opens, with a number (`#232`) and,
+   > near the bottom, a box with a yellow dot that says
+   > `Some checks haven't completed yet`.
 
-1. Open the merged PR.
-2. **Revert** (button near the bottom). GitHub makes a new branch and a new
-   PR that undoes it.
-3. Merge that PR once CI is green. Render deploys the old behaviour.
+6. **Read the change** while the checks run. Click the **Files changed**
+   tab. You are not reviewing code. You are checking three things:
+   - It only touches what was asked for. (A documentation change that also
+     edits `app.py` is a question for Claude.)
+   - It does **not** change anything in `docs/agent_rules/`,
+     `.github/CODEOWNERS`, or a rule in `CLAUDE.md` or `docs/claude/`.
+     Those are the owner's ([01_ACCESS.md](01_ACCESS.md#owner-only-decisions)).
+   - Claude's reply said `all checks passed`.
 
-If the site is down and you cannot wait for CI, use Render's rollback
-first ([04_RENDER.md](04_RENDER.md#rollback)), then do the revert so `Main`
-matches what is running. **A rollback on Render is not permanent:** the next
-merge into `Main` deploys whatever `Main` holds. Always follow it with the
-revert.
+   > **If any of those fail:** stop. Do not merge. Leave a comment on the PR
+   > saying what you saw, and tell the owner or ask Claude.
+
+7. **Wait for the checks**, about 30-40 minutes. Refresh the page.
+
+   > **Check:** the box at the bottom turns green: `All checks have passed`.
+   >
+   > **If not:** `Some checks were not successful` (red) means do not merge.
+   > See [CI is red on a PR](#ci-is-red-on-a-pr).
+
+8. Click **Merge pull request**, then **Confirm merge**.
+
+   > **Check:** a purple **Merged** badge appears at the top, and the
+   > message `Pull request successfully merged and closed`.
+
+Repeat Step 1 for every feature branch in this batch.
+
+---
+
+## Step 2. Watch staging update
+
+1. Open `https://dashboard.render.com` → click **fam-staging** → in the left
+   menu click **Events**.
+
+   > **Check:** within a few minutes, a line `Deploy started for <code>`
+   > appears, and 5-15 minutes later `Deploy live for <code>`.
+   >
+   > **If not:** `Deploy failed` means staging did not update. Click it to
+   > read why, and give that text to a Claude session
+   > ([03_CLAUDE.md](03_CLAUDE.md)). Do not go on to Step 4.
+
+2. Open `<staging address>/api/health`. Find (Ctrl+F) `"commit"`.
+
+   > **Check:** the first 7 characters match the merge commit. The PR page
+   > shows it: `… merged commit abc1234 into staging`.
+
+3. On the same page, find `zero_spend`.
+
+   > **Check:** `"zero_spend": true`. Also find `network_guard` →
+   > `true`. This proves staging cannot spend money.
+   >
+   > **If not:** stop and tell the owner. Staging must never be able to spend.
+
+---
+
+## Step 3. Test on staging
+
+Open the staging app on your phone or computer and sign in with your
+staging account.
+
+**Staging cannot make real episodes.** Every episode there is the same
+sample script, read in a beeping placeholder tone. That is normal. You are
+testing that the app *works*, not how episodes sound.
+
+Go through this list. Tick each one.
+
+| # | Do this | You should see |
+|---|---|---|
+| 1 | Open the app | It loads on the sign-in screen or your home screen |
+| 2 | Sign out, then sign in | You are back in |
+| 3 | Search for anything | Five loading steps tick off, then the sample plays as a tone, with captions moving |
+| 4 | Drag the playback bar; press ±15s | The position moves |
+| 5 | Open myFAM, tap a tile | It plays |
+| 6 | Tap **Go Deeper** | A suggestion and a box appear |
+| 7 | Open DailyFAM, create a mix | The mix appears |
+| 8 | Send a message to another staging account | It appears in the chat |
+| 9 | **Whatever this batch changed.** Read each PR's description and try it. | It does what the PR says |
+
+> **If something fails:** do not go to Step 4. Write down which row and what
+> you saw (a screenshot helps). Ask a Claude session to fix it on the
+> feature branch, then repeat Step 1 for the fix.
+
+The full list is `STAGING.md` → "Staging checklist".
+
+---
+
+## Step 4. Open a pull request from `staging` into `Main`
+
+1. **Pull requests** tab → **New pull request**.
+2. **base:** `Main`. **compare:** `staging`.
+
+   > **Check:** `Able to merge` in green, and the commits listed are exactly
+   > the ones from this batch.
+   >
+   > **If not:** if you see commits you did not expect, someone else merged
+   > into `staging`. Find out what they are before going on.
+
+3. Click **Create pull request**. **Title:** `Staging to Main: <short
+   list of what is in it>`. **Description:** list the PR numbers in the
+   batch (`#232, #233`) and write `Tested on staging: yes`.
+4. Click **Create pull request**.
+5. Wait for the checks (30-40 minutes).
+
+   > **Check:** `All checks have passed` (green).
+
+6. **If any table in the database changes shape** in this batch (a PR
+   description says "new column", "new table" or "migration"), take a
+   database backup first ([04_RENDER.md → Backups](04_RENDER.md#take-a-database-backup)).
+   If you are not sure, ask a Claude session: "Does PR #NNN change any
+   database table's shape?"
+
+---
+
+## Step 5. Merge into `Main`, and check production
+
+1. On the `staging` → `Main` PR, click **Merge pull request** →
+   **Confirm merge**.
+
+   > **Check:** the purple **Merged** badge. Note the commit code in
+   > `merged commit abc1234 into Main`.
+
+2. Render → **fam** → **Events**.
+
+   > **Check:** `Deploy started`, then `Deploy live` 5-15 minutes later.
+   > Production stays up the whole time.
+   >
+   > **If not:** `Deploy failed`. The old version is still serving, so
+   > listeners are fine. Go to [04_RENDER.md → A deploy failed](04_RENDER.md#a-deploy-failed).
+
+3. Open `<production address>/api/health` and check each of these (Ctrl+F
+   for each word):
+
+   | Find | It should say |
+   |---|---|
+   | `"commit"` | starts with the merge commit from step 1 |
+   | `"mode"` | `live` (not `demo`) |
+   | `"reachable"` under `"database"` | `true` |
+   | `"interim"` | `false` (the real voice, not the tone) |
+
+   > **If any is wrong:** go to [10_RUNBOOKS.md](10_RUNBOOKS.md) for that
+   > symptom. If the site is broken, [roll back](04_RENDER.md#roll-back-to-the-last-good-version)
+   > first and investigate after.
+
+4. **Play one new episode** (search something new) and **one replay**
+   (something from your history) in the production app.
+
+   > **Check:** both play in the real voice.
+
+5. RunPod also rebuilds the voice from `Main`. If this batch changed the
+   voice (files in `voice_worker/`), watch it: [05_RUNPOD.md → After a merge](05_RUNPOD.md#after-a-merge-to-main).
+
+---
+
+## Step 6. Bring `staging` level with `Main`
+
+Merging in Step 5 adds one small "merge" commit to `Main` that `staging`
+does not have. Copy it back so the two branches match again.
+
+1. Open `https://github.com/tjweingart-byte/fam/compare/staging...Main`
+
+   > **Check:** it lists one or a few commits, the merge from Step 5 (and
+   > any urgent fix made directly to `Main`).
+
+2. Click **Create pull request**. (Here **base** is `staging` and
+   **compare** is `Main`, the opposite of Step 4.) Title: `Main back into
+   staging`. Click **Create pull request**.
+3. Wait for the checks, then **Merge pull request** → **Confirm merge**.
+4. Open the compare link from step 1 again.
+
+   > **Check:** `There isn't anything to compare`. The two branches match.
+   > `fam-staging` redeploys. That is expected.
+
+**The batch is done.**
+
+---
+
+## An urgent fix that cannot wait for staging
+
+Only for production being broken, and only after a rollback has not
+fixed it.
+
+1. Do Step 1, but with **base: `Main`** instead of `staging`.
+2. Wait for green checks. Merge. Check production (Step 5).
+3. Then do **Step 6** straight away, so `staging` gets the fix too.
+
+   > **Check:** the compare link shows nothing to compare.
+
+---
+
+## Undoing a change (revert)
+
+### The change is already in production
+
+1. Find the **`staging` → `Main` PR** that brought it in: **Pull requests**
+   → **Closed** → open it.
+2. Scroll to the bottom. Click **Revert**.
+
+   > **Check:** GitHub opens a new PR titled `Revert "…"`, with **base:
+   > `Main`**.
+
+3. Click **Create pull request**. Wait for green checks. **Merge** →
+   **Confirm merge**.
+4. Check production as in [Step 5](#step-5-merge-into-main-and-check-production), points 2-4.
+5. Do **[Step 6](#step-6-bring-staging-level-with-main)** so `staging` loses
+   the bad change too.
+
+If production is broken *right now*, first
+[roll back on Render](04_RENDER.md#roll-back-to-the-last-good-version)
+(that takes two minutes, while the revert's checks take 30), then do the
+revert. **A Render rollback alone is not enough**: the next merge into
+`Main` would bring the bad change back.
+
+### The change is only on staging
+
+1. Open the feature → `staging` PR that brought it in. Click **Revert** at
+   the bottom.
+
+   > **Check:** the new PR's base is `staging`.
+
+2. Create it, wait for green checks, merge.
+
+---
+
+## When something goes wrong in a PR
 
 ### "This branch has conflicts"
 
-Two branches changed the same lines. Do not resolve it in the web editor.
-Start a Claude session on that branch and ask it to merge `Main` in and
-resolve the conflicts ([03_CLAUDE.md](03_CLAUDE.md)). This repository's
-`PROBLEMS.md` and `PROBLEMS_INDEX.md` conflict often. Claude knows how to
-fix them.
+Two changes edited the same lines. **Do not use GitHub's conflict editor.**
+1. Start a Claude session ([03_CLAUDE.md](03_CLAUDE.md)) and say:
+   `Branch <name> conflicts with staging. Merge origin/staging into it,
+   resolve the conflicts, run ./dev.sh check, and push.`
+2. When it says it has pushed, refresh the PR.
 
-### "This branch is out of date with the base branch"
+> **Check:** `This branch has no conflicts with the base branch`, and the
+> checks start again.
 
-Click **Update branch**. CI runs again.
+`PROBLEMS.md` and `PROBLEMS_INDEX.md` conflict often. That is normal.
+Claude knows how to fix them.
+
+### "This branch is out-of-date with the base branch"
+
+Click **Update branch**.
+
+> **Check:** the checks start again. Wait for green.
 
 ### CI is red on a PR
 
-1. Click **Details** next to the red check, and open the failing step.
-2. Copy the error into a Claude session on that branch: "CI fails with
-   this; fix it." ([03_CLAUDE.md](03_CLAUDE.md#prompts-that-work))
-3. Never merge it red.
+1. In the checks box, click **Details** beside the red cross.
+2. Click the step with the red cross to open it. Scroll to the red text.
+3. Copy that text (from `FAILED` or `Error` to the end).
+4. In a Claude session: `CI fails on PR #NNN with this output: <paste>. Fix
+   it on branch <name>, run ./dev.sh check, push.`
 
-### CI is red on `Main` itself
+> **Check:** after Claude pushes, the checks re-run and turn green.
 
-Something merged broke, or something outside changed. Treat it as urgent:
-nothing else should merge until it is green, because the next PR will
-inherit the red and nobody will be able to tell whose fault it is. The
-repository has been red on `Main` for nine merges in a row before
-(`PROBLEMS.md` §106, §115). See
-[10_RUNBOOKS.md](10_RUNBOOKS.md#ci-is-red-on-main).
+**Never** merge a red PR. **Never** accept a "fix" that deletes or skips a
+test.
 
-## The workflows
+---
 
-| Workflow | Runs on | Does |
-|---|---|---|
-| `CI` (`ci.yml`) | Every push and PR | The whole test suite on Python 3.12, interface checks, the previews and the browser smoke runs. Gate for merging. |
-| `Voice worker` (`voice-worker.yml`) | Pushes touching the voice | Checks that the app and the worker still agree. Builds the worker image to GHCR only when asked. (RunPod builds its own copy from `Main`.) |
-| `Load test` (`load-test.yml`) | By hand only (Actions → Load test → Run workflow) | Load-tests **staging**. See `LOAD_TESTING.md`. Never point it at production. |
+## Settings only the owner changes
 
-## Branch protection and CODEOWNERS
+**TODO(owner):** confirm, in GitHub → **Settings** → **Branches** (or
+**Rules**), that both `Main` and `staging`:
+- require a pull request before merging,
+- require the **CI** check to pass,
+- require review from Code Owners (this is what makes rule-book changes need
+  the owner, see [09](09_AGENT_RULE_SIGNOFF.md)).
 
-`.github/CODEOWNERS` says that changes to the agent rule books, their
-signature, the code that checks the signature and CODEOWNERS itself need
-the owner's review. GitHub enforces that only when branch protection on
-`Main` (and `staging`) has **Require a pull request** and **Require review
-from Code Owners** turned on.
-
-**TODO(owner):** confirm in GitHub → Settings → Branches (or Rules) that
-`Main` and `staging` require a PR, require the `CI` check to pass, and
-require Code Owner review. If the operator should be able to approve
-non-rule-book PRs on their own, leave "required approvals" at 0 or add
-them as a reviewer. Only CODEOWNERS paths need the owner.
-
-## If you do want git on your computer
-
-Not needed, but useful for reading the code:
-
-    git clone https://github.com/tjweingart-byte/fam.git
-    cd fam
-    git checkout Main && git pull                 # the latest production code
-    git checkout -b my-fix                        # a new branch
-    # ...edit...
-    git add -A && git commit -m "What and why"
-    git push -u origin my-fix                     # then open a PR on GitHub
-
-Never `git push --force` to `Main` or `staging`.
+The other workflows (in the **Actions** tab) need nothing from you:
+**Voice worker** checks voice changes automatically. **Load test** runs only
+when someone starts it by hand, and only against staging.

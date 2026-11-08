@@ -1,112 +1,181 @@
-# 3. Claude: writing and changing FAM with Claude Code
+# 3. Claude: asking Claude Code to make or fix a change
 
-Almost all of FAM's code is written by Claude Code sessions working on the
-repository. The owner directs them, reads what they did, and merges. As the
-operator you do the same. Claude also runs *inside* FAM, through the
-Anthropic API (writer, brief, titles, agents). That account is covered at
-the end.
+Almost all of FAM's code is written by Claude Code. You tell it what you
+want, it makes the change on its own branch, and you move that branch
+through staging to production ([02_GITHUB.md](02_GITHUB.md)).
 
-## Before your first session
+**What Claude Code can do:** read and change the code, run every test, push
+to a branch, and explain how anything works.
 
-1. **A Claude account** with Claude Code (see [01_ACCESS.md](01_ACCESS.md)).
-2. **Connect GitHub**: at claude.ai, connect your GitHub account and make
-   sure the Claude GitHub app is installed on `tjweingart-byte/fam`. Without
-   it a session cannot push.
-3. Read the headings of `CLAUDE.md` once. Claude reads all of it at the start
-   of every session. It holds the owner's settled decisions, and Claude will
-   refuse, or push back on, requests that break them. That is intended.
+**What it cannot do:** see Render, RunPod, Cloudflare or Atlas; run anything
+on production; hear the voice; judge how good an episode sounds; sign an
+agent rule book.
 
-## Starting a session
+---
 
-At **claude.ai/code** (web, desktop or phone): new session → choose the
-repository `tjweingart-byte/fam` → type the task.
+## Task 1. Start a session and ask for a change
 
-- **Each session gets its own branch** (`claude/<something>`). It says which
-  in its reply. It commits and pushes there, and does **not** open a pull
-  request unless you ask. You open the PR ([02_GITHUB.md](02_GITHUB.md#open-a-pull-request-from-a-branch-claude-pushed)).
-- **One task per session.** A new topic is a new session. Long sessions get
-  summarised and lose detail.
-- **A session is a cloud container.** It has no API keys and no voice, so it
-  cannot judge writing quality or latency. It runs the full test suite and
-  the browser smoke tests. Writing and voice must be checked on production
-  with a key (`python write.py`, `tools/voice_doctor.py`).
+1. Open `https://claude.ai/code`. Click **New session** (or the **+**).
+2. Choose the repository **`tjweingart-byte/fam`**.
 
-## The ship loop, which Claude follows on its own
+   > **Check:** the repository name shows at the top of the session.
+   >
+   > **If not:** your GitHub is not connected. See
+   > [01_ACCESS.md → Part B, step 2](01_ACCESS.md#part-b-the-operator-checks-each-login-works-once).
 
-`CLAUDE.md` tells every session to finish every change the same way. Expect
-to see each step in its reply. If one is missing, ask for it.
+3. Type what you want, in plain words. Be specific about the outcome. Use
+   one of the [prompts below](#prompts-to-copy) where one fits.
+4. Press Enter, and wait. Small changes take a few minutes. Large ones can
+   take an hour, mostly running tests.
 
-1. `./dev.sh check`: every test, the interface checks, the previews and
-   the browser smoke runs. It ends `all checks passed` twice.
-2. Rebuild and republish the phone preview to the same link:
-   `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`.
-3. A short summary and the preview link.
-4. The exact command for anything it could not do itself.
+   > **Check:** while it works, you see it reading files, editing, and
+   > running commands. You can leave it and come back.
 
-It also logs what it did in `PROBLEMS.md` (the engineering log) as a new
-numbered section. That log is how the next session, the owner and you know
-why something is the way it is.
+5. Read its final reply.
 
-## Prompts that work
+   > **Check:** the reply should include all of these. Ask for any that
+   > are missing:
+   > - **what it changed**, in a few sentences,
+   > - **the branch name** it pushed to (`claude/…`),
+   > - **`all checks passed`** from `./dev.sh check`,
+   > - **anything it could not do**, with the exact command for you to run.
+   >
+   > **If it says tests failed:** reply "Fix the failing tests and run
+   > ./dev.sh check again." Do not take a failing branch to staging.
 
-Be concrete and say the outcome you want. Paste errors whole.
+6. Take the branch to staging: [02_GITHUB.md → Step 1](02_GITHUB.md#step-1-merge-a-feature-branch-into-staging).
 
-| You want | Say |
-|---|---|
-| Fix a failing PR | "CI fails on PR #NNN with this output: <paste>. Fix it on this branch, run `./dev.sh check`, push." |
-| Resolve a conflict | "Branch `claude/xyz` conflicts with `Main`. Merge `origin/Main` into it, resolve the conflicts, run `./dev.sh check`, push." |
-| Investigate production | "Production `/api/health` shows <paste the block>. What is wrong and what should I change on Render? Do not change code yet." |
-| Explain something | "How does <thing> work? Answer from the code and cite files and lines. Do not change anything." |
-| A small change | "<the change>. Follow the ship loop. Do not open a PR." |
-| Undo a change | "Revert the change from PR #NNN on a new branch, run checks, push." (Or use GitHub's Revert button.) |
-| An agent rule-book change | See [09_AGENT_RULE_SIGNOFF.md](09_AGENT_RULE_SIGNOFF.md). The session writes a *proposal*. It cannot sign. |
+### Rules for sessions
 
-**Never paste a secret into a session.** No API key, password, connection
-string or admin token. If a session needs to read production, give it the
-`/api/health` output (which never contains secrets) or the log lines. If it
-asks for a key, the answer is no; it can say which variable to set and you
-set it on Render yourself.
+- **One task per session.** New topic → new session.
+- **Never paste a password, key, connection string or admin token** into a
+  session. If Claude asks for one, say no. It can tell you which setting to
+  change, and you change it on Render yourself.
+- **Never ask it to push to `staging` or `Main` directly.** It works on its
+  own branch. You merge.
+- If it says something goes against a rule in `CLAUDE.md` (the owner's
+  decisions), **believe it**. That rule is the owner's to change.
 
-## Checking Claude's work before you merge
+---
 
-Claude reports confidently whether it is right or wrong. Check:
+## Prompts to copy
 
-1. **Did it run the checks?** Its reply should quote `all checks passed`. CI
-   on the PR must be green, whatever the reply says.
-2. **Did it change only what you asked?** Look at "Files changed" on the PR.
-3. **Did it touch an owner-only area?** Rule books, `CLAUDE.md` rules,
-   CODEOWNERS, a deletion, a plan ([01_ACCESS.md](01_ACCESS.md#owner-only-decisions)).
-   If so, stop and leave it for the owner.
-4. **Look at the preview** for anything visible: open the preview link on a
-   phone.
-5. **After merging**, check production `/api/health` → `build.commit`, and
-   play an episode.
+Replace the parts in `<angle brackets>`.
 
-If you are not sure, ask a *new* session to review the PR ("Review PR #NNN
-for bugs. Do not change anything."). A fresh session is not anchored on the
-first one's reasoning.
+**Fix a failing check on a PR**
+```
+CI fails on PR #<number> (branch <branch name>) with this output:
+<paste the red text>
+Fix it on that branch, run ./dev.sh check, and push.
+```
 
-## Things Claude cannot do from a session
+**Fix a merge conflict**
+```
+Branch <branch name> has conflicts with staging. Merge origin/staging into
+it, resolve the conflicts, run ./dev.sh check, and push.
+```
 
-- See Render, RunPod, Cloudflare or Atlas dashboards (it has no logins).
-- Run anything on production. You run Render Shell commands it gives you.
-- Hear the voice, or judge an episode's writing on real data.
-- Sign a rule book.
+**Find out what is wrong in production (no changes)**
+```
+Production's /api/health shows this:
+<paste the part of the page that looks wrong>
+What is wrong, and what should I check or change on Render? Do not change
+any code yet.
+```
 
-## The Anthropic API account (Claude inside FAM)
+**Explain something (no changes)**
+```
+How does <thing> work? Answer from the code, cite file names, and do not
+change anything.
+```
 
-Production calls Claude for the brief, the writer, titles, categories,
-pictures' checks and the agents. One key, on Render `fam` as
-`ANTHROPIC_API_KEY` (or via `FAM_SECRETS`). Staging has none.
+**A small change**
+```
+<describe the change and why>. Follow the ship loop in CLAUDE.md. Do not
+open a pull request. Tell me the branch name when you have pushed.
+```
 
-| Task | Where |
-|---|---|
-| See spend | console.anthropic.com → Usage / Cost. FAM's own per-listener view: `python tools/usage_report.py --days 30` or `/api/usage` (`docs/ONBOARDING.md` §7.5). |
-| Set a spend limit | Console → Limits. **TODO(owner):** set a monthly limit and an email alert before handover. |
-| Rate limits | Console → Limits. Limits are per organisation, not per key: a second key adds no headroom (`CREDENTIALS.md`). |
-| Rotate the key | Console → API Keys → create a new key → put it on Render `fam` → Environment → `ANTHROPIC_API_KEY` → Save (redeploys) → check `/api/health` → `mode` is live → disable the old key in the Console. |
-| Which models | Set in code and on Render: `MODEL` (on Render), `WRITER_MODEL`, and each agent's pinned model in `agents/models.py`. Do not change these without the owner; the writing was tuned on them. |
+**A second opinion on a PR (no changes)**
+```
+Review PR #<number> for bugs and for anything that touches the owner-only
+areas in docs/operations/01_ACCESS.md. Do not change anything.
+```
 
-**If the key stops working**, episodes do not fail: they quietly become the
-built-in sample script. `/api/health` → `mode` and `api_key_configured` say
-so. See [10_RUNBOOKS.md](10_RUNBOOKS.md#every-episode-is-the-same-sample-script).
+**Update this handbook**
+```
+In docs/operations/<file>, <what is wrong or missing>. Fix it, keep the
+step-by-step Check format, and push.
+```
+
+**A change to an agent's rule book:** see
+[09_AGENT_RULE_SIGNOFF.md](09_AGENT_RULE_SIGNOFF.md#step-1-ask-for-a-proposal).
+Claude writes a *proposal*. It cannot sign.
+
+---
+
+## Task 2. Check Claude's work before merging
+
+Claude sounds just as confident when it is wrong. Before you merge its
+branch anywhere, check:
+
+1. **The reply says `all checks passed`.**
+2. **The PR's checks are green**, whatever the reply says.
+3. **Files changed** on the PR matches what you asked for, and nothing more.
+4. **No owner-only files**: nothing in `docs/agent_rules/`,
+   `.github/CODEOWNERS`, or a rule in `CLAUDE.md` / `docs/claude/`.
+5. **For anything you can see in the app:** open the phone preview
+   (`https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`).
+   Claude republishes it after every change. Then test on staging.
+
+> **If you are unsure about any of it:** start a **new** session with the
+> "second opinion" prompt above. A new session has not seen the first one's
+> reasoning, so it is a genuine second look.
+
+---
+
+## Task 3. The Anthropic API key (Claude inside FAM)
+
+Separate from Claude Code: production uses an Anthropic API key to write
+every episode. It is the setting `ANTHROPIC_API_KEY` on Render `fam`.
+Staging has none.
+
+### Check spend (weekly)
+
+1. Open `https://console.anthropic.com` → **Usage** (or **Cost**).
+
+   > **Check:** daily spend is in line with last week. A sudden doubling
+   > goes to the owner ([10_RUNBOOKS.md → Costs jump](10_RUNBOOKS.md#costs-jump)).
+
+2. **TODO(owner):** under **Limits**, set a monthly spend limit and an email
+   alert, and write the amount here.
+
+### Replace the key (only if it leaked, or the owner asks)
+
+1. Console → **API Keys** → **Create Key**. Name it `fam-production-<date>`.
+   Copy it. **Do not paste it anywhere except step 3.**
+2. Render → **fam** → **Environment** → **Edit**.
+3. Find `ANTHROPIC_API_KEY`. Replace its value with the new key.
+   Click **Save, rebuild, and deploy**.
+
+   > **Check:** Events shows `Deploy live` within 15 minutes.
+
+4. Open `<production address>/api/health`. Find `"mode"`.
+
+   > **Check:** `"mode": "live"`. Then play a new episode. It should be a
+   > real episode, not the sample.
+   >
+   > **If not:** `"mode": "demo"` means the key was not accepted. Check
+   > you copied all of it, with no spaces.
+
+5. Back in the Console → **API Keys** → the old key → **Disable** (or
+   **Delete**).
+
+### If every episode is the same sample script
+
+The key has stopped working. FAM does not crash. It quietly plays the
+built-in sample instead.
+See [10_RUNBOOKS.md → Every episode is the same sample script](10_RUNBOOKS.md#every-episode-is-the-same-sample-script).
+
+**Do not change which Claude model FAM uses** (`MODEL`, `WRITER_MODEL`,
+or anything in `agents/models.py`). The writing was tuned for these models.
+That is the owner's decision.

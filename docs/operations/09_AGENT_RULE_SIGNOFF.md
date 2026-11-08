@@ -1,192 +1,225 @@
 # 9. Signing off on agent documents
 
-FAM has eight agents (Netenyahu, C3P0, Shakespeare, Mclovin, Consuela,
-Sonic, Keith Wong, Nando). Each has a **rule book** in plain English in
-`docs/agent_rules/`: what it must always and must never do. The owner's
-standing decision (2026-10-29) is that a rule book is "untouchable and
-unchangeable unless we deliberately say to have them change ... not by an
-agent and not by a model".
+## What this is about
 
-That is enforced in code, so it is worth understanding before you touch
-anything in that folder.
+FAM has eight AI agents: Netenyahu, C3P0, Shakespeare, Mclovin, Consuela,
+Sonic, Keith Wong and Nando. Each has a **rule book**, a plain-English file
+listing what it must always and must never do. They are in
+`docs/agent_rules/`, along with `every-agent.md` (rules for all of them)
+and Shakespeare's `docs/journalism_playbook.md`.
 
-## How the lock works
+The owner decided that a rule book changes **only when the owner
+deliberately signs the change**. That is enforced by the code:
 
-```
-docs/agent_rules/
-  every-agent.md, c3p0.md, consuela.md, keith.md, mclovin.md,
-  nando.md, netenyahu.md, shakespeare.md, sonic.md      the rule books
-  (and docs/journalism_playbook.md, Shakespeare's playbook, also signed)
-  MANIFEST.json       the SHA-256 fingerprint of every book, and a version number
-  MANIFEST.json.sig   the owner's Ed25519 signature of MANIFEST.json
-  owner.pub           the owner's public key (checks signatures, cannot make them)
-```
+- A file called `MANIFEST.json` lists a fingerprint of every rule book.
+- The owner **signs** that file with a private key only the owner has. The
+  signature is `MANIFEST.json.sig`.
+- **If a rule book does not match the signed fingerprint, its agent stops
+  ("is held").** FAM carries on without it. Listeners are not affected; the
+  agent just does not run.
+- The tests fail if a rule book does not match, so an unsigned change cannot
+  be merged.
 
-- **An agent runs only while its book's fingerprint matches the signed
-  manifest.** A changed or unsigned book **holds** that agent: it stops,
-  and the pipeline runs as it did before the agent existed. Nothing breaks
-  for listeners. The agent just stops working.
-- **A test fails** (`tests/test_agent_rulebooks.py`) if any book does not
-  match the signed manifest, so an unsigned change cannot pass CI.
-- **Only the owner's private key can sign.** It is never in the repository,
-  on the server, in `FAM_SECRETS` or in a Claude session.
-- **CODEOWNERS** requires the owner's review on `docs/agent_rules/`, the
-  playbook, the lock code and the manifest tool (when branch protection has
-  Code Owner review on; see [02_GITHUB.md](02_GITHUB.md#branch-protection-and-codeowners)).
-- The owner also keeps the governing copies **outside Claude**. If those and
-  the repository ever disagree, the held copy wins and the repository is
-  corrected.
+**So: you can review and approve a change, but only the owner can make it
+take effect.** That is on purpose.
 
-**Where to see it:** `/api/health` → `agents` → `lock`: `signed: true`, the
-`version`, and `held` (empty when nothing is held; otherwise which agent and
-which file). `/admin` shows the same. From a checkout:
-
-    python tools/rulebook_manifest.py            # every book: matches / differs
-    python tools/rulebook_manifest.py --verify   # checks the signature
-
-## Who does what
+### Who does what
 
 | Step | Who |
 |---|---|
-| Ask for a change | The owner, or the operator after seeing an agent misbehave |
-| Write the proposal | A Claude session |
-| Review the proposal | **The operator** (first read) and the owner |
-| **Sign it** | **The owner only.** |
-| Verify, clean up, merge | A Claude session, then whoever merges |
-| Update the copy held outside Claude | The owner |
+| 1. Ask for a change | You or the owner |
+| 2. Write the proposal | A Claude session |
+| 3. Review the proposal | **You**, then the owner |
+| 4. **Sign it** | **The owner only** |
+| 5. Finish and merge | A Claude session, then you |
+| 6. Check production | You |
 
-**What "sign off" means for the operator:** you review and approve the
-*proposal* so that, when the owner has five minutes, signing is the only
-step left. You cannot make a change take effect. That is by design.
+> **TODO(owner):** decide how signing works while you are away. Options:
+> (1) proposals wait for your weekend: recommended, since a rule-book
+> change is never urgent; (2) you sign from your Mac when asked (about five
+> minutes, Step 4); (3) a second signing key for the operator, which needs a
+> code change that you would have to sign yourself.
 
-**TODO(owner):** decide whether that is enough while you are away. The
-options:
+---
 
-1. **Keep it as is.** Rule-book changes wait for the owner's weekend.
-   Agents keep running on the current signed books. (Recommended. Rule-book
-   changes are rare and never urgent: a held agent harms nothing.)
-2. **Sign remotely when asked.** The steps below need only a browser and the
-   owner's Mac, about five minutes.
-3. **Give the operator their own signing key.** The code checks one public
-   key (`owner.pub`, `AGENT_RULES_PUBLIC_KEY`), so this means either
-   sharing the key (not recommended; it removes the point of the lock) or a
-   code change to accept a second key, which is itself a signed,
-   CODEOWNERS-reviewed change.
+## Task 1. Check the agents are all running (daily)
 
-## The process, step by step
+1. Open `<production address>/api/health`. Find (Ctrl+F) `"lock"`.
 
-### 1. Ask for the change
+   > **Check:**
+   > - `"signed": true`
+   > - `"version"` is a number (6 as of 2026-11-06, higher after each new signing)
+   > - `"held": {}`, empty, meaning no agent is stopped
+   >
+   > **If `held` lists an agent:** see
+   > [An agent is held and nobody changed anything](#an-agent-is-held-and-nobody-changed-anything).
 
-Start a Claude session ([03_CLAUDE.md](03_CLAUDE.md)) and say what should
-change and why. For example:
+---
 
-> Mclovin keeps flagging quoted speech as opinion. Propose a change to
-> `mclovin.md` so that quoted speech attributed to a named source is not
-> opinion. Read `docs/agent_rules/README.md`, `docs/agent_rule_proposals/README.md`
-> and the Mclovin section of `docs/FAM_AGENTS.md` first. Write it as a
-> proposal for the owner to sign. Do not edit the signed book.
+## Task 2. Change a rule book, start to finish
 
-### 2. The session writes a proposal
+### Step 1. Ask for a proposal
 
-It must:
+Start a Claude session ([03_CLAUDE.md](03_CLAUDE.md)) and paste, filling in
+the parts in angle brackets:
 
-- Put the **whole proposed book** at `docs/agent_rule_proposals/<book>.md`.
-  It never edits `docs/agent_rules/<book>.md` itself.
-- Write `docs/agent_rules/MANIFEST.pending.json` (the manifest as it will be
-  once the proposal replaces the book; only that book's fingerprint and the
-  version change). `python tools/rulebook_manifest.py --write` does this.
-  The lock ignores the pending file, so CI stays green.
-- List it under **Waiting now** in `docs/agent_rule_proposals/README.md`.
-- Add a `PROBLEMS.md` section saying what changes and why.
-- Push to its branch. Open a PR from it ([02_GITHUB.md](02_GITHUB.md)).
+```
+I want to change <agent>'s rule book: <what should change, and why, with an
+example of what went wrong>.
+Read docs/agent_rules/README.md, docs/agent_rule_proposals/README.md and
+<agent>'s section of docs/FAM_AGENTS.md first.
+Write it as a proposal for the owner to sign. Do NOT edit the signed rule
+book in docs/agent_rules/. Tell me the branch name when you have pushed.
+```
 
-### 3. Review it (the operator, then the owner)
+> **Check:** Claude's reply says it wrote:
+> - `docs/agent_rule_proposals/<book>.md`: the **whole** proposed rule book
+> - `docs/agent_rules/MANIFEST.pending.json`: the fingerprints as they
+>   will be
+> - a line under **Waiting now** in `docs/agent_rule_proposals/README.md`
+> - a new section in `PROBLEMS.md` explaining why
+>
+> and that `./dev.sh check` passed.
+>
+> **If it edited `docs/agent_rules/<book>.md` directly:** reply "Undo the
+> edit to the signed book and write it as a proposal instead."
 
-Open the PR. Compare the proposal with the signed book: on GitHub, open
-both files side by side, or ask a session for "the diff between
-`docs/agent_rule_proposals/<book>.md` and `docs/agent_rules/<book>.md`".
+### Step 2. Open a pull request
 
-Approve only if every answer is yes:
+On GitHub, open a PR from Claude's branch into **`staging`**
+([02_GITHUB.md, Step 1](02_GITHUB.md#step-1-merge-a-feature-branch-into-staging),
+points 1-5). **Do not merge it yet.**
 
-- [ ] **Only the intended rule changed.** No other wording moved.
-- [ ] **It does not contradict `every-agent.md`** (the rules every agent follows) or another agent's book.
-- [ ] **It does not loosen a settled constraint** in `CLAUDE.md` (for example: nothing speaks before its material; never invent a current fact; slurs are the only words removed). If it does, it is the owner's decision alone.
-- [ ] **It does not give an agent a new power**: writing a file or a setting, changing a rule, reaching a listener's private data, calling a new outside service.
-- [ ] **The reason is written down** in `PROBLEMS.md` and agrees with `docs/FAM_AGENTS.md`.
-- [ ] **The proposed file is complete**: the whole book, not a fragment.
-- [ ] **No other files sneak in** to `docs/agent_rules/` (only the pending manifest).
+> **Check:** the PR's **Files changed** shows the proposal, the pending
+> manifest, the proposals README and `PROBLEMS.md`. Nothing else in
+> `docs/agent_rules/` except `MANIFEST.pending.json`.
 
-Then leave an approving review on the PR with "Reviewed for signing" and
-tell the owner it is waiting.
+### Step 3. Review it
 
-### 4. The owner signs (on the owner's Mac, with the owner's key)
+Compare the proposal with the current rule book. The easiest way: ask a
+**new** Claude session:
 
-This is `docs/agent_rule_proposals/README.md`, "Signing it". No clone is
-needed:
+```
+Show me, line by line, the differences between
+docs/agent_rule_proposals/<book>.md and docs/agent_rules/<book>.md on
+branch <branch name>. Do not change anything.
+```
 
-1. From GitHub, on the PR's branch, download
-   `docs/agent_rule_proposals/<book>.md` and
-   `docs/agent_rules/MANIFEST.pending.json` to Downloads. Rename the second
-   to `MANIFEST.json`.
-2. In Terminal:
+Then answer every question below. **Approve only if every answer is yes.**
 
-       conda activate famsign                     # OpenSSL 3
-       # save the private key from the password manager, as plain text, to ~/fam-rules-signing.pem
+- [ ] **Only the rule we asked for changed.** No other wording moved.
+- [ ] **It does not contradict `every-agent.md`** or another agent's rule book.
+- [ ] **It does not weaken one of the owner's settled rules** in `CLAUDE.md`
+      (for example: never make up a current fact; nothing is spoken before
+      its research arrives; slurs are the only words removed).
+- [ ] **It gives the agent no new power**: it cannot now write files,
+      change settings, change rules, see private listener data, or contact a
+      new outside service.
+- [ ] **The reason is written down** in the new `PROBLEMS.md` section.
+- [ ] **The proposal is the whole rule book**, not just the changed part.
+
+When all are ticked:
+1. On the PR, click **Files changed** → **Review changes** → choose
+   **Approve** → in the comment write `Reviewed for signing` → **Submit
+   review**.
+2. Tell the owner: "Rule-book proposal for <agent> is ready to sign on
+   branch <branch name>, PR #<number>."
+
+> **If any box is not ticked:** choose **Request changes** instead, and
+> write which one and why. Ask Claude to fix the proposal on the same branch.
+
+### Step 4. The owner signs (on the owner's Mac)
+
+*This step is for the owner. It is written out so the operator knows what
+to expect.*
+
+1. On GitHub, switch to the PR's branch. Open
+   `docs/agent_rule_proposals/<book>.md` → click the **Download raw file**
+   button (top right of the file). Do the same for
+   `docs/agent_rules/MANIFEST.pending.json`.
+2. In **Downloads**, rename `MANIFEST.pending.json` to `MANIFEST.json`.
+3. Save the private key from the password manager as plain text to
+   `~/fam-rules-signing.pem` (TextEdit → Format → Make Plain Text). Never
+   paste it into Terminal, a chat or a Claude session.
+4. In Terminal:
+
+       conda activate famsign
        cd ~/Downloads
        openssl pkeyutl -sign -rawin -inkey ~/fam-rules-signing.pem -in MANIFEST.json | base64 | tr -d '\n' > MANIFEST.json.sig
        rm -P ~/fam-rules-signing.pem
 
-   Never paste the private key into Terminal, a chat or a session.
-3. On GitHub, in `docs/agent_rules/` on the branch: **Add file → Upload
-   files**: `<book>.md`, `MANIFEST.json`, `MANIFEST.json.sig`, in **one
-   commit**. Nothing else; check no stray file came with them.
+   > **Check:** `cat MANIFEST.json.sig` prints one line of about 88 letters
+   > and numbers ending in `==`. No error was printed.
 
-**Upload the files. Do not edit a rule book in GitHub's web editor.** The
-signature covers the exact bytes, and the editor can change a line ending or
-the final newline, which makes the book differ from what was signed.
+5. On GitHub, on the PR's branch, open the folder `docs/agent_rules/` →
+   **Add file** → **Upload files**. Drag in exactly three files:
+   `<book>.md` (the proposal, keeping its name), `MANIFEST.json`,
+   `MANIFEST.json.sig`. → **Commit changes**.
 
-### 5. Verify, clean up, merge
+   > **Check:** the commit lists exactly those three files, nothing else.
 
-Ask the session on that branch:
+**Always upload the files. Never edit a rule book in GitHub's in-browser
+editor.** The signature covers the exact bytes, and the editor can change
+an invisible character, which makes the book no longer match.
 
-> The owner has uploaded the signed `<book>.md`, `MANIFEST.json` and
-> `MANIFEST.json.sig`. Verify the signature, delete the proposal and the
-> pending manifest, update the proposals README, run `./dev.sh check`, push.
+### Step 5. Finish, and merge
 
-It runs `python tools/rulebook_manifest.py --verify`, which must say
-`signed: True` and every book `matches`. CI must be green. Then the owner
-(as code owner) approves and the PR is merged.
+1. In the Claude session on that branch, paste:
 
-### 6. Check production
+   ```
+   The owner has uploaded the signed <book>.md, MANIFEST.json and
+   MANIFEST.json.sig. Verify the signature, delete the proposal and
+   MANIFEST.pending.json, update the proposals README, run ./dev.sh check,
+   and push.
+   ```
 
-After the deploy: `/api/health` → `agents.lock` → `signed: true`, the new
-`version`, `held` empty. If an agent is held, `held` names the file that
-differs. Do not try to fix it by editing the book; tell the owner.
+   > **Check:** the reply shows `python tools/rulebook_manifest.py --verify`
+   > printing `signed: True` and every book `matches`, and `all checks passed`.
 
-The owner then updates the copy held outside Claude.
+2. On the PR, wait for green checks. The owner approves it (GitHub requires
+   the owner's review for this folder). Then **Merge pull request**.
+3. Take `staging` to `Main` as usual ([02_GITHUB.md, Steps 2-6](02_GITHUB.md#step-2-watch-staging-update)).
 
-## If an agent is held and nobody changed anything
+### Step 6. Check production
 
-Something changed a book's bytes, or the manifest. Most likely a merge that
-touched `docs/agent_rules/` or `.gitattributes`.
+After `Deploy live` on production, open `/api/health` → `"lock"`.
 
-1. `/api/health` → `agents.lock.held` names the file.
-2. Find the PR that last touched it (GitHub → the file → History).
-3. Revert that PR ([02_GITHUB.md](02_GITHUB.md#undo-a-merge-revert)).
+> **Check:** `"signed": true`, `"version"` is **one higher** than before,
+> and `"held": {}`.
+>
+> **If an agent is held:** `held` names the file that does not match. Do not
+> try to fix the file. Tell the owner.
+
+The owner then updates the master copy they keep outside Claude.
+
+---
+
+## An agent is held and nobody changed anything
+
+A rule book or the manifest was changed without a signature, most likely
+by a merge.
+
+1. `/api/health` → `"held"` names the agent and the file.
+2. On GitHub, open that file → **History** (top right). Find the most recent
+   change and the PR it came from.
+3. Revert that PR ([02_GITHUB.md](02_GITHUB.md#undoing-a-change-revert)).
+
+   > **Check:** after the revert reaches production, `"held": {}` again.
+
 4. Tell the owner.
 
-A held agent is safe. FAM runs without it. So this is never an emergency
-that justifies unsigned changes.
+**This is never an emergency.** FAM works without the agent. Never "fix" it
+by changing a rule book or the manifest without a signature.
 
-## Other agent documents
+---
 
-Not everything about the agents is signed:
+## Which agent documents need a signature?
 
 | Document | Signed? | Who approves |
 |---|---|---|
-| `docs/agent_rules/*.md`, `docs/journalism_playbook.md` | **Yes** | Owner signs |
-| `docs/FAM_AGENTS.md` (each agent's reasoning, guardrails, plugins) | No | Normal PR review; but if it changes what a rule *means*, the rule book must change too, and that is signed |
-| `docs/AGENTS_TRAINING_PLAN.md`, `docs/AGENTS_BUILD_PROMPT.md`, prompts like `docs/TRAINING_NEXT_BRANCH.md` | No | Normal PR review |
-| Agent code (`agents/*.py`) | No, except `agents/rulebooks.py` (CODEOWNERS) | Normal PR review; CI |
-| Agent switches on Render (`AGENTS`, `HOUSEKEEPER`, `IT_AGENT`, the dry-run flags) | No | The owner's say-so, or a session's written instruction that the owner agreed to |
-| Each agent's model (`agents/models.py`, pinned vendor and model id) | No | Owner decision |
+| `docs/agent_rules/*.md`, `docs/journalism_playbook.md` | **Yes** | Owner signs (this document) |
+| `docs/FAM_AGENTS.md` (explanations and reasoning) | No | Normal PR review. But if it changes what a rule *means*, the rule book must change too, and that is signed. |
+| Training plans and prompts (`docs/AGENTS_TRAINING_PLAN.md`, `docs/TRAINING_NEXT_BRANCH.md`…) | No | Normal PR review |
+| Agent code (`agents/*.py`) | No, except `agents/rulebooks.py`, which needs the owner's review | Normal PR review; checks must pass |
+| Agent on/off switches on Render (`AGENTS`, `HOUSEKEEPER`, `IT_AGENT`…) | No | The owner's say-so |
+| Which AI model each agent uses | No | Owner decision |

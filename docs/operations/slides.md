@@ -53,21 +53,62 @@
 - Exception: a leaked key. Rotate it now, tell the owner after
 > 01_ACCESS.md, "Owner-only decisions".
 
-# GitHub: how a change ships
-- Claude pushes to its own claude/... branch
-- You open a pull request into staging (or Main)
-- CI runs: tests, interface checks, browser smoke runs. Green or do not merge
-- Read "Files changed": only what was asked? Any owner-only file?
-- Merge, then watch Render deploy and check build.commit
-> 02_GITHUB.md. Decide with the owner: staging first (recommended while away), or straight to Main as recent PRs did.
+# How to read the handbook
+- Every task is numbered steps
+- After the important steps, a Check box: what you should see on screen
+- And an "If not" box: what to do instead
+- Do not go on until the Check matches
+- Stuck? Stop, screenshot, note the step. Do not push on with a guess
+> README.md, "How to read the instructions".
 
-# GitHub: when things go wrong
-- Bad merge: the Revert button on the PR, then merge the revert
-- Conflicts: ask a Claude session to merge Main in and resolve them
-- Red CI on a PR: paste the failing step into a session on that branch
-- Red CI on Main: urgent, hold every other merge until it is green
-- Never force-push Main or staging; never skip a test to get green
-> 02_GITHUB.md
+# The route every change takes
+- 1. Feature branch (claude/...) into staging
+- 2. fam-staging updates. Test it there
+- 3. staging into Main
+- 4. Production updates. Check it
+- 5. Main back into staging, so they match again
+- Several features can ride in one batch through steps 3 to 5
+> 02_GITHUB.md. Before starting: CI on Main is green, and github.com/tjweingart-byte/fam/compare/staging...Main says there is nothing to compare.
+
+# Step 1: feature branch into staging
+- Pull requests, New pull request. base: staging, compare: the claude/ branch
+- Check: "Able to merge" in green
+- Create pull request. Read Files changed: only what was asked, no owner-only files
+- Wait 30-40 minutes. Check: "All checks have passed"
+- Merge pull request, Confirm merge. Check: purple Merged badge
+> 02_GITHUB.md, Step 1. Red checks: never merge; paste the error into a Claude session.
+
+# Steps 2 and 3: watch staging, then test it
+- Render, fam-staging, Events. Check: "Deploy live" within 15 minutes
+- Staging /api/health: commit matches, zero_spend true, network_guard true
+- Staging episodes are a sample script in a beeping tone. That is normal
+- Test: sign in, search, transport, myFAM, Go Deeper, a mix, a message
+- Test whatever this batch changed. Anything fails: stop, fix, start again
+> 02_GITHUB.md, Steps 2 and 3.
+
+# Step 4: staging into Main
+- New pull request. base: Main, compare: staging
+- Check: the commits listed are exactly this batch
+- Title "Staging to Main: ...", list the PRs, "Tested on staging: yes"
+- Wait for green checks
+- Database table changing? Take a backup first
+> 02_GITHUB.md, Step 4.
+
+# Steps 5 and 6: production, then level up
+- Merge. Render, fam, Events. Check: "Deploy live"
+- Production /api/health: commit matches, mode live, database reachable, interim false
+- Play one new episode and one replay. Check: the real voice
+- Then compare staging...Main, Create pull request (base staging), merge
+- Check: "There isn't anything to compare"
+> 02_GITHUB.md, Steps 5 and 6. Urgent fix: base Main directly, then Step 6 straight away.
+
+# Undoing a change
+- Production broken right now: Render, Events, Rollback (2 minutes)
+- Then always revert on GitHub: the merged PR, Revert, merge the revert
+- A rollback alone lasts only until the next merge
+- Then Main back into staging (Step 6)
+- Conflicts: ask Claude to merge staging in. Never use the web conflict editor
+> 02_GITHUB.md, "Undoing a change"; 04_RENDER.md, Task 3.
 
 # Claude Code
 - claude.ai/code, repository tjweingart-byte/fam, one task per session

@@ -1,96 +1,87 @@
 # 0. The system map
 
-FAM is one Python web server (`app.py`, FastAPI) plus a handful of rented
-services around it. Almost everything you will operate is one of these
-boxes.
+Read this once before anything else. It explains what the pieces are, so
+the rest of the handbook makes sense.
+
+## The pieces
+
+FAM is one web server program plus a few rented services around it.
 
 ```
-                         Listeners (web app today, iOS app next)
-                                        |
-                                        v
-  GitHub  ----push to Main---->  Render: fam  (production web service)  ----> Render Postgres
-  tjweingart-byte/fam             app.py, the interface, background jobs        every store (accounts, cache,
-     |                            FAM_ENV=production, real keys                 messages, mixes, ...)
-     |                                  |   |   |   |
-     |                                  |   |   |   +--> Cloudflare R2 "fam-audio": kept audio + pictures
-     |                                  |   |   +------> MongoDB Atlas: the history archive
-     |                                  |   +----------> Anthropic (Claude): briefs, scripts, titles
-     |                                  |                Perplexity / Parallel / GDELT: research
-     |                                  |                GNews, BALLDONTLIE, Tiingo, Polymarket,
-     |                                  |                NWS / Open-Meteo, Wikimedia, Gemini, SMTP
-     |                                  v
-     +----push to Main---->  RunPod Serverless endpoint "FAM": the voice (Chatterbox on a GPU)
-     |                       rebuilt by RunPod from Main's Dockerfile.voice
+  GitHub (the code)
      |
-     +----push to staging->  Render: fam-staging  (zero spend: no keys, no outbound network)
+     |-- branch "staging" --> Render: fam-staging   (the TEST copy: free, no real keys)
+     |
+     |-- branch "Main" -----> Render: fam           (PRODUCTION: real listeners)
+     |                           |-- Render Postgres     (the database: accounts, episodes, messages...)
+     |                           |-- Cloudflare R2       (audio files and pictures)
+     |                           |-- MongoDB Atlas       (the history archive)
+     |                           |-- Anthropic / Claude  (writes the episodes)
+     |                           |-- research, news, sports, markets, weather services
+     |
+     |-- branch "Main" -----> RunPod: the voice      (turns scripts into speech on a GPU)
 ```
 
-## The pieces, in one table
+| Piece | In one sentence | You will use it to |
+|---|---|---|
+| **GitHub** | Where the code lives. The branch called `Main` is what production runs. | Move changes into `staging`, then `Main`. Undo changes. |
+| **Render `fam-staging`** | A test copy of FAM. It has no paid keys and cannot reach the internet, so it is safe and free. | Try out changes before production. |
+| **Render `fam`** | Production: the FAM real listeners use. | Watch deploys, roll back, change settings. |
+| **Render Postgres** | Production's database. | Check it is healthy. You should almost never touch it. |
+| **RunPod** | Rents a GPU to make the voice. | Check the voice when episodes go silent. |
+| **Cloudflare R2** | Stores audio files and pictures. | Check it when replays or pictures fail. |
+| **MongoDB Atlas** | Stores past news articles so episodes can mention earlier reporting. | Check it when the health page says the archive has errors. |
+| **Anthropic** | Claude. It writes every episode, and Claude Code writes FAM's code. | Ask Claude Code to make changes. Watch API spend. |
 
-| Piece | What it is | Where it is configured | Where to look when it is wrong |
-|---|---|---|---|
-| **GitHub** `tjweingart-byte/fam` | All the code and docs. Branch `Main` is production. | GitHub → Settings (branch protection, collaborators) | Actions tab (CI), Pull requests |
-| **Render `fam`** | Production web server. Docker, Standard plan (1 CPU, 2 GB). Auto-deploys every merge into `Main`. No disk. | Render dashboard → `fam` → Environment / Settings. `render.yaml` describes it, but **the service was made by hand, so editing `render.yaml` changes nothing** (STAGING.md). | Render → `fam` → Logs, Events; `/api/health`; `/admin` |
-| **Render `fam-staging`** | The test copy. Follows branch `staging`. Spends nothing, cannot reach the internet. | Render → `fam-staging` | Same as above, on the staging host |
-| **Render Postgres** | Production's database. Every store (accounts, script cache, messages, mixes, social, quotas, metering ...) is a schema in it. | Render → the database → Info / Backups; `DATABASE_URL` on `fam` | `/api/health` → `database`; `/admin` |
-| **RunPod endpoint `FAM`** (id `g65qlmwz4sc02u`) | The voice. A Serverless GPU endpoint running `voice_worker/`. Scales to zero; billed per second of speaking. | RunPod console → Serverless → FAM | Builds tab, Requests tab, `python tools/voice_doctor.py` |
-| **Cloudflare R2 `fam-audio`** | Kept audio (Opus) and every picture (profiles, mixes, categories). | Cloudflare dashboard → R2 | `/api/health` → `audio` |
-| **MongoDB Atlas** | The history archive: past articles and facts that feed the "earlier reporting" packet. | cloud.mongodb.com → project FAM | `/api/health` → `archive` |
-| **Anthropic** | Claude: the brief (EI), the writer, titles, categories, the agents. Also Claude Code, which writes FAM's code. | console.anthropic.com (API key, spend limits); claude.ai (Claude Code) | `/api/health` → `mode`, `credentials`; `/admin` errors |
-| **Everything else** | Research, news, sports, markets, weather, pictures, email, waitlist, Apple sign-in. | Each vendor's dashboard; a key on Render | [08_OTHER_SERVICES.md](08_OTHER_SERVICES.md) |
+**How a change travels:** a Claude session pushes it to its own branch →
+you merge it into `staging` → Render updates `fam-staging` → you test →
+you merge `staging` into `Main` → Render updates production, and RunPod
+rebuilds the voice. [02_GITHUB.md](02_GITHUB.md) is the step by step.
 
-## One episode, crossing the services
+## When something is wrong, which piece to look at first
 
-Knowing this order tells you which service to suspect from a symptom.
+| What you notice | Look at first | Then |
+|---|---|---|
+| The app does not load at all | Render `fam` | [10_RUNBOOKS: site down](10_RUNBOOKS.md#the-site-is-down) |
+| The app loads, but nobody can sign in, or accounts look empty | The database | [10_RUNBOOKS: accounts missing](10_RUNBOOKS.md#accounts-look-missing-or-sign-in-fails-for-everyone) |
+| Episodes are a beeping tone, or stuck on "Generating the audio" | RunPod | [05_RUNPOD.md](05_RUNPOD.md) |
+| Every episode is the same canned sample | The Anthropic key | [10_RUNBOOKS: sample script](10_RUNBOOKS.md#every-episode-is-the-same-sample-script) |
+| Episodes are vague or out of date | Research services | [08_OTHER_SERVICES.md](08_OTHER_SERVICES.md) |
+| A replayed episode will not play, but new ones do | Cloudflare R2 | [06_CLOUDFLARE.md](06_CLOUDFLARE.md) |
+| The Trending row is empty | GNews | [08_OTHER_SERVICES.md](08_OTHER_SERVICES.md) |
+| Pictures are missing | Cloudflare R2 | [06_CLOUDFLARE.md](06_CLOUDFLARE.md) |
 
-1. A listener taps search. The browser calls `fam` on Render.
-2. `fam` checks the account and quota in **Postgres**.
-3. **Claude** (Episode Intelligence) decides what to search for.
-4. **Perplexity** (then Parallel, then GDELT) searches. Sports go to
-   **BALLDONTLIE**, markets to **Tiingo**, weather to **NWS / Open-Meteo**.
-   **MongoDB Atlas** adds earlier reporting.
-5. **Claude** writes the script, sentence by sentence.
-6. Each sentence goes to the **RunPod** voice, which sends back audio.
-7. `fam` streams the audio to the listener, and keeps it in **R2** and the
-   script in **Postgres** for a week (longer if saved or shared).
-8. A replay is a signed link straight to **R2**: no Claude, no RunPod.
+## What the server does on a timer
 
-| Symptom | Suspect first |
-|---|---|
-| The site does not load at all | Render `fam` (Events, Logs), then Postgres |
-| Loads, but sign-in fails or accounts look empty | Postgres (`/api/health` → `database`, `storage`) |
-| Episodes play a placeholder tone, or stall at "Generating the audio" | RunPod ([05_RUNPOD.md](05_RUNPOD.md)) |
-| Episodes are the same canned sample script | The Anthropic key (`/api/health` → `mode`) |
-| Episodes are thin or say nothing current | Research keys (Perplexity / Parallel), see [08](08_OTHER_SERVICES.md) |
-| Replays fail but new episodes play | R2 ([06_CLOUDFLARE.md](06_CLOUDFLARE.md)) |
-| Trending rail is empty | GNews |
-| Pictures missing | R2, then Gemini |
-
-## Scheduled work inside `fam`
-
-Nothing external runs on a timer (there is no cron service). These run
-inside the production server, so a stopped server stops them too. Times are
-US Eastern.
+These run inside the production server. If the server is down, they do
+not run. Times are US Eastern.
 
 | When | What |
 |---|---|
-| 05:00 and 17:00 | Trending edition (GNews, ten episodes written ahead); myFAM rails edition. (The weather sweep also runs at 05:00 and 17:00, but in each place's own time.) |
-| 05:00 | DailyFAM edition: every active mix written |
-| Every 15 min | GDELT export files downloaded |
-| Every 2 h | Markets (Tiingo), news story pool, vocabulary sweep |
-| While a followed game is on | Sports sweep (BALLDONTLIE) |
-| Hourly | R2 audio sweep (upload, move to `kept/`, delete expired) |
-| Every `IT_WATCH_SECONDS` | Keith (the IT agent) checks for incidents, if `IT_AGENT=1` |
+| 05:00 and 17:00 | Trending row rebuilt (from GNews); myFAM rows rebuilt |
+| 05:00 | Every DailyFAM mix written |
+| Every 15 minutes | World news files downloaded (GDELT) |
+| Every 2 hours | Market prices, news story pool |
+| While a followed game is on | Sports scores |
+| Every hour | Old audio files tidied in Cloudflare R2 |
 
-The full list, with the code that runs each one, is the background-jobs
-table in `docs/BACKEND.md`.
+So if Trending is empty at 06:00, the 05:00 run failed. If it is empty at
+16:00, it may be waiting for 17:00.
 
-## The hosts
+## The addresses
 
-| | URL |
+| What | Address |
 |---|---|
-| Production | **TODO(owner)**: the Render URL for `fam` and the public domain (`familiarize.net`?) |
-| Staging | **TODO(owner)**: the Render URL for `fam-staging` |
-| Health | `<host>/api/health` (no sign-in needed) |
-| Admin | `<host>/admin`, `<host>/admin/waitlist`, `<host>/admin/thumbnails` (admin email and password every time) |
-| The phone preview | `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e` (layout only; no real audio or writing) |
+| Production app | **TODO(owner)** (the public address, e.g. `https://familiarize.net`, and the Render address `https://….onrender.com`) |
+| Production health page | `<production address>/api/health` |
+| Production admin page | `<production address>/admin` (asks for an admin email and password every time) |
+| Staging app | **TODO(owner)** (`https://….onrender.com`) |
+| Staging health page | `<staging address>/api/health` |
+| GitHub | `https://github.com/tjweingart-byte/fam` |
+| Render | `https://dashboard.render.com` |
+| RunPod | `https://www.runpod.io/console/serverless` |
+| Cloudflare | `https://dash.cloudflare.com` |
+| MongoDB Atlas | `https://cloud.mongodb.com` |
+| Anthropic Console | `https://console.anthropic.com` |
+| Claude Code | `https://claude.ai/code` |
+| Phone preview (layout only, no real audio) | `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e` |

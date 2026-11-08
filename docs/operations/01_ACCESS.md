@@ -1,67 +1,130 @@
-# 1. Access: the accounts you need, and what stays with the owner
+# 1. Access: your accounts, and what stays with the owner
 
-Give the backend operator **their own login** on every service, never a
-shared password. Then removing access later is one click, and every
-dashboard's audit log shows who did what.
+You get **your own login** on every service, never a shared password. That
+way your access can be removed in one click later, and every dashboard
+records who did what.
 
-## The accounts
+## Part A. The owner grants access (once, before the handover)
 
-Fill in the last two columns during the handover.
+The owner works down this table and ticks each row.
 
-| Service | What the operator needs | Role to grant | Granted? | Notes |
-|---|---|---|---|---|
-| **GitHub** `tjweingart-byte/fam` | Review and merge PRs, read CI, revert | Collaborator with **Write** (not Admin) | **TODO(owner)** | Admin can change branch protection and CODEOWNERS. Keep that with the owner. |
-| **Claude** (claude.ai, Claude Code) | Start cloud sessions on the repo, publish the preview | A seat on the owner's Team / Enterprise org, or the operator's own Claude plan with the GitHub app connected | **TODO(owner)** | The GitHub connection is per person: they connect at claude.ai and install the Claude GitHub app on the repo. See [03_CLAUDE.md](03_CLAUDE.md). |
-| **Anthropic Console** (API) | See spend, see rate limits, rotate the key in an emergency | Member of the organisation; **Developer** is enough for keys, **Billing** to see invoices | **TODO(owner)** | The production key's org. Set a spend limit before handing over. |
-| **Render** | Deploys, logs, Shell, environment variables, the database | Workspace member, **Developer** role | **TODO(owner)** | Admin role can delete services and change billing. Keep that with the owner. |
-| **RunPod** | Endpoint builds, requests, worker logs | Team member (RunPod "Teams") with **Dev** access | **TODO(owner)** | If the account is personal, not a team, it needs converting first. Billing stays with the owner. |
-| **Cloudflare** | R2 bucket, CORS, lifecycle; DNS if the domain is here | Account member, role **R2 Admin** (add **DNS** only if the operator should touch the domain) | **TODO(owner)** | Never the account's Super Administrator. |
-| **MongoDB Atlas** | Cluster metrics, network access, database users | Project role **Project Data Access Admin** or **Project Owner** on project FAM | **TODO(owner)** | Organisation owner stays the owner. |
-| **Production `/admin`** | The live tracker, waitlist, thumbnails | Add the operator's FAM account email to `FAM_ADMIN_ACCOUNTS` on Render | **TODO(owner)** | Comma-separated. Saving redeploys. Admin accounts are also `unlimited` on quotas. |
-| **Staging `/admin`** | The same, on staging | Add them to staging's `FAM_ADMIN_ACCOUNTS` | **TODO(owner)** | Staging has its own accounts: they sign up there once. |
-| **Secrets manager** (if `FAM_SECRETS` is set) | Rotate a key | Read/write on the `fam` secret | **TODO(owner)** | Check Render → `fam` → Environment for `FAM_SECRETS`. If it is not there, every key is on Render's Environment page. |
-| **Other vendors** (GNews, BALLDONTLIE, Tiingo, Perplexity, Parallel, Gemini, Open-Meteo, Viral Loops, the SMTP provider, Apple Developer) | Usually nothing day to day. Usage pages if a limit is hit. | Read-only / member where the vendor offers it | **TODO(owner)** | Listed in [08_OTHER_SERVICES.md](08_OTHER_SERVICES.md). |
+| Service | What to grant | Done? |
+|---|---|---|
+| **GitHub** `tjweingart-byte/fam` | Settings → **Collaborators** → **Add people** → role **Write** (not Admin) | **TODO(owner)** |
+| **Claude** (claude.ai, Claude Code) | A seat on the owner's Claude organisation, or the operator's own plan. The operator then connects GitHub (Part B, step 2). | **TODO(owner)** |
+| **Anthropic Console** | Settings → **Members** → invite → role **Developer** (or **Billing** to see invoices) | **TODO(owner)** |
+| **Render** | Workspace → **Settings** → **Members** → invite → role **Developer** (not Admin) | **TODO(owner)** |
+| **RunPod** | Team settings → invite → role **Dev** (billing stays with the owner) | **TODO(owner)** |
+| **Cloudflare** | **Manage Account** → **Members** → invite → role **R2 Admin** only | **TODO(owner)** |
+| **MongoDB Atlas** | Project FAM → **Access Manager** → invite → **Project Data Access Admin** | **TODO(owner)** |
+| **Production `/admin`** | Add the operator's FAM email to `FAM_ADMIN_ACCOUNTS` on Render `fam` (Part C) | **TODO(owner)** |
+| **Staging `/admin`** | The same on `fam-staging` | **TODO(owner)** |
+| **Alert emails** | Make sure the operator receives them (Part D) | **TODO(owner)** |
+| **Secrets manager** (only if `FAM_SECRETS` is set on Render) | Read/write on the `fam` secret | **TODO(owner)** |
+| **Other vendors** (GNews, BALLDONTLIE, Tiingo, Perplexity, Parallel, Gemini, Open-Meteo, Viral Loops, the email provider, Apple Developer) | Usually nothing. Read-only access where the vendor offers it. | **TODO(owner)** |
 
-## Alert inboxes to join
+## Part B. The operator checks each login works (once)
 
-FAM emails when something breaks. Make sure the operator receives these.
-Each is a variable on Render `fam` → Environment. The cleanest setup is a
-shared address (for example `ops@familiarize.net`) that forwards to both
-of you.
+**Step 1. Accept every invitation email.**
 
-| Variable | What arrives there |
+> **Check:** each service's dashboard opens when you sign in.
+
+**Step 2. Connect Claude to GitHub.**
+1. Go to `https://claude.ai/code`, sign in.
+2. Start a new session. Choose the repository `tjweingart-byte/fam`. If it is
+   not listed, follow the prompt to connect GitHub and install the **Claude**
+   GitHub app on that repository.
+
+> **Check:** the session shows `tjweingart-byte/fam` as its repository.
+>
+> **If not:** ask the owner to approve the Claude app on the repository
+> (GitHub → Settings → GitHub Apps).
+
+**Step 3. See the two Render services.**
+1. Open `https://dashboard.render.com`.
+
+> **Check:** you see `fam` and `fam-staging` in the list of services, and a
+> Postgres database.
+>
+> **If not:** you are in the wrong workspace. Use the workspace switcher at
+> the top left.
+
+**Step 4. Open production's admin page** (after Part C is done).
+1. Open `<production address>/admin`.
+2. Sign in with your FAM account's email and password.
+
+> **Check:** you see the live tracker: counts of accounts, episodes and
+> searches, and a list of errors.
+>
+> **If not:** a "not found" page means your email is not in
+> `FAM_ADMIN_ACCOUNTS` yet, or the change has not finished deploying. Wait
+> five minutes and try again.
+
+## Part C. Adding someone to the admin list
+
+On Render, these settings are called "environment variables". Saving one
+restarts the server, which takes a few minutes and causes no downtime.
+
+1. Render → click **fam** → in the left menu, **Environment**.
+2. Find `FAM_ADMIN_ACCOUNTS`. Click **Edit** (top right of the list).
+3. Add the new email at the end, separated by a comma, with no spaces:
+   `owner@example.com,operator@example.com`
+4. Click **Save, rebuild, and deploy** (or **Save and deploy**).
+
+> **Check:** the left menu → **Events** shows a new deploy starting, then
+> `Deploy live` a few minutes later.
+
+5. Repeat on **fam-staging** with the person's staging account email (they
+   sign up on staging once, separately).
+
+## Part D. Alert emails
+
+FAM emails when something breaks. Each address is set on Render `fam` →
+Environment. The simplest setup is one shared address (for example
+`ops@familiarize.net`) that forwards to both the owner and the operator.
+
+| Setting | What arrives there |
 |---|---|
-| `SUPPORT_EMAIL` | **Voice down**: within minutes of the voice failing, daily while it lasts, and when it is back. Also the published support contact. |
-| `IT_ALERT_EMAIL` | Urgent incidents from Keith, the IT agent (only while `IT_AGENT=1`): a store not writing, a provider failing, a rule-book breach. |
-| `MODERATION_EMAIL` (falls back to `SUPPORT_EMAIL`) | A listener reported a message, a person or a vibe. Apple requires these to be acted on. |
+| `SUPPORT_EMAIL` | **The voice is down.** Sent within minutes, then daily while it lasts, then when it is back. |
+| `IT_ALERT_EMAIL` | Urgent problems found by Keith, the IT agent (when `IT_AGENT=1`). |
+| `MODERATION_EMAIL` (or `SUPPORT_EMAIL`) | A listener reported someone or something. Must be acted on. |
 
-Also make sure the operator gets Render's own deploy-failure emails
-(Render → Account Settings → Notifications) and the CI-failure emails from
-GitHub (they come to whoever pushed or merged).
+Also turn on:
+- **Render:** your account (top right) → **Account Settings** →
+  **Notifications** → email on deploy failure.
+- **GitHub:** your profile → **Settings** → **Notifications** → Actions:
+  notify on failed workflows.
+
+> **Check:** on the production app's sign-in screen, tap **Forgot
+> password?** for your own account. The reset email arrives within a few
+> minutes. That proves FAM can send email, so the alerts can reach you too.
+>
+> **If not:** check your spam folder. If it is not there either, email
+> sending is broken. Tell the owner, because no alert would reach you.
 
 ## Owner-only decisions
 
-The operator keeps things running. These change what FAM is, cost money in
-a way nobody planned, or cannot be undone, so they wait for the owner,
-even if a Claude session offers to do them.
+You keep things running. These change what FAM is, spend money nobody
+planned, or cannot be undone. **They wait for the owner, even if a Claude
+session offers to do them.**
 
 | Leave for the owner | Why |
 |---|---|
-| **Signing an agent rule book** | Needs the owner's private key, and that is the point of it. The operator *prepares and reviews*: [09_AGENT_RULE_SIGNOFF.md](09_AGENT_RULE_SIGNOFF.md). |
-| Changing a rule in `CLAUDE.md` or `docs/claude/` (the settled constraints) | These are the owner's product decisions. A PR that reverses one waits. |
-| Buying, upgrading or cancelling any plan | Spend. The upgrade triggers are in `docs/SCALING_TIMELINE.md`; flag them, do not act on them. |
-| Deleting data: `wipe_demo_data.py --all`, dropping a database, emptying the bucket, deleting an Atlas cluster | Cannot be undone. |
-| Turning `WAITLIST` off, or granting large batches from the waitlist | A launch decision. |
-| Changing branch protection, CODEOWNERS, or who has access | Security. |
-| Rotating the rule-book signing key | Only the owner holds it. |
-| Changing the voice (`reference_3.wav`, the rights record, `VOICE_REFERENCE_FINGERPRINT`) | It is somebody's voice, under a signed consent. |
+| **Signing an agent rule book** | It needs the owner's private key. You review the proposal; the owner signs. See [09](09_AGENT_RULE_SIGNOFF.md). |
+| Changing a rule in `CLAUDE.md` or `docs/claude/` | These are the owner's product decisions. |
+| Buying, upgrading or cancelling any plan | Spending money. |
+| Deleting data: anything with `--all`, `--yes` or `--replace`, dropping the database, emptying the bucket | It cannot be undone. |
+| Turning the waitlist off, or letting large batches in | A launch decision. |
+| Branch protection, CODEOWNERS, who has access | Security. |
+| The voice recording and its consent record | It is a real person's voice. |
 
-**Exception: a leaked key.** If a key is exposed (pasted in a chat,
-committed, shown in a log), rotate it immediately without waiting
-([10_RUNBOOKS.md](10_RUNBOOKS.md#a-key-has-leaked)), then tell the owner.
+**The one exception: a leaked key.** If a password or key has been exposed,
+replace it straight away without waiting
+([10_RUNBOOKS.md → A key has leaked](10_RUNBOOKS.md#a-key-has-leaked)), then
+tell the owner.
 
 ## When the operator leaves
 
-Remove them from each service in the table, take their email out of
-`FAM_ADMIN_ACCOUNTS` on both services, and rotate `FAM_ADMIN_TOKEN` and any
-key they may have copied.
+1. Remove them from every service in Part A.
+2. Remove their email from `FAM_ADMIN_ACCOUNTS` on both Render services (Part C).
+3. Change `FAM_ADMIN_TOKEN` on both services, and any key they may have copied.

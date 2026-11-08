@@ -31535,3 +31535,20 @@ rather than guessed:
   production's archive is on Atlas yet, the database plan and its recovery
   window, spend limits on Anthropic and RunPod, branch protection on
   `Main` and `staging`, and how to reach the owner in an emergency.
+
+**The owner's follow-up** (the same day): "Include merging into staging
+and then back into main ... these documents should spell out how to do
+everything very simply and understandably. Clear step by step instructions
+with notes under on stopping points to check if they are seeing the right
+responses to their steps."
+
+**Rewritten.** Every document in `docs/operations/` is now numbered tasks,
+each important step followed by a **Check** (the exact words or values the
+screen should show) and an **If not** (what to do instead); the README
+explains the format and says not to go on until a Check matches.
+`02_GITHUB.md` is the whole route in six steps - feature branch into
+`staging`, watch `fam-staging` deploy, test there, `staging` into `Main`,
+check production, then `Main` back into `staging` so the two are level -
+with the urgent-fix route and reverts for each case. The health page is
+read in a browser with find rather than `curl`. The deck has six new slides
+for the route (28 in all).
