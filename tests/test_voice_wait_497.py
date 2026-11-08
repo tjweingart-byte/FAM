@@ -71,6 +71,15 @@ def test_the_page_waits_for_the_voice_once_the_script_is_handed_over():
     assert "}, 45000);" not in index
 
 
+def test_a_late_progress_answer_cannot_stop_a_playing_episode():
+    """The gate clears the limit when audio arrives, while the list walks its
+    last steps. A poll answered after that must not arm it again: the timer
+    would fire mid-episode and call FamAudio.stop()."""
+    index = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert "if(st !== genSteps || st.audioReady || !d || !d.steps) return;" in index
+    assert "if(genSteps && genSteps.audioReady) return;" in index
+
+
 # --- every episode wakes the voice ------------------------------------------
 
 def test_an_episodes_wake_is_not_throttled_by_the_opens(monkeypatch):

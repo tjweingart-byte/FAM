@@ -6963,6 +6963,9 @@
 
   // Move the give-up time to `at` (ms since the epoch), never earlier.
   function holdGenTimeout(at, message){
+    // Never once the audio is here: from then on there is nothing to give
+    // up on, only an episode to stop by mistake.
+    if(genSteps && genSteps.audioReady) return;
     if(genTimeout && at <= genDeadline) return;
     if(genTimeout) clearTimeout(genTimeout);
     genDeadline = at;
@@ -7127,7 +7130,10 @@
       return r.ok ? r.json() : null;
     }).then(function(d){
       st.asking = false;
-      if(st !== genSteps || !d || !d.steps) return;
+      // An answer that lands after the audio has nothing left to time: the
+      // gate cleared the limit, and re-arming it here would stop an episode
+      // that is playing (§497).
+      if(st !== genSteps || st.audioReady || !d || !d.steps) return;
       var moved = false;
       ["contextualized", "retrieved", "verified", "written"].forEach(function(k, i){
         if(d.steps[k] && !st.server[i]){ st.server[i] = true; moved = true; }
