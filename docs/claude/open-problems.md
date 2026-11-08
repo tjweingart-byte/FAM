@@ -372,6 +372,7 @@
   qualifies takes its place; nothing tops the section up.
 
 <!-- rule:no-not-interested -->
+> **Current (PROBLEMS.md §498, the owner's 11.3 packet, reversing §171 for one place):** a DailyFAM tile's ⋯ menu ends in **Not interested**. It records `topics.NOT_INTERESTED` (`not_interested`, weight -1.5, three skips deep) with the tile's id and question; `EventStore.not_interested` reads every such choice and `not_wanted` keeps that tile - by id or by question - off every rail, beside "no repeats" in `build_feed` and `build_section`. It teaches no familiar word and mints no subject. The tile leaves the page at once; a guest's choice is dropped like every guest event (§127). Still no button on the card, and `hide` stays retired: its old rows are not revived, since they were choices made under a control that was then withdrawn.
 - **There is no "not interested"** *(PROBLEMS.md §171, at the owner's
   direction: "This button and function should not be a feature. The
   algorithm should work naturally to put episodes the user is interested

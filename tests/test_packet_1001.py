@@ -36,7 +36,8 @@ def test_go_deeper_is_yellow_and_in_capitals():
     assert "background:var(--deeper)" in css
     assert "--deeper:#FFD23F" in INDEX
     assert ">Go Deeper</button>" not in INDEX
-    assert INDEX.count(">GO DEEPER</button>") == 4
+    # Three since the 11.3 packet: exploreFAM's reel carried the fourth.
+    assert INDEX.count(">GO DEEPER</button>") == 3
 
 
 # --- 2. Find new friends on myFAM's friends rail ---------------------------

@@ -284,25 +284,23 @@ def test_the_category_page_sorts_and_searches_on_the_server():
 
 
 def test_a_tap_plays_what_is_cached_and_nothing_else():
-    # §253: a tap opens the category's reel at that episode; the reel plays
-    # replay only, as Explore does.
+    # The 11.3 packet: exploreFAM is gone, so a tap plays in the player -
+    # replay only, as the catalogue plays one - and the rest of the page
+    # follows in the ordinary queue.
     play = _fn("playCategoryEpisode")
-    assert "openCategoryReel(" in play
-    assert "eps.slice(i).concat(eps.slice(0, i))" in play
-    assert "{ cachedOnly: true }" in _fn("playReel")
+    assert "playCategoryList(eps.slice(i))" in play
+    listed = _fn("playCategoryList")
+    assert "cachedOnly: true" in listed and 'generate("_category")' in listed
+    assert "QUEUE.push(categoryQueueEntry(ep))" in listed
+    assert "cachedOnly: true" in _fn("categoryQueueEntry")
 
 
-def test_shuffle_play_deals_the_page_shuffled_on_the_reel():
+def test_shuffle_play_deals_the_page_shuffled_into_the_player():
     assert 'id="catShuffle"' in HTML and "Shuffle play" in HTML
     shuffle = _fn("shuffleCategory")
-    assert "shuffledPool(catPage.episodes)" in shuffle and "openCategoryReel(" in shuffle
+    assert "playCategoryList(shuffledPool(catPage.episodes))" in shuffle
 
 
-def test_the_category_reel_is_its_own_feed():
-    opened = _fn("openCategoryReel")
-    assert 'reelFeed = "category"' in opened and 'setTab("explore")' in opened
-    # Explore after a category deals Explore's feed, not the category's.
-    assert 'if(reelFeed !== "explore")' in _fn("openExplore")
-    # Back returns to the category's page.
-    assert 'navigate("category")' in _fn("exploreBack")
-    assert 'reelFeed === "category" ? reelFeedLabel' in _fn("renderReel")
+def test_no_category_opens_a_reel():
+    assert "function openCategoryReel(" not in HTML
+    assert 'id="screen-explore"' not in HTML

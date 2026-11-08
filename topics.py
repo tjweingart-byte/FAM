@@ -1411,7 +1411,8 @@ def familiar_words(events: Iterable[Event]) -> FamiliarWords:
     out: set[str] = set()
     filed: dict[str, set] = {}
     for event in events:
-        if not event.text:
+        # A subject waved off is not one they are familiar with (11.3 #2).
+        if not event.text or event.kind == NOT_INTERESTED:
             continue
         words = [w for w in _WORD.findall(event.text.lower())
                  if len(w) >= FAMILIAR_MIN_WORD and w not in FAMILIAR_STOPWORDS]
@@ -2151,11 +2152,22 @@ UNSHELVED = ("might_like",)
 #: > a stronger statement than one search. Play 1, skip -0.5, share 2,
 #: > vibe 2.5 and save 2 are unchanged.
 MIX_ADD = "mix_add"
+#: **Not interested, back at the owner's direction** (the 11.3 packet #2,
+#: reversing §171 for a tile's three dots only). One tap from a DailyFAM
+#: tile's ⋯ menu: that tile and that question leave every rail for this
+#: listener for good (`not_wanted`, beside "no repeats" in `build_feed` and
+#: `build_section`), and its subjects take a negative weight three skips
+#: deep. It teaches no familiar word and mints no subject. It is a new kind,
+#: not the retired `hide`: rows written in the two days `hide` existed stay
+#: read by nothing, so reviving that name would quietly bring back choices
+#: listeners made under a control that was then taken away from them.
+NOT_INTERESTED = "not_interested"
+
 EVENT_WEIGHT = {"search": 1.5, "play": 1.0, "complete": 1.5, "skip": -0.5,
                 "pick": 2.2, "share": 2.0, "vibe": 2.5, "save": 2.0,
-                MIX_ADD: 2.0}
+                MIX_ADD: 2.0, NOT_INTERESTED: -1.5}
 
-#: **Not interested is gone** (§171, at the owner's direction: "This button
+#: **The first "not interested"** (§171, at the owner's direction: "This button
 #: and function should not be a feature. The algorithm should work naturally
 #: to put episodes the user is interested in"). It was a tile waved off from
 #: its card (the 27/09 packet): the tile left every rail for good and its tags
@@ -2704,6 +2716,25 @@ class EventStore:
             return []
         return [(r[0] or "", r[1] or "", float(r[2])) for r in rows]
 
+    def not_interested(self, user_id: str, limit: int = 2000
+                       ) -> list[tuple[str, str]]:
+        """(topic_id, question) for every tile this listener said "not
+        interested" to (the 11.3 packet #2). A read of its own, like `heard`:
+        a choice that has scrolled out of the taste window still stands."""
+        if not user_id:
+            return []
+        try:
+            rows = self._conn().execute(
+                "SELECT topic_id, text FROM events"
+                " WHERE user_id = ? AND kind = ?"
+                " ORDER BY at DESC LIMIT ?",
+                (user_id, NOT_INTERESTED, limit),
+            ).fetchall()
+        except Exception:
+            log.exception("could not read not-interested choices")
+            return []
+        return [(r[0] or "", r[1] or "") for r in rows]
+
     def listens_between(self, since: float, until: Optional[float] = None
                         ) -> list[tuple[str, str, str, float, str]]:
         """(user_id, topic_id, question, at, kind) for every play and
@@ -2996,11 +3027,11 @@ class EventStore:
         try:
             rows = self._conn().execute(
                 "SELECT user_id, text FROM events"
-                " WHERE kind NOT IN (?, ?) AND text != '' AND at >= ?"
+                " WHERE kind NOT IN (?, ?, ?) AND text != '' AND at >= ?"
                 " ORDER BY at DESC LIMIT ?",
                 # Nor what somebody said "not interested" to: a subject
-                # waved off is not a subject to mint (§161).
-                (IMPRESSION, HIDE, float(since), int(limit)),
+                # waved off is not a subject to mint (§161, 11.3 #2).
+                (IMPRESSION, HIDE, NOT_INTERESTED, float(since), int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read subject texts")
@@ -3595,6 +3626,26 @@ def heard_from(rows: Iterable[tuple[str, str, float]]) -> Heard:
         if question:
             by_question[question] = max(by_question.get(question, 0.0), at)
     return Heard(by_id, by_question)
+
+
+def not_wanted(universe: Iterable["Topic"],
+               rows: Iterable[tuple[str, str]]) -> set[str]:
+    """The ids of every tile in `universe` this listener said "not
+    interested" to (11.3 #2): by tile id, or by its question, so the same
+    episode offered under another tile is gone too. Excluded from every
+    rail exactly as a repeat is."""
+    ids: set[str] = set()
+    questions: set[str] = set()
+    for topic_id, text in rows:
+        if topic_id:
+            ids.add(topic_id)
+        question = _norm_question(text)
+        if question:
+            questions.add(question)
+    if not ids and not questions:
+        return set()
+    return {t.id for t in universe
+            if t.id in ids or _norm_question(t.query) in questions}
 
 
 def answer_moves(topic: "Topic") -> bool:
@@ -4788,6 +4839,9 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
+    # And every tile they said "not interested" to (11.3 #2), the same way.
+    if user_id:
+        mine = set(mine) | not_wanted(universe, store.not_interested(user_id))
     # What this listener has actually said, for `rank_from_history`'s broad
     # match check. Read once for the page, like the fatigue table, and off
     # the events already in hand.
@@ -5229,6 +5283,9 @@ def build_section(store: EventStore, user_id: str, key: str,
     universe = (list(known_topics(now).values()) + list(inventory)
                 + list(live_held) + ([local_topic] if local_topic else []))
     mine = repeats(universe, heard, now, written_at) if heard else set()
+    # And every tile they said "not interested" to (11.3 #2), the same way.
+    if user_id:
+        mine = set(mine) | not_wanted(universe, store.not_interested(user_id))
     # `exclude` is what they have already played, and *not* the other
     # sections' picks. On the page the sections take turns so no tile appears
     # twice; here there is only one section, and hiding its best tiles because

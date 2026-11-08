@@ -12,7 +12,8 @@ HTML = open(os.path.join(ROOT, "static", "index.html"), encoding="utf-8").read()
 
 def test_every_screen_starts_with_its_own_status_bar_strip():
     screens = re.findall(r'<section class="screen" id="(screen-[a-z]+)">\s*(<[^>]*>)', HTML)
-    assert len(screens) >= 30
+    # 29 since the 11.3 packet took exploreFAM's reel away.
+    assert len(screens) >= 29
     missing = [sid for sid, first in screens if 'class="screen-top"' not in first]
     assert missing == [], f"screens without a .screen-top strip first: {missing}"
 
@@ -26,7 +27,7 @@ def test_the_strip_sits_over_the_frames_bar():
 def test_no_screen_clips_its_strip_with_overflow():
     # overflow:hidden on a screen cuts the strip pulled up above it; clip
     # with clip-path's inset that leaves the top open instead.
-    for sid in ("screen-explore", "screen-player"):
+    for sid in ("screen-player",):
         rule = re.search(r"#" + sid + r"\{([^}]*)\}", HTML).group(1)
         assert "overflow:hidden" not in rule
         assert "clip-path:inset(calc(-1 * var(--sb-h)) 0 0 0)" in rule

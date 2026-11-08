@@ -233,11 +233,11 @@ def main() -> int:
             wanted = len(topics_mod.SECTIONS)
             assert rails == wanted, f"expected {wanted} sections, saw {rails}"
             titles = page.eval_on_selector_all(".feed-title", "e => e.map(x => x.textContent)")
-            # No "What users are searching" rail (10.5 packet #6): Explore's
-            # way in is the exploreFAM pill level with Made for you (#7).
+            # No "What users are searching" rail (10.5 packet #6), and since
+            # the 11.3 packet no exploreFAM pill beside Made for you either.
             assert "What users are searching" not in titles, titles
-            assert page.query_selector("#myfamFeed .feed-head-row #myfamExploreBtn"), \
-                "no exploreFAM pill beside Made for you"
+            assert not page.query_selector("#myfamExploreBtn"), \
+                "the exploreFAM pill is back beside Made for you"
             # Trending is second, in the slot Explore New used to hold. It was
             # last, where a row nobody scrolls to is a row nobody reads, and it
             # is the one rail here with a reason to be looked at *today*.
@@ -694,7 +694,8 @@ def main() -> int:
                           " title: 'Bonds', minutes: 2}")
 
             controls = page.eval_on_selector_all("[data-save]", "e => e.length")
-            assert controls >= 3, f"only {controls} save controls carry data-save"
+            # The player and play-all (exploreFAM's reel was a third until 11.3).
+            assert controls >= 2, f"only {controls} save controls carry data-save"
 
             page.evaluate("saveForLater()")
             page.wait_for_timeout(800)
@@ -881,50 +882,6 @@ def main() -> int:
             }""")
             assert page.text_content("#p-title").strip() == "Mine", \
                 "a title the listener set was overwritten"
-            page.evaluate("openMyFamTab()")
-            page.wait_for_timeout(400)
-
-        def a_friends_vibe_is_named_on_an_explore_card():
-            """"<name> vibed with this episode", with their face, when a
-            *friend* both generated it and vibed it.
-
-            Driven through `renderReel` with a card of each kind rather than
-            read off the feed, because the live build has one listener in its
-            database and therefore honestly no friends - the tag is the same
-            code on both, and this checks the code."""
-            page.evaluate("showScreen('explore')")
-            page.evaluate("""() => {
-              reelCurrent = { query: 'why volcanoes erupt',
-                title: 'What Makes A Volcano Go', minutes: 2, thread: '',
-                age_seconds: 300, vibed: true,
-                vibed_by: { name: 'Rachel Solomon', handle: 'rachels',
-                            avatar: '' } };
-              renderReel();
-            }""")
-            page.wait_for_timeout(300)
-            assert page.eval_on_selector("#reelVibe", "e => !e.hidden"), \
-                "the friend tag did not appear"
-            said = page.text_content("#reelVibe").strip()
-            assert "Rachel Solomon" in said and "vibed with this episode" in said, \
-                f"the tag says {said!r}"
-            assert page.eval_on_selector("#reelVibeAv", "e => e.innerHTML.length") > 0, \
-                "no picture beside the name"
-
-            # A stranger's vibe lifts a card and does not name anybody. Putting
-            # names the listener has never heard of under a card about their
-            # friends is the mistake §102 took off myFAM.
-            page.evaluate("""() => {
-              reelCurrent = { query: 'why bonds move', title: 'Bonds',
-                minutes: 2, thread: '', age_seconds: 300, vibed: true };
-              renderReel();
-            }""")
-            page.wait_for_timeout(300)
-            assert page.eval_on_selector("#reelVibe", "e => e.hidden"), \
-                "a card with no friend behind it still showed the tag"
-            # Put Explore's own state back. This check reached into
-            # `reelCurrent` to drive the render, and leaving a synthetic card
-            # there breaks the reel for anything that runs after it.
-            page.evaluate("reelCurrent = null; reelQueue = []; reelHistory = []")
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
@@ -1884,73 +1841,6 @@ def main() -> int:
             page.evaluate("goBack()")
             page.wait_for_timeout(400)
 
-        def explores_comments_open_on_a_thread():
-            """Explore's comments sheet shows a thread, and a comment posts.
-
-            The sheet shipped (10.5 #8) with no `/api/comments` in either
-            preview, so every look at it read "Could not load the comments",
-            and the reel had no picture behind it: what the owner saw was a
-            feature that seemed to be missing.
-            """
-            page.evaluate("openExplore()")
-            page.wait_for_selector("#screen-explore.active", timeout=10000)
-            page.wait_for_function(
-                "document.getElementById('reelBg').classList.contains('has-img')",
-                timeout=5000)
-            page.evaluate("openReelComments()")
-            # The fixture build seeds a thread; the live build's db may hold
-            # none yet. Either is a loaded sheet - "Could not load" is not.
-            page.wait_for_function(
-                "document.querySelector('#rcList .rc-item') ||"
-                " /No comments yet/.test(document.getElementById('rcList').textContent)",
-                timeout=5000)
-            n = page.eval_on_selector_all("#rcList > .rc-item", "e => e.length")
-            if n:
-                assert page.query_selector("#rcList .rc-like"), \
-                    "a comment has no like on its right"
-            if page.is_visible("#rcInput"):
-                page.fill("#rcInput", "Smoke check comment")
-                page.evaluate("postReelComment()")
-                page.wait_for_function(
-                    f"document.querySelectorAll('#rcList > .rc-item').length > {n}",
-                    timeout=5000)
-            page.evaluate("closeReelComments()")
-
-        def explores_bar_scrubs_without_swiping():
-            """The bar in Explore seeks, and does not deal the next card.
-
-            Explore listens for swipes on an ancestor of its bar, so without
-            the guard in makeScrubbable a drag along the bar is both a seek and
-            a swipe - and the episode you were aiming at is gone.
-            """
-            page.evaluate("openExplore()")
-            page.wait_for_selector("#screen-explore.active", timeout=10000)
-            # Coming back to the tab keeps the listener's place but does not
-            # resume - setTab stops playback - so press play the way they
-            # would, then let enough audio arrive to have somewhere to seek to.
-            page.evaluate("if(!FamAudio.isActive()) reelTogglePlay();")
-            page.wait_for_timeout(4500)
-            was = page.text_content("#reelTitle")
-            before = page.evaluate("() => FamAudio.position()")
-            box = page.eval_on_selector(
-                "#screen-explore .reel-progress",
-                "e => { var r = e.getBoundingClientRect();"
-                " return {x: r.x, y: r.y, w: r.width}; }")
-            page.mouse.move(box["x"] + 3, box["y"] + 1)
-            page.mouse.down()
-            page.mouse.move(box["x"] + box["w"] * 0.9, box["y"] + 1, steps=8)
-            assert page.query_selector("#screen-explore .reel-progress.scrubbing"), \
-                "the reel bar did not say it had been picked up"
-            page.mouse.up()
-            page.wait_for_timeout(500)
-            assert page.text_content("#reelTitle") == was, \
-                "dragging the bar swiped to the next episode"
-            after = page.evaluate("() => FamAudio.position()")
-            assert after > before + 0.5, \
-                f"dragging the reel bar did not move playback ({before:.2f} -> {after:.2f})"
-            page.evaluate("openMyFamTab()")
-            page.wait_for_timeout(400)
-
         def dailyfam():
             ensure_account()
             page.evaluate("openPlayFAM()")
@@ -2431,15 +2321,9 @@ def main() -> int:
                               "stopSpeech(); clearGenOverlay(); answerReading(''); }")
 
         def report_and_block_are_in_the_menus():
-            """App Store 1.2 (moderation.py): somebody else's comment has
-            Report, a profile has Report and Block, and a report offers the
-            server's reasons."""
-            html = page.evaluate(
-                "() => rcItemHTML({id: 7, text: 'hi', name: 'Ben', handle: 'ben', mine: false, likes: 0}, false)")
-            assert "Report" in html, "another listener's comment has no Report"
-            own = page.evaluate(
-                "() => rcItemHTML({id: 8, text: 'hi', name: 'Me', handle: 'me', mine: true, likes: 0}, false)")
-            assert "Report" not in own, "your own comment offers Report"
+            """App Store 1.2 (moderation.py): a profile has Report and Block,
+            and a report offers the server's reasons. (Comments, and their
+            Report, went with exploreFAM in the 11.3 packet.)"""
             page.evaluate("viewingProfile = {handle: 'ben', name: 'Ben'}; openPersonMenu()")
             page.wait_for_timeout(250)
             rows = page.evaluate(
@@ -3149,13 +3033,8 @@ def main() -> int:
             page.wait_for_timeout(400)
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(600)
-            # And Explore opens from the exploreFAM pill beside Made for you
-            # (10.5 packet #7).
-            page.click("#myfamExploreBtn")
-            page.wait_for_timeout(700)
-            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-explore"
-            page.evaluate("openMyFamTab()")
-            page.wait_for_timeout(400)
+            # exploreFAM is gone (the 11.3 packet): no screen to open.
+            assert not page.query_selector("#screen-explore"), "exploreFAM's reel is back"
 
         def profile():
             page.evaluate("openProfile()")
@@ -3358,14 +3237,6 @@ def main() -> int:
             page.wait_for_timeout(400)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player"
             assert page.evaluate("FamAudio.isActive()"), "reopening the player restarted nothing - it stopped"
-            # Explore's reels own the audio there: the minimised episode is
-            # ended on the way in, not left playing under a reel card.
-            page.evaluate("minimizePlayer(); openExplore()")
-            page.wait_for_timeout(500)
-            assert page.evaluate("audioOwner !== 'player'"), \
-                "a minimised episode kept playing inside Explore"
-            assert page.evaluate("nowBarState === null"), \
-                "the mini bar still holds an episode Explore ended"
             # The mini bar's X stops the episode as well as hiding the bar
             # (§250): with the bar gone nothing else could stop it.
             page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); setTab('home')")
@@ -3612,7 +3483,7 @@ def main() -> int:
         #: button and it was taken off. It is a strip with three things
         #: competing for a thumb, and the only irreversible one of them was
         #: the one that posts to your friends.
-        PLAYERS = ["screen-player", "screen-playall", "screen-explore"]
+        PLAYERS = ["screen-player", "screen-playall"]
 
         def the_mini_bar_offers_no_vibe():
             """Removed on purpose, so an absence is a decision and not a gap."""
@@ -3635,7 +3506,6 @@ def main() -> int:
                 """() => ({
                      player: document.getElementById("playIcon2").innerHTML,
                      playall: document.getElementById("paPlayIcon2").innerHTML,
-                     reel: document.getElementById("reelPlay").innerHTML,
                      bar: document.getElementById("nowPlay").innerHTML
                    })""")
             page.evaluate("setPlayState(true)")
@@ -3643,10 +3513,9 @@ def main() -> int:
                 """() => ({
                      player: document.getElementById("playIcon2").innerHTML,
                      playall: document.getElementById("paPlayIcon2").innerHTML,
-                     reel: document.getElementById("reelPlay").innerHTML,
                      bar: document.getElementById("nowPlay").innerHTML
                    })""")
-            for key in ("player", "playall", "reel", "bar"):
+            for key in ("player", "playall", "bar"):
                 assert paused[key] != playing[key], (
                     f"{key} drew the same thing paused and playing")
             # The mini bar's button must route through the same state rather
@@ -3658,8 +3527,6 @@ def main() -> int:
                 "the mini bar paused without telling the player")
 
         def echo_button():
-            page.evaluate("openExplore()")
-            page.wait_for_timeout(2200)
             missing = page.evaluate(
                 """(ids) => ids.filter(function(id){
                        var el = document.getElementById(id);
@@ -3682,7 +3549,7 @@ def main() -> int:
                 """() => Array.from(document.querySelectorAll("[data-echo]"))
                        .filter(function(el){ return el.classList.contains("echoed"); }).length"""
             )
-            assert total >= 3, f"expected an echo control on every player, found {total}"
+            assert total >= 2, f"expected an echo control on every player, found {total}"
             assert lit == total, f"only {lit} of {total} echo controls showed the echoed state"
             assert still == 0, f"{still} echo control(s) stayed lit after un-echoing"
 
@@ -4042,62 +3909,23 @@ def main() -> int:
             )
             assert leftovers == 0, f"{leftovers} old per-screen overlay(s) survive"
 
-        def explore():
-            page.evaluate("openExplore()")
-            page.wait_for_timeout(2500)
-            first = page.text_content("#reelTitle")
-            assert first and "Loading" not in first, f"reel never loaded ({first!r})"
-            page.wait_for_timeout(2000)
-            assert page.evaluate("FamAudio.position()") > 0, "audio never started"
-            # §134: the corner is the episode's play count, never how many
-            # cards this session has swiped - and the thumbs are on the card.
-            corner = page.text_content("#reelCount") or ""
-            assert re.fullmatch(r"[\d,]+ plays?", corner), \
-                f"the corner reads {corner!r}, not a play count"
-            assert page.eval_on_selector_all(
-                "#reelLike, #reelCommentN, #reelVibeN", "e => e.length") == 3
-            page.evaluate("nextReel()")
-            page.wait_for_timeout(1500)
-            assert page.text_content("#reelTitle") != first, "swipe did not advance"
-
-        def explore_goes_deeper_with_a_suggestion_and_a_length():
-            """28/09: Explore has Go Deeper; every Go Deeper offers a
-            follow-up on the thread beside the box for typing one, and a
-            length of 1-5 minutes that the follow-up is asked at."""
-            page.evaluate("openExplore()")
-            page.wait_for_function("reelCurrent && !!reelCurrent.query", timeout=5000)
-            assert page.is_visible("#reelDeeper"), "no Go Deeper on the Explore card"
-            page.click("#reelDeeper")
-            assert page.eval_on_selector(
-                "#goDeeperOverlay", "e => e.classList.contains('active')"), \
-                "Go Deeper did not open from Explore"
-            chip = page.text_content("#goDeeperSuggestion") or ""
-            assert page.is_visible("#goDeeperSuggestion") and chip.strip(), \
-                "no suggested follow-up on Explore's Go Deeper"
-            assert page.is_visible("#goDeeperInput"), "no box to type a follow-up"
-            lengths = page.eval_on_selector_all(
-                "#goDeeperLengths .deeper-len", "e => e.map(b => b.textContent.trim())")
-            assert lengths == ["1", "1.5", "2", "3", "4", "5"], lengths  # §332
-            page.click('#goDeeperLengths .deeper-len[data-min="4"]')
-            page.fill("#goDeeperInput", "what happens next")
-            # An earlier check may already have made a follow-up (§285's
-            # Continue does), so wait for *this* one: one more than before.
-            before = page.evaluate(
-                "Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).length")
-            page.evaluate("confirmGoDeeper()")
-            # A typed follow-up is corrected at send (§247), which can answer
-            # after the call returns: wait for the follow-up, not a fixed beat.
-            page.wait_for_function(
-                "n => Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).length > n",
-                arg=before, timeout=10000)
-            got = page.evaluate("""() => {
-              var k = Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).pop();
-              return k ? { minutes: TOPICS[k].exploreMinutes,
-                           parent: TOPICS[k].parentTopic } : null; }""")
-            assert got and got["minutes"] == 4, f"the length chosen was not asked for: {got}"
-            assert got["parent"], "the follow-up lost the episode it follows"
-            page.wait_for_timeout(600)
-            page.evaluate("stopSpeech(); showScreen('home')")
+        def not_interested_takes_a_tile_off_the_page():
+            """The 11.3 packet #2: a tile's three dots end in Not interested,
+            and choosing it takes that tile off the page at once."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector("#myfamFeed .seed-card[data-topic]", timeout=10000)
+            tid = page.eval_on_selector("#myfamFeed .seed-card[data-topic]",
+                                        "e => e.getAttribute('data-topic')")
+            page.evaluate("id => openTileMenu(id)", tid)
+            page.wait_for_selector("#sheetOverlay.active", timeout=3000)
+            rows = page.eval_on_selector_all("#sheetCard .sheet-item",
+                                             "e => e.map(x => x.textContent.trim())")
+            assert rows and rows[-1] == "Not interested", f"the tile's menu ends {rows}"
+            page.click("#sheetCard .sheet-item:last-child")
+            page.wait_for_timeout(300)
+            assert not page.query_selector(
+                f'#myfamFeed .seed-card[data-topic="{tid}"]'), \
+                "the tile stayed on the page after Not interested"
 
         def the_interests_list_is_alphabetical():
             """28/09: the interests list, first run and Settings, is A to Z."""
@@ -4370,8 +4198,6 @@ def main() -> int:
         check("The player names its four icons", the_player_names_its_four_icons)
         check("An episode is titled by what it is about",
               an_episode_is_titled_by_what_it_is_about)
-        check("A friend's vibe is named on an Explore card",
-              a_friends_vibe_is_named_on_an_explore_card)
         check("Friends navigation comes back to your own profile",
               friends_navigation_comes_back_to_your_own_profile)
         check("A friend's profile shows what they published",
@@ -4422,12 +4248,8 @@ def main() -> int:
               dailyfam_searches_other_peoples_mixes)
         check("Tapping Added again removes the mix", an_added_mix_is_removed_by_the_same_button)
         check("A mix is shared from its menu", a_mix_is_shared_from_its_menu)
-        check("Explore plays and advances", explore)
-        check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
-        check("Explore's comments open on a thread", explores_comments_open_on_a_thread)
-        check("Explore goes deeper, with a suggestion and a length",
-              explore_goes_deeper_with_a_suggestion_and_a_length)
         check("The interests list is alphabetical", the_interests_list_is_alphabetical)
+        check("Not interested takes a tile off the page", not_interested_takes_a_tile_off_the_page)
         check("Messages opens and closes", messages_sheet)
         check("YourFAM renders identity, friends, messages and shelf", profile)
         check("The player's X minimises into the mini bar",

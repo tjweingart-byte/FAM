@@ -37,6 +37,7 @@ FAM" section tells it in full (`static/waitlist.html`).
 > copy against it.
 
 <!-- rule:three-surfaces -->
+> **Current (PROBLEMS.md §498, the owner's 11.3 packet):** Explore is out of the app: "it is a complete afterthought and not one of the main value adds of the platform. It just doesn't add anything and operates completely differently from the rest of the platform." The surfaces are searchFAM, myFAM and DailyFAM. Everything below about Explore's feeds is history; `/api/explore?feed=` still answers an installed client (`old-clients`).
 > **Current (PROBLEMS.md §255, the owner 10.12):** Explore deals what a dropdown under its wordmark picks - Made for you, Trending (that rail's already-cached tiles, in its order), Most recent (every surface's cached episodes, newest first), What people are searching (other listeners' *searched* episodes, the old feed and the default) or Explore (the whole cached catalogue, shuffled). Made for you, Trending and Most recent run out into the shuffled catalogue. Every feed is `/api/explore?feed=`, the shared cache only, `cached_only`, never your own; "searched only" now holds for What people are searching alone.
 ## Where this is going
 
@@ -115,6 +116,8 @@ myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
 
 <!-- rule:explore-reel -->
+> **Current (PROBLEMS.md §498, the owner's 11.3 packet): exploreFAM is out of the app entirely.** The reel screen, its pill on search's top right and beside Made for you, search's right-to-left swipe, the feed dropdown, "Interested?", the reel's Go Deeper and the comments sheet are all deleted from `static/index.html`, with their script and styles. A category, which opened the reel since §253, plays in the ordinary player (`your-categories`). The server keeps `/api/explore`, the comment endpoints and their tables, because a phone that has not updated still calls them (`old-clients`); nothing in the current page reaches them. "No dislike anywhere" still holds. Bringing any of it back is the owner's call.
+
 > **Current (PROBLEMS.md §363, the owner 10.31):** the feed dropdown's first choice is **All** - every other feed (Made for you, Trending, What people are searching, Most recent, the catalogue) in one shuffled deal, an equal share of each, one card per episode (`app._explore_all_entries`); still the shared cache only.
 
 > **Current (PROBLEMS.md §255):** the back arrow top left is the Home logo (DailyFAM's house), and the feed dropdown sits under the wordmark (see `three-surfaces`).
@@ -159,6 +162,7 @@ taste; the plane opens VIBE! on that episode, with its picture, for your own
 story. Typing holds the story.
 
 <!-- rule:vibe-caption -->
+> **Current (PROBLEMS.md §498, the owner's 11.3 packet):** a vibe is deleted whole. Pressing and holding a vibe on your own YourFAM grid (or right-clicking it) opens a sheet with **Remove vibe from profile**; your own story's ⋯ says **Delete vibe** where it said "Remove from your story". Both are `DELETE /api/vibe` (`social.unecho`): the row goes, so the grid, the story and My Vibe all lose it, and its folder is cleared. The owner: "If I want it deleted, I should be able to completely delete it." A note's "Remove from your story" is unchanged. `/api/vibe/story/{id}` (story only) stays for installed clients.
 **A vibe can carry a caption (§203).** Tapping VIBE! opens a sheet with an
 optional line (`social.MAX_CAPTION`, cut not refused, slurs removed); the
 story that vibe plays as draws it under the title. Stored on the echo row,
@@ -806,6 +810,7 @@ to the writer is judged.
   the response carries no id.
 
 <!-- rule:dailyfam-catalogue -->
+> **Current (PROBLEMS.md §498, the owner's 11.3 packet):** beside each row's length and plays, the day the episode was made: "Today", "Yesterday", "2 days ago" … "6 days ago", then the date ("Oct 28", the year added once it is not this one). Counted in calendar days on the listener's device (`episodeDayLabel`), from the server's `sourced_age_seconds` - an age, never a clock reading. Search results draw the same line.
 > **Current (PROBLEMS.md §255):** the bookshelf that opens it is on search's top left, no longer in DailyFAM's header.
 - **Search DailyFAM opens on an A to Z catalogue** *(PROBLEMS.md §193, the
   owner's sketch)*: before anything is typed, the screen behind myFAM's
@@ -818,6 +823,7 @@ to the writer is judged.
   (`rank_similar`, unchanged); clearing the box brings it back.
 
 <!-- rule:your-categories -->
+> **Current (PROBLEMS.md §498, the owner's 11.3 packet):** with exploreFAM gone, a category no longer opens a reel. A tap plays that episode in the player, replay only (`cachedOnly`, as the catalogue plays one), and queues the rest of the page after it in the page's order; Shuffle play does the same from a shuffled copy (`playCategoryList`, the ordinary queue of §190). "You're all caught up" went with the reel. The owner asked for the categories section and page to be redesigned: five options are in a deck for them to choose from, and none is built.
 > **Current (PROBLEMS.md §255, the owner 10.12):** a category's reel does not go round: past its last card, "You're all caught up - Explore a different category?" offers four other categories (followed first, then facets; never this one or its heading), each of which opens and shuffles. Shuffle play is smaller. An episode filed by its words is filed under its deepest match and that branch only - never every facet its words touched - so Shuffle play holds only that category.
 - **Your categories** *(PROBLEMS.md §229, at the owner's direction)*: under
   the mixes on the screen that shows "myFAM", the categories a listener

@@ -580,22 +580,6 @@ def test_skip_to_next_is_on_the_player_and_only_drawn_for_a_playlist():
     assert "drawMixSkip(!!mixOnEnd)" in INDEX
 
 
-def test_explore_shows_the_episodes_plays_and_not_the_sessions_swipes():
-    assert '(reelHistory.length) + " played"' not in INDEX
-    body = re.search(r"function drawReelStats\(\)\{(.*?)\n  \}", INDEX, re.S).group(1)
-    assert "ep.plays" in body
-    for element in ('id="reelLike"', 'id="reelVibeN"', 'id="reelLikeN"'):
-        assert element in INDEX
-    # No dislike anywhere in the app (the 10.5 packet, at the owner's
-    # direction).
-    assert "rateReel(-1)" not in INDEX and 'id="reelDislike"' not in INDEX
-
-
-def test_explore_still_plays_cached_only():
-    body = re.search(r"function playReel\(\)\{(.*?)\n  \}", INDEX, re.S).group(1)
-    assert "cachedOnly: true" in body
-
-
 def test_the_deployment_turns_the_trending_source_on():
     render = open(os.path.join(ROOT, "render.yaml"), encoding="utf-8").read()
     assert re.search(r"- key: GDELT\n\s+value: \"1\"", render)
@@ -642,17 +626,6 @@ def test_a_page_of_counts_matches_one_episode_at_a_time(tmp_path):
     many = s.episode_counts_many(pairs, "a")
     for q, m in pairs:
         assert many[(q, m)] == s.episode_counts(q, m, "a"), (q, m)
-
-
-def test_a_thumb_does_not_zero_the_play_count(client):
-    appmod.SCRIPT_CACHE.put("k1", ["A sentence."], 600, "why volcanoes erupt",
-                            "", 3, origin="search")
-    appmod.SCRIPT_CACHE.record_play("k1")
-    body = client.post("/api/rate", json={"query": "why volcanoes erupt",
-                                          "minutes": 3, "value": 1,
-                                          "key": "k1"}).json()
-    assert body["plays"] == 1
-    assert re.search(r"value: next,\s*key: ep\.key", INDEX)
 
 
 def test_a_friends_mix_does_not_take_over_a_running_playlist():

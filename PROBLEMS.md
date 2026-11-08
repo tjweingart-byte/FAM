@@ -31217,3 +31217,90 @@ that decide how often a listener meets a cold worker - idle timeout, GPU
 supply in the network volume's data center, builds - are in
 REMOTE_VOICE.md, "When episodes stall at Generating the audio".
 `tests/test_voice_wait_497.py`.
+
+## 498. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08)
+
+Six requests from the owner's 11.3 packet, with screenshots.
+
+**1. Categories, re-explored (a deck, nothing built).** "Right now the way it
+is formatted, it feels like an afterthought on the myFAM page. Additionally,
+the layout of one of the categories once you click on it is overcomplicated
+and poor. Please brainstorm 5 options in a slideshow that we can choose from."
+Five options went to the owner as a private slide deck
+(https://claude.ai/artifact/FFdWbVwozhgG8RmEckvBAk): shelves (a rail per
+followed category), filter chips over myFAM, picture albums, "Today in…"
+bundles that play as an album straight from myFAM (the deck's
+recommendation), and topic hubs. Every option plays in the player, never a
+reel, and stays cached-only. Nothing waits on it except the owner's choice.
+
+**2. exploreFAM, removed.** "Remove exploreFAM entirely from FAM…it is a
+complete afterthought and not one of the main value adds of the platform. It
+just doesn't add anything and operates completely differently from the rest
+of the platform." Deleted from `static/index.html`: the reel screen and its
+~1,250 lines of script (feeds and their dropdown, "Interested?", the reel's
+Go Deeper, the comments sheet, the keyboard), its ~230 lines of styles, the
+pill on search and the one beside Made for you, and search's right-to-left
+swipe. Every place outside it that reached in - `setPlayState`'s fourth
+player, `currentEpisode`, the vibe count, the report context, the mini bar's
+exception, the scrubber, `setTab` ending a minimised episode, Motion's
+`settleReel` - was taken out with it. A category, which opened the reel since
+§253, now plays in the player: a tap plays that episode replay-only and
+queues the rest of the page; Shuffle play does it from a shuffled copy
+(`playCategoryList`); "You're all caught up" went with the reel. The private
+search note and Settings said "off exploreFAM"; they say "out of the episode
+library" now. **Kept on the server**, because a phone that has not updated
+still calls them (`old-clients`): `/api/explore`, the comment endpoints and
+tables, `/api/rate`. Explore New, a different screen, is untouched.
+
+**3. "Not interested", in a tile's three dots** - the owner reversing §171 for
+this one menu. The row ends DailyFAM's tile menu (`tileNotInterested`): the
+tile leaves the page at once and the client records `not_interested`.
+`topics.NOT_INTERESTED` is a new kind weighted -1.5 (three skips); a new
+`EventStore.not_interested` read, like `heard`, is the listener's whole
+history rather than the taste window, and `not_wanted` turns it into tile ids
+- by id or by question, so the same episode under another tile goes too -
+that `build_feed` and `build_section` exclude beside "no repeats". It teaches
+no familiar word and mints no subject. Not `hide` revived: its rows from the
+two days it existed were choices made under a control that was then taken away, and stay
+read by nothing. Still no button on the card. A guest's choice is dropped
+like every guest event, so for a guest the tile only leaves that page.
+
+**4. The day an episode was made, in the catalogue.** "If it was within the
+past week, have it say '2 days ago' '6 days ago' 'yesterday'. If it was more
+than 6 days ago, have it display the date." Each row's meta now ends
+`· TODAY` / `· YESTERDAY` / `· 2 DAYS AGO` … `· 6 DAYS AGO` / `· OCT 28` (the
+year added once it is not this one), from `sourced_age_seconds`, which
+`/api/myfam/catalog` and `/api/myfam/search` already sent, counted in calendar
+days on the device (`episodeDayLabel`) so 11pm last night is "Yesterday" at
+8am. No server change.
+
+**5. A vibe deleted from the profile.** "When you press and hold on a vibe on
+your grid, the popup should appear that gives you the option to 'remove vibe
+from profile'… I deleted one from my story but it said it remains on the
+profile grid. That should not be the case." Holding a tile on your own
+YourFAM grid for 500 ms (or right-clicking it) opens a sheet with **Remove
+vibe from profile**; the click that follows a hold is swallowed so lifting
+does not also play it, a moving finger is a scroll, and the phone's own
+callout is off on those tiles. Your story's ⋯ says **Delete vibe** where it
+said "Remove from your story". Both are `DELETE /api/vibe` (`social.unecho`,
+which already existed for My Vibe's X): the row goes, so the grid, the story,
+My Vibe and the vibe count all lose it. A friend's grid has no hold.
+
+**6. Larger text.** "When someone has their phone settings set so that the
+font of the text is bigger, the layout gets messed up on FAM." The
+screenshot's breakage was the exploreFAM pill sharing "Made for you"'s row,
+which #2 removed. To find the rest, every font on every `tools/shots.py`
+surface was scaled by 1.35 and 1.7 in the browser and the page searched for
+text overlapping other text or leaving the screen. Two real faults: the "Pick
+up where you left off" cards had fixed 80px/104px heights and cut their own
+time-left line (now floors, `min-height`, identical at the default size), and
+the centred "dailyFAM" wordmark, positioned from the middle, could only use
+half the header and broke over two lines (now `nowrap`). Left: the 22px
+stacked friend faces, whose initials crowd at 1.7 but stay inside their
+circles. Nothing locks the text size; that would refuse the listener's own
+setting. Rule `large-text`.
+
+Tests: `tests/test_packet_1103.py`; the explore-only tests across ten files
+were removed or turned into "it is gone" checks (`test_explorefam_is_gone_from_the_app`);
+the browser smoke run lost its five reel checks and gained "Not interested
+takes a tile off the page".

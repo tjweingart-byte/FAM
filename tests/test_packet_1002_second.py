@@ -106,50 +106,6 @@ def test_the_icon_is_served(client):
 
 # --- 3. Explore turns the whole page ----------------------------------------
 
-def test_a_turn_moves_the_stage_not_the_words():
-    turn = _fn("turnReel")
-    assert 'getElementById("reelStage")' in turn and "setReelShift(stage" in turn
-    assert ".turning" not in INDEX, "the old fade-the-words turn is back"
-    assert "touchmove" in INDEX.split("Swipe up / down, wheel", 1)[1].split("})();", 1)[0]
-
-
 # --- 4. Interested? ---------------------------------------------------------
 
-def test_interested_sits_at_the_bottom_with_x_left_and_tick_right():
-    stage = INDEX.split('id="reelStage"', 1)[1].split('<div class="tabbar">', 1)[0]
-    ask = stage.split('id="reelHint"', 1)[1]
-    assert ask.index('id="reelAskNo"') < ask.index("Interested?") < ask.index('id="reelAskYes"')
-
-
-def test_the_x_is_a_skip_and_never_not_interested():
-    """§171 stands: the X sends the signal leaving early already sends."""
-    body = _fn("reelAnswer")
-    assert 'recordFamEvent("skip"' in body and 'recordFamEvent("pick"' in body
-    assert "hide" not in body
-    assert "skip" in T.EVENT_KINDS and "pick" in T.EVENT_KINDS
-    assert T.HIDE not in T.EVENT_KINDS
-
-
 # --- 5. Explore from search -------------------------------------------------
-
-def test_search_has_the_explore_arrow():
-    home = INDEX.split('id="screen-home"', 1)[1].split("</section>", 1)[0]
-    btn = home.split('id="homeExploreBtn"', 1)[1].split("</button>", 1)[0]
-    # The exploreFAM pill since the 10.5 packet (#7).
-    assert "openExplore('home')" in home and 'class="home-explore xfam-pill"' in home
-    assert "explore<span" in btn
-
-
-def test_a_swipe_on_search_reveals_explore_under_it():
-    swipe = INDEX.split("Search slides away to show Explore under it", 1)[1] \
-        .split("})();", 1)[0]
-    assert 'under.classList.add("peek")' in swipe
-    assert "primeExplore()" in swipe and 'openExplore("home")' in swipe
-    # A peeked card is drawn, never played, until Explore is really opened.
-    assert "playReel" not in _fn("primeExplore")
-    assert "if(reelUnplayed) playReel();" in _fn("openExplore")
-
-
-def test_explore_from_search_goes_back_to_search():
-    assert 'setTab("home")' in _fn("exploreBack")
-    assert 'onclick="exploreBack()"' in INDEX

@@ -157,12 +157,6 @@ def test_a_category_still_walks_its_own_branch_first(tree):
 
 # --- 5. All on exploreFAM -------------------------------------------------------
 
-def test_all_is_the_first_choice_and_a_shuffled_one():
-    feeds = INDEX.split("var EXPLORE_FEEDS = [", 1)[1].split("];", 1)[0]
-    assert feeds.strip().splitlines()[0].strip() == '{ id: "all", label: "All", shuffled: true },'
-    assert "all" in appmod.EXPLORE_FEEDS
-
-
 class _Cache:
     def __init__(self, rows):
         self.rows = rows

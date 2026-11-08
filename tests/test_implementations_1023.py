@@ -79,7 +79,8 @@ def test_the_dailyfam_tab_scrolls_to_the_top_when_already_there():
 
 def test_every_add_to_playlist_row_draws_the_myfam_logo():
     assert 'menuLabel("add", "Add to playlist")' not in INDEX
-    assert INDEX.count("addToPlaylistLabel(),") == 3
+    # The player's and a tile's menus (the reel's went with exploreFAM, 11.3).
+    assert INDEX.count("addToPlaylistLabel(),") == 2
     label = _js("addToPlaylistLabel")
     # One flex item, or the row's gap splits "Add to", the mark and "Playlist".
     assert '"<span>Add to " + myFamMark() + " Playlist</span>"' in label

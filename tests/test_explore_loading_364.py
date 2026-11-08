@@ -35,26 +35,3 @@ def test_found_is_said_only_for_an_episode_the_server_gave():
     play = _body(AUDIO, "play")
     assert play.index("if (!res.ok)") < play.index('stage("found")')
 
-
-def test_reel_wires_the_marks_and_holds_nothing():
-    reel = _body(PAGE, "playReel")
-    assert "onStage: steps.mark" in reel
-    assert "startGate" not in reel
-    assert "steps.done()" in reel.split("onFirstAudio")[1].split("onEnd")[0]
-    assert "steps.done()" in reel.split("onError")[1]
-
-
-def test_steps_have_no_clock_but_the_show_threshold():
-    steps = _body(PAGE, "startReelSteps")
-    # One timer, and it only decides whether to show them at all.
-    assert steps.count("setTimeout(") == 1
-    assert "REEL_STEPS_AFTER_MS" in steps
-    assert "setInterval" not in steps
-    assert 'id="reelSteps"' in PAGE
-    assert '"Finding the episode", "Downloading audio", "Starting"' in PAGE
-
-
-def test_a_stopped_card_clears_its_steps():
-    assert "reelStepsRun.done()" in _body(PAGE, "stopReelProgress")
-    # A redraw clears another card's steps, never its own still loading.
-    assert "reelStepsRun.ep !== ep) reelStepsRun.done()" in _body(PAGE, "renderReel")

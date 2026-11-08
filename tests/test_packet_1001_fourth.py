@@ -119,8 +119,7 @@ def test_a_referral_link_is_never_relative(monkeypatch):
 
 def test_opening_go_deeper_does_not_stop_the_episode():
     assert "stopSpeech()" not in _fn("openGoDeeper")
-    reel = _fn("openGoDeeperOnReel")
-    assert "stopSpeech()" not in reel and "stopReelProgress()" not in reel
+    assert "stopSpeech()" not in _fn("openGoDeeperOn")
 
 
 def test_an_episode_ending_under_go_deeper_starts_nothing_over_it():
@@ -130,9 +129,6 @@ def test_an_episode_ending_under_go_deeper_starts_nothing_over_it():
     assert end.index("if(goDeeperIsOpen()) return;") < end.index("playQueueNext()")
     assert end.index("if(goDeeperIsOpen()) return;") < end.index("maybeOfferNextUp(")
     assert "goDeeperIsOpen()" in _fn("maybeOfferNextUp")
-    # Explore: the reel does not deal the next card under it.
-    reel = INDEX[INDEX.index("function playReel("):INDEX.index("function reelTogglePlay(")]
-    assert reel.index("if(goDeeperIsOpen()) return;") < reel.index("nextReel();")
 
 
 # --- 5. The listener's clock -----------------------------------------------
