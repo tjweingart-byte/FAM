@@ -492,4 +492,4 @@ and `limit` = Lines.
 | 31221 | 108 | 498. The 11.7 myFAM packet: a mix is made by naming it, Spotify's playlist page, short names for long topics, joint mixes (2026-11-08) |
 | 31329 | 109 | 499. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
-| 31500 | 50 | 501. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
+| 31500 | 65 | 501. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |

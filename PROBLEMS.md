@@ -31546,3 +31546,18 @@ it was on, then played smoothly once it was off. The log was cleared by
 accident, so whether that was the buffer running dry or a reconnect is not
 recorded; redo it with the log before calling reconnects proven. **Stage 2
 passes**: background PCM streaming on `AVAudioPlayerNode` is the approach.
+
+**The log, read after the test, found a bug the ear could not.** At 14:16:19
+a call interrupted the episode and the route changed twice; each change
+emptied the player node, every queued buffer reported itself played, and
+the player logged `finished: 1:30 heard` 17 seconds early and started the
+next sample. With one sample looping it sounded like a resume. Fixed in
+`StreamPlayer`: every sample that arrives is kept, the node only ever holds
+a copy, a buffer's completion counts only for the current filling (`epoch`),
+and pause, an interruption or a route change refills the node from the
+heard position (`refill(from:play:)`). Also from the log: first audio in
+0.36-0.93 s on a cache hit, the whole 1:30 arriving in about a second, the
+server sending 24 kHz (read from `X-Sample-Rate`), and no "interruption
+over" ever logged - iOS did not send one after the call, so resuming then is
+the listener's tap. "App came back" is now logged on `didBecomeActive`, so it
+reads `[fg]`.

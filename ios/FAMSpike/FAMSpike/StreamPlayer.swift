@@ -8,14 +8,23 @@ import UIKit
 /// (IOS_APP.md stage 2).
 ///
 /// What the server sends with `fmt=pcm`: bare 16-bit little-endian mono
-/// samples at the rate in `X-Sample-Rate` (22050 unless it says otherwise),
-/// no header, until the episode ends. `static/fam-audio.js` is the reference
-/// player; this does what its PCM path does: buffer as it arrives, start
-/// once half a second is in hand, never play past what has arrived.
+/// samples at the rate in `X-Sample-Rate`, no header, until the episode
+/// ends. `static/fam-audio.js` is the reference player; this does what its
+/// PCM path does: keep every sample that arrives, start once half a second
+/// is in hand, never play past what has arrived.
+///
+/// **Every sample is kept, and the player node only ever holds a copy.** iOS
+/// throws away whatever is queued on an `AVAudioPlayerNode` when the audio
+/// route changes or a call takes the session (the first phone test, PROBLEMS.md
+/// §501: a call mid-episode read as the episode ending, and the last 17
+/// seconds were skipped). So the position is the truth, and after any pause,
+/// interruption or route change the node is refilled from that position.
+/// A buffer's completion only counts if it belongs to the current filling
+/// (`epoch`); one flushed by a stop is ignored.
 ///
 /// Everything here runs on the main queue - the URLSession delegate queue is
 /// `.main`, and every notification is observed on `.main` - so there is no
-/// locking. At 44 KB a second the main thread does not notice.
+/// locking. At 48 KB a second the main thread does not notice.
 final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     enum Phase: String {
         case idle, connecting, buffering, playing, paused, finished, failed
@@ -43,19 +52,31 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     private var task: URLSessionDataTask?
     private var request: URLRequest?
-    /// Bumped on every new episode, so callbacks from the last one are ignored.
+    /// Bumped on every new episode, so stream callbacks from the last one are ignored.
     private var generation = 0
 
     private var sampleRate: Double = 22050
+    /// Every sample of this episode that has arrived.
+    private var samples: [Float] = []
     /// Bytes of samples taken in from this episode's stream.
     private var bytesTaken = 0
     /// Bytes to drop at the front of a reconnected stream (what was already taken).
     private var skip = 0
     /// A byte of a sample that straddled two chunks.
     private var carry = Data()
-    private var pending: [Float] = []
-    private var scheduledFrames: AVAudioFramePosition = 0
+
+    /// Bumped every time the node is refilled; older buffers' completions are ignored.
+    private var epoch = 0
+    /// The frame the node's current filling starts at.
+    private var base = 0
+    /// The next frame to hand the node.
+    private var next = 0
+    /// Buffers of the current filling not yet played.
     private var outstanding = 0
+    /// The last position read while the node was running: where to pick up
+    /// when the node's own clock is gone (after a stop or a route change).
+    private var lastFrame = 0
+
     private var streamDone = false
     private var started = false
     private var retries = 0
@@ -82,8 +103,8 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         generation += 1
         self.title = title
         self.request = request
-        bytesTaken = 0; skip = 0; carry = Data(); pending = []
-        scheduledFrames = 0; outstanding = 0
+        samples = []; bytesTaken = 0; skip = 0; carry = Data()
+        epoch += 1; base = 0; next = 0; outstanding = 0; lastFrame = 0
         streamDone = false; started = false; retries = 0
         refusedStatus = nil; refusalBody = Data()
         position = 0; arrived = 0
@@ -99,22 +120,20 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     func pause() {
         guard phase == .playing || phase == .buffering else { return }
-        node.pause()
+        hold()
         phase = .paused
-        log("paused")
+        log("paused at \(fmt(position))")
         nowPlaying()
     }
 
     func resume() {
         guard phase == .paused else { return }
-        guard activateSession() else { return }
-        if !engine.isRunning {
-            do { try engine.start() } catch { fail("the audio engine would not restart: \(error.localizedDescription)"); return }
-        }
-        node.play()
+        guard activateSession(), startEngine() else { return }
+        refill(from: lastFrame, play: true)
         phase = outstanding > 0 ? .playing : .buffering
-        log("resumed")
+        log("resumed at \(fmt(position))")
         nowPlaying()
+        finishIfDone()
     }
 
     func toggle() { phase == .paused ? resume() : pause() }
@@ -122,6 +141,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     func stop() {
         stopStream()
         generation += 1
+        epoch += 1
         phase = .idle
         nowPlaying()
     }
@@ -216,13 +236,13 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
             return
         }
         streamDone = true
-        flush(all: true)
+        feed()
         log("all \(fmt(arrived)) arrived")
         nowPlaying()
         finishIfDone()
     }
 
-    /// Bytes in, Float samples out, scheduled in quarter-second buffers.
+    /// Bytes in, Float samples kept, the node fed.
     private func take(_ data: Data) {
         var bytes = carry
         bytes.append(data)
@@ -233,49 +253,70 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         }
         let usable = bytes.count - bytes.count % 2
         bytes.withUnsafeBytes { raw in
-            pending.reserveCapacity(pending.count + usable / 2)
+            samples.reserveCapacity(samples.count + usable / 2)
             for i in stride(from: 0, to: usable, by: 2) {
                 let value = Int16(littleEndian: raw.loadUnaligned(fromByteOffset: i, as: Int16.self))
-                pending.append(Float(value) / 32768)
+                samples.append(Float(value) / 32768)
             }
         }
         carry = Data(bytes.dropFirst(usable))
         bytesTaken += usable
-        arrived = Double(bytesTaken / 2) / sampleRate
-        flush(all: false)
+        arrived = Double(samples.count) / sampleRate
+        if phase != .paused { feed() }
     }
 
-    private func flush(all: Bool) {
+    // MARK: - Feeding the node
+
+    /// Hand the node every whole quarter-second that has arrived (and the
+    /// tail, once the stream is done), then start if half a second is in hand.
+    private func feed() {
         guard let format else { return }
         let chunk = max(1, Int(sampleRate / 4))
-        while pending.count >= chunk || (all && !pending.isEmpty) {
-            let n = min(chunk, pending.count)
+        while samples.count - next >= chunk || (streamDone && next < samples.count) {
+            let n = min(chunk, samples.count - next)
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format,
                                                 frameCapacity: AVAudioFrameCount(n)) else { return }
             buffer.frameLength = AVAudioFrameCount(n)
-            pending.withUnsafeBufferPointer { src in
-                buffer.floatChannelData![0].update(from: src.baseAddress!, count: n)
+            samples.withUnsafeBufferPointer { src in
+                buffer.floatChannelData![0].update(from: src.baseAddress! + next, count: n)
             }
-            pending.removeFirst(n)
+            next += n
             outstanding += 1
-            scheduledFrames += AVAudioFramePosition(n)
-            let gen = generation
+            let filling = epoch
             node.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-                DispatchQueue.main.async { self?.played(gen) }
+                DispatchQueue.main.async { self?.played(filling) }
             }
         }
         if phase == .buffering && outstanding > 0 {
             phase = .playing
             log("audio caught up")
         }
-        let enough = Double(scheduledFrames) >= sampleRate * 0.5
-        if !started && (enough || (streamDone && scheduledFrames > 0)) { begin() }
+        let enough = Double(next - base) >= sampleRate * 0.5
+        if !started && (enough || (streamDone && next > base)) { begin() }
+    }
+
+    /// Empty the node and fill it again from `frame`. The only way the node
+    /// is ever emptied, so a stop can never be mistaken for an ending.
+    private func refill(from frame: Int, play: Bool) {
+        epoch += 1
+        node.stop()
+        outstanding = 0
+        base = min(max(0, frame), samples.count)
+        next = base
+        lastFrame = base
+        feed()
+        if play && started { node.play() }
+    }
+
+    /// Stop the node where it is and remember where that was.
+    private func hold() {
+        lastFrame = heardFrame()
+        position = Double(lastFrame) / sampleRate
+        node.pause()
     }
 
     private func begin() {
-        if !engine.isRunning {
-            do { try engine.start() } catch { fail("the audio engine would not start: \(error.localizedDescription)"); return }
-        }
+        guard startEngine() else { return }
         node.play()
         started = true
         phase = .playing
@@ -283,8 +324,8 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         nowPlaying()
     }
 
-    private func played(_ gen: Int) {
-        guard gen == generation else { return }
+    private func played(_ filling: Int) {
+        guard filling == epoch else { return }
         outstanding -= 1
         if outstanding == 0 && !streamDone && phase == .playing {
             phase = .buffering
@@ -294,8 +335,10 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     }
 
     private func finishIfDone() {
-        guard streamDone, outstanding == 0, started, phase != .finished else { return }
-        position = Double(scheduledFrames) / sampleRate
+        guard streamDone, started, outstanding == 0, next == samples.count,
+              phase == .playing || phase == .buffering else { return }
+        lastFrame = samples.count
+        position = Double(samples.count) / sampleRate
         listened = listenedBefore + position
         ticker?.invalidate()
         ticker = nil
@@ -307,6 +350,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     private func fail(_ why: String) {
         stopStream()
+        epoch += 1
         phase = .failed
         log("FAILED: \(why)")
         nowPlaying()
@@ -320,6 +364,17 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         engine.disconnectNodeOutput(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
         engine.prepare()
+    }
+
+    private func startEngine() -> Bool {
+        guard !engine.isRunning else { return true }
+        do {
+            try engine.start()
+            return true
+        } catch {
+            fail("the audio engine would not start: \(error.localizedDescription)")
+            return false
+        }
     }
 
     @discardableResult
@@ -349,21 +404,26 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
             self?.routeChanged(note)
         }
         on(.AVAudioEngineConfigurationChange, engine) { [weak self] _ in
-            guard let self else { return }
-            // A new output (AirPods in, a car) stops the engine. Start it
-            // again and carry on from the same buffers.
-            let wasPlaying = self.phase == .playing || self.phase == .buffering
-            self.log("audio output changed; restarting the engine")
-            do { try self.engine.start() } catch { self.fail("the engine would not restart: \(error.localizedDescription)"); return }
-            if wasPlaying { self.node.play() }
+            self?.engineChanged()
         }
         on(AVAudioSession.mediaServicesWereResetNotification) { [weak self] _ in
             self?.fail("iOS reset its media services; play the episode again")
         }
         on(UIApplication.didEnterBackgroundNotification) { [weak self] _ in self?.log("app went to the background") }
-        on(UIApplication.willEnterForegroundNotification) { [weak self] _ in self?.log("app came back") }
+        on(UIApplication.didBecomeActiveNotification) { [weak self] _ in self?.log("app came back") }
         on(UIApplication.protectedDataWillBecomeUnavailableNotification) { [weak self] _ in self?.log("phone locked") }
         on(UIApplication.protectedDataDidBecomeAvailableNotification) { [weak self] _ in self?.log("phone unlocked") }
+    }
+
+    /// A new output (AirPods in, a car, a call taking the audio) stops the
+    /// engine and empties the node. Start it again and refill from where the
+    /// listener was - never from what happened to be queued.
+    private func engineChanged() {
+        let wasPlaying = phase == .playing || phase == .buffering
+        log("audio output changed at \(fmt(Double(lastFrame) / sampleRate)); restarting the engine")
+        guard wasPlaying else { return }  // resume() refills when it is time
+        guard startEngine() else { return }
+        refill(from: lastFrame, play: true)
     }
 
     private func interrupted(_ note: Notification) {
@@ -371,13 +431,13 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
               let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
         switch type {
         case .began:
-            log("interrupted (a call, an alarm, Siri)")
             if phase == .playing || phase == .buffering {
-                node.pause()
+                hold()
                 phase = .paused
                 resumeAfterInterruption = true
                 nowPlaying()
             }
+            log("interrupted at \(fmt(position)) (a call, an alarm, Siri)")
         case .ended:
             let options = AVAudioSession.InterruptionOptions(
                 rawValue: note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
@@ -397,7 +457,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         switch reason {
         case .oldDeviceUnavailable:
             // Headphones out: every audio app pauses here, so must we.
-            log("headphones disconnected; pausing (now on \(output))")
+            log("headphones disconnected (now on \(output))")
             pause()
         case .newDeviceAvailable:
             log("new output: \(output)")
@@ -442,20 +502,26 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         var beats = 0
         ticker = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.position = self.heard()
+            if self.phase == .playing || self.phase == .buffering {
+                self.lastFrame = self.heardFrame()
+            }
+            self.position = Double(self.lastFrame) / self.sampleRate
             self.listened = self.listenedBefore + self.position
             beats += 1
             if beats % 10 == 0 { self.nowPlaying() }
         }
     }
 
-    /// Where the player is, never past what was scheduled: the node's clock
-    /// keeps running through silence when the stream falls behind.
-    private func heard() -> Double {
-        guard started, let now = node.lastRenderTime,
-              let time = node.playerTime(forNodeTime: now) else { return position }
-        let clock = Double(time.sampleTime) / time.sampleRate
-        return max(0, min(clock, Double(scheduledFrames) / sampleRate))
+    /// Where the listener is, in frames: where this filling began plus how
+    /// far the node has played into it - never past what it was given (its
+    /// clock runs on through silence when the stream falls behind). When
+    /// the node has no clock (stopped, or the engine just changed), the last
+    /// reading.
+    private func heardFrame() -> Int {
+        guard started, engine.isRunning, let now = node.lastRenderTime,
+              let time = node.playerTime(forNodeTime: now) else { return lastFrame }
+        let played = Int(Double(time.sampleTime) * sampleRate / time.sampleRate)
+        return base + max(0, min(played, next - base))
     }
 
     private func log(_ text: String) {
