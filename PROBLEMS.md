@@ -31904,3 +31904,93 @@ the Postgres job (PostgreSQL 16, the CI tuning), each over the whole suite.
 Tests: added to `tests/test_nando_background_501.py`,
 `tests/test_nando_training_502.py`, `tests/test_nando_review_503.py` and
 `tests/test_sign_rulebooks_504.py`, one or more per finding.
+
+
+## 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09)
+
+The owner sent a screenshot of a PGA Tour episode on the player wearing a
+painting of a rock on a workbench - "This rock is everywhere for some
+reason" - and asked why episodes on a broad category (sports, soccer,
+politics, world) keep showing the same picture.
+
+**Why, measured offline.** Production's pictures and episodes are not
+reachable from a session, so the real picker (`pick_for_tile`) was run over a
+seeded tree and 92 realistic episode titles, each with the category a writer
+would plausibly give it. With only the eight facets painted, 85 of 92 borrowed
+a facet's picture and 41 (45%) wore sport's; with the facets and the level
+under them painted, football's one picture was on 13 and elections and
+politics' on 10; with every node painted, elections and politics was still on
+8. On words alone (an episode with no category), the seed tree placed 22 of
+92: it holds "boston celtics", not "Celtics", and no politics below one node.
+46 fell to the last borrowing step - one facet picture chosen by a hash of the
+words - so an Arsenal match wore business's picture and a hurricane culture's.
+
+**Why the PGA Tour wore the rock.** "PGA Tour" matched no node (golf is in the
+tree; "pga" is not). `tags_for_text` read "tour" as music, so culture, and the
+league as sport, and `picture_facets` returned them alphabetically -
+culture before sports - and the player takes the first painted. Every episode
+whose words touched two facets went to the alphabetically earlier one. Which
+painting the rock is was not checked from here (`fam.onrender.com` is outside
+the session's network); `/api/thumb/culture` and the seven other facets, or
+`/admin/thumbnails`, say.
+
+**What changed.**
+
+1. **Strongest first, never alphabetical.** `topics.picture_facets` orders the
+   facets by the deepest tree node the words name, then a named sport (a
+   league or team, `_names_a_sport`), then keyword count; and a borrowed
+   picture tries the facet of the episode's category before any of them.
+2. **A sport's shared words file nothing else.** `SPORT_SHARED_WORDS`
+   ("tour", "series", "box", "chart"): a subtag matched only by those is
+   dropped from `tags_for_text` when the words name a sport. "PGA Tour" is no
+   longer music; "Taylor Swift tour dates" still is.
+3. **Other names for a node** (`category_seed.ALIASES`, matched in
+   `CategoryStore.match`): "lakers", "yankees", "pga tour", "wimbledon",
+   "epl", "man city", "senate", "prime minister" ... each answered as its node
+   with that node's ancestry, never as a node. The seed's rule for teams
+   holds: no short name that is also an everyday word ("kings", "eagles",
+   "spurs" - two sports - "packers", "governor", "shutdown"); a test keeps
+   "meat packers", "a plant shutdown" and "the Bank of England governor" out.
+   An alias with a word under `MIN_WORD` could never match and is refused.
+   "celtics" was tried and taken out: Nando's corpus (§378) files "Heat beat
+   the Celtics in the playoffs" under the NBA, a game between two teams, and
+   with the Heat left to grow the alias put it under the one team it knew.
+4. **More subjects under the busy nodes**: under football, spanish football,
+   international football, womens football, football managers; under
+   elections and politics, congress, white house, supreme court, government
+   shutdown, state politics, parliament, national elections. `apply_seed` adds
+   them on the next boot; the writer sees them among its branch's names.
+5. **No hashed picture** (the owner: "drop the random fallback"). An episode
+   nothing places - no branch, no facet - shows no picture, as tiles did
+   before any picture existed. This reverses §193's "never missing" and
+   §214's "every tile" for that case only.
+6. **Several pictures per broad node** (the owner: "attach the extra
+   pictures to the node they belong to ... randomly select from the pictures
+   within that node"). Each facet and each node directly under one holds
+   `THUMBNAILS_BROAD_PICTURES` (4) pictures, as rows `node#2`, `node#3` in the
+   same table, so review, repaint, approve, reject, the duplicate check and
+   export work on them unchanged. `ThumbnailStore.approved` stays keyed by the
+   node (every "is this node painted?" reader is unchanged) and `pictures`
+   lists its live rows. `choose_picture` picks one by a hash of the node and
+   the episode's words: random across episodes, but the same one for one
+   episode on its tile, player, vibe and share card (§286). The sweep
+   (`wanted`) paints extras only after every node's first, and only for a
+   node whose first is live; `writer_line` tells the scene writer the
+   number and what the node's other pictures show, so the new one is a
+   different scene (§177).
+
+**After, the same 92 titles.** On words alone the tree now places 51 (was
+22). The category-anchored runs are unchanged by 1-5 (their categories were
+fixed). With the facets and the level under them painted, the most-worn
+picture fell from 13 of 92 episodes (football) to 5 once each of those
+nodes held four, and the effective number of distinct pictures rose from
+17.6 to 46.5; with every node painted as well, from 38.1 to 58.0.
+
+**Cost and pace.** 8 facets and 75 nodes under them, three extras each, is
+249 images, about $17 at `THUMBNAILS_IMAGE_PRICE`, painted inside the daily
+ceiling (60) after every unpainted node: roughly four days once the first
+pictures are done. Extras for the facets go first.
+
+**Unseen** with a real key, like §166-§177: look at the first few extras of
+sports and football in `/admin/thumbnails` before letting the sweep paint the
+rest.

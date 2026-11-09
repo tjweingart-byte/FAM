@@ -417,6 +417,7 @@
   only what the shared cap shows.
 
 <!-- rule:taste-tree -->
+> **Current (PROBLEMS.md §501, the owner 11.9):** a node may also be matched by **another name** (`category_seed.ALIASES`: "celtics", "pga tour", "senate"), answered as the node with its ancestry and never a node itself. The rule for teams holds for aliases: a short name only where it means nothing but the team or subject - no "kings", "eagles", "spurs", "packers", "governor", "shutdown" - and a test holds the everyday phrases out.
 - **Taste is a subject tree** *(PROBLEMS.md §202, at the owner's direction:
   "If I consistently listen to content about the Cincinnati Bengals, that
   should be under [sports, american football, bengals] ... relate that to the

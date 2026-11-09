@@ -409,6 +409,7 @@ class CategoryStore:
         self._nodes: dict[str, Node] = {}
         self._words: dict[str, frozenset[str]] = {}
         self._ancestry: dict[str, tuple[str, ...]] = {}
+        self._aliases: dict[str, str] = {}
         self._loaded_at = 0.0
         with self._conn() as conn:
             conn.execute(
@@ -534,6 +535,21 @@ class CategoryStore:
                 seen.add(current.parent_id)
                 current = nodes.get(current.parent_id)
             ancestry[node_id] = tuple(chain)
+        # Other names for a node (11.9, `category_seed.ALIASES`): indexed
+        # like a node's phrase, matched by the same in-order rule, and
+        # answered as the node they name with its ancestry. Never a node
+        # themselves, so nothing else in the tree ever sees one.
+        aliases: dict[str, str] = {}
+        for phrase, target in _seed_aliases().items():
+            phrase, target = normalise(phrase), normalise(target)
+            alias_words = frozenset(phrase.split())
+            if (not phrase or phrase in nodes or target not in nodes
+                    or alias_words != words_of(phrase)):
+                continue
+            aliases[phrase] = target
+            words[phrase] = alias_words
+            index.setdefault(min(alias_words), set()).add(phrase)
+            ancestry[phrase] = (target,) + ancestry.get(target, ())
 
         # **One assignment, four structures.** They are read from request
         # threads while the background sweep rebuilds them, and `match`
@@ -541,8 +557,8 @@ class CategoryStore:
         # so a reader landing between two assignment statements would see a
         # node in one structure and not in the next and raise `KeyError` on a
         # browse page. A single tuple assignment cannot be observed half done.
-        self._nodes, self._index, self._words, self._ancestry = (
-            nodes, index, words, ancestry)
+        self._nodes, self._index, self._words, self._ancestry, self._aliases = (
+            nodes, index, words, ancestry, aliases)
         self._loaded_at = time.time()
         return len(nodes)
 
@@ -606,7 +622,8 @@ class CategoryStore:
         # and taking `self._index` here and `self._words` three lines later
         # would be reading two different trees - the assignment in `reload` is
         # atomic, but two reads of it are not one read.
-        index, words, ancestry = self._index, self._words, self._ancestry
+        index, words, ancestry, aliases = (self._index, self._words,
+                                           self._ancestry, self._aliases)
         candidates: set[str] = set()
         for word in text_words:
             candidates |= index.get(word, set())
@@ -623,7 +640,8 @@ class CategoryStore:
                     sequences = _sequences(text)
                 if not any(_runs_in(phrase, seq) for seq in sequences):
                     continue
-            hit.add(node_id)
+            if node_id not in aliases:
+                hit.add(node_id)
             hit.update(ancestry.get(node_id, ()))
         return tuple(sorted(hit))
 
@@ -894,6 +912,17 @@ class CategoryStore:
 # --------------------------------------------------------------------------
 # The seed
 # --------------------------------------------------------------------------
+
+
+def _seed_aliases() -> dict[str, str]:
+    """`category_seed.ALIASES`, or {} if it cannot be read."""
+    try:
+        import category_seed
+
+        return dict(getattr(category_seed, "ALIASES", {}) or {})
+    except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+        log.exception("could not read the category aliases")
+        return {}
 
 
 def apply_seed(store: "CategoryStore", at: float = 0.0) -> int:

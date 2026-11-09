@@ -181,7 +181,11 @@ SEED: dict[str, dict] = {
                        "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
                      "world cup": {}, "premier league": {},
-                     "bundesliga": {}, "major league soccer": {}},
+                     "bundesliga": {}, "major league soccer": {},
+                     # 11.9: so an episode is filed below "football"
+                     # rather than wearing its one picture.
+                     "spanish football": {}, "international football": {},
+                     "womens football": {}, "football managers": {}},
         "baseball": {"mlb": MLB_TEAMS, "world series": {}},
         "ice hockey": {"nhl": NHL_TEAMS, "stanley cup": {}},
         "golf": {"major championship": {}},
@@ -283,7 +287,14 @@ SEED: dict[str, dict] = {
                             "gaza": {}, "iran": {}, "lebanon": {}},
             "ukraine": {}, "taiwan": {}},
         "elections and politics": {"presidential election": {}, "polling": {},
-                                   "political parties": {}},
+                                   "political parties": {},
+                                   # 11.9: the day's politics had one node.
+                                   "congress": {}, "white house": {},
+                                   "supreme court": {},
+                                   "government shutdown": {},
+                                   "state politics": {},
+                                   "parliament": {},
+                                   "national elections": {}},
         "trade policy": {"tariffs": {}, "sanctions": {}},
         "immigration": {},
         "energy security": {"oil supply": {}},
@@ -309,6 +320,59 @@ LOCAL_NODES = ("local news", "town council", "local schools",
                "school board", "local elections", "zoning", "food scene",
                "local restaurants", "local events", "local business",
                "high school sports")
+
+
+#: Other names for a node, matched as the node (11.9, `categories.match`):
+#: a headline says "Celtics", "PGA Tour" or "EPL", and the tree's phrase is
+#: "boston celtics", "golf" or "premier league". The same rule as the teams
+#: above: **a short name only where it means nothing but the team** - no
+#: "kings", "jazz", "eagles", "lions", "giants", "rangers" or "spurs" (two
+#: sports), no city that is also a club ("liverpool", "barcelona"), no
+#: "arsenal". An alias whose node the tree no longer holds is ignored, and
+#: one that is itself a node is the node.
+ALIASES: dict[str, str] = {
+
+
+    # NBA
+    # No "celtics": "Heat beat the Celtics" is a game between two teams, so
+    # the league (Nando's corpus, §378), and the Heat are left to grow - an
+    # alias would file it under the one team the tree knows.
+    "lakers": "los angeles lakers",
+    "knicks": "new york knicks", "cavs": "cleveland cavaliers",
+    "mavs": "dallas mavericks", "timberwolves": "minnesota timberwolves",
+    "trail blazers": "portland trail blazers",
+    # MLB
+    "yankees": "new york yankees", "dodgers": "los angeles dodgers",
+    "red sox": "boston red sox", "white sox": "chicago white sox",
+    "diamondbacks": "arizona diamondbacks", "astros": "houston astros",
+    "phillies": "philadelphia phillies", "padres": "san diego padres",
+    # NHL
+    "bruins": "boston bruins", "blackhawks": "chicago blackhawks",
+    "canadiens": "montreal canadiens", "maple leafs": "toronto maple leafs",
+    "canucks": "vancouver canucks", "oilers": "edmonton oilers",
+    "red wings": "detroit red wings", "golden knights": "vegas golden knights",
+    "blue jackets": "columbus blue jackets",
+    # golf, tennis, motor racing, fighting
+    "pga tour": "golf", "pga": "golf", "lpga": "golf", "ryder cup": "golf",
+    "atp": "tennis", "wta": "tennis", "wimbledon": "tennis",
+    "roland garros": "tennis", "grand prix": "motorsport",
+    "mma": "mixed martial arts",
+    # football's leagues and its clubs that are only clubs
+    "epl": "premier league", "mls": "major league soccer",
+    "ucl": "champions league", "laliga": "spanish football",
+    "manchester united": "premier league", "man united": "premier league",
+    "manchester city": "premier league", "man city": "premier league",
+    "tottenham hotspur": "premier league", "real madrid": "spanish football",
+    "atletico madrid": "spanish football", "bayern munich": "bundesliga",
+    "borussia dortmund": "bundesliga", "inter miami": "major league soccer",
+    # politics
+    "senate": "congress", "house speaker": "congress",
+    "lawmakers": "congress", "state legislature": "state politics",
+    "governor race": "state politics", "prime minister": "parliament",
+    "snap election": "national elections",
+    "general election": "national elections",
+    "confidence vote": "parliament", "midterms": "elections and politics",
+}
 
 
 def rows() -> list[tuple[str, str]]:
