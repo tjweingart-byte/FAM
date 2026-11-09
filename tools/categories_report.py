@@ -174,21 +174,29 @@ def audit(days: int, as_json: bool) -> int:
 
 
 def alone_rows(store) -> list[dict]:
-    """Every one-word node the tree grew (not the seed), most listeners
-    first, each with its branch and whether `NEVER_ALONE` already silences
-    it. The candidates for an everyday word painting the wrong episodes."""
-    import category_seed
-
+    """The everyday-word candidates (§511, §512), most listeners first:
+    every one-word node the tree grew (not the seed), and every grown node
+    the check leaves out because it holds a `NEVER_ALONE` word, marked
+    `silenced`, each with its branch."""
     rows = []
+
+    def branch(node_id, parent_id):
+        chain = [node_id] + ([parent_id] + list(store.ancestors(parent_id))
+                             if parent_id else [])
+        return " > ".join(reversed(chain))
+
     for node in store.nodes().values():
         if node.source == cat.SOURCE_SEED or len(node.id.split()) != 1:
             continue
-        rows.append({"node": node.id,
-                     "branch": " > ".join(reversed(
-                         [node.id] + list(store.ancestors(node.id)))),
+        rows.append({"node": node.id, "branch": branch(node.id, node.parent_id),
                      "listeners": node.listeners, "uses": node.uses,
-                     "silenced": node.id in category_seed.NEVER_ALONE})
-    rows.sort(key=lambda r: (-r["listeners"], -r["uses"], r["node"]))
+                     "silenced": False})
+    for node in store.silenced().values():
+        rows.append({"node": node.id, "branch": branch(node.id, node.parent_id),
+                     "listeners": node.listeners, "uses": node.uses,
+                     "silenced": True})
+    rows.sort(key=lambda r: (r["silenced"], -r["listeners"], -r["uses"],
+                             r["node"]))
     return rows
 
 
@@ -200,9 +208,9 @@ def alone(store, as_json: bool = False) -> int:
     if not rows:
         print("  No one-word node has grown.")
         return 0
-    print("  One-word nodes the tree grew. An everyday word here (a verb, or")
-    print("  a noun with a sense on another facet) belongs in")
-    print("  category_seed.NEVER_ALONE (§511).")
+    print("  One-word nodes the tree grew, then the grown phrases left out")
+    print("  because they hold a category_seed.NEVER_ALONE word (§512). An")
+    print("  everyday word in the first list belongs in NEVER_ALONE (§511).")
     print()
     for row in rows:
         mark = "  silenced" if row["silenced"] else ""
@@ -226,8 +234,8 @@ def main() -> int:
                         help="how often the writer, the composer and the"
                              " keyword map agree (§209)")
     parser.add_argument("--alone", action="store_true",
-                        help="the one-word nodes this tree has grown, to find"
-                             " everyday words for NEVER_ALONE (§511)")
+                        help="one-word nodes this tree has grown, and the phrases"
+                             " NEVER_ALONE leaves out (§511, §512)")
     args = parser.parse_args()
 
     if args.audit:

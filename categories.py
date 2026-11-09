@@ -264,6 +264,27 @@ def _never_alone() -> frozenset[str]:
     return category_seed.NEVER_ALONE
 
 
+_SEED_PHRASES: frozenset[str] = frozenset()
+
+
+def _seed_phrases() -> frozenset[str]:
+    """Every phrase the seed writes, normalised; read once."""
+    global _SEED_PHRASES
+    if not _SEED_PHRASES:
+        _SEED_PHRASES = frozenset(normalise(row[0]) for row in _seed_rows())
+    return _SEED_PHRASES
+
+
+def _silenced(phrase: str, source: str) -> bool:
+    """Whether a node is left out of the tree (§510, §512): holding a
+    `NEVER_ALONE` word anywhere in its phrase, and not the seed's own -
+    by source or by name, since a phrase grown before the seed named it
+    keeps its grown source."""
+    if not frozenset(phrase.split()) & _never_alone():
+        return False
+    return source != SOURCE_SEED and phrase not in _seed_phrases()
+
+
 def normalise(phrase: str) -> str:
     """One phrase, as the tree stores it: lower case, words only, collapsed.
 
@@ -504,6 +525,17 @@ class CategoryStore:
         nodes = {r[0]: Node(r[0], r[1], r[2], int(r[3]), r[4], float(r[5]),
                             float(r[6]), int(r[7]), int(r[8]), bool(r[9]))
                  for r in rows}
+        # **The check (§512).** A grown node holding a `NEVER_ALONE` word -
+        # "lead", or "world record", "power grid" - is not a category: it is
+        # left out of the tree as read, so it never matches, `get` never
+        # finds it (an episode's stored category falls back) and
+        # `category_near` never offers it. The row stays on disk, so taking
+        # a word off the list brings its phrases back. The seed's own
+        # phrases ("super bowl", "stock market") are the owner's and stay.
+        silenced = {node_id: node for node_id, node in nodes.items()
+                    if _silenced(node_id, node.source)}
+        nodes = {node_id: node for node_id, node in nodes.items()
+                 if node_id not in silenced}
         index: dict[str, set[str]] = {}
         # **Both of these are precomputed here because `match` is a read
         # path.** `taste` calls it once per event - up to four hundred - on
@@ -537,6 +569,11 @@ class CategoryStore:
                     log.warning("cycle in the category tree at %r",
                                 current.parent_id)
                     break
+                if current.parent_id in silenced:
+                    # Under a silenced node: its ancestry skips it.
+                    seen.add(current.parent_id)
+                    current = silenced[current.parent_id]
+                    continue
                 chain.append(current.parent_id)
                 seen.add(current.parent_id)
                 current = nodes.get(current.parent_id)
@@ -565,11 +602,17 @@ class CategoryStore:
         # browse page. A single tuple assignment cannot be observed half done.
         self._nodes, self._index, self._words, self._ancestry, self._aliases = (
             nodes, index, words, ancestry, aliases)
+        self._silenced = silenced
         self._loaded_at = time.time()
         return len(nodes)
 
     def nodes(self) -> dict[str, Node]:
         return dict(self._nodes)
+
+    def silenced(self) -> dict[str, Node]:
+        """Grown nodes the check leaves out of the tree (§512): each holds a
+        `category_seed.NEVER_ALONE` word. For the report, never a reader."""
+        return dict(getattr(self, "_silenced", {}))
 
     def get(self, node_id: str) -> Optional[Node]:
         return self._nodes.get(node_id)
@@ -633,9 +676,6 @@ class CategoryStore:
         candidates: set[str] = set()
         for word in text_words:
             candidates |= index.get(word, set())
-        # A one-word node grown before `NEVER_ALONE` named it reads as
-        # nothing, so a deployed tree needs no migration (§510).
-        candidates -= _never_alone()
         hit: set[str] = set()
         sequences = None
         for node_id in candidates:
@@ -683,10 +723,11 @@ class CategoryStore:
         # `_reserved_slugs` for what minting either would do to `taste`.
         if phrase in _reserved_slugs():
             return None
-        if phrase in _never_alone():
-            # An everyday word that is a subject only inside a phrase
-            # (`category_seed.NEVER_ALONE`): "lead" alone is who is winning
-            # as often as the metal.
+        if _silenced(phrase, source) and phrase not in self._nodes:
+            # An everyday word (`category_seed.NEVER_ALONE`), alone or in a
+            # phrase (§512): "lead" is who is winning as often as the metal,
+            # and "world record" is not a subject worth a node. The seed's
+            # own phrases are minted as written.
             return None
         if any(len(w) < MIN_WORD or w.isdigit() for w in phrase.split()):
             # A phrase that is partly a number is nearly always a fragment of

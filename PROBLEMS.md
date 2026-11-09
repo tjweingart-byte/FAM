@@ -32213,3 +32213,35 @@ of a word on the list is that it never grows alone; its phrases
 every one-word node the tree grew, most listeners first, with its branch
 and whether the list already silences it - run it on the deployment to
 find the next word; adding one is a line in `NEVER_ALONE`.
+
+## 512. No grown phrase holding an everyday word is a category (2026-11-09)
+
+The owner, on §511's "its phrases ('wildfire', 'power grid', 'world
+record') still do": "There should be a way that the categories tree is
+checked so that longer phrases can't be categories. These are not
+important categories to have."
+
+**The check is in `CategoryStore.reload`**, where the tree is read: a
+grown node whose phrase holds any `NEVER_ALONE` word is left out of
+`_nodes`, the match index and the ancestry closure, so it never matches,
+`get` returns None (an episode whose stored category it was falls back to
+the words, as for a node the tree no longer holds), `nodes()` omits it and
+`category_near` never offers it. `mint` refuses such a phrase unless it is
+already a node. A child of a silenced node keeps its place, its ancestry
+skipping the silenced one. **The rows stay on disk** - no wipe, no
+migration - so taking a word off the list brings its phrases back;
+`CategoryStore.silenced()` lists them and `categories_report.py --alone`
+prints them, marked.
+
+**The seed is exempt, by name as well as by source**: "super bowl", "world
+cup", "stanley cup", "stock market", "bond market", "supreme court", "trade
+policy", "draft prospects" and "fusion power" hold listed words and are the
+owner's vocabulary; a row first grown before the seed named it keeps a
+grown source, so the source alone would have hidden it. The aliases ("ryder
+cup", "governor race") come from the seed and are never nodes. "wildfire"
+is one word, not "fire", and still grows.
+
+The cost, said plainly: a grown "nfl draft", "trade deadline", "salary cap"
+or "power outage" is now never a node - such an episode is placed by its
+other words (the league, the team) or the facet. A phrase worth keeping is
+added to the seed, where the check does not reach.

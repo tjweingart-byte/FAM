@@ -503,3 +503,4 @@ and `limit` = Lines.
 | 32146 | 31 | 509. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09) |
 | 32177 | 16 | 510. "lead" is never a category on its own (2026-11-09) |
 | 32193 | 24 | 511. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09) |
+| 32217 | 32 | 512. No grown phrase holding an everyday word is a category (2026-11-09) |
