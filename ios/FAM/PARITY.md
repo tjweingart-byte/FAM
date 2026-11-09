@@ -105,7 +105,7 @@ Checked against a specification written from `static/index.html` (the web's
 | GO DEEPER pill and sheet (`next-is-prediction`, §170) | Done | thread from `/api/next`, typed = own, 1-5 lengths |
 | Share / VIBE! / save on the right (§192) | Partial | save and share done (iOS share sheet for the web's targets); VIBE! posts with a caption - the web's full story editor and "send inside FAM" not yet; the burst animation not yet |
 | Sources by the title, and the Sources sheet | Done | favicons over initials |
-| Live captions sheet (`live-captions`) | Done | measured `starts`, else by characters |
+| Live captions sheet (`live-captions`) | Done, differs on purpose | the owner's call for iOS: the whole script, scrollable, the current sentence highlighted and followed (the web shows the current sentence alone); tap a sentence to jump there |
 | ⋯ menu: Share, VIBE!, Save, Captions, Add to/Go to Queue, Report (1.2) | Partial | "Add to myFAM Playlist" and "Remove from this playlist" wait for myFAM |
 | Speed 0.5-2x, keep the voice's pitch (`speed-pitch`) | Done | time-pitch unit; length for searches rebuilds |
 | Queue (§190), next-in-queue button, badge | Done | |

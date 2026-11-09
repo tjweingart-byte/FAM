@@ -506,12 +506,16 @@ struct ActivityView: UIViewControllerRepresentable {
 
 // MARK: - Captions
 
-/// The captions sheet (`#ccPanel`): a 46 pt strip until opened; open, the
-/// sentence being said, cross-fading as it changes; copy takes the whole text.
+/// The captions sheet (`#ccPanel`): a 46 pt strip until opened. Open, it
+/// shows the whole script so far, scrollable, with the sentence being said
+/// highlighted and kept in view as the episode plays (the owner's call for
+/// iOS - the web shows the current sentence alone). Scrolling by hand stops
+/// the following until the listener taps "Follow along". Copy takes it all.
 struct CaptionsPanel: View {
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
     @Binding var open: Bool
+    @State private var following = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -535,12 +539,14 @@ struct CaptionsPanel: View {
             }
             .contentShape(Rectangle())
             .onTapGesture { withAnimation(.easeInOut(duration: 0.26)) { open.toggle() } }
+            // Swipe the strip up to open, down to close; the script below
+            // scrolls on its own.
+            .gesture(DragGesture(minimumDistance: 20).onEnded { value in
+                if value.translation.height < -30 { withAnimation { open = true } }
+                if value.translation.height > 30 { withAnimation { open = false } }
+            })
             if open {
-                ScrollView {
-                    captionText
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(minHeight: 60, maxHeight: 220)
+                script
             }
         }
         .padding(.horizontal, 18)
@@ -549,29 +555,77 @@ struct CaptionsPanel: View {
                     in: UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16))
         .overlay(UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16)
             .stroke(open ? FAMColor.ink : FAMColor.border))
-        .gesture(DragGesture(minimumDistance: 20).onEnded { value in
-            if value.translation.height < -30 { withAnimation { open = true } }
-            if value.translation.height > 30 { withAnimation { open = false } }
-        })
         .ignoresSafeArea(edges: .bottom)
     }
 
-    @ViewBuilder private var captionText: some View {
+    /// Every sentence so far; the current one bright and copper-edged, the
+    /// rest dimmed; tap a sentence to jump there.
+    @ViewBuilder private var script: some View {
         if now.sentences.isEmpty {
             Text(now.captionsDone
                  ? "No transcript for this one — an episode you attached a file to is never stored, so there is nothing to read back."
                  : "Catching up with the script…")
                 .font(FAMFont.body(12).italic())
                 .foregroundStyle(FAMColor.textFaint)
-        } else if let i = now.captionIndex(at: player.position, total: player.total) {
-            Text(now.sentences[i])
-                .font(FAMFont.body(13))
-                .foregroundStyle(FAMColor.paper)
-                .id(i)
-                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 4)),
-                                        removal: .opacity.combined(with: .offset(y: -4))))
-                .animation(.easeOut(duration: 0.32), value: i)
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .topLeading)
+        } else {
+            let current = now.captionIndex(at: player.position, total: player.total) ?? 0
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(now.sentences.enumerated()), id: \.offset) { i, sentence in
+                            Text(sentence)
+                                .font(FAMFont.body(15, i == current ? .semibold : .regular))
+                                .foregroundStyle(i == current ? FAMColor.paper : FAMColor.paper.opacity(i < current ? 0.45 : 0.6))
+                                .lineSpacing(4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.leading, 10)
+                                .overlay(alignment: .leading) {
+                                    if i == current {
+                                        Capsule().fill(Color(hex: 0xE0B563)).frame(width: 3)
+                                    }
+                                }
+                                .id(i)
+                                .contentShape(Rectangle())
+                                .onTapGesture { jump(to: i) }
+                                .accessibilityAddTraits(i == current ? .isSelected : [])
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    .animation(.easeOut(duration: 0.25), value: current)
+                }
+                .frame(maxHeight: UIScreen.main.bounds.height * 0.5)
+                .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in following = false })
+                .onChange(of: current) { _, i in
+                    guard following else { return }
+                    withAnimation(.easeOut(duration: 0.35)) { proxy.scrollTo(i, anchor: .center) }
+                }
+                .onAppear { proxy.scrollTo(current, anchor: .center) }
+                .overlay(alignment: .bottomTrailing) {
+                    if !following {
+                        Button {
+                            following = true
+                            withAnimation { proxy.scrollTo(current, anchor: .center) }
+                        } label: {
+                            Text("Follow along")
+                                .monoLabel(8.5, color: FAMColor.ink, bold: true)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color(hex: 0xE0B563), in: Capsule())
+                        }
+                        .padding(6)
+                    }
+                }
+            }
         }
+    }
+
+    /// A sentence tapped: play from where it starts, when that is known
+    /// and has arrived.
+    private func jump(to index: Int) {
+        guard let starts = now.captionStarts, starts.indices.contains(index) else { return }
+        player.seek(to: starts[index])
+        following = true
     }
 
     private func copy() {
