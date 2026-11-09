@@ -3667,7 +3667,7 @@ def main() -> int:
             """
             watch = """() => {
                 var el = document.getElementById("famLoading");
-                var seen = window.__alt = { dial: false, glide: "", stepped: false, heard: 0 };
+                var seen = window.__alt = { dial: false, glide: "", stepped: false, played: 0 };
                 if (window.__altWatch) window.__altWatch.disconnect();
                 window.__altWatch = new MutationObserver(function () {
                     if (!el.classList.contains("active")) return;
@@ -3677,7 +3677,7 @@ def main() -> int:
                     var on = el.querySelector(".fam-glide-card.on");
                     if (on) {
                         seen.glide = el.querySelector(".fam-ld-kick").textContent;
-                        seen.heard = el.querySelectorAll(".fam-glide-card.heard").length;
+                        seen.played = el.querySelectorAll(".fam-glide-card.played").length;
                     }
                 });
                 window.__altWatch.observe(el, { attributes: true, childList: true, subtree: true });
@@ -3711,9 +3711,9 @@ def main() -> int:
             page.evaluate("skipMixItem()")
             page.wait_for_function("() => window.__alt.glide", timeout=10000)
             seen = page.evaluate("() => window.__alt")
-            assert f"2 of {count}" in seen["glide"] and seen["heard"] == 1, (
+            assert f"2 of {count}" in seen["glide"] and seen["played"] == 1, (
                 "the mix did not glide on to its second episode with the first "
-                f"marked heard: {seen!r}")
+                f"marked played: {seen!r}")
             page.evaluate("window.__altWatch.disconnect(); endMixQueue(); stopSpeech(); clearGenOverlay()")
 
         def one_tap_is_one_request():

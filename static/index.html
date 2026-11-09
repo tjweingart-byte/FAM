@@ -2042,7 +2042,8 @@
   .fam-glide-card.on{ opacity:1; border-color:var(--copper); animation:famGlidePick .4s .25s cubic-bezier(.2,1.3,.4,1) both; }
   .fam-glide-card.on .t{ color:var(--text); }
   .fam-glide-card.on .n{ color:var(--copper); }
-  .fam-glide-card.heard .n::after{ content:" \00b7  Heard"; }
+  .fam-glide-card.played .n{ color:var(--text-muted); }
+  .fam-glide-card.skipped .n{ color:var(--text-faint); }
   @keyframes famGlidePick{ from{ transform:scale(1); } to{ transform:scale(1.08); } }
   .fam-glide-dots{ display:flex; gap:6px; }
   .fam-glide-dots i{ width:6px; height:6px; border-radius:3px; background:var(--border-strong); }
@@ -6948,8 +6949,10 @@
         + (order.length > 1 ? ' \u00b7 ' + (pos + 1) + ' of ' + order.length : '') + '</div>'
         + '<div class="fam-glide" aria-hidden="true"><div class="fam-glide-track">'
         + order.map(function(it, j){
-            return '<div class="fam-glide-card' + (j === pos ? ' on' : '') + (j < pos ? ' heard' : '') + '">'
-              + '<span class="n">' + (j + 1) + '</span>'
+            // Before this one: Played if its audio started, Skipped if not.
+            var was = j >= pos ? "" : (mixPlay && mixPlay.played && mixPlay.played[j]) ? "played" : "skipped";
+            return '<div class="fam-glide-card' + (j === pos ? ' on' : '') + (was ? ' ' + was : '') + '">'
+              + '<span class="n">' + (j + 1) + (was === "played" ? ' \u00b7 Played' : was ? ' \u00b7 Skipped' : '') + '</span>'
               + '<span class="t">' + escapeHtml(String(it.title || "")) + '</span></div>';
           }).join("")
         + '</div></div>'
@@ -9807,6 +9810,11 @@
       startGate: genStepsGate,
       onFirstAudio: function(){
         awaitingFirstAudio = "";
+        // The mix's glide (§508) marks this one Played only now: a skip
+        // before a word, or a failure, is not something that played.
+        if(mixPlay && mixPlay.key === currentPlayingTopicKey){
+          (mixPlay.played = mixPlay.played || {})[mixPlay.pos] = true;
+        }
         // Heard, so it goes in the listening history (§142) - only now, so a
         // tap that failed before a word was spoken is not listed as heard.
         if(historyPending && historyPending.query === title){

@@ -32021,7 +32021,9 @@ DailyFAM and option 3 (Rail Glide) for mixes.**
   most four besides the tile's own, which sits fourth), the needle sweeping
   across, overshooting and settling on the tile's; "Tuning in to NFL"; the
   rail's heading in the kicker.
-- *Glide:* the mix's episodes in `mixPlay.order`, earlier ones marked Heard,
+- *Glide:* the mix's episodes in `mixPlay.order`, earlier ones marked Played
+  (only once their first audio arrived, `mixPlay.played`) or Skipped - a
+  failure or a skip before a word is not something that played -
   the row sliding one card along (measured, since the screen is a phone frame
   on a desktop and the whole width on a phone); "Morning Eagles · 2 of 5";
   dots up to twelve episodes.
