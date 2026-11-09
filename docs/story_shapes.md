@@ -1,7 +1,12 @@
 # Story shapes - draft for the owner (§503)
 
-**Status: draft, not signed, not wired.** Nothing in the code reads this
-file. Once the owner approves it (edited as they like), the shapes move into
+**Status: partly decided (§504).** The owner (2026-11-09): "Add profile
+and comparison, let Shakespeare change the shape" - questions 2 and 3
+below. Both are built: `profile` and `comparison` are in
+`episode_intelligence.STRUCTURES` for the brief to pick, and Shakespeare
+names a shape ahead of the tap (`EditorAnswer.shape`). The rest - the
+rewording of the other shapes, and questions 1 and 4 - is still a draft;
+nothing in the code reads this file. Once the owner approves it (edited as they like), the shapes move into
 the journalism playbook's Part 3, which the owner signs (the rule-book
 manifest covers the playbook), and the code follows the signed text.
 

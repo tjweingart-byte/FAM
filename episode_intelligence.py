@@ -140,6 +140,20 @@ STRUCTURES = {
         "what set it off, then how much attention it is actually getting, then "
         "the competing explanations, then which part genuinely matters"
     ),
+    #: Two the vocabulary had no word for (the owner, 2026-11-09, §504; drafted
+    #: in docs/story_shapes.md): a person, and one thing against another -
+    #: which until then was filed under explainer.
+    "profile": (
+        "why they are being talked about now - what they just did - then who "
+        "they are, then the two or three turns that got them here, then where "
+        "they stand now, from dated reporting, landing on the most concrete "
+        "current fact about them"
+    ),
+    "comparison": (
+        "the difference that decides it, then each side in its own terms, then "
+        "where they actually differ, then why the difference exists, landing on "
+        "the concrete fact that separates them - never which one to choose"
+    ),
     "general": "",  # no imposed shape; the house voice carries it
 }
 
@@ -160,7 +174,7 @@ INTENT_STRUCTURE = {
     "causal": "breaking",
     "update": "breaking",
     "explainer": "explainer",
-    "comparison": "explainer",
+    "comparison": "comparison",
     "teaching": "explainer",
     "discovery": "trend",
 }
@@ -1117,6 +1131,8 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
   one.
 - **structure** - the shape this story takes. Pick the one that fits the
   material, not the one that sounds most dramatic; `general` if none fits.
+  `profile` when the question is about a person ("who is", "what has she
+  done"); `comparison` when it sets one thing against another.
 - **cautions** - what the writer must not assume, especially about time. If
   something may not have happened yet, or may have happened days rather than
   hours ago, say so here. This is where a wrong tense gets caught.

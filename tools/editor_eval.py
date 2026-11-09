@@ -221,6 +221,11 @@ async def write_arm(generator, frozen: dict, arm: str) -> dict:
             block = await editor.outline(plan, notes, ahead=True,
                                          model_setting=ARM_SETTING[ARM_EDITOR[arm]])
             editor_seconds = time.perf_counter() - t
+            if block:
+                # His shape, as the editions apply it (§504).
+                import script_generator
+
+                plan = script_generator._with_shape(plan, notes)
             plan = dataclasses.replace(plan, editor_outline=block)
             if not block:
                 print(f"    ({arm}: no plan - the writer read the packets)")

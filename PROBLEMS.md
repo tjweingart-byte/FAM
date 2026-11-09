@@ -31739,3 +31739,48 @@ The writer's request carries the shape's opening, moves and landing, never
 the cached block. Each example names its shape. Measured per shape with
 `tools/editor_eval.py` and `tools/drop_off.py`. Four questions for the owner
 close the draft.
+
+## 504. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09)
+
+The owner, on `docs/story_shapes.md` (§503): "Add profile and comparison,
+let Shakespeare change the shape" - questions 2 and 3 of the draft. Question
+1 (the list's other changes) and 4 (the wording, to be signed into the
+playbook) are still open, so the other shapes' wording is unchanged.
+
+**Two shapes** in `episode_intelligence.STRUCTURES`, which the brief may
+pick (`PICKABLE_STRUCTURES`):
+- `profile`: why they are talked about now, who they are, the turns that got
+  them here, where they stand now from dated reporting, landing on the most
+  concrete current fact;
+- `comparison`: the difference that decides it, each side in its own terms,
+  where they differ and why, landing on the fact that separates them, never
+  which to choose.
+
+Intent `comparison` now defaults to `comparison` (it was `explainer`). The
+brief's instructions name when each applies. The quality row's `structure`
+carries them, so `drop_off` and the comparison can read them per shape.
+
+**Shakespeare changes the shape ahead of the tap.** His answer gains
+`shape`: an enum of every `STRUCTURES` key plus "" (keep the brief's). There
+is no field a fact could go into. `in_progress` is included: the brief may
+not pick it, because it has read nothing (§88), but he has read the packets
+and can see that nothing has finished. His `<evidence>` now opens with the
+brief's shape and every shape's parts. His instructions say to keep it, or
+to name a better fit, above all `in_progress` when no sentence reports a
+result. `script_generator._with_shape` applies a changed shape to a copy of
+the brief (a warmed brief is shared), so the writer's shape note
+(`build_structure_note`) and the quality row follow him. It records
+`shape_from` on his notes and counts `shape_changed`. Not in the cache key.
+**On searchFAM the brief's shape stands**, because in tandem the opening is
+written to it before his plan exists (`shape` is "" there).
+`tools/editor_eval.py` applies his shape as the editions do.
+
+His signed rule book is unchanged: choosing the shape is part of outlining
+the story ("always" 3), and he still states no fact.
+
+Tests: `tests/test_story_shapes_504.py` (both shapes pickable, comparison's
+default, `in_progress` still not; his list is exactly the brief's
+vocabulary; he is shown the brief's shape and every shape; ahead, his shape
+reaches the writer's prompt, the shared brief untouched, counted; an empty or
+the same shape keeps the brief's; on search the brief's stands; no brief, no
+change).

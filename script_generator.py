@@ -1974,7 +1974,32 @@ async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
         block = ""
     if trial:
         notes.editor_arm = "with" if block else "with_unplanned"
-    return dataclasses.replace(plan, editor_outline=block) if block else plan
+    if not block:
+        return plan
+    return dataclasses.replace(_with_shape(plan, notes), editor_outline=block)
+
+
+def _with_shape(plan: "EpisodePlan", notes) -> "EpisodePlan":
+    """The plan with the story shape Shakespeare chose from the packets, when
+    he changed it (§504) - a copy of the brief, which may be shared, with its
+    `structure` replaced, so the writer's shape note and the quality row's
+    `structure` both follow him. Ahead of the tap only: on searchFAM the
+    opening is written to the brief's shape before his plan exists. Never in
+    the cache key. Never raises."""
+    try:
+        editor = getattr(notes, "editor", None) or {}
+        shape = editor.get("shape") if isinstance(editor, dict) else ""
+        brief = plan.brief
+        if not shape or brief is None:
+            return plan
+        editor["shape_from"] = str(getattr(brief, "structure", "") or "general")
+        from agents import editor as editor_agent
+
+        editor_agent._count("shape_changed")
+        return dataclasses.replace(plan, brief=dataclasses.replace(brief, structure=shape))
+    except Exception:  # noqa: BLE001 - the editor never costs an episode
+        log.warning("could not apply Shakespeare's shape", exc_info=True)
+        return plan
 
 
 def editor_trial_arm(plan: "EpisodePlan") -> str:
