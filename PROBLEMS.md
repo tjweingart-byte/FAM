@@ -32019,8 +32019,11 @@ DailyFAM and option 3 (Rail Glide) for mixes.**
 
 - *Dial:* the categories of the rail the tile came from (`seedTagText`, at
   most four besides the tile's own, which sits fourth), the needle sweeping
-  across, overshooting and settling on the tile's; "Tuning in to NFL"; the
-  rail's heading in the kicker.
+  across, overshooting and settling on the tile's; the rail's heading in the
+  kicker. The dial keeps the short tag, in capitals; the line under it names
+  the category in full, capitalised (`dialWord`, owner's direction): a broad
+  category's own name ("Tuning in to Technology"), else the tree's label,
+  else the tag with each word capitalised.
 - *Glide:* the mix's episodes in `mixPlay.order`, earlier ones marked Played
   (only once their first audio arrived, `mixPlay.played`) or Skipped - a
   failure or a skip before a word is not something that played -

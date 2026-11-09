@@ -6900,6 +6900,18 @@
   var LOADING_DIAL_NEIGHBOURS = 4;
   var LOADING_GLIDE_STEP = 138;   // .fam-glide-card width + gap
 
+  // A tag as words a person reads: the broad categories' own names
+  // ("Technology", "Money & markets"), then the category tree's label, and
+  // only then the tag with each word capitalised.
+  function dialWord(tag){
+    var w = String(tag || "");
+    var named = famTagLabels()[w.toLowerCase()];
+    if(named) return named;
+    var label = categoryLabelOf(w);
+    if(label && label !== w) return label;
+    return /[A-Z]/.test(w) ? w : w.replace(/(^|[\s\-\/])([a-z])/g, function(_, b, c){ return b + c.toUpperCase(); });
+  }
+
   function paintLoadingVariant(kind, t){
     var el = famLoadingEl();
     var alt = document.getElementById("famLoadingAlt");
@@ -6909,6 +6921,8 @@
     var glide = null;
     if(kind === "dial"){
       var tile = myFamTopics[t.loaderTopic] || {};
+      // The dial shows the short tag (set in capitals); the line under it
+      // names it in full.
       var tag = seedTagText(null, tile) || "DailyFAM";
       var railKey = "";
       Object.keys(railTiles).forEach(function(k){
@@ -6939,7 +6953,7 @@
         + labels.map(function(w, j){ return '<span' + (j === at ? ' class="on"' : '') + '>' + escapeHtml(w) + '</span>'; }).join("")
         + '</div><div class="fam-dial-noise">' + noise + '</div>'
         + '<div class="fam-dial-needle" style="--stop:' + stop.toFixed(1) + '%;--stop2:' + Math.max(3, stop - 6).toFixed(1) + '%"></div></div>'
-        + '<div class="fam-dial-tune">Tuning in to ' + escapeHtml(tag) + '</div>';
+        + '<div class="fam-dial-tune">Tuning in to ' + escapeHtml(dialWord(tag)) + '</div>';
     } else if(kind === "glide"){
       var order = (t.fromMix && mixPlay && mixPlay.order.length) ? mixPlay.order : [{ title: title }];
       var pos = (t.fromMix && mixPlay) ? mixPlay.pos : 0;
