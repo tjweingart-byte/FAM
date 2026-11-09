@@ -1123,15 +1123,41 @@ PICTURE_WORDS: dict[str, tuple[str, ...]] = {
 
 
 def picture_facets(text: str) -> tuple[str, ...]:
-    """The facets whose picture `text` may wear: its tags' facets, then
-    `PICTURE_WORDS` - but only when its tags name no facet at all, so a
-    sports question that says "attack" keeps the sport picture."""
-    found = tuple(t for t in tags_for_text(text) if t in FACETS)
-    if found:
-        return found
+    """The facets whose picture `text` may wear, **strongest first**: its
+    tags' facets, then `PICTURE_WORDS` - but only when its tags name no facet
+    at all, so a sports question that says "attack" keeps the sport picture.
+
+    Strongest first because the picture takes the first one painted (11.9):
+    they were alphabetical, so "PGA Tour" - culture by "tour", sport by the
+    league - wore the culture picture. The order is the facet of the most
+    specific node of the tree the words name, then a sport the words name
+    (a league or team, `_names_a_sport`), then the facet with the most
+    keywords in the words, alphabetical only to break a tie."""
+    found = [t for t in tags_for_text(text) if t in FACETS]
     words = set(_WORD.findall((text or "").lower()))
+    if len(found) > 1:
+        # Read once for every facet being ranked: the tree's match and the
+        # sports catalogues are the costly part.
+        tree = category_tree()
+        matched = tree.match(text or "")
+        sport = "sports" in found and _names_a_sport(text)
+        return tuple(sorted(found, key=lambda f: (
+            _facet_strength(tree, matched, words, f, sport), f)))
+    if found:
+        return tuple(found)
     return tuple(sorted(f for f, keys in PICTURE_WORDS.items()
                         if words & set(keys)))
+
+
+def _facet_strength(tree, matched, words, facet: str, sport: bool) -> tuple:
+    """A sort key for `picture_facets`: lower is stronger."""
+    deepest = -1
+    for node in matched:
+        if _root_facet(node) == facet:
+            deepest = max(deepest, tree.depth_of(node))
+    hits = sum(len(words & set(keys)) for tag, keys in TAG_WORDS.items()
+               if tag == facet or TAG_PARENT.get(tag) == facet)
+    return (-deepest, 0 if facet == "sports" and sport else 1, -hits)
 
 #: What one declared interest is worth in `taste`, **added after the
 #: behaviour has been normalised, and never decayed or outvoted** (§202, at
@@ -1248,12 +1274,28 @@ def tags_for_text(text: str) -> tuple[str, ...]:
     to have quietly load-bearing underneath either.
     """
     words = set(_WORD.findall(text.lower()))
-    found = {tag for tag, keys in TAG_WORDS.items() if words & set(keys)}
+    hits = {tag: words & set(keys) for tag, keys in TAG_WORDS.items()}
+    found = {tag for tag, hit in hits.items() if hit}
+    tree_found = set(category_tree().match(text))
+    shared = {tag for tag in found
+              if hits[tag] <= SPORT_SHARED_WORDS
+              and "sports" not in (tag, TAG_PARENT.get(tag))}
+    if shared and ("sports" in tree_found or _names_a_sport(text)):
+        # 11.9: "PGA Tour" was music, so culture, by "tour" alone. A word a
+        # sport shares with another field says nothing about that field
+        # once the words name a sport.
+        found -= shared
     found |= {TAG_PARENT[tag] for tag in found if tag in TAG_PARENT}
-    found |= set(category_tree().match(text))
+    found |= tree_found
     if "sports" not in found and _names_a_sport(text):
         found.add("sports")
     return tuple(sorted(found))
+
+
+#: Words a sport shares with another field's keywords (11.9): "the PGA
+#: Tour", "the World Series", "a box score". On their own they file a
+#: question under music or film; beside a named sport they file nothing.
+SPORT_SHARED_WORDS = frozenset({"tour", "series", "box", "chart"})
 
 
 def _names_a_sport(text: str) -> bool:

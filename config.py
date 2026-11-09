@@ -991,6 +991,11 @@ class Settings:
     # The ceiling on images requested per rolling day, across the deployment.
     # A new node waits for tomorrow rather than a runaway spending tonight.
     thumbnails_daily_images: int = _env_int("THUMBNAILS_DAILY_IMAGES", 60)
+    # How many pictures a broad node holds (the owner 11.9): each facet and
+    # each node directly under one (football, elections and politics, ...)
+    # gets this many, painted after every node has its first, so one picture
+    # is not on every episode that lands on a broad subject. 1 turns it off.
+    thumbnails_broad_pictures: int = _env_int("THUMBNAILS_BROAD_PICTURES", 4)
     # How many nodes one background sweep paints.
     thumbnails_per_sweep: int = _env_int("THUMBNAILS_PER_SWEEP", 20)
     # Nodes per scene-writing call.
