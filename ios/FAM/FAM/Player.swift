@@ -48,6 +48,15 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     @Published private(set) var position: Double = 0
     /// Seconds of this episode that have arrived.
     @Published private(set) var arrived: Double = 0
+    /// The length asked for, in seconds: the total shown while the episode
+    /// is still being written (`scrubTotal` on the web).
+    @Published private(set) var expected: Double = 0
+    /// Every sample has arrived: the real length is known.
+    @Published private(set) var complete = false
+
+    /// The total the bar and the clock show: the requested length while the
+    /// episode is written, its real length once all of it has arrived.
+    var total: Double { complete ? arrived : max(expected, arrived) }
     /// Seconds heard this session, every episode together: the number the
     /// ten-minute locked test is read from.
     @Published private(set) var listened: Double = 0
@@ -125,8 +134,11 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     // MARK: - Control
 
-    func play(title: String, picture: URL? = nil, request: URLRequest, holdStart: Bool = false) {
+    func play(title: String, picture: URL? = nil, request: URLRequest, minutes: Double = 0,
+              holdStart: Bool = false) {
         stopStream()
+        expected = minutes * 60
+        complete = false
         self.holdStart = holdStart
         gated = false
         cacheHit = false
@@ -317,6 +329,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
             return
         }
         streamDone = true
+        complete = true
         feed()
         log("all \(fmt(arrived)) arrived")
         nowPlaying()

@@ -153,7 +153,7 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             self.loading.start(ask: { nil })
             self.player.play(title: tile.title, picture: self.api.picture(tile.thumb),
-                             request: request, holdStart: true)
+                             request: request, minutes: FAMAPI.browseMinutes, holdStart: true)
         }
         lastPlay = go
         go()
@@ -188,7 +188,8 @@ final class AppModel: ObservableObject {
                 try? await api.progress(query: query, minutes: minutes,
                                         surface: surface, topicID: topicID)
             })
-            self.player.play(title: title, picture: picture, request: request, holdStart: true)
+            self.player.play(title: title, picture: picture, request: request,
+                             minutes: minutes, holdStart: true)
         }
         lastPlay = go
         go()
