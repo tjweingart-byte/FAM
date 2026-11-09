@@ -31496,3 +31496,411 @@ faults in the chips, all fixed with tests in
   post-episode grid: `generate` drops a category's queued rest when anything
   but a queue entry or another category play starts; what the listener
   queued themselves stays.
+
+## 501. Nando on the background paths: a warmed brief carries his decision, and each path is counted (2026-11-09)
+
+The owner: categorisation early in the pipeline matters more than anything,
+and Nando must work on the background paths as much as on a search. Every
+write path was traced, with the agents on (`AGENTS=1 CATEGORIZER=1`):
+
+| path | before | now |
+|---|---|---|
+| a search | his call beside the brief, placed in `prepare`, settled | unchanged |
+| prefetch, `script` level | placed in `prepare`, his call awaited, settled | his call made in `understand`, read in `prepare` |
+| the Trending and DailyFAM editions (batched or not) | the same, through `batch_request` / `stream_sentences` | the same as prefetch |
+| **prefetch, `brief` level** (the default; what myFAM warms for likely taps) | **`understand` only: no placement and no call of his** | his call made in `understand`, kept on the brief |
+| **a tap that takes that warmed brief** | **`understand` returns before his call beside the brief starts, so only a solid source filed it - a tile's own filing, or nothing** | files the pick the brief carries |
+
+So the gap was the commonest myFAM tap: a brief warmed ahead, then tapped.
+Where the tile carried its own category (a live or Trending story) that
+still filed it; anything else - a Go Deeper prediction, a trending search,
+a bank question with no tree tag - went unfiled, the writer's words
+standing, and no grade of the answer key could teach him from it, because
+he never decided.
+
+**What changed.** `script_generator._nando_decides_ahead`, at the end of
+`ScriptGenerator.understand` whenever the episode is written ahead of the
+tap: under exactly `prepare`'s conditions (Nando working, C3P0 neither
+picking nor calling it ambiguous, nothing solid filing it, candidates, no
+undecided two-meaning name), his own call is awaited - nobody waits - and
+the node kept as `Brief.category_pick`. `prepare` reads it as it reads his
+tie call: never over C3P0's unsureness, and dropped under the
+"never a guess" rule (§426) the same way. Since it is on the brief,
+`prepare`'s own ahead call is not made a second time, so an edition or a
+script-level warm still costs one call of his, not two. A failed call
+leaves the brief as it was.
+
+**Counted per path.** `category_audit.summary()["nando"]["by_origin"]`
+(and so `tools/categories_report.py --audit`): per origin, the episodes
+written, how many he filed, the rate - `None`, never 0, with none. The
+first production numbers after this ships say whether the background paths
+file as often as a search.
+
+**Latency.** None on a search or in front of the first word: the call is
+made ahead of the tap. A brief-level warm now costs at most one Haiku call
+more (about 0.01 cents), counted in prefetch's dollar budget with the rest
+of the warm.
+
+**Not measured here.** The rates need episodes written with the agents on.
+
+**Training, proposed for the owner's choice** (nothing below is built):
+
+1. **Grade what teaches, not what is newest.** The key grades the 50
+   newest episodes a night (`training.judge_batch`), so an edition's burst
+   crowds out searches or the reverse. Choose them instead: stratified by
+   write path and facet, then disagreement first - Nando filed nothing,
+   Nando against the writer's words, re-filed episodes, his small model
+   unsure.
+2. **The judge through the Batch API**, at half price: nobody waits at
+   03:00, the rule the editions' writers keep (§179). Twice the grades a
+   night for the same money.
+3. **Check the solid sources too.** A tile's or an edition's category is
+   solid - the words may narrow it, never move it - so a composer's wrong
+   category is filed on every tap of that story, and the key's correction
+   counts as Nando's mistake though he could not have made another choice.
+   Report the key against the source that filed it (composer, bank tag,
+   DailyFAM subject), and feed the composer's corrected mistakes to its own
+   prompt as worked examples.
+4. **The owner's labels above Opus's.** A short daily queue on /admin of
+   the key's grades to confirm or correct: it measures how often Opus
+   agrees with the owner ([episode-quality]: a grader trusted once it
+   matches the owner), and each correction becomes a worked example ahead
+   of the key's.
+5. **Listeners' signals point the key, never label.** A category chip tap
+   (§500) followed by a quick skip, or a "Not interested" from a category
+   page, puts that episode first in the night's grading.
+6. **Measure on real traffic.** Freeze a held-out set from graded
+   production requests each month, per write path, so `nando_eval.py`
+   measures DailyFAM prompts and tile titles as well as typed searches.
+7. **§389's untried experiment**: drafted definitions on code's own matches
+   only, no exclusions.
+
+Tests: `tests/test_nando_background_501.py` (ahead of the tap and on a
+prefetch the brief carries his pick, asked as an ahead call; a search
+unchanged; not asked when C3P0 chose or was unsure, when the tap files it,
+or when he is not working; a failed call changes nothing; the tap taking a
+warmed brief files the pick without asking again; an edition asks once;
+the pick dropped when the brief is unsure; the audit per origin).
+
+## 502. Training Nando: grade what teaches, through the Batch API, and grade every source that files (2026-11-09)
+
+The owner chose three of §501's proposals (1, 2 and 3) and asked what they
+cost and whether the cost scales.
+
+**1. What is graded** (`training.choose`). The answer key graded the 50
+newest episodes a night, so a DailyFAM edition's burst crowded out
+searches, or the reverse. Now every write path takes its turn (round robin
+over `origin`); within a path, what teaches most comes first
+(`training._tier`: Nando filed nothing, then the writer made him re-file,
+then his node and the writer's words disagree, then his small model filed
+it, then a solid source filed it, then everything agreed); within a tier
+the facets take turns, newest first. The night's run reports how many it
+took from each path and tier. Code only; no call is added.
+
+**2. Through the Message Batches API** (`NANDO_JUDGE_BATCH=1`, default on;
+`0` grades live as before). In two steps, so nothing holds Netenyahu's loop
+(handlers are awaited inline, and Mclovin's review and Consuela's jobs run
+in the same night hours) and a restart loses nothing:
+
+* `categorizer:judge` at 03:00 sends one batch (`models.submit_batch`) and
+  keeps its id and each request's episode (`nando_batches`);
+* `categorizer:collect`, every `NANDO_JUDGE_COLLECT_SECONDS` (300), reads
+  every batch that has ended (`models.collect_batch`) and keeps the grades.
+
+The batch goes through the agent layer like any agent call: every request
+passes the same checks (`models._ready`: switches, signed rule books,
+consent, priced, zero-spend staging - staging sends nothing), carries the
+same Messages parameters as the live call (the adapter's `params`, shared
+by `send`; a test holds them equal but for the one-hour cache a batch
+needs), and each answer is priced at the batch rate, checked against the
+model asked, validated and recorded in `agent_calls` (`models._answered`,
+shared with the live path). A batch that cannot be sent at all was never
+read, so its episodes are graded live at once. **A request the batch did
+not answer is not asked again**: nando.md rule 12 lets the key read each
+finished episode once, and §391 settled "never asked again, answered or
+not" - the batch gets the single attempt a live grade gets. (A live retry
+was written first and taken out on reading the rule.) Grades collected
+after 04:00 are trained on the next night. A wipe forgets sent batches.
+
+**3. Every source that files is graded.** A tile's, a bank topic's, a
+DailyFAM subject's, an edition's or a provider's filing is solid: the
+words may narrow it, never move it. So a wrong one is filed on every tap of
+that story and the key's correction counted as Nando's mistake, though he
+could not have chosen otherwise.
+
+* The audit now keeps the filing Nando started from and who supplied it
+  (`nando_prior`, `nando_prior_source`; from `prepare` through `settle`).
+* `training.filed_by` names who decided each graded episode: a solid
+  source when the filing is its node or a narrowing on its branch, else
+  how Nando found it (`picked`, `category`, `facet`, `model`, `parent`).
+* `training.report` (and so `categories_report.py --audit`) grades each
+  filer apart (`by_source`), each write path apart (`by_origin`), and the
+  story composer's own category (`composer`), each with its commonest
+  wrong filings. Bank topics and DailyFAM subjects are hand-seeded, so
+  their wrong filings are a list for the owner, never changed in code.
+* **The composer is shown its own corrected categories**
+  (`training.composer_corrections`: the key sure, one per question, up to
+  12, in `stories.build_composer_prompt`). **Locked until the owner signs**:
+  rule 12 as signed says the grades "only teach you and measure you", so a
+  session may not use them to teach the composer. The amendment ("and
+  teach the story composer whose categories you inherit") waits in
+  `docs/agent_rule_proposals/nando.md` with
+  `docs/agent_rules/MANIFEST.pending.json` (version 7, only `nando.md`'s
+  fingerprint changes); `training.composer_allowed` refuses until a signed
+  book carries those words, so today the composer is shown nothing.
+
+**Cost**, from the measured prompts and `metering.PRICES` (Opus 5.5 $4 /
+$20, cache read $0.20, one-hour cache write 2x input; Haiku 5.5 $0.10 /
+$0.50; batch half of every token):
+
+| | per grade | 50 a night, a month |
+|---|---|---|
+| the key live, as before (5,850 tokens of rule books and tree cached, ~1,100 of episode, ~200 out) | ~$0.0096 | **~$15** |
+| batched, reading the tree from the cache (expected) | ~$0.0048 | **~$8** |
+| batched, no request ever reading the cache (worst) | ~$0.028 | ~$41 |
+
+The batch's saving is only as good as its cache hits, which the API gives
+as best effort; each collection logs `cost_usd` and `cache_hit_share`, and
+`NANDO_JUDGE_BATCH=0` goes back to live if the share is poor. Choosing
+what to grade (1) and grading each source (3) are code: $0. The composer's
+corrections, once signed: about 300 more tokens on one Sonnet 5 call per
+refresh window, about $0.0006 a compose.
+
+**Does it scale?** Not with listeners. The key is capped per night
+(`NANDO_JUDGE_PER_RUN`), so it costs the same at 100 listeners or 100,000;
+it grows only with the tree (about 19 tokens a node in the cached block,
+311 nodes today) and with that setting, which is the owner's lever (100 a
+night batched costs about what 50 did live). The composer runs on a
+schedule, not per listener. What does grow with traffic is §501's call of
+Nando's ahead of the tap - ~$0.0005 each (~1,700 tokens cached and ~4,200
+of request, the whole tree on his list; `FAM_AGENTS.md` said <$0.0001,
+from before the whole tree was listed), made only when nothing solid files
+the request and C3P0 did not choose. On prefetch it sits inside
+`PREFETCH_DAILY_DOLLARS` ($2) and `PREFETCH_DAILY_BRIEFS` (400): at most
+~$0.20 a day; on the DailyFAM edition it grows with active mixes.
+
+Tests: `tests/test_nando_training_502.py` (every path takes its turn; what
+teaches first; facets take turns; the night grades in that order; a batched
+request is the live request; refused and staging requests never sent;
+collected answers priced at half and recorded; a running batch left for
+later; sent at night and collected once; a request the batch did not answer
+never asked again; a batch that cannot be sent graded live; a wipe forgets
+batches; the collector scheduled and on the roster; settings agree with
+`.env.example`; settle keeps the prior; who filed it; the report by source,
+path and composer; the composer's sure mistakes; shown to the composer only
+once signed; the proposal is the signed book with only rule 12 amended).
+Four older tests now pin live grading where they mock `models.ask`, and the
+listener-path import guard lists `stories.py` reading `training`.
+
+## 503. The answer key on Sonnet, ten a night where the filers disagree; the owner's review queue; the one-time check against Opus (2026-11-09)
+
+The owner found §502's answer key too expensive (~$8-15 a month) and chose,
+from the alternatives offered: Sonnet in place of Opus, 10 a night in place
+of 50, only where the filers disagree; a free review queue on /admin; and
+a comparison against Opus run once, never nightly.
+
+**The nightly key.** `CATEGORIZER_JUDGE_MODEL=anthropic:claude-sonnet-5-5`
+- still stronger than Nando's Haiku, as rule 12 asks ("a stronger model
+chosen by the owner"); `NANDO_JUDGE_PER_RUN=10`;
+`NANDO_JUDGE_DISAGREEMENTS_ONLY=1`: an episode is skipped when Nando, the
+writer and the composer all filed it on one branch (`training.agreed`: the
+same node or one more specific; never when Nando filed nothing, the writer
+named nothing, or the writer made him re-file - then nothing checked it).
+Still batched (§502) and in `choose`'s order.
+
+**The owner's review queue** (/admin, Categories). Recent episodes
+(`training.review_queue`: the last week, while scripts are kept), in the
+key's own order, disagreements first, each with what Nando, the writer, the
+composer and the key said, and the script's opening. The owner confirms or
+types a node ("none" when nothing fits). A review (`training.owner_label`)
+is kept twice: as the owner's review beside the key's grade at that
+moment, and as the episode's grade (`judge_model` `owner`, confidence
+high), so it teaches Nando ahead of any model - his memory, his mistakes,
+his small model - and the key never spends a call on it. It never re-files
+the episode (rule 10 is a separate, reviewed step). `owner_agreement`
+says how often the key's grade matched the owner's: the number that says
+whether the key can be trusted ([episode-quality]). No model is asked.
+
+**The one-time check** (`training.calibrate`, from the page's button,
+queued as Netenyahu's `categorizer:calibrate` under the key `once`): up to
+`NANDO_CALIBRATION_EPISODES` (100) recent episodes, each graded by the
+nightly key - its existing grade reused, so it is not read again - and
+once by `CATEGORIZER_CALIBRATION_MODEL` (Opus 5.5), four at a time. Only
+the comparison is kept (`calibration_report` on the page); the nightly
+grades stand. It refuses to run a second time. Because the second key
+reads episodes the first already read, it is past rule 12 as signed
+("read each finished episode once"), so it waits for the amendment.
+
+**One amendment for the owner to sign.** §502's proposal now carries both
+additions to rule 12: "once only and at the owner's request, let a second
+answer key read at most 100 of those episodes again so the owner can
+compare the two", and "teach the story composer whose categories you
+inherit". `docs/agent_rule_proposals/nando.md`, with
+`docs/agent_rules/MANIFEST.pending.json` (version 7, only `nando.md`'s
+fingerprint changes); steps in that folder's README. Until it is signed the
+button is hidden and the composer is shown nothing.
+
+**Cost**, from the measured prompt (Sonnet 5.5 $2 / $10, cache read $0.20):
+
+| | a month |
+|---|---|
+| the key, 10 a night, batched, reading the cached tree (expected) | **~$0.80** |
+| the same, no request reading the cache (worst) | ~$4 |
+| the owner's reviews | $0 |
+| the one-time check, once in all: up to 100 on Opus (~$0.0096 each) and Sonnet for any not yet graded (~$0.0054) | **~$1.50, once** |
+
+None of it grows with listeners: the key is capped per night and the check
+runs once.
+
+Tests: `tests/test_nando_review_503.py` (the owner's settings, and
+`.env.example` agrees; three filers on one branch agree, and when they do
+not; the key spent only on disagreements; the queue's order, what it skips,
+a review leaving it; a review is the grade, never graded again, measures
+the key and teaches as a mistake; "none" is a review, an unknown node or
+episode refused; a review with no key grade not counted; the check waits
+for the signature, runs once, reuses the nightly grade and reads with the
+second key only, and never again; the second key is Nando's own setting; a
+wipe forgets reviews and the check; /admin for admins only, a review from
+the page, the check refused unsigned and queued once; the page draws in a
+browser and saves a review). The old pin of the judge to Opus now pins
+Sonnet.
+
+## 504. Signing the rule books on a borrowed computer (2026-11-09)
+
+The owner's own computer stopped working while manifest version 7 waited
+(§503), and they asked to sign every agent at once from a family member's
+computer. One signature already covers every agent - the manifest lists
+all ten books' fingerprints - so what was missing is the tool: the owner's
+Mac had OpenSSL 3 in a conda environment (`famsign`), and a computer with
+only a Mac's LibreSSL cannot make an Ed25519 signature (§470).
+
+`tools/sign_rulebooks.py` signs with Python's `cryptography` package, the
+one the lock verifies with. Run in a folder holding the pending manifest
+and any changed book, it checks each book against the manifest's
+fingerprint, waits while the owner copies the key from the password
+manager, reads it from the clipboard and empties the clipboard at once, so
+the key is never pasted into a terminal (the lesson of §352) nor saved to
+the borrowed disk; refuses a key whose public half is not `owner.pub`'s;
+checks its signature before writing `MANIFEST.json` and
+`MANIFEST.json.sig`. Ed25519 is deterministic, and its signature was
+compared with `openssl pkeyutl -sign -rawin` on the same key and manifest:
+identical.
+
+Tests: `tests/test_sign_rulebooks_504.py` (the trusted key is owner.pub's;
+its signature is accepted by the lock; the key as a PEM block or its one
+line; an untrusted key or non-key signs nothing; a book that does not
+match is caught; one base64 line of 64 bytes).
+
+## 505. The owner signed manifest version 7, from a borrowed computer (2026-11-09)
+
+The owner signed `MANIFEST.pending.json` (version 7, §503) on a family
+member's Mac with `tools/sign_rulebooks.py` (§504): the Command Line Tools'
+Python 3.9.6 and `cryptography` 50.0.2, the key copied from the password
+manager and read from the clipboard, never pasted. The commit (629b9ff)
+holds exactly `MANIFEST.json`, `MANIFEST.json.sig` and `nando.md`;
+`MANIFEST.json` is the pending manifest byte for byte and `nando.md` the
+proposal byte for byte. `python tools/rulebook_manifest.py --verify`: every
+agent may run, signed with the same `owner.pub`; all ten books match.
+
+So both of rule 12's additions are in force: `training.composer_allowed`
+and `training.calibration_allowed` are true, the composer is shown its
+corrected categories once there are any, and the one-time comparison's
+button appears on /admin (Categories) - where it runs once, from the
+owner's click, never by itself.
+
+The proposal and the pending manifest are deleted and the proposals README
+says nothing is waiting. The owner updates the copy held outside Claude.
+
+## 506. The review before the pull request: the owner's review kept, rule 12 held, a batch's spend counted once (2026-11-09)
+
+At the owner's request, before the pull request into Main, three
+independent reviews read the branch's whole change (`git diff
+origin/Main...HEAD`): one on Nando's placement path (§501), one on the
+answer key and the batch layer (§502-§503), one on /admin, the signing tool
+and whether the documents tell the truth (§503-§505). With the agents off
+nothing changed; everything they found shows with them on, and is fixed
+here.
+
+**The answer key.**
+
+- **A batch collected after the owner's review replaced it.** A review
+  written at 09:00 for an episode in the 03:00 batch was overwritten by the
+  key's grade at 09:05. `put_label` now never replaces a grade of the
+  owner's with a model's.
+- **The one-time comparison could read an episode with the nightly key
+  twice** (rule 12: once): an episode asked about with no usable grade - a
+  failed call, a retired grade, one still in a batch - was read again. It
+  is now passed over; an episode the key never read is marked asked before
+  it is read. The episodes are capped at 100 in code (`CALIBRATION_MAX`),
+  the number signed rule 12 names, whatever the setting says.
+- **"Once only" could be lost or doubled.** Keyed by its task, a run that
+  stored nothing - every call failed, or refused at run time - either ran
+  again or could never be queued again, and the page said "Already queued".
+  Its start is now recorded before anything is read
+  (`nando_calibration_run`): once started it has run, however it ended, and
+  the page says how it ended. A run refused before starting (Nando switched
+  off) reads nothing and may be queued again; each click queues its own
+  task, and the start record keeps it to one run.
+- **A failed create was followed by a live read.** A batch whose create
+  timed out may exist all the same, so grading its episodes live as well
+  read each twice and billed twice. `submit_batch` now says whether a create
+  was sent (`attempted`); after one that failed nothing is asked again.
+  Only a vendor that cannot batch at all is graded live. Every batch API
+  call now has a time limit (`models.BATCH_CALL_SECONDS`, 120 s).
+- **A model change between sending and collecting lost the whole batch** as
+  `WRONG_MODEL` - §503 had just moved the key from Opus to Sonnet. A batch
+  now keeps the model it was sent to and is read with it.
+- **A batch could be collected twice**, recording its spend twice, if
+  keeping a grade failed after the ledger rows were written. It is now
+  finished first; a grade that cannot be kept is lost, never paid twice.
+- **One-hour cache writes were priced as five-minute ones** (the ledger
+  prices every write at the global `PROMPT_CACHE_TTL`, and a one-hour write
+  is billed at 2x). Batches now ask for the standard cache, which the
+  ledger prices correctly; at ten requests a night the longer cache bought
+  little.
+- **"Agreed" skipped what §502 meant to grade.** A tile's or edition's
+  filing and the composer's are one filing, so they agreed by construction;
+  a bare facet agreed with anything under it. Neither counts as agreement
+  now: those episodes are graded.
+
+**Nando's placement.**
+
+- **An edition or script-level warm asked him twice** when his first answer
+  ahead of the tap was "none" or failed: `prepare` could not tell "asked,
+  nothing" from "never asked". The notes now say he was asked
+  (`category_ahead_asked`), and `prepare` never asks again. §501's "one
+  call of his, not two" is now true.
+- **An edition story it will drop** (its answer a result) no longer pays for
+  his call.
+- Tests now run the whole flows the claims name: `understand` then `prepare`
+  on the same notes, and a brief built ahead then taken by a later tap.
+
+**/admin and the signing tool.** The page's panels each read on their own,
+so one store failing empties one panel, never the page. The confirm dialog
+reads the setting. The signing tool no longer waits forever on Linux's
+clipboard, says so plainly where no clipboard tool exists, and refuses a
+manifest with no books.
+
+**Known and left, said plainly.** A brief warmed at prefetch's brief level
+writes no audit row, and the tap that takes it is logged under the surface
+it was tapped on (`myfam`, which the 05:00 rails edition also uses), so
+`nando.by_origin` cannot show taps on warmed briefs apart from other myFAM
+taps. On the DailyFAM edition, a prompt whose name means two things may
+still pay for his call before the edition drops it as ambiguous, where his
+own check (`placed.ambiguous`) and the edition's (`ambiguous_readings`)
+differ.
+
+**Checked by the reviews and found sound:** nothing new in front of a
+listener's first word; a warmed (shared) brief never mutated; never a
+guess between two readings; the live agent path unchanged by the refactor;
+every batched request through the same checks as a live one; admin auth,
+escaping and validation on every endpoint; the signing tool's signature
+identical to OpenSSL's and the key never written or shown; the documents'
+claims, the settings, the signed books.
+
+**CI's two other jobs, reproduced here.** Python 3.12 (CI's version) and
+the Postgres job (PostgreSQL 16, the CI tuning), each over the whole suite.
+
+Tests: added to `tests/test_nando_background_501.py`,
+`tests/test_nando_training_502.py`, `tests/test_nando_review_503.py` and
+`tests/test_sign_rulebooks_504.py`, one or more per finding.
