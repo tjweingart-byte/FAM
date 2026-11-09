@@ -31998,3 +31998,147 @@ pictures are done. Extras for the facets go first.
 **Unseen** with a real key, like §166-§177: look at the first few extras of
 sports and football in `/admin/thumbnails` before letting the sweep paint the
 rest.
+
+## 508. A backend operations handbook, for the weeks the owner is away (2026-11-08)
+
+The owner: "I have built the entire backend and am the only person who knows
+how to operate it ... when I am not available to work on fam someone will
+need to be responsible for the backend. I want to put together a
+presentation and a series of documents that clearly lays out how to operate
+the backend. This should include Claude, GitHub, render, runpod, cloudfare,
+mongodb, and anything else we normally interact with. Also, include how to
+sign off on new agent documents."
+
+**Written** in `docs/operations/`, a draft the owner edits on the branch:
+`README.md` (the index and the five rules of the job), `00_SYSTEM_MAP.md`,
+`01_ACCESS.md` (each account, the role to grant, the alert inboxes, and the
+owner-only decisions), `02_GITHUB.md`, `03_CLAUDE.md`, `04_RENDER.md`,
+`05_RUNPOD.md`, `06_CLOUDFLARE.md`, `07_MONGODB.md`,
+`08_OTHER_SERVICES.md`, `09_AGENT_RULE_SIGNOFF.md` and `10_RUNBOOKS.md`.
+The deck is `slides.md`, built by `build_deck.py` into
+`FAM_Backend_Operations.pptx` (python-pptx, already in
+`requirements-docs.txt`). Every step is taken from the existing setup
+documents and `render.yaml`; nothing in the code changed.
+
+**What writing it found**, each left as a `TODO(owner)` in the handbook
+rather than guessed:
+- Every recent PR (#229-#231) went from a `claude/*` branch straight into
+  `Main`, and `staging` is level with `Main`: the staging-first flow of
+  §172 is not the one in use. The handbook recommends it while the owner
+  is away and leaves the choice open.
+- `docs/ONBOARDING.md` §7.1 still listed a production disk `fam-data`;
+  production has had no disk since §339. Corrected there to Postgres.
+- Signing a rule book needs the owner's key, and that is the point of the
+  lock (§343-§352). The operator reviews a proposal against a written
+  checklist; the owner still signs. Whether a second signing key should
+  exist is an owner decision, and would itself be a signed change.
+- Facts only the owner holds: the production and staging hosts, the SMTP
+  provider, whether `familiarize.net` is on Cloudflare, whether
+  production's archive is on Atlas yet, the database plan and its recovery
+  window, spend limits on Anthropic and RunPod, branch protection on
+  `Main` and `staging`, and how to reach the owner in an emergency.
+
+**The owner's follow-up** (the same day): "Include merging into staging
+and then back into main ... these documents should spell out how to do
+everything very simply and understandably. Clear step by step instructions
+with notes under on stopping points to check if they are seeing the right
+responses to their steps."
+
+**Rewritten.** Every document in `docs/operations/` is now numbered tasks,
+each important step followed by a **Check** (the exact words or values the
+screen should show) and an **If not** (what to do instead); the README
+explains the format and says not to go on until a Check matches.
+`02_GITHUB.md` is the whole route in six steps - feature branch into
+`staging`, watch `fam-staging` deploy, test there, `staging` into `Main`,
+check production, then `Main` back into `staging` so the two are level -
+with the urgent-fix route and reverts for each case. The health page is
+read in a browser with find rather than `curl`. The deck has six new slides
+for the route (28 in all).
+
+**A beginner's read** (2026-11-09, the owner: "Look through all of the
+documentation with the eyes of someone who has no idea how it works"). A
+separate session read the handbook as someone who had never used GitHub,
+Render or a terminal, and checked its claims against the code. What it
+found, and what changed:
+- **The sample-script symptom was wrong.** `DEMO_MODE` is only "no key set"
+  (`app.py`), so a refused key shows `mode: live` and episodes *fail*; the
+  field that says so is the top-level `credentials → state`
+  (`ok`/`rejected`/`absent`, checked at start-up), not the one under
+  `credentials → secrets`. 00, 03, 08 and 10 now tell the two apart.
+- **The health page could not be searched as written.** `reachable`,
+  `held`, `ok`, `lock` and `state` each appear several times, and Firefox's
+  viewer hides quote marks. README now teaches Firefox's Filter JSON box and
+  writes every field as a path (`database → reachable`), with a table, and
+  says which counters restart at every deploy.
+- **GitHub starts a new pull request with base `Main`.** Step 1 now changes
+  base first and checks the merged message says `into staging`; every merge
+  is "Create a merge commit"; a third pre-check catches changes already
+  waiting on staging; reverts say they undo the whole batch, and that
+  bringing a reverted change back needs a new branch.
+- **An author cannot approve their own pull request**, so the rule-book
+  sign-off is now a comment, and 02 tells the owner what required approvals
+  would do to the operator.
+- **Steps needing a terminal on the operator's computer are gone** (deck
+  rebuild, replaying episodes, the admin-token generator, the plan change by
+  `curl`): routed to Claude, a password manager or the owner. The Render
+  Shell is the one place a command is typed.
+- **Real names from the code:** `/admin`'s menu (Pipeline errors, Reported
+  content with Remove/Suspend/Dismiss and Open/Answered, Outside service
+  requests), the waitlist page's controls and outbox line, `/admin`'s
+  not-an-admin message, each agent's role and switch (`agents/names.py`),
+  `usage_report`'s "Worth a look" wording, `audio → check → why`.
+- Moderation moved to the daily check (Apple's 24 hours); one set of wait
+  times in the README; Render's Auto-Deploy checked after a rollback; roles
+  in 01 listed against the pages they must open, with a trial week; prompts
+  name the existing branch and say what to do if Claude pushes a new one.
+
+**A fact-check against the code** (2026-11-09, the owner: "Double check all
+changes made in this branch"). A separate session checked every concrete
+claim in the handbook against the code (about 140 held). Twenty-two did not,
+all now corrected:
+- `voice_doctor.py` speaks only with `--speak` (without it, it is free and
+  ends "Not asking it to speak"); `stories_report.py` writes to the live story
+  pool unless given `--dry`, so the Shell table now says `--dry`; its
+  `wait` and `--` marks are normal; `rulebook_manifest.py --verify` prints
+  each agent `may run` and `manifest version N, signed with owner.pub`, not
+  `signed: True`.
+- Trending: GNews is reported at `trending_bank → gnews`, not
+  `trending → sources`; a failed build retries every 30 minutes and the last
+  edition stays up to 36 hours, so an empty row is never "waiting for 17:00".
+- `archive → enabled` checks settings and sends nothing: a refused
+  connection or a bad password leaves it `true` and shows as `errors` and
+  `last_error` (07, and the same mistake in `ARCHIVE.md`); the read-only
+  user's `connection` line proves only that the setting exists.
+- `usage_report.py --flagged`'s **Worth a look** covers the last hour only;
+  the week is **Most expensive listeners**.
+- Keith's alert email needs `AGENTS` and `IT_AGENT`; Apple is four `APPLE_`
+  settings plus `IOS_BUNDLE_ID`; web push also needs `VAPID_SUBJECT`;
+  Consuela has two dry-run switches; only *active* mixes are written at 05:00;
+  a single held agent logs `netenyahu held <role>`, so the log search is
+  `held`; `credentials → rejected` is any failed start-up check, and
+  `audio → check` is measured once at boot.
+- The owner-only file list now matches `.github/CODEOWNERS`, and allows a
+  proposal's `MANIFEST.pending.json`; `/admin`'s menu is a left sidebar,
+  behind a button only on narrow windows; not every report has all three
+  buttons; CI on `Main` took 34-57 minutes over its last eight runs, so the
+  handbook says 35-60; the deck's five contradictions with the documents are
+  gone.
+- Vendor details that cannot be checked from code were softened rather than
+  asserted: a personal repository has no collaborator roles; RunPod's
+  console is at `console.runpod.io`; the Anthropic console may forward to
+  `platform.claude.com`; staging (which has a disk) blinks out for a minute
+  on a deploy. The staging address `fam-staging.onrender.com` is taken from
+  `.github/workflows/load-test.yml`, left for the owner to confirm.
+
+**Main moved under the handbook** (2026-11-09, the owner: "Double check all
+changes made in this branch", again). #232 merged into `Main` with §501-§506,
+so this section, written as §501, was renumbered; #233 then took §507 as
+well, so it is §508. Two of #232's changes
+made the handbook wrong, now fixed in 09: the rule books are on **manifest
+version 7** (§505), and the owner can now sign from any computer with
+`tools/sign_rulebooks.py` (§504), which reads the key from the clipboard,
+so Step 5 uses that tool (with OpenSSL left as the alternative) and the
+signing decision's option 2 is no longer Mac-only. #232's `/admin`
+**Categories (Nando)** page and its **Run the one-time check** button
+(§503) are added to the owner-only list in 01. The agents' names, roles and
+switches are unchanged (`agents/names.py` gained only a model setting).
