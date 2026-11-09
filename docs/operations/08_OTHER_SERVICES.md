@@ -13,8 +13,8 @@ service is the admin page.
 ## Task 1. Find which service is failing
 
 1. Open `<production address>/admin` and sign in.
-2. Click the menu button (three lines, top left) → under **Running costs**,
-   **Outside service requests**.
+2. In the menu down the left side (in a narrow window: the three-line
+   button, top left) → under **Running costs**, **Outside service requests**.
 
    > **Check:** each service shows today's number of requests, and none is
    > marked in red or shown at its daily limit.
@@ -49,8 +49,8 @@ service is the admin page.
 | **Gemini** (Google) | `GEMINI_API_KEY` | Paints category pictures | New categories show a plain icon |
 | **Email** (**TODO(owner):** which provider) | `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM` | Password resets, **and every alert email** | "Forgot password?" disappears, **and you stop getting alerts** |
 | **Google sign-in** | `GOOGLE_CLIENT_IDS` | Sign in with Google | That button fails; email sign-in still works |
-| **Apple** | five settings starting `APPLE_` | Sign in with Apple; the iOS app's links | Apple sign-in fails |
-| **Web push** | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | "Your mix is ready" notifications | No notifications |
+| **Apple** | `APPLE_CLIENT_IDS`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `IOS_BUNDLE_ID` | Sign in with Apple; the iOS app's links | Apple sign-in fails |
+| **Web push** | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | "Your mix is ready" notifications | No notifications |
 | **Viral Loops** | `VIRAL_LOOPS_CAMPAIGN_ID`, `VIRAL_LOOPS_API_TOKEN` | The waitlist's referral programme | Nothing is lost: sign-ups queue up and are sent when it is back |
 
 **If it has been suspiciously quiet** (no alerts for a long time), check
@@ -105,7 +105,7 @@ Do this with nobody watching your screen.
 
    | Service | How to check |
    |---|---|
-   | GNews | Wait for the next 05:00 or 17:00 Eastern; then the Trending row fills |
+   | GNews | Within about 30 minutes of the deploy, the Trending row fills (straight away if the key had been missing) |
    | BALLDONTLIE | Search a current sports question in the app |
    | Tiingo | Search a question about a stock price |
    | Open-Meteo | Search the weather in a city outside the US |

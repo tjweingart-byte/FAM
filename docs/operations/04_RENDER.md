@@ -127,7 +127,7 @@ a table, tell the owner. Do not try to fix data by hand.
 ## Task 4. Change a setting (environment variable)
 
 Every key and setting is on the service's **Environment** page. Saving one
-restarts the service: a deploy of up to 15 minutes, with no downtime.
+restarts the service: a deploy of up to 15 minutes. Production has no downtime; staging is unavailable for a minute or so.
 
 1. Click the service → **Environment**.
 
@@ -178,7 +178,7 @@ agent by its **role**; this handbook usually uses its **name**:
 | Sonic | `retriever` | `RETRIEVER` |
 | Shakespeare | `editor` | `EDITOR_AGENT` |
 | Mclovin | `supervisor` | `SUPERVISOR` |
-| Consuela | `housekeeper` | `HOUSEKEEPER` (also `HOUSEKEEPER_DRY_RUN`: `1` = report only) |
+| Consuela | `housekeeper` | `HOUSEKEEPER` (and two report-only switches, `1` = report only: `HOUSEKEEPER_DRY_RUN` for filing facts, `HOUSEKEEPER_DEDUPE_DRY_RUN` for merging duplicates) |
 | Keith Wong | `it` | `IT_AGENT` |
 
 Switching an agent on or off is the owner's decision
@@ -205,14 +205,15 @@ only place in this handbook where you type a command.
 2. Copy one command from the table below, paste it into the box, and press
    Enter. Wait until the line ending in `$` or `#` comes back.
 
-These commands only **read**:
+These commands only **read** (as written here, flags included):
 
 | Command | Tells you | Healthy answer |
 |---|---|---|
-| `python tools/voice_doctor.py` | Whether the voice works. Wakes the GPU (costs a few cents), so it can take 90 seconds. | It ends by saying the voice is speaking |
+| `python tools/voice_doctor.py` | Whether FAM can find and reach the voice. Free and quick. | Steps 1-5 each say `ok`, and it ends `Not asking it to speak.` |
+| `python tools/voice_doctor.py --speak` | The same, then makes real audio. It wakes a GPU (costs a few cents), so it can take 90 seconds. | Step 6 says `ok … bytes, … s of audio at 24000 Hz` |
 | `python tools/storage_doctor.py` | Whether the next deploy could wipe anything | The line `ephemeral  0` |
-| `python tools/stories_report.py` | Whether the news sources are answering | Under **Sources**, each line starts `ok` (or `off` for one not set up). `FAIL` or `SLOW` names a failing source. |
-| `python tools/usage_report.py --days 7 --flagged` | What listeners cost this week, and any account using far too much | Under **Worth a look** it says `nobody crossed a threshold in the last hour`. (That wording is fixed. It appears even with `--days 7`.) Anything else listed there is worth reading. |
+| `python tools/stories_report.py --dry` | Whether the news sources are answering. **Always add `--dry`**: without it, the tool writes to the live story pool. | Under **Sources**, each line starts `ok`, `off` (not set up), `wait` (not due yet) or `--` (answered, found nothing). `FAIL` or `SLOW` names a failing source. |
+| `python tools/usage_report.py --days 7 --flagged` | What listeners cost over 7 days, and who is spending most | **Most expensive listeners** lists the week's top spenders. **Worth a look** covers only **the last hour**: `nobody crossed a threshold in the last hour` is the healthy answer. |
 
 **Rules for the Shell:**
 - **This is production.** A command that writes changes real data.
@@ -238,7 +239,7 @@ These commands only **read**:
 | `Traceback` or `ERROR` | Failures |
 | `episode timing` | How long each step of each episode took |
 | `voice` | Messages about the voice |
-| `agents held` | An agent stopped by its rule-book check ([09](09_AGENT_RULE_SIGNOFF.md)) |
+| `held` | An agent stopped by its rule-book check ([09](09_AGENT_RULE_SIGNOFF.md)) |
 
 Logs never show keys: FAM hides them. If you ever see one, treat it as
 leaked ([10](10_RUNBOOKS.md#a-key-has-leaked)).

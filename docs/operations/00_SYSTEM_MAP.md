@@ -74,29 +74,31 @@ not run.
 | When (US Eastern) | When (UTC, which Render's logs use) | What |
 |---|---|---|
 | 05:00 and 17:00 | 10:00 and 22:00 in winter; 09:00 and 21:00 in summer | Trending row rebuilt (from GNews); myFAM rows rebuilt |
-| 05:00 | 10:00 winter / 09:00 summer | Every DailyFAM mix written |
+| 05:00 | 10:00 winter / 09:00 summer | Every active DailyFAM mix written (one played in the last 48 hours) |
 | Every 15 minutes | | World news files downloaded (GDELT) |
 | Every 2 hours | | Market prices, news story pool |
 | While a followed game is on | | Sports scores |
 | Every hour | | Old audio files tidied in Cloudflare R2 |
 
-So if Trending is empty at 06:00 Eastern, the 05:00 run failed. If it is
-empty at 16:00, it may be waiting for 17:00.
+A failed Trending build is retried every 30 minutes, and the row keeps the
+last good edition for up to 36 hours. So **an empty Trending row at any
+hour** means GNews has no working key, or builds have failed for about a
+day and a half ([10 → Trending is empty](10_RUNBOOKS.md#the-trending-row-is-empty)).
 
 ## The addresses
 
 | What | Address |
 |---|---|
 | Production app (this is `<production address>`) | **TODO(owner):** the public address, e.g. `https://familiarize.net`. (Render also gives it an `https://….onrender.com` address; use the public one.) |
-| Staging app (this is `<staging address>`) | **TODO(owner):** `https://….onrender.com` |
+| Staging app (this is `<staging address>`) | Probably `https://fam-staging.onrender.com` (the load-test workflow uses it). **TODO(owner):** confirm. |
 | Health page | `<production address>/api/health` or `<staging address>/api/health` |
 | Admin page | `<production address>/admin` (asks for an admin email and password every time) |
 | This handbook | `https://github.com/tjweingart-byte/fam/tree/Main/docs/operations` |
 | GitHub | `https://github.com/tjweingart-byte/fam` |
 | Render | `https://dashboard.render.com` |
-| RunPod | `https://www.runpod.io/console/serverless` |
+| RunPod | `https://console.runpod.io/serverless` |
 | Cloudflare | `https://dash.cloudflare.com` |
 | MongoDB Atlas | `https://cloud.mongodb.com` |
-| Anthropic Console | `https://console.anthropic.com` |
+| Anthropic Console | `https://console.anthropic.com` (it may forward you to `platform.claude.com`; that is the same place) |
 | Claude Code | `https://claude.ai/code` |
 | Phone preview (layout only, no real audio) | `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`. **TODO(owner):** share it with the operator, or delete this row. |

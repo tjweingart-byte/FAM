@@ -25,7 +25,8 @@ bandwidth.
    type `check`, and look at the one under `audio`
    ([how](README.md#reading-the-health-page)).
 
-   > **Check:** `audio → check → ok` is `true`.
+   > **Check:** `audio → check → ok` is `true`. (This is tested once, when the
+   > server starts. A failure after that shows in step 2 instead.)
    >
    > **If not:** `false`, with a reason beside it in `why`. A reason about
    > access, permission or credentials: go to
@@ -86,7 +87,8 @@ comma breaks every replay. So let Claude write it:
 Only if the key leaked, or Task 1 showed a reason about access or
 permission.
 
-1. Cloudflare → **R2** → on the right, **Manage R2 API Tokens** →
+1. Cloudflare → **R2** → on the right, **Manage R2 API Tokens** (it may be
+   labelled **Manage API tokens**) →
    **Create API Token**.
 2. Name it `fam-production-<today's date>`. Permissions: **Object Read &
    Write**. Under which buckets: **Apply to specific buckets only** →
@@ -109,7 +111,7 @@ permission.
    > **If not:** the two values may have been swapped or cut short. Copy
    > them again from step 2 and repeat step 3.
 
-5. Back in Cloudflare → **Manage R2 API Tokens** → the **old** token (the one
+5. Back in Cloudflare → **Manage R2 API Tokens** (or **Manage API tokens**) → the **old** token (the one
    not named with today's date) → **Delete**. Not sure which is old? Ask the
    owner.
 

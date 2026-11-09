@@ -31589,3 +31589,41 @@ found, and what changed:
   times in the README; Render's Auto-Deploy checked after a rollback; roles
   in 01 listed against the pages they must open, with a trial week; prompts
   name the existing branch and say what to do if Claude pushes a new one.
+
+**A fact-check against the code** (2026-11-09, the owner: "Double check all
+changes made in this branch"). A separate session checked every concrete
+claim in the handbook against the code (about 140 held). Twenty-two did not,
+all now corrected:
+- `voice_doctor.py` speaks only with `--speak` (without it, it is free and
+  ends "Not asking it to speak"); `stories_report.py` writes to the live story
+  pool unless given `--dry`, so the Shell table now says `--dry`; its
+  `wait` and `--` marks are normal; `rulebook_manifest.py --verify` prints
+  each agent `may run` and `manifest version N, signed with owner.pub`, not
+  `signed: True`.
+- Trending: GNews is reported at `trending_bank → gnews`, not
+  `trending → sources`; a failed build retries every 30 minutes and the last
+  edition stays up to 36 hours, so an empty row is never "waiting for 17:00".
+- `archive → enabled` checks settings and sends nothing: a refused
+  connection or a bad password leaves it `true` and shows as `errors` and
+  `last_error` (07, and the same mistake in `ARCHIVE.md`); the read-only
+  user's `connection` line proves only that the setting exists.
+- `usage_report.py --flagged`'s **Worth a look** covers the last hour only;
+  the week is **Most expensive listeners**.
+- Keith's alert email needs `AGENTS` and `IT_AGENT`; Apple is four `APPLE_`
+  settings plus `IOS_BUNDLE_ID`; web push also needs `VAPID_SUBJECT`;
+  Consuela has two dry-run switches; only *active* mixes are written at 05:00;
+  a single held agent logs `netenyahu held <role>`, so the log search is
+  `held`; `credentials → rejected` is any failed start-up check, and
+  `audio → check` is measured once at boot.
+- The owner-only file list now matches `.github/CODEOWNERS`, and allows a
+  proposal's `MANIFEST.pending.json`; `/admin`'s menu is a left sidebar,
+  behind a button only on narrow windows; not every report has all three
+  buttons; CI on `Main` took 34-57 minutes over its last eight runs, so the
+  handbook says 35-60; the deck's five contradictions with the documents are
+  gone.
+- Vendor details that cannot be checked from code were softened rather than
+  asserted: a personal repository has no collaborator roles; RunPod's
+  console is at `console.runpod.io`; the Anthropic console may forward to
+  `platform.claude.com`; staging (which has a disk) blinks out for a minute
+  on a deploy. The staging address `fam-staging.onrender.com` is taken from
+  `.github/workflows/load-test.yml`, left for the owner to confirm.

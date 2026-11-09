@@ -57,7 +57,7 @@ Filter for each of these ([how](README.md#reading-the-health-page)):
 | `ephemeral` | `storage` | `[]` (empty) |
 | `interim` | `tts` | `false` |
 | `check` | `audio` | `ok` is `true` |
-| `archive` | `archive` | `enabled` is `true` |
+| `archive` | `archive` | `enabled` is `true`, and `last_error` is empty |
 | `lock` | `agents → lock` | `signed` is `true`, `held` is `{}` |
 
 > **If any differs:** find that symptom in the list at the top of this page.
@@ -67,7 +67,8 @@ Filter for each of these ([how](README.md#reading-the-health-page)):
 > ([04 Task 3 step 6](04_RENDER.md#roll-back-to-the-last-good-version)).
 
 **3. Reports from listeners: answer within 24 hours** (Apple requires it).
-`<production address>/admin` → menu (three lines, top left) → under
+`<production address>/admin` → in the menu (down the left side; in a narrow
+window, behind the three-line button) → under
 **Inbox**, **Reported content**.
 
 > **Check:** the **Open** tab is empty. If not, answer each one now:
@@ -109,9 +110,10 @@ replay from your history.
 
        python tools/usage_report.py --days 7 --flagged
 
-   > **Check:** under **Worth a look** it says `nobody crossed a threshold in
-   > the last hour`. (That sentence is fixed and appears for any `--days`.)
-   > If accounts are listed there, see [Costs jump](#costs-jump).
+   > **Check:** read **Most expensive listeners**: the week's top spenders.
+   > One account far above the rest is worth sending to the owner. (**Worth a
+   > look**, further down, covers only the last hour. Its healthy answer is
+   > `nobody crossed a threshold in the last hour`.)
 
 3. **Waitlist.** `<production address>/admin/waitlist`.
 
@@ -190,7 +192,7 @@ These are two different problems. Both are about the Anthropic key.
 | What you see | Means | Go to |
 |---|---|---|
 | `mode` = `demo`, `credentials → state` = `absent` | The `ANTHROPIC_API_KEY` setting is **empty**. Every episode is the built-in sample script. | step 2 |
-| `mode` = `live`, `credentials → state` = `rejected` | The key is set, but Anthropic **refused** it. New episodes fail. | step 3 |
+| `mode` = `live`, `credentials → state` = `rejected` | The key is set, but the start-up check failed: usually Anthropic **refused** it, sometimes Anthropic was down at that moment (`detail` says which). New episodes fail. | step 3 |
 | `mode` = `live`, `credentials → state` = `ok`, but episodes still fail | The key worked at start-up, and has since been disabled, run out of spend, or Anthropic is down | step 3 |
 
 **2. The setting is empty.** Render → **fam** → **Environment**. Is
@@ -198,7 +200,8 @@ These are two different problems. Both are about the Anthropic key.
 - **It has gone:** someone deleted it. Look at **Events** for when. Tell the
   owner, then put a key back ([03 → Replace the key](03_CLAUDE.md#replace-the-key-only-if-it-leaked-or-the-owner-asks)).
 
-**3. The key is refused.** Open `https://console.anthropic.com`:
+**3. The key is refused.** Open `https://console.anthropic.com` (it may
+forward you to `platform.claude.com`):
 - **API Keys:** is the production key still **Active**?
 - **Limits** and **Usage:** has the spend limit been reached?
 - `https://status.anthropic.com`: is Anthropic down?
@@ -223,20 +226,21 @@ Look at **Perplexity** and **Parallel** first.
 
 ## The Trending row is empty
 
-1. What time is it in US Eastern time? Trending is rebuilt at **05:00 and
-   17:00 Eastern** ([00 → timer table](00_SYSTEM_MAP.md#what-the-server-does-on-a-timer)).
-   Empty at 16:00 may just mean it is waiting for 17:00.
-2. Health page → filter for `trending`. In the section named `trending`, look
-   at `sources`.
+1. Trending is rebuilt at **05:00 and 17:00 Eastern**. A failed build is
+   retried every 30 minutes, and the row keeps the last good edition for up
+   to 36 hours. So an empty row is never just "waiting": something is wrong.
+2. Health page → filter for `gnews`. Look under `trending_bank → gnews`.
+   (Not the section called just `trending`, which is something else.)
 
-   > **Check:** GNews shows `ready` = `true`.
+   > **Check:** `ready` is `true`.
    >
-   > **If not:** its `detail` says why, in words (for example a key missing or
-   > refused). Check the GNews account
+   > **If not:** `detail` says why, in words (for example a key missing). Also
+   > read `trending_bank → last_failure`. Then check the GNews account
    > ([08 → Task 2](08_OTHER_SERVICES.md#task-2-a-service-is-failing-what-to-check-at-the-vendor)).
 
-3. After a fix, the row fills at the next 05:00 or 17:00 Eastern. There is
-   no backup source, on purpose.
+3. After a fix, the row fills within about 30 minutes (straight after the
+   redeploy if the key had been missing). There is no backup source, on
+   purpose.
 
 ---
 
@@ -279,7 +283,7 @@ If replays fail for everyone and you cannot fix it quickly, use the
 2. Open the red run → top right, **Re-run jobs** → **Re-run failed jobs**,
    once.
 
-   > **Check:** if it turns green after 30-40 minutes, it was a one-off.
+   > **Check:** if it turns green after 35-60 minutes, it was a one-off.
    > Done.
 
 3. Still red: find which merge broke it. In the list of runs (newest at the
@@ -341,7 +345,8 @@ listed here:
 
 1. `/admin` → menu → **Reported content**, **Open** tab. The oldest is at
    the top.
-2. Read each report. For each one, choose one button:
+2. Read each report. For each one, choose one button (not every report
+   shows all three: a report about a person or a group has no **Remove**):
    - **Remove**: takes the content down for everyone.
    - **Suspend**: removes it **and** stops that account posting anything.
    - **Dismiss**: leaves it up (it stays hidden from the person who reported
@@ -361,8 +366,9 @@ listed here:
    service requests**.
 2. Render Shell: `python tools/usage_report.py --days 1 --flagged`
 
-   > **Check:** is it **one or two accounts** (listed under **Worth a
-   > look**), or **everyone**?
+   > **Check:** under **Most expensive listeners**, is one or two accounts
+   > far above the rest, or is everyone higher? (**Worth a look** shows only
+   > the last hour's heavy users.)
 
 3. **One or two accounts:** copy that part of the report and send it to the
    owner. The owner can move an account to the limited free plan.

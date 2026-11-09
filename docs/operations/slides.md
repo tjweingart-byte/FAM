@@ -86,7 +86,7 @@
 - GitHub starts with base: Main. Change it to staging FIRST
 - Check: the line reads base: staging, compare: claude/..., and "Able to merge"
 - Create pull request. Read Files changed: only what was asked, no owner-only files
-- Wait 30-40 minutes. Check: "All checks have passed"
+- Wait 35-60 minutes. Check: "All checks have passed"
 - Arrow beside the button: Create a merge commit. Then Merge, Confirm. Check: "into staging"
 > 02_GITHUB.md, Step 1. Red checks: never merge; paste the error into a Claude session.
 
@@ -100,7 +100,7 @@
 
 # Step 4: staging into Main
 - New pull request. base: Main, compare: staging
-- Check: the commits listed are exactly this batch
+- Check: the commits listed are this batch (plus leftover "Main back into staging" merges)
 - Title "Staging to Main: ...", list the PRs, "Tested on staging: yes"
 - Wait for green checks
 - Database table changing? Take a backup first
@@ -115,7 +115,7 @@
 > 02_GITHUB.md, Steps 5 and 6. Urgent fix: base Main directly, then Step 6 straight away.
 
 # Undoing a change
-- Production broken right now: Render, Events, Rollback (2 minutes)
+- Production broken right now: Render, Events, Rollback (2-5 minutes)
 - Then always revert on GitHub: the merged PR, Revert, merge the revert
 - A rollback alone lasts only until the next merge
 - Then Main back into staging (Step 6)
@@ -158,7 +158,7 @@
 - Serverless endpoint FAM (g65qlmwz4sc02u), built from Main's Dockerfile.voice
 - Scales to zero, max 4 workers, idle timeout 180 s
 - The app emails SUPPORT_EMAIL when the voice goes down
-- Check: /api/health tts, and python tools/voice_doctor.py in Render Shell
+- Check: health page tts, and python tools/voice_doctor.py --speak in Render Shell
 - Stalls: idle timeout, Requests delay, GPU supply, a fresh build
 - No fallback voice, by design. Never touch the voice recording
 > 05_RUNPOD.md
@@ -198,7 +198,7 @@
 # Signing off on an agent document
 - 1. Ask a Claude session for a proposal, never an edit of the signed book
 - 2. It writes agent_rule_proposals/<book>.md and MANIFEST.pending.json
-- 3. The operator reviews it against the checklist and approves the PR
+- 3. The operator reviews it against the checklist and comments "Reviewed for signing"
 - 4. The owner signs on their Mac and uploads three files in one commit
 - 5. The session verifies the signature and cleans up. Merge. Check health
 > 09_AGENT_RULE_SIGNOFF.md. Open decision for the owner: keep signing owner-only (recommended), sign remotely on request, or add a second key (a signed code change).
@@ -209,7 +209,7 @@
 - Does not loosen a settled constraint in CLAUDE.md
 - Gives the agent no new power: no writes, no settings, no new service
 - Reason written in PROBLEMS.md; the file is the whole book; no stray files
-> 09_AGENT_RULE_SIGNOFF.md, step 3.
+> 09_AGENT_RULE_SIGNOFF.md, Task 2, Step 4.
 
 # Runbooks
 - Site down: Events, Rollback, Logs, status pages, then call the owner
@@ -220,8 +220,8 @@
 > 10_RUNBOOKS.md has every runbook step by step.
 
 # Every day, every week
-- Daily: /api/health, /admin errors and outside services, CI on Main, inboxes, play two episodes
-- Weekly: spend on every dashboard, usage_report --flagged, moderation, waitlist outbox, stale PRs
+- Daily: health page, reported content (answer within 24 hours), /admin errors and outside services, CI on Main, inboxes, play two episodes
+- Weekly: spend on every dashboard, usage_report, waitlist outbox, stale PRs
 - Keep an incident note; send it to the owner
 > 10_RUNBOOKS.md, "Routine checks".
 

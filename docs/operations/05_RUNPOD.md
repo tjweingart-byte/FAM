@@ -6,7 +6,7 @@ episode, FAM sends each sentence to RunPod and gets audio back.
 
 | | |
 |---|---|
-| Where | `https://www.runpod.io/console/serverless` → the endpoint called **FAM** (id `g65qlmwz4sc02u`). If you see other endpoints, leave them alone. |
+| Where | `https://console.runpod.io/serverless` → the endpoint called **FAM** (id `g65qlmwz4sc02u`). If you see other endpoints, leave them alone. |
 | How it updates | RunPod rebuilds it from `Main` **by itself** after every merge into `Main`. It takes up to 30 minutes. |
 | When it costs money | Only while a "worker" (a rented GPU) is running: while speaking, and for up to 3 minutes after |
 | Alerts | FAM emails `SUPPORT_EMAIL` within minutes if the voice stops, daily while it is down, and when it is back |
@@ -43,12 +43,14 @@ doing by hand.** Day to day, you only look at it when something is wrong.
    > **If not:** nothing after 2 minutes: go to [Task 2](#task-2-episodes-are-stuck-on-generating-the-audio-or-very-slow-to-start).
 
 **The full test**, from the Render Shell ([04 → Task 5](04_RENDER.md#using-the-shell)).
-It wakes a GPU (a few cents) and can take 90 seconds:
+`--speak` makes it produce real audio, which wakes a GPU (a few cents) and
+can take 90 seconds:
 
-    python tools/voice_doctor.py
+    python tools/voice_doctor.py --speak
 
-> **Check:** it ends by saying the voice is speaking. If anything is broken
-> it prints the fix beside it, in plain words.
+> **Check:** steps 1-5 say `ok`, and step 6 says `ok … bytes, … s of audio
+> at 24000 Hz`. If anything is broken it prints the fix beside it, in plain
+> words.
 
 ---
 
@@ -139,7 +141,8 @@ You got the "voice down" email, or `tts → interim` is `true`.
 
    > **Check:** `RUNPOD_ENDPOINT_ID` and `RUNPOD_API_KEY` both exist.
    > `VOICE_BACKEND` is `remote`. `REMOTE_VOICE_TRANSPORT` is `runpod`.
-   > There is **no** `REMOTE_VOICE_URL` and **no** `RUNPOD_POD`.
+   > There is **no** `REMOTE_VOICE_URL` and **no** `RUNPOD_POD`. (The file
+   > `render.yaml` still lists `RUNPOD_POD`. Ignore that; it is out of date.)
    >
    > **If not:** do not change or delete anything here yourself. Tell the
    > owner exactly what you see.

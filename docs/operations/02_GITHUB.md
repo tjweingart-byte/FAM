@@ -138,10 +138,14 @@ for example `claude/backend-operations-docs-jzbx0p`.
    changed** tab. You are not reviewing code. You are checking three things:
    - It only touches what was asked for. (A documentation change that also
      edits `app.py` is a question for Claude.)
-   - It does **not** change anything in `docs/agent_rules/`,
-     `.github/CODEOWNERS`, `CLAUDE.md` or `docs/claude/`. Those are the
-     owner's ([01 → Owner-only decisions](01_ACCESS.md#owner-only-decisions)).
-     (A rule-book *proposal* in `docs/agent_rule_proposals/` is fine; see 09.)
+   - It does **not** change any of the owner's files: anything in
+     `docs/agent_rules/`, `docs/journalism_playbook.md`, `agents/rulebooks.py`,
+     `tools/rulebook_manifest.py`, `tests/test_agent_rulebooks.py`,
+     `.github/CODEOWNERS`, `.gitattributes`, `CLAUDE.md` or `docs/claude/`
+     ([01 → Owner-only decisions](01_ACCESS.md#owner-only-decisions)).
+     **One exception:** a rule-book *proposal* (see 09) adds a file in
+     `docs/agent_rule_proposals/` and `docs/agent_rules/MANIFEST.pending.json`.
+     That is expected.
    - Claude's reply said `all checks passed`. That is Claude's own test run on
      its own machine. GitHub's checks are a second, separate run.
 
@@ -149,7 +153,7 @@ for example `claude/backend-operations-docs-jzbx0p`.
    > pull request (the box at the bottom of the **Conversation** tab) saying
    > what you saw, and ask Claude or the owner.
 
-8. **Wait for the checks**, 30-40 minutes. Refresh the page now and then.
+8. **Wait for the checks**, 35-60 minutes. Refresh the page now and then.
 
    > **Check:** the box at the bottom turns green: `All checks have passed`.
    >
@@ -253,7 +257,7 @@ The owner's full list is in `STAGING.md` → "Staging checklist".
    of what is in it>`. **Description:** list the pull request numbers in
    the batch (`#232, #233`) and write `Tested on staging: yes`.
 4. Click **Create pull request**.
-5. Wait for the checks (30-40 minutes).
+5. Wait for the checks (35-60 minutes).
 
    > **Check:** `All checks have passed` (green).
 
@@ -389,7 +393,7 @@ it, and after you have told the owner.**
 
 If production is broken *right now*, first
 [roll back on Render](04_RENDER.md#roll-back-to-the-last-good-version),
-which takes minutes (the revert's checks take 30-40). Then do the revert.
+which takes minutes (the revert's checks take 35-60 minutes). Then do the revert.
 **A rollback alone is not enough**: the next merge into `Main` would bring
 the bad change back.
 
@@ -441,7 +445,7 @@ commit**.
 2. First, top right of that page: **Re-run jobs** → **Re-run failed jobs**,
    once. A one-off failure sometimes passes the second time.
 
-   > **Check:** if it turns green after 30-40 minutes, you are done.
+   > **Check:** if it turns green after 35-60 minutes, you are done.
 
 3. Still red: click the step with the red cross to open it, and scroll to the
    red text. Copy from the first line containing `FAILED` or `Error` to the

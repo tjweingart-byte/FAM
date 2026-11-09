@@ -211,7 +211,9 @@ push, and tell me the branch you pushed to.
 ```
 
 > **Check:** the reply shows `python tools/rulebook_manifest.py --verify`
-> printing `signed: True` with every book `matches`, and `all checks passed`.
+> printing every agent `may run`, then `manifest version <N>, signed with
+> owner.pub`, where N is one higher than the version you wrote down. And
+> `all checks passed`.
 > It names the same branch.
 
 ### Step 7. Merge, and take it to production
@@ -270,5 +272,6 @@ by changing a rule book or the manifest without a signature.
 | `docs/FAM_AGENTS.md` (explanations and reasoning) | No | Normal review. But if it changes what a rule *means*, the rule book must change too, and that is signed. |
 | Training plans and prompts (`docs/AGENTS_TRAINING_PLAN.md`, `docs/TRAINING_NEXT_BRANCH.md`, …) | No | Normal review |
 | Agent code (`agents/*.py`) | No, except `agents/rulebooks.py`, which needs the owner's review | Normal review; checks must pass |
+| The lock's own files: `tools/rulebook_manifest.py`, `tests/test_agent_rulebooks.py`, `.gitattributes`, `.github/CODEOWNERS` | No | **The owner's review** (GitHub requires it) |
 | Agent on/off switches on Render ([04 → the switch table](04_RENDER.md#task-4-change-a-setting-environment-variable)) | No | The owner's decision |
 | Which AI model each agent uses | No | The owner's decision |

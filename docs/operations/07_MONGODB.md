@@ -26,13 +26,21 @@ Render, and write the cluster's name and tier here.
    `enabled` ([how](README.md#reading-the-health-page)).
 
    > **Check:**
-   > - `enabled` is `true` and `backend` is `atlas`;
-   > - `errors` is `0`, or low (these count since the last deploy);
+   > - `enabled` is `true` and `backend` is `atlas` (this means it is **set
+   >   up**: the settings are there);
+   > - `errors` is `0` or low, and `last_error` is empty (this means it is
+   >   **working**; counts restart at every deploy);
    > - `intake_articles` goes up during the day as episodes are made.
    >
-   > **If `enabled` is `false`:** the `reason` beside it says why, in one
-   > sentence. The usual one is that Atlas refused the connection: go to
-   > [Task 2](#task-2-atlas-refuses-the-connection).
+   > **If `enabled` is `false`:** a setting is missing or wrong. The `reason`
+   > beside it says which, in one sentence (for example `MONGODB_URI is not
+   > set`). Tell the owner.
+   >
+   > **If `enabled` is `true` but `errors` keeps rising:** read `last_error`.
+   > If it mentions a refused connection, a timeout, or an IP address, Atlas
+   > is refusing Render: go to [Task 2](#task-2-atlas-refuses-the-connection).
+   > If it mentions authentication or a password, the password is wrong: tell
+   > the owner, or see [Task 3](#task-3-change-a-database-password).
 
 ---
 
@@ -55,9 +63,10 @@ Atlas only accepts connections from a list of approved internet addresses
 
 4. Wait two minutes. Then health page → `archive`.
 
-   > **Check:** `enabled` is `true`, and `errors` has stopped rising.
+   > **Check:** `errors` has stopped rising, and `last_error` is empty or
+   > older than your change. (`backing_off` is `false` again.)
    >
-   > **If not:** the `reason` now says something else. Paste it into a
+   > **If not:** `last_error` now says something else. Paste it into a
    > Claude session with the "Find out what is wrong in production" prompt
    > ([03](03_CLAUDE.md#prompts-to-copy)), or send it to the owner.
 
@@ -84,14 +93,16 @@ your screen.
 4. Back in Atlas: click **Update User**.
 5. In Render, click **Save, rebuild, and deploy**.
 
-   Between steps 4 and the deploy finishing, the archive is off. That is
-   expected: episodes still work.
+   Between step 4 and the deploy finishing, the archive's connections fail
+   and `errors` rises. That is expected: episodes still work.
 
 6. After `Deploy live`, health page → `archive`.
 
-   > **Check:** `enabled` is `true`. For the read-only user, also filter
-   > for `connection` and look under `archive → retriever`: it says
-   > `atlas read-only user`.
+   > **Check:** for the read/write user: `archive → errors` stops rising, and
+   > `archive → last_error` is empty or older than your change. For the
+   > read-only user: under `archive → retriever`, `last_error` is empty.
+   > (`connection` there saying `atlas read-only user` only proves the
+   > setting exists, not that the password works.)
    >
    > **If not:** the password may have been pasted with a character missing.
    > Repeat steps 1-5.

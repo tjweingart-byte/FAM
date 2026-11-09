@@ -13,7 +13,7 @@ each one in the trial week** (Part B, step 6).
 
 | Service | What to grant | Needed for | Done? |
 |---|---|---|---|
-| **GitHub** `tjweingart-byte/fam` | Settings → **Collaborators** → **Add people** → role **Write** (not Admin) | Opening, merging and reverting pull requests (02) | **TODO(owner)** |
+| **GitHub** `tjweingart-byte/fam` | Settings → **Collaborators** → **Add people**. (On a personal account's repository there is no role to pick: a collaborator can push and merge, but cannot change Settings.) | Opening, merging and reverting pull requests (02) | **TODO(owner)** |
 | **Claude** | A seat on the owner's Claude organisation, or the operator's own plan. The owner also approves the Claude GitHub app on the repository. | Claude Code sessions (03) | **TODO(owner)** |
 | **Anthropic Console** | Invite to the organisation, with a role that can see **Usage/Cost** and **Limits**, and create and disable API keys | 03 Task 3 | **TODO(owner)** |
 | **Render** | Invite to the workspace as **Developer** (not Admin) | Events, Logs, Environment, Shell, Rollback, the database page (04) | **TODO(owner)** |
@@ -64,8 +64,9 @@ each one in the trial week** (Part B, step 6).
 1. Open `<production address>/admin`.
 2. Sign in with your production FAM account's email and password.
 
-> **Check:** you see the admin page, with a menu button at the top left
-> (three lines). Its menu lists **Overview**, **Pipeline errors**,
+> **Check:** you see the admin page, with its menu down the left side. (In a
+> narrow window the menu is hidden behind a three-line button at the top
+> left.) The menu lists **Overview**, **Pipeline errors**,
 > **Reported content**, **Outside service requests** and more.
 >
 > **If not:**
@@ -84,7 +85,7 @@ to production ([02](02_GITHUB.md)) and one rollback on staging
 ## Part C. Adding someone to the admin list
 
 On Render, settings are called "environment variables". Saving one
-restarts the server: a deploy of 5-15 minutes, with no downtime.
+restarts the server: a deploy of 5-15 minutes. Production has no downtime; staging is unavailable for a minute or so.
 
 1. Render → click **fam** → in the left menu, **Environment**.
 
@@ -120,7 +121,7 @@ the value of each:
 | Setting | What arrives there |
 |---|---|
 | `SUPPORT_EMAIL` | **The voice is down.** Sent within minutes, then daily while it lasts, then when it is back. |
-| `IT_ALERT_EMAIL` | Urgent problems found by Keith, the IT agent. Only if the agent is switched on (the setting `IT_AGENT` is `1`). |
+| `IT_ALERT_EMAIL` | Urgent problems found by Keith, the IT agent. Only if the agents are switched on: both `AGENTS` and `IT_AGENT` are `1`, and Keith is not held. |
 | `MODERATION_EMAIL` (or, if it is missing, `SUPPORT_EMAIL`) | A listener reported someone or something. Must be answered within 24 hours. |
 
 > **Check:** every one of these is an address you receive. **If not:** ask

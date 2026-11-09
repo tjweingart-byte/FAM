@@ -156,8 +156,9 @@ branch anywhere, check:
 2. **The pull request's checks are green**, whatever the reply says.
 3. **Files changed** on the pull request matches what you asked for, and
    nothing more.
-4. **No owner-only files**: nothing in `docs/agent_rules/`,
-   `.github/CODEOWNERS`, `CLAUDE.md` or `docs/claude/`.
+4. **No owner-only files**: the list is in
+   [02 → Step 1, point 7](02_GITHUB.md#step-1-merge-a-feature-branch-into-staging)
+   (a rule-book proposal's `MANIFEST.pending.json` is the one exception).
 5. **For anything you can see in the app:** test it on staging
    ([02 → Step 3](02_GITHUB.md#step-3-test-on-staging)). That is the real
    test.
@@ -182,7 +183,9 @@ Look at the one **directly under `credentials`**, not the one under
 
 > **Check:** `ok`.
 >
-> - `rejected` means Anthropic refused the key. See
+> - `rejected` means the start-up check failed: usually Anthropic refused the
+>   key, sometimes Anthropic was down at that moment. `detail` beside it says
+>   which. See
 >   [10 → episodes fail](10_RUNBOOKS.md#every-episode-is-the-same-sample-or-new-episodes-fail).
 > - `absent` means the setting is empty. Every episode is then the built-in
 >   sample.
@@ -192,7 +195,8 @@ Look at the one **directly under `credentials`**, not the one under
 
 ### Check spend (weekly)
 
-1. Open `https://console.anthropic.com` → **Usage** (or **Cost**).
+1. Open `https://console.anthropic.com` (it may forward you to
+   `platform.claude.com`) → **Usage** (or **Cost**).
 
    > **Check:** daily spend is close to the normal figure
    > (**TODO(owner):** write the normal daily spend here). Double or more

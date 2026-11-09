@@ -76,7 +76,7 @@ a way to do this without a terminal?", or send it to the owner.
 | **Commit** | One saved set of changes, with a 40-character code. People use only the first 7 characters, for example `a5ffa80`. |
 | **Pull request (PR)** | A request on GitHub to copy changes from one branch into another. Each has a number, like `#232`. |
 | **Merge** | Doing a pull request: the changes are copied into the other branch. |
-| **Checks** / **CI** | The automatic tests GitHub runs on every pull request ("continuous integration"). They take **30-40 minutes**. |
+| **Checks** / **CI** | The automatic tests GitHub runs on every pull request ("continuous integration"). They take **35-60 minutes**. |
 | **Deploy** | Render putting a new version of FAM live. It happens by itself after a merge, or after a setting is saved. Takes **5-15 minutes**. |
 | **Rollback** | Telling Render to go back to an earlier version. |
 | **Revert** | A pull request that undoes an earlier one. |
@@ -129,14 +129,14 @@ The fields the handbook uses:
 |---|---|---|
 | `build → short` | the 7-character commit you expect | which version is running |
 | `mode` | `live` | `demo` = no Anthropic key is set at all |
-| `credentials → state` (the one directly under `credentials`, **not** under `credentials → secrets`) | `ok` | the Anthropic key worked when the server started. `rejected` = the key was refused. |
+| `credentials → state` (the one directly under `credentials`, **not** under `credentials → secrets`) | `ok` | the Anthropic key worked when the server started. `rejected` = that start-up check failed: usually a refused key, sometimes an Anthropic outage at that moment (`detail` beside it says which). |
 | `database → backend` | `postgres` | |
 | `database → reachable` | `true` | the database answers |
 | `storage → ephemeral` | `[]` (empty) | nothing will be wiped by the next deploy |
 | `tts → interim` | `false` | `true` = listeners hear a placeholder tone instead of the voice |
 | `tts → remote → reachable → state` | `ok` (or `unknown` just after a deploy) | the voice answered |
-| `audio → check → ok` | `true` | the audio store (Cloudflare) works |
-| `archive → enabled` | `true` | the history archive works |
+| `audio → check → ok` | `true` | the audio store (Cloudflare) worked when the server started. A later failure shows as `audio → links → fallbacks` rising. |
+| `archive → enabled` | `true` | the history archive is **set up**. Whether it is **working** is `archive → errors` (low) and `archive → last_error` (empty). |
 | `agents → lock → signed` | `true` | the agent rule books are signed |
 | `agents → lock → held` | `{}` (empty) | no agent is stopped by its rule-book check |
 | `environment → zero_spend` (staging only) | `true` | staging cannot spend money |
@@ -155,7 +155,7 @@ any part of it into a Claude session or an email.
 
 | Thing | How long | Worry after |
 |---|---|---|
-| GitHub checks on a pull request | 30-40 minutes | 60 minutes |
+| GitHub checks on a pull request | 35-60 minutes | 75 minutes |
 | A Render deploy | 5-15 minutes | 30 minutes |
 | A Render rollback | 2-5 minutes | 15 minutes |
 | The voice rebuilding after a merge into `Main` | up to 30 minutes | 45 minutes |
