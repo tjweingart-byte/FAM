@@ -201,7 +201,8 @@ def test_unset_every_episode_writes_on_model(monkeypatch):
               edition_writer_model="", edition_writer_effort="")
     edition = ScriptNotes()
     edition.edition = True
-    assert sg.writer_for(edition) == ("claude-sonnet-5", "low")
+    # The model follows; the effort is high where nobody waits (§502).
+    assert sg.writer_for(edition) == ("claude-sonnet-5", "high")
     assert sg.writer_for(ScriptNotes()) == ("claude-sonnet-5", "low")
     assert sg.writer_for(None) == ("claude-sonnet-5", "low")
 
@@ -216,7 +217,8 @@ def test_set_only_an_edition_s_episode_moves(monkeypatch):
     assert sg.writer_for(ScriptNotes()) == ("claude-sonnet-5", "low")
     prefetch = ScriptNotes()
     prefetch.prefetch = True
-    assert sg.writer_for(prefetch) == ("claude-sonnet-5", "low"), (
+    # Not an edition's model - but nobody waits on it, so high (§502).
+    assert sg.writer_for(prefetch) == ("claude-sonnet-5", "high"), (
         "a prefetched script is not an edition")
 
 
@@ -229,7 +231,7 @@ def test_the_request_and_the_bill_follow_the_edition_writer(monkeypatch):
     notes.edition = True
     _write(gen, plan_episode("why the sky is blue", 2, search=False), notes)
     assert sent[0]["model"] == "claude-haiku-5-5"
-    assert sent[0]["output_config"]["effort"] == "low"
+    assert sent[0]["output_config"]["effort"] == "high"     # nobody waits (§502)
     assert notes.usage.model == "claude-haiku-5-5"
     params = gen._request_kwargs(plan_episode("x", 2, search=False), notes)
     assert params["model"] == "claude-haiku-5-5", "the batch sends the same"

@@ -1318,6 +1318,13 @@
   > and stays the composer's, placer's and thumbnails'. Not in the key, so a
   > tap still finds what an earlier writer kept; an account without Haiku
   > writes on `MODEL` (boot check). The photo check stays on `SMALL_MODEL`.
+  >
+  > **Current:** where nobody waits - the editions, the write-ahead and
+  > prefetch's script warms - the writer is Haiku 5.5 at **high**
+  > (`AHEAD_WRITER_EFFORT`, PROBLEMS.md §502, at the owner's direction:
+  > "for when nobody waits, it's supposed to be haiku high"), as Shakespeare
+  > is there (§440). searchFAM stays at `EFFORT` (low), so the first word is
+  > not moved; `EDITION_WRITER_EFFORT`, when set, still wins for an edition.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an

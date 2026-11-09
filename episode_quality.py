@@ -239,7 +239,7 @@ def measure(sentences: Iterable[str], query: str = "", evidence: str = "",
     except Exception:  # noqa: BLE001 - a measurement never costs an episode
         log.exception("could not measure an episode")
         return {"scores": {m: None for m in METRICS}, "checks": {},
-                "words": 0, "opener": ""}
+                "words": 0, "opener": "", "ear": None}
 
 
 def _measure(sentences: list[str], query: str, evidence: str,
@@ -332,7 +332,108 @@ def _measure(sentences: list[str], query: str, evidence: str,
 
     opener = " ".join(t.lower() for t in _tokens(sentences[0])[:4])
     return {"scores": {m: _round(v) for m, v in scores.items()},
-            "checks": checks, "words": words, "opener": opener}
+            "checks": checks, "words": words, "opener": opener,
+            "ear": ear(sentences)}
+
+
+# ------------------------------------------------------------------ for the ear
+#: Writing for the ear (§502): the journalism playbook's Part 2, the parts a
+#: pattern can see, checked on every episode - never one of the six metrics
+#: the grader marks, and never enforced. Each check names the sentences it
+#: flagged, by position, so `drop_off` can ask whether listeners leave there.
+#: Tuned on the house examples (§502), which the checks must pass: their
+#: longest sentences run to 40-odd words and still read clean aloud.
+EAR_LONG_WORDS = 40          # one idea per sentence (Part 2, 1)
+EAR_LEAD_WORDS = 12          # subject and verb early (2)
+EAR_RUN = 4                  # this many sentences alike in length read as a list (3)
+EAR_RUN_SPREAD = 3           # ... within this many words of each other
+EAR_FIGURES = 2              # numbers the ear can hold: one a sentence (5)
+EAR_LIST_ITEMS = 5           # no lists of five (9) - short items, a comma apart
+EAR_LIST_ITEM_WORDS = 4
+EAR_CHECKS = ("long", "front_loaded", "monotone", "said_after", "figures",
+              "visual", "brackets", "long_list")
+
+#: A subordinate lead, never a time or place phrase: "In early September
+#: the government..." puts its subject third and reads clean.
+_LEAD = re.compile(
+    r"^(?:despite|although|though|while|whilst|because|since|if|when|whenever|"
+    r"after|before|following|amid|unlike|with|without|according to|as)\b", re.I)
+_SAID_AFTER = re.compile(r"[\"”][,.]?\s+(?:he |she |they |it )?(?:said|says|told|added|"
+                         r"wrote|explained|insisted)\b", re.I)
+_VISUAL = re.compile(r"\b(?:as you can see|you can see|the (?:chart|graph|map|table|"
+                     r"picture|image) (?:shows|below|above)|shown (?:above|below)|"
+                     r"see (?:above|below)|pictured)\b", re.I)
+_YEAR = re.compile(r"^(?:1[89]|20)\d\d$")
+_SCALE = re.compile(r"\b(?:percent|per cent|million|billion|trillion|thousand)\b", re.I)
+
+
+def _figures(sentence: str) -> int:
+    digits = [t for t in re.findall(r"\d[\d,.]*", sentence) if not _YEAR.match(t.strip(",."))]
+    scaled = _SCALE.findall(sentence)
+    # "4.2 billion" is one figure, not two.
+    return max(len(digits), len(scaled)) if digits else len(scaled)
+
+
+def _list_items(sentence: str) -> int:
+    """The longest run of short items a comma apart, the last after "and"
+    or "or": "plastic bags, cardboard, hoses and duct tape" is four."""
+    parts = [p.strip() for p in re.split(r",|\s+-\s+", sentence)]
+    best = run = 0
+    for part in parts:
+        last = re.match(r"^(?:and|or)\s+(.*)$", part)
+        tail = last.group(1) if last else part
+        pieces = re.split(r"\s+(?:and|or)\s+", tail)
+        if 0 < len(_tokens(tail)) <= EAR_LIST_ITEM_WORDS * len(pieces) and \
+                all(0 < len(_tokens(x)) <= EAR_LIST_ITEM_WORDS for x in pieces):
+            run += len(pieces)
+            best = max(best, run)
+        else:
+            run = 0
+    return best
+
+
+def ear(sentences: list) -> dict:
+    """The ear checks on a script: `{"score": 0-1, "words_per_sentence": n,
+    "checks": {check: [sentence positions]}}`. `score` is the share of
+    sentences no check flagged. Never raises."""
+    try:
+        sentences = [" ".join(str(s).split()) for s in sentences if s and str(s).strip()]
+        n = len(sentences)
+        checks: dict = {c: [] for c in EAR_CHECKS}
+        if not n:
+            return {"score": None, "words_per_sentence": None, "checks": checks}
+        lengths = [len(_tokens(s)) for s in sentences]
+        for i, s in enumerate(sentences):
+            if lengths[i] > EAR_LONG_WORDS:
+                checks["long"].append(i)
+            head, comma, _ = s.partition(",")
+            if comma and _LEAD.match(s) and len(_tokens(head)) >= EAR_LEAD_WORDS:
+                checks["front_loaded"].append(i)
+            if _SAID_AFTER.search(s):
+                checks["said_after"].append(i)
+            if _figures(s) >= EAR_FIGURES:
+                checks["figures"].append(i)
+            if _VISUAL.search(s):
+                checks["visual"].append(i)
+            if "(" in s or ")" in s:
+                checks["brackets"].append(i)
+            if _list_items(s) >= EAR_LIST_ITEMS:
+                checks["long_list"].append(i)
+        run: list = [0]
+        for i in range(1, n + 1):
+            if i < n and abs(lengths[i] - lengths[run[0]]) <= EAR_RUN_SPREAD \
+                    and all(abs(lengths[i] - lengths[j]) <= EAR_RUN_SPREAD for j in run):
+                run.append(i)
+                continue
+            if len(run) >= EAR_RUN:
+                checks["monotone"].extend(run)
+            run = [i]
+        flagged = set().union(*checks.values())
+        return {"score": _round(1 - len(flagged) / n),
+                "words_per_sentence": round(sum(lengths) / n, 1), "checks": checks}
+    except Exception:  # noqa: BLE001 - a measurement never costs an episode
+        log.exception("could not run the ear checks")
+        return {"score": None, "words_per_sentence": None, "checks": {}}
 
 
 # --- the store ---------------------------------------------------------------
@@ -373,6 +474,13 @@ class QualityStore:
             # Added after the table shipped (§454): an existing file is widened.
             try:
                 db.execute("ALTER TABLE episodes ADD COLUMN editor_arm "
+                           "TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
+            # Where each sentence starts, as a share of the episode (§502),
+            # copied from the kept audio: it outlives the audio's week.
+            try:
+                db.execute("ALTER TABLE episodes ADD COLUMN starts "
                            "TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
@@ -443,6 +551,21 @@ class QualityStore:
                 db.execute("DELETE FROM listens WHERE at < ?",
                            (now - KEEP_DAYS * DAY,))
 
+    def set_starts(self, key: str, sourced: int, starts: str) -> bool:
+        """Keep where each sentence starts on the episode written nearest
+        `sourced` (within a few seconds, as listens are matched), once."""
+        with self._lock, closing(self._connect()) as db:
+            row = db.execute("SELECT sourced FROM episodes WHERE key = ? AND "
+                             "sourced BETWEEN ? AND ? AND starts = '' "
+                             "ORDER BY ABS(sourced - ?) LIMIT 1",
+                             (key, int(sourced) - 5, int(sourced) + 5,
+                              int(sourced))).fetchone()
+            if row is None:
+                return False
+            db.execute("UPDATE episodes SET starts = ? WHERE key = ? AND sourced = ?",
+                       (starts, key, int(row[0])))
+            return True
+
     def get(self, key: str, sourced: int) -> Optional[dict]:
         rows = self._rows("SELECT * FROM episodes WHERE key = ? AND sourced = ?",
                           (key, int(sourced)))
@@ -490,7 +613,7 @@ class QualityStore:
         return self._rows("SELECT key, sourced, at, query, minutes, origin, "
                           "structure, category, title, writer_model, prompt, "
                           "words, word_budget, measures, grade, grade_model, "
-                          "editor_arm "
+                          "editor_arm, starts "
                           "FROM episodes WHERE at >= ? ORDER BY at DESC", (at,))
 
     def note_listen(self, key: str, sourced: int, listener: str, heard: float,
@@ -677,6 +800,23 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
                                    pipeline_errors.NOTICE)
         except Exception:  # noqa: BLE001
             pass
+
+
+def note_starts(key: str, sourced, sentences: list, starts: list,
+                seconds: float) -> None:
+    """Where each spoken sentence began, as a share of the episode's length
+    (§502), kept on its quality row when its audio is kept - so `drop_off`
+    can say which sentence a listener stopped at long after the audio is
+    gone. A share, not seconds: another voice reads at another pace, and
+    listens record only how far through they got. Never raises."""
+    try:
+        if not key or not sentences or len(starts) != len(sentences) or seconds <= 0:
+            return
+        shares = [round(min(1.0, max(0.0, float(t) / float(seconds))), 4) for t in starts]
+        store().set_starts(key, int(sourced or 0),
+                           json.dumps({"sentences": len(sentences), "shares": shares}))
+    except Exception:  # noqa: BLE001 - a measurement never costs an episode
+        log.exception("could not keep an episode's sentence starts")
 
 
 def note_listen(episode: str, listener: str, seconds: float, duration: float,
@@ -1396,6 +1536,138 @@ def example_candidates(days: float = 30.0, min_listens: int = CANDIDATE_MIN_LIST
                                                         -c["listens"]))
         out["facets"][facet] = {"examples_now": have.get(facet, 0),
                                 "candidates": ranked[:per_facet]}
+    return out
+
+
+# ------------------------------------------------------------------ where they leave
+#: A sentence is reported once this many listeners have reached it.
+DROP_MIN_REACHED = 10
+DROP_TOP = 25
+
+
+def _positions(row: dict, sentences: list) -> tuple:
+    """`(shares, measured)`: where each sentence starts as a share of the
+    episode - the kept audio's own timings when they match the script, else
+    by words (the voice reads at an even pace, near enough)."""
+    try:
+        kept = json.loads(row.get("starts") or "{}")
+    except ValueError:
+        kept = {}
+    shares = kept.get("shares") if isinstance(kept, dict) else None
+    if shares and len(shares) == len(sentences):
+        return [float(x) for x in shares], True
+    words = [len(_tokens(s)) for s in sentences]
+    total = float(sum(words)) or 1.0
+    out, before = [], 0
+    for w in words:
+        out.append(before / total)
+        before += w
+    return out, False
+
+
+def drop_off(days: float = 30.0, min_reached: int = DROP_MIN_REACHED,
+             top: int = DROP_TOP, now: Optional[float] = None,
+             quality: Optional[QualityStore] = None) -> dict:
+    """Which sentences listeners stop at (§502): for every sentence, of the
+    listeners who reached it, the share who stopped there and heard nothing
+    after - its *exit rate*. A listener who heard `FINISHED_SHARE` finished
+    and stopped nowhere.
+
+    * `worst`: the sentences with the highest exit rate that at least
+      `min_reached` listeners reached, each with its episode's question, its
+      position and the ear checks it failed - the material for the
+      before-and-after pairs and the playbook;
+    * `by_place`: the mean exit rate of the opening (first two sentences),
+      the middle and the landing (last two);
+    * `by_ear_check`: for each ear check, the exit rate of sentences it
+      flagged against those it passed - whether the playbook's rule for the
+      ear is one listeners act on.
+
+    Positions come from the kept audio's timings where they were kept
+    (`measured`), else from word counts. Numbers and FAM's own sentences
+    only; never a listener's id."""
+    now = time.time() if now is None else now
+    out: dict = {"days": days, "episodes": 0, "listens": 0, "measured": 0,
+                 "worst": [], "by_place": {}, "by_ear_check": {}}
+    if quality is None:
+        if not exists():
+            return out
+        quality = store()
+    rows = quality.episodes_since(now - days * DAY)
+    if not rows:
+        return out
+    by_key: dict = {}
+    for row in rows:
+        by_key.setdefault(row["key"], []).append(row)
+    listens = quality.listens_for(by_key)
+    heard_by: dict = {}
+    for item in listens:
+        candidates = by_key.get(item["key"]) or []
+        sourced = int(item["sourced"] or 0)
+        near = min(candidates, key=lambda r: abs(int(r["sourced"]) - sourced)) \
+            if candidates else None
+        if near is None or (sourced and abs(int(near["sourced"]) - sourced) > 5):
+            continue
+        heard_by.setdefault((near["key"], int(near["sourced"])), []).append(item)
+    sentences_seen: list = []
+    places: dict = {"opening": [0, 0], "middle": [0, 0], "landing": [0, 0]}
+    ears: dict = {c: {"flagged": [0, 0], "passed": [0, 0]} for c in EAR_CHECKS}
+    for row in rows:
+        items = heard_by.get((row["key"], int(row["sourced"])))
+        if not items:
+            continue
+        full = quality.get(row["key"], row["sourced"]) or {}
+        try:
+            sentences = [str(s) for s in json.loads(full.get("sentences") or "[]")]
+        except ValueError:
+            continue
+        if not sentences:
+            continue
+        shares, measured = _positions(row, sentences)
+        n = len(sentences)
+        reached = [0] * n
+        stopped = [0] * n
+        for item in items:
+            length = float(item["duration"] or 0) or float(item["minutes"] or 0) * 60
+            if length <= 0:
+                continue
+            share = min(1.0, float(item["heard"] or 0) / length)
+            last = max([i for i, s in enumerate(shares) if s <= share] or [0])
+            for i in range(last + 1):
+                reached[i] += 1
+            if share < FINISHED_SHARE:
+                stopped[last] += 1
+        if not any(reached):
+            continue
+        out["episodes"] += 1
+        out["listens"] += len(items)
+        out["measured"] += int(measured)
+        flags = ear(sentences)["checks"] or {}
+        for i in range(n):
+            if not reached[i]:
+                continue
+            place = "opening" if i < 2 else "landing" if i >= n - 2 else "middle"
+            places[place][0] += stopped[i]
+            places[place][1] += reached[i]
+            failed = [c for c, where in flags.items() if i in where]
+            for check in EAR_CHECKS:
+                side = "flagged" if check in failed else "passed"
+                ears[check][side][0] += stopped[i]
+                ears[check][side][1] += reached[i]
+            if reached[i] >= min_reached:
+                sentences_seen.append({
+                    "query": " ".join(str(row.get("query") or "").split()),
+                    "position": i, "of": n, "sentence": sentences[i],
+                    "reached": reached[i], "stopped": stopped[i],
+                    "exit_rate": round(stopped[i] / reached[i], 3),
+                    "ear": failed, "measured": measured})
+    out["worst"] = sorted(sentences_seen, key=lambda s: (-s["exit_rate"], -s["reached"]))[:top]
+    out["by_place"] = {p: {"reached": r, "exit_rate": (round(s / r, 3) if r else None)}
+                       for p, (s, r) in places.items()}
+    out["by_ear_check"] = {
+        c: {side: {"reached": r, "exit_rate": (round(s / r, 3) if r else None)}
+            for side, (s, r) in v.items()}
+        for c, v in ears.items() if v["flagged"][1]}
     return out
 
 

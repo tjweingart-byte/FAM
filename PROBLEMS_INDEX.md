@@ -493,3 +493,4 @@ and `limit` = Lines.
 | 31329 | 109 | 499. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
 | 31500 | 111 | 501. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09) |
+| 31611 | 97 | 502. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09) |

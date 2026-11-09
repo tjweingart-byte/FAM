@@ -37,8 +37,10 @@ def test_every_episode_writes_on_it_and_editions_follow_unless_set(monkeypatch):
         config.Settings(), edition_writer_model="", edition_writer_effort=""))
     edition = sg.ScriptNotes()
     edition.edition = True
-    for notes in (None, sg.ScriptNotes(), edition):
+    for notes in (None, sg.ScriptNotes()):
         assert sg.writer_for(notes) == ("claude-haiku-5-5", "low")
+    # Where nobody waits, Haiku at high (§502, the owner, 2026-11-09).
+    assert sg.writer_for(edition) == ("claude-haiku-5-5", "high")
 
 
 def test_an_account_without_it_writes_on_model(monkeypatch):

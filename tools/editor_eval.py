@@ -248,7 +248,8 @@ async def write_arm(generator, frozen: dict, arm: str) -> dict:
             "editor": {k: v for k, v in (getattr(notes, "editor", None) or {}).items()
                        if k != "plan"} or None,
             "plan_following": followed,
-            "scores": measured.get("scores", {}), "mclovin": fails}
+            "scores": measured.get("scores", {}),
+            "ear": (measured.get("ear") or {}).get("score"), "mclovin": fails}
 
 
 async def grade(client, frozen: dict, result: dict) -> dict:
@@ -317,6 +318,7 @@ def report(out: pathlib.Path) -> dict:
         for metric in episode_quality.METRICS:
             entry[f"code:{metric}"] = _mean([(r.get("scores") or {}).get(metric)
                                              for r in results])
+        entry["code:ear"] = _mean([r.get("ear") for r in results])
         graded = [r.get("grade") for r in results if r.get("grade")]
         for metric in episode_quality.METRICS:
             entry[f"opus:{metric}"] = _mean([((g.get(metric) or {}).get("score")

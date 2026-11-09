@@ -31607,3 +31607,100 @@ example has a facet; the facet from the brief first; nearest length first;
 named in the request, the system block unchanged; off, as it was;
 candidates by listening, fewest-example facets first, written in the
 examples' format, never a listener).
+
+## 502. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09)
+
+The owner (2026-11-09), on seven ways to train the writer as a
+professional script writer: "1. For when nobody waits, it's supposed to be
+haiku high. 2. Rewriting cost are something we want to avoid, that is why we
+want to train rather than draft/rewrite. 3. This is a great way to train the
+model early on, we absolutely can't use opus to rewrite episodes after
+launch. 4. Implement this. 5. ... what is the best way to do this. 6. Good
+7. Don't do." So: no rewrite pass on any episode (2), and no automated
+search over the writer's instructions (7). Story shapes (5) are answered,
+not built.
+
+**1. The writer at high effort where nobody waits** (`AHEAD_WRITER_EFFORT`,
+high). It was Haiku 5.5 at `EFFORT` (low) everywhere - `EDITION_WRITER_*`
+existed for the editions but was unset. `writer_for` now gives
+`AHEAD_WRITER_EFFORT` wherever `nobody_waits(notes)`: an edition
+(`notes.edition`), an episode written ahead of the tap (`notes.ahead`), or
+a prefetch script warm (`notes.prefetch`). searchFAM stays at `EFFORT`, so
+the first word is not moved; `EDITION_WRITER_EFFORT`, when set, still wins
+for an edition. `MAX_OUTPUT_TOKENS` is 16,000, the room §437 found Haiku
+high needs. `/api/health` reports `ahead_writer_effort` and its source, and
+`edition_writer.effort` now reads what is actually used. Not in the cache
+key. Cost unmeasured: high effort spends thinking tokens on every edition
+and warm (§455's editor call at high cost ~2.7x low).
+
+**6. The ear, checked in code** (`episode_quality.ear`, inside `measure`,
+so every quality row and `tools/editor_eval.py`, as `code:ear`, carry it).
+The journalism playbook's Part 2, the parts a pattern can see: `long`
+(over 40 words), `front_loaded` (a subordinate lead of 12+ words before the
+first comma - never a time or place phrase), `monotone` (4+ sentences within
+3 words of each other's length), `said_after` (the speaker named after the
+quote), `figures` (two or more figures in a sentence), `visual`, `brackets`,
+`long_list` (five or more short items). `score` is the share of sentences
+no check flagged. **Tuned on the house examples**, which the checks must
+pass: at a 30-word limit and with time phrases counted as leads they
+flagged a quarter of the owner's own sentences; as set, the twelve examples
+score 0.75-1.0 (mean ~0.92), and the one front-loaded lead still flagged
+genuinely is. Never one of the six graded metrics, never enforced.
+
+**4. Where listeners stop** (`episode_quality.drop_off`,
+`python tools/drop_off.py`). For every sentence, of the listeners who
+reached it, the share who stopped there and heard nothing after (a listen
+of `FINISHED_SHARE` stopped nowhere). Reported: the sentences with the
+highest exit rate that at least 10 listeners reached, with their ear flags;
+the opening, middle and landing; and per ear check, flagged against passed
+sentences - whether listeners act on each rule. Positions: `episode_audio`
+keeps each sentence's start (`starts`) but only for the audio's week, so
+`pipeline._keep_audio` now copies them to the quality row as shares of the
+episode (`note_starts`, a new `starts` column widened like `editor_arm`) -
+shares, not seconds, because another voice reads at another pace and a
+listen records only how far through it got. Without them, positions come
+from word counts. Numbers and FAM's own sentences only, never a listener.
+A stop is not always the sentence's fault; read rates over many listens.
+
+**3. Before-and-after pairs, before launch only** (`tools/teaching_pairs.py`,
+`examples/pairs/`, `TEACHING_PAIRS`). `--propose` reads the scripts
+`tools/editor_eval.py` wrote from its frozen packets - never a listener's
+episode, the cache or the quality store - and takes those the code flags
+most (weak opening, recap/tease/question ending, signposts, repeats, facts
+joined by "and", the ear checks). Opus 5.5 rewrites each from the same
+packet under the house rules, told the flaws. Kept only if the code finds
+fewer flaws with no story or ear score lower, and the grader marks it at
+least 0.3 higher (mean of six) with no more unsupported claims. Kept pairs
+land in `~/.fam/teaching_pairs/` with a reason line built in code from the
+flaws fixed; the owner moves the ones worth teaching into `examples/pairs/`,
+where the writer's cached instructions show up to six. **It refuses to run
+on a deployed service** (`RENDER` / `RENDER_SERVICE_ID`), nothing on the
+server imports it and no schedule runs it - the owner's line, as code. No
+pairs are committed yet, so the writer's instructions are byte for byte
+what they were.
+
+**5. Story shapes - the answer given, not built.** Recommended: a closed
+set of about six shapes (the result, the explainer, why now, state of play,
+the profile, the turn), each defined in the playbook by its skeleton in
+because / therefore / but terms, how it opens and how it lands - the
+playbook is signed, so the owner signs the list; **chosen in code from the
+brief** (outcome-dependent and finished → the result; in progress → state
+of play; "why/how" → explainer; a person → profile), so searchFAM gets one
+with no wait; Shakespeare may override it ahead of the tap with an enum
+field (no fact can be written into it); the writer reads the shape's name
+in its request and the skeletons in its cached block; one example per
+shape (the twelve cover three or four); measured by `drop_off` and the
+comparison per shape.
+
+Settings (new): `AHEAD_WRITER_EFFORT` (high), `TEACHING_PAIRS` (1), in
+`config.py`, `.env.example` and `tests/conftest.py`. CLAUDE.md's
+[small-calls-haiku] line and its topic file note the change.
+
+Tests: `tests/test_writer_training_502.py` (high only where nobody waits;
+an edition's own effort wins; copied and reported; each ear check named;
+a run of one length; a time phrase is not a lead; the house examples pass;
+every measure carries the ear; exit rates per sentence, by place and ear
+check; words without timings; starts kept once, as shares; the pipeline
+keeps them; a pair round-trips into the writer's block, off removes it; no
+pairs, no change; the reason from what was fixed; flaws named; refused on a
+deployed server; nothing on the server imports it).

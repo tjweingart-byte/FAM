@@ -118,6 +118,59 @@ def style_example_block() -> str:
         parts.append(f'<example query="{query}"{length} words="{words}">\n{script}\n</example>\n')
     return "\n".join(parts)
 
+#: At most this many before-and-after pairs are shown to the writer.
+MAX_TEACHING_PAIRS = 6
+
+
+def parse_pair(text: str) -> dict:
+    """A teaching pair's parts - query, before, after, why - or {} when the
+    text is not one (`examples/pairs/`, §502)."""
+    match = re.match(r"^(?P<query>[^\n]+)\n\nBEFORE:\n(?P<before>.+?)\n\nAFTER:\n"
+                     r"(?P<after>.+?)\n\nWHY: (?P<why>[^\n]+)\n?$", text or "", re.S)
+    return {k: v.strip() for k, v in match.groupdict().items()} if match else {}
+
+
+def load_teaching_pairs() -> list[dict]:
+    """`examples/pairs/*.txt`: the same episode written twice from the same
+    sources - a draft with the code's flaws, and the house voice - with one
+    line on what changed (§502). Made before launch by
+    `tools/teaching_pairs.py` and moved here by the owner; read once at
+    import. A file that is not a pair is skipped and logged."""
+    import pathlib
+
+    directory = pathlib.Path(__file__).resolve().parent / "examples" / "pairs"
+    found: list[dict] = []
+    for path in sorted(directory.glob("*.txt"))[:MAX_TEACHING_PAIRS]:
+        try:
+            pair = parse_pair(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if pair:
+            found.append(pair)
+        else:
+            log.warning("skipping teaching pair %s: expected a query, BEFORE:, AFTER:, WHY:",
+                        path.name)
+    return found
+
+
+TEACHING_PAIRS = load_teaching_pairs()
+
+
+def teaching_pair_block() -> str:
+    """The pairs, formatted for the system prompt - "" when off or none.
+    Fixed text, so the cached block stays the same from call to call."""
+    if not TEACHING_PAIRS or not getattr(settings, "teaching_pairs", True):
+        return ""
+    parts = ["\nBefore and after: the same episode written twice from the same "
+             "sources. The first is how a draft goes wrong; the second is the house "
+             "voice. Learn what changed - never borrow their facts or topics:\n"]
+    for pair in TEACHING_PAIRS:
+        parts.append(f'<pair query="{pair["query"]}">\n<before>\n{pair["before"]}\n'
+                     f'</before>\n<after>\n{pair["after"]}\n</after>\n'
+                     f'<why>{pair["why"]}</why>\n</pair>\n')
+    return "\n".join(parts)
+
+
 def load_example_facets() -> dict[str, str]:
     """`examples/facets.json`: each example's facet, by file name (§501).
     Empty when the file is missing or unreadable - then nothing is matched."""
@@ -635,7 +688,7 @@ twelve words; nothing after it.
 
 def system_prompt() -> str:
     """The house rules, plus any examples of the voice they describe."""
-    return SYSTEM_PROMPT + style_example_block()
+    return SYSTEM_PROMPT + style_example_block() + teaching_pair_block()
 
 
 #: The writer's one rewrite of a sentence Mclovin failed (§435). Its own
@@ -2222,6 +2275,10 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
     (`ScriptNotes.edition`, set by Trending and DailyFAM) when
     `EDITION_WRITER_MODEL` / `EDITION_WRITER_EFFORT` are set - so a cheaper
     writer is tried where nobody is waiting, and nowhere else.
+
+    Wherever nobody waits (`nobody_waits`: editions, the write-ahead,
+    prefetch warms) the effort is `AHEAD_WRITER_EFFORT`, high (§502);
+    searchFAM keeps `EFFORT`.
     """
     writer = settings.writer_model or settings.model
     if writer in UNAVAILABLE_MODELS:
@@ -2231,8 +2288,23 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
         if model in UNAVAILABLE_MODELS:
             # The everyday writer, itself already `MODEL` if it is refused.
             model = writer
-        return model, settings.edition_writer_effort or settings.effort
+        return model, (settings.edition_writer_effort or ahead_writer_effort()
+                       or settings.effort)
+    if nobody_waits(notes):
+        return writer, ahead_writer_effort() or settings.effort
     return writer, settings.effort
+
+
+def nobody_waits(notes) -> bool:
+    """Whether this episode is written before anybody taps (§502): an
+    edition, an episode written ahead of the tap, or a prefetch warm."""
+    return notes is not None and any(getattr(notes, flag, False)
+                                     for flag in ("edition", "ahead", "prefetch"))
+
+
+def ahead_writer_effort() -> str:
+    """`AHEAD_WRITER_EFFORT` (high), the writer's effort where nobody waits."""
+    return str(getattr(settings, "ahead_writer_effort", "") or "")
 
 
 # -- how the writer has been doing, for /api/health and /admin (§270) ------

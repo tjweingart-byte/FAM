@@ -387,6 +387,14 @@ class Settings:
     # model each episode was actually written on.
     edition_writer_model: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_MODEL", ""))
+    # **The writer's effort where nobody waits: high** (the owner,
+    # 2026-11-09, §502): the editions, the write-ahead and prefetch's script
+    # warms are written before anybody taps, so the writer may think as hard
+    # as Shakespeare does there (Haiku 5.5 high, §440). searchFAM keeps
+    # `EFFORT` (low), so the first word is not moved. `EDITION_WRITER_EFFORT`,
+    # when set, still wins for an edition's episode. Not in the cache key.
+    ahead_writer_effort: str = field(
+        default_factory=lambda: os.environ.get("AHEAD_WRITER_EFFORT", "high").strip())
     edition_writer_effort: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_EFFORT", ""))
     # Prompt caching on the writer's instructions (§179). The system prompt -
@@ -2191,6 +2199,14 @@ class Settings:
     # request is byte for byte what it was.
     example_matching: bool = field(
         default_factory=lambda: os.environ.get("EXAMPLE_MATCHING", "1")
+        not in ("0", "false", "False", ""))
+    # Before-and-after pairs in the writer's instructions (§502): each the
+    # same episode twice from the same sources, a flawed draft and the house
+    # voice, made before launch (`tools/teaching_pairs.py`) and approved
+    # into `examples/pairs/`. Fixed text in the cached system block. Off:
+    # the instructions without them.
+    teaching_pairs: bool = field(
+        default_factory=lambda: os.environ.get("TEACHING_PAIRS", "1")
         not in ("0", "false", "False", ""))
     editor_tandem_opening_words: int = _env_int("EDITOR_TANDEM_OPENING_WORDS", 30)
     editor_tandem_wait_seconds: float = _env_float("EDITOR_TANDEM_WAIT_SECONDS", 7.0)
