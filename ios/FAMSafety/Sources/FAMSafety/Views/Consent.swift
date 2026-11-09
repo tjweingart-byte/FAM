@@ -98,7 +98,18 @@ public struct ConsentSheet: View {
 public extension View {
     /// Presents `ConsentSheet` whenever `model.ensure()` is waiting on an answer.
     func aiConsentSheet(_ model: ConsentModel) -> some View {
-        sheet(item: Binding(
+        modifier(AIConsentSheet(model: model))
+    }
+}
+
+/// Observes the model, so the sheet appears when `asking` changes. Read
+/// through a plain parameter (as this first did), nothing redraws when
+/// `ensure()` starts asking, and the question is never shown (§502).
+struct AIConsentSheet: ViewModifier {
+    @ObservedObject var model: ConsentModel
+
+    func body(content: Content) -> some View {
+        content.sheet(item: Binding(
             get: { model.asking.map(IdentifiedConsent.init) },
             set: { if $0 == nil, model.asking != nil { Task { await model.answer(false) } } }
         )) { item in

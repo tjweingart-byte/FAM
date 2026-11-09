@@ -31581,3 +31581,38 @@ second, and once the queue emptied short of the end it was logged as
 "emptied at 0:38, not at the end" instead of being taken for an ending. iOS
 did send "interruption over; resume" this time, so a call resumes on its
 own.
+
+## 502. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09)
+
+**What was asked.** With the spike passed (§501), the owner asked to start the
+real app. `ios/FAM` is an XcodeGen project (`project.yml`, bundle id
+`net.familiarize.fam`, build 2, so it replaces the spike on a phone) that
+links `ios/FAMSafety`.
+
+**What is in it.** `API.swift` is the whole client: `/api/v1/...` only,
+`X-FAM-Client` and `X-FAM-TZ` on every request, the bearer token in the
+Keychain (`AfterFirstUnlockThisDeviceOnly`, so a locked phone that is playing
+can still ask for the next episode), and the server's refusals turned into
+four cases - waitlisted (`X-FAM-Waitlist`), the AI question
+(`X-FAM-Consent: ai`), signed out (401), or the server's own sentence.
+`AppModel` decides the screen from `/api/auth/me` on every open: sign in,
+waiting (today's samples, as the exact replay the waitlist lets through),
+or the three tabs. DailyFAM is `/api/myfam`'s sections as rows of 4:3 cards;
+a tap plays at `BROWSE_MINUTES` with `surface=myfam` and the `topic_id`.
+Search asks the AI question before the tap (`consent.ensure()`), sends
+`surface=search` and the chosen length (back to 1.5 whenever the app
+returns), and a refusal on the audio itself asks and retries. The player
+is the spike's, kept as it passed, plus `seek(to:)` clamped to what has
+arrived, ±15 s, and the lock screen's skip and scrub. You holds
+`PrivacyAndSafetySection`, sign out, and delete account (5.1.1(v)).
+
+**A bug found in FAMSafety on the way.** `aiConsentSheet` read the model
+through a plain parameter, so nothing redrew when `ensure()` began asking
+and the consent question would never have appeared. It is now a
+`ViewModifier` that observes the model.
+
+**Not compiled here.** `tests/test_ios_app_contract.py` checks every call
+routes with its method, `Listener`/`Rail`/`Tile` decode only what the server
+sends (signed in and not), sign-up sends `accept_terms`, the browse length
+is the server's, a tile names its surface and topic, and the waiting
+screen's sample request passes `_welcome_sample_request`.
