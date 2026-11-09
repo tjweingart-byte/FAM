@@ -108,6 +108,23 @@ final class FAMAPI: @unchecked Sendable {
         return request("GET", "api/v1/audio", query: items)
     }
 
+    /// Which of the loading screen's steps the episode being made has
+    /// finished (`/api/progress`), asked with exactly the audio request's
+    /// key-shaped fields - a different field asks about a different episode.
+    func progress(query: String, minutes: Double, surface: String,
+                  topicID: String = "") async throws -> Progress {
+        var items = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
+            URLQueryItem(name: "surface", value: surface),
+        ]
+        if !topicID.isEmpty { items.append(URLQueryItem(name: "topic_id", value: topicID)) }
+        let (data, response) = try await URLSession.shared.data(
+            for: request("GET", "api/v1/progress", query: items))
+        try Self.check(response, data)
+        return try Self.decoder.decode(Progress.self, from: data)
+    }
+
     /// A sample replayed on the waiting screen: exactly the request the
     /// waitlist lets through (`app._welcome_sample_request`).
     func sampleAudio(query: String) -> URLRequest {
@@ -239,6 +256,24 @@ struct TrendingSearch: Decodable, Hashable {
 struct TrendingSearches: Decodable { let searches: [TrendingSearch] }
 
 struct Samples: Decodable { let episodes: [Tile] }
+
+/// `/api/progress`: four marks the pipeline records when each step really
+/// finishes, never a timer. `known` false means this worker is not making
+/// the episode; the screen then walks the steps when the audio arrives.
+struct Progress: Decodable {
+    let known: Bool
+    let cached: Bool
+    let steps: ProgressSteps
+}
+
+struct ProgressSteps: Decodable {
+    let contextualized: Bool
+    let retrieved: Bool
+    let verified: Bool
+    let written: Bool
+
+    var marks: [Bool] { [contextualized, retrieved, verified, written] }
+}
 
 struct OK: Decodable { let ok: Bool }
 

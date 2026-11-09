@@ -140,3 +140,36 @@ def test_trending_searches_decode(monkeypatch):
     page = TestClient(appmod.app).get("/api/v1/searches/trending",
                                       headers={"X-FAM-Client": "ios/1.0.0+2"}).json()
     assert "searches" in page
+
+
+def test_the_loading_screen_keeps_the_webs_clock():
+    """The five steps' timings are the web's (§148, §263), read from
+    static/index.html, so the two screens cannot drift apart."""
+    web = (ROOT / "static" / "index.html").read_text()
+    swift = (SWIFT / "Views" / "LoadingView.swift").read_text()
+    pairs = {
+        "GEN_STEP_MIN_MS": "stepMin",
+        "GEN_STEP_FIRST_MIN_MS": "firstStepMin",
+        "GEN_STEP_POLL_MS": "poll",
+        "GEN_STEP_FIRST_POLL_MS": "firstPoll",
+        "GEN_STEP_LAST_BEAT_MS": "lastBeat",
+        "GEN_MIN_VISIBLE_MS": "minVisible",
+    }
+    for js, name in pairs.items():
+        ms = re.search(r"var %s = (\d+);" % js, web)
+        assert ms, js
+        seconds = re.search(r"static let %s: TimeInterval = ([0-9.]+)" % name, swift)
+        assert seconds, name
+        assert abs(float(seconds.group(1)) * 1000 - int(ms.group(1))) < 1e-6, (js, name)
+    # The same five labels, in the same order.
+    labels = re.findall(r'<li data-step="\d"><span class="fam-step-dot">.*?</span><span>([^<]+)</span></li>',
+                        web)
+    assert labels and all(f'"{label}"' in swift for label in labels), labels
+
+
+def test_progress_asks_about_the_same_episode_as_the_audio():
+    """`/api/progress` is keyed like the audio request: the same fields."""
+    def names(fn: str) -> set[str]:
+        body = re.search(r"func %s\(.*?\n    \}" % fn, _api(), re.S).group(0)
+        return set(re.findall(r'URLQueryItem\(name: "(\w+)"', body))
+    assert names("audio") - {"fmt"} == names("progress"), (names("audio"), names("progress"))

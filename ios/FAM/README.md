@@ -10,9 +10,8 @@ tap plays), **Search** (1-5 minutes, the AI question asked first), the
 player (picture, draggable bar over what has arrived, ±15 s, lock screen),
 the mini player, and **You** (privacy and safety, sign out, delete account).
 
-**Not yet:** myFAM mixes, Go Deeper, the post-episode grid, friends,
-messages, vibes, Sign in with Apple, saved, history, play/finish events for
-the taste model. Each is an endpoint already; each is a later stage.
+**Everything else** is listed, row by row against the web app, in
+[`PARITY.md`](PARITY.md). Update it in the same change that moves a row.
 
 **Status: written on Linux, first compiled on the owner's Mac.**
 `tests/test_ios_app_contract.py` checks in CI that every request routes,

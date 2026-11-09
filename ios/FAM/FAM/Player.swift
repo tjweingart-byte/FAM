@@ -59,6 +59,13 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     /// dealt with it (asked the AI question and will retry, showed the
     /// waitlist); the player then goes quiet rather than showing a failure.
     var onRefused: ((FAMError) -> Bool)?
+    /// The loading screen's gate (`startGate` on the web): with `holdStart`,
+    /// the first audio is ready but silent until `release()`, so the five
+    /// steps are checked off before the first word. Told whether this was a
+    /// replay (`X-FAM-Cache: hit`), which has no steps to finish.
+    var onReady: ((Bool) -> Void)?
+    /// Called when an episode fails, so the loading screen can step aside.
+    var onFailed: (() -> Void)?
 
     private let engine = AVAudioEngine()
     private let node = AVAudioPlayerNode()
@@ -97,6 +104,9 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     private var started = false
     private var retries = 0
     private var refusedResponse: URLResponse?
+    private var holdStart = false
+    private var gated = false
+    private var cacheHit = false
     private var refusalBody = Data()
     private var askedAt = Date()
     private var listenedBefore: Double = 0
@@ -115,8 +125,11 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     // MARK: - Control
 
-    func play(title: String, picture: URL? = nil, request: URLRequest) {
+    func play(title: String, picture: URL? = nil, request: URLRequest, holdStart: Bool = false) {
         stopStream()
+        self.holdStart = holdStart
+        gated = false
+        cacheHit = false
         generation += 1
         self.title = title
         self.picture = picture
@@ -240,6 +253,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         if bytesTaken == 0 && rate != sampleRate { configure(rate: rate) }
         let ms = Int(Date().timeIntervalSince(askedAt) * 1000)
         let cache = http?.value(forHTTPHeaderField: "X-FAM-Cache") ?? "-"
+        if retries == 0 { cacheHit = cache == "hit" }
         log(retries == 0
             ? "first byte after \(ms) ms (\(Int(rate)) Hz, cache \(cache))"
             : "reconnected; skipping the \(bytesTaken) bytes already here")
@@ -384,11 +398,31 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     private func begin() {
         guard startEngine() else { return }
-        node.play()
         started = true
+        if holdStart {
+            // Ready, and held: the loading screen says when.
+            gated = true
+            log("first audio ready after \(Int(Date().timeIntervalSince(askedAt) * 1000)) ms; held for the loading screen")
+            onReady?(cacheHit)
+            return
+        }
+        node.play()
         phase = .playing
         log("first audio after \(Int(Date().timeIntervalSince(askedAt) * 1000)) ms")
         nowPlaying()
+    }
+
+    /// The loading screen finished: start the audio that was held.
+    func release() {
+        guard gated else { return }
+        gated = false
+        holdStart = false
+        guard activateSession(), startEngine() else { return }
+        node.play()
+        phase = outstanding > 0 ? .playing : .buffering
+        log("released after \(Int(Date().timeIntervalSince(askedAt) * 1000)) ms")
+        nowPlaying()
+        finishIfDone()
     }
 
     private func played(_ filling: Int) {
@@ -447,8 +481,10 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         epoch += 1
         phase = .failed
         problem = why
+        gated = false
         log("FAILED: \(why)")
         nowPlaying()
+        onFailed?()
     }
 
     // MARK: - Engine and session

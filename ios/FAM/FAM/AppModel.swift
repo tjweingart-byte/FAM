@@ -29,6 +29,7 @@ final class AppModel: ObservableObject {
     let safety: SafetyAPI
     let consent: ConsentModel
     let player = StreamPlayer()
+    let loading = LoadingModel()
 
     /// The last thing asked to play, so a refusal can be answered and retried.
     private var lastPlay: (() -> Void)?
@@ -42,6 +43,24 @@ final class AppModel: ObservableObject {
         // The player calls back on the main queue (its delegate queue).
         player.onRefused = { [weak self] error in
             MainActor.assumeIsolated { self?.refused(error) ?? false }
+        }
+        player.onReady = { [weak self] cacheHit in
+            MainActor.assumeIsolated { self?.loading.ready(cacheHit: cacheHit) }
+        }
+        player.onFailed = { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.loading.visible else { return }
+                // Step aside and let the player say why, in the server's words.
+                self.loading.stop()
+                self.showPlayer = true
+            }
+        }
+        loading.onRelease = { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.player.release()
+                self.showPlayer = true
+            }
         }
     }
 
@@ -122,15 +141,22 @@ final class AppModel: ObservableObject {
 
     /// A DailyFAM tile: written ahead, at the browse length (`op-taste-scoring`).
     func play(_ tile: Tile) {
-        let request = api.audio(query: tile.query, minutes: FAMAPI.browseMinutes,
-                                surface: "myfam", topicID: tile.id)
-        start(title: tile.title, picture: api.picture(tile.thumb), request: request)
+        start(title: tile.title, picture: api.picture(tile.thumb),
+              query: tile.query, minutes: FAMAPI.browseMinutes,
+              surface: "myfam", topicID: tile.id)
     }
 
     /// A sample on the waiting screen: a replay, nothing written.
     func playSample(_ tile: Tile) {
-        start(title: tile.title, picture: api.picture(tile.thumb),
-              request: api.sampleAudio(query: tile.query))
+        let request = api.sampleAudio(query: tile.query)
+        let go = { [weak self] in
+            guard let self else { return }
+            self.loading.start(ask: { nil })
+            self.player.play(title: tile.title, picture: self.api.picture(tile.thumb),
+                             request: request, holdStart: true)
+        }
+        lastPlay = go
+        go()
     }
 
     /// A search: the listener's own words, so the AI question comes first
@@ -139,18 +165,33 @@ final class AppModel: ObservableObject {
         let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty else { return }
         guard await consent.ensure() else { return }
-        let request = api.audio(query: question, minutes: minutes, surface: "search")
-        start(title: question, picture: nil, request: request)
+        start(title: question, picture: nil, query: question, minutes: minutes,
+              surface: "search", topicID: "")
     }
 
-    private func start(title: String, picture: URL?, request: URLRequest) {
+    /// Cancel from the loading screen's X: the episode is not wanted.
+    func cancelLoading() {
+        loading.stop()
+        player.stop()
+    }
+
+    /// Every tap: the loading screen first, the audio held behind it, the
+    /// player opened when the five steps are done (`search-no-cover`).
+    private func start(title: String, picture: URL?, query: String, minutes: Double,
+                       surface: String, topicID: String) {
+        let request = api.audio(query: query, minutes: minutes, surface: surface, topicID: topicID)
+        let api = self.api
         let go = { [weak self] in
             guard let self else { return }
-            self.player.play(title: title, picture: picture, request: request)
+            self.showPlayer = false
+            self.loading.start(ask: {
+                try? await api.progress(query: query, minutes: minutes,
+                                        surface: surface, topicID: topicID)
+            })
+            self.player.play(title: title, picture: picture, request: request, holdStart: true)
         }
         lastPlay = go
         go()
-        showPlayer = true
     }
 
     /// The server said no. The AI question is asked and the episode tried
@@ -158,6 +199,7 @@ final class AppModel: ObservableObject {
     private func refused(_ error: FAMError) -> Bool {
         switch error {
         case .consentRequired:
+            loading.stop()
             consent.forget()
             let retry = lastPlay
             Task {
@@ -165,10 +207,12 @@ final class AppModel: ObservableObject {
             }
             return true
         case .waitlisted:
+            loading.stop()
             stage = .waiting
             showPlayer = false
             return true
         case .signedOut:
+            loading.stop()
             api.token = nil
             forget()
             showPlayer = false

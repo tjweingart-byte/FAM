@@ -31636,3 +31636,20 @@ and log-in are the web's form; YourFAM wears the `your` wordmark. myFAM,
 Messages, GO DEEPER, Voice, Private, the mic and attach are left off until
 they work (`no-dead-controls`). The project now names the Apali team, so a
 regenerated project keeps its signing.
+
+**"The loading screens do not look like they do in the demo… a lot of things
+are being left out" (the owner).** True: the app showed "Writing your
+episode…" in the player, where the web shows its loading screen over the app
+and checks off five steps from `/api/progress`, holding the audio until the
+fifth. Ported (`Views/LoadingView.swift`): the same five labels, the same
+clock (2 s a step, the first 0.5 s, 0.7 s polls after a 0.25 s first, 0.4 s
+on the last check, a replay all done after 0.45 s), the light theme's wash,
+the rising chevrons, FAMiliarizing… (slanted in code - Bricolage has no
+italic, the browser slants it too) and the X that cancels. `StreamPlayer`
+gained the web's `startGate`: `holdStart`, `onReady(cacheHit)`, `release()`.
+`tests/test_ios_app_contract.py` now reads the timings and labels out of
+`static/index.html`, so the two screens cannot drift, and checks the progress
+request carries the audio request's key fields. **`ios/FAM/PARITY.md`** lists
+every web feature against the iOS app so nothing more is left out silently;
+the gaps it makes plain first are play events for the taste model, Report and
+Block, and Sign in with Apple.

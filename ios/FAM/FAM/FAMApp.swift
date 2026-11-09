@@ -38,6 +38,20 @@ struct RootView: View {
             }
         }
         .background(FAMColor.background.ignoresSafeArea())
+        .overlay { LoadingLayer(loading: model.loading) }
+    }
+}
+
+/// The loading screen over everything while an episode is being made.
+struct LoadingLayer: View {
+    @EnvironmentObject private var model: AppModel
+    @ObservedObject var loading: LoadingModel
+
+    var body: some View {
+        if loading.visible {
+            LoadingView(loading: loading) { model.cancelLoading() }
+                .transition(.opacity)
+        }
     }
 }
 
