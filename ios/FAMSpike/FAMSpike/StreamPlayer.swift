@@ -26,6 +26,10 @@ import UIKit
 /// `.main`, and every notification is observed on `.main` - so there is no
 /// locking. At 48 KB a second the main thread does not notice.
 final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
+    /// Which player this is, shown on screen and in the log, so a test is
+    /// never read against an older build than the one being tested.
+    static let version = "player 3 (refills after a call)"
+
     enum Phase: String {
         case idle, connecting, buffering, playing, paused, finished, failed
     }
@@ -94,6 +98,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         configure(rate: sampleRate)
         observe()
         remoteCommands()
+        log("started: \(Self.version)")
     }
 
     // MARK: - Control

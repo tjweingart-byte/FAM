@@ -19,6 +19,7 @@ struct ContentView: View {
                         Task { await model.load() }
                     }
                     .disabled(model.loading)
+                    Text(StreamPlayer.version).font(.footnote).foregroundStyle(.secondary)
                     if !model.message.isEmpty {
                         Text(model.message).font(.footnote).foregroundStyle(.secondary)
                     }
