@@ -188,12 +188,14 @@ empties the clipboard straight away, and it refuses any key but the one in
    > **If not:** `DOES NOT MATCH` means a file was changed or saved wrongly.
    > Download it again with **Download raw file**.
 
-4. When it waits, copy the private key from the password manager. Do not
-   paste it anywhere.
+4. It says `Copy your private key from your password manager now`. Copy the
+   whole key from the password manager, come back to Terminal, and press
+   **Return**. Do not paste it anywhere.
 
    > **Check:** it prints `Signed. The clipboard is empty. Upload these to
    > docs/agent_rules/ on GitHub:` and names the files. The folder now holds
-   > `MANIFEST.json` and `MANIFEST.json.sig`.
+   > `MANIFEST.json` and `MANIFEST.json.sig`. (For Shakespeare's playbook,
+   > ignore the tool's folder for that one file and follow step 5.)
    >
    > **If not:** `Not signed: …` says why (for example a key that is not the
    > trusted one). Nothing has been written.
