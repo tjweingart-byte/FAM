@@ -417,6 +417,7 @@
   only what the shared cap shows.
 
 <!-- rule:taste-tree -->
+> **Current (PROBLEMS.md §510, the owner 11.9):** an everyday word that is a subject only inside a phrase is **never a node on its own** (`category_seed.NEVER_ALONE`, now `lead`): never minted alone, and a one-word node already grown under it never matches (`CategoryStore.match`), so a deployed tree needs no migration; "lead poisoning" still grows.
 > **Current (PROBLEMS.md §507, the owner 11.9):** a node may also be matched by **another name** (`category_seed.ALIASES`: "lakers", "pga tour", "senate"), answered as the node with its ancestry and never a node itself. The rule for teams holds for aliases: a short name only where it means nothing but the team or subject - no "kings", "eagles", "spurs", "packers", "governor", "shutdown", and no initials another field owns ("atp", "ucl", "mls", "midterms") - and a test holds the everyday phrases out.
 - **Taste is a subject tree** *(PROBLEMS.md §202, at the owner's direction:
   "If I consistently listen to content about the Cincinnati Bengals, that

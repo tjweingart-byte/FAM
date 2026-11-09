@@ -258,6 +258,12 @@ def _reserved_slugs() -> frozenset[str]:
     return frozenset(normalise(tag) for tag in topics.TAG_WORDS)
 
 
+def _never_alone() -> frozenset[str]:
+    """`category_seed.NEVER_ALONE`: words never a node on their own."""
+    import category_seed
+    return category_seed.NEVER_ALONE
+
+
 def normalise(phrase: str) -> str:
     """One phrase, as the tree stores it: lower case, words only, collapsed.
 
@@ -627,6 +633,9 @@ class CategoryStore:
         candidates: set[str] = set()
         for word in text_words:
             candidates |= index.get(word, set())
+        # A one-word node grown before `NEVER_ALONE` named it reads as
+        # nothing, so a deployed tree needs no migration (§510).
+        candidates -= _never_alone()
         hit: set[str] = set()
         sequences = None
         for node_id in candidates:
@@ -673,6 +682,11 @@ class CategoryStore:
         # slug is a name `tags_for_text` already scores - see
         # `_reserved_slugs` for what minting either would do to `taste`.
         if phrase in _reserved_slugs():
+            return None
+        if phrase in _never_alone():
+            # An everyday word that is a subject only inside a phrase
+            # (`category_seed.NEVER_ALONE`): "lead" alone is who is winning
+            # as often as the metal.
             return None
         if any(len(w) < MIN_WORD or w.isdigit() for w in phrase.split()):
             # A phrase that is partly a number is nearly always a fragment of

@@ -375,15 +375,40 @@ def test_a_reply_to_a_vibe_is_not_a_share(world):
 
 
 def test_a_word_on_another_facet_never_outranks_the_category(betting_tree):
-    """The owner 11.9 ("Rock Lead Theory"): a grown `lead` node under
-    science - the metal - is two levels deep, and "Scheffler takes a
+    """The owner 11.9 ("Rock Lead Theory", §509): a grown `lead` node under
+    science - the metal - was two levels deep, and "Scheffler takes a
     two-stroke lead" put a golf episode on its picture. A named subject
-    outranks the category only on the category's own facet (§282)."""
-    betting_tree.mint("lead", parent_id="materials science")
+    outranks the category only on the category's own facet (§282). `lead`
+    itself is never alone now (§510), so another word stands in for it."""
+    betting_tree.mint("irons", parent_id="materials science")
     betting_tree.reload()
-    _paint("lead", facet="science")
+    _paint("irons", facet="science")
     _paint("golf")
-    words = "PGA Tour today: Scheffler takes a two-stroke lead"
+    words = "PGA Tour today: Scheffler's irons keep him two strokes clear"
+    assert "irons" in betting_tree.match(words)
     assert th.pick(words, category="golf")["node"] == "golf"
     assert th.pick_for_player(words, category="golf")["node"] == "golf"
     assert th.pick_for_tile(words, category="golf")["node"] == "golf"
+
+
+def test_lead_is_never_a_category_on_its_own(betting_tree):
+    """§510: "lead" is never minted alone, and a `lead` node grown before
+    the rule reads as nothing, so the deployed tree needs no migration;
+    "lead poisoning" still grows and matches."""
+    import category_seed
+
+    assert "lead" in category_seed.NEVER_ALONE
+    assert betting_tree.mint("lead", parent_id="materials science") is None
+    # A node already in the table, as on the deployment.
+    betting_tree._conn().execute(
+        "INSERT INTO categories (id, label, parent_id, depth, source,"
+        " first_seen, last_seen, uses, listeners, degraded)"
+        " VALUES ('lead', 'lead', 'materials science', 2, 'grown', 0, 0, 3, 3, 0)")
+    betting_tree.reload()
+    _paint("lead", facet="science")
+    words = "Scheffler takes a two-stroke lead in Houston"
+    assert "lead" not in betting_tree.match(words)
+    got = th.pick_for_player(words)
+    assert not got or got["node"] != "lead"
+    assert betting_tree.mint("lead poisoning", parent_id="materials science")
+    assert "lead poisoning" in betting_tree.match("the lead poisoning in Flint")

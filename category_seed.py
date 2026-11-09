@@ -135,6 +135,16 @@ LEFT_TO_GROW = (
     "chicago bulls", "chicago bears", "buffalo bills", "orlando magic",
 )
 
+#: Words that are a subject only inside a longer phrase (the owner 11.9,
+#: "Rock Lead Theory", PROBLEMS.md §510). "lead" is the metal, and it is
+#: also who is winning: grown alone and filed under science, every golf
+#: leader wore a lump of grey metal. Never minted as a one-word node, and a
+#: one-word node already grown under one of them never matches text
+#: (`categories.CategoryStore.match`); "lead poisoning" still grows and
+#: matches. The same rule as `LEFT_TO_GROW`, for words rather than teams.
+NEVER_ALONE = frozenset({"lead"})
+
+
 NFL_TEAMS = _teams(
     "bengals", "steelers", "baltimore ravens", "cleveland browns",
     "indianapolis colts", "jacksonville jaguars", "tennessee titans",

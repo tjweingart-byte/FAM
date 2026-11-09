@@ -501,3 +501,4 @@ and `limit` = Lines.
 | 31909 | 93 | 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09) |
 | 32002 | 144 | 508. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
 | 32146 | 31 | 509. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09) |
+| 32177 | 16 | 510. "lead" is never a category on its own (2026-11-09) |

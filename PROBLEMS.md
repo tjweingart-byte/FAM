@@ -32173,3 +32173,19 @@ case is unchanged - it is a vocabulary problem (an everyday word grown as
 a node), not a ranking one, and is left open: `lead`, like the team names
 in `LEFT_TO_GROW`, should probably not match as a bare word.
 `tests/test_implementations_1015.py::test_a_word_on_another_facet_never_outranks_the_category`.
+
+## 510. "lead" is never a category on its own (2026-11-09)
+
+§509 left one case open: an episode with no category yet whose words say
+"lead" still matched the grown `lead` node (the metal, under science) and
+wore its picture. At the owner's word ("stop 'lead' from matching on its
+own too"), `category_seed.NEVER_ALONE` lists words that are a subject only
+inside a longer phrase - for now only `lead`. `CategoryStore.mint` refuses
+one alone, and `CategoryStore.match` drops a one-word node named there
+from its candidates, so the `lead` row already on the deployment reads as
+nothing without a migration or a wipe (its picture stays in the store,
+unreached). "lead poisoning" still grows and matches. The §509 test now
+uses another cross-facet word (`irons`); `test_lead_is_never_a_category_on_its_own`
+pins this. Add a word to the list rather than a stopword: a stopword would
+also stop "lead poisoning" from ever growing (`phrases_in` breaks runs on
+stopwords).
