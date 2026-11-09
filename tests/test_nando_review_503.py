@@ -197,7 +197,8 @@ def test_the_page_is_for_admins_only(client):
     assert client.get("/api/admin/categories/queue").status_code in (401, 403, 404)
 
 
-def test_the_owner_reviews_from_admin(client, tree):
+def test_the_owner_reviews_from_admin(client, tree, monkeypatch):
+    _signed(monkeypatch)                     # the amendment unsigned
     _note("k", "the Eagles film night", writer_words="film")
     queue = client.get("/api/admin/categories/queue", headers=ADMIN).json()["episodes"]
     assert [r["key"] for r in queue] == ["k"]
@@ -212,7 +213,8 @@ def test_the_owner_reviews_from_admin(client, tree):
     assert "film" in panel["nodes"] and panel["calibration"]["allowed"] is False
 
 
-def test_the_check_is_refused_until_signed(client):
+def test_the_check_is_refused_until_signed(client, monkeypatch):
+    _signed(monkeypatch)
     r = client.post("/api/admin/categories/calibrate", headers=ADMIN, json={})
     assert r.status_code == 409
 
@@ -230,11 +232,13 @@ def test_the_check_is_queued_once(client, tree, monkeypatch):
         10, kinds=["categorizer:calibrate"]))
 
 
-def test_the_page_draws_and_saves_a_review(client, tree, tmp_path):
+@pytest.mark.parametrize("signed", [False, True])
+def test_the_page_draws_and_saves_a_review(client, tree, tmp_path, monkeypatch, signed):
     import json
     import pathlib
 
     playwright = pytest.importorskip("playwright.sync_api")
+    _signed(monkeypatch, *((training.CALIBRATION_RULE,) if signed else ()))
     root = pathlib.Path(__file__).resolve().parent.parent
     _note("k", "the Eagles film night", writer_words="film")
     answers = {"/api/admin/categories": client.get("/api/admin/categories", headers=ADMIN).json(),
@@ -271,7 +275,8 @@ def test_the_page_draws_and_saves_a_review(client, tree, tmp_path):
         page.wait_for_selector("#catQueue [data-catsave]")
         assert "Sonnet 5.5" in page.inner_text("#catKpis")
         assert "the Eagles film night" in page.inner_text("#catQueue")
-        assert page.is_hidden("#catCalibrate")           # unsigned: no button
+        # The one-time check's button only once the amendment is signed.
+        assert page.is_hidden("#catCalibrate") is (not signed)
         page.fill('input[data-catkey="k"]', "film")
         page.click('[data-catsave="k"]')
         page.wait_for_selector('[data-catsave="k"]:disabled')

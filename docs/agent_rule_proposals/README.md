@@ -7,25 +7,13 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-**`nando.md` rule 12, amended (PROBLEMS.md §502, §503)**, with
-`docs/agent_rules/MANIFEST.pending.json` (version 7; only `nando.md`'s
-fingerprint changes). Rule 12 as signed lets the answer key read each
-finished episode once, and its grades "only teach you and measure you".
-The amendment adds two things the owner asked for:
-
-* "once only and at the owner's request, let a second answer key read at
-  most 100 of those episodes again so the owner can compare the two" - the
-  one-time Sonnet-against-Opus check on /admin (`training.calibration_allowed`);
-* "and teach the story composer whose categories you inherit" - the
-  composer shown its own corrected categories (`training.composer_allowed`).
-
-Until it is signed the code does neither. Nothing else in the book changes.
-
-Before that: manifest version 6 - the merged books, `consuela.md` always 12
-and `sonic.md` always 8 beside `mclovin.md` v3 - was signed on 2026-11-06
-(PROBLEMS.md §470); `mclovin.md` v3 (§443, version 5); v2 (§441, version
-4); `consuela.md` with Perplexity (§412, version 3); `nando.md` rule 12
-(§392).
+Nothing. Manifest version 7 - `nando.md` rule 12 amended (§502, §503): the
+one-time comparison against a second answer key, and the story composer
+taught its corrected categories - was signed on 2026-11-09 on a borrowed
+computer with `tools/sign_rulebooks.py` (PROBLEMS.md §505). Before that:
+manifest version 6, the merged books (§470); `mclovin.md` v3 (§443,
+version 5); v2 (§441, version 4); `consuela.md` with Perplexity (§412,
+version 3); `nando.md` rule 12 (§392).
 
 ## Signing on a computer without OpenSSL 3 (§504)
 

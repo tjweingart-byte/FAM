@@ -31790,3 +31790,23 @@ Tests: `tests/test_sign_rulebooks_504.py` (the trusted key is owner.pub's;
 its signature is accepted by the lock; the key as a PEM block or its one
 line; an untrusted key or non-key signs nothing; a book that does not
 match is caught; one base64 line of 64 bytes).
+
+## 505. The owner signed manifest version 7, from a borrowed computer (2026-11-09)
+
+The owner signed `MANIFEST.pending.json` (version 7, §503) on a family
+member's Mac with `tools/sign_rulebooks.py` (§504): the Command Line Tools'
+Python 3.9.6 and `cryptography` 50.0.2, the key copied from the password
+manager and read from the clipboard, never pasted. The commit (629b9ff)
+holds exactly `MANIFEST.json`, `MANIFEST.json.sig` and `nando.md`;
+`MANIFEST.json` is the pending manifest byte for byte and `nando.md` the
+proposal byte for byte. `python tools/rulebook_manifest.py --verify`: every
+agent may run, signed with the same `owner.pub`; all ten books match.
+
+So both of rule 12's additions are in force: `training.composer_allowed`
+and `training.calibration_allowed` are true, the composer is shown its
+corrected categories once there are any, and the one-time comparison's
+button appears on /admin (Categories) - where it runs once, from the
+owner's click, never by itself.
+
+The proposal and the pending manifest are deleted and the proposals README
+says nothing is waiting. The owner updates the copy held outside Claude.
