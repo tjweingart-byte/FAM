@@ -31534,3 +31534,15 @@ every time; a join that sounds wrong is that assumption failing).
 route, `Sample` decodes only tile keys, and the audio request passes
 `app._welcome_sample_request` - change its shape and a guest would get a 403.
 The phone test and its pass line are in `ios/FAMSpike/README.md`.
+
+**The phone test (2026-11-09, the owner's iPhone, Xcode 27.2).** It compiled
+first time once signing was sorted (Apali team, device registered, Developer
+Mode on; the stale Apple Development certificate had to be revoked on the
+portal before Xcode would make one with a key in this Mac's keychain). Only
+one sample was offered, so *Keep going* replayed it. Locked for ten minutes:
+no gaps, no stops. Lock-screen pause/play, a phone call (paused, resumed on
+hang-up) and an AirPod out (paused) all behaved. Airplane mode: silent while
+it was on, then played smoothly once it was off. The log was cleared by
+accident, so whether that was the buffer running dry or a reconnect is not
+recorded; redo it with the log before calling reconnects proven. **Stage 2
+passes**: background PCM streaming on `AVAudioPlayerNode` is the approach.
