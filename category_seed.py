@@ -142,7 +142,54 @@ LEFT_TO_GROW = (
 #: one-word node already grown under one of them never matches text
 #: (`categories.CategoryStore.match`); "lead poisoning" still grows and
 #: matches. The same rule as `LEFT_TO_GROW`, for words rather than teams.
-NEVER_ALONE = frozenset({"lead"})
+#:
+#: The rest (§511): words a headline uses every day as a verb or a plain
+#: noun, whose subject senses sit on different facets - so grown alone and
+#: placed under one, they paint the other's episodes. Not on the list: a
+#: word whose one sense is the subject ("golf", "inflation"), a company or
+#: product ("apple", "amazon"), or anything the seed or `ALIASES` names.
+#: `tools/categories_report.py --alone` lists the one-word nodes a deployment
+#: has grown, to find the next one.
+NEVER_ALONE = frozenset({
+    "lead",      # the metal; who is winning
+    "record",    # a music record; a world record; "record high"
+    "draft",     # the NFL draft; a draft bill
+    "strike",    # a labour strike; a military strike; a baseball strike
+    "pitch",     # a football pitch; a baseball pitch; a sales pitch
+    "court",     # a law court; a basketball or tennis court
+    "match",     # a game; a match that lights
+    "race",      # a horse or car race; an election race; race
+    "trade",     # a player trade; trade policy
+    "bond",      # a government bond; James Bond
+    "stock",     # a share; soup stock; "in stock"
+    "charge",    # a criminal charge; a battery charge; a fee
+    "shot",      # a vaccine shot; a basketball shot; a gunshot
+    "drive",     # a golf drive; a hard drive; driving
+    "iron",      # the metal; a golf club; a clothes iron
+    "fire",      # a wildfire; fired from a job
+    "plant",     # a factory; a houseplant; a power plant
+    "star",      # a celebrity; a star in the sky
+    "club",      # a football club; a nightclub; a golf club
+    "spring",    # the season; a water spring; spring training
+    "fall",      # the season; a market fall
+    "net",       # a tennis net; net income
+    "bowl",      # the Super Bowl; a dish
+    "cup",       # the World Cup; a cup of coffee
+    "crane",     # the bird; the machine
+    "seal",      # the animal; a seal of approval
+    "bat",       # the animal; a baseball bat
+    "suit",      # a lawsuit; clothing
+    "cell",      # biology; a prison cell; a phone
+    "power",     # electricity; political power
+    "tank",      # the weapon; a fish tank; "shares tanked"
+    "current",   # the present; an ocean or electric current
+    "ring",      # a boxing ring; jewellery
+    "round",     # a golf round; a funding round
+    "cap",       # the salary cap; a hat
+    "base",      # a military base; a baseball base
+    "field",     # a playing field; a field of study
+    "table",     # a league table; furniture
+})
 
 
 NFL_TEAMS = _teams(

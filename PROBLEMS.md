@@ -32189,3 +32189,27 @@ uses another cross-facet word (`irons`); `test_lead_is_never_a_category_on_its_o
 pins this. Add a word to the list rather than a stopword: a stopword would
 also stop "lead poisoning" from ever growing (`phrases_in` breaks runs on
 stopwords).
+
+## 511. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09)
+
+The owner: "add any other everyday words that show the wrong picture".
+**The deployed tree is not readable from a development container**, so the
+words that have actually grown there could not be listed; the thumbnail
+review page (`/admin`) and the new report can. What was added is chosen by
+§510's rule, not from sightings: a word a headline uses every day as a verb
+or a plain noun, whose subject senses sit on different facets - `record`,
+`draft`, `strike`, `pitch`, `court`, `match`, `race`, `trade`, `bond`,
+`stock`, `charge`, `shot`, `drive`, `iron`, `fire`, `plant`, `star`, `club`,
+`spring`, `fall`, `net`, `bowl`, `cup`, `crane`, `seal`, `bat`, `suit`,
+`cell`, `power`, `tank`, `current`, `ring`, `round`, `cap`, `base`, `field`,
+`table` (each with its senses in `category_seed.NEVER_ALONE`). Left off on
+purpose: a word whose one sense is the subject ("golf", "inflation"), a
+company or product ("apple", "amazon" - real, frequent subjects), and
+anything the seed or `ALIASES` names (a test pins that none is). The cost
+of a word on the list is that it never grows alone; its phrases
+("wildfire", "power grid", "world record") still do.
+
+`python tools/categories_report.py --alone` (or `--alone --json`) lists
+every one-word node the tree grew, most listeners first, with its branch
+and whether the list already silences it - run it on the deployment to
+find the next word; adding one is a line in `NEVER_ALONE`.

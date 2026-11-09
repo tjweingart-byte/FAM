@@ -502,3 +502,4 @@ and `limit` = Lines.
 | 32002 | 144 | 508. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
 | 32146 | 31 | 509. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09) |
 | 32177 | 16 | 510. "lead" is never a category on its own (2026-11-09) |
+| 32193 | 24 | 511. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09) |

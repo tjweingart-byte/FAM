@@ -173,6 +173,44 @@ def audit(days: int, as_json: bool) -> int:
     return 0
 
 
+def alone_rows(store) -> list[dict]:
+    """Every one-word node the tree grew (not the seed), most listeners
+    first, each with its branch and whether `NEVER_ALONE` already silences
+    it. The candidates for an everyday word painting the wrong episodes."""
+    import category_seed
+
+    rows = []
+    for node in store.nodes().values():
+        if node.source == cat.SOURCE_SEED or len(node.id.split()) != 1:
+            continue
+        rows.append({"node": node.id,
+                     "branch": " > ".join(reversed(
+                         [node.id] + list(store.ancestors(node.id)))),
+                     "listeners": node.listeners, "uses": node.uses,
+                     "silenced": node.id in category_seed.NEVER_ALONE})
+    rows.sort(key=lambda r: (-r["listeners"], -r["uses"], r["node"]))
+    return rows
+
+
+def alone(store, as_json: bool = False) -> int:
+    rows = alone_rows(store)
+    if as_json:
+        print(json.dumps(rows, indent=2))
+        return 0
+    if not rows:
+        print("  No one-word node has grown.")
+        return 0
+    print("  One-word nodes the tree grew. An everyday word here (a verb, or")
+    print("  a noun with a sense on another facet) belongs in")
+    print("  category_seed.NEVER_ALONE (§511).")
+    print()
+    for row in rows:
+        mark = "  silenced" if row["silenced"] else ""
+        print(f"    {row['node']:18} {row['listeners']:>4} listeners"
+              f"  {row['branch']}{mark}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tree", action="store_true",
@@ -187,10 +225,15 @@ def main() -> int:
     parser.add_argument("--audit", action="store_true",
                         help="how often the writer, the composer and the"
                              " keyword map agree (§209)")
+    parser.add_argument("--alone", action="store_true",
+                        help="the one-word nodes this tree has grown, to find"
+                             " everyday words for NEVER_ALONE (§511)")
     args = parser.parse_args()
 
     if args.audit:
         return audit(args.days, args.json)
+    if args.alone:
+        return alone(cat.CategoryStore(), args.json)
 
     store = cat.CategoryStore()
     if args.seed:

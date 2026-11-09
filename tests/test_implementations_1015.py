@@ -412,3 +412,52 @@ def test_lead_is_never_a_category_on_its_own(betting_tree):
     assert not got or got["node"] != "lead"
     assert betting_tree.mint("lead poisoning", parent_id="materials science")
     assert "lead poisoning" in betting_tree.match("the lead poisoning in Flint")
+
+
+def test_no_everyday_word_is_a_category_on_its_own(betting_tree):
+    """§511: every word in `NEVER_ALONE` is refused alone and matches
+    nothing when an older tree already holds it; none is a seed node or an
+    alias, which the list would otherwise silence."""
+    import category_seed
+
+    seeded = set()
+
+    def walk(branch):
+        for name, rest in branch.items():
+            seeded.add(name)
+            walk(rest)
+
+    walk(category_seed.SEED)
+    assert not category_seed.NEVER_ALONE & seeded
+    assert not category_seed.NEVER_ALONE & set(category_seed.ALIASES)
+    assert not category_seed.NEVER_ALONE & set(category_seed.ALIASES.values())
+    for word in sorted(category_seed.NEVER_ALONE):
+        assert betting_tree.mint(word, parent_id="science") is None, word
+        betting_tree._conn().execute(
+            "INSERT INTO categories (id, label, parent_id, depth, source,"
+            " first_seen, last_seen, uses, listeners, degraded)"
+            " VALUES (?, ?, 'science', 1, 'grown', 0, 0, 3, 3, 0)",
+            (word, word))
+    betting_tree.reload()
+    for word in sorted(category_seed.NEVER_ALONE):
+        assert word not in betting_tree.match(f"the {word} on Sunday"), word
+
+
+def test_the_report_lists_grown_one_word_nodes(betting_tree):
+    """§511: `categories_report.py --alone` is how the next everyday word
+    is found on a deployment: grown one-word nodes, marked when silenced."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "tools"))
+    import categories_report
+
+    betting_tree.mint("irons", parent_id="materials science", listeners=4)
+    betting_tree._conn().execute(
+        "INSERT INTO categories (id, label, parent_id, depth, source,"
+        " first_seen, last_seen, uses, listeners, degraded)"
+        " VALUES ('lead', 'lead', 'materials science', 2, 'grown', 0, 0, 3, 3, 0)")
+    betting_tree.reload()
+    rows = {r["node"]: r for r in categories_report.alone_rows(betting_tree)}
+    assert rows["irons"]["branch"].endswith("materials science > irons")
+    assert not rows["irons"]["silenced"]
+    assert rows["lead"]["silenced"]
+    assert "golf" not in rows          # the seed is not a candidate
