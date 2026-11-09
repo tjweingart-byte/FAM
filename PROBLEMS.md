@@ -31496,3 +31496,41 @@ faults in the chips, all fixed with tests in
   post-episode grid: `generate` drops a category's queued rest when anything
   but a queue entry or another category play starts; what the listener
   queued themselves stays.
+
+## 501. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09)
+
+**What was asked.** The owner walked App Store Connect with Claude for the
+first TestFlight and App Store submission, then asked for the audio spike
+(`IOS_APP.md` stage 2). The production voice has been heard many times, so
+stage 0 is met.
+
+**App Store Connect, as left.** App Information (name, subtitle "Keep up with
+audio stories", News / Entertainment), App Privacy published with eleven data
+types (all linked, none tracking - `APP_STORE.md` Part C's table), the
+privacy policy URL, age rating questionnaire (Apple calculated 13+, matching
+the terms; Social Media yes, under-13 gating no), pricing free in 174
+countries (China off; trader status verified so the EU stays on), the 1.0
+product page text written from the pitch script's problem, solution and
+mission, and TestFlight Test Information. Still open: Content Rights, the
+demo and second reviewer accounts (sign-in left blank for now), screenshots
+and a build. The Routing App Coverage File stays empty: FAM gives no
+directions.
+
+**The spike** is `ios/FAMSpike`, an XcodeGen project (`project.yml`; the
+.xcodeproj is generated, not committed) with bundle id `net.familiarize.fam`
+so a build can go straight to internal TestFlight. It plays the sign-up
+samples - `/api/v1/welcome`, then `/api/v1/audio` with `cached_only=true`,
+`minutes=1.5`, `fmt=pcm` - because that is the one request a guest may make
+past the waitlist and it wakes no voice; *Keep going* chains them so one
+session runs past ten minutes. `StreamPlayer` schedules the PCM on an
+`AVAudioPlayerNode` in quarter-second buffers, starts at half a second, and
+logs what iOS does to it: lock, background, interruptions, headphones out,
+engine configuration changes, and dropped streams (three reconnects,
+skipping the bytes already taken - which assumes a replay is the same bytes
+every time; a join that sounds wrong is that assumption failing).
+
+**Not compiled.** Written on Linux; the first build is on the owner's Mac.
+`tests/test_ios_spike_contract.py` holds the Swift to the server: both paths
+route, `Sample` decodes only tile keys, and the audio request passes
+`app._welcome_sample_request` - change its shape and a guest would get a 403.
+The phone test and its pass line are in `ios/FAMSpike/README.md`.
