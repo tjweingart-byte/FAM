@@ -31581,3 +31581,113 @@ unchanged; not asked when C3P0 chose or was unsure, when the tap files it,
 or when he is not working; a failed call changes nothing; the tap taking a
 warmed brief files the pick without asking again; an edition asks once;
 the pick dropped when the brief is unsure; the audit per origin).
+
+## 502. Training Nando: grade what teaches, through the Batch API, and grade every source that files (2026-11-09)
+
+The owner chose three of §501's proposals (1, 2 and 3) and asked what they
+cost and whether the cost scales.
+
+**1. What is graded** (`training.choose`). The answer key graded the 50
+newest episodes a night, so a DailyFAM edition's burst crowded out
+searches, or the reverse. Now every write path takes its turn (round robin
+over `origin`); within a path, what teaches most comes first
+(`training._tier`: Nando filed nothing, then the writer made him re-file,
+then his node and the writer's words disagree, then his small model filed
+it, then a solid source filed it, then everything agreed); within a tier
+the facets take turns, newest first. The night's run reports how many it
+took from each path and tier. Code only; no call is added.
+
+**2. Through the Message Batches API** (`NANDO_JUDGE_BATCH=1`, default on;
+`0` grades live as before). In two steps, so nothing holds Netenyahu's loop
+(handlers are awaited inline, and Mclovin's review and Consuela's jobs run
+in the same night hours) and a restart loses nothing:
+
+* `categorizer:judge` at 03:00 sends one batch (`models.submit_batch`) and
+  keeps its id and each request's episode (`nando_batches`);
+* `categorizer:collect`, every `NANDO_JUDGE_COLLECT_SECONDS` (300), reads
+  every batch that has ended (`models.collect_batch`) and keeps the grades.
+
+The batch goes through the agent layer like any agent call: every request
+passes the same checks (`models._ready`: switches, signed rule books,
+consent, priced, zero-spend staging - staging sends nothing), carries the
+same Messages parameters as the live call (the adapter's `params`, shared
+by `send`; a test holds them equal but for the one-hour cache a batch
+needs), and each answer is priced at the batch rate, checked against the
+model asked, validated and recorded in `agent_calls` (`models._answered`,
+shared with the live path). A batch that cannot be sent at all was never
+read, so its episodes are graded live at once. **A request the batch did
+not answer is not asked again**: nando.md rule 12 lets the key read each
+finished episode once, and §391 settled "never asked again, answered or
+not" - the batch gets the single attempt a live grade gets. (A live retry
+was written first and taken out on reading the rule.) Grades collected
+after 04:00 are trained on the next night. A wipe forgets sent batches.
+
+**3. Every source that files is graded.** A tile's, a bank topic's, a
+DailyFAM subject's, an edition's or a provider's filing is solid: the
+words may narrow it, never move it. So a wrong one is filed on every tap of
+that story and the key's correction counted as Nando's mistake, though he
+could not have chosen otherwise.
+
+* The audit now keeps the filing Nando started from and who supplied it
+  (`nando_prior`, `nando_prior_source`; from `prepare` through `settle`).
+* `training.filed_by` names who decided each graded episode: a solid
+  source when the filing is its node or a narrowing on its branch, else
+  how Nando found it (`picked`, `category`, `facet`, `model`, `parent`).
+* `training.report` (and so `categories_report.py --audit`) grades each
+  filer apart (`by_source`), each write path apart (`by_origin`), and the
+  story composer's own category (`composer`), each with its commonest
+  wrong filings. Bank topics and DailyFAM subjects are hand-seeded, so
+  their wrong filings are a list for the owner, never changed in code.
+* **The composer is shown its own corrected categories**
+  (`training.composer_corrections`: the key sure, one per question, up to
+  12, in `stories.build_composer_prompt`). **Locked until the owner signs**:
+  rule 12 as signed says the grades "only teach you and measure you", so a
+  session may not use them to teach the composer. The amendment ("and
+  teach the story composer whose categories you inherit") waits in
+  `docs/agent_rule_proposals/nando.md` with
+  `docs/agent_rules/MANIFEST.pending.json` (version 7, only `nando.md`'s
+  fingerprint changes); `training.composer_allowed` refuses until a signed
+  book carries those words, so today the composer is shown nothing.
+
+**Cost**, from the measured prompts and `metering.PRICES` (Opus 5.5 $4 /
+$20, cache read $0.20, one-hour cache write 2x input; Haiku 5.5 $0.10 /
+$0.50; batch half of every token):
+
+| | per grade | 50 a night, a month |
+|---|---|---|
+| the key live, as before (5,850 tokens of rule books and tree cached, ~1,100 of episode, ~200 out) | ~$0.0096 | **~$15** |
+| batched, reading the tree from the cache (expected) | ~$0.0048 | **~$8** |
+| batched, no request ever reading the cache (worst) | ~$0.028 | ~$41 |
+
+The batch's saving is only as good as its cache hits, which the API gives
+as best effort; each collection logs `cost_usd` and `cache_hit_share`, and
+`NANDO_JUDGE_BATCH=0` goes back to live if the share is poor. Choosing
+what to grade (1) and grading each source (3) are code: $0. The composer's
+corrections, once signed: about 300 more tokens on one Sonnet 5 call per
+refresh window, about $0.0006 a compose.
+
+**Does it scale?** Not with listeners. The key is capped per night
+(`NANDO_JUDGE_PER_RUN`), so it costs the same at 100 listeners or 100,000;
+it grows only with the tree (about 19 tokens a node in the cached block,
+311 nodes today) and with that setting, which is the owner's lever (100 a
+night batched costs about what 50 did live). The composer runs on a
+schedule, not per listener. What does grow with traffic is §501's call of
+Nando's ahead of the tap - ~$0.0005 each (~1,700 tokens cached and ~4,200
+of request, the whole tree on his list; `FAM_AGENTS.md` said <$0.0001,
+from before the whole tree was listed), made only when nothing solid files
+the request and C3P0 did not choose. On prefetch it sits inside
+`PREFETCH_DAILY_DOLLARS` ($2) and `PREFETCH_DAILY_BRIEFS` (400): at most
+~$0.20 a day; on the DailyFAM edition it grows with active mixes.
+
+Tests: `tests/test_nando_training_502.py` (every path takes its turn; what
+teaches first; facets take turns; the night grades in that order; a batched
+request is the live request; refused and staging requests never sent;
+collected answers priced at half and recorded; a running batch left for
+later; sent at night and collected once; a request the batch did not answer
+never asked again; a batch that cannot be sent graded live; a wipe forgets
+batches; the collector scheduled and on the roster; settings agree with
+`.env.example`; settle keeps the prior; who filed it; the report by source,
+path and composer; the composer's sure mistakes; shown to the composer only
+once signed; the proposal is the signed book with only rule 12 amended).
+Four older tests now pin live grading where they mock `models.ask`, and the
+listener-path import guard lists `stories.py` reading `training`.

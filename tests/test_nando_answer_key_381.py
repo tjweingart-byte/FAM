@@ -97,6 +97,11 @@ def test_a_failed_call_labels_nothing(tree, monkeypatch):
 
 def test_a_batch_grades_each_episode_once_and_never_a_private_one(tree, monkeypatch):
     monkeypatch.setattr(training, "allowed", lambda: (True, ""))
+    # Graded live here; the Message Batches path has its own tests (§501).
+    import config
+
+    monkeypatch.setattr(config, "settings",
+                        dataclasses.replace(config.settings, nando_judge_batch=False))
     for key, origin in (("a", "tap"), ("b", "private"), ("c", "prefetch"), ("d", "tap")):
         category_audit.note(f"question {key}", "", origin, key=key)
     category_audit.note("old row", "", "tap")                      # no key: skipped
@@ -111,7 +116,8 @@ def test_a_batch_grades_each_episode_once_and_never_a_private_one(tree, monkeypa
     out = asyncio.run(training.judge_batch(lambda k: scripts.get(k, []), limit=10))
     # "d" has no script yet: not asked (it may be another night), so not
     # counted (§391).
-    assert out == {"looked": 2, "labelled": 2, "skipped": 0, "failed": 0}
+    assert {k: out[k] for k in ("looked", "labelled", "skipped", "failed")} == \
+        {"looked": 2, "labelled": 2, "skipped": 0, "failed": 0}
     assert "question b" not in asked
     again = asyncio.run(training.judge_batch(lambda k: scripts.get(k, []), limit=10))
     assert again["labelled"] == 0 and asked.count("question a") == 1

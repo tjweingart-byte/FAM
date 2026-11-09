@@ -96,6 +96,13 @@ class TrainingStore:
             # again.
             db.execute("""CREATE TABLE IF NOT EXISTS nando_asked (
                 key TEXT PRIMARY KEY, at REAL NOT NULL)""")
+            # The answer key's batches sent and not yet read (§501): the
+            # batch id, each request's id with the episode it grades, and
+            # when it was sent. Kept until collected, so a restart loses
+            # nothing.
+            db.execute("""CREATE TABLE IF NOT EXISTS nando_batches (
+                batch_id TEXT PRIMARY KEY, waiting TEXT NOT NULL,
+                sent_at REAL NOT NULL, done_at REAL NOT NULL DEFAULT 0)""")
             # The tree as the last nightly look saw it (§387).
             db.execute("""CREATE TABLE IF NOT EXISTS nando_tree (
                 node TEXT PRIMARY KEY, parent TEXT NOT NULL DEFAULT '',
@@ -105,6 +112,28 @@ class TrainingStore:
         conn = store_db.connect(self.path, timeout=10, isolation_level=None)
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
+
+    def put_batch(self, batch_id: str, waiting: dict, now: float = 0.0) -> None:
+        import json
+
+        with self._lock, self._connect() as db:
+            db.execute("INSERT INTO nando_batches (batch_id, waiting, sent_at, done_at)"
+                       " VALUES (?, ?, ?, 0) ON CONFLICT(batch_id) DO NOTHING",
+                       (batch_id, json.dumps(waiting), now or time.time()))
+
+    def pending_batches(self) -> list:
+        """`[(batch_id, waiting, sent_at)]` not yet collected, oldest first."""
+        import json
+
+        with self._connect() as db:
+            rows = db.execute("SELECT batch_id, waiting, sent_at FROM nando_batches"
+                              " WHERE done_at = 0 ORDER BY sent_at").fetchall()
+        return [(r[0], json.loads(r[1] or "{}"), float(r[2])) for r in rows]
+
+    def finish_batch(self, batch_id: str, now: float = 0.0) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("UPDATE nando_batches SET done_at = ? WHERE batch_id = ?",
+                       (now or time.time(), batch_id))
 
     def put_label(self, key: str, query: str, node: str, confidence: str, reason: str,
                   judge_model: str, now: float = 0.0, path: str = "") -> None:
@@ -196,6 +225,7 @@ class TrainingStore:
             n = db.execute("SELECT COUNT(*) FROM nando_labels").fetchone()[0]
             db.execute("DELETE FROM nando_labels")
             db.execute("DELETE FROM nando_asked")
+            db.execute("DELETE FROM nando_batches")
             db.execute("DELETE FROM nando_tree")
         return int(n)
 
@@ -235,38 +265,50 @@ def tree_listing() -> str:
     return "\n".join(lines)
 
 
-async def judge(key: str, query: str, sentences: list, listing: str) -> Optional[dict]:
-    """One episode through the answer key, or None when it did not answer
-    usably. Never raises."""
-    try:
-        import topics
-        from agents import models, netenyahu
-        from config import settings
+def _judge_request(query: str, sentences: list, listing: str):
+    """The answer key's one request for one episode, live or batched."""
+    from agents import models
+    from config import settings
 
-        script = " ".join(str(s) for s in (sentences or ())[:SCRIPT_SENTENCES])
-        request = models.AgentRequest(
-            agent="categorizer", task="judge", switch_setting="categorizer",
-            model_setting="categorizer_judge_model", rule_book="nando.md",
-            schema=JudgeLabel,
-            instructions=JUDGE_INSTRUCTIONS + "\n\nFAM's category tree (id | path):\n" + listing,
-            material=(("request", query), ("script", script)),
-            timeout=float(settings.categorizer_judge_timeout_seconds),
-            max_tokens=int(settings.categorizer_judge_max_tokens), effort="medium",
-            surface="background")
-        result = await models.ask(request)
-        # Not counted toward Nando's hold (§391): three failed nightly
-        # grades must never stop his filing on listeners' episodes. A
-        # failure is still in `agent_calls` and on /admin.
-        if not result.ok:
-            return None
-        node = result.value.node.strip()
-        if node != "none" and node not in topics.FACETS \
-                and topics.category_tree().get(node) is None:
-            return None                       # never a node the tree lacks
-        return {"node": "" if node == "none" else node,
-                "confidence": result.value.confidence,
-                "reason": result.value.reason.strip(),
-                "judge_model": result.model}
+    script = " ".join(str(s) for s in (sentences or ())[:SCRIPT_SENTENCES])
+    return models.AgentRequest(
+        agent="categorizer", task="judge", switch_setting="categorizer",
+        model_setting="categorizer_judge_model", rule_book="nando.md",
+        schema=JudgeLabel,
+        instructions=JUDGE_INSTRUCTIONS + "\n\nFAM's category tree (id | path):\n" + listing,
+        material=(("request", query), ("script", script)),
+        timeout=float(settings.categorizer_judge_timeout_seconds),
+        max_tokens=int(settings.categorizer_judge_max_tokens), effort="medium",
+        surface="background")
+
+
+def _label_from(result) -> Optional[dict]:
+    """A usable grade from the key's answer, or None. Never a node the tree
+    lacks."""
+    import topics
+
+    # Not counted toward Nando's hold (§391): three failed nightly grades
+    # must never stop his filing on listeners' episodes. A failure is still
+    # in `agent_calls` and on /admin.
+    if result is None or not result.ok:
+        return None
+    node = result.value.node.strip()
+    if node != "none" and node not in topics.FACETS \
+            and topics.category_tree().get(node) is None:
+        return None
+    return {"node": "" if node == "none" else node,
+            "confidence": result.value.confidence,
+            "reason": result.value.reason.strip(),
+            "judge_model": result.model}
+
+
+async def judge(key: str, query: str, sentences: list, listing: str) -> Optional[dict]:
+    """One episode through the answer key, live, or None when it did not
+    answer usably. Never raises."""
+    try:
+        from agents import models
+
+        return _label_from(await models.ask(_judge_request(query, sentences, listing)))
     except Exception as exc:  # noqa: BLE001 - a background job never raises
         log.warning("nando's answer key failed for %r: %s", query, exc)
         return None
@@ -318,11 +360,100 @@ def _path_text(node: str) -> str:
 NOT_LABELLED = frozenset({"private", "archive"})
 
 
+#: What a filing came from when it was not Nando's own reading (§501):
+#: the tap's own filing, which the words may only narrow, or a provider's.
+SOURCES = ("tile", "bank", "dailyfam", "edition", "provider")
+
+
+def filed_by(row: dict) -> str:
+    """Who decided an audited episode's filing (§501): a solid source it
+    started from (`SOURCES`) when the filing is that source's node or a
+    narrowing of it on its branch; otherwise how Nando's request found it -
+    `picked` (a model's pick from his list), `category` or `facet` (the
+    brief's own words), `model` (his small model), `parent` (a Go Deeper's
+    episode) - or `nothing`."""
+    from agents import categorizer
+
+    filed = row.get("nando") or row.get("nando_request") or ""
+    how = (row.get("nando_request_how") or "").split("~")[0]
+    if not filed:
+        return "nothing"
+    if how in SOURCES:
+        return how
+    prior, source = row.get("nando_prior") or "", row.get("nando_prior_source") or ""
+    if prior and source in SOURCES and (
+            filed == prior or prior in categorizer._branch(filed)):
+        return source
+    return how or "unknown"
+
+
+def _tier(row: dict) -> int:
+    """How much grading this episode teaches (§501), most first: 0 Nando
+    filed nothing; 1 the writer made him re-file; 2 his node and the
+    writer's words disagree; 3 his small model filed it, a guess its numbers
+    trusted; 4 a solid source filed it, so only the key checks that source;
+    5 everything agreed."""
+    if not (row.get("nando") or row.get("nando_request")):
+        return 0
+    if row.get("nando_how") == "refiled":
+        return 1
+    if row.get("nando") and row.get("writer") and row["nando"] != row["writer"]:
+        return 2
+    by = filed_by(row)
+    if by == "model":
+        return 3
+    if by in SOURCES:
+        return 4
+    return 5
+
+
+def _facet_of(row: dict) -> str:
+    from agents import categorizer
+
+    node = row.get("nando") or row.get("nando_request") or row.get("writer") or ""
+    try:
+        return categorizer._facet(node) if node else (row.get("writer_facet") or "none")
+    except Exception:  # noqa: BLE001
+        return "none"
+
+
+def choose(rows: list) -> list:
+    """The order the answer key grades in (§501), not newest first: every
+    write path takes its turn - a search, prefetch, each edition - so a
+    burst on one path never crowds out another; within a path the episodes
+    that teach most come first (`_tier`), and within a tier the facets take
+    turns, newest first. Pure: rows in, the same rows reordered."""
+    buckets: dict = {}
+    for row in rows:
+        buckets.setdefault(row.get("origin") or "?", []).append(row)
+    for origin, items in buckets.items():
+        items.sort(key=lambda r: -(r.get("at") or 0))
+        turn: dict = {}
+        ranked = []
+        for r in items:
+            group = (_tier(r), _facet_of(r))
+            turn[group] = turn.get(group, 0) + 1
+            ranked.append(((_tier(r), turn[group], -(r.get("at") or 0)), r))
+        buckets[origin] = [r for _k, r in sorted(ranked, key=lambda kr: kr[0])]
+    out: list = []
+    queues = [buckets[o] for o in sorted(buckets)]
+    i = 0
+    while any(queues):
+        q = queues[i % len(queues)]
+        if q:
+            out.append(q.pop(0))
+        i += 1
+    return out
+
+
 async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
                       days: float = 7.0) -> dict:
-    """Label up to `limit` written episodes the key has not seen, newest
-    first. `script_for(key)` returns the cached sentences (or []). Returns
-    what it did. Never raises."""
+    """Grade up to `limit` written episodes the key has not seen, in
+    `choose`'s order. Through the Message Batches API when
+    `NANDO_JUDGE_BATCH` is on (§501): the batch is sent here and collected
+    by `collect_batches`; otherwise each grade is asked live, as before.
+    `script_for(key)` returns the cached sentences (or []). Returns what it
+    did. Never raises."""
     out = {"looked": 0, "labelled": 0, "skipped": 0, "failed": 0}
     ok, why = allowed()
     if not ok:
@@ -346,9 +477,7 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
             done = store().labelled(r["key"] for r in rows) | store().asked(
                 r["key"] for r in rows)
             fresh = []
-            for row in rows:
-                if row["key"] in done:
-                    continue
+            for row in choose([r for r in rows if r["key"] not in done]):
                 sentences = list(script_for(row["key"]) or [])
                 if sentences:                # no script yet: asked another night
                     fresh.append((row, sentences))
@@ -359,22 +488,116 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
         # Read once each (nando.md rule 12): an episode is never asked again,
         # answered or not; a new node under its grade only flags it (§387).
         fresh, listing = await asyncio.to_thread(plan)
-        for row, sentences in fresh:
-            out["looked"] += 1
+        out["by_origin"] = {}
+        out["by_tier"] = {}
+        for row, _s in fresh:
+            o = row.get("origin") or "?"
+            out["by_origin"][o] = out["by_origin"].get(o, 0) + 1
+            t = str(_tier(row))
+            out["by_tier"][t] = out["by_tier"].get(t, 0) + 1
+        out["looked"] = len(fresh)
+        for row, _s in fresh:
             await asyncio.to_thread(store().mark_asked, row["key"])
+        if settings.nando_judge_batch and fresh:
+            from agents import models
+
+            ids = {f"n{i}": (row, sentences) for i, (row, sentences) in enumerate(fresh)}
+            requests = {cid: _judge_request(row["query"], sentences, listing)
+                        for cid, (row, sentences) in ids.items()}
+            batch_id, refused = await models.submit_batch(requests)
+            out["failed"] += len(refused)
+            if batch_id:
+                waiting = {cid: {"key": row["key"], "query": row["query"]}
+                           for cid, (row, _s) in ids.items() if cid not in refused}
+                await asyncio.to_thread(store().put_batch, batch_id, waiting)
+                out["batch_id"] = batch_id
+                out["batched"] = len(waiting)
+                return out
+            # Not sent: asked live, so a saving never costs a grade.
+            fresh = [pair for cid, pair in ids.items() if cid not in refused]
+        for row, sentences in fresh:
             label = await judge(row["key"], row["query"], sentences, listing)
             if label is None:
                 out["failed"] += 1
                 continue
-            await asyncio.to_thread(
-                store().put_label, row["key"], row["query"], label["node"],
-                label["confidence"], label["reason"], label["judge_model"],
-                0.0, _path_text(label["node"]))
+            await asyncio.to_thread(_keep, row["key"], row["query"], label)
             out["labelled"] += 1
     except Exception as exc:  # noqa: BLE001
         log.exception("nando's answer-key run failed")
         out["error"] = f"{type(exc).__name__}: {exc}"
     return out
+
+
+def _keep(key: str, query: str, label: dict) -> None:
+    store().put_label(key, query, label["node"], label["confidence"], label["reason"],
+                      label["judge_model"], 0.0, _path_text(label["node"]))
+
+
+#: A sent batch nobody could read for this long is given up (the API
+#: answers every batch within a day; two days covers a deployment down).
+BATCH_GIVE_UP_SECONDS = 48 * 3600
+
+
+async def collect_batches(script_for: Callable[[str], list]) -> dict:
+    """Read every sent batch that has ended (§501) and keep its grades. A
+    request the batch did not answer is not asked again: nando.md rule 12
+    lets the key read each finished episode once, and §391 settled that an
+    episode asked about is never asked again, answered or not - the same
+    single attempt a live grade gets. A batch still running is left for the
+    next pass. Never raises."""
+    # What the batches cost, and how much of their input the prompt cache
+    # served (§502): the batch halves every token, but a live run already
+    # reads the tree from the cache, so the saving is only as good as the
+    # batch's cache hits - measured here, never assumed.
+    out = {"batches": 0, "labelled": 0, "failed": 0, "waiting": 0,
+           "cost_usd": 0.0, "input_tokens": 0, "cache_read_tokens": 0}
+    try:
+        from agents import models
+
+        pending = await asyncio.to_thread(store().pending_batches)
+        for batch_id, waiting, sent_at in pending:
+            requests = {cid: _judge_request(item["query"], [], "")
+                        for cid, item in waiting.items()}
+            results = await models.collect_batch(batch_id, requests)
+            if results is None:
+                if time.time() - sent_at > BATCH_GIVE_UP_SECONDS:
+                    log.warning("nando's answer-key batch %s given up unread", batch_id)
+                    await asyncio.to_thread(store().finish_batch, batch_id)
+                    out["failed"] += len(waiting)
+                else:
+                    out["waiting"] += 1
+                continue
+            out["batches"] += 1
+            for cid, item in waiting.items():
+                result = results.get(cid)
+                if result is not None:
+                    out["cost_usd"] += float(result.cost_usd or 0.0)
+                    out["input_tokens"] += int((result.usage or {}).get("input_tokens", 0))
+                    out["cache_read_tokens"] += int(
+                        (result.usage or {}).get("cache_read_tokens", 0))
+                label = _label_from(result)
+                if label is None:
+                    out["failed"] += 1
+                    continue
+                await asyncio.to_thread(_keep, item["key"], item["query"], label)
+                out["labelled"] += 1
+            await asyncio.to_thread(store().finish_batch, batch_id)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("nando's answer-key batches could not be collected")
+        out["error"] = f"{type(exc).__name__}: {exc}"
+    out["cost_usd"] = round(out["cost_usd"], 6)
+    read = out["cache_read_tokens"]
+    out["cache_hit_share"] = _rate(read, read + out["input_tokens"])
+    return out
+
+
+def collect_handler(script_for: Callable[[str], list]):
+    """The background task `categorizer:collect` (§501)."""
+    async def run(_task: str) -> None:
+        result = await collect_batches(script_for)
+        if result.get("batches") or result.get("error"):
+            log.info("nando's answer key, collected: %s", result)
+    return run
 
 
 def handler(script_for: Callable[[str], list]):
@@ -394,6 +617,7 @@ def register(script_for: Callable[[str], list]) -> None:
 
     netenyahu.HANDLERS[("categorizer", "follow")] = follow_handler()
     netenyahu.HANDLERS[("categorizer", "judge")] = handler(script_for)
+    netenyahu.HANDLERS[("categorizer", "collect")] = collect_handler(script_for)
     netenyahu.HANDLERS[("categorizer", "train")] = nando_model.handler()
 
 
@@ -433,9 +657,15 @@ def compared(days: float = 30.0) -> list:
                              if row.get("key") in labels):
         label = labels[r["key"]]
         filed = r.get("nando") or r.get("nando_request") or ""
+        composer = r.get("composer") or ""
         out.append({"key": r["key"], "query": r["query"], "filed": filed,
                     "truth": label["node"], "confidence": label["confidence"],
-                    "verdict": verdict(filed, label["node"]), "at": label["at"]})
+                    "verdict": verdict(filed, label["node"]), "at": label["at"],
+                    # §501: who filed it, and the composer's own category
+                    # graded apart from Nando's filing.
+                    "by": filed_by(r), "origin": r.get("origin") or "",
+                    "composer": composer,
+                    "composer_verdict": verdict(composer, label["node"]) if composer else ""})
     return out
 
 
@@ -468,6 +698,88 @@ def mistakes(limit: int = MISTAKES_KEPT, days: float = MISTAKE_DAYS) -> list:
     except Exception:  # noqa: BLE001
         log.exception("nando's mistakes could not be read")
         return []
+
+
+#: How many of the composer's corrected categories it is shown (§501).
+COMPOSER_CORRECTIONS = 12
+
+
+#: The words of the amendment to nando.md rule 12 that lets the key's
+#: grades teach the story composer (§502). Rule 12 as signed says the
+#: grades "only teach you and measure you" - Nando - so until the owner
+#: signs a book carrying these words, the composer is shown nothing.
+COMPOSER_RULE = "teach the story composer"
+
+
+def composer_allowed() -> tuple:
+    """`(ok, why)`: whether Nando's signed rule book lets his answer key's
+    grades teach the story composer. Never raises."""
+    try:
+        from agents import rulebooks
+
+        lock = rulebooks.check("nando.md")
+        if not lock.ok:
+            return False, f"nando's rule books are not signed: {lock.reason}"
+        if COMPOSER_RULE not in lock.text:
+            return False, ("nando's signed rule 12 lets the answer key teach only him "
+                           "(§502): the composer is shown no corrections until the "
+                           "owner signs the amendment")
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def composer_corrections(limit: int = COMPOSER_CORRECTIONS,
+                         days: float = MISTAKE_DAYS) -> list:
+    """The story composer's categories the answer key was sure were wrong
+    (§501), newest first, one per question: `{"question", "said", "node"}`,
+    the key's node the answer ("" when no node fits). Shown to the composer
+    as worked corrections, since a tile's category is a solid filing that
+    Nando may narrow and never move - so its mistakes are corrected where
+    they are made. [] until the owner signs the amendment to rule 12 that
+    allows it (`composer_allowed`). Never raises; read in the background."""
+    try:
+        if not composer_allowed()[0]:
+            return []
+        out, seen = [], set()
+        for g in compared(days):
+            if g.get("composer_verdict") != "wrong" or g["confidence"] != "high":
+                continue
+            q = " ".join((g["query"] or "").split())
+            if not q or q.lower() in seen:
+                continue
+            seen.add(q.lower())
+            out.append({"question": q, "said": g["composer"], "node": g["truth"]})
+            if len(out) >= limit:
+                break
+        return out
+    except Exception:  # noqa: BLE001
+        log.exception("the composer's corrections could not be read")
+        return []
+
+
+def _source_counts(graded: list, field: str, verdict_field: str, examples: int) -> dict:
+    """Per filer: graded, exact, on its branch, wrong, the wrong rate (of
+    those filed), and its commonest wrong filings."""
+    out: dict = {}
+    for g in graded:
+        name = g.get(field) or ""
+        v = g.get(verdict_field) or ""
+        if not name or not v or v == "nothing":
+            continue
+        slot = out.setdefault(name, {"graded": 0, "exact": 0, "on_branch": 0, "wrong": 0,
+                                     "wrong_examples": []})
+        slot["graded"] += 1
+        key = {"exact": "exact", "branch": "on_branch", "wrong": "wrong"}[v]
+        slot[key] += 1
+        if v == "wrong" and len(slot["wrong_examples"]) < examples:
+            slot["wrong_examples"].append({"query": g["query"], "filed": g["filed"]
+                                           if field == "by" else g["composer"],
+                                           "truth": g["truth"] or "none",
+                                           "confidence": g["confidence"]})
+    for slot in out.values():
+        slot["wrong_rate"] = _rate(slot["wrong"], slot["graded"])
+    return dict(sorted(out.items()))
 
 
 def report(days: float = 30.0, examples: int = 10) -> dict:
@@ -507,6 +819,15 @@ def report(days: float = 30.0, examples: int = 10) -> dict:
             "exact": exact, "on_branch": branch, "wrong": wrong, "filed_nothing": nothing,
             "exact_rate": _rate(exact, filed_count), "wrong_rate": _rate(wrong, filed_count),
             "by_facet": dict(sorted(by_facet.items())),
+            # §501: every filer graded apart - each solid source (tile, bank
+            # topic, DailyFAM subject, edition, provider) and each way
+            # Nando decides - and the story composer's own category; and
+            # every write path apart.
+            "by_source": _source_counts(graded, "by", "verdict", examples),
+            "composer": _source_counts(
+                [dict(g, composer_name="composer") for g in graded],
+                "composer_name", "composer_verdict", examples).get("composer"),
+            "by_origin": _source_counts(graded, "origin", "verdict", 0),
             "confusions": [{"filed": a, "truth": b, "episodes": n}
                            for (a, b), n in sorted(confusions.items(),
                                                    key=lambda kv: -kv[1])[:examples]],

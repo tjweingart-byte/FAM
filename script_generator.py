@@ -679,6 +679,12 @@ class ScriptNotes:
     #: (`categorizer.Prior`, §372) - the Trending story's category. None
     #: everywhere else, where `categorizer.prior_for` reads it from the tap.
     category_prior: object = None
+    #: The prior the placement started from (`categorizer.Prior`, §501),
+    #: whatever supplied it, kept for the audit: which solid source - a
+    #: tile, a bank topic, a DailyFAM subject, an edition - filed the
+    #: episode, so the answer key can grade that source. None when Nando
+    #: did not work on the episode.
+    category_prior_seen: object = None
     #: The reading taken for an older client that cannot ask (§426): C3P0's
     #: likeliest, "" otherwise. Such an episode is kept but never current,
     #: so a client that can ask is never served the guess under the plain key.
@@ -2914,6 +2920,7 @@ class ScriptGenerator:
                         placed = categorizer.place(plan.brief, plan.query, field, prior,
                                                    pick, unsure=unsure)
                 notes.category_placement = placed
+                notes.category_prior_seen = prior
                 if placed.node and notes.caption_key:
                     live_captions.publish_category(notes.caption_key, placed.node)
         except BaseException:

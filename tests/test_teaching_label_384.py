@@ -46,7 +46,10 @@ RULE_12 = """12. Let your answer key - a stronger model chosen by the owner - re
 def test_the_proposal_adds_only_the_answer_key_rule_and_goes_once_signed():
     signed = SIGNED.read_text(encoding="utf-8")
     if training.ANSWER_KEY_RULE in signed:
-        assert not PROPOSED.exists(), "signed: delete the proposal"
+        # Signed: the §384 proposal went. A later one may wait in its place
+        # - §502's amendment to rule 12, tested in test_nando_training_502.
+        assert not PROPOSED.exists() or training.COMPOSER_RULE in PROPOSED.read_text(
+            encoding="utf-8"), "signed: delete the proposal"
         # Signed on 2026-11-01 (§392): the real lock now lets the key grade.
         assert training.allowed() == (True, "")
         return

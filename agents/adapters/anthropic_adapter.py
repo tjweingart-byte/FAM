@@ -37,24 +37,28 @@ class AnthropicAdapter:
                 credentials.active("ANTHROPIC_API_KEY") or None)
         return self._client
 
-    async def send(self, *, model: str, system: str, user: str, schema: dict,
-                   max_tokens: int, effort: str, client: Optional[object] = None
-                   ) -> Answer:
-        """One call. Raises whatever the SDK raises; `agents.models.ask`
-        turns every exception into a fallback."""
-        client = client or self.client()
-        with_options = getattr(client, "with_options", None)
-        if callable(with_options):
-            client = with_options(max_retries=0)
-        response = await client.messages.create(
-            model=model,
-            max_tokens=int(max_tokens),
-            system=[{"type": "text", "text": system,
-                     "cache_control": {"type": "ephemeral"}}],
-            output_config={"effort": effort,
-                           "format": {"type": "json_schema", "schema": schema}},
-            messages=[{"role": "user", "content": user}],
-        )
+    def params(self, *, model: str, system: str, user: str, schema: dict,
+               max_tokens: int, effort: str, cache_ttl: str = "") -> dict:
+        """The Messages API parameters of one call: what `send` sends, and
+        what a batch carries for each request (§501), so a batched call is
+        the same request as a live one. `cache_ttl` "1h" asks the longer
+        cache for the system block (a batch is answered over minutes, so
+        the five-minute cache would mostly have expired between requests)."""
+        cache = {"type": "ephemeral"}
+        if cache_ttl:
+            cache["ttl"] = cache_ttl
+        return {
+            "model": model,
+            "max_tokens": int(max_tokens),
+            "system": [{"type": "text", "text": system, "cache_control": cache}],
+            "output_config": {"effort": effort,
+                              "format": {"type": "json_schema", "schema": schema}},
+            "messages": [{"role": "user", "content": user}],
+        }
+
+    @staticmethod
+    def answer_from(response) -> Answer:
+        """A Messages API response - live or a batch's - as an `Answer`."""
         text = ""
         for block in getattr(response, "content", None) or ():
             if getattr(block, "type", "") == "text":
@@ -65,6 +69,20 @@ class AnthropicAdapter:
                       served_model=str(getattr(response, "model", "") or ""),
                       usage=getattr(response, "usage", None),
                       raw=response)
+
+    async def send(self, *, model: str, system: str, user: str, schema: dict,
+                   max_tokens: int, effort: str, client: Optional[object] = None
+                   ) -> Answer:
+        """One call. Raises whatever the SDK raises; `agents.models.ask`
+        turns every exception into a fallback."""
+        client = client or self.client()
+        with_options = getattr(client, "with_options", None)
+        if callable(with_options):
+            client = with_options(max_retries=0)
+        response = await client.messages.create(**self.params(
+            model=model, system=system, user=user, schema=schema,
+            max_tokens=max_tokens, effort=effort))
+        return self.answer_from(response)
 
 
 ADAPTER = AnthropicAdapter()

@@ -2151,6 +2151,14 @@ class Settings:
     categorizer_judge_max_tokens: int = _env_int("CATEGORIZER_JUDGE_MAX_TOKENS", 400)
     # How many written episodes one nightly run grades at most (§381).
     nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 50)
+    # The answer key through the Message Batches API (§501): every token at
+    # half price, answered within the day; nobody waits at 03:00. Sent by
+    # the nightly run, collected every `NANDO_JUDGE_COLLECT_SECONDS`. 0 asks
+    # each grade live, one at a time, as before.
+    nando_judge_batch: bool = field(
+        default_factory=lambda: os.environ.get("NANDO_JUDGE_BATCH", "1")
+        not in ("0", "false", "False", ""))
+    nando_judge_collect_seconds: float = _env_float("NANDO_JUDGE_COLLECT_SECONDS", 300.0)
     editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
     editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
     # Measured (§437): at high effort Haiku 5.5 spent 4,000 tokens thinking

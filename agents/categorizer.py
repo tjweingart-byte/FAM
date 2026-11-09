@@ -779,7 +779,11 @@ def settle(notes, query: str = "") -> str:
             # so a growing tree still places it - never stored as his, and
             # never counted as his in the audit or the answer key (§391).
             node = ""
+        prior = getattr(notes, "category_prior_seen", None)
         notes.category_settled = {"request": placed.node, "request_how": placed.how,
+                                  # Which tap filing it started from (§501).
+                                  "prior": getattr(prior, "node", "") or "",
+                                  "prior_source": getattr(prior, "source", "") or "",
                                   "node": node, "how": how,
                                   "confidence": placed.confidence,
                                   "ambiguous": " ".join(placed.ambiguous)}

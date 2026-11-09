@@ -493,3 +493,4 @@ and `limit` = Lines.
 | 31329 | 109 | 499. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
 | 31500 | 85 | 501. Nando on the background paths: a warmed brief carries his decision, and each path is counted (2026-11-09) |
+| 31585 | 110 | 502. Training Nando: grade what teaches, through the Batch API, and grade every source that files (2026-11-09) |

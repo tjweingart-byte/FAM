@@ -393,20 +393,28 @@ The models are the ones decided (Models decided, and §440, §455, §456).
 |---|---|---|---|---|
 | **Netenyahu** | Nothing - orchestration is code | - | $0 | $0 |
 | **C3P0** | ~1,000 more tokens in and ~200 out inside EI's existing call (disambiguation, plugins, Sonic's request, the title); public-figure check from the reference look | Haiku 5.5, inside EI's call | ~$1.50 *(est.)* | ~$0.0002 |
-| **Nando** | Code; a Haiku call on the ~1 in 5 requests where candidates tie; confirmation after the writer in code | Haiku 5.5 | ~$0.50 *(est.)* | <$0.0001 |
+| **Nando** | Code; his own Haiku call where nothing solid files the request and C3P0 is not choosing - on a search beside the brief, ahead of the tap where the brief is built (§379, §501); ~1,700 tokens of rule books (cached) and ~4,200 of request, since the whole tree is on his list: **~$0.0005 a call** *(measured size, §502)*; confirmation after the writer in code | Haiku 5.5 | ~$1-5 *(est.)* | ~$0.0001-0.0005 |
 | **Sonic** | Code lookups in the archive | - | $0 | $0 |
 | **Shakespeare, ahead of the tap** | One outline per edition, write-ahead or rail episode | Haiku 5.5, high effort | **~$20** *(measured: $0.004 a plan, §437)* | $0.004 |
 | **Shakespeare, on the tap** (`EDITOR_TANDEM`) | One outline beside the writer, and the writer's second call that writes the rest from it | Haiku 5.5, low effort | **~$15-18** *(measured parts: $0.0015 a plan, §455; a writer call ~$0.002, §450; the tandem itself unmeasured)* | ~$0.003-0.0035 |
 | **Mclovin** | Code: source screen, quotes, figures, dates, websites, advice, superlatives, mixed stories; the writer's one rewrite of a failed sentence (none in 20 measured episodes, §438); Haiku on pages the screen cannot settle, ahead of the tap only. **Support is off** (§452-§453): no grounding checker and no second look | Haiku 5.5 (screen); the writer (rewrites) | **~$1** *(est.)* | ~$0.0001 |
 | **Consuela** | ~5 new articles digested; dedupe pairs and periodic combs (code first, Haiku on unsure pairs, Sonnet on the few still unsure); demographic totals in code | Haiku 5.5, batched; Sonnet 5.5 review | **~$5-6** *(est.)* | ~$0.0006 |
 | **Keith** | Code watching; a write-up per incident (not per episode); usage APIs free; email through `mail.py` | Haiku 5.5; Sonnet 5.5 summaries | **<$1** *(est.)* | ~$0 |
-| **All eight** | | | **~$45** | **~0.45¢** |
+| **All eight** | | | **~$45-50** | **~0.45-0.5¢** |
 
 **Nightly, whatever the volume** (a month): Mclovin's review - 40 of his
 verdicts each night on Opus 5.5 (`SUPERVISOR_REVIEW_PER_RUN`), ~$0.011 a
 verdict *(measured, §451)*: **~$13**; Nando's answer key - up to 50 grades a
-night on Opus 5.5 (`NANDO_JUDGE_PER_RUN`): **~$15-20** *(est.)*. About
-**$30 a month** together, only while each agent is on.
+night on Opus 5.5 (`NANDO_JUDGE_PER_RUN`), through the Message Batches API
+at half price (`NANDO_JUDGE_BATCH`, §502): **~$8** if the batch reads the
+tree from the prompt cache, as requests sharing one system block normally
+do; up to **~$41** if no request ever did, each paying to write the
+one-hour cache - live, as before, it is ~$15 *(est. from the measured
+prompt: ~5,850 tokens of rule books and tree, ~1,100 of episode, ~200
+out)*. Each collection logs its cost and cache share; if the share is
+poor, `NANDO_JUDGE_BATCH=0` goes back to live. About **$21-28 a month**
+together at the expected rate, only while each agent is on. Neither grows
+with listeners: each is capped per night.
 
 **Fixed machines**: **none needed now.** The grounding checker was measured
 and is not installed: HHEM-2.1-Open rejected ~9-12% of good sentences and
@@ -2094,7 +2102,8 @@ nodes share is a tie, filed under what they share.
 | `CATEGORIZER_MODEL` | `anthropic:claude-haiku-5-5` (decided 2026-10-30), asked whenever nothing solid files the request and C3P0 is not choosing (§379) |
 | `CATEGORIZER_JUDGE_MODEL` | `anthropic:claude-opus-5-5`: the answer key, nightly, each finished episode once (§381) |
 | `CATEGORIZER_JUDGE_TIMEOUT_SECONDS`, `CATEGORIZER_JUDGE_MAX_TOKENS` | 60, 400: the answer key's one call (§381) |
-| `NANDO_JUDGE_PER_RUN` | 50: episodes a nightly run grades at most (§381) |
+| `NANDO_JUDGE_PER_RUN` | 50: episodes a nightly run grades at most (§381), chosen by `training.choose` - every write path in turn, what teaches first (§502) |
+| `NANDO_JUDGE_BATCH`, `NANDO_JUDGE_COLLECT_SECONDS` | 1, 300: grade through the Message Batches API at half price, sent at 03:00 and collected every five minutes once it ends; 0 grades live (§502) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
 Decided (2026-10-28): the category tag is the same everywhere for the

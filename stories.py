@@ -1431,7 +1431,7 @@ def pin_query(query: str, anchors, limit: int = 200) -> str:
     return (query[:max(0, limit - len(tail))].rstrip() + tail).strip()
 
 
-def build_composer_prompt(signals: list, when: str) -> str:
+def build_composer_prompt(signals: list, when: str, corrections=()) -> str:
     """What the composer is shown. One block per signal, numbered.
 
     The numbering is what lets the reply be matched back: a model asked to
@@ -1466,7 +1466,35 @@ def build_composer_prompt(signals: list, when: str) -> str:
     if vocabulary:
         lines += ["", "Categories to choose from (facet / category: "
                       "subcategories):"] + vocabulary
+    # Categories this composer chose that the answer key, reading the
+    # finished episode, was sure were wrong (§501): worked corrections, so
+    # a mistake in a tile's category - which every tap of that story then
+    # inherits - is corrected where it is made.
+    if corrections:
+        lines += ["", "Categories chosen for earlier stories that turned out to be "
+                      "wrong, with the category that was true:"]
+        for c in corrections:
+            lines.append(f"- \"{c['question']}\": not {c['said']}, but "
+                         f"{c['node'] or 'none of the categories'}")
     return "\n".join(lines)
+
+
+async def composer_corrections() -> list:
+    """The composer's corrected categories from Nando's answer key (§501),
+    read in a thread; [] while Nando is off or nothing was graded. Never
+    raises."""
+    if not (settings.agents and getattr(settings, "categorizer", False)):
+        return []
+    try:
+        from agents import training
+
+        if not training.exists():
+            return []
+        return await asyncio.to_thread(training.composer_corrections)
+    except Exception:  # noqa: BLE001 - a hint, never a reason to fail a compose
+        log.warning("stories: the composer's corrections could not be read",
+                    exc_info=True)
+        return []
 
 
 _DOMAIN_NOTE = {
@@ -1515,7 +1543,8 @@ async def compose(signals: list, now: Optional[float] = None) -> list:
                     "format": {"type": "json_schema", "schema": STORY_SCHEMA},
                 },
                 messages=[{"role": "user",
-                           "content": build_composer_prompt(signals, when)}],
+                           "content": build_composer_prompt(
+                               signals, when, await composer_corrections())}],
             ),
             timeout=float(settings.stories_compose_timeout_seconds),
         )

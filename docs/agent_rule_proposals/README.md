@@ -7,7 +7,16 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-Nothing. Manifest version 6 - the merged books, `consuela.md` always 12
+**`nando.md` rule 12, amended (PROBLEMS.md §502)**, with
+`docs/agent_rules/MANIFEST.pending.json` (version 7; only `nando.md`'s
+fingerprint changes). Rule 12 as signed lets the answer key's grades "only
+teach you and measure you"; the amendment adds "and teach the story
+composer whose categories you inherit", so the composer is shown its own
+categories the key was sure were wrong. Until it is signed the code shows
+the composer nothing (`training.composer_allowed`). Nothing else in the
+book changes.
+
+Before that: manifest version 6 - the merged books, `consuela.md` always 12
 and `sonic.md` always 8 beside `mclovin.md` v3 - was signed on 2026-11-06
 (PROBLEMS.md §470); `mclovin.md` v3 (§443, version 5); v2 (§441, version
 4); `consuela.md` with Perplexity (§412, version 3); `nando.md` rule 12

@@ -91,7 +91,9 @@ def note(query: str, words: str, origin: str = "",
                        nando=nando.get("node", "") or "",
                        nando_how=nando.get("how", "") or "",
                        nando_confidence=str(nando.get("confidence", "") or ""),
-                       nando_ambiguous=nando.get("ambiguous", "") or "")
+                       nando_ambiguous=nando.get("ambiguous", "") or "",
+                       nando_prior=nando.get("prior", "") or "",
+                       nando_prior_source=nando.get("prior_source", "") or "")
         topics.category_tree().note_written(row, at=at)
     except Exception:  # noqa: BLE001 - a log, never the episode
         log.exception("could not log a categorisation")

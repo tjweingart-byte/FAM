@@ -187,6 +187,9 @@ def _failing(monkeypatch, status="timeout"):
         return models.AgentResult(status=status, agent="categorizer", task="judge")
     monkeypatch.setattr(models, "ask", ask)
     monkeypatch.setattr(training, "allowed", lambda: (True, ""))
+    # Graded live here; the Message Batches path has its own tests (§501).
+    monkeypatch.setattr(config, "settings",
+                        dataclasses.replace(config.settings, nando_judge_batch=False))
     return calls
 
 
