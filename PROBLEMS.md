@@ -32142,3 +32142,34 @@ signing decision's option 2 is no longer Mac-only. #232's `/admin`
 **Categories (Nando)** page and its **Run the one-time check** button
 (§503) are added to the owner-only list in 01. The agents' names, roles and
 switches are unchanged (`agents/names.py` gained only a model setting).
+
+## 509. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09)
+
+The owner's note (11.9): a PGA Tour episode played over the `lead` node's
+picture - a lump of grey metal in a workshop - and the theory was that a
+player "in the lead" put it there. **The theory was right**, reproduced
+against the seed: the tree grew `lead` from listeners' questions and the
+placer filed it under science (the metal). Placed two levels deep (e.g.
+under `materials science`), it reached `SUBJECT_DEPTH`, so §282's
+`_named_subject` - written for a Seahawks episode filed under sports
+betting - read "Scheffler takes a two-stroke lead" as naming a deeper
+subject on another branch and drew it **even when the episode's own
+category was golf**. Placed one level deep it still wins whenever the
+episode has no category yet (while it is being written) and the words
+name nothing deeper than `golf`.
+
+What decides the picture, in order (`thumbnails.pick_for_player`): the
+episode's category (Nando's node, else the writer's `<<CATEGORY:>>`) unless
+the words name a deeper subject (`_named_subject`); with no category, the
+deepest node the words name (`categories.match`: whole words, in order,
+no stemming - "leads" and "leading" never matched, "lead" did); then the
+nearest node by meaning; then a painted ancestor; then the facets; else
+none (§507).
+
+The fix: **a named subject outranks the category only on the category's
+own facet.** §282's case is a team beside a node of its own sport; a word
+on another facet's branch is another sense of the word. The uncategorised
+case is unchanged - it is a vocabulary problem (an everyday word grown as
+a node), not a ranking one, and is left open: `lead`, like the team names
+in `LEFT_TO_GROW`, should probably not match as a bare word.
+`tests/test_implementations_1015.py::test_a_word_on_another_facet_never_outranks_the_category`.

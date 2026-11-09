@@ -372,3 +372,18 @@ def test_a_reply_to_a_vibe_is_not_a_share(world):
     a.post("/api/messages", json={"to": _uid(b), "query": "why tides turn", "minutes": 2})
     assert shares() == before + 1
     assert "reply: true" in INDEX.split("function postStoryMessage(", 1)[1].split("\n  }\n", 1)[0]
+
+
+def test_a_word_on_another_facet_never_outranks_the_category(betting_tree):
+    """The owner 11.9 ("Rock Lead Theory"): a grown `lead` node under
+    science - the metal - is two levels deep, and "Scheffler takes a
+    two-stroke lead" put a golf episode on its picture. A named subject
+    outranks the category only on the category's own facet (§282)."""
+    betting_tree.mint("lead", parent_id="materials science")
+    betting_tree.reload()
+    _paint("lead", facet="science")
+    _paint("golf")
+    words = "PGA Tour today: Scheffler takes a two-stroke lead"
+    assert th.pick(words, category="golf")["node"] == "golf"
+    assert th.pick_for_player(words, category="golf")["node"] == "golf"
+    assert th.pick_for_tile(words, category="golf")["node"] == "golf"
