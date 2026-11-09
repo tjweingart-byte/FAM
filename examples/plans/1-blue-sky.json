@@ -1,0 +1,63 @@
+{
+ "example": "1-blue-sky",
+ "teaches": "A short answer: three parts at one minute, the answer first; the history of who worked it out is left out because the length has no room for it.",
+ "packet": [
+  {
+   "packet": "plugin",
+   "title": "Why the sky is blue",
+   "published": "reference",
+   "sentences": [
+    "Sunlight contains every colour of visible light.",
+    "Nitrogen and oxygen molecules are much smaller than a wavelength of light.",
+    "Particles that small scatter short wavelengths far more strongly than long ones.",
+    "Blue light is scattered several times more than red light.",
+    "Violet scatters even more, but the sun emits less of it and human eyes are less sensitive to it.",
+    "At sunset sunlight passes through much more air, so most blue is scattered away and red and orange remain."
+   ]
+  },
+  {
+   "packet": "archive",
+   "title": "The physicist who explained the sky",
+   "published": "1871",
+   "sentences": [
+    "Lord Rayleigh published the theory of light scattering by small particles in 1871."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "why the sky looks blue",
+  "summary": [
+   "P1.1",
+   "P1.2",
+   "P1.3",
+   "P1.4",
+   "P1.5",
+   "P1.6"
+  ],
+  "opening": [
+   "P1.1",
+   "P1.3"
+  ],
+  "beats": [
+   {
+    "purpose": "why short waves are thrown around the sky",
+    "sentences": [
+     "P1.2",
+     "P1.3",
+     "P1.4"
+    ]
+   },
+   {
+    "purpose": "but: why not violet",
+    "sentences": [
+     "P1.5"
+    ]
+   }
+  ],
+  "landing": [
+   "P1.6"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}

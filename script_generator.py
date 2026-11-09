@@ -53,6 +53,8 @@ log = logging.getLogger(__name__)
 #: (§286): a small writer matches a demonstrated length far more closely
 #: than a stated one.
 EXAMPLE_MINUTES: dict[str, int] = {}
+#: Each example's file name without `.txt`, by its query.
+EXAMPLE_STEMS: dict[str, str] = {}
 
 
 def load_style_examples() -> list[tuple[str, str]]:
@@ -70,6 +72,7 @@ def load_style_examples() -> list[tuple[str, str]]:
     directory = pathlib.Path(__file__).resolve().parent / "examples"
     found: list[tuple[str, str]] = []
     EXAMPLE_MINUTES.clear()
+    EXAMPLE_STEMS.clear()
     if not directory.is_dir():
         return found
 
@@ -81,6 +84,7 @@ def load_style_examples() -> list[tuple[str, str]]:
         query, script = head.strip(), body.strip()
         if query and script:
             found.append((query, script))
+            EXAMPLE_STEMS[query] = path.stem
             minutes = path.name.split("-", 1)[0]
             if minutes.isdigit():
                 EXAMPLE_MINUTES[query] = as_minutes(minutes)
@@ -113,6 +117,90 @@ def style_example_block() -> str:
         length = f' minutes="{minutes}"' if minutes else ""
         parts.append(f'<example query="{query}"{length} words="{words}">\n{script}\n</example>\n')
     return "\n".join(parts)
+
+def load_example_facets() -> dict[str, str]:
+    """`examples/facets.json`: each example's facet, by file name (§501).
+    Empty when the file is missing or unreadable - then nothing is matched."""
+    import json
+    import pathlib
+
+    path = pathlib.Path(__file__).resolve().parent / "examples" / "facets.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: str(v) for k, v in data.items() if not k.startswith("_")}
+
+
+EXAMPLE_FACETS = load_example_facets()
+#: At most this many examples are named as the closest to an episode.
+MATCHED_EXAMPLES = 2
+
+
+def episode_facet(plan) -> str:
+    """The facet of the story in hand, in code (§501): the brief's place in
+    the category tree first (§311), then its category or subject resolved
+    against the tree, then the question's own words. "" when nothing says.
+    Never raises; never a call."""
+    try:
+        import stories
+        import topics
+
+        brief = getattr(plan, "brief", None)
+        path = list(getattr(brief, "category_path", None) or [])
+        if path and path[0] in topics.FACETS:
+            return path[0]
+        for text in (getattr(brief, "category", "") or "", getattr(brief, "subject", "") or ""):
+            node = stories.resolve_category(text) if text else ""
+            facet = stories.facet_for(node) if node else ""
+            if facet in topics.FACETS:
+                return facet
+        for facet in topics.facets_only(topics.tags_for_text(str(getattr(plan, "query", "")))):
+            if facet in topics.FACETS:
+                return facet
+    except Exception:  # noqa: BLE001 - a hint, never worth an episode
+        log.warning("could not place an episode's facet", exc_info=True)
+    return ""
+
+
+def matched_examples(facet: str, minutes: float = 0) -> list[str]:
+    """The stems of the examples of this facet, nearest the episode's length
+    first (how much an answer holds at its length is part of what an example
+    teaches), at most `MATCHED_EXAMPLES`."""
+    if not facet:
+        return []
+
+    def length(stem: str) -> float:
+        head = stem.split("-", 1)[0]
+        return abs(float(head) - float(minutes or 0)) if head.isdigit() else 99.0
+
+    stems = [stem for stem, f in EXAMPLE_FACETS.items() if f == facet]
+    return sorted(stems, key=lambda s: (length(s), s))[:MATCHED_EXAMPLES]
+
+
+def example_hint(plan) -> str:
+    """One line in the writer's request naming the house examples closest to
+    this kind of story (`EXAMPLE_MATCHING`, §501), or "". In the request,
+    never the system block, so the cached instructions stay byte for byte
+    the same ([writer-savings]). Never raises."""
+    try:
+        if not getattr(settings, "example_matching", True):
+            return ""
+        by_stem = {stem: query for query, stem in EXAMPLE_STEMS.items()}
+        queries = [by_stem[s] for s in matched_examples(episode_facet(plan),
+                                                         getattr(plan, "minutes", 0))
+                   if s in by_stem]
+        if not queries:
+            return ""
+        named = " and ".join(f'"{q}"' for q in queries)
+        return ("\nOf the house examples, the closest to this kind of story "
+                f"{'is' if len(queries) == 1 else 'are'} {named}. Tell this one the way "
+                f"{'it opens, moves and lands' if len(queries) == 1 else 'they open, move and land'}"
+                " - never with their facts.\n")
+    except Exception:  # noqa: BLE001
+        log.warning("could not name the matching examples", exc_info=True)
+        return ""
+
 
 # The last few openers spoken by this server. Fed back into the prompt so a
 # listener working through several episodes does not hear the same shape of
@@ -1613,7 +1701,7 @@ never spoken.
 <request>{plan.query}</request>
 
 It is currently {now_line()}. Prefer the newest information you can establish.
-{attached}{local}{live}{evidence}{temporal}{brief_block}{follow_up}
+{attached}{local}{live}{evidence}{temporal}{brief_block}{follow_up}{example_hint(plan)}
 You have about {plan.minutes} minute{"s" if plan.minutes != 1 else ""} - roughly
 {budget} words. That is room for {plan.sections[0]}.
 

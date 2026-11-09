@@ -2177,6 +2177,21 @@ class Settings:
     editor_tandem: bool = field(
         default_factory=lambda: os.environ.get("EDITOR_TANDEM", "0")
         not in ("0", "false", "False", ""))
+    # Shakespeare's worked plans (§501): beside the house examples in his
+    # `<teaching>`, a plan for several of them - the packet it was made
+    # from, his answer, and the example it became (`examples/plans/`). Off:
+    # he is shown the finished examples alone, as before.
+    editor_worked_plans: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_WORKED_PLANS", "1")
+        not in ("0", "false", "False", ""))
+    # The house examples matched to the story (§501): the writer's request
+    # names the one or two examples of the episode's facet
+    # (`examples/facets.json`), and Shakespeare is told which worked plans
+    # are closest. In the request, never the cached system block. Off: the
+    # request is byte for byte what it was.
+    example_matching: bool = field(
+        default_factory=lambda: os.environ.get("EXAMPLE_MATCHING", "1")
+        not in ("0", "false", "False", ""))
     editor_tandem_opening_words: int = _env_int("EDITOR_TANDEM_OPENING_WORDS", 30)
     editor_tandem_wait_seconds: float = _env_float("EDITOR_TANDEM_WAIT_SECONDS", 7.0)
     # 2 s and 500 tokens, the owner's (§453): at 1 s and 300 most of his

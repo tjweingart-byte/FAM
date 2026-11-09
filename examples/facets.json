@@ -1,0 +1,15 @@
+{
+  "_what": "Each example's facet (topics.FACETS), so the writer and Shakespeare are pointed at the examples closest to the story in hand (§501). A new example names its facet here; tests/test_examples_matched_501.py fails if one does not.",
+  "1-blue-sky": "science",
+  "2-apollo-13": "science",
+  "2-autoimmune": "health",
+  "2-fed-raises-rates": "money",
+  "2-flight-cancellations": "business",
+  "2-house-music": "culture",
+  "2-marathon-distance": "sports",
+  "2-passkeys": "tech",
+  "2-singapore-sprint": "sports",
+  "2-suez-canal": "world",
+  "4-noise-cancelling": "tech",
+  "5-financial-crisis": "money"
+}

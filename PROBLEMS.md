@@ -31496,3 +31496,114 @@ faults in the chips, all fixed with tests in
   post-episode grid: `generate` drops a category's queued rest when anything
   but a queue entry or another category play starts; what the listener
   queued themselves stays.
+
+## 501. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09)
+
+The owner (2026-11-09): "Do 1, 3 and 4" of seven proposals for training
+Shakespeare. §437 found his outline did not yet make the writing measurably
+better at 1.5 minutes (Opus mean 2.82 / 2.84 / 2.87, every interval across
+zero) and storytelling 1.5-1.9 of 5 in every arm, and left unmeasured
+whether the writer followed the plan at all. The proposals not taken: an
+outline with a named turn and a because / therefore / but link per beat (2),
+best of three plans ahead of the tap (5), planted failure cases and a
+nightly Opus review as Mclovin has (6), and listening-driven playbook
+revisions (7).
+
+**1. Whether the writer followed his plan** (`episode_quality.plan_following`,
+code, no model). His outline now leaves the sentences he chose on the
+episode's notes, in memory only (`agents.editor.plan_texts`,
+`notes.editor["plan"]`). Where the episode is cached, `note` measures four
+parts and keeps the numbers in the row's `measures` JSON as `plan` - never
+the sentences, which are provider text:
+
+- `opening`: an open-on sentence used in the first two sentences;
+- `beats`: the share of his parts with any sentence used anywhere;
+- `order`: of the parts used, the share of pairs told in his order;
+- `landing`: a land-on sentence used in the last two;
+- `score`, the mean of those that apply, and `surface` - "ahead", or
+  "tandem" on searchFAM, where the opening was written before his plan
+  existed (§456) and is not counted.
+
+A plan sentence is *used* by a script sentence sharing at least two of its
+content words and a quarter of them (`PLAN_SHARED_WORDS`,
+`PLAN_SHARED_SHARE`): the writer retells the sources, so names, numbers
+and nouns carry over where the phrasing does not. It is a crude reader,
+pinned by tests on a followed script, a reordered one and a near-miss -
+read it as a trend, not a verdict on one episode. `python
+tools/editor_trial.py` prints it first, ahead and tandem apart
+(`plan_following_report`); `tools/editor_eval.py` reports `plan:*` per arm.
+**Unmeasured until it runs with the key**: what the numbers are. If the
+writer does not follow the plan, `writer_block` is the next thing to fix,
+before anything about the plan itself.
+
+**3. Worked plans** (`agents/worked_plans.py`, `examples/plans/`). His
+`<teaching>` held the finished examples and never a plan. Eight worked
+plans now follow them - 1-blue-sky, 2-apollo-13, 2-autoimmune,
+2-fed-raises-rates, 2-house-music, 2-passkeys, 2-singapore-sprint,
+2-suez-canal: sports, money, tech, science, health, culture and world. Each
+is a packet numbered exactly as his packets are, his answer in his own
+shape (`EditorAnswer`), and one line on what it teaches; the episode it
+became is the example of the same name. **FAM's own words, never provider
+text** (§437 keeps the frozen packets outside the repository for that
+reason): the sentences are the example's own facts written as a source
+states them, plus a line or two each plan leaves out - a preview, a
+forecast, advice, something beside the point - so every plan shows
+choosing, not only ordering (a test fails if one keeps every sentence).
+Checked in code at load: every number resolves, no beat would be dropped,
+the example exists and has a facet; a plan that fails is left out and
+logged. His instructions gained one sentence saying what worked plans are.
+`python tools/editor_teaching.py --check` prints the checks; `--draft
+<example>` (with the key) has Opus 5.5 draft the plan for an example that
+has none - 2-flight-cancellations, 2-marathon-distance, 4-noise-cancelling
+and 5-financial-crisis today - written only if it passes, to be read
+before it is committed. Cost: about 15,000 characters more of his input,
+roughly 4,000 tokens a plan. `EDITOR_WORKED_PLANS=0` restores the examples
+alone. His signed rule book is unchanged: he still names sentences by
+number, and the worked plans are teaching, never evidence.
+
+**4. Examples matched to the story.** `examples/facets.json` gives every
+example its facet (`topics.FACETS`; a test fails on an example without
+one). `script_generator.episode_facet` reads the episode's facet in code -
+the brief's category path (§311), then its category or subject against the
+tree, then the question's words - and `example_hint` names the one or two
+examples of that facet, the nearest the episode's length first, in the
+writer's **request**, never the cached system block, which stays byte for
+byte the same ([writer-savings]). Shakespeare's worked plans name the ones
+of the same kind. `EXAMPLE_MATCHING=0` leaves the request exactly as it was.
+Business has one example and no worked plan, local news none.
+
+And new examples proposed from listening (`episode_quality.example_candidates`,
+`python tools/example_candidates.py`): per facet, the written episodes with
+20 or more listens (`CANDIDATE_MIN_LISTENS`), the most heard to 85% first,
+then the fewest left in 20 s, the facets with fewest examples first. `--write`
+puts them in `~/.fam/example_candidates/` in the examples' format, **never in
+`examples/`**: the owner reads, edits and moves the ones worth keeping
+([examples-lever]; no hand-scoring - choosing an example is not scoring an
+episode). None qualify here: this container's store has no listens.
+
+**Measuring it.** `tools/editor_eval.py` gained two arms on §437's frozen
+packets: `none_matched` (no editor, the writer matched) and `haiku_taught`
+(Haiku 5.5 high with worked plans, the writer matched). The original three
+now run with both switches off, so they stay §437's comparison, and their
+results already on disk are the baseline:
+
+    AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run --arms none_matched,haiku_taught
+
+About $7 for the two arms with grading (§437: $10.45 for three). No key
+here, so neither the plan-following numbers nor the comparison has been run.
+
+Settings (new): `EDITOR_WORKED_PLANS` (1), `EXAMPLE_MATCHING` (1), in
+`config.py`, `.env.example` and `tests/conftest.py`.
+
+Tests: `tests/test_plan_following_501.py` (a followed script scores one;
+each part on its own; a part never told; one shared word is not a use;
+tandem's opening not counted; numbers kept, never sentences; the report by
+surface; his outline leaves his sentences on the notes),
+`tests/test_worked_plans_501.py` (every plan passes his checks; the facets
+covered; each leaves something out; a broken plan left out and said why;
+numbered as his packets; off, none; in his teaching after the examples; the
+checker runs with no key), `tests/test_examples_matched_501.py` (every
+example has a facet; the facet from the brief first; nearest length first;
+named in the request, the system block unchanged; off, as it was;
+candidates by listening, fewest-example facets first, written in the
+examples' format, never a listener).

@@ -85,3 +85,21 @@ the recap's shape, not its facts.
 
 Anything in here is loaded automatically at startup — no code change needed. An
 empty folder simply means no examples, and the prompt is unchanged.
+
+## Facets and worked plans (§501)
+
+- **Every example names its facet** in `facets.json` (one of
+  `topics.FACETS`). The writer's request names the one or two examples of
+  the episode's facet, nearest its length; a test fails on an example with
+  no facet.
+- **`plans/<example>.json` is Shakespeare's worked plan** for that example:
+  a packet in FAM's own words - the example's facts as a source would state
+  them, plus a line or two to leave out - and the plan made from it, by
+  sentence number. `python tools/editor_teaching.py --check` checks them;
+  `--draft <example>` (with the key) drafts one for a new example. Read a
+  draft before committing it.
+- **New candidates** come from what listeners heard through:
+  `python tools/example_candidates.py --write` puts them in
+  `~/.fam/example_candidates/`, never here. Move the ones worth keeping in
+  by hand, give each a facet, and draft its worked plan.
+

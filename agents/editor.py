@@ -167,7 +167,7 @@ INSTRUCTIONS = """You are the editor of one audio episode. From the two packets 
 
 Plan it the way a good journalist tells a story: open on something concrete that says who, what and when and opens a question; let each beat follow from the last because, therefore or but; end on the most concrete thing you have, never a question, a tease or what might happen next. If the question asks for a result and no sentence reports one as finished, plan around what has not finished. Do not plan a part you have nothing for: a beat needs at least one number behind it. Plan no advice: on a medical, legal or money question, plan the facts. Fit the beats to the episode's length. A beat's purpose says what the beat does ("why the vote mattered"), never a fact. Anything the listener asked about that no sentence covers goes in `missing`, a few words each, for the writer only; set `thin` when the packets hold too little for the length.
 
-The worked episodes in `<teaching>` show the house style the writer is held to: concrete openings, a story told because-therefore-but, a concrete last line. They are examples of writing, never evidence."""
+The worked episodes in `<teaching>` show the house style the writer is held to: concrete openings, a story told because-therefore-but, a concrete last line. They are examples of writing, never evidence. Where `<teaching>` also holds worked plans, each shows a packet and the plan an editor made from it - what was kept, what was left out, the order and the landing; plan this episode as well as they are planned, from this episode's own packets."""
 
 
 def _examples() -> str:
@@ -186,6 +186,21 @@ def _examples() -> str:
 
 
 _EXAMPLES: Optional[str] = None
+
+
+def _teaching(plan) -> str:
+    """His `<teaching>`: the house examples, then the worked plans (§501),
+    with the ones closest to this episode's kind of story named."""
+    from agents import worked_plans
+
+    try:
+        import script_generator
+
+        facet = script_generator.episode_facet(plan)
+    except Exception:  # noqa: BLE001
+        facet = ""
+    worked = worked_plans.teaching(facet)
+    return _examples() + ("\n\n" + worked if worked else "")
 
 
 # ------------------------------------------------------------------ checked in code
@@ -248,6 +263,18 @@ def _text(ref: SentenceRef, sources: list) -> str:
         if source.packet == "archive" else source.sentences[ref.sentence]
 
 
+def plan_texts(outline: Outline, sources: list) -> dict:
+    """The sentences he chose, as text, for `episode_quality.plan_following`:
+    whether the writer opened, moved and landed where he planned. Held on the
+    episode's notes in memory only - the quality store keeps the numbers."""
+    def texts(refs) -> list:
+        return [sources[r.source].sentences[r.sentence] for r in refs]
+
+    return {"opening": texts(outline.opening),
+            "beats": [texts(b.refs) for b in outline.beats],
+            "landing": texts(outline.landing)}
+
+
 def writer_block(outline: Outline, answers: str, sources: list) -> str:
     """The editor's plan as the writer reads it, every line of evidence the
     sources' own sentence. "" when there is nothing to plan from."""
@@ -301,7 +328,7 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
                                  f"minutes, at most {getattr(plan, 'max_words', 0)} words.\n\n"
                                  + (plugin or "(nothing)")),
                     ("archive", archive or "(nothing)"),
-                    ("teaching", _examples())]
+                    ("teaching", _teaching(plan))]
         request = models.AgentRequest(
             agent="editor", task="outline", switch_setting="editor_agent",
             model_setting=model_setting or ("editor_model" if ahead else "editor_search_model"),
@@ -324,7 +351,8 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
         if notes is not None:
             notes.editor = {"beats": len(built.beats), "thin": built.thin,
                             "missing": list(built.missing), "dropped": report,
-                            "model": getattr(result, "model", "")}
+                            "model": getattr(result, "model", ""),
+                            "plan": plan_texts(built, sources) if block else None}
         _count("planned" if block else "nothing_to_plan")
         return block
     except Exception:  # noqa: BLE001 - the editor never costs an episode
@@ -342,7 +370,20 @@ def report() -> dict:
         return {"since_boot": dict(SINCE_BOOT),
                 "trial": bool(getattr(settings, "editor_trial", False)),
                 # Beside the writer on searchFAM (§456).
-                "tandem": bool(getattr(settings, "editor_tandem", False))}
+                "tandem": bool(getattr(settings, "editor_tandem", False)),
+                # The worked plans in his teaching (§501): how many loaded,
+                # 0 when off.
+                "worked_plans": (len(_worked_plans_loaded())
+                                 if getattr(settings, "editor_worked_plans", True) else 0)}
+
+
+def _worked_plans_loaded() -> list:
+    try:
+        from agents import worked_plans
+
+        return worked_plans.plans()
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def reset() -> None:

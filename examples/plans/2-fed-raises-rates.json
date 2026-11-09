@@ -1,0 +1,85 @@
+{
+ "example": "2-fed-raises-rates",
+ "teaches": "An explainer: open on what the thing actually is; each part follows from the last (because, therefore, but); the forecast is left out; land on the mechanism's most concrete consequence.",
+ "packet": [
+  {
+   "packet": "plugin",
+   "title": "How the federal funds rate works",
+   "published": "reference",
+   "sentences": [
+    "The federal funds rate is the rate banks charge each other to borrow overnight.",
+    "The Federal Reserve sets a target for that rate rather than lending to the public.",
+    "Banks build the rates on credit cards, car loans and business loans on top of it.",
+    "Mortgage rates track longer-term borrowing costs, which tend to rise with it.",
+    "The Fed raises rates when prices are rising too fast.",
+    "Higher borrowing costs mean fewer purchases on credit and less business investment, which cools spending."
+   ]
+  },
+  {
+   "packet": "plugin",
+   "title": "What a rate rise means for savers",
+   "published": "reference",
+   "sentences": [
+    "Savings accounts, money market funds and Treasury bonds pay more when rates rise.",
+    "A slower economy usually means slower hiring.",
+    "Rate changes take months, often more than a year, to reach prices and jobs."
+   ]
+  },
+  {
+   "packet": "plugin",
+   "title": "Markets look ahead",
+   "published": "this week",
+   "sentences": [
+    "Economists expect the Fed to change course next year.",
+    "The Fed's chair spoke at a conference in Washington."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "what a Fed rate rise is and how it reaches people",
+  "summary": [
+   "P1.1",
+   "P1.2",
+   "P1.3",
+   "P1.4",
+   "P1.5",
+   "P1.6",
+   "P2.1",
+   "P2.2",
+   "P2.3"
+  ],
+  "opening": [
+   "P1.1",
+   "P1.3"
+  ],
+  "beats": [
+   {
+    "purpose": "how one number sets the price of every loan",
+    "sentences": [
+     "P1.2",
+     "P1.3",
+     "P1.4"
+    ]
+   },
+   {
+    "purpose": "because: why the Fed wants borrowing dearer",
+    "sentences": [
+     "P1.5",
+     "P1.6",
+     "P2.2"
+    ]
+   },
+   {
+    "purpose": "but: the same rise pays savers",
+    "sentences": [
+     "P2.1"
+    ]
+   }
+  ],
+  "landing": [
+   "P2.3"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}

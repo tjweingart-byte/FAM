@@ -1,0 +1,91 @@
+{
+ "example": "2-apollo-13",
+ "teaches": "A story from history: the archive is the material, each part marked as history and told with its date; open on the moment it went wrong; every part a problem and its answer; land on the image that closes it.",
+ "packet": [
+  {
+   "packet": "archive",
+   "title": "Apollo 13: the explosion",
+   "published": "April 1970",
+   "sentences": [
+    "Fifty-five hours into the flight, an oxygen tank on Apollo 13 exploded about two hundred thousand miles from Earth.",
+    "The tank fed the command module, Odyssey, the only part of the spacecraft with a heat shield.",
+    "Jim Lovell, Jack Swigert and Fred Haise powered Odyssey down and moved into the lunar module, Aquarius."
+   ]
+  },
+  {
+   "packet": "archive",
+   "title": "Living in the lander",
+   "published": "April 1970",
+   "sentences": [
+    "Aquarius was designed to keep two people alive for about two days and had to keep three alive for four.",
+    "Carbon dioxide built up because the lander's filters were nearly spent.",
+    "The command module's spare filters were square and the lander's slots were round.",
+    "Engineers in Houston designed a fix from plastic bags, cardboard, suit hoses and duct tape and read it up by radio.",
+    "The crew swung around the Moon and used its gravity to head back toward Earth.",
+    "Mission control was flooded with calls from the public."
+   ]
+  },
+  {
+   "packet": "archive",
+   "title": "Splashdown",
+   "published": "April 1970",
+   "sentences": [
+    "On the last morning the crew powered Odyssey back up and released Aquarius.",
+    "Odyssey splashed down in the Pacific on the seventeenth of April."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "how the crew survived and got back",
+  "summary": [
+   "A1.1",
+   "A1.2",
+   "A1.3",
+   "A2.1",
+   "A2.2",
+   "A2.3",
+   "A2.4",
+   "A2.5",
+   "A3.1",
+   "A3.2"
+  ],
+  "opening": [
+   "A1.1"
+  ],
+  "beats": [
+   {
+    "purpose": "why losing that tank meant losing the way home",
+    "sentences": [
+     "A1.2",
+     "A1.3"
+    ]
+   },
+   {
+    "purpose": "but: the lifeboat ran out of clean air",
+    "sentences": [
+     "A2.1",
+     "A2.2",
+     "A2.3"
+    ]
+   },
+   {
+    "purpose": "therefore: the fix built from what was aboard",
+    "sentences": [
+     "A2.4"
+    ]
+   },
+   {
+    "purpose": "how they turned for home",
+    "sentences": [
+     "A2.5"
+    ]
+   }
+  ],
+  "landing": [
+   "A3.1",
+   "A3.2"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}

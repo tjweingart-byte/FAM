@@ -4,6 +4,9 @@
     AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run      # write and score
     python tools/editor_eval.py --report                           # the table again
 
+    # §501: the taught arms, on the same frozen packets
+    AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run --arms none_matched,haiku_taught
+
 The owner decides Shakespeare's model ahead of the tap on this comparison
 (decided item 37): about fifty fixed edition questions - Trending-style news,
 DailyFAM subjects across the categories, evergreen - **researched once and
@@ -14,12 +17,24 @@ frozen**, then written three ways with the same writer:
 * `sonnet` - Shakespeare on Sonnet 5.5 at high effort (pinned here: since
   §440 `EDITOR_MODEL` is Haiku).
 
+Two more arms (§501), so the teaching is measured against §437's own results:
+
+* `none_matched` - no editor; the writer's request names the house examples
+  of the episode's facet (`EXAMPLE_MATCHING`);
+* `haiku_taught` - Shakespeare on Haiku 5.5 high with his worked plans
+  (`EDITOR_WORKED_PLANS`), the writer matched as in `none_matched`.
+
+The first three arms run with both switched off, so they stay §437's
+comparison whatever the deployment's defaults are now.
+
 Each script is scored on what needs no person (decided item 30):
 `episode_quality.measure`'s six code measures; Mclovin's sentence checks
 (§435), every check counted, none enforced, so the arms are compared on what
 the writer wrote; a blind 1-5 grade by Opus (`QUALITY_GRADER_MODEL`, so Sonnet
 never grades itself), which sees the question, the evidence and the script
-and never which arm wrote it; and each arm's cost and time per episode.
+and never which arm wrote it; each arm's cost and time per episode; and,
+for an arm with an editor, whether the writer followed his plan
+(`episode_quality.plan_following`: opening, parts, order, landing).
 
 One event loop for the whole run (§388). Frozen packets and results are kept
 in `~/.fam/editor_eval/` (`--dir` to change), never in the repository: they
@@ -99,13 +114,50 @@ QUESTIONS = [
     ("evergreen", "how do passkeys replace passwords"),
 ]
 
-ARMS = ("none", "haiku", "sonnet")
-#: Each arm's model setting for Shakespeare (always at high effort, ahead).
+ARMS = ("none", "haiku", "sonnet", "none_matched", "haiku_taught")
+#: What `--arms` runs when it is not given: §437's three.
+DEFAULT_ARMS = ("none", "haiku", "sonnet")
+#: The editor each arm runs, or none.
+ARM_EDITOR = {"haiku": "haiku", "sonnet": "sonnet", "haiku_taught": "haiku"}
+#: The arms taught as §501 teaches: the writer's examples matched to the
+#: story and Shakespeare's worked plans. Every other arm has both off.
+TAUGHT_ARMS = frozenset({"none_matched", "haiku_taught"})
+#: Each editor's model setting for Shakespeare (always at high effort, ahead).
 ARM_SETTING = {"haiku": "editor_search_model", "sonnet": "editor_model"}
-#: The model each arm runs, whatever the deployment's defaults are now: the
+#: The model each editor runs, whatever the deployment's defaults are now: the
 #: owner chose Haiku for `EDITOR_MODEL` on this comparison (§440), so the
 #: Sonnet arm pins its own model to stay the same comparison.
 ARM_MODEL = {"haiku": "anthropic:claude-haiku-5-5", "sonnet": "anthropic:claude-sonnet-5-5"}
+
+
+class _Settings:
+    """The arm's settings, put in place for one script and taken back after:
+    the switches §501 added, and the editor's pinned model."""
+
+    def __init__(self, arm: str) -> None:
+        import config
+
+        changes = {"editor_worked_plans": arm in TAUGHT_ARMS,
+                   "example_matching": arm in TAUGHT_ARMS}
+        editor = ARM_EDITOR.get(arm)
+        if editor:
+            changes[ARM_SETTING[editor]] = ARM_MODEL[editor]
+        self.replaced = dataclasses.replace(config.settings, **changes)
+
+    def __enter__(self):
+        import config
+        import script_generator
+        from agents import models as agent_models
+
+        self.modules = [config, script_generator, agent_models]
+        self.kept = [m.settings for m in self.modules]
+        for m in self.modules:
+            m.settings = self.replaced
+        return self
+
+    def __exit__(self, *exc) -> None:
+        for m, kept in zip(self.modules, self.kept):
+            m.settings = kept
 MINUTES = 1.5
 
 
@@ -163,26 +215,20 @@ async def write_arm(generator, frozen: dict, arm: str) -> dict:
     notes.edition = True
     started = time.perf_counter()
     editor_seconds = 0.0
-    if arm != "none":
-        t = time.perf_counter()
-        import dataclasses as _dc
-
-        from agents import models as agent_models
-
-        kept = agent_models.settings
-        agent_models.settings = _dc.replace(kept, **{ARM_SETTING[arm]: ARM_MODEL[arm]})
-        try:
+    with _Settings(arm):
+        if ARM_EDITOR.get(arm):
+            t = time.perf_counter()
             block = await editor.outline(plan, notes, ahead=True,
-                                         model_setting=ARM_SETTING[arm])
-        finally:
-            agent_models.settings = kept
-        editor_seconds = time.perf_counter() - t
-        plan = dataclasses.replace(plan, editor_outline=block)
-        if not block:
-            print(f"    ({arm}: no plan - the writer read the packets)")
-    sentences = [s async for s in generator.stream_prepared(plan, notes)]
+                                         model_setting=ARM_SETTING[ARM_EDITOR[arm]])
+            editor_seconds = time.perf_counter() - t
+            plan = dataclasses.replace(plan, editor_outline=block)
+            if not block:
+                print(f"    ({arm}: no plan - the writer read the packets)")
+        sentences = [s async for s in generator.stream_prepared(plan, notes)]
     seconds = time.perf_counter() - started
     import episode_quality
+
+    followed = episode_quality._plan_measure(notes, sentences)
 
     measured = episode_quality.measure(sentences, plan.query, plan.evidence,
                                        getattr(plan, "word_budget", 0))
@@ -197,8 +243,11 @@ async def write_arm(generator, frozen: dict, arm: str) -> dict:
     cost = metering.price_of(notes.usage)
     return {"arm": arm, "sentences": sentences, "seconds": round(seconds, 2),
             "editor_seconds": round(editor_seconds, 2), "dollars": round(cost.total, 5),
-            "planned": bool(arm != "none" and getattr(plan, "editor_outline", "")),
-            "editor": getattr(notes, "editor", None),
+            "planned": bool(ARM_EDITOR.get(arm) and getattr(plan, "editor_outline", "")),
+            # Without the sentences he chose: those are provider text.
+            "editor": {k: v for k, v in (getattr(notes, "editor", None) or {}).items()
+                       if k != "plan"} or None,
+            "plan_following": followed,
             "scores": measured.get("scores", {}), "mclovin": fails}
 
 
@@ -281,6 +330,10 @@ def report(out: pathlib.Path) -> dict:
         for r in results:
             for check, n in (r.get("mclovin") or {}).items():
                 checks[check] = checks.get(check, 0) + n
+        followed = [r.get("plan_following") for r in results if r.get("plan_following")]
+        if followed:
+            for part in episode_quality.PLAN_PARTS + ("score",):
+                entry[f"plan:{part}"] = _mean([f.get(part) for f in followed])
         entry["mclovin_fails_per_episode"] = {c: round(n / len(results), 2)
                                               for c, n in sorted(checks.items())}
         table[arm] = entry
@@ -310,7 +363,7 @@ async def main() -> int:
     ap.add_argument("--freeze", action="store_true")
     ap.add_argument("--run", action="store_true")
     ap.add_argument("--report", action="store_true")
-    ap.add_argument("--arms", default=",".join(ARMS))
+    ap.add_argument("--arms", default=",".join(DEFAULT_ARMS))
     ap.add_argument("--only", default="", help="question numbers, e.g. 0,1,2")
     ap.add_argument("--no-grade", action="store_true")
     ap.add_argument("--dir", default="")

@@ -1,0 +1,95 @@
+{
+ "example": "2-singapore-sprint",
+ "teaches": "A result: open on the outcome and the reason it happened; the preview is left out because it is not a result; two stories joined by what the second changed; the last line the most concrete name.",
+ "packet": [
+  {
+   "packet": "plugin",
+   "title": "Verstappen wins Singapore sprint after Russell crash",
+   "published": "Saturday",
+   "sentences": [
+    "Max Verstappen won the Singapore sprint on Saturday, finishing two and a half seconds ahead of Lewis Hamilton.",
+    "Verstappen started from pole but was beaten off the line by George Russell.",
+    "Russell led into Turn One but ran wide over the kerb at the final corner of the opening lap and hit the inside wall.",
+    "The crash brought out the safety car and ended Russell's race.",
+    "Half the track was wet and half was drying at the start.",
+    "Verstappen managed his intermediate tyres from the restart with Hamilton and Charles Leclerc behind him.",
+    "Verstappen described his start as \"horrendous\" after the race.",
+    "Ticket sales for the weekend were the highest in the event's history."
+   ]
+  },
+  {
+   "packet": "plugin",
+   "title": "Norris and Piastri collide on final lap",
+   "published": "Saturday",
+   "sentences": [
+    "Lando Norris and Oscar Piastri collided at Turn Five on the final lap of the sprint.",
+    "Norris drew alongside, Piastri held his line, and both cars spun.",
+    "Piastri hit the barrier and retired, while Norris fell to eighth.",
+    "The stewards called it a racing incident and gave no penalty.",
+    "Kimi Antonelli of Mercedes moved up to fourth after the collision."
+   ]
+  },
+  {
+   "packet": "plugin",
+   "title": "Sprint preview: Verstappen on pole",
+   "published": "Friday",
+   "sentences": [
+    "Verstappen is expected to convert pole into a win if the track stays dry.",
+    "Russell is tipped as the driver most likely to challenge at the start."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "how Verstappen won and what the McLaren crash changed",
+  "summary": [
+   "P1.1",
+   "P1.2",
+   "P1.3",
+   "P1.4",
+   "P1.5",
+   "P1.6",
+   "P1.7",
+   "P2.1",
+   "P2.2",
+   "P2.3",
+   "P2.4",
+   "P2.5"
+  ],
+  "opening": [
+   "P1.1",
+   "P1.2",
+   "P1.3"
+  ],
+  "beats": [
+   {
+    "purpose": "how the start was lost and the lead handed back",
+    "sentences": [
+     "P1.5",
+     "P1.3",
+     "P1.4"
+    ]
+   },
+   {
+    "purpose": "therefore: winning it on tyres, not pace",
+    "sentences": [
+     "P1.6",
+     "P1.7"
+    ]
+   },
+   {
+    "purpose": "but: the team-mates who took each other out",
+    "sentences": [
+     "P2.1",
+     "P2.2",
+     "P2.3",
+     "P2.4"
+    ]
+   }
+  ],
+  "landing": [
+   "P2.5"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}

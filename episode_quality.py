@@ -641,6 +641,11 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
         evidence = str(getattr(notes, "written_from", "") or "")
         budget = int(getattr(notes, "word_budget", 0) or 0)
         measures = measure(sentences, query, evidence, budget)
+        # Whether the writer followed Shakespeare's plan, when he planned it
+        # (the numbers only; his chosen sentences are never kept here).
+        followed = _plan_measure(notes, sentences)
+        if followed is not None:
+            measures["plan"] = followed
         store().record({
             "key": key, "sourced": sourced, "at": time.time(),
             "query": " ".join(str(query or "").split())[:300],
@@ -1183,6 +1188,228 @@ def editor_trial(days: float = 14.0, now: Optional[float] = None,
                      for m, v in a["scores"].items()}}
     return {"days": days, "arms": out,
             "unplanned": sum(1 for r in rows if r["editor_arm"] == "with_unplanned")}
+
+
+# ------------------------------------------------------------------ plan following
+#: Whether the writer followed Shakespeare's plan - the open question of
+#: §437, measured in code, never by a model or a person. A plan sentence is
+#: *used* by a script sentence that shares at least `PLAN_SHARED_WORDS` of
+#: its content words and at least `PLAN_SHARED_SHARE` of them: the writer
+#: retells the sources in its own words, so the names, numbers and nouns
+#: carry over where the phrasing does not.
+PLAN_SHARED_WORDS = 2
+PLAN_SHARED_SHARE = 0.25
+#: The opening is "followed" when an open-on sentence is used in the first
+#: this many sentences of the script, the landing when a land-on sentence is
+#: used in the last this many.
+PLAN_EDGE_SENTENCES = 2
+PLAN_PARTS = ("opening", "beats", "order", "landing")
+
+
+def _stem(word: str) -> str:
+    word = word.lower().strip("'’-.,")
+    if len(word) > 4 and word.endswith("ies"):
+        return word[:-3] + "y"
+    if len(word) > 4 and word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+def _plan_words(sentence: str) -> set:
+    words = {_stem(w) for w in _content(sentence)}
+    words |= set(re.findall(r"\d+(?:\.\d+)?", sentence or ""))
+    return {w for w in words if w}
+
+
+def _used_at(source: str, script: list) -> Optional[int]:
+    """The first script sentence that carries this plan sentence, or None."""
+    wanted = _plan_words(source)
+    if not wanted:
+        return None
+    best, at = 0.0, None
+    for i, words in enumerate(script):
+        shared = len(wanted & words)
+        if shared < PLAN_SHARED_WORDS:
+            continue
+        share = shared / len(wanted)
+        if share >= PLAN_SHARED_SHARE and share > best:
+            best, at = share, i
+    return at
+
+
+def plan_following(plan: dict, sentences: Iterable[str],
+                   opening_counted: bool = True) -> Optional[dict]:
+    """How closely a script followed Shakespeare's plan, 0-1 per part.
+
+    `plan` is `{"opening": [text], "beats": [[text], ...], "landing": [text]}`
+    - the sources' own sentences he chose (`agents.editor.plan_texts`).
+
+    * `opening`: an open-on sentence used in the first two sentences;
+    * `beats`: the share of his parts with any sentence used anywhere;
+    * `order`: of the parts used, the share of pairs told in his order;
+    * `landing`: a land-on sentence used in the last two sentences;
+    * `score`: the mean of those that apply.
+
+    A part with nothing to measure is None. `opening_counted=False` for an
+    episode whose opening was written before his plan existed (searchFAM in
+    tandem, §456). Numbers only - never the text. Never raises."""
+    try:
+        script = [_plan_words(s) for s in sentences if s and str(s).strip()]
+        if not plan or not script:
+            return None
+        n = len(script)
+        out: dict = {p: None for p in PLAN_PARTS}
+
+        def used(texts) -> list:
+            return [i for i in (_used_at(t, script) for t in texts or []) if i is not None]
+
+        if opening_counted and plan.get("opening"):
+            out["opening"] = float(any(i < PLAN_EDGE_SENTENCES for i in used(plan["opening"])))
+        beats = [b for b in plan.get("beats") or [] if b]
+        if beats:
+            places = [used(b) for b in beats]
+            firsts = [min(p) for p in places if p]
+            out["beats"] = len(firsts) / len(beats)
+            pairs = [(a, b) for i, a in enumerate(firsts) for b in firsts[i + 1:]]
+            if pairs:
+                out["order"] = sum(1 for a, b in pairs if a <= b) / len(pairs)
+        if plan.get("landing"):
+            out["landing"] = float(any(i >= n - PLAN_EDGE_SENTENCES
+                                       for i in used(plan["landing"])))
+        present = [v for v in out.values() if v is not None]
+        if not present:
+            return None
+        out = {k: _round(v) for k, v in out.items()}
+        out["score"] = _round(sum(present) / len(present))
+        out["beats_planned"] = len(beats)
+        return out
+    except Exception:  # noqa: BLE001 - a measurement never costs an episode
+        log.exception("could not measure plan following")
+        return None
+
+
+def plan_following_report(days: float = 14.0, now: Optional[float] = None,
+                          quality: Optional[QualityStore] = None) -> dict:
+    """Across the episodes Shakespeare planned in the last `days`: how many,
+    and the mean of each part of `plan_following`, ahead of the tap and in
+    tandem on searchFAM apart. Numbers only."""
+    now = time.time() if now is None else now
+    empty: dict = {"days": days, "surfaces": {}}
+    if quality is None:
+        if not exists():
+            return empty
+        quality = store()
+    surfaces: dict = {}
+    for row in quality.episodes_since(now - days * DAY):
+        try:
+            plan = json.loads(row.get("measures") or "{}").get("plan")
+        except ValueError:
+            plan = None
+        if not isinstance(plan, dict):
+            continue
+        entry = surfaces.setdefault(plan.get("surface") or "ahead",
+                                    {"episodes": 0, **{p: [] for p in PLAN_PARTS + ("score",)}})
+        entry["episodes"] += 1
+        for part in PLAN_PARTS + ("score",):
+            if plan.get(part) is not None:
+                entry[part].append(float(plan[part]))
+    out = {}
+    for name, entry in surfaces.items():
+        out[name] = {"episodes": entry["episodes"],
+                     **{p: (round(sum(v) / len(v), 3) if v else None)
+                        for p, v in entry.items() if p != "episodes"}}
+    return {"days": days, "surfaces": out}
+
+
+#: An episode is proposed as an example only once this many listeners have
+#: heard it: below that its finish rate is noise.
+CANDIDATE_MIN_LISTENS = 20
+
+
+def example_candidates(days: float = 30.0, min_listens: int = CANDIDATE_MIN_LISTENS,
+                       per_facet: int = 3, now: Optional[float] = None,
+                       quality: Optional[QualityStore] = None,
+                       facet_of: Optional[Callable] = None) -> dict:
+    """Written episodes listeners heard through, proposed as new `examples/`
+    (§501) - for the owner to read and approve, never added by code.
+
+    Per facet, the episodes with at least `min_listens` listens, the most
+    heard to 85% first, then the fewest left in 20 s; each with its query,
+    minutes, listening and code measures, and its sentences so a candidate
+    can be written out. Facets are ranked by how few examples they have, so
+    the gaps come first. Never a listener's id."""
+    now = time.time() if now is None else now
+    if facet_of is None:
+        def facet_of(category: str) -> str:
+            import stories
+            import topics
+
+            node = stories.resolve_category(category) if category else ""
+            facet = stories.facet_for(node) if node else ""
+            return facet if facet in topics.FACETS else ""
+    out: dict = {"days": days, "min_listens": min_listens, "facets": {}}
+    if quality is None:
+        if not exists():
+            return out
+        quality = store()
+    rows = quality.episodes_since(now - days * DAY)
+    if not rows:
+        return out
+    listening = _listening(quality.listens_for(r["key"] for r in rows), rows)
+    have: dict = {}
+    try:
+        import script_generator
+
+        for facet in script_generator.EXAMPLE_FACETS.values():
+            have[facet] = have.get(facet, 0) + 1
+    except Exception:  # noqa: BLE001
+        pass
+    by_facet: dict = {}
+    seen: set = set()
+    for r in rows:
+        heard = listening.get((r["key"], int(r["sourced"])))
+        if not heard or heard["listens"] < min_listens:
+            continue
+        query = " ".join(str(r.get("query") or "").split())
+        if not query or query.lower() in seen:
+            continue
+        seen.add(query.lower())
+        try:
+            sentences = json.loads((quality.get(r["key"], r["sourced"]) or {})
+                                   .get("sentences") or "[]")
+            scores = json.loads(r.get("measures") or "{}").get("scores") or {}
+        except ValueError:
+            continue
+        if not sentences:
+            continue
+        n = heard["listens"]
+        facet = facet_of(str(r.get("category") or "")) or "unplaced"
+        by_facet.setdefault(facet, []).append({
+            "query": query, "minutes": r.get("minutes"), "title": r.get("title") or "",
+            "origin": r.get("origin") or "", "listens": n,
+            "finished": round(heard["finished"] / n, 3),
+            "early_exit": round(heard["early"] / n, 3),
+            "code": {m: scores.get(m) for m in METRICS},
+            "sentences": [str(s) for s in sentences]})
+    for facet in sorted(by_facet, key=lambda f: (have.get(f, 0), f)):
+        ranked = sorted(by_facet[facet], key=lambda c: (-c["finished"], c["early_exit"],
+                                                        -c["listens"]))
+        out["facets"][facet] = {"examples_now": have.get(facet, 0),
+                                "candidates": ranked[:per_facet]}
+    return out
+
+
+def _plan_measure(notes, sentences: list) -> Optional[dict]:
+    """The plan-following numbers for an episode he planned, or None."""
+    editor = getattr(notes, "editor", None)
+    plan = editor.get("plan") if isinstance(editor, dict) else None
+    if not plan:
+        return None
+    tandem = str(getattr(notes, "editor_tandem", "") or "") == "handed_over"
+    measured = plan_following(plan, sentences, opening_counted=not tandem)
+    if measured is not None:
+        measured["surface"] = "tandem" if tandem else "ahead"
+    return measured
 
 
 def report(days: float = 30.0, now: Optional[float] = None,
