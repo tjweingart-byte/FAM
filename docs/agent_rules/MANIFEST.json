@@ -3,7 +3,7 @@
     "c3p0.md": "26dfbaf31b29738025dfe048bb339aca410ef0b1c3be39e7a10c2d4937d15222",
     "consuela.md": "15ac494dd1c87c4cec57c9da6b6953d08135981dff38bd3a4ffec74c854fb7ce",
     "every-agent.md": "5a62878d15477a34c93ef4a8041311dd7360123798d10289ed3f31d1af64fe26",
-    "journalism_playbook.md": "49e301b198a093415e1857fc2b1161fd95bfaa8323cc55a916e95136be6ad807",
+    "journalism_playbook.md": "f8d94d1f0a2a6ccd21f47ee4d954f3357513e45d3a978b93aa3fa30ff2522796",
     "keith.md": "1b52ac687d67bba0127fcac00ee63288c9638331a1e3c0f164cef043f415ba70",
     "mclovin.md": "aeb5ed9a7bd9b8f6b0bc3222589c834dabcdab04ebc31309a4b1e9c074119bd8",
     "nando.md": "ecc211f83913f9d67bec39bc4672512a432c1fd03725c6b70fd2d67f94e543b0",
@@ -12,5 +12,5 @@
     "sonic.md": "b65bf3181c4974d53e3a4ba6f41ccb1a5d2b988e545a318859669eadfe6cf4f8"
   },
   "format": 1,
-  "version": 6
+  "version": 7
 }

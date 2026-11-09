@@ -497,3 +497,4 @@ and `limit` = Lines.
 | 31708 | 35 | 503. Story shapes, drafted for the owner (2026-11-09) |
 | 31743 | 45 | 504. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09) |
 | 31788 | 41 | 505. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09) |
+| 31829 | 29 | 506. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09) |

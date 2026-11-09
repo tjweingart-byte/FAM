@@ -31825,3 +31825,32 @@ pending manifest (renamed `MANIFEST.json`), sign the manifest, then upload
 `journalism_playbook.md` to `docs/` and `MANIFEST.json` and
 `MANIFEST.json.sig` to `docs/agent_rules/`. Then the session verifies, deletes
 the proposal and the pending manifest, and the owner updates the held copy.
+
+## 506. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09)
+
+The owner signed `MANIFEST.pending.json` (version 7, §505) on a new
+computer, a MacBook Air that had no `conda` and only LibreSSL 3.3.6. LibreSSL
+cannot make an Ed25519 signature, as §470 found. Miniforge was installed in
+the home folder (no admin password); `conda create -n famsign -c conda-forge
+openssl` gave OpenSSL 4.1.0, and `conda activate famsign` works there from
+now on. The key was saved from TextEdit to the home folder, never the iCloud
+Desktop, and deleted with `rm -P` after signing. Both files' SHA-256 were
+checked before signing.
+
+A changed way of uploading: the owner uploaded only `MANIFEST.json` and
+`MANIFEST.json.sig`, to `docs/agent_rule_proposals/` (4300301, two files, no
+stray). The proposed playbook was already there byte for byte, so the
+owner had nothing to upload for it. The session then verified the signature
+with `owner.pub` before moving anything: `MANIFEST.json` is the pending
+manifest byte for byte (version 7; the commit message says 8). It then
+moved, in one commit, the playbook to `docs/`, and the manifest and
+signature to `docs/agent_rules/`, and deleted the pending manifest. A
+signature covers the files' contents, not where they sit, and the build was
+green throughout, since the signed books never changed before the
+signature arrived. `python tools/rulebook_manifest.py --verify`: manifest
+version 7, every agent may run.
+
+`tests/test_story_shapes_505.py` now reads the signed playbook (the proposal
+is gone), and the writer's shapes are its words. The owner updates the copy
+held outside Claude: the three files from the Desktop `famsign` folder go to
+`current/`, and version 6's set to `archive/`.

@@ -1,13 +1,11 @@
 # Story shapes - draft for the owner (§503)
 
-**Status: approved, waiting for the owner's signature (§505).** The
-owner (2026-11-09): "Add profile and comparison, let Shakespeare change the
-shape" (§504), then "Keep the list as drafted and sign the wording". The
-wording is in the proposed playbook
-(`docs/agent_rule_proposals/journalism_playbook.md`, Part 3, "Story
-shapes") and, word for word, in `episode_intelligence.STRUCTURES`, which the
-writer reads now. The signed playbook changes when the owner signs manifest
-version 7.
+**Status: signed (§506).** The owner (2026-11-09): "Add profile and
+comparison, let Shakespeare change the shape" (§504), then "Keep the list as
+drafted and sign the wording" (§505). The wording is the signed playbook's
+Part 3, "Story shapes" (`docs/journalism_playbook.md` v2, manifest version
+7), and word for word `episode_intelligence.STRUCTURES`, which the writer
+reads. This file stays as the reasoning behind it.
 
 ## What exists today
 

@@ -7,20 +7,13 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-**`journalism_playbook.md` v2** - Part 3 gains "Story shapes", the ten
-shapes and `general` as drafted in `docs/story_shapes.md` (the owner,
-2026-11-09: "Keep the list as drafted and sign the wording"; PROBLEMS.md
-§505). `docs/agent_rules/MANIFEST.pending.json` is version 7: only the
-playbook's fingerprint changes. **The playbook is not in
-`docs/agent_rules/`**: it is `docs/journalism_playbook.md`, so in step 3 it
-is uploaded to `docs/`, and `MANIFEST.json` and its `.sig` to
-`docs/agent_rules/` - two uploads, or one commit made from a clone.
-
-Before it: manifest version 6 - the merged books, `consuela.md` always 12
-and `sonic.md` always 8 beside `mclovin.md` v3 - was signed on 2026-11-06
-(PROBLEMS.md §470); `mclovin.md` v3 (§443, version 5); v2 (§441, version
-4); `consuela.md` with Perplexity (§412, version 3); `nando.md` rule 12
-(§392).
+Nothing. Manifest version 7 - `journalism_playbook.md` v2, Part 3's story
+shapes - was signed on 2026-11-09 (PROBLEMS.md §506), on a new computer
+with OpenSSL 4.1 from a Miniforge `famsign` environment, and uploaded to
+this folder; the session moved the files into place. Before it: version 6,
+the merged books (§470); `mclovin.md` v3 (§443, version 5); v2 (§441,
+version 4); `consuela.md` with Perplexity (§412, version 3); `nando.md`
+rule 12 (§392).
 
 ## Signing it (on the owner's Mac, with the owner's key)
 
