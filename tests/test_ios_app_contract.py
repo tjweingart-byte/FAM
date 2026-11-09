@@ -125,3 +125,18 @@ def test_a_tile_names_its_surface_and_topic():
     assert '"fmt", value: "pcm"' in body
     model = (SWIFT / "AppModel.swift").read_text()
     assert 'surface: "myfam"' in model and 'surface: "search"' in model
+
+
+def test_trending_searches_decode(monkeypatch):
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    fields = _fields("TrendingSearch")
+    assert fields == {"query", "title", "minutes"}, fields
+    # What the handler appends for each search, read from its source so an
+    # empty deployment still checks the shape.
+    import inspect
+    source = inspect.getsource(appmod.trending_searches)
+    for name in fields:
+        assert f'"{name}":' in source, name
+    page = TestClient(appmod.app).get("/api/v1/searches/trending",
+                                      headers={"X-FAM-Client": "ios/1.0.0+2"}).json()
+    assert "searches" in page

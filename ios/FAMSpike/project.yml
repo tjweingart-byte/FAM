@@ -19,7 +19,9 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
-    DEVELOPMENT_TEAM: ""
+    # Apali, LLC (developer.apple.com > Membership), so a regenerated
+    # project keeps its team.
+    DEVELOPMENT_TEAM: 484A7YD2S3
 targets:
   FAMSpike:
     type: application

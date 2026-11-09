@@ -1,49 +1,144 @@
 import SwiftUI
 
-/// Ask anything, and choose how long the answer is. The length goes back to
-/// 1.5 minutes every time the app comes back (`search-bar`).
+/// searchFAM, Google's shape (`search-bar`): the FAM mark, the rounded bar,
+/// the Length bubble under it, and the five trending searches. Length never
+/// prints the choice and goes back to 1.5 whenever the app returns. The
+/// mic, attach, Voice and Private join when they are built
+/// (`no-dead-controls`).
 struct SearchView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    @Binding var tab: Tab
 
     @State private var words = ""
     @State private var minutes = 1.5
+    @State private var trending: [TrendingSearch] = []
     @FocusState private var typing: Bool
 
     private static let lengths: [Double] = [1, 1.5, 2, 3, 4, 5]
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Ask FAM anything", text: $words, axis: .vertical)
-                        .lineLimit(1...4)
-                        .focused($typing)
-                        .submitLabel(.search)
-                        .onSubmit { go() }
-                    Picker("Length", selection: $minutes) {
-                        ForEach(Self.lengths, id: \.self) { value in
-                            Text(label(value)).tag(value)
-                        }
-                    }
-                    Button("Search") { go() }
-                        .disabled(words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        ScrollView {
+            VStack(spacing: 0) {
+                Spacer(minLength: 120)
+                Wordmark(size: 30)
+                    .padding(.bottom, 22)
+                bar
+                HStack(spacing: 10) {
+                    lengthBubble
                 }
-                Section {
-                    Text("FAM researches your question from current sources and tells you the story. A new episode takes a moment to write; it starts as soon as the first words are ready.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                .padding(.top, 12)
+                if !trending.isEmpty && words.isEmpty {
+                    trendingList.padding(.top, 16)
                 }
             }
-            .navigationTitle("Search")
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active { minutes = 1.5 }
+            .padding(.horizontal, 18)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(FAMColor.background)
+        .task { await loadTrending() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { minutes = 1.5 }
+        }
+        .onChange(of: tab) { _, now in
+            if now == .search { Task { await loadTrending() } }
+        }
+    }
+
+    /// The rounded bar (`.fam-input-box`); the copper go appears once there
+    /// is something to send.
+    private var bar: some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            TextField("", text: $words,
+                      prompt: Text("FAMiliarize me about…").foregroundColor(FAMColor.textMuted.opacity(0.8)),
+                      axis: .vertical)
+                .font(FAMFont.body(15))
+                .foregroundStyle(FAMColor.text)
+                .lineLimit(1...5)
+                .focused($typing)
+                .submitLabel(.search)
+                .onSubmit { go() }
+                .padding(.vertical, 9)
+            if !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button { go() } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(FAMColor.ink)
+                        .frame(width: 36, height: 36)
+                        .background(FAMColor.copper, in: Circle())
+                }
+                .padding(2)
+                .accessibilityLabel("Search")
+            }
+        }
+        .padding(.leading, 18)
+        .padding(.trailing, 6)
+        .padding(.vertical, 6)
+        .frame(minHeight: 52)
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 26))
+        .overlay(RoundedRectangle(cornerRadius: 26).stroke(FAMColor.border))
+    }
+
+    /// Length (`.search-bubble`): a menu of 1 to 5 minutes; the bubble
+    /// itself always just says "Length".
+    private var lengthBubble: some View {
+        Menu {
+            Picker("Length", selection: $minutes) {
+                ForEach(Self.lengths, id: \.self) { value in
+                    Text(value == 1 ? "1 minute" : "\(FAMAPI.minutes(value)) minutes").tag(value)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                WebIcon(path: Icons.timer, size: 16)
+                    .foregroundStyle(FAMColor.textMuted)
+                Text("Length")
+                    .font(FAMFont.body(14, .semibold))
+                    .foregroundStyle(FAMColor.text)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(FAMColor.surface, in: Capsule())
+            .overlay(Capsule().stroke(FAMColor.border))
+        }
+        .accessibilityLabel("Length, \(FAMAPI.minutes(minutes)) minutes")
+    }
+
+    /// TRENDING SEARCHES (`.trend-searches`): one bubble a search, most
+    /// searched first; a tap is a search that lands on an episode already
+    /// written.
+    private var trendingList: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Trending searches")
+                .monoLabel(9)
+                .padding(.horizontal, 4)
+                .padding(.bottom, 1)
+            ForEach(trending.prefix(5), id: \.self) { search in
+                Button {
+                    typing = false
+                    Task { await model.search(search.query, minutes: search.minutes) }
+                } label: {
+                    HStack(spacing: 8) {
+                        WebIcon(path: Icons.trend, size: 13)
+                            .foregroundStyle(FAMColor.textMuted)
+                        Text(search.label)
+                            .font(FAMFont.body(12, .medium))
+                            .foregroundStyle(FAMColor.text)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .frame(minHeight: 32)
+                    .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(FAMColor.border))
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
-    private func label(_ value: Double) -> String {
-        value == 1 ? "1 minute" : "\(FAMAPI.minutes(value)) minutes"
+    private func loadTrending() async {
+        if let found = try? await model.api.trendingSearches() { trending = found }
     }
 
     private func go() {

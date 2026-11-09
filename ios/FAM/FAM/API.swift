@@ -84,6 +84,11 @@ final class FAMAPI: @unchecked Sendable {
         try await send("GET", "api/v1/myfam", as: RailsPage.self).sections
     }
 
+    /// Under the search box: a tap lands on an episode already written.
+    func trendingSearches() async throws -> [TrendingSearch] {
+        try await send("GET", "api/v1/searches/trending", as: TrendingSearches.self).searches
+    }
+
     /// Today's kept samples, for the waiting screen (open past the waitlist).
     func samples() async throws -> [Tile] {
         try await send("GET", "api/v1/welcome", as: Samples.self).episodes
@@ -210,9 +215,28 @@ struct Tile: Decodable, Identifiable, Hashable {
     let id: String
     let title: String
     let subtitle: String
+    let angle: String
     let query: String
     let thumb: String
+    /// The subject printed on the picture ("TECH"), `thumb_facet`.
+    let thumbFacet: String
+
+    /// The card's one line under the title: the angle, else the subtitle
+    /// (`seedHook` on the web).
+    var hook: String { angle.isEmpty ? subtitle : angle }
 }
+
+/// `/api/searches/trending`: the five most searched questions of the last
+/// two hours whose episodes are still current (`trending-searches`).
+struct TrendingSearch: Decodable, Hashable {
+    let query: String
+    let title: String
+    let minutes: Double
+
+    var label: String { title.isEmpty ? query : title }
+}
+
+struct TrendingSearches: Decodable { let searches: [TrendingSearch] }
 
 struct Samples: Decodable { let episodes: [Tile] }
 

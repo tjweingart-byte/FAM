@@ -31616,3 +31616,23 @@ routes with its method, `Listener`/`Rail`/`Tile` decode only what the server
 sends (signed in and not), sign-up sends `accept_terms`, the browse length
 is the server's, a tile names its surface and topic, and the waiting
 screen's sample request passes `_welcome_sample_request`.
+
+**Stage 1 ran on the owner's iPhone, and "it looks nothing like the web app"
+(the owner).** It used iOS's stock look. The look is now the web's, taken
+from `static/index.html` and photographed with `tools/shots.py` at 390 pt:
+`Theme.swift` holds the light theme's colours, the three typefaces
+(Bricolage Grotesque, Geist, Geist Mono - static instances cut from the
+Google Fonts variable files with fontTools, OFL licences beside them), and
+the wordmark drawn from the web's own SVG paths (F, the chevron A, M, one
+cap height, copper). The bottom bar is `.tabbar` (mono labels, the copper
+pill under the chosen icon, the raised round search button); DailyFAM has
+the centred `daily` wordmark, rail headings in Bricolage 20 and `.seed-card`
+cards (150 pt, 96 pt picture with the subject chip, title never cut, the
+hook); Search is the FAM mark, the rounded bar with the copper go, the
+Length bubble (never printing the choice) and TRENDING SEARCHES from
+`/api/searches/trending`; the player is the Home mark, the 4:3 picture, the
+title, the copper scrubber and ±15 either side of the copper play; sign-up
+and log-in are the web's form; YourFAM wears the `your` wordmark. myFAM,
+Messages, GO DEEPER, Voice, Private, the mic and attach are left off until
+they work (`no-dead-controls`). The project now names the Apali team, so a
+regenerated project keeps its signing.
