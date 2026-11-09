@@ -31998,3 +31998,44 @@ pictures are done. Extras for the facets go first.
 **Unseen** with a real key, like §166-§177: look at the first few extras of
 sports and football in `/admin/thumbnails` before letting the sweep paint the
 rest.
+
+## 508. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09)
+
+The owner sent a photo of FAMiliarizing with its five steps - "I like this
+loading screen for when someone searches. But when it's on myFAM mix or a
+DailyFAM episode, I think I want to create a different one" - and asked for
+six options, easy to compare, with the animations visible, leaving search and
+Go Deeper as they are. A comparison page put six animated phones on one clock
+(Cover Rise, Warm-up Wave, Rail Glide, Spinning Record, Tuning Dial, Chevron
+Meter), each switchable between a DailyFAM tap and a mix's next episode, three
+wait lengths and slow motion. The owner chose **option 5 (Tuning Dial) for
+DailyFAM and option 3 (Rail Glide) for mixes.**
+
+**What changed.** `generate` reads `loader` off the topic: `startBankTopic`
+(every DailyFAM tile, the rails and their View more) sets `dial`;
+`playMixItem` sets `glide`. With a loader the loading screen takes the class
+`alt`, hides the wordmark, chevrons, word, dots and steps, and
+`paintLoadingVariant` draws the screen into `#famLoadingAlt`:
+
+- *Dial:* the categories of the rail the tile came from (`seedTagText`, at
+  most four besides the tile's own, which sits fourth), the needle sweeping
+  across, overshooting and settling on the tile's; "Tuning in to NFL"; the
+  rail's heading in the kicker.
+- *Glide:* the mix's episodes in `mixPlay.order`, earlier ones marked Heard,
+  the row sliding one card along (measured, since the screen is a phone frame
+  on a desktop and the whole width on a phone); "Morning Eagles · 2 of 5";
+  dots up to twelve episodes.
+
+Both show the episode's title and "Getting your episode ready" (or "the next
+episode") - true whether the script was written ahead or is being written now.
+A server that cannot write (`genStatusNote`) says so there instead.
+
+**What did not change, deliberately.** The five steps hold the audio until the
+fifth is shown (§148); that is search's honest wait and stays search's and Go
+Deeper's. These two screens hold nothing: `startGenSteps(free)` still polls
+`/api/progress`, because the server's marks are what move the give-up time
+(§497) - without the poll a cold voice would be abandoned at a flat 45 s again
+- but `genStepsGate` starts the audio the moment it arrives. On a cache hit the
+screen is up for `GEN_MIN_VISIBLE_MS` (450 ms) and the dial is cut off
+mid-sweep; that is the rule (§292), not a bug. Reduced motion shows each at
+rest: needle on the category, row on the episode.
