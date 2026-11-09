@@ -327,16 +327,43 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     private func played(_ filling: Int) {
         guard filling == epoch else { return }
         outstanding -= 1
-        if outstanding == 0 && !streamDone && phase == .playing {
+        guard outstanding == 0, phase == .playing || phase == .buffering else { return }
+        if reachedEnd() {
+            finishIfDone()
+        } else if !streamDone && next == samples.count {
             phase = .buffering
             log("ran out of audio at \(fmt(position)); waiting for the stream")
+        } else {
+            // The queue emptied with audio still to play: iOS flushed it (a
+            // call or a route change, whose notification has not arrived
+            // yet). Never an ending. Give the notification a moment to
+            // pause us; if nothing does, refill from where the listener was.
+            log("the player was emptied at \(fmt(Double(lastFrame) / sampleRate)), not at the end")
+            let filling = epoch
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard let self, filling == self.epoch, self.outstanding == 0,
+                      self.phase == .playing || self.phase == .buffering else { return }
+                guard self.startEngine() else { return }
+                self.log("refilling from \(self.fmt(Double(self.lastFrame) / self.sampleRate))")
+                self.refill(from: self.lastFrame, play: true)
+            }
         }
-        finishIfDone()
+    }
+
+    /// Whether the node's own clock has played to the last sample. A queue
+    /// that iOS emptied reads false here: the engine is stopped, or the clock
+    /// stands short of the end.
+    private func reachedEnd() -> Bool {
+        guard streamDone, next == samples.count, engine.isRunning, node.isPlaying else { return false }
+        return heardFrame() >= samples.count - Int(sampleRate / 4)
     }
 
     private func finishIfDone() {
         guard streamDone, started, outstanding == 0, next == samples.count,
               phase == .playing || phase == .buffering else { return }
+        // Only an ending if the clock got there; resume() calls this for an
+        // episode that was paused within its last buffer.
+        guard reachedEnd() || lastFrame >= samples.count - Int(sampleRate / 4) else { return }
         lastFrame = samples.count
         position = Double(samples.count) / sampleRate
         listened = listenedBefore + position

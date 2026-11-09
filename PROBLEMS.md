@@ -31561,3 +31561,13 @@ server sending 24 kHz (read from `X-Sample-Rate`), and no "interruption
 over" ever logged - iOS did not send one after the call, so resuming then is
 the listener's tap. "App came back" is now logged on `didBecomeActive`, so it
 reads `[fg]`.
+
+**The retest restarted the episode on a call all the same.** iOS empties the
+node's queue a moment *before* the interruption notification arrives, so in
+that moment the queue was empty, the whole episode had arrived (a replay
+lands in about a second) and the phase still said playing: an ending, by
+the old test. An ending is now the node's own clock at the last sample
+(`reachedEnd`: engine running, node playing, heard within a quarter-second
+of the end). A queue emptied anywhere else is logged as "emptied … not at
+the end", given 0.4 s for the notification to pause it, and otherwise
+refilled from the heard position.
