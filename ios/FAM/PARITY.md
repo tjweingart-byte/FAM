@@ -83,23 +83,23 @@ the app.
 | Friends' faces on cards (§393) | Not yet | |
 | View more (16, Refresh, §363) | Not yet | |
 | "ready" badge on cached tiles | Not yet | `cached` |
-| Play/finish/skip events for the taste model (`mfy-field-variety`) | **Not yet** | **without these, Made for you never learns from iOS listening** |
+| Play/finish/skip events for the taste model (`mfy-field-variety`) | Done | complete at 85%, skip past 5 s, search on follow-ups; progress every 15 s and on pause; history rows |
 
 ## The player
 
 | Web | iOS | Note |
 |---|---|---|
-| Picture (4:3, never missing), title, scrubber over what arrived, ±15, copper play | Done | |
+| Full-screen player: Home mark, picture (4:3, faded), title with the explicit E and the writer's title swap, scrubber (requested length until complete, arrived drawn, clamped 2 s short), ±15, copper play | Done | the picture's blur-up and the title's wipe are simple fades |
 | Lock screen: title, play/pause, ±15, scrub | Done | |
-| GO DEEPER pill and sheet (`next-is-prediction`, §170) | Not yet | `/api/next` |
-| Share / VIBE! / save on the right (§192) | Not yet | |
-| Sources by the picture | Not yet | |
-| Live captions sheet (`live-captions`) | Not yet | |
-| ⋯ menu: Report (1.2), Add to queue | Not yet | **Report is required for App Store** |
-| Speed (WSOLA, `speed-pitch`) | Not yet | |
-| Queue (§190) | Not yet | |
-| After an episode: four recommendations, first starts in 15 s (`post-episode-grid`) | Not yet | |
-| The searcher shown if `searches_public` | Not yet | |
+| GO DEEPER pill and sheet (`next-is-prediction`, §170) | Done | thread from `/api/next`, typed = own, 1-5 lengths |
+| Share / VIBE! / save on the right (§192) | Partial | save and share done (iOS share sheet for the web's targets); VIBE! posts with a caption - the web's full story editor and "send inside FAM" not yet; the burst animation not yet |
+| Sources by the title, and the Sources sheet | Done | favicons over initials |
+| Live captions sheet (`live-captions`) | Done | measured `starts`, else by characters |
+| ⋯ menu: Share, VIBE!, Save, Captions, Add to/Go to Queue, Report (1.2) | Partial | "Add to myFAM Playlist" and "Remove from this playlist" wait for myFAM |
+| Speed 0.5-2x, keep the voice's pitch (`speed-pitch`) | Done | time-pitch unit; length for searches rebuilds |
+| Queue (§190), next-in-queue button, badge | Done | |
+| After an episode: four recommendations, first starts in 15 s (`post-episode-grid`) | Done | `/api/nextup`; album tile n/a |
+| The searcher shown if `searches_public` | Done | in the ⋯ menu header |
 | Opus stream (stage 3) and signed replay links (§252) | Not yet | PCM today |
 | Kept episodes replay by `X-FAM-Episode` (§173) | Not yet | |
 

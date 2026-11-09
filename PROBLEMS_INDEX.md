@@ -493,4 +493,4 @@ and `limit` = Lines.
 | 31329 | 109 | 499. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
 | 31500 | 85 | 501. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
-| 31585 | 72 | 502. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 31585 | 92 | 502. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |

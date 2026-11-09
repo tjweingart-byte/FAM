@@ -97,7 +97,7 @@ final class FAMAPI: @unchecked Sendable {
     /// The audio of one episode as bare PCM (`fmt=pcm`). A DailyFAM tile
     /// names its topic; a search names its length and says it is a search.
     func audio(query: String, minutes: Double, surface: String,
-               topicID: String = "") -> URLRequest {
+               topicID: String = "", context: String = "", own: Bool = false) -> URLRequest {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -105,6 +105,10 @@ final class FAMAPI: @unchecked Sendable {
             URLQueryItem(name: "surface", value: surface),
         ]
         if !topicID.isEmpty { items.append(URLQueryItem(name: "topic_id", value: topicID)) }
+        // A follow-up names the episode it follows (Go Deeper), and a typed
+        // one is the listener's own words, held to their AI answer.
+        if !context.isEmpty { items.append(URLQueryItem(name: "context", value: context)) }
+        if own { items.append(URLQueryItem(name: "own", value: "1")) }
         return request("GET", "api/v1/audio", query: items)
     }
 
@@ -112,17 +116,147 @@ final class FAMAPI: @unchecked Sendable {
     /// finished (`/api/progress`), asked with exactly the audio request's
     /// key-shaped fields - a different field asks about a different episode.
     func progress(query: String, minutes: Double, surface: String,
-                  topicID: String = "") async throws -> Progress {
+                  topicID: String = "", context: String = "") async throws -> Progress {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
             URLQueryItem(name: "surface", value: surface),
         ]
         if !topicID.isEmpty { items.append(URLQueryItem(name: "topic_id", value: topicID)) }
+        if !context.isEmpty { items.append(URLQueryItem(name: "context", value: context)) }
         let (data, response) = try await URLSession.shared.data(
             for: request("GET", "api/v1/progress", query: items))
         try Self.check(response, data)
         return try Self.decoder.decode(Progress.self, from: data)
+    }
+
+    // MARK: - The episode playing (the player's side channels)
+
+    /// The episode's key-shaped fields, as every side channel asks them.
+    private func episodeItems(_ ep: EpisodeKey) -> [URLQueryItem] {
+        var items = [
+            URLQueryItem(name: "q", value: ep.query),
+            URLQueryItem(name: "minutes", value: Self.minutes(ep.minutes)),
+        ]
+        if !ep.context.isEmpty { items.append(URLQueryItem(name: "context", value: ep.context)) }
+        return items
+    }
+
+    /// The thread to pick up, and the writer's title (`/api/next`).
+    func next(_ ep: EpisodeKey, cachedOnly: Bool = false) async throws -> NextThread {
+        var items = episodeItems(ep)
+        if cachedOnly { items.append(URLQueryItem(name: "cached_only", value: "true")) }
+        return try await get("api/v1/next", items, as: NextThread.self)
+    }
+
+    /// Where the episode's facts came from (`/api/sources`).
+    func sources(_ ep: EpisodeKey) async throws -> Sources {
+        try await get("api/v1/sources", episodeItems(ep), as: Sources.self)
+    }
+
+    /// The captions so far (`/api/transcript`); never generates.
+    func transcript(_ ep: EpisodeKey) async throws -> Transcript {
+        try await get("api/v1/transcript", episodeItems(ep), as: Transcript.self)
+    }
+
+    /// The episode's picture and who searched it (`/api/episode/card`).
+    func card(_ ep: EpisodeKey, title: String, episode: String) async throws -> EpisodeCard {
+        var items = [
+            URLQueryItem(name: "q", value: ep.query),
+            URLQueryItem(name: "title", value: title),
+            URLQueryItem(name: "minutes", value: Self.minutes(ep.minutes)),
+        ]
+        if !episode.isEmpty { items.append(URLQueryItem(name: "episode", value: episode)) }
+        if !ep.context.isEmpty { items.append(URLQueryItem(name: "context", value: ep.context)) }
+        return try await get("api/v1/episode/card", items, as: EpisodeCard.self)
+    }
+
+    /// Four recommendations after an episode (`/api/nextup`).
+    func nextUp(topicID: String, query: String) async throws -> [Tile] {
+        try await get("api/v1/nextup", [
+            URLQueryItem(name: "topic_id", value: topicID),
+            URLQueryItem(name: "q", value: query),
+        ], as: NextUpPage.self).topics
+    }
+
+    /// Is this episode saved for later?
+    func isSaved(_ ep: EpisodeKey) async throws -> Bool {
+        try await get("api/v1/saved", episodeItems(ep).filter { $0.name != "context" },
+                      as: SavedState.self).saved
+    }
+
+    func save(_ ep: EpisodeKey, title: String) async throws {
+        _ = try await send("POST", "api/v1/saved", body: [
+            "query": ep.query, "minutes": ep.minutes, "title": title, "source": "player",
+        ], as: SavedState.self)
+    }
+
+    func unsave(_ ep: EpisodeKey) async throws {
+        _ = try await sendQuery("DELETE", "api/v1/saved",
+                                episodeItems(ep).filter { $0.name != "context" }, as: SavedState.self)
+    }
+
+    /// VIBE! the episode to your story (`/api/vibe`, `echo` in code).
+    func vibe(_ ep: EpisodeKey, title: String, thread: String, caption: String) async throws {
+        _ = try await send("POST", "api/v1/vibe", body: [
+            "query": ep.query, "title": title, "minutes": ep.minutes,
+            "thread": thread, "caption": caption,
+        ], as: OK.self)
+    }
+
+    func unvibe(_ ep: EpisodeKey) async throws {
+        _ = try await sendQuery("DELETE", "api/v1/vibe",
+                                episodeItems(ep).filter { $0.name != "context" }, as: OK.self)
+    }
+
+    /// A share link (`/s/<id>`) and its wording; no account needed.
+    func share(_ ep: EpisodeKey, title: String) async throws -> SharedLink {
+        try await send("POST", "api/v1/share", body: [
+            "query": ep.query, "minutes": ep.minutes, "title": title,
+        ], as: SharedLink.self)
+    }
+
+    /// What the taste model learns from (`/api/event`). Fire and forget.
+    func event(_ kind: String, topicID: String = "", text: String, thread: String = "",
+               minutes: Double = 0, episode: String = "") async {
+        var body: [String: Any] = ["kind": kind, "topic_id": topicID,
+                                   "text": String(text.prefix(300)),
+                                   "thread": String(thread.prefix(200))]
+        if minutes > 0 { body["minutes"] = minutes }
+        if !episode.isEmpty { body["episode"] = episode }
+        _ = try? await send("POST", "api/v1/event", body: body, as: Ignored.self)
+    }
+
+    /// How far through it is, kept on the account (`POST /api/progress`).
+    func noteResume(_ ep: EpisodeKey, seconds: Double, title: String, duration: Double,
+                    episode: String) async {
+        _ = try? await send("POST", "api/v1/progress", body: [
+            "query": ep.query, "minutes": ep.minutes, "seconds": min(max(0, seconds), 3600),
+            "title": title, "context": ep.context, "duration": min(max(0, duration), 3600),
+            "episode": episode,
+        ], as: Ignored.self)
+    }
+
+    /// The listening history row (`POST /api/history`).
+    func noteListen(_ ep: EpisodeKey, surface: String, title: String, episode: String,
+                    retitle: Bool = false) async {
+        var body: [String: Any] = [
+            "query": ep.query, "minutes": ep.minutes, "surface": surface,
+            "title": title, "context": ep.context, "episode": episode,
+        ]
+        if retitle { body["retitle"] = true }
+        _ = try? await send("POST", "api/v1/history", body: body, as: Ignored.self)
+    }
+
+    private func get<T: Decodable>(_ path: String, _ items: [URLQueryItem], as type: T.Type) async throws -> T {
+        try await sendQuery("GET", path, items, as: type)
+    }
+
+    private func sendQuery<T: Decodable>(_ method: String, _ path: String, _ items: [URLQueryItem],
+                                         as type: T.Type) async throws -> T {
+        let (data, response) = try await URLSession.shared.data(for: request(method, path, query: items))
+        try Self.check(response, data)
+        do { return try Self.decoder.decode(T.self, from: data) } catch { throw FAMError.unreadable }
     }
 
     /// A sample replayed on the waiting screen: exactly the request the
@@ -241,6 +375,23 @@ struct Tile: Decodable, Identifiable, Hashable {
     /// The card's one line under the title: the angle, else the subtitle
     /// (`seedHook` on the web).
     var hook: String { angle.isEmpty ? subtitle : angle }
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, subtitle, angle, query, thumb, thumbFacet
+    }
+
+    /// Lenient: a tile from any rail decodes even if a field is missing,
+    /// so one shape change never empties a screen.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle) ?? ""
+        angle = try c.decodeIfPresent(String.self, forKey: .angle) ?? ""
+        query = try c.decodeIfPresent(String.self, forKey: .query) ?? title
+        thumb = try c.decodeIfPresent(String.self, forKey: .thumb) ?? ""
+        thumbFacet = try c.decodeIfPresent(String.self, forKey: .thumbFacet) ?? ""
+    }
 }
 
 /// `/api/searches/trending`: the five most searched questions of the last
@@ -276,6 +427,73 @@ struct ProgressSteps: Decodable {
 }
 
 struct OK: Decodable { let ok: Bool }
+
+// MARK: - The player's side channels
+
+/// What makes an episode an episode: its question, length and the topic it
+/// followed up. Every side channel is asked with exactly these.
+struct EpisodeKey: Equatable, Hashable {
+    var query: String
+    var minutes: Double
+    var context: String = ""
+}
+
+/// `/api/next`.
+struct NextThread: Decodable {
+    let thread: String?
+    let title: String?
+    let titleFinal: Bool?
+    let sourcedAt: Double?
+    let explicit: Bool?
+}
+
+/// `/api/sources`.
+struct Sources: Decodable {
+    let items: [SourceItem]
+    let retrievers: [String]
+    let known: Bool
+}
+
+struct SourceItem: Decodable, Hashable {
+    let label: String
+    let kind: String?
+    let tier: String?
+    let at: String?
+    let title: String?
+    let url: String?
+}
+
+/// `/api/transcript`.
+struct Transcript: Decodable {
+    let sentences: [String]
+    let done: Bool
+    let starts: [Double]?
+}
+
+/// `/api/episode/card`.
+struct EpisodeCard: Decodable {
+    let thumb: String?
+    let placed: Bool?
+    let searcher: String?
+}
+
+struct NextUpPage: Decodable { let topics: [Tile] }
+
+struct SavedState: Decodable { let saved: Bool }
+
+/// `POST /api/share`: the link, and per-target wording.
+struct SharedLink: Decodable {
+    let url: String
+    let targets: [String: ShareTarget]?
+}
+
+struct ShareTarget: Decodable {
+    let text: String?
+}
+
+/// An answer whose body nothing reads.
+struct Ignored: Decodable {}
+
 
 enum FAMError: LocalizedError, Equatable {
     case waitlisted(String)

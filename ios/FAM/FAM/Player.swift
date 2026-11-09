@@ -53,6 +53,11 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     @Published private(set) var expected: Double = 0
     /// Every sample has arrived: the real length is known.
     @Published private(set) var complete = false
+    /// The episode's id (`X-FAM-Episode`, §173): history and progress name it.
+    @Published private(set) var episodeID = ""
+    /// 0.5x to 2x; 1x by default and bypassed there (`speed-pitch`).
+    @Published private(set) var rate: Double = 1
+    @Published private(set) var keepsPitch = true
 
     /// The total the bar and the clock show: the requested length while the
     /// episode is written, its real length once all of it has arrived.
@@ -78,6 +83,9 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     private let engine = AVAudioEngine()
     private let node = AVAudioPlayerNode()
+    /// Speed. Keeps the voice's pitch unless told not to (`speed-pitch`):
+    /// the web's WSOLA, here Apple's time-pitch unit.
+    private let timePitch = AVAudioUnitTimePitch()
     private var format: AVAudioFormat?
     private lazy var session = URLSession(configuration: .default, delegate: self,
                                           delegateQueue: .main)
@@ -126,6 +134,11 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     override init() {
         super.init()
         engine.attach(node)
+        engine.attach(timePitch)
+        let saved = UserDefaults.standard.double(forKey: "speed")
+        rate = saved > 0 ? saved : 1
+        keepsPitch = UserDefaults.standard.object(forKey: "pitch_lock") as? Bool ?? true
+        applyRate()
         configure(rate: sampleRate)
         observe()
         remoteCommands()
@@ -139,6 +152,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         stopStream()
         expected = minutes * 60
         complete = false
+        episodeID = ""
         self.holdStart = holdStart
         gated = false
         cacheHit = false
@@ -195,7 +209,8 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     /// The draggable bar: anywhere in what has arrived, never past it.
     func seek(to seconds: Double) {
         guard started else { return }
-        let frame = min(max(0, Int(seconds * sampleRate)), samples.count)
+        let limit = Int(seekLimit * sampleRate)
+        let frame = min(max(0, Int(seconds * sampleRate)), max(limit, 0), samples.count)
         let playing = phase == .playing || phase == .buffering
         if phase == .finished { phase = .paused }
         lastFrame = frame
@@ -206,10 +221,39 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         nowPlaying()
     }
 
-    /// ±15 s.
-    func skip(by seconds: Double) {
+    /// ±15 s. Returns false when a forward skip ran into the end of what
+    /// has been written (the web's "Caught up with the writing").
+    @discardableResult
+    func skip(by seconds: Double) -> Bool {
         let now = playing ? Double(heardFrame()) / sampleRate : position
-        seek(to: now + seconds)
+        let target = min(now + seconds, seekLimit)
+        seek(to: target)
+        return !(seconds > 0 && target - now < seconds - 1 && !complete)
+    }
+
+    /// The furthest a seek may go: all of it once complete, else 2 s short
+    /// of what has arrived (`TAIL_MARGIN`), so playback never runs dry.
+    var seekLimit: Double { complete ? arrived : max(0, arrived - 2.0) }
+
+    /// Speed (0.5x-2x), saved on the phone like the web's `fam.prefs.speed`.
+    func setRate(_ value: Double) {
+        rate = value
+        UserDefaults.standard.set(value, forKey: "speed")
+        applyRate()
+        nowPlaying()
+    }
+
+    func setKeepsPitch(_ on: Bool) {
+        keepsPitch = on
+        UserDefaults.standard.set(on, forKey: "pitch_lock")
+        applyRate()
+    }
+
+    private func applyRate() {
+        timePitch.rate = Float(rate)
+        // Pitch kept: no shift. Not kept: shift with the speed, as tape does.
+        timePitch.pitch = keepsPitch ? 0 : Float(1200 * log2(rate))
+        timePitch.bypass = rate == 1 && keepsPitch
     }
 
     /// Whether anything is loaded at all (the mini player shows).
@@ -265,7 +309,10 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         if bytesTaken == 0 && rate != sampleRate { configure(rate: rate) }
         let ms = Int(Date().timeIntervalSince(askedAt) * 1000)
         let cache = http?.value(forHTTPHeaderField: "X-FAM-Cache") ?? "-"
-        if retries == 0 { cacheHit = cache == "hit" }
+        if retries == 0 {
+            cacheHit = cache == "hit"
+            episodeID = http?.value(forHTTPHeaderField: "X-FAM-Episode") ?? ""
+        }
         log(retries == 0
             ? "first byte after \(ms) ms (\(Int(rate)) Hz, cache \(cache))"
             : "reconnected; skipping the \(bytesTaken) bytes already here")
@@ -506,7 +553,9 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         sampleRate = rate
         format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1)
         engine.disconnectNodeOutput(node)
-        engine.connect(node, to: engine.mainMixerNode, format: format)
+        engine.disconnectNodeOutput(timePitch)
+        engine.connect(node, to: timePitch, format: format)
+        engine.connect(timePitch, to: engine.mainMixerNode, format: format)
     }
 
     private func startEngine() -> Bool {
@@ -636,11 +685,9 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
             MPMediaItemPropertyTitle: title,
             MPMediaItemPropertyArtist: "FAM",
             MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
-            MPNowPlayingInfoPropertyPlaybackRate: phase == .playing ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackRate: phase == .playing ? rate : 0.0,
         ]
-        if streamDone {
-            info[MPMediaItemPropertyPlaybackDuration] = arrived
-        }
+        info[MPMediaItemPropertyPlaybackDuration] = total
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 

@@ -49,6 +49,13 @@ def _calls() -> set[tuple[str, str]]:
     return found
 
 
+def test_every_path_the_app_names_routes():
+    paths = set(re.findall(r'"(api/v1/[a-z/\-]+)"', _api()))
+    routes = {getattr(r, "path", "") for r in appmod.app.routes}
+    missing = sorted(p for p in paths if "/" + p.replace("api/v1/", "api/") not in routes)
+    assert not missing, missing
+
+
 def test_every_call_routes_with_its_method():
     calls = _calls()
     assert ("GET", "api/v1/myfam") in calls and ("DELETE", "api/v1/account") in calls, calls
@@ -172,4 +179,29 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
     def names(fn: str) -> set[str]:
         body = re.search(r"func %s\(.*?\n    \}" % fn, _api(), re.S).group(0)
         return set(re.findall(r'URLQueryItem\(name: "(\w+)"', body))
-    assert names("audio") - {"fmt"} == names("progress"), (names("audio"), names("progress"))
+    # `fmt` is how to send it and `own` whose words they are; neither is the key.
+    assert names("audio") - {"fmt", "own"} == names("progress"), (names("audio"), names("progress"))
+
+
+def test_the_players_side_channels_decode_what_the_server_sends():
+    """Every field the player decodes from /api/next, /api/sources,
+    /api/transcript, /api/episode/card, /api/saved and /api/share is a key
+    the server writes somewhere - a renamed key would fail on a phone."""
+    server = "\n".join(p.read_text() for p in ROOT.glob("*.py"))
+    for struct in ("NextThread", "Sources", "SourceItem", "Transcript", "EpisodeCard",
+                   "SavedState", "SharedLink", "NextUpPage"):
+        body = re.search(r"struct %s:[^{]*\{(.*?)\n\}" % struct, _api(), re.S)
+        assert body, struct
+        for field in {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}:
+            assert f'"{field}"' in server, (struct, field)
+
+
+def test_listening_is_recorded_like_the_web():
+    """The taste model hears iOS: complete at 85%, skip, progress, history."""
+    now = (SWIFT / "NowPlaying.swift").read_text()
+    web = (ROOT / "static" / "index.html").read_text()
+    share = re.search(r"var FINISHED_SHARE = ([0-9.]+);", web).group(1)
+    assert f"static let finishedShare = {share}" in now
+    for kind in ('"complete"', '"skip"', '"search"'):
+        assert kind in now, kind
+    assert "api.noteResume(" in now and "api.noteListen(" in now

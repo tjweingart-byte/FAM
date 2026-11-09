@@ -73,7 +73,8 @@ public enum ReportSubject: Equatable, Sendable {
     case note(id: Int)
     case person(handle: String)
     case group(id: String)
-    case episode(query: String, minutes: Int)
+    /// An episode, by its question and length (1.5 is a length, §147).
+    case episode(query: String, minutes: Double)
 
     var kind: String {
         switch self {

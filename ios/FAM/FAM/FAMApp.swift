@@ -10,6 +10,7 @@ struct FAMApp: App {
             RootView()
                 .environmentObject(model)
                 .environmentObject(model.player)
+                .environmentObject(model.nowPlaying)
                 .aiConsentSheet(model.consent)
                 .tint(FAMColor.copper)
                 .preferredColorScheme(.light)
@@ -84,11 +85,17 @@ struct MainTabs: View {
             }
             TabBar(tab: $tab)
         }
+        .overlay(alignment: .bottom) {
+            ToastView().padding(.bottom, 96)
+        }
         .background(FAMColor.background.ignoresSafeArea())
-        .sheet(isPresented: $model.showPlayer) {
+        // Full screen, as the web's player is a screen of its own; the Home
+        // mark minimises it and the episode carries on in the mini player.
+        .fullScreenCover(isPresented: $model.showPlayer) {
             PlayerView()
                 .environmentObject(model)
                 .environmentObject(player)
+                .environmentObject(model.nowPlaying)
         }
     }
 }

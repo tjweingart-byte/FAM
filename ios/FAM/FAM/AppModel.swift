@@ -30,6 +30,9 @@ final class AppModel: ObservableObject {
     let consent: ConsentModel
     let player = StreamPlayer()
     let loading = LoadingModel()
+    let nowPlaying: NowPlayingModel
+    /// The episode behind the loading screen, until its audio is released.
+    private var pending: Episode?
 
     /// The last thing asked to play, so a refusal can be answered and retried.
     private var lastPlay: (() -> Void)?
@@ -40,6 +43,7 @@ final class AppModel: ObservableObject {
         safety = SafetyAPI(base: api.base, client: FAMAPI.client,
                            token: { tokenSource.token })
         consent = ConsentModel(api: safety)
+        nowPlaying = NowPlayingModel(api: api, player: player)
         // The player calls back on the main queue (its delegate queue).
         player.onRefused = { [weak self] error in
             MainActor.assumeIsolated { self?.refused(error) ?? false }
@@ -59,9 +63,16 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.player.release()
+                if let ep = self.pending { self.nowPlaying.begin(ep) }
+                self.pending = nil
                 self.showPlayer = true
             }
         }
+        player.onFinished = { [weak self] in
+            MainActor.assumeIsolated { self?.nowPlaying.ended() }
+        }
+        nowPlaying.playEpisode = { [weak self] ep in self?.play(ep) }
+        nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
     }
 
     // MARK: - Opening and accounts
@@ -141,19 +152,23 @@ final class AppModel: ObservableObject {
 
     /// A DailyFAM tile: written ahead, at the browse length (`op-taste-scoring`).
     func play(_ tile: Tile) {
-        start(title: tile.title, picture: api.picture(tile.thumb),
-              query: tile.query, minutes: FAMAPI.browseMinutes,
-              surface: "myfam", topicID: tile.id)
+        play(Episode(key: EpisodeKey(query: tile.query, minutes: FAMAPI.browseMinutes),
+                     title: tile.title, surface: "myfam", topicID: tile.id,
+                     picture: api.picture(tile.thumb)))
     }
 
     /// A sample on the waiting screen: a replay, nothing written.
     func playSample(_ tile: Tile) {
         let request = api.sampleAudio(query: tile.query)
+        let ep = Episode(key: EpisodeKey(query: tile.query, minutes: FAMAPI.browseMinutes),
+                         title: tile.title, surface: "", picture: api.picture(tile.thumb))
         let go = { [weak self] in
             guard let self else { return }
+            self.nowPlaying.leaving()
+            self.pending = ep
             self.loading.start(ask: { nil })
-            self.player.play(title: tile.title, picture: self.api.picture(tile.thumb),
-                             request: request, minutes: FAMAPI.browseMinutes, holdStart: true)
+            self.player.play(title: tile.title, picture: ep.picture, request: request,
+                             minutes: FAMAPI.browseMinutes, holdStart: true)
         }
         lastPlay = go
         go()
@@ -161,35 +176,60 @@ final class AppModel: ObservableObject {
 
     /// A search: the listener's own words, so the AI question comes first
     /// (5.1.2(i), `consent.py`) - asked before the tap's wait, never inside it.
+    /// Its provisional title is the question until the writer's lands.
     func search(_ words: String, minutes: Double) async {
         let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty else { return }
         guard await consent.ensure() else { return }
-        start(title: question, picture: nil, query: question, minutes: minutes,
-              surface: "search", topicID: "")
+        play(Episode(key: EpisodeKey(query: question, minutes: minutes),
+                     title: NowPlayingModel.titleFromQuestion(question), surface: "search",
+                     picture: nil, titleOverridden: false))
     }
 
     /// Cancel from the loading screen's X: the episode is not wanted.
     func cancelLoading() {
         loading.stop()
+        pending = nil
+        player.stop()
+        nowPlaying.say("Cancelled")
+    }
+
+    /// The mini player's X: stop it (`transport`).
+    func stopEpisode() {
+        nowPlaying.stopped()
         player.stop()
     }
 
-    /// Every tap: the loading screen first, the audio held behind it, the
-    /// player opened when the five steps are done (`search-no-cover`).
-    private func start(title: String, picture: URL?, query: String, minutes: Double,
-                       surface: String, topicID: String) {
-        let request = api.audio(query: query, minutes: minutes, surface: surface, topicID: topicID)
+    /// Every play: the loading screen first, the audio held behind it, the
+    /// player opened when the five steps are done (`search-no-cover`). A
+    /// typed follow-up asks the AI question first, like a search.
+    func play(_ ep: Episode) {
+        if ep.own && consent.current?.given != true {
+            Task {
+                guard await consent.ensure() else { return }
+                startPlaying(ep)
+            }
+            return
+        }
+        startPlaying(ep)
+    }
+
+    private func startPlaying(_ ep: Episode) {
+        let request = api.audio(query: ep.key.query, minutes: ep.key.minutes, surface: ep.surface,
+                                topicID: ep.topicID, context: ep.key.context, own: ep.own)
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }
+            self.nowPlaying.leaving()
             self.showPlayer = false
+            self.pending = ep
             self.loading.start(ask: {
-                try? await api.progress(query: query, minutes: minutes,
-                                        surface: surface, topicID: topicID)
+                try? await api.progress(query: ep.key.query, minutes: ep.key.minutes,
+                                        surface: ep.surface, topicID: ep.topicID,
+                                        context: ep.key.context)
             })
-            self.player.play(title: title, picture: picture, request: request,
-                             minutes: minutes, holdStart: true)
+            self.player.play(title: ep.title, picture: ep.picture, request: request,
+                             minutes: ep.key.minutes, holdStart: true)
         }
         lastPlay = go
         go()

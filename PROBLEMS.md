@@ -31653,3 +31653,23 @@ request carries the audio request's key fields. **`ios/FAM/PARITY.md`** lists
 every web feature against the iOS app so nothing more is left out silently;
 the gaps it makes plain first are play events for the taste model, Report and
 Block, and Sign in with Apple.
+
+**"The audio player looks wrong, and it's changing the total time" (the
+owner).** Both true: the total was the seconds arrived so far, and the
+player was an outline of the web's. A specification of the web player was
+written from the code first (every control, request, state and wording),
+and the player rebuilt from it: full screen; the Home mark, GO DEEPER (the
+thread from `/api/next`, typed follow-ups as `own`, 1-5 lengths) and the ⋯
+menu (share, VIBE!, save, captions, queue, Report through FAMSafety); the
+picture full width, 4:3 and faded, with share/vibe/save on the dark glass
+circles; the title with the explicit E and the writer's title replacing a
+typed question's; the sources strip and sheet; the scrubber with the
+requested length as the total until complete, the arrived part drawn and
+seeks clamped 2 s short (`TAIL_MARGIN`), with "Caught up with the writing";
+±15 and the copper play; speed 0.5-2x keeping pitch (`AVAudioUnitTimePitch`)
+and a search's length rebuild; the queue; captions; the What's next grid with
+its 15 s countdown. **Listening is now recorded from iOS**: `complete` at 85%,
+`skip` past 5 s, `search` on follow-ups, `POST /api/progress` every 15 s and on
+pause, and the history row - without these Made for you could not learn from
+the phone. Still not ported, in PARITY.md: the full VIBE! story editor,
+sending inside FAM, Add to myFAM Playlist, the save/vibe burst.
