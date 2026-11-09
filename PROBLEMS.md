@@ -31764,3 +31764,29 @@ wipe forgets reviews and the check; /admin for admins only, a review from
 the page, the check refused unsigned and queued once; the page draws in a
 browser and saves a review). The old pin of the judge to Opus now pins
 Sonnet.
+
+## 504. Signing the rule books on a borrowed computer (2026-11-09)
+
+The owner's own computer stopped working while manifest version 7 waited
+(§503), and they asked to sign every agent at once from a family member's
+computer. One signature already covers every agent - the manifest lists
+all ten books' fingerprints - so what was missing is the tool: the owner's
+Mac had OpenSSL 3 in a conda environment (`famsign`), and a computer with
+only a Mac's LibreSSL cannot make an Ed25519 signature (§470).
+
+`tools/sign_rulebooks.py` signs with Python's `cryptography` package, the
+one the lock verifies with. Run in a folder holding the pending manifest
+and any changed book, it checks each book against the manifest's
+fingerprint, waits while the owner copies the key from the password
+manager, reads it from the clipboard and empties the clipboard at once, so
+the key is never pasted into a terminal (the lesson of §352) nor saved to
+the borrowed disk; refuses a key whose public half is not `owner.pub`'s;
+checks its signature before writing `MANIFEST.json` and
+`MANIFEST.json.sig`. Ed25519 is deterministic, and its signature was
+compared with `openssl pkeyutl -sign -rawin` on the same key and manifest:
+identical.
+
+Tests: `tests/test_sign_rulebooks_504.py` (the trusted key is owner.pub's;
+its signature is accepted by the lock; the key as a PEM block or its one
+line; an untrusted key or non-key signs nothing; a book that does not
+match is caught; one base64 line of 64 bytes).
