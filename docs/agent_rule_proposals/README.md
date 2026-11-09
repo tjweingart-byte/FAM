@@ -7,14 +7,19 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-**`nando.md` rule 12, amended (PROBLEMS.md §502)**, with
+**`nando.md` rule 12, amended (PROBLEMS.md §502, §503)**, with
 `docs/agent_rules/MANIFEST.pending.json` (version 7; only `nando.md`'s
-fingerprint changes). Rule 12 as signed lets the answer key's grades "only
-teach you and measure you"; the amendment adds "and teach the story
-composer whose categories you inherit", so the composer is shown its own
-categories the key was sure were wrong. Until it is signed the code shows
-the composer nothing (`training.composer_allowed`). Nothing else in the
-book changes.
+fingerprint changes). Rule 12 as signed lets the answer key read each
+finished episode once, and its grades "only teach you and measure you".
+The amendment adds two things the owner asked for:
+
+* "once only and at the owner's request, let a second answer key read at
+  most 100 of those episodes again so the owner can compare the two" - the
+  one-time Sonnet-against-Opus check on /admin (`training.calibration_allowed`);
+* "and teach the story composer whose categories you inherit" - the
+  composer shown its own corrected categories (`training.composer_allowed`).
+
+Until it is signed the code does neither. Nothing else in the book changes.
 
 Before that: manifest version 6 - the merged books, `consuela.md` always 12
 and `sonic.md` always 8 beside `mclovin.md` v3 - was signed on 2026-11-06

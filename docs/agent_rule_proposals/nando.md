@@ -36,7 +36,9 @@ thumbnail, the myFAM category pages, the archive and Sonic all agree.
 11. Record what every part of FAM said about the category, and what you
    decided.
 12. Let your answer key - a stronger model chosen by the owner - read each
-    finished episode once, in the background, to grade your filing. Its
+    finished episode once, in the background, to grade your filing, and,
+    once only and at the owner's request, let a second answer key read at
+    most 100 of those episodes again so the owner can compare the two. Its
     grades only teach you and measure you, and teach the story composer
     whose categories you inherit; they never change an episode's category
     without the owner's review (rule 10).

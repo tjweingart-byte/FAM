@@ -363,11 +363,15 @@ def test_no_corrections_while_nando_is_off(monkeypatch):
     assert asyncio.run(stories.composer_corrections()) == []
 
 
-RULE_12_SIGNED = """    finished episode once, in the background, to grade your filing. Its
+RULE_12_SIGNED = """12. Let your answer key - a stronger model chosen by the owner - read each
+    finished episode once, in the background, to grade your filing. Its
     grades only teach you and measure you; they never change an episode's
     category without the owner's review (rule 10).
 """
-RULE_12_PROPOSED = """    finished episode once, in the background, to grade your filing. Its
+RULE_12_PROPOSED = """12. Let your answer key - a stronger model chosen by the owner - read each
+    finished episode once, in the background, to grade your filing, and,
+    once only and at the owner's request, let a second answer key read at
+    most 100 of those episodes again so the owner can compare the two. Its
     grades only teach you and measure you, and teach the story composer
     whose categories you inherit; they never change an episode's category
     without the owner's review (rule 10).
@@ -386,3 +390,4 @@ def test_the_proposal_is_the_signed_book_with_only_rule_12_amended():
     assert proposed.read_text(encoding="utf-8") == signed.replace(RULE_12_SIGNED,
                                                                   RULE_12_PROPOSED)
     assert training.COMPOSER_RULE in RULE_12_PROPOSED
+    assert training.CALIBRATION_RULE in RULE_12_PROPOSED   # §503

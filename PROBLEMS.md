@@ -31691,3 +31691,76 @@ path and composer; the composer's sure mistakes; shown to the composer only
 once signed; the proposal is the signed book with only rule 12 amended).
 Four older tests now pin live grading where they mock `models.ask`, and the
 listener-path import guard lists `stories.py` reading `training`.
+
+## 503. The answer key on Sonnet, ten a night where the filers disagree; the owner's review queue; the one-time check against Opus (2026-11-09)
+
+The owner found §502's answer key too expensive (~$8-15 a month) and chose,
+from the alternatives offered: Sonnet in place of Opus, 10 a night in place
+of 50, only where the filers disagree; a free review queue on /admin; and
+a comparison against Opus run once, never nightly.
+
+**The nightly key.** `CATEGORIZER_JUDGE_MODEL=anthropic:claude-sonnet-5-5`
+- still stronger than Nando's Haiku, as rule 12 asks ("a stronger model
+chosen by the owner"); `NANDO_JUDGE_PER_RUN=10`;
+`NANDO_JUDGE_DISAGREEMENTS_ONLY=1`: an episode is skipped when Nando, the
+writer and the composer all filed it on one branch (`training.agreed`: the
+same node or one more specific; never when Nando filed nothing, the writer
+named nothing, or the writer made him re-file - then nothing checked it).
+Still batched (§502) and in `choose`'s order.
+
+**The owner's review queue** (/admin, Categories). Recent episodes
+(`training.review_queue`: the last week, while scripts are kept), in the
+key's own order, disagreements first, each with what Nando, the writer, the
+composer and the key said, and the script's opening. The owner confirms or
+types a node ("none" when nothing fits). A review (`training.owner_label`)
+is kept twice: as the owner's review beside the key's grade at that
+moment, and as the episode's grade (`judge_model` `owner`, confidence
+high), so it teaches Nando ahead of any model - his memory, his mistakes,
+his small model - and the key never spends a call on it. It never re-files
+the episode (rule 10 is a separate, reviewed step). `owner_agreement`
+says how often the key's grade matched the owner's: the number that says
+whether the key can be trusted ([episode-quality]). No model is asked.
+
+**The one-time check** (`training.calibrate`, from the page's button,
+queued as Netenyahu's `categorizer:calibrate` under the key `once`): up to
+`NANDO_CALIBRATION_EPISODES` (100) recent episodes, each graded by the
+nightly key - its existing grade reused, so it is not read again - and
+once by `CATEGORIZER_CALIBRATION_MODEL` (Opus 5.5), four at a time. Only
+the comparison is kept (`calibration_report` on the page); the nightly
+grades stand. It refuses to run a second time. Because the second key
+reads episodes the first already read, it is past rule 12 as signed
+("read each finished episode once"), so it waits for the amendment.
+
+**One amendment for the owner to sign.** §502's proposal now carries both
+additions to rule 12: "once only and at the owner's request, let a second
+answer key read at most 100 of those episodes again so the owner can
+compare the two", and "teach the story composer whose categories you
+inherit". `docs/agent_rule_proposals/nando.md`, with
+`docs/agent_rules/MANIFEST.pending.json` (version 7, only `nando.md`'s
+fingerprint changes); steps in that folder's README. Until it is signed the
+button is hidden and the composer is shown nothing.
+
+**Cost**, from the measured prompt (Sonnet 5.5 $2 / $10, cache read $0.20):
+
+| | a month |
+|---|---|
+| the key, 10 a night, batched, reading the cached tree (expected) | **~$0.80** |
+| the same, no request reading the cache (worst) | ~$4 |
+| the owner's reviews | $0 |
+| the one-time check, once in all: up to 100 on Opus (~$0.0096 each) and Sonnet for any not yet graded (~$0.0054) | **~$1.50, once** |
+
+None of it grows with listeners: the key is capped per night and the check
+runs once.
+
+Tests: `tests/test_nando_review_503.py` (the owner's settings, and
+`.env.example` agrees; three filers on one branch agree, and when they do
+not; the key spent only on disagreements; the queue's order, what it skips,
+a review leaving it; a review is the grade, never graded again, measures
+the key and teaches as a mistake; "none" is a review, an unknown node or
+episode refused; a review with no key grade not counted; the check waits
+for the signature, runs once, reuses the nightly grade and reads with the
+second key only, and never again; the second key is Nando's own setting; a
+wipe forgets reviews and the check; /admin for admins only, a review from
+the page, the check refused unsigned and queued once; the page draws in a
+browser and saves a review). The old pin of the judge to Opus now pins
+Sonnet.

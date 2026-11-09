@@ -494,3 +494,4 @@ and `limit` = Lines.
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
 | 31500 | 85 | 501. Nando on the background paths: a warmed brief carries his decision, and each path is counted (2026-11-09) |
 | 31585 | 110 | 502. Training Nando: grade what teaches, through the Batch API, and grade every source that files (2026-11-09) |
+| 31695 | 73 | 503. The answer key on Sonnet, ten a night where the filers disagree; the owner's review queue; the one-time check against Opus (2026-11-09) |

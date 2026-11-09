@@ -2,8 +2,8 @@
 
 The owner wants Nando to decide (§379) and to keep getting better as the
 tree grows, without anyone hand-scoring episodes (decided item 30). The
-answer key is how: a stronger model - `CATEGORIZER_JUDGE_MODEL`, Opus 5.5
-(the owner's choice) - reads finished episodes in the background and says
+answer key is how: a stronger model - `CATEGORIZER_JUDGE_MODEL`, Sonnet 5.5
+since §503 (Opus before; the owner's choice) - reads finished episodes in the background and says
 which node each is truly about. Its labels are
 
 * the **measurement**: how often Nando's filing agrees with the key, by
@@ -103,6 +103,20 @@ class TrainingStore:
             db.execute("""CREATE TABLE IF NOT EXISTS nando_batches (
                 batch_id TEXT PRIMARY KEY, waiting TEXT NOT NULL,
                 sent_at REAL NOT NULL, done_at REAL NOT NULL DEFAULT 0)""")
+            # The owner's own reviews (§503): the node the owner said an
+            # episode is about ("" for none), and the answer key's grade at
+            # that moment, so how often the key agrees with the owner is a
+            # number. The review also becomes the episode's grade.
+            db.execute("""CREATE TABLE IF NOT EXISTS nando_owner (
+                key TEXT PRIMARY KEY, query TEXT NOT NULL, node TEXT NOT NULL,
+                key_node TEXT NOT NULL DEFAULT '', key_model TEXT NOT NULL DEFAULT '',
+                at REAL NOT NULL)""")
+            # The owner's one-time comparison of two answer keys (§503): each
+            # episode's grade from the nightly key and from the second.
+            db.execute("""CREATE TABLE IF NOT EXISTS nando_calibration (
+                key TEXT PRIMARY KEY, query TEXT NOT NULL, first TEXT NOT NULL,
+                first_model TEXT NOT NULL, second TEXT NOT NULL,
+                second_model TEXT NOT NULL, at REAL NOT NULL)""")
             # The tree as the last nightly look saw it (§387).
             db.execute("""CREATE TABLE IF NOT EXISTS nando_tree (
                 node TEXT PRIMARY KEY, parent TEXT NOT NULL DEFAULT '',
@@ -112,6 +126,38 @@ class TrainingStore:
         conn = store_db.connect(self.path, timeout=10, isolation_level=None)
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
+
+    def put_owner(self, key: str, query: str, node: str, key_node: str,
+                  key_model: str, now: float = 0.0) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("INSERT INTO nando_owner (key, query, node, key_node, key_model, at)"
+                       " VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET"
+                       " node = excluded.node, at = excluded.at",
+                       (key, query, node, key_node, key_model, now or time.time()))
+
+    def owner_reviews(self, since: float = 0.0) -> list:
+        with self._connect() as db:
+            rows = db.execute("SELECT key, query, node, key_node, key_model, at"
+                              " FROM nando_owner WHERE at >= ? ORDER BY at DESC",
+                              (since,)).fetchall()
+        return [dict(zip(("key", "query", "node", "key_node", "key_model", "at"), r))
+                for r in rows]
+
+    def put_calibration(self, key: str, query: str, first: str, first_model: str,
+                        second: str, second_model: str, now: float = 0.0) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("INSERT INTO nando_calibration (key, query, first, first_model,"
+                       " second, second_model, at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                       " ON CONFLICT(key) DO NOTHING",
+                       (key, query, first, first_model, second, second_model,
+                        now or time.time()))
+
+    def calibration(self) -> list:
+        with self._connect() as db:
+            rows = db.execute("SELECT key, query, first, first_model, second, second_model,"
+                              " at FROM nando_calibration ORDER BY at").fetchall()
+        return [dict(zip(("key", "query", "first", "first_model", "second",
+                          "second_model", "at"), r)) for r in rows]
 
     def put_batch(self, batch_id: str, waiting: dict, now: float = 0.0) -> None:
         import json
@@ -226,6 +272,8 @@ class TrainingStore:
             db.execute("DELETE FROM nando_labels")
             db.execute("DELETE FROM nando_asked")
             db.execute("DELETE FROM nando_batches")
+            db.execute("DELETE FROM nando_owner")
+            db.execute("DELETE FROM nando_calibration")
             db.execute("DELETE FROM nando_tree")
         return int(n)
 
@@ -265,15 +313,19 @@ def tree_listing() -> str:
     return "\n".join(lines)
 
 
-def _judge_request(query: str, sentences: list, listing: str):
-    """The answer key's one request for one episode, live or batched."""
+def _judge_request(query: str, sentences: list, listing: str,
+                   model_setting: str = "categorizer_judge_model"):
+    """The answer key's one request for one episode, live or batched.
+    `model_setting` is the second key's only in the owner's one-time
+    comparison (§503)."""
     from agents import models
     from config import settings
 
     script = " ".join(str(s) for s in (sentences or ())[:SCRIPT_SENTENCES])
     return models.AgentRequest(
-        agent="categorizer", task="judge", switch_setting="categorizer",
-        model_setting="categorizer_judge_model", rule_book="nando.md",
+        agent="categorizer",
+        task="judge" if model_setting == "categorizer_judge_model" else "calibrate",
+        switch_setting="categorizer", model_setting=model_setting, rule_book="nando.md",
         schema=JudgeLabel,
         instructions=JUDGE_INSTRUCTIONS + "\n\nFAM's category tree (id | path):\n" + listing,
         material=(("request", query), ("script", script)),
@@ -302,13 +354,15 @@ def _label_from(result) -> Optional[dict]:
             "judge_model": result.model}
 
 
-async def judge(key: str, query: str, sentences: list, listing: str) -> Optional[dict]:
+async def judge(key: str, query: str, sentences: list, listing: str,
+                model_setting: str = "categorizer_judge_model") -> Optional[dict]:
     """One episode through the answer key, live, or None when it did not
     answer usably. Never raises."""
     try:
         from agents import models
 
-        return _label_from(await models.ask(_judge_request(query, sentences, listing)))
+        return _label_from(await models.ask(
+            _judge_request(query, sentences, listing, model_setting)))
     except Exception as exc:  # noqa: BLE001 - a background job never raises
         log.warning("nando's answer key failed for %r: %s", query, exc)
         return None
@@ -407,6 +461,21 @@ def _tier(row: dict) -> int:
     return 5
 
 
+def agreed(row: dict) -> bool:
+    """Nando, the writer and the composer all filed the episode on one
+    branch (§503): the same node, or one more specific than another - taken
+    as right without asking the key. False when Nando filed nothing or the
+    writer named nothing, since then nothing was checked."""
+    filed = row.get("nando") or row.get("nando_request") or ""
+    writer, composer = row.get("writer") or "", row.get("composer") or ""
+    if not filed or not writer or row.get("nando_how") == "refiled":
+        return False
+    for other in (writer, composer):
+        if other and verdict(filed, other) not in ("exact", "branch"):
+            return False
+    return True
+
+
 def _facet_of(row: dict) -> str:
     from agents import categorizer
 
@@ -477,7 +546,12 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
             done = store().labelled(r["key"] for r in rows) | store().asked(
                 r["key"] for r in rows)
             fresh = []
-            for row in choose([r for r in rows if r["key"] not in done]):
+            todo = [r for r in rows if r["key"] not in done]
+            if settings.nando_judge_disagreements_only:
+                # Three filers on one branch are taken as right (§503): the
+                # key is spent only where they disagree.
+                todo = [r for r in todo if not agreed(r)]
+            for row in choose(todo):
                 sentences = list(script_for(row["key"]) or [])
                 if sentences:                # no script yet: asked another night
                     fresh.append((row, sentences))
@@ -618,6 +692,7 @@ def register(script_for: Callable[[str], list]) -> None:
     netenyahu.HANDLERS[("categorizer", "follow")] = follow_handler()
     netenyahu.HANDLERS[("categorizer", "judge")] = handler(script_for)
     netenyahu.HANDLERS[("categorizer", "collect")] = collect_handler(script_for)
+    netenyahu.HANDLERS[("categorizer", "calibrate")] = calibrate_handler(script_for)
     netenyahu.HANDLERS[("categorizer", "train")] = nando_model.handler()
 
 
@@ -834,6 +909,245 @@ def report(days: float = 30.0, examples: int = 10) -> dict:
         }
     except Exception as exc:  # noqa: BLE001
         return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+# ------------------------------------------------------------------ the owner's review (§503)
+#: How far back the review queue looks: an episode's script is kept a week.
+REVIEW_DAYS = 7.0
+
+
+def review_queue(script_for: Callable[[str], list], limit: int = 20,
+                 days: float = REVIEW_DAYS) -> list:
+    """Episodes for the owner to file by hand, in the answer key's own order
+    (`choose`: every write path in turn, disagreements first), skipping
+    any the owner has reviewed, a private search's and any whose script is
+    gone. Each with what every filer said, the key's grade if it has one,
+    and the script's opening, to read. Reads the stores - run in a thread.
+    Never raises."""
+    try:
+        import topics
+
+        since = time.time() - days * 86400
+        rows = _newest_per_key(r for r in topics.category_tree().audit_rows(since=since)
+                               if r.get("key") and r.get("origin", "") not in NOT_LABELLED)
+        reviewed = {r["key"] for r in store().owner_reviews()}
+        labels = {l["key"]: l for l in store().labels(since=0, retired=False)}
+        out = []
+        for row in choose([r for r in rows if r["key"] not in reviewed]):
+            sentences = list(script_for(row["key"]) or [])
+            if not sentences:
+                continue
+            label = labels.get(row["key"])
+            out.append({
+                "key": row["key"], "query": row["query"], "origin": row.get("origin") or "",
+                "nando": row.get("nando") or row.get("nando_request") or "",
+                "filed_by": filed_by(row), "writer": row.get("writer") or "",
+                "writer_words": row.get("words") or "", "composer": row.get("composer") or "",
+                "agreed": agreed(row),
+                "key_grade": (label or {}).get("node") if label else None,
+                "key_model": (label or {}).get("judge_model", "") if label else "",
+                "opening": " ".join(str(x) for x in sentences[:6]),
+                "at": row.get("at")})
+            if len(out) >= limit:
+                break
+        return out
+    except Exception:  # noqa: BLE001
+        log.exception("the owner's review queue could not be read")
+        return []
+
+
+def owner_label(key: str, node: str) -> dict:
+    """The owner's filing of one episode (§503): `node` a tree node or "" for
+    none. Kept as the owner's review - beside the key's grade at that
+    moment, for the agreement number - and as the episode's grade, so it
+    teaches Nando ahead of any model's (his memory, his mistakes, his small
+    model) and the key never spends a call on it. Raises ValueError for a
+    node the tree lacks or an episode the audit has no record of."""
+    import topics
+
+    node = (node or "").strip()
+    if node and node not in topics.FACETS and topics.category_tree().get(node) is None:
+        raise ValueError(f"{node!r} is not a node of the category tree")
+    rows = [r for r in topics.category_tree().audit_rows(since=0) if r.get("key") == key]
+    if not rows:
+        raise ValueError("no written episode with that key")
+    query = rows[0]["query"]
+    before = {l["key"]: l for l in store().labels(since=0, retired=False)}.get(key) or {}
+    key_node = before.get("node", "") if before.get("judge_model") != OWNER else ""
+    key_model = before.get("judge_model", "") if before.get("judge_model") != OWNER else ""
+    store().put_owner(key, query, node, key_node if before else "", key_model)
+    store().put_label(key, query, node, "high", "the owner's review", OWNER, 0.0,
+                      _path_text(node))
+    store().mark_asked(key)
+    return {"key": key, "node": node, "key_node": key_node, "key_model": key_model}
+
+
+#: The `judge_model` an owner's review is kept under.
+OWNER = "owner"
+
+
+def owner_agreement(days: float = 90.0) -> dict:
+    """How often the answer key's grade matched the owner's review (§503),
+    over reviews of episodes the key had graded first: the number that says
+    whether the key can be trusted ([episode-quality]: a grader is trusted
+    once it matches the owner). None, not 0, before any."""
+    exact = branch = wrong = 0
+    examples = []
+    for r in store().owner_reviews(since=time.time() - days * 86400):
+        if not r["key_model"]:
+            continue
+        v = verdict(r["key_node"], r["node"])
+        if v == "exact":
+            exact += 1
+        elif v == "branch":
+            branch += 1
+        else:
+            wrong += 1
+            if len(examples) < 10:
+                examples.append({"query": r["query"], "key": r["key_node"] or "none",
+                                 "owner": r["node"] or "none", "model": r["key_model"]})
+    n = exact + branch + wrong
+    return {"compared": n, "exact": exact, "on_branch": branch, "wrong": wrong,
+            "agree_rate": _rate(exact + branch, n), "exact_rate": _rate(exact, n),
+            "disagreements": examples}
+
+
+# ------------------------------------------------------------------ the one-time comparison (§503)
+#: The words of the amendment to nando.md rule 12 that lets a second answer
+#: key read episodes again, once, for the owner's comparison (§503). Rule
+#: 12 as signed lets the key read each finished episode once.
+CALIBRATION_RULE = "once only and at the owner's request"
+
+
+def calibration_allowed() -> tuple:
+    """`(ok, why)`: whether the owner's one-time comparison may run - the
+    signed book carries the amendment, and it has never run. Never raises."""
+    try:
+        from agents import rulebooks
+
+        lock = rulebooks.check("nando.md")
+        if not lock.ok:
+            return False, f"nando's rule books are not signed: {lock.reason}"
+        if CALIBRATION_RULE not in lock.text:
+            return False, ("nando's signed rule 12 lets the answer key read each episode "
+                           "once: the comparison waits for the owner to sign the "
+                           "amendment (§503)")
+        if store().calibration():
+            return False, "the comparison has already run; it runs once only"
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+async def calibrate(script_for: Callable[[str], list], limit: int = 0,
+                    days: float = REVIEW_DAYS, at_once: int = 4) -> dict:
+    """The owner's one-time comparison (§503): up to `limit`
+    (`NANDO_CALIBRATION_EPISODES`, 100) recent episodes, each graded by the
+    nightly key (its grade reused when it has one, so it is not read again)
+    and once by the second (`CATEGORIZER_CALIBRATION_MODEL`). Only the
+    comparison is kept; the nightly key's grades stand. Refuses to run a
+    second time. Never raises."""
+    out = {"compared": 0, "failed": 0}
+    ok, why = calibration_allowed()
+    if not ok:
+        out["refused"] = why
+        log.warning("nando's comparison did not run: %s", why)
+        return out
+    try:
+        import topics
+        from config import settings
+
+        limit = int(limit or settings.nando_calibration_episodes)
+
+        def plan() -> tuple:
+            rows = _newest_per_key(
+                r for r in topics.category_tree().audit_rows(since=time.time() - days * 86400)
+                if r.get("key") and r.get("origin", "") not in NOT_LABELLED)
+            labels = {l["key"]: l for l in store().labels(since=0, retired=False)}
+            picked = []
+            for row in choose(rows):
+                label = labels.get(row["key"])
+                if label and label["judge_model"] == OWNER:
+                    continue                  # the owner's filing is not a key's
+                sentences = list(script_for(row["key"]) or [])
+                if sentences:
+                    picked.append((row, sentences, label))
+                if len(picked) >= limit:
+                    break
+            return picked, tree_listing()
+
+        picked, listing = await asyncio.to_thread(plan)
+        gate = asyncio.Semaphore(max(1, int(at_once)))
+
+        async def one(row, sentences, label):
+            async with gate:
+                if label is None:
+                    first = await judge(row["key"], row["query"], sentences, listing)
+                    if first is not None:
+                        await asyncio.to_thread(store().mark_asked, row["key"])
+                        await asyncio.to_thread(_keep, row["key"], row["query"], first)
+                else:
+                    first = {"node": label["node"], "judge_model": label["judge_model"]}
+                second = await judge(row["key"], row["query"], sentences, listing,
+                                     "categorizer_calibration_model")
+                if first is None or second is None:
+                    out["failed"] += 1
+                    return
+                await asyncio.to_thread(
+                    store().put_calibration, row["key"], row["query"], first["node"],
+                    first["judge_model"], second["node"], second["judge_model"])
+                out["compared"] += 1
+
+        await asyncio.gather(*(one(*p) for p in picked))
+    except Exception as exc:  # noqa: BLE001
+        log.exception("nando's comparison failed")
+        out["error"] = f"{type(exc).__name__}: {exc}"
+    return out
+
+
+def calibration_report() -> dict:
+    """The one-time comparison's result (§503): how often the nightly key
+    agreed with the second, and where it did not. `ran` False before."""
+    rows = store().calibration()
+    exact = branch = wrong = 0
+    examples = []
+    for r in rows:
+        v = verdict(r["first"], r["second"])
+        if v == "exact":
+            exact += 1
+        elif v == "branch":
+            branch += 1
+        else:
+            wrong += 1
+            if len(examples) < 15:
+                examples.append({"query": r["query"], "first": r["first"] or "none",
+                                 "second": r["second"] or "none"})
+    n = exact + branch + wrong
+    return {"ran": bool(rows), "compared": n, "exact": exact, "on_branch": branch,
+            "wrong": wrong, "agree_rate": _rate(exact + branch, n),
+            "exact_rate": _rate(exact, n),
+            "first_model": rows[0]["first_model"] if rows else "",
+            "second_model": rows[0]["second_model"] if rows else "",
+            "disagreements": examples}
+
+
+def queue_calibration() -> bool:
+    """Queue the one-time comparison on Netenyahu's loop (§503), under one
+    key, so it is queued at most once. True when this call queued it."""
+    from agents import tasks
+    from config import settings
+
+    added = tasks.store().add("categorizer", "calibrate", "once",
+                              {"episodes": int(settings.nando_calibration_episodes)})
+    return added == tasks.ADDED
+
+
+def calibrate_handler(script_for: Callable[[str], list]):
+    """The background task `categorizer:calibrate` (§503), queued from
+    /admin by the owner, keyed so it can be queued only once."""
+    async def run(_task: str) -> None:
+        log.info("nando's comparison: %s", await calibrate(script_for))
+    return run
 
 
 # ------------------------------------------------------------------ following the tree

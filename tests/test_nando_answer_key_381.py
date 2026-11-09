@@ -68,7 +68,10 @@ def test_the_judge_is_nandos_background_call_on_its_own_model(tree, monkeypatch)
     assert (r.agent, r.task, r.surface) == ("categorizer", "judge", "background")
     assert r.model_setting == "categorizer_judge_model" and r.rule_book == "nando.md"
     assert dict(r.material)["script"] == "The Eagles won."
-    assert settings.categorizer_judge_model == "anthropic:claude-opus-5-5"
+    # Sonnet since §503, at the owner's direction (Opus before): still
+    # stronger than Nando's Haiku, as nando.md rule 12 asks.
+    assert settings.categorizer_judge_model == "anthropic:claude-sonnet-5-5"
+    assert settings.categorizer_model == "anthropic:claude-haiku-5-5"
 
 
 def test_the_judge_never_files_a_node_the_tree_lacks(tree, monkeypatch):

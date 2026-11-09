@@ -2086,10 +2086,18 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "CATEGORIZER_MODEL", "anthropic:claude-haiku-5-5").strip())
     # Nando's answer key (§381): the stronger model that grades his filings
-    # in the background, nightly. Opus, the owner's choice.
+    # in the background, nightly. Opus until §503, when the owner moved it to
+    # Sonnet for cost - still stronger than Nando's Haiku, as nando.md rule
+    # 12 asks.
     categorizer_judge_model: str = field(
         default_factory=lambda: os.environ.get(
-            "CATEGORIZER_JUDGE_MODEL", "anthropic:claude-opus-5-5").strip())
+            "CATEGORIZER_JUDGE_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    # The second answer key of the owner's one-time comparison (§503): Opus
+    # re-grades at most `NANDO_CALIBRATION_EPISODES` episodes once, so the
+    # owner can see how often Sonnet agrees with it. Never nightly.
+    categorizer_calibration_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CATEGORIZER_CALIBRATION_MODEL", "anthropic:claude-opus-5-5").strip())
     retriever_model: str = field(
         default_factory=lambda: os.environ.get("RETRIEVER_MODEL", "").strip())
     editor_model: str = field(
@@ -2150,7 +2158,15 @@ class Settings:
         "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", 60.0)
     categorizer_judge_max_tokens: int = _env_int("CATEGORIZER_JUDGE_MAX_TOKENS", 400)
     # How many written episodes one nightly run grades at most (§381).
-    nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 50)
+    # 10 since §503 (the owner, for cost; 50 before).
+    nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 10)
+    # Grade only episodes where Nando, the writer and the composer do not all
+    # agree (§503): three filers agreeing is taken as right without a call.
+    nando_judge_disagreements_only: bool = field(
+        default_factory=lambda: os.environ.get("NANDO_JUDGE_DISAGREEMENTS_ONLY", "1")
+        not in ("0", "false", "False", ""))
+    # How many episodes the one-time comparison reads (§503).
+    nando_calibration_episodes: int = _env_int("NANDO_CALIBRATION_EPISODES", 100)
     # The answer key through the Message Batches API (§501): every token at
     # half price, answered within the day; nobody waits at 03:00. Sent by
     # the nightly run, collected every `NANDO_JUDGE_COLLECT_SECONDS`. 0 asks

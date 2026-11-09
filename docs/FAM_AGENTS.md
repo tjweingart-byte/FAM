@@ -309,7 +309,7 @@ prices) cost more than Haiku 5.5.
 |---|---|
 | Netenyahu | No planner model; the rules in code |
 | C3P0 | Haiku 5.5 folded into the brief's call: at the brief's effort (medium) on the tap, at high effort ahead of the tap (`EI_AHEAD_EFFORT`) |
-| Nando | Code first, folded into the brief's call, Haiku 5.5 whenever nothing solid files the request (§379); always the closest node it is truly about. His answer key: Opus 5.5, in the background (§381) |
+| Nando | Code first, folded into the brief's call, Haiku 5.5 whenever nothing solid files the request (§379); always the closest node it is truly about. His answer key: Sonnet 5.5 (Opus until §503), in the background (§381) |
 | Sonic | An embedding router chooses the lookup; the code mapping is its fallback |
 | Shakespeare | Haiku 5.5 on searchFAM, in tandem with the writer; ahead of the tap **Haiku 5.5 at high effort** (the owner, 2026-11-03, on the comparison of §437: no editor / Haiku 5.5 high / Sonnet 5.5); Opus 5.5 for the playbook and the eval |
 | Mclovin | Haiku 5.5 on unsure sentences and unsettled pages; **the grounding checker not decided** (its own analysis) |
@@ -404,17 +404,17 @@ The models are the ones decided (Models decided, and §440, §455, §456).
 
 **Nightly, whatever the volume** (a month): Mclovin's review - 40 of his
 verdicts each night on Opus 5.5 (`SUPERVISOR_REVIEW_PER_RUN`), ~$0.011 a
-verdict *(measured, §451)*: **~$13**; Nando's answer key - up to 50 grades a
-night on Opus 5.5 (`NANDO_JUDGE_PER_RUN`), through the Message Batches API
-at half price (`NANDO_JUDGE_BATCH`, §502): **~$8** if the batch reads the
-tree from the prompt cache, as requests sharing one system block normally
-do; up to **~$41** if no request ever did, each paying to write the
-one-hour cache - live, as before, it is ~$15 *(est. from the measured
+verdict *(measured, §451)*: **~$13**; Nando's answer key - **10 grades a
+night on Sonnet 5.5**, only where Nando, the writer and the composer
+disagree (`NANDO_JUDGE_PER_RUN`, `NANDO_JUDGE_DISAGREEMENTS_ONLY`, the
+owner's choice in §503; 50 on Opus before), through the Message Batches
+API at half price (`NANDO_JUDGE_BATCH`, §502): **~$0.80** if the batch
+reads the cached tree, up to ~$4 if it never does *(est. from the measured
 prompt: ~5,850 tokens of rule books and tree, ~1,100 of episode, ~200
-out)*. Each collection logs its cost and cache share; if the share is
-poor, `NANDO_JUDGE_BATCH=0` goes back to live. About **$21-28 a month**
-together at the expected rate, only while each agent is on. Neither grows
-with listeners: each is capped per night.
+out)*. The owner's own reviews on /admin (Categories) cost nothing; the
+one-time comparison against Opus, once only, about **$1.50** in all. About
+**$14 a month** together, only while each agent is on. Neither grows with
+listeners: each is capped per night.
 
 **Fixed machines**: **none needed now.** The grounding checker was measured
 and is not installed: HHEM-2.1-Open rejected ~9-12% of good sentences and
@@ -446,7 +446,8 @@ arm measurably better; the owner chose Haiku, §440). Everything else together i
 **Levers not to pull**, because they cost quality: skipping fact-checks on
 search; Opus anywhere per episode. *(The owner's exceptions, both in the
 background and never per episode: Nando's answer key reads each finished
-episode once on Opus - §381, nando.md rule 12 - and Mclovin's nightly review
+episode once (on Sonnet since §503; Opus only in the owner's one-time
+comparison) - §381, nando.md rule 12 - and Mclovin's nightly review
 reads a sample of his verdicts on Opus - mclovin.md "always" 9, §443.)*
 GPT-5 nano is withdrawn for Consuela (decided item 35).
 
@@ -2072,7 +2073,7 @@ awaited ahead of the tap. With no answer the writer's category stands, read
 live and never stored as his (§391). A provider's filing is only ever
 narrowed after the writer, never re-filed (§391). Training him continuously
 is pieces N2-N7 (§380-§387): worked examples and code's hints as
-`<teaching>`, an Opus answer key, a memory of graded answers, his mistakes
+`<teaching>`, an answer key (Opus, Sonnet since §503), a memory of graded answers, his mistakes
 as examples, a small trained model, and a nightly look at the tree.
 **Starting from the tap (§372):** `prior_for` reads what the tap already
 says - a tile's story, a bank topic, a DailyFAM subject from the catalogue,
@@ -2100,9 +2101,11 @@ nodes share is a tie, filed under what they share.
 |---|---|
 | `CATEGORIZER` | `0` / `1` (proposed): off = today's code |
 | `CATEGORIZER_MODEL` | `anthropic:claude-haiku-5-5` (decided 2026-10-30), asked whenever nothing solid files the request and C3P0 is not choosing (§379) |
-| `CATEGORIZER_JUDGE_MODEL` | `anthropic:claude-opus-5-5`: the answer key, nightly, each finished episode once (§381) |
+| `CATEGORIZER_JUDGE_MODEL` | `anthropic:claude-sonnet-5-5` (Opus until §503, the owner's change for cost): the answer key, nightly, each finished episode once (§381) |
+| `CATEGORIZER_CALIBRATION_MODEL`, `NANDO_CALIBRATION_EPISODES` | `anthropic:claude-opus-5-5`, 100: the owner's one-time comparison from /admin, once only, after rule 12's amendment is signed (§503) |
+| `NANDO_JUDGE_DISAGREEMENTS_ONLY` | 1: the key grades only episodes where Nando, the writer and the composer are not all on one branch (§503) |
 | `CATEGORIZER_JUDGE_TIMEOUT_SECONDS`, `CATEGORIZER_JUDGE_MAX_TOKENS` | 60, 400: the answer key's one call (§381) |
-| `NANDO_JUDGE_PER_RUN` | 50: episodes a nightly run grades at most (§381), chosen by `training.choose` - every write path in turn, what teaches first (§502) |
+| `NANDO_JUDGE_PER_RUN` | 10 (50 until §503): episodes a nightly run grades at most (§381), chosen by `training.choose` - every write path in turn, what teaches first (§502) |
 | `NANDO_JUDGE_BATCH`, `NANDO_JUDGE_COLLECT_SECONDS` | 1, 300: grade through the Message Batches API at half price, sent at 03:00 and collected every five minutes once it ends; 0 grades live (§502) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
