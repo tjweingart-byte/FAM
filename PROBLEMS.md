@@ -31571,3 +31571,13 @@ the old test. An ending is now the node's own clock at the last sample
 of the end). A queue emptied anywhere else is logged as "emptied … not at
 the end", given 0.4 s for the notification to pause it, and otherwise
 refilled from the heard position.
+
+**Player 3 on the phone: the call test passes.** (The first retest ran the
+old build - the code had not been re-downloaded; the on-screen version line
+now makes that visible.) Two calls in a row: `interrupted at 0:33` → iOS
+said resume after the call → `resumed at 0:33`; `interrupted at 0:38` →
+`resumed at 0:38`. Route changes after each resume refilled from the same
+second, and once the queue emptied short of the end it was logged as
+"emptied at 0:38, not at the end" instead of being taken for an ending. iOS
+did send "interruption over; resume" this time, so a call resumes on its
+own.
