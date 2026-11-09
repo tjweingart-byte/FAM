@@ -260,7 +260,8 @@ def test_the_tie_call_never_chooses_between_readings_of_an_undecided_name():
     block = src[i:i + 900]
     assert "bare.ambiguous" in block and 'prior, "", unsure=unsure' in block
     # And ahead of the tap it is not asked over one either.
-    assert "and not placed.ambiguous):" in src
+    assert "and not placed.ambiguous\n" in src and \
+        'not getattr(notes, "category_ahead_asked", False)):' in src   # §506
 
 
 def test_the_ahead_writers_leave_an_ambiguous_episode_unwritten():
