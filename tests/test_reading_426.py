@@ -255,7 +255,8 @@ def test_every_key_shaped_endpoint_takes_the_reading(client, monkeypatch, path):
 # ------------------------------------------------------------------ Nando's tie call
 def test_the_tie_call_never_chooses_between_readings_of_an_undecided_name():
     src = open(sg.__file__, encoding="utf-8").read()
-    i = src.index("if tie and pick == tie and not plan.reading:")
+    # Since §501 the same rule covers the pick a warmed brief carries.
+    i = src.index("if pick and pick in (tie, ahead_pick) and not plan.reading:")
     block = src[i:i + 900]
     assert "bare.ambiguous" in block and 'prior, "", unsure=unsure' in block
     # And ahead of the tap it is not asked over one either.
