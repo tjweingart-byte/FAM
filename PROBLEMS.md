@@ -31673,3 +31673,23 @@ its 15 s countdown. **Listening is now recorded from iOS**: `complete` at 85%,
 pause, and the history row - without these Made for you could not learn from
 the phone. Still not ported, in PARITY.md: the full VIBE! story editor,
 sending inside FAM, Add to myFAM Playlist, the save/vibe burst.
+
+**DailyFAM, combed through against the web (the owner: "make sure everything
+related to dailyfam has transferred over").** A second specification, of
+`screen-myfam`, was written from the code and the screen rebuilt from it:
+the time-of-day heading ("Made for you, Monday evening", "Start here" with
+no history), the five rails' headings and server empty sentences, the full
+card (save bookmark, ⋯ with Share / Add to Queue / Go to Queue / Not
+interested, ready badge, friends' faces and "N friends listened", the title
+stepping down past 48 and 72 characters, a game's live line with its age,
+each rail's fallback hook), VIEW MORE and the View more screen (16 at a time,
+Refresh, wrap and caught-up notes, Trending by continent), Pick up where you
+left off (resume with its seek, threads, X dismissing for good), the friends'
+stories row and viewer (reply and heart), and the library behind search's
+bookshelf. Not yet, in PARITY.md: Add to myFAM Playlist, Find new friends,
+offline, the rails' arrival animation. **Found on the way, not changed:**
+`saved.progress()` returns `int(minutes)` and the column is `INTEGER`, so a
+1.5-minute episode resumed from Pick up is asked as 1 minute - a different
+cache key - on the web as on the phone. The fix is a schema change
+(SQLite stores 1.5 as REAL in an INTEGER column, Postgres rounds it), so it is
+the owner's call.

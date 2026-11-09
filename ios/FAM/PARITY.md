@@ -72,18 +72,29 @@ the app.
 
 ## DailyFAM (the rails)
 
+Checked against a specification written from `static/index.html` (the web's
+`screen-myfam`), item by item.
+
 | Web | iOS | Note |
 |---|---|---|
-| Rails from `/api/myfam`, cards with picture, subject chip, title, hook | Done | |
-| Heading with the time of day ("Made for you, Monday evening") | Not yet | |
-| Pick up where you left off (§174) | Not yet | needs history |
-| Category filter chips (§229/§500) | Not yet | `/api/categories` |
-| A card's ⋯: save, Not interested (§499), add to queue | Not yet | |
-| Save bookmark on the card | Not yet | |
-| Friends' faces on cards (§393) | Not yet | |
-| View more (16, Refresh, §363) | Not yet | |
-| "ready" badge on cached tiles | Not yet | `cached` |
-| Play/finish/skip events for the taste model (`mfy-field-variety`) | Done | complete at 85%, skip past 5 s, search on follow-ups; progress every 15 s and on pause; history rows |
+| Header: the centred dailyFAM wordmark, nothing else (the bookshelf moved to search) | Done | |
+| Tap DailyFAM again: scroll to top; arriving from another tab refetches | Done | |
+| Friends' stories row: your story, friends with fresh/seen rings, Invite | Done | seen state per device |
+| Story viewer: 6 s a story, bars, tap back/on, hold, swipe between friends, play the episode, reply, heart, Report | Partial | the note composer, reshare, "Delete vibe" and a friend's profile wait for those screens |
+| Pick up where you left off: resume (time left, bar) and thread cards, X dismisses for good | Done | resumes seek once the audio has arrived. **Server bug found:** progress keeps `minutes` as an integer, so a 1.5-minute resume is asked as 1 minute (a different episode) - on the web too |
+| Five rails in the server's order, "Made for you, {Day} {part}" / "Start here", the others' headings | Done | |
+| Each rail's empty sentence from the server; friends rail silent with nobody followed | Done | |
+| Card: picture, subject chip, ready badge, save bookmark, ⋯, friends pill and "N friends listened", title size steps (>48, >72), live line with its age, hook with each rail's fallback | Done | |
+| Card ⋯: Share, Add to Queue, Go to Queue, Not interested | Done | |
+| Card ⋯: Add to myFAM Playlist | Not yet | waits for myFAM |
+| VIEW MORE at a rail's end → View more: 16 at a time, Refresh, the reason line, wrap notes, caught up, Trending by continent | Done | VIEW MORE always shows (the web shows an arrow until the rail is scrolled to its end) |
+| Find new friends pill after the friends rail | Not yet | waits for the Friends screen |
+| Guest sample note | n/a | the iOS app requires an account |
+| Offline: the bar, dimmed cards, the remembered page | Not yet | |
+| Loading skeleton; the error sentence | Done | |
+| Library (bookshelf on search): A-Z with sticky letters, day labels, search as you type | Done | "Search FAM for it" on no results not yet |
+| Arrival animation of rails | Not yet | |
+| Pull to refresh | iOS only | the web has none; kept as iOS convention |
 
 ## The player
 

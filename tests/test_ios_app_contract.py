@@ -9,6 +9,7 @@ real answer, and that the requests the waitlist must let through still are.
 """
 from __future__ import annotations
 
+import inspect
 import re
 import sys
 from pathlib import Path
@@ -46,6 +47,8 @@ def _calls() -> set[tuple[str, str]]:
     """(method, path) for every call the app makes."""
     found = set(re.findall(r'send\("(GET|POST|DELETE|PATCH)", "(api/v1/[a-z/\-]+)"', _api()))
     found |= {("GET", p) for p in re.findall(r'request\("GET", "(api/v1/[a-z/\-]+)"', _api())}
+    found |= {("GET", p) for p in re.findall(r'\bget\("(api/v1/[a-z/\-]+)"', _api())}
+    found |= set(re.findall(r'sendQuery\("(GET|POST|DELETE|PATCH)", "(api/v1/[a-z/\-]+)"', _api()))
     return found
 
 
@@ -92,9 +95,15 @@ def test_the_listener_fields_are_sent(monkeypatch):
 
 
 def test_rails_and_tiles_decode():
+    # The endpoint adds these to every tile (`/api/myfam`: cached, the
+    # friends who listened); the app decodes them leniently.
+    added = {"cached", "friends_listened", "friends_faces"}
+    source = inspect.getsource(appmod)
+    for name in added:
+        assert f'"{name}"' in source, name
     tile = topics_mod.TOPIC_BANK[0].as_dict()
-    assert _fields("Tile") <= set(tile), sorted(_fields("Tile") - set(tile))
-    assert _fields("Rail") <= {"key", "title", "topics"}
+    assert _fields("Tile") - added <= set(tile), sorted(_fields("Tile") - added - set(tile))
+    assert _fields("Rail") <= {"key", "title", "topics", "empty_reason", "has_circle"}
 
 
 def test_rails_answer_has_sections(monkeypatch):
@@ -103,7 +112,8 @@ def test_rails_answer_has_sections(monkeypatch):
                                       headers={"X-FAM-Client": "ios/1.0.0+2"}).json()
     assert "sections" in page
     for section in page["sections"]:
-        assert _fields("Rail") <= set(section)
+        # `has_circle` is the friends rail's alone.
+        assert _fields("Rail") - {"has_circle"} <= set(section), section.keys()
 
 
 def test_the_browse_length_is_the_servers():
@@ -180,7 +190,9 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
         body = re.search(r"func %s\(.*?\n    \}" % fn, _api(), re.S).group(0)
         return set(re.findall(r'URLQueryItem\(name: "(\w+)"', body))
     # `fmt` is how to send it and `own` whose words they are; neither is the key.
-    assert names("audio") - {"fmt", "own"} == names("progress"), (names("audio"), names("progress"))
+    # `fmt` is how to send it, `own` whose words, `cached_only` a replay;
+    # none of them changes which episode it is.
+    assert names("audio") - {"fmt", "own", "cached_only"} == names("progress"), (names("audio"), names("progress"))
 
 
 def test_the_players_side_channels_decode_what_the_server_sends():
@@ -189,7 +201,11 @@ def test_the_players_side_channels_decode_what_the_server_sends():
     the server writes somewhere - a renamed key would fail on a phone."""
     server = "\n".join(p.read_text() for p in ROOT.glob("*.py"))
     for struct in ("NextThread", "Sources", "SourceItem", "Transcript", "EpisodeCard",
-                   "SavedState", "SharedLink", "NextUpPage"):
+                   "SavedState", "SharedLink", "NextUpPage",
+                   # DailyFAM: View more, Pick up, the faces row, the library.
+                   "SectionPage", "TileGroup", "PickUpPage", "PickUpThread", "PickUpResume",
+                   "SavedPage", "SavedItem", "CirclePage", "CirclePerson", "CircleMe", "Story",
+                   "CatalogPage", "CatalogEpisode", "FriendFace", "RailsPage"):
         body = re.search(r"struct %s:[^{]*\{(.*?)\n\}" % struct, _api(), re.S)
         assert body, struct
         for field in {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}:

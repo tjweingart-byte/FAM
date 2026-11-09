@@ -69,11 +69,12 @@ struct MainTabs: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @State private var tab: Tab = .daily
+    @State private var scrollToTop = 0
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                DailyView().opacity(tab == .daily ? 1 : 0).allowsHitTesting(tab == .daily)
+                DailyView(scrollToTop: $scrollToTop).opacity(tab == .daily ? 1 : 0).allowsHitTesting(tab == .daily)
                 SearchView(tab: $tab).opacity(tab == .search ? 1 : 0).allowsHitTesting(tab == .search)
                 YouView().opacity(tab == .you ? 1 : 0).allowsHitTesting(tab == .you)
             }
@@ -83,7 +84,11 @@ struct MainTabs: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 8)
             }
-            TabBar(tab: $tab)
+            TabBar(tab: $tab) {
+                // DailyFAM again while on it scrolls to the top; arriving
+                // from another tab fetches the page afresh (`openMyFamTab`).
+                if tab == .daily { scrollToTop += 1 } else { Task { await model.loadRails() } }
+            }
         }
         .overlay(alignment: .bottom) {
             ToastView().padding(.bottom, 96)
@@ -102,6 +107,7 @@ struct MainTabs: View {
 
 struct TabBar: View {
     @Binding var tab: Tab
+    var onDaily: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
@@ -118,7 +124,10 @@ struct TabBar: View {
 
     private func item(_ which: Tab, _ label: String, _ icon: Path) -> some View {
         let on = tab == which
-        return Button { tab = which } label: {
+        return Button {
+            if which == .daily { onDaily() }
+            tab = which
+        } label: {
             VStack(spacing: 3) {
                 WebIcon(path: icon, size: 20)
                     .foregroundStyle(on ? FAMColor.copper : FAMColor.textMuted)

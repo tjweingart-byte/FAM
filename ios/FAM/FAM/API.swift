@@ -79,9 +79,83 @@ final class FAMAPI: @unchecked Sendable {
 
     // MARK: - Listening
 
-    /// The rails the app shows as "DailyFAM" (`names-swapped`).
-    func rails() async throws -> [Rail] {
-        try await send("GET", "api/v1/myfam", as: RailsPage.self).sections
+    /// The rails the app shows as "DailyFAM" (`names-swapped`), with the
+    /// face book their cards' friends pills point into.
+    func rails() async throws -> RailsPage {
+        try await get("api/v1/myfam", [URLQueryItem(name: "minutes", value: Self.minutes(Self.browseMinutes))],
+                      as: RailsPage.self)
+    }
+
+    /// One rail's View more: up to 16 at a time (§363), `seen` dealt past.
+    func section(_ key: String, seen: [String], pageSize: Int) async throws -> SectionPage {
+        var items = [
+            URLQueryItem(name: "key", value: key),
+            URLQueryItem(name: "minutes", value: Self.minutes(Self.browseMinutes)),
+            URLQueryItem(name: "page_size", value: String(pageSize)),
+            URLQueryItem(name: "seen", value: seen.joined(separator: ",")),
+        ]
+        // Made for you cycles through what is written (`SECTION_CYCLES`).
+        if key == "from_history" { items.append(URLQueryItem(name: "cycle", value: "cached")) }
+        return try await get("api/v1/myfam/section", items, as: SectionPage.self)
+    }
+
+    /// Pick up where you left off (`/api/godeeper`).
+    func pickUp() async throws -> PickUpPage {
+        try await get("api/v1/godeeper", [], as: PickUpPage.self)
+    }
+
+    /// Never offer this one again, on any device.
+    func dismissPickUp(query: String) async {
+        _ = try? await send("POST", "api/v1/godeeper/dismiss", body: ["query": query], as: Ignored.self)
+    }
+
+    /// Which episodes are saved, so the cards' bookmarks are lit.
+    func savedKeys() async throws -> Set<String> {
+        let page = try await get("api/v1/saved", [], as: SavedPage.self)
+        return Set(page.items.map { "\($0.query)|\(Self.minutes($0.minutes))" })
+    }
+
+    func saveTile(query: String, title: String, source: String) async throws {
+        _ = try await send("POST", "api/v1/saved", body: [
+            "query": query, "minutes": Self.browseMinutes, "title": title, "source": source,
+        ], as: SavedState.self)
+    }
+
+    func unsaveTile(query: String) async throws {
+        _ = try await sendQuery("DELETE", "api/v1/saved", [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "minutes", value: Self.minutes(Self.browseMinutes)),
+        ], as: SavedState.self)
+    }
+
+    /// The faces row: friends and people followed, with their stories (§297).
+    func circle() async throws -> CirclePage {
+        try await get("api/v1/circle", [URLQueryItem(name: "notes", value: "1")], as: CirclePage.self)
+    }
+
+    /// A reply to a friend's story is a message carrying the episode (`story-reply`).
+    func reply(to userID: String, text: String, story: Story) async throws {
+        _ = try await send("POST", "api/v1/messages", body: [
+            "to": userID, "text": text, "query": story.query ?? "",
+            "minutes": story.minutes ?? Self.browseMinutes, "title": story.title ?? "", "reply": true,
+        ], as: Ignored.self)
+    }
+
+    /// The heart on a friend's story.
+    func rate(query: String, minutes: Double, like: Bool) async {
+        _ = try? await send("POST", "api/v1/rate", body: [
+            "query": query, "minutes": minutes, "value": like ? 1 : 0,
+        ], as: Ignored.self)
+    }
+
+    /// Search DailyFAM: the A to Z of episodes other people made.
+    func catalog() async throws -> [CatalogEpisode] {
+        try await get("api/v1/myfam/catalog", [], as: CatalogPage.self).episodes
+    }
+
+    func searchCatalog(_ words: String) async throws -> [CatalogEpisode] {
+        try await get("api/v1/myfam/search", [URLQueryItem(name: "q", value: words)],
+                      as: CatalogPage.self).episodes
     }
 
     /// Under the search box: a tap lands on an episode already written.
@@ -97,7 +171,8 @@ final class FAMAPI: @unchecked Sendable {
     /// The audio of one episode as bare PCM (`fmt=pcm`). A DailyFAM tile
     /// names its topic; a search names its length and says it is a search.
     func audio(query: String, minutes: Double, surface: String,
-               topicID: String = "", context: String = "", own: Bool = false) -> URLRequest {
+               topicID: String = "", context: String = "", own: Bool = false,
+               cachedOnly: Bool = false) -> URLRequest {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -109,6 +184,8 @@ final class FAMAPI: @unchecked Sendable {
         // one is the listener's own words, held to their AI answer.
         if !context.isEmpty { items.append(URLQueryItem(name: "context", value: context)) }
         if own { items.append(URLQueryItem(name: "own", value: "1")) }
+        // A replay of an episode somebody else made: never written again.
+        if cachedOnly { items.append(URLQueryItem(name: "cached_only", value: "true")) }
         return request("GET", "api/v1/audio", query: items)
     }
 
@@ -351,13 +428,131 @@ struct Listener: Decodable, Equatable {
     var waitlisted: Bool { status == "waitlisted" }
 }
 
-struct RailsPage: Decodable { let sections: [Rail] }
+struct RailsPage: Decodable {
+    let sections: [Rail]
+    /// "taste", or "startup"/"sample" while a listener has no history:
+    /// rail 1 is then headed "Start here".
+    let tasteSource: String?
+    let friendFaces: [FriendFace]?
+}
+
+/// A face a card's "friends listened" pill points into (`friend_faces`).
+struct FriendFace: Decodable, Hashable {
+    let name: String
+    let handle: String?
+    let avatar: String?
+}
+
+/// `/api/myfam/section`.
+struct SectionPage: Decodable {
+    let key: String
+    let topics: [Tile]
+    let emptyReason: String?
+    let ready: Int?
+    let total: Int?
+    let more: Bool?
+    let wrapped: Bool?
+    let caughtUp: Bool?
+    let friendFaces: [FriendFace]?
+    let groups: [TileGroup]?
+}
+
+/// Trending's View more, by continent: Worldwide first (§174).
+struct TileGroup: Decodable, Identifiable {
+    let key: String
+    let label: String
+    let yours: Bool?
+    let topics: [Tile]
+    var id: String { key }
+}
+
+/// `/api/godeeper`: episodes left part way, and threads to pick up.
+struct PickUpPage: Decodable {
+    let threads: [PickUpThread]
+    let resume: [PickUpResume]
+}
+
+struct PickUpThread: Decodable, Hashable {
+    let thread: String
+    let title: String
+    let summary: String?
+}
+
+struct PickUpResume: Decodable, Hashable {
+    let query: String
+    let minutes: Double
+    let seconds: Double
+    let title: String
+    let context: String?
+    let duration: Double?
+    let summary: String?
+}
+
+struct SavedPage: Decodable { let items: [SavedItem] }
+
+struct SavedItem: Decodable {
+    let query: String
+    let minutes: Double
+}
+
+/// `/api/circle?notes=1`.
+struct CirclePage: Decodable {
+    let circle: [CirclePerson]
+    let me: CircleMe?
+}
+
+struct CirclePerson: Decodable, Identifiable {
+    let userId: String
+    let name: String
+    let handle: String
+    let avatar: String
+    let fresh: Bool?
+    let stories: [Story]
+    var id: String { userId }
+}
+
+struct CircleMe: Decodable {
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    let stories: [Story]?
+}
+
+/// A vibe on someone's story, or a note (`kind: "note"`, no episode).
+struct Story: Decodable, Identifiable, Hashable {
+    let id: Int
+    let kind: String?
+    let query: String?
+    let title: String?
+    let minutes: Double?
+    let caption: String?
+    let text: String?
+    let at: Double
+}
+
+/// `/api/myfam/catalog` and `/api/myfam/search`.
+struct CatalogPage: Decodable { let episodes: [CatalogEpisode] }
+
+struct CatalogEpisode: Decodable, Hashable {
+    let query: String
+    let title: String
+    let minutes: Double
+    let plays: Int?
+    let sourcedAgeSeconds: Double?
+    let explicit: Bool?
+    let letter: String?
+    let thumb: String?
+}
 
 /// One row of DailyFAM: "Made for you", "Trending", …
 struct Rail: Decodable, Identifiable, Equatable {
     let key: String
     let title: String
-    let topics: [Tile]
+    var topics: [Tile]
+    /// What an empty rail says, in the server's words (`_empty_reason`).
+    let emptyReason: String?
+    /// The friends rail: does this listener follow anyone at all?
+    let hasCircle: Bool?
     var id: String { key }
 }
 
@@ -371,13 +566,23 @@ struct Tile: Decodable, Identifiable, Hashable {
     let thumb: String
     /// The subject printed on the picture ("TECH"), `thumb_facet`.
     let thumbFacet: String
+    /// Written already: plays at once ("ready").
+    let cached: Bool
+    /// A game's line ("Eagles 21 - 17 Cowboys, Q3") and how live it is.
+    let liveLine: String
+    let liveStatus: String
+    let liveAsOf: Double
+    let friendsListened: Int
+    /// Indexes into the page's `friend_faces`.
+    let friendsFaces: [Int]
 
     /// The card's one line under the title: the angle, else the subtitle
     /// (`seedHook` on the web).
     var hook: String { angle.isEmpty ? subtitle : angle }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, subtitle, angle, query, thumb, thumbFacet
+        case id, title, subtitle, angle, query, thumb, thumbFacet, cached
+        case liveLine, liveStatus, liveAsOf, friendsListened, friendsFaces
     }
 
     /// Lenient: a tile from any rail decodes even if a field is missing,
@@ -391,6 +596,12 @@ struct Tile: Decodable, Identifiable, Hashable {
         query = try c.decodeIfPresent(String.self, forKey: .query) ?? title
         thumb = try c.decodeIfPresent(String.self, forKey: .thumb) ?? ""
         thumbFacet = try c.decodeIfPresent(String.self, forKey: .thumbFacet) ?? ""
+        cached = try c.decodeIfPresent(Bool.self, forKey: .cached) ?? false
+        liveLine = try c.decodeIfPresent(String.self, forKey: .liveLine) ?? ""
+        liveStatus = try c.decodeIfPresent(String.self, forKey: .liveStatus) ?? ""
+        liveAsOf = try c.decodeIfPresent(Double.self, forKey: .liveAsOf) ?? 0
+        friendsListened = try c.decodeIfPresent(Int.self, forKey: .friendsListened) ?? 0
+        friendsFaces = try c.decodeIfPresent([Int].self, forKey: .friendsFaces) ?? []
     }
 }
 

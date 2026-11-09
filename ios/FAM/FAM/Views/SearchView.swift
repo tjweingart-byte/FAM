@@ -17,10 +17,27 @@ struct SearchView: View {
 
     private static let lengths: [Double] = [1, 1.5, 2, 3, 4, 5]
 
+    @State private var library = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                Spacer(minLength: 120)
+                // The bookshelf: the A to Z of episodes other people made
+                // (10.12 packet #3, top left of searchFAM).
+                HStack {
+                    Button { library = true } label: {
+                        Image(systemName: "books.vertical")
+                            .font(.system(size: 16))
+                            .foregroundStyle(FAMColor.text)
+                            .frame(width: 34, height: 34)
+                            .overlay(Circle().stroke(FAMColor.borderStrong))
+                    }
+                    .accessibilityLabel("The episode library")
+                    Spacer()
+                }
+                .padding(.top, 8)
+                .padding(.leading, 20)
+                Spacer(minLength: 80)
                 Wordmark(size: 30)
                     .padding(.bottom, 22)
                 bar
@@ -36,6 +53,10 @@ struct SearchView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(FAMColor.background)
+        .fullScreenCover(isPresented: $library) {
+            CatalogView()
+                .environmentObject(model)
+        }
         .task { await loadTrending() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { minutes = 1.5 }

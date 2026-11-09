@@ -24,6 +24,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var railsProblem = ""
     @Published private(set) var loadingRails = false
     @Published var showPlayer = false
+    /// "taste", or "startup"/"sample": rail 1 is headed "Start here".
+    @Published private(set) var tasteSource = "taste"
+    /// The face book the cards' friends pills point into.
+    @Published private(set) var friendFaces: [FriendFace] = []
+    /// `query|minutes` of every saved episode, so bookmarks are lit.
+    @Published private(set) var savedTiles: Set<String> = []
+    @Published private(set) var pickUp: PickUpPage?
+    @Published private(set) var circle: CirclePage?
+    /// Where a resumed episode should jump to once enough has arrived.
+    private var resumeAt: Double = 0
 
     let api: FAMAPI
     let safety: SafetyAPI
@@ -66,6 +76,7 @@ final class AppModel: ObservableObject {
                 if let ep = self.pending { self.nowPlaying.begin(ep) }
                 self.pending = nil
                 self.showPlayer = true
+                self.seekWhenArrived()
             }
         }
         player.onFinished = { [weak self] in
@@ -135,17 +146,145 @@ final class AppModel: ObservableObject {
 
     // MARK: - DailyFAM
 
+    /// The page, and with it the faces row, the saved bookmarks and Pick
+    /// up where you left off - as `loadMyFamFeed` does on the web.
     func loadRails() async {
         loadingRails = true
         defer { loadingRails = false }
+        async let faces: Void = loadCircle()
+        async let pick: Void = loadPickUp()
+        async let saves: Void = loadSavedTiles()
         do {
-            rails = try await api.rails()
-            railsProblem = rails.isEmpty ? "Nothing is ready yet." : ""
+            let page = try await api.rails()
+            rails = page.sections
+            tasteSource = page.tasteSource ?? "taste"
+            friendFaces = page.friendFaces ?? []
+            railsProblem = ""
         } catch FAMError.waitlisted {
             stage = .waiting
         } catch {
-            railsProblem = error.localizedDescription
+            railsProblem = "Your feed could not load. Search still works — try again in a moment."
         }
+        _ = await (faces, pick, saves)
+    }
+
+    func loadCircle() async {
+        if let found = try? await api.circle() { circle = found }
+    }
+
+    func loadPickUp() async {
+        pickUp = (try? await api.pickUp()) ?? PickUpPage(threads: [], resume: [])
+    }
+
+    private func loadSavedTiles() async {
+        if let keys = try? await api.savedKeys() { savedTiles = keys }
+    }
+
+    /// "Made for you,\nMonday evening" - or "Start here" with no history yet.
+    func madeForTitle(multiline: Bool = true) -> String {
+        let now = Date()
+        let hour = Calendar.current.component(.hour, from: now)
+        let part = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening"
+        let day = now.formatted(.dateTime.weekday(.wide))
+        let lead = (tasteSource == "startup" || tasteSource == "sample") ? "Start here," : "Made for you,"
+        return lead + (multiline ? "\n" : " ") + day + " " + part
+    }
+
+    /// A rail's heading, as the web draws it (`SECTION_TITLE`).
+    func heading(for rail: Rail) -> String {
+        switch rail.key {
+        case "from_history": return madeForTitle()
+        case "world_trending": return "Trending"
+        case "missed": return "What you missed last week"
+        case "most_played": return "Most played episodes today"
+        case "followers": return "What your friends are listening to"
+        default: return rail.title
+        }
+    }
+
+    func isSaved(_ tile: Tile) -> Bool {
+        savedTiles.contains("\(tile.query)|\(FAMAPI.minutes(FAMAPI.browseMinutes))")
+    }
+
+    /// The card's bookmark (`saveTile`).
+    func toggleSave(_ tile: Tile) {
+        let key = "\(tile.query)|\(FAMAPI.minutes(FAMAPI.browseMinutes))"
+        if savedTiles.contains(key) {
+            savedTiles.remove(key)
+            Task {
+                do {
+                    try await api.unsaveTile(query: tile.query)
+                    nowPlaying.say("Removed from Saved for Later")
+                } catch {
+                    savedTiles.insert(key)
+                    nowPlaying.say("Could not take that off")
+                }
+            }
+        } else {
+            savedTiles.insert(key)
+            Task {
+                do {
+                    try await api.saveTile(query: tile.query, title: tile.title, source: "myfam")
+                    nowPlaying.say("Saved for Later")
+                    await api.event("save", topicID: tile.id, text: tile.query)
+                } catch {
+                    savedTiles.remove(key)
+                    nowPlaying.say("Could not save that")
+                }
+            }
+        }
+    }
+
+    /// "Not interested" from a card's ⋯ (§499): the tile leaves every rail.
+    func notInterested(_ tile: Tile) {
+        Task { await api.event("not_interested", topicID: tile.id,
+                               text: tile.query.isEmpty ? tile.title : tile.query) }
+        for i in rails.indices { rails[i].topics.removeAll { $0.id == tile.id } }
+        nowPlaying.say("Got it — you’ll see less like this")
+    }
+
+    func addToQueue(_ tile: Tile) {
+        nowPlaying.addToQueue(episode(for: tile))
+    }
+
+    func episode(for tile: Tile) -> Episode {
+        Episode(key: EpisodeKey(query: tile.query, minutes: FAMAPI.browseMinutes),
+                title: tile.title, surface: "myfam", topicID: tile.id,
+                picture: api.picture(tile.thumb))
+    }
+
+    /// A Pick up card: an episode left part way resumes where it was; a
+    /// thread plays as a follow-up.
+    func playPickUp(resume card: PickUpResume) {
+        let ep = Episode(key: EpisodeKey(query: card.query, minutes: card.minutes, context: card.context ?? ""),
+                         title: card.title.isEmpty ? NowPlayingModel.titleFromQuestion(card.query) : card.title,
+                         surface: "other")
+        play(ep, resumeAt: card.seconds)
+    }
+
+    func playPickUp(thread card: PickUpThread) {
+        play(Episode(key: EpisodeKey(query: card.thread, minutes: FAMAPI.browseMinutes),
+                     title: card.title, surface: "myfam"))
+    }
+
+    /// The X on a Pick up card: gone for good, on every device.
+    func dismissPickUp(query: String) {
+        if var page = pickUp {
+            page = PickUpPage(threads: page.threads.filter { $0.thread != query },
+                              resume: page.resume.filter { $0.query != query })
+            pickUp = page
+        }
+        Task {
+            await api.dismissPickUp(query: query)
+            await loadPickUp()
+        }
+    }
+
+    /// Search DailyFAM: an episode somebody else made, replayed.
+    func playCatalog(_ item: CatalogEpisode) {
+        startPlaying(Episode(key: EpisodeKey(query: item.query, minutes: item.minutes),
+                             title: item.title, surface: "", picture: api.picture(item.thumb ?? "")),
+                     cachedOnly: true)
     }
 
     // MARK: - Playing
@@ -203,20 +342,22 @@ final class AppModel: ObservableObject {
     /// Every play: the loading screen first, the audio held behind it, the
     /// player opened when the five steps are done (`search-no-cover`). A
     /// typed follow-up asks the AI question first, like a search.
-    func play(_ ep: Episode) {
+    func play(_ ep: Episode, resumeAt: Double = 0) {
         if ep.own && consent.current?.given != true {
             Task {
                 guard await consent.ensure() else { return }
-                startPlaying(ep)
+                startPlaying(ep, resumeAt: resumeAt)
             }
             return
         }
-        startPlaying(ep)
+        startPlaying(ep, resumeAt: resumeAt)
     }
 
-    private func startPlaying(_ ep: Episode) {
+    private func startPlaying(_ ep: Episode, resumeAt: Double = 0, cachedOnly: Bool = false) {
+        self.resumeAt = resumeAt
         let request = api.audio(query: ep.key.query, minutes: ep.key.minutes, surface: ep.surface,
-                                topicID: ep.topicID, context: ep.key.context, own: ep.own)
+                                topicID: ep.topicID, context: ep.key.context, own: ep.own,
+                                cachedOnly: cachedOnly)
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }
@@ -233,6 +374,21 @@ final class AppModel: ObservableObject {
         }
         lastPlay = go
         go()
+    }
+
+    /// A resumed episode jumps to where it was left once that much has
+    /// arrived (`pendingResumeSeek`).
+    private func seekWhenArrived() {
+        let at = resumeAt
+        resumeAt = 0
+        guard at > 0 else { return }
+        Task {
+            for _ in 0..<120 {
+                if player.seekLimit >= at { player.seek(to: at); return }
+                if player.complete { player.seek(to: min(at, player.seekLimit)); return }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+        }
     }
 
     /// The server said no. The AI question is asked and the episode tried
