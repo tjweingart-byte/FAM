@@ -356,6 +356,12 @@ class Brief:
     #: exactly what it was. Kept on the brief so a brief warmed before the
     #: tap carries it.
     contextualized: dict = field(default_factory=dict)
+    #: **Nando's own choice, made ahead of the tap** (§501): the node his
+    #: call picked from his candidates when nothing solid filed the request
+    #: and C3P0 chose nothing. Decided where the brief is built, so a brief
+    #: warmed for a myFAM tile carries his decision to the tap that takes it
+    #: - before §501 that tap filed only what code read. "" otherwise.
+    category_pick: str = ""
     #: Which thing a name that means two things is (§426): the reading the
     #: listener chose, or C3P0's likeliest for a client that cannot ask. ""
     #: otherwise, and the writer then reads exactly what it did before.

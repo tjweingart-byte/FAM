@@ -31496,3 +31496,88 @@ faults in the chips, all fixed with tests in
   post-episode grid: `generate` drops a category's queued rest when anything
   but a queue entry or another category play starts; what the listener
   queued themselves stays.
+
+## 501. Nando on the background paths: a warmed brief carries his decision, and each path is counted (2026-11-09)
+
+The owner: categorisation early in the pipeline matters more than anything,
+and Nando must work on the background paths as much as on a search. Every
+write path was traced, with the agents on (`AGENTS=1 CATEGORIZER=1`):
+
+| path | before | now |
+|---|---|---|
+| a search | his call beside the brief, placed in `prepare`, settled | unchanged |
+| prefetch, `script` level | placed in `prepare`, his call awaited, settled | his call made in `understand`, read in `prepare` |
+| the Trending and DailyFAM editions (batched or not) | the same, through `batch_request` / `stream_sentences` | the same as prefetch |
+| **prefetch, `brief` level** (the default; what myFAM warms for likely taps) | **`understand` only: no placement and no call of his** | his call made in `understand`, kept on the brief |
+| **a tap that takes that warmed brief** | **`understand` returns before his call beside the brief starts, so only a solid source filed it - a tile's own filing, or nothing** | files the pick the brief carries |
+
+So the gap was the commonest myFAM tap: a brief warmed ahead, then tapped.
+Where the tile carried its own category (a live or Trending story) that
+still filed it; anything else - a Go Deeper prediction, a trending search,
+a bank question with no tree tag - went unfiled, the writer's words
+standing, and no grade of the answer key could teach him from it, because
+he never decided.
+
+**What changed.** `script_generator._nando_decides_ahead`, at the end of
+`ScriptGenerator.understand` whenever the episode is written ahead of the
+tap: under exactly `prepare`'s conditions (Nando working, C3P0 neither
+picking nor calling it ambiguous, nothing solid filing it, candidates, no
+undecided two-meaning name), his own call is awaited - nobody waits - and
+the node kept as `Brief.category_pick`. `prepare` reads it as it reads his
+tie call: never over C3P0's unsureness, and dropped under the
+"never a guess" rule (§426) the same way. Since it is on the brief,
+`prepare`'s own ahead call is not made a second time, so an edition or a
+script-level warm still costs one call of his, not two. A failed call
+leaves the brief as it was.
+
+**Counted per path.** `category_audit.summary()["nando"]["by_origin"]`
+(and so `tools/categories_report.py --audit`): per origin, the episodes
+written, how many he filed, the rate - `None`, never 0, with none. The
+first production numbers after this ships say whether the background paths
+file as often as a search.
+
+**Latency.** None on a search or in front of the first word: the call is
+made ahead of the tap. A brief-level warm now costs at most one Haiku call
+more (about 0.01 cents), counted in prefetch's dollar budget with the rest
+of the warm.
+
+**Not measured here.** The rates need episodes written with the agents on.
+
+**Training, proposed for the owner's choice** (nothing below is built):
+
+1. **Grade what teaches, not what is newest.** The key grades the 50
+   newest episodes a night (`training.judge_batch`), so an edition's burst
+   crowds out searches or the reverse. Choose them instead: stratified by
+   write path and facet, then disagreement first - Nando filed nothing,
+   Nando against the writer's words, re-filed episodes, his small model
+   unsure.
+2. **The judge through the Batch API**, at half price: nobody waits at
+   03:00, the rule the editions' writers keep (§179). Twice the grades a
+   night for the same money.
+3. **Check the solid sources too.** A tile's or an edition's category is
+   solid - the words may narrow it, never move it - so a composer's wrong
+   category is filed on every tap of that story, and the key's correction
+   counts as Nando's mistake though he could not have made another choice.
+   Report the key against the source that filed it (composer, bank tag,
+   DailyFAM subject), and feed the composer's corrected mistakes to its own
+   prompt as worked examples.
+4. **The owner's labels above Opus's.** A short daily queue on /admin of
+   the key's grades to confirm or correct: it measures how often Opus
+   agrees with the owner ([episode-quality]: a grader trusted once it
+   matches the owner), and each correction becomes a worked example ahead
+   of the key's.
+5. **Listeners' signals point the key, never label.** A category chip tap
+   (§500) followed by a quick skip, or a "Not interested" from a category
+   page, puts that episode first in the night's grading.
+6. **Measure on real traffic.** Freeze a held-out set from graded
+   production requests each month, per write path, so `nando_eval.py`
+   measures DailyFAM prompts and tile titles as well as typed searches.
+7. **§389's untried experiment**: drafted definitions on code's own matches
+   only, no exclusions.
+
+Tests: `tests/test_nando_background_501.py` (ahead of the tap and on a
+prefetch the brief carries his pick, asked as an ahead call; a search
+unchanged; not asked when C3P0 chose or was unsure, when the tap files it,
+or when he is not working; a failed call changes nothing; the tap taking a
+warmed brief files the pick without asking again; an edition asks once;
+the pick dropped when the brief is unsure; the audit per origin).

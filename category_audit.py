@@ -120,6 +120,10 @@ def _nando_summary(rows: list, examples: int) -> dict:
             names[name] = names.get(name, 0) + 1
     return {
         "filed": len(filed),
+        # Every write path apart (§501): a search, prefetch, each edition.
+        # The background paths are as much his work as a search, so how
+        # often he files each is its own number, never one blended rate.
+        "by_origin": _nando_by_origin(rows),
         "differs_from_writer_words": len(moved),
         # Filed under the parent because the placement was unsure (§373).
         "broader_when_unsure": len(unsure),
@@ -132,6 +136,21 @@ def _nando_summary(rows: list, examples: int) -> dict:
                      "after": r.get("nando", ""), "words": r["words"]}
                     for r in refiled[:examples]],
     }
+
+
+def _nando_by_origin(rows: list) -> dict:
+    """Per origin: episodes written, how many Nando filed (a node stored
+    with the episode), and the rate - None, not 0, with no episodes."""
+    out: dict = {}
+    for r in rows:
+        origin = r.get("origin") or "?"
+        entry = out.setdefault(origin, {"episodes": 0, "filed": 0})
+        entry["episodes"] += 1
+        if r.get("nando"):
+            entry["filed"] += 1
+    for entry in out.values():
+        entry["filed_rate"] = _rate(entry["filed"], entry["episodes"])
+    return dict(sorted(out.items()))
 
 
 def _answer_key(days: float, examples: int) -> dict:

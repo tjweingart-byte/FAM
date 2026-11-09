@@ -826,6 +826,43 @@ def _agent_runs(notes, role: str) -> bool:
     runs = getattr(getattr(notes, "agents", None), "runs", None)
     return bool(runs(role)) if callable(runs) else False
 
+async def _nando_decides_ahead(plan: "EpisodePlan", notes) -> "EpisodePlan":
+    """Nando's own call ahead of the tap, awaited because nobody waits
+    (§379), kept on the brief as `category_pick` (§501).
+
+    Asked under exactly the conditions `prepare` asks it ahead: Nando works
+    on the episode, C3P0 neither picked nor called the request ambiguous,
+    nothing solid files it, there are candidates, and no name in it means
+    two things that nothing decided (never a guess, §426). Never raises: a
+    failure leaves the brief as it was, and the writer's category stands.
+    """
+    brief = plan.brief
+    if (brief is None or getattr(brief, "degraded", False)
+            or getattr(brief, "category_pick", "")
+            or not _agent_runs(notes, "categorizer")):
+        return plan
+    try:
+        from agents import categorizer
+
+        said = getattr(brief, "contextualized", None) or {}
+        if said.get("ambiguous") or said.get("node"):
+            return plan
+        field = categorizer.provider_field(plan.query)
+        prior = categorizer.prior_for(plan.query, plan.context, notes)
+        placed = categorizer.place(brief, plan.query, field, prior, "")
+        if placed.node or placed.ambiguous or not placed.candidates:
+            return plan
+        pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,
+                                         ahead=True)
+        if not pick:
+            return plan
+        return dataclasses.replace(plan, brief=dataclasses.replace(brief, category_pick=pick))
+    except Exception:  # noqa: BLE001 - a filing is never worth an episode
+        log.warning("nando could not decide ahead of the tap for %r", plan.query,
+                    exc_info=True)
+        return plan
+
+
 class ReadingNeeded(Exception):
     """A name in the request means two things and the listener has not said
     which (decided item 15; c3p0.md always 2, §426). Raised after the brief
@@ -2723,6 +2760,12 @@ class ScriptGenerator:
         plan = dataclasses.replace(
             plan, brief=episode_intelligence.place_category(brief))
         _take_brief_names(plan)
+        # Ahead of the tap, Nando decides here, with the brief (§501): every
+        # background path builds its brief through this method, and a brief
+        # warmed at prefetch's default level is never prepared, so this is
+        # the one place his decision reaches all of them.
+        if ahead:
+            plan = await _nando_decides_ahead(plan, notes)
         return plan
 
     async def live_lookup(self, plan: EpisodePlan,
@@ -2840,10 +2883,14 @@ class ScriptGenerator:
                 unsure = bool(said.get("ambiguous"))
                 field = categorizer.provider_field(plan.query)
                 prior = categorizer.prior_for(plan.query, plan.context, notes)
-                pick = ("" if unsure else said.get("node", "")) or tie
+                # His own choice made ahead of the tap (§501), carried by a
+                # warmed brief to the tap that takes it, or by the brief an
+                # edition or a prefetch built a moment ago.
+                ahead_pick = "" if unsure else getattr(plan.brief, "category_pick", "")
+                pick = ("" if unsure else said.get("node", "")) or tie or ahead_pick
                 placed = categorizer.place(plan.brief, plan.query, field, prior, pick,
                                            unsure=unsure)
-                if tie and pick == tie and not plan.reading:
+                if pick and pick in (tie, ahead_pick) and not plan.reading:
                     # Never a guess (decided item 15, §426, settling §377):
                     # his tie call does not choose between the readings of a
                     # name code left undecided. C3P0 asks the listener; until
