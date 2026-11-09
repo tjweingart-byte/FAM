@@ -248,7 +248,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         guard dataTask == task else { return }
-        if refusedStatus != nil {
+        if refusedResponse != nil {
             refusalBody.append(data)
             return
         }
