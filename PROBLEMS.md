@@ -31945,13 +31945,17 @@ the session's network); `/api/thumb/culture` and the seven other facets, or
    dropped from `tags_for_text` when the words name a sport. "PGA Tour" is no
    longer music; "Taylor Swift tour dates" still is.
 3. **Other names for a node** (`category_seed.ALIASES`, matched in
-   `CategoryStore.match`): "lakers", "yankees", "pga tour", "wimbledon",
+   `CategoryStore.match`): "lakers", "yankees", "pga tour", "wta",
    "epl", "man city", "senate", "prime minister" ... each answered as its node
    with that node's ancestry, never as a node. The seed's rule for teams
    holds: no short name that is also an everyday word ("kings", "eagles",
    "spurs" - two sports - "packers", "governor", "shutdown"); a test keeps
    "meat packers", "a plant shutdown" and "the Bank of England governor" out.
    An alias with a word under `MIN_WORD` could never match and is refused.
+   A review of the branch took out seven more that another field owns:
+   "atp" (the molecule), "ucl" (the university), "mls" (house listings),
+   "midterms" (exams), "house speaker", "wimbledon" (the place) and "grand
+   prix" (skating, riding); the test holds each of those questions out.
    "celtics" was tried and taken out: Nando's corpus (§378) files "Heat beat
    the Celtics in the playoffs" under the NBA, a game between two teams, and
    with the Heat left to grow the alias put it under the one team it knew.

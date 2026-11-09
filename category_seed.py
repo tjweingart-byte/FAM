@@ -328,7 +328,10 @@ LOCAL_NODES = ("local news", "town council", "local schools",
 #: above: **a short name only where it means nothing but the team** - no
 #: "kings", "jazz", "eagles", "lions", "giants", "rangers" or "spurs" (two
 #: sports), no city that is also a club ("liverpool", "barcelona"), no
-#: "arsenal". An alias whose node the tree no longer holds is ignored, and
+#: "arsenal"; and no initials or words another field owns - "atp" (the
+#: molecule), "ucl" (the university), "mls" (house listings), "midterms"
+#: (exams), "house speaker", "wimbledon" (the place), "grand prix" (skating,
+#: riding). An alias whose node the tree no longer holds is ignored, and
 #: one that is itself a node is the node.
 ALIASES: dict[str, str] = {
 
@@ -354,24 +357,22 @@ ALIASES: dict[str, str] = {
     "blue jackets": "columbus blue jackets",
     # golf, tennis, motor racing, fighting
     "pga tour": "golf", "pga": "golf", "lpga": "golf", "ryder cup": "golf",
-    "atp": "tennis", "wta": "tennis", "wimbledon": "tennis",
-    "roland garros": "tennis", "grand prix": "motorsport",
+    "wta": "tennis", "roland garros": "tennis",
     "mma": "mixed martial arts",
     # football's leagues and its clubs that are only clubs
-    "epl": "premier league", "mls": "major league soccer",
-    "ucl": "champions league", "laliga": "spanish football",
+    "epl": "premier league", "laliga": "spanish football",
     "manchester united": "premier league", "man united": "premier league",
     "manchester city": "premier league", "man city": "premier league",
     "tottenham hotspur": "premier league", "real madrid": "spanish football",
     "atletico madrid": "spanish football", "bayern munich": "bundesliga",
     "borussia dortmund": "bundesliga", "inter miami": "major league soccer",
     # politics
-    "senate": "congress", "house speaker": "congress",
+    "senate": "congress",
     "lawmakers": "congress", "state legislature": "state politics",
     "governor race": "state politics", "prime minister": "parliament",
     "snap election": "national elections",
     "general election": "national elections",
-    "confidence vote": "parliament", "midterms": "elections and politics",
+    "confidence vote": "parliament",
 }
 
 

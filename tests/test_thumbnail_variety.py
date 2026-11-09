@@ -268,7 +268,7 @@ def test_nothing_placed_wears_nothing(tree):
     ("Man City sack their manager", "premier league"),
     ("Senate passes the spending bill", "congress"),
     ("The governor's race in Virginia", "state politics"),
-    ("Sinner wins at Wimbledon", "tennis"),
+    ("Sabalenka wins the WTA Finals", "tennis"),
 ])
 def test_short_names_reach_their_node(tree, headline, node):
     assert node in tree.match(headline)
@@ -295,9 +295,17 @@ def test_every_alias_can_match_and_names_a_seed_node():
     "meat packers and beef prices",
     "a plant shutdown in Ohio",
     "spurs on a cowboy's boots",
+    "how ATP powers your cells",
+    "a UCL study on sleep",
+    "MLS listings in Austin are up",
+    "studying for midterms",
+    "a smart house speaker review",
+    "the Wimbledon area housing market",
+    "Grand Prix figure skating",
 ])
 def test_everyday_words_are_not_aliases(tree, question):
     caught = set(tree.match(question)) & {
         "congress", "state politics", "government shutdown",
-        "green bay packers", "premier league"}
+        "green bay packers", "premier league", "tennis", "champions league",
+        "major league soccer", "elections and politics", "motorsport"}
     assert not caught, f"{question!r} was filed under {caught}"

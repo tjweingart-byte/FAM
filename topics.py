@@ -1134,25 +1134,30 @@ def picture_facets(text: str) -> tuple[str, ...]:
     (a league or team, `_names_a_sport`), then the facet with the most
     keywords in the words, alphabetical only to break a tie."""
     found = [t for t in tags_for_text(text) if t in FACETS]
-    if found:
-        return tuple(sorted(found, key=lambda f: (_facet_strength(text, f), f)))
     words = set(_WORD.findall((text or "").lower()))
+    if len(found) > 1:
+        # Read once for every facet being ranked: the tree's match and the
+        # sports catalogues are the costly part.
+        tree = category_tree()
+        matched = tree.match(text or "")
+        sport = "sports" in found and _names_a_sport(text)
+        return tuple(sorted(found, key=lambda f: (
+            _facet_strength(tree, matched, words, f, sport), f)))
+    if found:
+        return tuple(found)
     return tuple(sorted(f for f, keys in PICTURE_WORDS.items()
                         if words & set(keys)))
 
 
-def _facet_strength(text: str, facet: str) -> tuple:
+def _facet_strength(tree, matched, words, facet: str, sport: bool) -> tuple:
     """A sort key for `picture_facets`: lower is stronger."""
-    tree = category_tree()
     deepest = -1
-    for node in tree.match(text or ""):
+    for node in matched:
         if _root_facet(node) == facet:
             deepest = max(deepest, tree.depth_of(node))
-    sport = facet == "sports" and _names_a_sport(text)
-    words = set(_WORD.findall((text or "").lower()))
     hits = sum(len(words & set(keys)) for tag, keys in TAG_WORDS.items()
                if tag == facet or TAG_PARENT.get(tag) == facet)
-    return (-deepest, 0 if sport else 1, -hits)
+    return (-deepest, 0 if facet == "sports" and sport else 1, -hits)
 
 #: What one declared interest is worth in `taste`, **added after the
 #: behaviour has been normalised, and never decayed or outvoted** (§202, at
