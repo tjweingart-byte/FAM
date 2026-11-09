@@ -31,17 +31,19 @@
 # Symptom to suspect
 - Site will not load: Render fam, then Postgres
 - Placeholder tone, or stuck at "Generating the audio": RunPod
-- Every episode is the same sample script: the Anthropic key
+- Every episode is the same sample: the Anthropic key setting is empty
+- New episodes fail with an error: the Anthropic key was refused
 - Thin or stale episodes: research keys (Perplexity, Parallel)
 - Replays fail, new episodes play: Cloudflare R2
 - Trending empty: GNews
-> 00_SYSTEM_MAP.md, "One episode, crossing the services".
+> 00_SYSTEM_MAP.md, "When something is wrong, which piece to look at first".
 
 # Access
 - Own login everywhere, never a shared password
 - GitHub Write (not Admin); Render Developer; RunPod Dev; Cloudflare R2 Admin; Atlas project role
 - Your FAM account in FAM_ADMIN_ACCOUNTS for /admin
-- Join the alert inboxes: SUPPORT_EMAIL, IT_ALERT_EMAIL, MODERATION_EMAIL
+- Alerts: SUPPORT_EMAIL, IT_ALERT_EMAIL, MODERATION_EMAIL must reach you (one shared forwarding address is simplest)
+- A production FAM account, let in from the waitlist by the owner
 > 01_ACCESS.md. Fill in the table during the handover.
 
 # What waits for the owner
@@ -61,6 +63,15 @@
 - Stuck? Stop, screenshot, note the step. Do not push on with a guess
 > README.md, "How to read the instructions".
 
+# Reading the health page
+- Open <production address>/api/health in Firefox
+- Type the field name in the Filter JSON box, without quote marks
+- The same word appears in many places: pick the one under the right section
+- The handbook writes paths: database, then reachable, means reachable inside database
+- Counters restart at every deploy: compare within the same day
+- It never contains keys, so it is safe to copy into Claude
+> README.md, "Reading the health page", has the table of every field the handbook uses.
+
 # The route every change takes
 - 1. Feature branch (claude/...) into staging
 - 2. fam-staging updates. Test it there
@@ -72,10 +83,11 @@
 
 # Step 1: feature branch into staging
 - Pull requests, New pull request. base: staging, compare: the claude/ branch
-- Check: "Able to merge" in green
+- GitHub starts with base: Main. Change it to staging FIRST
+- Check: the line reads base: staging, compare: claude/..., and "Able to merge"
 - Create pull request. Read Files changed: only what was asked, no owner-only files
 - Wait 30-40 minutes. Check: "All checks have passed"
-- Merge pull request, Confirm merge. Check: purple Merged badge
+- Arrow beside the button: Create a merge commit. Then Merge, Confirm. Check: "into staging"
 > 02_GITHUB.md, Step 1. Red checks: never merge; paste the error into a Claude session.
 
 # Steps 2 and 3: watch staging, then test it
@@ -124,7 +136,7 @@
 - No rule book, CLAUDE.md rule, CODEOWNERS or deletion
 - Look at the preview on a phone for anything visible
 - Unsure? A fresh session reviews the PR without changing anything
-> 03_CLAUDE.md, "Checking Claude's work before you merge".
+> 03_CLAUDE.md, "Task 2. Check Claude's work before merging".
 
 # Render
 - fam: production, follows Main, auto-deploys, Postgres, no disk
@@ -135,7 +147,7 @@
 > 04_RENDER.md
 
 # Render: deploy and rollback
-- Watch: fam, then Events. Check /api/health build.commit afterwards
+- Watch: fam, then Events. Then the health page: build, short matches the merge
 - Failed deploy: the old version keeps serving. Read the log
 - Bad deploy: Events, then Rollback. Then revert the PR on GitHub
 - A rollback is temporary and never rolls back the database
@@ -202,7 +214,7 @@
 # Runbooks
 - Site down: Events, Rollback, Logs, status pages, then call the owner
 - Voice: /api/health tts, voice_doctor, RunPod Builds, Workers, Billing
-- Sample script everywhere: Anthropic key, spend limit, outage
+- Sample everywhere: key setting empty. Episodes fail: key refused, limit, outage
 - Accounts missing: change nothing that writes, and call the owner
 - Key leaked: revoke and replace now, tell the owner after
 > 10_RUNBOOKS.md has every runbook step by step.
@@ -219,5 +231,7 @@
 - Confirm branch protection on Main and staging
 - Set spend limits and alerts: Anthropic, RunPod
 - Decide: staging-first flow, and how rule books get signed while away
-- One supervised week: the operator ships one change and runs one rollback on staging
+- Let the operator's production account in from the waitlist; make a second staging test account
+- Fill in vendor logins (08 Task 2) and the emergency contact (10)
+- Trial week: open every page the handbook uses, ship one change, one rollback on staging
 > grep -rn "TODO(owner)" docs/operations/ lists them all.

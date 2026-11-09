@@ -4,50 +4,59 @@ Open `https://dashboard.render.com`. You will see:
 
 | Name | What it is | Follows branch | Updates when |
 |---|---|---|---|
-| **fam** | Production. Real listeners. | `Main` | Anything is merged into `Main` |
-| **fam-staging** | The test copy. Free; no real keys; cannot reach the internet. | `staging` | Anything is merged into `staging` |
-| **the Postgres database** | Production's data: accounts, episodes, messages, mixes… | - | - |
+| **fam** | **Production.** Real listeners. | `Main` | Anything is merged into `Main`, or a setting is saved |
+| **fam-staging** | The test copy. Cannot spend money. | `staging` | Anything is merged into `staging`, or a setting is saved |
+| **the database** | Production's data: accounts, episodes, messages, mixes… | - | - |
 
-Click a service's name to open it. The **left-hand menu** is where
-everything is: **Events**, **Logs**, **Environment**, **Shell**, **Settings**.
+Click a service's name to open it. The **left-hand menu** has everything you
+need: **Events**, **Logs**, **Environment**, **Shell**, **Settings**.
+
+> **Before you change anything, look at the service name at the top of the
+> page.** `fam` is production. `fam-staging` is the test copy. They look
+> exactly alike.
 
 > **Good to know:** a file in the repository called `render.yaml` describes
-> both services, but **editing it changes nothing on Render**: both
-> services were set up by hand. Every change is made on the Render website.
-> When you change a setting, ask a Claude session to update `render.yaml`
-> to match, so it stays an accurate record.
+> both services, but **editing it changes nothing on Render**. Both services
+> were set up by hand on the website. If a Claude session tells you a setting
+> is changed "by editing render.yaml", it is mistaken here: change it on the
+> Render website (Task 4). Afterwards, ask Claude to update `render.yaml` to
+> match, so it stays an accurate record.
 
 ---
 
 ## Task 1. Watch a deploy
 
-A "deploy" is Render putting new code live. It happens on its own after
-every merge ([02_GITHUB.md](02_GITHUB.md)), and after every saved setting.
+A "deploy" is Render putting a new version live. It happens on its own after
+every merge ([02](02_GITHUB.md)), and after every saved setting.
 
-1. Click the service (**fam** or **fam-staging**) → **Events**.
+1. Click the service → **Events**.
 
-   > **Check:** the newest line says `Deploy started for <commit>`, and the
-   > commit matches the one GitHub showed when you merged.
+   > **Check:** the newest line says `Deploy started for <code>`. After a
+   > merge, the code matches the 7-character one GitHub showed when you
+   > merged. (After a setting change, it stays the same as before. That is
+   > normal.)
 
-2. Wait 5-15 minutes. Refresh.
+2. Wait up to 15 minutes. Refresh.
 
-   > **Check:** `Deploy live for <commit>`. The new version is running.
-   > Production stays up throughout: Render starts the new version before
+   > **Check:** `Deploy live for <code>`. The new version is running.
+   > Listeners are not interrupted: Render starts the new version before
    > stopping the old one.
    >
-   > **If not:** `Deploy failed`: see [Task 2](#a-deploy-failed).
-   > Still `in progress` after 30 minutes: click it to watch the log.
+   > **If not:** `Deploy failed`: see [Task 2](#a-deploy-failed). Still in
+   > progress after 30 minutes: click it to watch the log, and tell the owner.
 
-3. Open `<address>/api/health`, find `"commit"`.
+3. Open the health page of the same service (`<production address>/api/health`
+   for `fam`, `<staging address>/api/health` for `fam-staging`). Filter for
+   `short` and look under `build` ([how](README.md#reading-the-health-page)).
 
-   > **Check:** it starts with the same 7 characters as the commit in step 1.
+   > **Check:** the same 7 characters as in step 1.
 
 ---
 
 <a id="a-deploy-failed"></a>
 ## Task 2. A deploy failed
 
-**Listeners are not affected**: the previous version keeps running.
+**Listeners are not affected.** The previous version keeps running.
 
 1. **Events** → click the `Deploy failed` line. A log opens.
 2. Scroll to the bottom and read the last 20 lines.
@@ -57,43 +66,58 @@ every merge ([02_GITHUB.md](02_GITHUB.md)), and after every saved setting.
    > protects listeners' accounts. Do not try to get round it.
 
 3. Otherwise, try once more: top right, **Manual Deploy** → **Clear build
-   cache & deploy**.
+   cache & deploy**. This is safe. If it fails again, the old version still
+   keeps serving.
 
    > **Check:** `Deploy live` this time.
 
 4. Still failing? Copy the last 50 lines of the log into a new Claude
-   session:
-   `This Render deploy fails with: <paste>. Find the cause and fix it.`
-   Send its fix through staging as usual ([02_GITHUB.md](02_GITHUB.md)).
+   session: `This Render deploy fails with: <paste>. Find the cause and fix
+   it. Explain what was wrong for someone who does not code.` Send its fix
+   through staging as usual ([02](02_GITHUB.md)).
 
 ---
 
 <a id="roll-back-to-the-last-good-version"></a>
 ## Task 3. Roll back to the last good version
 
-Use this when a deploy went live and broke production. It takes about
-two minutes.
+Use this when a deploy went live and broke production. Write down **the
+time things broke** first.
+
+> **If what broke it was a setting you changed** (not a merge), do not roll
+> back. Change the setting back (Task 4). That is the fix.
 
 1. **fam** → **Events**.
-2. Find the **last `Deploy live` line from before** the bad one. Beside it,
-   click **Rollback** (sometimes under the **⋯** menu), then confirm.
+2. Find the most recent `Deploy live` line from **before** the time things
+   broke. Beside it, click **Rollback** (it may be under a **⋯** menu), then
+   confirm.
 
-   > **Check:** a new line `Rollback started`, then `Deploy live` for the
-   > older commit within a few minutes.
+   > **Check:** a new line `Rollback started`, then `Deploy live` for that
+   > older code within 5 minutes.
 
-3. Open `<production address>/api/health`, find `"commit"`.
+3. Open `<production address>/api/health`, filter `short`, look under `build`.
 
-   > **Check:** it now shows the **older** commit.
+   > **Check:** it now shows the **older** code.
 
 4. Play an episode in the app.
 
    > **Check:** the app works again.
+   >
+   > **If not:** the deploy you rolled back to was not the cause. Do not roll
+   > back further on a guess. Go to [10 → The site is down](10_RUNBOOKS.md#the-site-is-down).
 
 5. **Now revert the change on GitHub**:
-   [02_GITHUB.md → Undoing a change](02_GITHUB.md#undoing-a-change-revert).
+   [02 → Undoing a change](02_GITHUB.md#undoing-a-change-revert).
+   **This is not optional.** A rollback only lasts until the next merge,
+   which would put the broken code straight back.
+6. **Check Auto-Deploy.** Render may switch off automatic deploys after a
+   rollback, so that your rollback is not undone. **fam** → **Settings** →
+   find **Auto-Deploy**.
 
-   **This step is not optional.** A rollback only lasts until the next
-   merge. The next merge into `Main` would put the broken code straight back.
+   > **Check:** once the revert from step 5 is merged into `Main`, Auto-Deploy
+   > must be **On** (it may say **On Commit** or **Yes**). If it is off, turn
+   > it back on, then **Manual Deploy** → **Deploy latest commit**. Otherwise
+   > no merge will ever reach production again.
 
 **A rollback does not undo database changes.** If the bad version changed
 a table, tell the owner. Do not try to fix data by hand.
@@ -102,126 +126,163 @@ a table, tell the owner. Do not try to fix data by hand.
 
 ## Task 4. Change a setting (environment variable)
 
-Every key and setting is on the **Environment** page. Saving one restarts
-the service (a deploy, about 5-15 minutes, no downtime).
+Every key and setting is on the service's **Environment** page. Saving one
+restarts the service: a deploy of up to 15 minutes, with no downtime.
 
 1. Click the service → **Environment**.
+
+   > **Check:** the name at the top of the page is the service you mean
+   > (`fam` = production).
+
 2. Click **Edit**.
-3. To change one, edit its value. To add one, click **Add Environment
-   Variable** and fill in the **Key** (the name, exactly as written in this
-   handbook, capitals included) and the **Value**.
-4. Click **Save, rebuild, and deploy** (or **Save and deploy**).
+3. To change one, edit its value (click the eye icon to see a hidden value).
+   To add one, click **Add Environment Variable** and type the **Key** (the
+   name exactly as written in this handbook, capitals included) and the
+   **Value**.
+4. Click **Save, rebuild, and deploy** (or **Save and deploy**). **Not**
+   **Save only**, which stores the change without applying it.
 
-   > **Check:** Events shows a new deploy, then `Deploy live`.
+   > **Check:** **Events** shows a new deploy, then `Deploy live` within 15
+   > minutes.
 
-5. Check whatever the setting was for on `/api/health` (each document says
-   which word to look for).
+5. Check the result in the place given in the table below.
 6. Write down what you changed, from what, to what, and when. Send it to
    the owner.
 
 **Rules:**
-- **Change one setting at a time** on production, and check it, before the next.
+- **On production, change one setting at a time** and check it before the
+  next.
 - **Never copy a value from `fam` to `fam-staging`.** Staging must have no
   real keys.
 - **Never put a key anywhere but here.**
 
-Settings you may be asked to change:
+Settings you may meet:
 
-| Setting | What it does |
-|---|---|
-| `FAM_ADMIN_ACCOUNTS` | Who can open `/admin` (emails, comma-separated, no spaces) |
-| `FAM_ADMIN_TOKEN` | A password for the admin tools run from a terminal |
-| `AUDIO_LINKS` | `0` = replays stream through Render instead of Cloudflare. An emergency switch ([06](06_CLOUDFLARE.md)). |
-| `ARCHIVE`, `ARCHIVE_RECALL` | `0` = the MongoDB archive off. An emergency switch ([07](07_MONGODB.md)). |
-| `AGENTS`, `HOUSEKEEPER`, `HOUSEKEEPER_DRY_RUN`, `IT_AGENT` | Turn the agents on, off or report-only. **Only when the owner or a written instruction says so.** |
-| `WAITLIST`, `ENFORCE_QUOTAS`, any `..._MODEL`, any `..._PLAN` | **Owner only.** |
+| Setting | What it does | How to check after |
+|---|---|---|
+| `FAM_ADMIN_ACCOUNTS` | Who can open `/admin` (emails, comma-separated, no spaces) | Sign in at `/admin` ([01 Part B step 5](01_ACCESS.md#part-b-the-operator-checks-each-login-works-once)) |
+| `FAM_ADMIN_TOKEN` | A password that scripts use to act as an admin. Never paste it anywhere. | - |
+| `AUDIO_LINKS` | `0` = replays stream through Render instead of Cloudflare. An emergency switch ([06](06_CLOUDFLARE.md#emergency-switches)). | Replay something |
+| `ARCHIVE`, `ARCHIVE_RECALL` | `0` = the MongoDB archive off. An emergency switch ([07](07_MONGODB.md#emergency-switches)). | health: `archive → enabled` |
+| Agent switches (table below) | Turn an agent on (`1`) or off (`0`) | health: `agents` |
+| `WAITLIST`, `ENFORCE_QUOTAS`, anything ending `_MODEL` or `_PLAN` | **Owner only.** | - |
+
+**The agents and their switches.** The health page and `/admin` show an
+agent by its **role**; this handbook usually uses its **name**:
+
+| Name | Role (on the health page) | Switch setting |
+|---|---|---|
+| Netenyahu | `overlord` | `AGENTS` (turns all of them off when `0`) |
+| C3P0 | `contextualizer` | `CONTEXTUALIZER` |
+| Nando | `categorizer` | `CATEGORIZER` |
+| Sonic | `retriever` | `RETRIEVER` |
+| Shakespeare | `editor` | `EDITOR_AGENT` |
+| Mclovin | `supervisor` | `SUPERVISOR` |
+| Consuela | `housekeeper` | `HOUSEKEEPER` (also `HOUSEKEEPER_DRY_RUN`: `1` = report only) |
+| Keith Wong | `it` | `IT_AGENT` |
+
+Switching an agent on or off is the owner's decision
+([01](01_ACCESS.md#owner-only-decisions)), unless the owner has told you
+in writing.
 
 ---
 
 <a id="using-the-shell"></a>
 ## Task 5. Use the Shell
 
-The Shell is a command line *inside* the running production server.
-FAM's diagnostic tools are run from here.
+The Shell is a text box on the Render website that runs commands *inside*
+the production server. FAM's diagnostic tools are run from here. It is the
+only place in this handbook where you type a command.
 
-1. **fam** → **Shell**. Wait for the prompt (a line ending in `$` or `#`).
-2. Type or paste one command. Press Enter. Wait for the prompt to come back.
+1. **fam** → **Shell**.
 
-   > **Check:** the command prints its answer and the prompt returns.
+   > **Check:** a black box appears. After a few seconds it shows a line
+   > ending in `$` or `#`. That means it is ready for a command.
+   >
+   > **If not:** if there is no **Shell** item in the menu, your Render role
+   > does not allow it. Tell the owner.
 
-Safe commands (they only *read*):
+2. Copy one command from the table below, paste it into the box, and press
+   Enter. Wait until the line ending in `$` or `#` comes back.
 
-| Command | Tells you |
-|---|---|
-| `python tools/voice_doctor.py` | Whether the voice works, and what to fix if not |
-| `python tools/storage_doctor.py` | Whether the database is safe from a redeploy (should end with nothing marked ephemeral) |
-| `python tools/stories_report.py` | Whether the news sources are answering |
-| `python tools/usage_report.py --days 7 --flagged` | What listeners cost this week, and any account using far too much |
+These commands only **read**:
+
+| Command | Tells you | Healthy answer |
+|---|---|---|
+| `python tools/voice_doctor.py` | Whether the voice works. Wakes the GPU (costs a few cents), so it can take 90 seconds. | It ends by saying the voice is speaking |
+| `python tools/storage_doctor.py` | Whether the next deploy could wipe anything | The line `ephemeral  0` |
+| `python tools/stories_report.py` | Whether the news sources are answering | Under **Sources**, each line starts `ok` (or `off` for one not set up). `FAIL` or `SLOW` names a failing source. |
+| `python tools/usage_report.py --days 7 --flagged` | What listeners cost this week, and any account using far too much | Under **Worth a look** it says `nobody crossed a threshold in the last hour`. (That wording is fixed. It appears even with `--days 7`.) Anything else listed there is worth reading. |
 
 **Rules for the Shell:**
 - **This is production.** A command that writes changes real data.
-- **Only run commands from this handbook**, or ones a Claude session gave you
-  with a reason. Paste the output back to the session if you need it read.
-- **Anything containing `--yes`, `--all`, `--replace`, `DROP` or `DELETE`
-  waits for the owner.**
-- **Never edit files** here. The changes vanish at the next deploy.
+- **Only run commands from this handbook,** or ones a Claude session gave you
+  with a clear reason. Paste the answer back into the session if you need it
+  explained.
+- **Never run `env`, `printenv`, or anything with `.env` in it.** They print
+  every key on screen.
+- **Anything with `--yes`, `--all`, `--replace`, `DROP` or `DELETE` waits
+  for the owner.**
+- **Never edit files** here. Edits vanish at the next deploy.
 
 ---
 
 ## Task 6. Read the logs
 
-1. **fam** → **Logs**. New lines appear at the bottom as they happen.
+1. **fam** → **Logs**. New lines appear at the bottom as they happen. Times
+   are UTC.
 2. Use the search box at the top to filter.
 
 | Search for | Shows |
 |---|---|
 | `Traceback` or `ERROR` | Failures |
 | `episode timing` | How long each step of each episode took |
-| `voice` | Messages about finding and using the voice |
+| `voice` | Messages about the voice |
 | `agents held` | An agent stopped by its rule-book check ([09](09_AGENT_RULE_SIGNOFF.md)) |
 
-Logs never show keys: FAM hides them automatically. If you ever see one,
-treat it as leaked ([10_RUNBOOKS.md](10_RUNBOOKS.md#a-key-has-leaked)).
+Logs never show keys: FAM hides them. If you ever see one, treat it as
+leaked ([10](10_RUNBOOKS.md#a-key-has-leaked)).
 
-The important errors are also listed on `/admin`, which is easier to read.
+The important errors are also on `/admin` → menu → **Pipeline errors**,
+which is easier to read.
 
 ---
 
 ## The database
 
-All of production's data is in Render Postgres.
+All of production's data is in a Render Postgres database.
+**TODO(owner):** its name and plan.
 
 ### Check it is healthy (daily)
 
-1. Open `<production address>/api/health`. Find `"database"`.
+1. Open `<production address>/api/health`. Filter for `reachable`, and look
+   under `database` (not `databases`, and not `tts`).
 
-   > **Check:** `"backend": "postgres"` and `"reachable": true`.
+   > **Check:** `true`. Under the same `database`, `backend` is `postgres`.
 
-2. Find `"storage"`.
+2. Filter for `ephemeral` (under `storage`).
 
-   > **Check:** the `ephemeral` list is empty `[]`. (Anything listed there
-   > would be wiped by the next deploy. Tell the owner immediately.)
+   > **Check:** `[]` (empty). Anything listed would be wiped by the next
+   > deploy. **Tell the owner immediately.**
 
-3. Render → click the database → **Info**: look at **Storage** used against
-   the plan's size.
+3. Render → click the database (the name above) → **Info**. Look at storage
+   used against the plan's size.
 
    > **Check:** below 80%. Above that, tell the owner (a bigger plan is
    > their decision).
-
-**TODO(owner):** write the database's name and plan here.
 
 <a id="take-a-database-backup"></a>
 ### Take a database backup
 
 Do this **before merging a batch that changes a database table**
-([02_GITHUB.md, Step 4](02_GITHUB.md#step-4-open-a-pull-request-from-staging-into-main)).
+([02 → Step 4](02_GITHUB.md#step-4-open-a-pull-request-from-staging-into-main)).
 
-1. Render → click the database → **Recovery** (or **Backups**).
-2. **TODO(owner):** confirm what the plan offers (automatic daily backups,
-   point-in-time recovery, and how many days back), and the exact button
-   for a manual export. Write it here.
+**TODO(owner):** write the exact steps here: where on the database's page
+(**Recovery** or **Backups**), the button for a manual export, what the plan
+keeps automatically, and how many days back it can restore. **Until this is
+filled in, do not merge any batch that changes a table.**
 
-   > **Check:** a new export appears in the list with today's date.
+> **Check:** a new export appears in the list with today's date and time.
 
 **Restoring a backup is always the owner's job.** A restore wipes everything
 written since the backup.
@@ -229,22 +290,9 @@ written since the backup.
 ### Do not
 
 - Write to the database by hand.
-- Add a second instance of `fam` ("scaling"). FAM must run as **one**
-  instance for now, or every scheduled job would run twice.
-
----
-
-## Staging: copying real episodes so you can hear them for free
-
-Staging cannot make real episodes, but it can replay ones copied from
-production. Run this from a computer with the repository and Python, not
-from the Shell:
-
-    python tools/replay_episodes.py --from <production address> --to <staging address> \
-        --from-token <production FAM_ADMIN_TOKEN> --to-token <staging FAM_ADMIN_TOKEN> --limit 25
-
-> **Check:** without `--yes` it only *lists* what it would copy. If the list
-> looks right, run it again with `--yes` added at the end.
+- Change the number of copies the service runs (**fam** → **Settings** →
+  **Instances** / **Scaling**). It must stay at **1**, or every scheduled job
+  would run twice.
 
 ---
 

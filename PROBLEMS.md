@@ -31552,3 +31552,40 @@ check production, then `Main` back into `staging` so the two are level -
 with the urgent-fix route and reverts for each case. The health page is
 read in a browser with find rather than `curl`. The deck has six new slides
 for the route (28 in all).
+
+**A beginner's read** (2026-11-09, the owner: "Look through all of the
+documentation with the eyes of someone who has no idea how it works"). A
+separate session read the handbook as someone who had never used GitHub,
+Render or a terminal, and checked its claims against the code. What it
+found, and what changed:
+- **The sample-script symptom was wrong.** `DEMO_MODE` is only "no key set"
+  (`app.py`), so a refused key shows `mode: live` and episodes *fail*; the
+  field that says so is the top-level `credentials → state`
+  (`ok`/`rejected`/`absent`, checked at start-up), not the one under
+  `credentials → secrets`. 00, 03, 08 and 10 now tell the two apart.
+- **The health page could not be searched as written.** `reachable`,
+  `held`, `ok`, `lock` and `state` each appear several times, and Firefox's
+  viewer hides quote marks. README now teaches Firefox's Filter JSON box and
+  writes every field as a path (`database → reachable`), with a table, and
+  says which counters restart at every deploy.
+- **GitHub starts a new pull request with base `Main`.** Step 1 now changes
+  base first and checks the merged message says `into staging`; every merge
+  is "Create a merge commit"; a third pre-check catches changes already
+  waiting on staging; reverts say they undo the whole batch, and that
+  bringing a reverted change back needs a new branch.
+- **An author cannot approve their own pull request**, so the rule-book
+  sign-off is now a comment, and 02 tells the owner what required approvals
+  would do to the operator.
+- **Steps needing a terminal on the operator's computer are gone** (deck
+  rebuild, replaying episodes, the admin-token generator, the plan change by
+  `curl`): routed to Claude, a password manager or the owner. The Render
+  Shell is the one place a command is typed.
+- **Real names from the code:** `/admin`'s menu (Pipeline errors, Reported
+  content with Remove/Suspend/Dismiss and Open/Answered, Outside service
+  requests), the waitlist page's controls and outbox line, `/admin`'s
+  not-an-admin message, each agent's role and switch (`agents/names.py`),
+  `usage_report`'s "Worth a look" wording, `audio → check → why`.
+- Moderation moved to the daily check (Apple's 24 hours); one set of wait
+  times in the README; Render's Auto-Deploy checked after a rollback; roles
+  in 01 listed against the pages they must open, with a trial week; prompts
+  name the existing branch and say what to do if Claude pushes a new one.
