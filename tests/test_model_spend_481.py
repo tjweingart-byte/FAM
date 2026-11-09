@@ -146,7 +146,9 @@ def test_an_agent_call_with_notes_is_counted_once(monkeypatch, tmp_path):
 
 #: Where an answer is folded in by its caller, not beside the request.
 _FOLDED_ELSEWHERE = {
-    "claude_batch.py": "each answer is folded in by script_generator (batched=True)",
+    "claude_batch.py": ("each answer is folded in by its caller (batched=True): "
+                        "script_generator for the editions, agents/models.py for "
+                        "Nando's answer key (§502)"),
     "agents/adapters/anthropic_adapter.py": "agents/models.py folds the answer in",
     "compare_models.py": "an operator's tool, run by hand",
     "diagnose_api.py": "an operator's tool, run by hand",

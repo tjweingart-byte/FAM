@@ -601,11 +601,7 @@ async def submit_batch(requests: dict, *, cache_ttl: str = "1h",
                 cache_ttl=cache_ttl)
         if not params:
             return "", refused
-        batch = await _batch_client(adapter, client).messages.batches.create(requests=[
-            {"custom_id": custom_id, "params": p} for custom_id, p in params.items()])
-        batch_id = str(getattr(batch, "id", "") or "")
-        log.info("agent batch %s: %d request(s) sent", batch_id, len(params))
-        return batch_id, refused
+        return await claude_batch.send(_batch_client(adapter, client), params), refused
     except Exception as exc:  # noqa: BLE001 - the caller asks them live
         log.warning("agent batch could not be sent (%s: %s); asked live instead",
                     type(exc).__name__, exc)
@@ -630,16 +626,12 @@ async def collect_batch(batch_id: str, requests: dict, *, client=None):
             log.warning("agent batch %s: cannot be read (%s)", batch_id,
                         why or "no adapter that batches")
             return None
-        api = _batch_client(adapter, client).messages.batches
-        batch = await api.retrieve(batch_id)
-        if getattr(batch, "processing_status", "") != "ended":
+        import claude_batch
+
+        answers = await claude_batch.results_if_ended(_batch_client(adapter, client),
+                                                      batch_id)
+        if answers is None:
             return None
-        answers: dict = {}
-        results = await api.results(batch_id)
-        async for entry in results:
-            custom_id = getattr(entry, "custom_id", "")
-            if custom_id in requests:
-                answers[custom_id] = getattr(entry, "result", None)
         out: dict = {}
         for custom_id, request in requests.items():
             lock = rulebooks.check(request.rule_book)
@@ -651,8 +643,6 @@ async def collect_batch(batch_id: str, requests: dict, *, client=None):
                 out[custom_id] = _answered(request, answer, spec, kw, started,
                                            batched=True)
             else:
-                import claude_batch
-
                 why = claude_batch._why(result) if result is not None else "no result"
                 out[custom_id] = _result(request, started, FAILED,
                                          f"the batch did not answer: {why}"[:300],
