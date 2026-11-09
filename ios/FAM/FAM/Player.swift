@@ -458,7 +458,6 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1)
         engine.disconnectNodeOutput(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
-        engine.prepare()
     }
 
     private func startEngine() -> Bool {
