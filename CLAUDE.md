@@ -82,8 +82,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   the episode's topic to a mix. [interface-181]
 
 - **The player is Spotify's layout** (§190): Home logo (§255), picture (4:3, §192;
-  centred between GO DEEPER and the title, never missing - `pick_for_player`
-  borrows, as do tiles, §214, by category §247, a named team first §282 - and on the mini player, sides cropped, §193), sources by it, GO
+  centred between GO DEEPER and the title; `pick_for_player` borrows (tiles
+  §214), by category §247, named team first §282, never hashed, several per broad node §507; mini player cropped §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
   slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
   if `searches_public`. [player-layout]

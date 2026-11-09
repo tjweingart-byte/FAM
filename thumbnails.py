@@ -186,7 +186,13 @@ WRITER_SYSTEM = (
     "never charts, numbers or words.\n"
     "- Make every topic in the batch look different from the others: no "
     "two share a setting, viewpoint or time of day where it can be "
-    "helped.\n\n"
+    "helped.\n"
+    "- A path ending in '#N' (e.g. 'sports > football #3') asks for one "
+    "more picture of a topic that already has pictures, and may list what "
+    "they show after '|'. Paint a different part of the same topic - a "
+    "different subject within it, setting, viewpoint and light - that "
+    "shares no main object with the pictures listed. Its `node` is the last "
+    "part with its number, e.g. 'football #3'.\n\n"
     "Set paintable to false, and still write a short scene, only when the "
     "last part of the path, read together with the path before it, is not a "
     "subject someone would listen to an episode about: a filler or function "
@@ -332,6 +338,7 @@ class ThumbnailStore:
         self.path = data_path("THUMBNAILS_DB", "thumbnails.db", path)
         self._local = threading.local()
         self._approved: dict[str, tuple[float, str]] = {}
+        self._pictures: dict[str, tuple[tuple[str, float], ...]] = {}
         with self._conn() as conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS thumbnails (
@@ -396,7 +403,21 @@ class ThumbnailStore:
         except Exception:
             log.exception("thumbnails: could not read the store")
             return
-        self._approved = {r[0]: (float(r[1]), r[2] or "") for r in rows}
+        # Extra pictures of a node are rows of their own, `node#2`,
+        # `node#3` (the owner 11.9: "attach the extra pictures to the node
+        # they belong to"): the approved map is keyed by the node, so every
+        # reader that asks "is this node painted?" is unchanged, and
+        # `pictures` lists every live picture it can wear.
+        approved: dict[str, tuple[float, str]] = {}
+        pictures: dict[str, list[tuple[str, float]]] = {}
+        for row_id, updated, facet in rows:
+            node = node_of(row_id)
+            pictures.setdefault(node, []).append((row_id, float(updated)))
+            if row_id == node or node not in approved:
+                approved[node] = (float(updated), facet or "")
+        self._pictures = {n: tuple(sorted(p, key=lambda x: picture_number(x[0])))
+                          for n, p in pictures.items()}
+        self._approved = approved
         try:
             self._data_version = self._version()
         except Exception:  # noqa: BLE001
@@ -405,6 +426,11 @@ class ThumbnailStore:
 
     def approved(self) -> dict[str, tuple[float, str]]:
         return self._approved
+
+    def pictures(self, node_id: str) -> tuple[tuple[str, float], ...]:
+        """Every live picture of a node, as (row id, version), its first
+        picture first. Empty when the node has none."""
+        return self._pictures.get(node_id, ())
 
     def _version(self):
         """What changes when any process writes. SQLite keeps a counter;
@@ -703,6 +729,52 @@ def _exists() -> bool:
         return False
 
 
+#: What joins a node to the number of one of its extra pictures: the row
+#: `sports#3` is the third picture of `sports`. A node id never holds one -
+#: `categories.normalise` keeps letters, digits and spaces only.
+PICTURE_MARK = "#"
+
+
+def node_of(row_id: str) -> str:
+    """The node a picture row belongs to: `sports#3` -> `sports`."""
+    return (row_id or "").split(PICTURE_MARK, 1)[0]
+
+
+def picture_number(row_id: str) -> int:
+    """1 for a node's own row, N for `node#N`."""
+    _, _, number = (row_id or "").partition(PICTURE_MARK)
+    return int(number) if number.isdigit() else 1
+
+
+def picture_id(node_id: str, number: int) -> str:
+    """The row id of a node's `number`th picture (1 is the node's own row)."""
+    return node_id if number <= 1 else f"{node_id}{PICTURE_MARK}{number}"
+
+
+def choose_picture(node_id: str, key: str) -> tuple[str, float]:
+    """Which of a node's live pictures an episode wears, as (row id,
+    version), or ("", 0) when it has none.
+
+    Chosen at random across episodes but **the same every time for one
+    episode**: a hash of the node and the episode's words picks it, so the
+    tile, the player, the vibe and the share card it opens all agree (§286)
+    while two episodes on one node mostly do not. A node with one picture
+    always gets it."""
+    if not node_id or not _exists():
+        return "", 0.0
+    try:
+        pictures = store().pictures(node_id)
+    except Exception:  # noqa: BLE001 - the node's own picture, as before
+        return "", 0.0
+    if not pictures:
+        return "", 0.0
+    if len(pictures) == 1:
+        return pictures[0]
+    stable = f"{node_id}|{(key or '').strip().lower()}"
+    digest = hashlib.sha1(stable.encode("utf-8")).digest()
+    return pictures[int.from_bytes(digest[:4], "big") % len(pictures)]
+
+
 def url_for(node_id: str, version: float = 0.0) -> str:
     """Where a tile fetches a node's picture. The version is the row's
     `updated_at`, so a regenerated picture is a new URL and a year-long
@@ -832,7 +904,7 @@ def pick_for_tile(text: str, tags: Iterable[str] = (),
 
     The tile's own node's picture first (`pick`), and only when that node is
     unpainted, a borrowed one in `pick_for_player`'s order - nearest painted
-    ancestor, the declared facet, then a stable choice by the words. A
+    ancestor, then the declared facet; nothing past that (11.9). A
     borrowed picture is `fallback: True`, so a surface that wants a tile's
     *own* picture (the waitlist's samples) can tell, and the unpainted node
     is still remembered (`asked_for`) and painted first by the next sweep.
@@ -842,12 +914,10 @@ def pick_for_tile(text: str, tags: Iterable[str] = (),
 
     A borrowed picture's `facet` is the tile's own - its category's facet,
     else its first tag's - whenever it has one: the word on the card names
-    the episode, and the last borrowing step (a stable choice among all
-    painted facets) can hand a sports tile a money picture. **A tile with no
-    facet of its own prints none** (§286): a picture chosen by a hash says
-    nothing about the episode, and its facet on the card labelled a school
-    shooting and a Senate probe BUSINESS. `key`, when given, is what that
-    hash reads (`pick_for_player`).
+    the episode. (§286's hashed picture, whose facet labelled a school
+    shooting and a Senate probe BUSINESS, is gone since 11.9: a tile nothing
+    places has no picture.) `key`, when given, chooses among a node's
+    pictures (`choose_picture`).
     """
     found = pick_for_player(text, key=key, category=category, tags=tags)
     if not found or not found.get("fallback"):
@@ -883,15 +953,17 @@ def pick_for_player(text: str, key: str = "",
     1. the most specific approved picture any node the words name reaches,
        itself or its nearest painted ancestor (10.31 notebook; a category
        walks its own branch first);
-    2. the approved facet the words fall under (`topics.tags_for_text`);
-    3. one approved facet picture, chosen by a hash of the words, so the
-       same episode always wears the same one; any approved node when no
-       facet is painted.
+    2. the facet of the episode's category, then the approved facets the
+       words fall under, strongest first (`topics.picture_facets`);
+    3. nothing (the owner 11.9). The hashed facet picture that used to be
+       step 3 put unrelated pictures on episodes and one picture on every
+       episode nothing placed.
 
-    `key` is what step 3 hashes - the question as asked - so the words
-    growing a title later (the client asks again when the writer's title
-    lands) never swaps one borrowed picture for another; it defaults to
-    `text`. `fallback` is True for anything borrowed. Never raises.
+    A node with several pictures (`node#2`, ...) wears one of them chosen by
+    `key` (`choose_picture`) - the question as asked - so the words growing
+    a title later (the client asks again when the writer's title lands)
+    never swaps one picture for another; it defaults to `text`. `fallback`
+    is True for anything borrowed. Never raises.
 
     `category` is the written episode's own node (§209, `app._episode_category`)
     and outranks the words exactly as it does on a tile (`pick`), so the
@@ -922,7 +994,7 @@ def pick_for_player(text: str, key: str = "",
             declared = tuple(f for f in (topics.facet_of(t) for t in tags)
                              if f in facets)
         if found:
-            return dict(found, fallback=False)
+            return _wear(dict(found, fallback=False), key or words)
         if not _exists():
             return None
         approved = store().approved()
@@ -934,7 +1006,7 @@ def pick_for_player(text: str, key: str = "",
         memo_key = ("borrow", words, key or "", category or "", declared)
         hit = _MEMO.get(memo_key)
         if hit is not None:
-            return dict(hit)
+            return _wear(dict(hit), key or words) if hit else None
         tree = topics.category_tree()
         chosen = ""
         waiting = False
@@ -972,24 +1044,43 @@ def pick_for_player(text: str, key: str = "",
             if chosen and anchored:
                 break
         if not chosen:
-            chosen = next((f for f in declared if f in approved), "")
-        hashed = False
+            # The facet the episode is filed under first, then the facets
+            # the words fall under, strongest first (11.9: "PGA Tour" read
+            # as culture and sports, and an alphabetical order put a golf
+            # episode on the culture picture).
+            own_facet = (_facet_of_node(tree, category, facets)
+                         if category else "")
+            order = ([own_facet] if own_facet else []) + list(declared)
+            chosen = next((f for f in order if f in approved), "")
         if not chosen:
-            hashed = True
-            pool = sorted(n for n in approved if n in facets) or sorted(approved)
-            stable = (key or words).strip().lower()
-            digest = hashlib.sha1(stable.encode("utf-8")).digest()
-            chosen = pool[int.from_bytes(digest[:4], "big") % len(pool)]
+            # **No picture rather than an unrelated one** (the owner 11.9).
+            # This used to be one facet picture chosen by a hash of the
+            # words, so an Arsenal match could wear the business picture
+            # and one picture stood in for every episode nothing placed.
+            # The tile draws what it drew before any picture existed.
+            if len(_MEMO) < MAX_MEMO and not waiting:
+                _MEMO[memo_key] = {}
+            return None
         facet = approved[chosen][1] or _facet_of_node(tree, chosen, facets)
         found = {"node": chosen, "facet": facet,
                  "url": url_for(chosen, approved[chosen][0]), "fallback": True,
-                 "hashed": hashed}
+                 "hashed": False}
         if len(_MEMO) < MAX_MEMO and not waiting:
             _MEMO[memo_key] = found
-        return dict(found)
+        return _wear(dict(found), key or words)
     except Exception:  # noqa: BLE001 - a picture is never worth a player
         log.exception("thumbnails: could not pick the player's picture")
         return None
+
+
+def _wear(found: dict, key: str) -> dict:
+    """`found` wearing one of its node's pictures (`choose_picture`): the
+    url of that picture, and the row it came from as `picture`."""
+    row_id, version = choose_picture(found.get("node", ""), key)
+    if row_id:
+        found["url"] = url_for(row_id, version)
+        found["picture"] = row_id
+    return found
 
 
 def _near_version() -> float:
@@ -1114,6 +1205,32 @@ class StopRun(Exception):
 Writer = Callable[[list[str]], Awaitable[list[Scene]]]
 Painter = Callable[[str], Awaitable[Painting]]
 Checker = Callable[[bytes, str, str], Awaitable[tuple[dict, float]]]
+
+
+def writer_line(tree, thumb_store: "ThumbnailStore", row_id: str) -> str:
+    """What the scene writer is given for one picture: the node's path, and
+    for an extra picture (`node#2`) the path with its number and the scenes
+    its other pictures already show, so the new one is a different scene
+    rather than a second painting of the same (§177)."""
+    node = node_of(row_id)
+    path = path_text(tree, node)
+    if row_id == node:
+        return path
+    others = []
+    for t in thumb_store.all():
+        if node_of(t.node_id) == node and t.node_id != row_id and t.scene:
+            others.append(t.scene.strip().rstrip("."))
+    line = f"{path} {PICTURE_MARK}{picture_number(row_id)}"
+    if others:
+        line += " | its other pictures show: " + "; ".join(others[:6])
+    return line
+
+
+def scene_row(written: str) -> str:
+    """The row a written scene's `node` names: "american football #2 | its
+    other pictures..." -> "american football#2"."""
+    head = (written or "").split(" | ", 1)[0].split(" > ")[-1].strip().lower()
+    return re.sub(r"\s*" + re.escape(PICTURE_MARK) + r"\s*", PICTURE_MARK, head)
 
 
 def path_text(tree, node_id: str) -> str:
@@ -1705,7 +1822,7 @@ async def make_one(node_id: str, scene: Scene, facet: str, *,
     #: The last paid picture that failed a check, held at the end if no later
     #: attempt does better - a paid image is never thrown away (§169).
     candidate: Optional[tuple] = None
-    leaked = names_leak(node_id, scene.scene, scene.flagged)
+    leaked = names_leak(node_of(node_id), scene.scene, scene.flagged)
     if leaked:
         last_reason = "the scene named the subject; not painted"
     for _ in range(0 if leaked else max(1, attempts)):
@@ -1843,7 +1960,7 @@ def wanted(tree, thumb_store: ThumbnailStore, *, regenerate: bool = False,
     facets = _facets()
     nodes = tree.nodes() if hasattr(tree, "nodes") else {}
     if only:
-        pool = [o for o in only if o in nodes or o in facets]
+        pool = [o for o in only if node_of(o) in nodes or node_of(o) in facets]
     else:
         pool = sorted(facets) + list(nodes)
     have = {t.node_id: t.status for t in thumb_store.all()}
@@ -1854,6 +1971,10 @@ def wanted(tree, thumb_store: ThumbnailStore, *, regenerate: bool = False,
             out.append(node_id)
         elif status == STATUS_FAILED and (retry_failed or only):
             out.append(node_id)
+    if not only and not regenerate:
+        # A broad node's extra pictures (11.9), once its first is live:
+        # every facet and every node directly under one.
+        out.extend(more_pictures_wanted(tree, have))
 
     # Then nodes a tile has actually asked for (`asked_for`): since a tile
     # never borrows its parent's picture, an unpainted node on a page is a
@@ -1861,6 +1982,10 @@ def wanted(tree, thumb_store: ThumbnailStore, *, regenerate: bool = False,
     asked = asked_for()
 
     def order(n: str):
+        if node_of(n) != n:
+            # Every node's first picture comes before any node's second.
+            base = node_of(n)
+            return (2, picture_number(n), 0 if base in facets else 1, n)
         if n in facets:
             return (-1, 0, 0, n)
         node = nodes.get(n)
@@ -1868,6 +1993,34 @@ def wanted(tree, thumb_store: ThumbnailStore, *, regenerate: bool = False,
                 -(node.listeners if node else 0), n)
 
     return sorted(dict.fromkeys(out), key=order)
+
+
+def broad_nodes(tree) -> list[str]:
+    """The nodes that hold `THUMBNAILS_BROAD_PICTURES` pictures: the facets
+    and every node directly under one - where an episode filed broadly, or
+    borrowing from an unpainted subject below, lands."""
+    facets = _facets()
+    nodes = tree.nodes() if hasattr(tree, "nodes") else {}
+    return sorted(facets) + sorted(
+        n for n in nodes if tree.depth_of(n) <= 1 and n not in facets)
+
+
+def more_pictures_wanted(tree, have: dict) -> list[str]:
+    """Row ids of the extra pictures broad nodes still lack (`node#2`, ...),
+    for nodes whose first picture is live. A failed extra is not retried on
+    its own, as a failed node is not."""
+    from config import settings
+
+    wanted_count = max(1, int(settings.thumbnails_broad_pictures))
+    out = []
+    for node_id in broad_nodes(tree):
+        if have.get(node_id) != STATUS_APPROVED:
+            continue
+        for number in range(2, wanted_count + 1):
+            row_id = picture_id(node_id, number)
+            if row_id not in have:
+                out.append(row_id)
+    return out
 
 
 def daily_room(thumb_store: ThumbnailStore, now: Optional[float] = None) -> int:
@@ -1967,15 +2120,16 @@ async def _backfill(limit: int, *, only: Iterable[str],
         batch = max(1, settings.thumbnails_writer_batch)
         for start in range(0, len(todo), batch):
             chunk = todo[start:start + batch]
-            paths = {n: path_text(tree, n) for n in chunk}
+            paths = {n: path_text(tree, node_of(n)) for n in chunk}
+            asks = [writer_line(tree, thumb_store, n) for n in chunk]
             try:
-                scenes = await writer(list(paths.values()))
+                scenes = await writer(asks)
             except Exception as exc:  # noqa: BLE001
                 log.warning("thumbnails: the scene writer failed (%s); "
                             "%d nodes wait for the next run", exc, len(chunk))
                 result.setdefault("errors", []).append(f"writer: {exc}")
                 continue
-            by_node = {s.node: s for s in scenes}
+            by_node = {scene_row(s.node): s for s in scenes}
             for node_id in chunk:
                 scene = by_node.get(node_id)
                 if scene is None or not scene.scene:
@@ -1985,9 +2139,10 @@ async def _backfill(limit: int, *, only: Iterable[str],
                 if not ignore_daily_cap and daily_room(thumb_store) <= 0:
                     result["capped"] = True
                     return result
-                facet = node_id if node_id in facets else \
-                    _facet_of_node(tree, node_id, facets)
-                if node_id in facets and not scene.paintable:
+                node = node_of(node_id)
+                facet = node if node in facets else \
+                    _facet_of_node(tree, node, facets)
+                if node in facets and not scene.paintable:
                     # The eight facets are every tile's last fallback; the
                     # writer may not skip one for being broad.
                     scene.paintable = True
