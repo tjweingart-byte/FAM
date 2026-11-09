@@ -679,6 +679,15 @@ class ScriptNotes:
     #: (`categorizer.Prior`, §372) - the Trending story's category. None
     #: everywhere else, where `categorizer.prior_for` reads it from the tap.
     category_prior: object = None
+    #: The prior the placement started from (`categorizer.Prior`, §501),
+    #: whatever supplied it, kept for the audit: which solid source - a
+    #: tile, a bank topic, a DailyFAM subject, an edition - filed the
+    #: episode, so the answer key can grade that source. None when Nando
+    #: did not work on the episode.
+    category_prior_seen: object = None
+    #: Whether Nando's own call was already made ahead of the tap, where the
+    #: brief was built (§501), answered or not: never made twice.
+    category_ahead_asked: bool = False
     #: The reading taken for an older client that cannot ask (§426): C3P0's
     #: likeliest, "" otherwise. Such an episode is kept but never current,
     #: so a client that can ask is never served the guess under the plain key.
@@ -825,6 +834,51 @@ def _agent_runs(notes, role: str) -> bool:
     no notes, no answer, or `AGENTS=0`."""
     runs = getattr(getattr(notes, "agents", None), "runs", None)
     return bool(runs(role)) if callable(runs) else False
+
+async def _nando_decides_ahead(plan: "EpisodePlan", notes) -> "EpisodePlan":
+    """Nando's own call ahead of the tap, awaited because nobody waits
+    (§379), kept on the brief as `category_pick` (§501).
+
+    Asked under exactly the conditions `prepare` asks it ahead: Nando works
+    on the episode, C3P0 neither picked nor called the request ambiguous,
+    nothing solid files it, there are candidates, and no name in it means
+    two things that nothing decided (never a guess, §426). Never raises: a
+    failure leaves the brief as it was, and the writer's category stands.
+    """
+    brief = plan.brief
+    if (brief is None or getattr(brief, "degraded", False)
+            or getattr(brief, "category_pick", "")
+            or not _agent_runs(notes, "categorizer")):
+        return plan
+    try:
+        from agents import categorizer
+
+        said = getattr(brief, "contextualized", None) or {}
+        if said.get("ambiguous") or said.get("node"):
+            return plan
+        # An edition drops a story whose answer is a result before it is
+        # written (`trending_bank._start`): his call would buy nothing.
+        if getattr(notes, "edition", False) and getattr(brief, "outcome_dependent", False):
+            return plan
+        field = categorizer.provider_field(plan.query)
+        prior = categorizer.prior_for(plan.query, plan.context, notes)
+        placed = categorizer.place(brief, plan.query, field, prior, "")
+        if placed.node or placed.ambiguous or not placed.candidates:
+            return plan
+        # Asked once ahead of the tap, whatever he answers: `prepare` never
+        # asks again on these notes, even after "none" or a failure.
+        if notes is not None:
+            notes.category_ahead_asked = True
+        pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,
+                                         ahead=True)
+        if not pick:
+            return plan
+        return dataclasses.replace(plan, brief=dataclasses.replace(brief, category_pick=pick))
+    except Exception:  # noqa: BLE001 - a filing is never worth an episode
+        log.warning("nando could not decide ahead of the tap for %r", plan.query,
+                    exc_info=True)
+        return plan
+
 
 class ReadingNeeded(Exception):
     """A name in the request means two things and the listener has not said
@@ -2723,6 +2777,12 @@ class ScriptGenerator:
         plan = dataclasses.replace(
             plan, brief=episode_intelligence.place_category(brief))
         _take_brief_names(plan)
+        # Ahead of the tap, Nando decides here, with the brief (§501): every
+        # background path builds its brief through this method, and a brief
+        # warmed at prefetch's default level is never prepared, so this is
+        # the one place his decision reaches all of them.
+        if ahead:
+            plan = await _nando_decides_ahead(plan, notes)
         return plan
 
     async def live_lookup(self, plan: EpisodePlan,
@@ -2840,10 +2900,14 @@ class ScriptGenerator:
                 unsure = bool(said.get("ambiguous"))
                 field = categorizer.provider_field(plan.query)
                 prior = categorizer.prior_for(plan.query, plan.context, notes)
-                pick = ("" if unsure else said.get("node", "")) or tie
+                # His own choice made ahead of the tap (§501), carried by a
+                # warmed brief to the tap that takes it, or by the brief an
+                # edition or a prefetch built a moment ago.
+                ahead_pick = "" if unsure else getattr(plan.brief, "category_pick", "")
+                pick = ("" if unsure else said.get("node", "")) or tie or ahead_pick
                 placed = categorizer.place(plan.brief, plan.query, field, prior, pick,
                                            unsure=unsure)
-                if tie and pick == tie and not plan.reading:
+                if pick and pick in (tie, ahead_pick) and not plan.reading:
                     # Never a guess (decided item 15, §426, settling §377):
                     # his tie call does not choose between the readings of a
                     # name code left undecided. C3P0 asks the listener; until
@@ -2858,7 +2922,8 @@ class ScriptGenerator:
                                  or getattr(notes, "prefetch", False))
                 if (not placed.node and ahead_now and not unsure
                         and not said.get("node") and placed.candidates
-                        and not placed.ambiguous):
+                        and not placed.ambiguous
+                        and not getattr(notes, "category_ahead_asked", False)):
                     # Ahead of the tap nobody waits: Nando's own call is
                     # simply awaited, within its own time limit (§379).
                     pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,
@@ -2867,6 +2932,7 @@ class ScriptGenerator:
                         placed = categorizer.place(plan.brief, plan.query, field, prior,
                                                    pick, unsure=unsure)
                 notes.category_placement = placed
+                notes.category_prior_seen = prior
                 if placed.node and notes.caption_key:
                     live_captions.publish_category(notes.caption_key, placed.node)
         except BaseException:

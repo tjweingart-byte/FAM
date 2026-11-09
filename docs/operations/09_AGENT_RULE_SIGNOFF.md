@@ -49,9 +49,10 @@ That is on purpose.
 
 > **TODO(owner):** decide how signing works while you are away. Options:
 > (1) proposals wait for your weekend: recommended, since a rule-book
-> change is never urgent; (2) you sign from your Mac when asked (about five
-> minutes, Step 5); (3) a second signing key for the operator, which needs a
-> code change that you would have to sign yourself.
+> change is never urgent; (2) you sign when asked, from **any** computer
+> with Python, using `tools/sign_rulebooks.py` (about five minutes, Step 5);
+> (3) a second signing key for the operator, which needs a code change that
+> you would have to sign yourself.
 
 ---
 
@@ -66,7 +67,7 @@ That is on purpose.
    > **Check:**
    > - `signed` is `true`
    > - `version` is a number. **Write it down**: you will need it in Step 8.
-   >   It was `6` on 2026-11-06 and goes up by one with each signing.
+   >   It was `7` on 2026-11-09 and goes up by one with each signing.
    > - `held` is `{}` (empty): no agent is stopped.
    >
    > **If `held` lists a role** (for example `categorizer`): that agent is
@@ -159,29 +160,43 @@ When all six are ticked:
 > Ask Claude to fix the proposal on the same branch (name the branch, as in
 > the 03 prompts). Then repeat this step.
 
-### Step 5. The owner signs (on the owner's Mac)
+### Step 5. The owner signs (on any computer with Python)
 
 *This step is for the owner. It is written out so the operator knows what
-to expect.*
+to expect.* The tool is `tools/sign_rulebooks.py` (PROBLEMS.md §504). It
+never asks for the key to be pasted: it reads it from the clipboard and
+empties the clipboard straight away, and it refuses any key but the one in
+`owner.pub`.
 
-1. On GitHub, switch to the pull request's branch (the branch button at the
-   top left of the file list). Open the proposal
-   `docs/agent_rule_proposals/<book>.md` → click **Download raw file** (the
-   download icon, top right of the file). Do the same for
-   `docs/agent_rules/MANIFEST.pending.json`.
-2. In **Downloads**, rename `MANIFEST.pending.json` to `MANIFEST.json`.
-3. Save the private key from the password manager as plain text to
-   `~/fam-rules-signing.pem` (TextEdit → **Format** → **Make Plain Text**).
-   Never paste it into Terminal, a chat or a Claude session.
-4. In Terminal:
+1. Make a new, empty folder (for example `~/Downloads/fam-sign`).
+2. On GitHub, switch to the pull request's branch (the branch button at the
+   top left of the file list). Open each of these and click **Download raw
+   file** (the download icon, top right of the file), saving it into that
+   folder:
+   - `tools/sign_rulebooks.py`
+   - `docs/agent_rules/MANIFEST.pending.json` (keep this name; the tool reads it)
+   - the proposal `docs/agent_rule_proposals/<book>.md`
+3. In Terminal, in that folder:
 
-       conda activate famsign
-       cd ~/Downloads
-       openssl pkeyutl -sign -rawin -inkey ~/fam-rules-signing.pem -in MANIFEST.json | base64 | tr -d '\n' > MANIFEST.json.sig
-       rm -P ~/fam-rules-signing.pem
+       cd ~/Downloads/fam-sign
+       python3 -m pip install --user cryptography     # once per computer
+       python3 sign_rulebooks.py
 
-   > **Check:** `cat MANIFEST.json.sig` prints one line of 88 characters
-   > ending in `==`, and no error was printed.
+   > **Check:** it prints `Manifest version <N>` (one higher than the
+   > version in production), and `<book>.md: matches`.
+   >
+   > **If not:** `DOES NOT MATCH` means a file was changed or saved wrongly.
+   > Download it again with **Download raw file**.
+
+4. When it waits, copy the private key from the password manager. Do not
+   paste it anywhere.
+
+   > **Check:** it prints `Signed. The clipboard is empty. Upload these to
+   > docs/agent_rules/ on GitHub:` and names the files. The folder now holds
+   > `MANIFEST.json` and `MANIFEST.json.sig`.
+   >
+   > **If not:** `Not signed: …` says why (for example a key that is not the
+   > trusted one). Nothing has been written.
 
 5. On GitHub, on the pull request's branch:
    - open the folder `docs/agent_rules/` → **Add file** → **Upload
@@ -192,6 +207,12 @@ to expect.*
    - **Commit changes**.
 
    > **Check:** the commit lists exactly those files, nothing else.
+
+6. Delete the folder from the computer.
+
+*(On the owner's own Mac, the older OpenSSL route in
+`docs/agent_rule_proposals/README.md` → "Signing it" makes the identical
+signature.)*
 
 **Always upload the files. Never edit a rule book in GitHub's in-browser
 editor.** The signature covers every character, and the editor can change

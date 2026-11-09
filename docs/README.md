@@ -6,7 +6,7 @@ starts with **ONBOARDING.md** and follows its curriculum.
 
 | Document | Answers |
 |---|---|
-| [**operations/**](operations/README.md) | The backend operations handbook for whoever runs production while the owner is away: the system map, access, GitHub, Claude Code, Render, RunPod, Cloudflare R2, MongoDB Atlas, every other service, signing off on agent rule books, and incident runbooks. With a deck built from `operations/slides.md` (§501). |
+| [**operations/**](operations/README.md) | The backend operations handbook for whoever runs production while the owner is away: the system map, access, GitHub, Claude Code, Render, RunPod, Cloudflare R2, MongoDB Atlas, every other service, signing off on agent rule books, and incident runbooks. With a deck built from `operations/slides.md` (§507). |
 | [**ONBOARDING.md**](ONBOARDING.md) | The entry point for training. What FAM is, the vocabulary, the architecture in one picture, the life of one episode, the rules newcomers break, a day-by-day curriculum, how to work and ship, how to operate production, and where to look anything up. |
 | [**BACKEND.md**](BACKEND.md) | How the server is wired. The life of a search episode stage by stage, every background job and its schedule, where every rail and section is sourced from and its fallbacks, every route, every call to an outside service, the admin surfaces, staging vs production. |
 | [**FRONTEND.md**](FRONTEND.md) | How the app is wired. Boot, the screen system and navigation stack, every screen and the endpoints it calls, search, the player and its one transport, audio streaming in the browser, offline, social, share pages, admin pages, and how the previews and smoke run test it. |

@@ -427,11 +427,17 @@ def _write(request, result) -> None:
         _record(request, result)
 
 
-async def _ask(request, notes, client, started, sent=None) -> AgentResult:
+def _result(request, started: float, status: str, reason: str = "", **kw) -> AgentResult:
+    return AgentResult(status, getattr(request, "agent", ""), getattr(request, "task", ""),
+                       reason, seconds=time.monotonic() - started, **kw)
+
+
+def _ready(request, started: float):
+    """Every check before a request may leave the machine, live or batched
+    (§501): an `AgentResult` saying why not, or `(spec, adapter, system,
+    schema, kw)` for the call."""
     def done(status, reason="", **kw):
-        return AgentResult(status, getattr(request, "agent", ""),
-                           getattr(request, "task", ""), reason,
-                           seconds=time.monotonic() - started, **kw)
+        return _result(request, started, status, reason, **kw)
 
     why = _malformed(request)
     if why:
@@ -469,6 +475,14 @@ async def _ask(request, notes, client, started, sent=None) -> AgentResult:
     schema = wire_schema(request.schema)
     system = build_system(lock.text, request.instructions)
     kw["prompt_fingerprint"] = fingerprint(system, schema)
+    return spec, adapter, system, schema, kw
+
+
+async def _ask(request, notes, client, started, sent=None) -> AgentResult:
+    ready = _ready(request, started)
+    if isinstance(ready, AgentResult):
+        return ready
+    spec, adapter, system, schema, kw = ready
     if sent is not None:
         sent[0] = True
     try:
@@ -479,17 +493,31 @@ async def _ask(request, notes, client, started, sent=None) -> AgentResult:
                          client=client),
             timeout=float(request.timeout))
     except asyncio.TimeoutError:
-        return done(TIMEOUT, f"no answer within {request.timeout:g}s", sent=True, **kw)
+        return _result(request, started, TIMEOUT, f"no answer within {request.timeout:g}s",
+                       sent=True, **kw)
     except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis
-        return done(FAILED, f"{spec.vendor} call failed: {type(exc).__name__}: {exc}"[:300],
-                    sent=True, **kw)
+        return _result(request, started, FAILED,
+                       f"{spec.vendor} call failed: {type(exc).__name__}: {exc}"[:300],
+                       sent=True, **kw)
+    return _answered(request, answer, spec, kw, started, notes)
 
+
+def _answered(request, answer, spec, kw, started, notes=None,
+              batched: bool = False) -> AgentResult:
+    """What one answer comes to, live or from a batch: priced (at the batch
+    rate when `batched`), checked against the model asked, the schema
+    validated."""
+    def done(status, reason="", **extra):
+        return _result(request, started, status, reason, **extra)
+
+    kw = dict(kw)
     call = metering.Usage()
     # Counted once in the day's spend, under the agent (§481); folded into
     # the episode's notes without counting it again.
-    call.add_model_call(spec.price_key, answer.usage, source=f"agent:{request.agent}")
+    call.add_model_call(spec.price_key, answer.usage, batched,
+                        source=f"agent:{request.agent}")
     if notes is not None and getattr(notes, "usage", None) is not None:
-        notes.usage.add_model_call(spec.price_key, answer.usage, count=False)
+        notes.usage.add_model_call(spec.price_key, answer.usage, batched, count=False)
     cost = metering.price_of(call)
     kw.update(served_model=answer.served_model, cost_usd=round(cost.claude, 8), sent=True,
               priced=cost.priced,
@@ -519,6 +547,135 @@ async def _ask(request, notes, client, started, sent=None) -> AgentResult:
         return done(INVALID, f"the answer does not fit the schema: {exc.error_count()} "
                              "error(s)", **kw)
     return done(OK, value=value, **kw)
+
+
+def model_setting_value(model_setting: str) -> str:
+    """The `vendor:model-id` a request naming `model_setting` is sent to, as
+    this layer reads it - what a batch records, so it is read back with
+    the model it was sent to (§503)."""
+    return str(getattr(settings, model_setting, "") or "")
+
+
+# ------------------------------------------------------------------ batches (§501)
+#
+# For background work nobody waits on: every token at half price
+# (`metering.BATCH_DISCOUNT`), answered within the day. Sent and collected
+# in two steps, so the agent's task never holds Netenyahu's loop while the
+# batch runs and a restart in between loses nothing: the caller keeps the
+# batch id and the requests' ids. Every request passes the same checks as a
+# live one (`_ready`), and each answer is priced, checked and recorded in
+# the ledger exactly as a live answer is (`_answered`).
+
+def _batch_client(adapter, client):
+    client = client or adapter.client()
+    with_options = getattr(client, "with_options", None)
+    # One create, never a hidden second batch: the SDK's retries are off,
+    # as they are for every agent call.
+    return with_options(max_retries=0) if callable(with_options) else client
+
+
+#: How long one call to the Message Batches API (create, retrieve, results)
+#: may take before it is given up, so a hung call never holds the agents'
+#: loop for the SDK's own ten minutes.
+BATCH_CALL_SECONDS = 120.0
+
+
+async def submit_batch(requests: dict, *, cache_ttl: str = "", client=None) -> tuple:
+    """Send `requests` (custom id -> `AgentRequest`) as one Message Batch.
+
+    Returns `(batch_id, refused, attempted)`: `refused` maps the id of every
+    request the layer would not send to its `AgentResult` (recorded like any
+    refusal). `batch_id` is "" when no batch was made. `attempted` says
+    whether a create was sent at all: False - every request refused, or a
+    vendor whose adapter cannot batch - means nothing left the machine and
+    the caller may ask live; True with no id means the create failed or
+    timed out, and the batch may exist all the same, so the caller must not
+    ask the same requests again. Never raises."""
+    started = time.monotonic()
+    refused: dict = {}
+    params: dict = {}
+    adapter = None
+    try:
+        import claude_batch
+
+        for custom_id, request in requests.items():
+            ready = _ready(request, started)
+            if isinstance(ready, AgentResult):
+                refused[custom_id] = ready
+                if ready.status not in (OFF, MALFORMED):
+                    _write(request, ready)
+                continue
+            spec, adapter_now, system, schema, _kw = ready
+            if not callable(getattr(adapter_now, "params", None)) \
+                    or not claude_batch.valid_id(custom_id):
+                return "", refused, False
+            adapter = adapter_now
+            params[custom_id] = adapter.params(
+                model=spec.model, system=system, user=build_user_turn(request.material),
+                schema=schema, max_tokens=request.max_tokens, effort=request.effort,
+                cache_ttl=cache_ttl)
+        if not params:
+            return "", refused, False
+    except Exception as exc:  # noqa: BLE001 - nothing was sent
+        log.warning("agent batch could not be built (%s: %s)", type(exc).__name__, exc)
+        return "", refused, False
+    try:
+        batch_id = await asyncio.wait_for(
+            claude_batch.send(_batch_client(adapter, client), params), BATCH_CALL_SECONDS)
+        return batch_id, refused, True
+    except Exception as exc:  # noqa: BLE001 - it may have been made all the same
+        log.warning("agent batch create failed (%s: %s); its requests are not asked again",
+                    type(exc).__name__, exc)
+        return "", refused, True
+
+
+async def collect_batch(batch_id: str, requests: dict, *, client=None, model: str = ""):
+    """The answers of a batch `submit_batch` sent, once it has ended:
+    custom id -> `AgentResult` for every id in `requests`, each recorded in
+    the ledger. A request the batch did not answer (errored, expired,
+    cancelled) is `FAILED` and was sent. `None` while the batch is still
+    running, or when it could not be read this time - ask again later.
+    `model` is the `vendor:model-id` the batch was sent to; the request's
+    setting is read only when it is not given. Never raises."""
+    started = time.monotonic()
+    try:
+        first = next(iter(requests.values()), None)
+        if first is None:
+            return {}
+        spec, why = parse_model(model or getattr(settings, first.model_setting, ""))
+        adapter = adapters.adapter_for(spec.vendor) if spec else None
+        if adapter is None or not callable(getattr(adapter, "answer_from", None)):
+            log.warning("agent batch %s: cannot be read (%s)", batch_id,
+                        why or "no adapter that batches")
+            return None
+        import claude_batch
+
+        answers = await asyncio.wait_for(
+            claude_batch.results_if_ended(_batch_client(adapter, client), batch_id),
+            BATCH_CALL_SECONDS)
+        if answers is None:
+            return None
+        out: dict = {}
+        for custom_id, request in requests.items():
+            lock = rulebooks.check(request.rule_book)
+            kw = {"rulebook_version": lock.version, "rulebook_sha": lock.sha,
+                  "vendor": spec.vendor, "model": spec.model}
+            result = answers.get(custom_id)
+            if result is not None and getattr(result, "type", "") == "succeeded":
+                answer = adapter.answer_from(getattr(result, "message", None))
+                out[custom_id] = _answered(request, answer, spec, kw, started,
+                                           batched=True)
+            else:
+                why = claude_batch._why(result) if result is not None else "no result"
+                out[custom_id] = _result(request, started, FAILED,
+                                         f"the batch did not answer: {why}"[:300],
+                                         sent=True, **kw)
+            _write(request, out[custom_id])
+        return out
+    except Exception as exc:  # noqa: BLE001 - read again on the next pass
+        log.warning("agent batch %s could not be collected (%s: %s)", batch_id,
+                    type(exc).__name__, exc)
+        return None
 
 
 # ------------------------------------------------------------------ ledger
@@ -602,6 +759,9 @@ def health() -> dict:
             # reported with where it came from ([server-says-build]).
             entry["judge_per_run"] = {"value": int(settings.nando_judge_per_run),
                                       "source": source("nando_judge_per_run")}
+            # Whether it grades through the Message Batches API (§502).
+            entry["judge_batch"] = {"value": bool(settings.nando_judge_batch),
+                                    "source": source("nando_judge_batch")}
         out["agents"][role] = entry
     try:
         from agents import tasks

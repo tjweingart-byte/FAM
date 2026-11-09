@@ -121,6 +121,38 @@ async def run(client, requests: dict, *, wait_seconds: float,
     return answers
 
 
+# ------------------------------------------------------------------ two steps (§502)
+#
+# For a caller that cannot wait for its batch in one call - Nando's answer
+# key sends at night and collects later, so nothing holds the agents' loop
+# and a restart loses nothing. The caller counts each answer's spend when
+# it reads it (`agents.models.collect_batch`, batched=True).
+
+async def send(client, requests: dict) -> str:
+    """Create one batch of `requests` (custom id -> Messages params) and
+    return its id. Raises what the SDK raises: the caller decides what an
+    unsent batch means."""
+    batch = await client.messages.batches.create(requests=[
+        {"custom_id": custom_id, "params": params}
+        for custom_id, params in requests.items()])
+    batch_id = str(getattr(batch, "id", "") or "")
+    log.info("claude batch %s: %d request(s) sent", batch_id, len(requests))
+    return batch_id
+
+
+async def results_if_ended(client, batch_id: str) -> Optional[dict]:
+    """custom id -> the batch's result entry for each request, or None
+    while the batch has not ended. Raises what the SDK raises."""
+    api = client.messages.batches
+    batch = await api.retrieve(batch_id)
+    if getattr(batch, "processing_status", "") != "ended":
+        return None
+    out: dict = {}
+    async for entry in await api.results(batch_id):
+        out[getattr(entry, "custom_id", "")] = getattr(entry, "result", None)
+    return out
+
+
 def _why(result) -> str:
     kind = getattr(result, "type", "") or "unknown"
     error = getattr(result, "error", None)

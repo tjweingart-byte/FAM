@@ -7,11 +7,24 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-Nothing. Manifest version 6 - the merged books, `consuela.md` always 12
-and `sonic.md` always 8 beside `mclovin.md` v3 - was signed on 2026-11-06
-(PROBLEMS.md §470); `mclovin.md` v3 (§443, version 5); v2 (§441, version
-4); `consuela.md` with Perplexity (§412, version 3); `nando.md` rule 12
-(§392).
+Nothing. Manifest version 7 - `nando.md` rule 12 amended (§502, §503): the
+one-time comparison against a second answer key, and the story composer
+taught its corrected categories - was signed on 2026-11-09 on a borrowed
+computer with `tools/sign_rulebooks.py` (PROBLEMS.md §505). Before that:
+manifest version 6, the merged books (§470); `mclovin.md` v3 (§443,
+version 5); v2 (§441, version 4); `consuela.md` with Perplexity (§412,
+version 3); `nando.md` rule 12 (§392).
+
+## Signing on a computer without OpenSSL 3 (§504)
+
+`tools/sign_rulebooks.py` makes the same signature with Python alone (a
+test holds it byte for byte equal to OpenSSL's). Put it in one folder with
+`MANIFEST.pending.json` and the changed book, install the one package
+(`python3 -m pip install --user cryptography`), and run
+`python3 sign_rulebooks.py` there. It waits while the key is copied from
+the password manager, reads it from the clipboard, empties the clipboard,
+refuses any key but the one in `owner.pub`, and writes `MANIFEST.json` and
+`MANIFEST.json.sig`. Nothing is pasted and the key is never saved.
 
 ## Signing it (on the owner's Mac, with the owner's key)
 

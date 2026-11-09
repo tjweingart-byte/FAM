@@ -199,7 +199,7 @@
 - 1. Ask a Claude session for a proposal, never an edit of the signed book
 - 2. It writes agent_rule_proposals/<book>.md and MANIFEST.pending.json
 - 3. The operator reviews it against the checklist and comments "Reviewed for signing"
-- 4. The owner signs on their Mac and uploads three files in one commit
+- 4. The owner signs on any computer with tools/sign_rulebooks.py, and uploads the files in one commit
 - 5. The session verifies the signature and cleans up. Merge. Check health
 > 09_AGENT_RULE_SIGNOFF.md. Open decision for the owner: keep signing owner-only (recommended), sign remotely on request, or add a second key (a signed code change).
 

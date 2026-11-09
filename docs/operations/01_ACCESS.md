@@ -156,6 +156,7 @@ session offers to do them.**
 | Deleting data. Anything with `--all`, `--yes` or `--replace` in it; dropping the database; emptying the storage bucket; restoring a backup. | It cannot be undone. |
 | Turning the waitlist off, or letting large batches in | A launch decision. |
 | Switching an agent on or off | The agents are still being trained. |
+| `/admin` → **Categories (Nando)**: saving reviews there, and especially the **Run the one-time check** button | It is the owner's review queue for training Nando. The button pays for a comparison against a stronger model, and it can only ever be run once. |
 | Branch protection, CODEOWNERS, who has access | Security. |
 | The voice recording and its consent record | It is a real person's voice. |
 | Copying episodes to staging (`tools/replay_episodes.py`) | It needs a terminal and admin tokens. |

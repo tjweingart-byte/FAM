@@ -492,4 +492,10 @@ and `limit` = Lines.
 | 31221 | 108 | 498. The 11.7 myFAM packet: a mix is made by naming it, Spotify's playlist page, short names for long topics, joint mixes (2026-11-08) |
 | 31329 | 109 | 499. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
-| 31500 | 131 | 501. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
+| 31500 | 85 | 501. Nando on the background paths: a warmed brief carries his decision, and each path is counted (2026-11-09) |
+| 31585 | 110 | 502. Training Nando: grade what teaches, through the Batch API, and grade every source that files (2026-11-09) |
+| 31695 | 73 | 503. The answer key on Sonnet, ten a night where the filers disagree; the owner's review queue; the one-time check against Opus (2026-11-09) |
+| 31768 | 26 | 504. Signing the rule books on a borrowed computer (2026-11-09) |
+| 31794 | 20 | 505. The owner signed manifest version 7, from a borrowed computer (2026-11-09) |
+| 31814 | 94 | 506. The review before the pull request: the owner's review kept, rule 12 held, a batch's spend counted once (2026-11-09) |
+| 31908 | 143 | 507. A backend operations handbook, for the weeks the owner is away (2026-11-08) |

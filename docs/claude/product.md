@@ -544,6 +544,8 @@ candidate list. It deliberately
 does not fire on Explore or Explore New, which are already continuous.
 
 <!-- rule:one-category -->
+> **Current (PROBLEMS.md §501):** on every path written ahead of the tap - prefetch at either level, both editions - Nando's own call is made where the brief is built (`understand`) and kept on it as `Brief.category_pick`, so a myFAM tap that takes a warmed brief files his decision; the audit counts his filings per write path (`nando.by_origin`).
+
 > **Current (PROBLEMS.md §371-§375, decided item 5):** when Nando works on an episode (`AGENTS=1`, `CATEGORIZER=1`) he files it under one node at the request when a solid source or a model's pick places it (§379), and confirms it after the writer, and that node is stored with the episode (`category_node`) and read **first** by `app._episode_category`; the writer's `<<CATEGORY:>>` words below are the reader's fallback - for an episode Nando did not file (nothing is stored for it, §391), or a node the tree no longer holds. With Nando off, everything below is exactly as written.
 
 **One episode, one category, everywhere it is read.** *(PROBLEMS.md §209, at
