@@ -54,7 +54,7 @@ struct PlayerView: View {
     /// The scrubber: a thin track, copper as far as you are, a copper knob.
     /// Dragging is clamped to what has arrived (`transport`).
     private var scrubber: some View {
-        let total = max(player.arrived, 0.1)
+        let total = max(player.total, 0.1)
         let shown = dragging ? dragValue : player.position
         return VStack(spacing: 8) {
             GeometryReader { geo in
@@ -62,6 +62,9 @@ struct PlayerView: View {
                 let x = width * min(max(shown / total, 0), 1)
                 ZStack(alignment: .leading) {
                     Capsule().fill(FAMColor.borderStrong.opacity(0.6)).frame(height: 4)
+                    // What has arrived so far: the furthest a drag can reach.
+                    Capsule().fill(FAMColor.borderStrong)
+                        .frame(width: width * min(player.arrived / total, 1), height: 4)
                     Capsule().fill(FAMColor.copper).frame(width: x, height: 4)
                     Circle()
                         .fill(FAMColor.copper)
@@ -74,7 +77,7 @@ struct PlayerView: View {
                     .onChanged { value in
                         guard player.arrived > 0 else { return }
                         dragging = true
-                        dragValue = total * min(max(value.location.x / width, 0), 1)
+                        dragValue = min(total * min(max(value.location.x / width, 0), 1), player.arrived)
                     }
                     .onEnded { _ in
                         guard dragging else { return }
@@ -85,14 +88,14 @@ struct PlayerView: View {
             .frame(height: 24)
             .accessibilityElement()
             .accessibilityLabel("Position")
-            .accessibilityValue("\(clock(shown)) of \(clock(player.arrived))")
+            .accessibilityValue("\(clock(shown)) of \(clock(player.total))")
             .accessibilityAdjustableAction { direction in
                 player.skip(by: direction == .increment ? 15 : -15)
             }
             HStack {
                 Text(clock(shown))
                 Spacer()
-                Text(clock(player.arrived))
+                Text(clock(player.total))
             }
             .font(FAMFont.mono(10))
             .foregroundStyle(FAMColor.textMuted)
