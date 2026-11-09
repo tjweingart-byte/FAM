@@ -31704,3 +31704,38 @@ check; words without timings; starts kept once, as shares; the pipeline
 keeps them; a pair round-trips into the writer's block, off removes it; no
 pairs, no change; the reason from what was fixed; flaws named; refused on a
 deployed server; nothing on the server imports it).
+
+## 503. Story shapes, drafted for the owner (2026-11-09)
+
+The owner: "Draft the story shapes list" (proposal 5 of §502). The draft is
+`docs/story_shapes.md`: not signed, not wired - nothing reads it.
+
+**What it found first.** FAM already has shapes: `episode_intelligence.STRUCTURES`,
+nine of them, picked from a closed list by the brief inside its own call
+(no wait), with `in_progress` reached only from evidence (§88). §502's
+answer described choosing in code as if it were new; it is not. So the draft
+**revises that list rather than adding a second one**. It names five
+problems with today's shapes:
+- three endings invite a forecast or a summary (`breaking`'s "what happens
+  next", `business`'s "what it implies", `explainer`'s "the way to think about
+  it afterwards"), against [endings-do-not-tease] and [speak-from-inside];
+- no shape says how to open or land;
+- no shape says how its parts connect (because / therefore / but);
+- a person and a comparison have no shape;
+- no example is tied to a shape.
+
+**The draft:** ten shapes plus `general`. Each has six parts: chosen, opens
+on, moves, lands on, never, example. The keys are unchanged where a shape
+survives (`breaking`, `business`, `sports_recap`, `sports_preview`,
+`in_progress`, `explainer`, `historical`, `trend`); two are new (`profile`,
+`comparison`). Town news and the weather are left out, because §194's
+composed order already governs them. The twelve examples cover four shapes;
+six shapes have none, the news story among them, and the gaps are listed.
+
+**Once signed:** the shapes go into the playbook's Part 3, and the code
+follows the signed text. The brief keeps choosing, at no wait.
+Shakespeare may correct the shape ahead of the tap through an enum field.
+The writer's request carries the shape's opening, moves and landing, never
+the cached block. Each example names its shape. Measured per shape with
+`tools/editor_eval.py` and `tools/drop_off.py`. Four questions for the owner
+close the draft.
