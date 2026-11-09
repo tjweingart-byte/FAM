@@ -1719,6 +1719,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 
   // Categories (Nando, §503): the answer key, the owner's reviews, and the
   // one-time comparison.
+  var catCalibEpisodes = 100;
   function catPct(x) { return x == null ? "-" : Math.round(x * 100) + "%"; }
   // "anthropic:claude-sonnet-5-5" -> "Sonnet 5.5": the tile is narrow.
   function catModel(m) {
@@ -1746,8 +1747,12 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
              d.composer && d.composer.allowed ? "its corrected categories" : "waits on your signature");
     var note = "Grades up to " + st.calibration_episodes + " recent episodes once with " + catModel(st.calibration_model)
       + " beside the nightly key, to see how often they agree. It runs once, never nightly (about $1.50).";
-    if (c.ran) note = "Ran once: " + c.compared + " episodes, " + catModel(c.first_model) + " against " + catModel(c.second_model) + ".";
+    if (c.ran) note = c.finished
+      ? "Ran once (" + (c.outcome || "") + "): " + c.compared + " compared"
+        + (c.first_model ? ", " + catModel(c.first_model) + " against " + catModel(c.second_model) : "") + "."
+      : "Running now - the result shows here when it ends.";
     else if (!c.allowed) note += " Not available: " + (c.why_not || "");
+    catCalibEpisodes = st.calibration_episodes;
     $("catCalibNote").textContent = note;
     $("catCalibrate").hidden = !c.allowed;
     $("catCalib").parentNode.hidden = !c.ran;
@@ -1791,9 +1796,10 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       return;
     }
     if (ev.target.id === "catCalibrate") {
-      if (!confirm("Run the one-time check? It grades up to 100 episodes with the second key once, about $1.50.")) return;
+      if (!confirm("Run the one-time check? It grades up to " + catCalibEpisodes
+          + " episodes with the second key once (about $1.50 for 100). It can never run again.")) return;
       api("/api/admin/categories/calibrate", {}).then(function (r) {
-        $("catCalibMsg").textContent = r.queued ? "Queued: it runs in the background, and the result shows here." : "Already queued.";
+        $("catCalibMsg").textContent = r.queued ? "Queued: it runs in the background, and the result shows here." : "Already queued - it runs shortly.";
         $("catCalibrate").hidden = true;
       }).catch(function (e) { $("catCalibMsg").textContent = e.message; });
     }

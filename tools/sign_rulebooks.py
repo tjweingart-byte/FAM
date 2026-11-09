@@ -37,6 +37,13 @@ def _run(args: list, data: bytes = b"") -> bytes:
     return subprocess.run(args, input=data, capture_output=True, check=True).stdout
 
 
+def _put(args: list, data: bytes = b"") -> None:
+    """Write to the clipboard. Output to nowhere: xclip leaves a process
+    holding the clipboard, and waiting on its pipes would never end."""
+    subprocess.run(args, input=data, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, check=True)
+
+
 def read_clipboard() -> str:
     system = platform.system()
     if system == "Darwin":
@@ -51,11 +58,11 @@ def clear_clipboard() -> None:
     try:
         system = platform.system()
         if system == "Darwin":
-            _run(["pbcopy"], b"")
+            _put(["pbcopy"], b"")
         elif system == "Windows":
-            _run(["powershell", "-NoProfile", "-Command", "Set-Clipboard -Value ' '"])
+            _put(["powershell", "-NoProfile", "-Command", "Set-Clipboard -Value ' '"])
         else:
-            _run(["xclip", "-selection", "clipboard"], b"")
+            _put(["xclip", "-selection", "clipboard"], b"")
     except Exception:  # noqa: BLE001
         print("  Could not empty the clipboard: copy something else now.")
 
@@ -101,7 +108,8 @@ def check_books(folder: pathlib.Path, manifest: bytes) -> list:
     """Every rule book in `folder` against the manifest's fingerprint:
     `(name, ok)`. Books not downloaded are not checked - they are already
     on GitHub, unchanged."""
-    books = json.loads(manifest.decode("utf-8")).get("books") or {}
+    data = json.loads(manifest.decode("utf-8"))
+    books = (data.get("books") if isinstance(data, dict) else None) or {}
     out = []
     for name, digest in sorted(books.items()):
         path = folder / name
@@ -120,7 +128,10 @@ def main() -> int:
         return 1
     manifest = source.read_bytes()
     try:
-        version = json.loads(manifest.decode("utf-8"))["version"]
+        data = json.loads(manifest.decode("utf-8"))
+        version = data["version"]
+        if not isinstance(data.get("books"), dict) or not data["books"]:
+            raise ValueError("no books")
     except Exception:  # noqa: BLE001
         print(f"{source.name} is not a manifest. Download it again with 'Download raw file'.")
         return 1
@@ -140,6 +151,9 @@ def main() -> int:
           "then come back here and press Return. Do not paste it anywhere. ")
     try:
         text = read_clipboard()
+    except Exception:  # noqa: BLE001 - no clipboard tool here
+        print("\nNot signed: this computer's clipboard could not be read.")
+        return 1
     finally:
         clear_clipboard()
     try:

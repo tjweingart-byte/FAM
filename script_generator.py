@@ -685,6 +685,9 @@ class ScriptNotes:
     #: episode, so the answer key can grade that source. None when Nando
     #: did not work on the episode.
     category_prior_seen: object = None
+    #: Whether Nando's own call was already made ahead of the tap, where the
+    #: brief was built (§501), answered or not: never made twice.
+    category_ahead_asked: bool = False
     #: The reading taken for an older client that cannot ask (§426): C3P0's
     #: likeliest, "" otherwise. Such an episode is kept but never current,
     #: so a client that can ask is never served the guess under the plain key.
@@ -853,11 +856,19 @@ async def _nando_decides_ahead(plan: "EpisodePlan", notes) -> "EpisodePlan":
         said = getattr(brief, "contextualized", None) or {}
         if said.get("ambiguous") or said.get("node"):
             return plan
+        # An edition drops a story whose answer is a result before it is
+        # written (`trending_bank._start`): his call would buy nothing.
+        if getattr(notes, "edition", False) and getattr(brief, "outcome_dependent", False):
+            return plan
         field = categorizer.provider_field(plan.query)
         prior = categorizer.prior_for(plan.query, plan.context, notes)
         placed = categorizer.place(brief, plan.query, field, prior, "")
         if placed.node or placed.ambiguous or not placed.candidates:
             return plan
+        # Asked once ahead of the tap, whatever he answers: `prepare` never
+        # asks again on these notes, even after "none" or a failure.
+        if notes is not None:
+            notes.category_ahead_asked = True
         pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,
                                          ahead=True)
         if not pick:
@@ -2911,7 +2922,8 @@ class ScriptGenerator:
                                  or getattr(notes, "prefetch", False))
                 if (not placed.node and ahead_now and not unsure
                         and not said.get("node") and placed.candidates
-                        and not placed.ambiguous):
+                        and not placed.ambiguous
+                        and not getattr(notes, "category_ahead_asked", False)):
                     # Ahead of the tap nobody waits: Nando's own call is
                     # simply awaited, within its own time limit (§379).
                     pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,

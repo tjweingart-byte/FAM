@@ -103,6 +103,18 @@ class TrainingStore:
             db.execute("""CREATE TABLE IF NOT EXISTS nando_batches (
                 batch_id TEXT PRIMARY KEY, waiting TEXT NOT NULL,
                 sent_at REAL NOT NULL, done_at REAL NOT NULL DEFAULT 0)""")
+            # The model the batch was sent to, so a deploy that changes the
+            # setting meanwhile cannot fail every answer as the wrong model.
+            try:
+                db.execute("ALTER TABLE nando_batches ADD COLUMN model"
+                           " TEXT NOT NULL DEFAULT ''")
+            except Exception:  # noqa: BLE001 - already there
+                pass
+            # The one-time comparison's start (§503): once it has begun it has
+            # run, whatever it managed to compare.
+            db.execute("""CREATE TABLE IF NOT EXISTS nando_calibration_run (
+                id INTEGER PRIMARY KEY, started_at REAL NOT NULL,
+                finished_at REAL NOT NULL DEFAULT 0, outcome TEXT NOT NULL DEFAULT '')""")
             # The owner's own reviews (§503): the node the owner said an
             # episode is about ("" for none), and the answer key's grade at
             # that moment, so how often the key agrees with the owner is a
@@ -159,22 +171,46 @@ class TrainingStore:
         return [dict(zip(("key", "query", "first", "first_model", "second",
                           "second_model", "at"), r)) for r in rows]
 
-    def put_batch(self, batch_id: str, waiting: dict, now: float = 0.0) -> None:
+    def put_batch(self, batch_id: str, waiting: dict, now: float = 0.0,
+                  model: str = "") -> None:
         import json
 
         with self._lock, self._connect() as db:
-            db.execute("INSERT INTO nando_batches (batch_id, waiting, sent_at, done_at)"
-                       " VALUES (?, ?, ?, 0) ON CONFLICT(batch_id) DO NOTHING",
-                       (batch_id, json.dumps(waiting), now or time.time()))
+            db.execute("INSERT INTO nando_batches (batch_id, waiting, sent_at, done_at, model)"
+                       " VALUES (?, ?, ?, 0, ?) ON CONFLICT(batch_id) DO NOTHING",
+                       (batch_id, json.dumps(waiting), now or time.time(), model))
 
     def pending_batches(self) -> list:
-        """`[(batch_id, waiting, sent_at)]` not yet collected, oldest first."""
+        """`[(batch_id, waiting, sent_at, model)]` not yet collected, oldest
+        first."""
         import json
 
         with self._connect() as db:
-            rows = db.execute("SELECT batch_id, waiting, sent_at FROM nando_batches"
+            rows = db.execute("SELECT batch_id, waiting, sent_at, model FROM nando_batches"
                               " WHERE done_at = 0 ORDER BY sent_at").fetchall()
-        return [(r[0], json.loads(r[1] or "{}"), float(r[2])) for r in rows]
+        return [(r[0], json.loads(r[1] or "{}"), float(r[2]), r[3] or "") for r in rows]
+
+    def start_calibration(self, now: float = 0.0) -> bool:
+        """Record the one-time comparison's start; False when it has started
+        before (§503). Once started it has run."""
+        with self._lock, self._connect() as db:
+            if db.execute("SELECT 1 FROM nando_calibration_run WHERE id = 1").fetchone():
+                return False
+            db.execute("INSERT INTO nando_calibration_run (id, started_at) VALUES (1, ?)",
+                       (now or time.time(),))
+            return True
+
+    def finish_calibration(self, outcome: str, now: float = 0.0) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("UPDATE nando_calibration_run SET finished_at = ?, outcome = ?"
+                       " WHERE id = 1", (now or time.time(), outcome[:300]))
+
+    def calibration_run(self) -> Optional[dict]:
+        with self._connect() as db:
+            row = db.execute("SELECT started_at, finished_at, outcome FROM"
+                             " nando_calibration_run WHERE id = 1").fetchone()
+        return None if row is None else {"started_at": float(row[0]),
+                                         "finished_at": float(row[1]), "outcome": row[2]}
 
     def finish_batch(self, batch_id: str, now: float = 0.0) -> None:
         with self._lock, self._connect() as db:
@@ -193,7 +229,11 @@ class TrainingStore:
                        " node = excluded.node, confidence = excluded.confidence,"
                        " reason = excluded.reason, judge_model = excluded.judge_model,"
                        " at = excluded.at, path = excluded.path, retired_at = 0,"
-                       " node_now = '', regrade = 0",
+                       " node_now = '', regrade = 0"
+                       # The owner's review is never replaced by a model's
+                       # grade - a batch collected after it, say (§503).
+                       f" WHERE nando_labels.judge_model <> '{OWNER}'"
+                       f" OR excluded.judge_model = '{OWNER}'",
                        (key, query[:500], node[:120], confidence[:8], reason[:240],
                         judge_model[:80], now or time.time(), path[:400]))
 
@@ -274,6 +314,7 @@ class TrainingStore:
             db.execute("DELETE FROM nando_batches")
             db.execute("DELETE FROM nando_owner")
             db.execute("DELETE FROM nando_calibration")
+            db.execute("DELETE FROM nando_calibration_run")
             db.execute("DELETE FROM nando_tree")
         return int(n)
 
@@ -465,13 +506,28 @@ def agreed(row: dict) -> bool:
     """Nando, the writer and the composer all filed the episode on one
     branch (§503): the same node, or one more specific than another - taken
     as right without asking the key. False when Nando filed nothing or the
-    writer named nothing, since then nothing was checked."""
+    writer named nothing, since then nothing was checked; when a solid source
+    filed it (a tile's, an edition's, a bank topic's, a DailyFAM subject's,
+    a provider's filing), since Nando may only narrow that one and the
+    composer's is often the same filing, so they agree by construction and
+    the source itself is what needs grading (§502); and when a filing is a
+    bare facet beside something more specific, which agrees with anything
+    under it."""
+    import topics
+
     filed = row.get("nando") or row.get("nando_request") or ""
     writer, composer = row.get("writer") or "", row.get("composer") or ""
     if not filed or not writer or row.get("nando_how") == "refiled":
         return False
+    if filed_by(row) in SOURCES:
+        return False
     for other in (writer, composer):
-        if other and verdict(filed, other) not in ("exact", "branch"):
+        if not other:
+            continue
+        v = verdict(filed, other)
+        if v == "exact":
+            continue
+        if v != "branch" or filed in topics.FACETS or other in topics.FACETS:
             return False
     return True
 
@@ -578,16 +634,23 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
             ids = {f"n{i}": (row, sentences) for i, (row, sentences) in enumerate(fresh)}
             requests = {cid: _judge_request(row["query"], sentences, listing)
                         for cid, (row, sentences) in ids.items()}
-            batch_id, refused = await models.submit_batch(requests)
+            batch_id, refused, attempted = await models.submit_batch(requests)
             out["failed"] += len(refused)
             if batch_id:
                 waiting = {cid: {"key": row["key"], "query": row["query"]}
                            for cid, (row, _s) in ids.items() if cid not in refused}
-                await asyncio.to_thread(store().put_batch, batch_id, waiting)
+                await asyncio.to_thread(store().put_batch, batch_id, waiting, 0.0,
+                                        models.model_setting_value("categorizer_judge_model"))
                 out["batch_id"] = batch_id
                 out["batched"] = len(waiting)
                 return out
-            # Not sent: asked live, so a saving never costs a grade.
+            if attempted:
+                # The create failed or timed out, and the batch may have been
+                # made all the same: its episodes are not read again live
+                # (rule 12: each finished episode once).
+                out["failed"] += len(ids) - len(refused)
+                return out
+            # Never sent (a vendor that cannot batch): asked live instead.
             fresh = [pair for cid, pair in ids.items() if cid not in refused]
         for row, sentences in fresh:
             label = await judge(row["key"], row["query"], sentences, listing)
@@ -629,10 +692,11 @@ async def collect_batches(script_for: Callable[[str], list]) -> dict:
         from agents import models
 
         pending = await asyncio.to_thread(store().pending_batches)
-        for batch_id, waiting, sent_at in pending:
+        for batch_id, waiting, sent_at, model in pending:
             requests = {cid: _judge_request(item["query"], [], "")
                         for cid, item in waiting.items()}
-            results = await models.collect_batch(batch_id, requests)
+            # Read with the model it was sent to, whatever the setting says now.
+            results = await models.collect_batch(batch_id, requests, model=model)
             if results is None:
                 if time.time() - sent_at > BATCH_GIVE_UP_SECONDS:
                     log.warning("nando's answer-key batch %s given up unread", batch_id)
@@ -642,6 +706,10 @@ async def collect_batches(script_for: Callable[[str], list]) -> dict:
                     out["waiting"] += 1
                 continue
             out["batches"] += 1
+            # Finished before its grades are kept: its spend is now in the
+            # ledger, and a batch read twice would record it twice. A grade
+            # that cannot be kept below is lost, never paid for again.
+            await asyncio.to_thread(store().finish_batch, batch_id)
             for cid, item in waiting.items():
                 result = results.get(cid)
                 if result is not None:
@@ -653,9 +721,12 @@ async def collect_batches(script_for: Callable[[str], list]) -> dict:
                 if label is None:
                     out["failed"] += 1
                     continue
-                await asyncio.to_thread(_keep, item["key"], item["query"], label)
-                out["labelled"] += 1
-            await asyncio.to_thread(store().finish_batch, batch_id)
+                try:
+                    await asyncio.to_thread(_keep, item["key"], item["query"], label)
+                    out["labelled"] += 1
+                except Exception:  # noqa: BLE001 - one grade, not the batch
+                    log.exception("nando's grade for %r could not be kept", item["query"])
+                    out["failed"] += 1
     except Exception as exc:  # noqa: BLE001
         log.exception("nando's answer-key batches could not be collected")
         out["error"] = f"{type(exc).__name__}: {exc}"
@@ -1032,21 +1103,30 @@ def calibration_allowed() -> tuple:
             return False, ("nando's signed rule 12 lets the answer key read each episode "
                            "once: the comparison waits for the owner to sign the "
                            "amendment (§503)")
-        if store().calibration():
+        if store().calibration_run() is not None:
             return False, "the comparison has already run; it runs once only"
         return True, ""
     except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
 
 
+#: The most episodes the comparison may read, as signed rule 12 says ("at
+#: most 100"), whatever `NANDO_CALIBRATION_EPISODES` is set to.
+CALIBRATION_MAX = 100
+
+
 async def calibrate(script_for: Callable[[str], list], limit: int = 0,
                     days: float = REVIEW_DAYS, at_once: int = 4) -> dict:
     """The owner's one-time comparison (§503): up to `limit`
-    (`NANDO_CALIBRATION_EPISODES`, 100) recent episodes, each graded by the
-    nightly key (its grade reused when it has one, so it is not read again)
-    and once by the second (`CATEGORIZER_CALIBRATION_MODEL`). Only the
-    comparison is kept; the nightly key's grades stand. Refuses to run a
-    second time. Never raises."""
+    (`NANDO_CALIBRATION_EPISODES`, never more than `CALIBRATION_MAX`)
+    recent episodes, each graded by the nightly key and once by the second
+    (`CATEGORIZER_CALIBRATION_MODEL`), four at a time. The nightly key's
+    existing grade is reused; an episode it never read is read by it once
+    (and that grade kept as the night's would be); an episode it was asked
+    about with no usable grade is passed over, so no episode is read by the
+    nightly key twice. Only the comparison is kept. Its start is recorded
+    before anything is read, so it runs once only, however it ends. Never
+    raises."""
     out = {"compared": 0, "failed": 0}
     ok, why = calibration_allowed()
     if not ok:
@@ -1057,18 +1137,28 @@ async def calibrate(script_for: Callable[[str], list], limit: int = 0,
         import topics
         from config import settings
 
-        limit = int(limit or settings.nando_calibration_episodes)
+        if not (settings.agents and settings.categorizer):
+            out["refused"] = "Nando is off (AGENTS, CATEGORIZER)"
+            return out
+        if not await asyncio.to_thread(store().start_calibration):
+            out["refused"] = "the comparison has already run; it runs once only"
+            return out
+        limit = max(1, min(int(limit or settings.nando_calibration_episodes),
+                           CALIBRATION_MAX))
 
         def plan() -> tuple:
             rows = _newest_per_key(
                 r for r in topics.category_tree().audit_rows(since=time.time() - days * 86400)
                 if r.get("key") and r.get("origin", "") not in NOT_LABELLED)
             labels = {l["key"]: l for l in store().labels(since=0, retired=False)}
+            asked = store().asked(r["key"] for r in rows)
             picked = []
             for row in choose(rows):
                 label = labels.get(row["key"])
                 if label and label["judge_model"] == OWNER:
                     continue                  # the owner's filing is not a key's
+                if label is None and row["key"] in asked:
+                    continue                  # read once already, with no grade
                 sentences = list(script_for(row["key"]) or [])
                 if sentences:
                     picked.append((row, sentences, label))
@@ -1082,9 +1172,9 @@ async def calibrate(script_for: Callable[[str], list], limit: int = 0,
         async def one(row, sentences, label):
             async with gate:
                 if label is None:
+                    await asyncio.to_thread(store().mark_asked, row["key"])
                     first = await judge(row["key"], row["query"], sentences, listing)
                     if first is not None:
-                        await asyncio.to_thread(store().mark_asked, row["key"])
                         await asyncio.to_thread(_keep, row["key"], row["query"], first)
                 else:
                     first = {"node": label["node"], "judge_model": label["judge_model"]}
@@ -1099,9 +1189,15 @@ async def calibrate(script_for: Callable[[str], list], limit: int = 0,
                 out["compared"] += 1
 
         await asyncio.gather(*(one(*p) for p in picked))
+        await asyncio.to_thread(store().finish_calibration,
+                                f"{out['compared']} compared, {out['failed']} failed")
     except Exception as exc:  # noqa: BLE001
         log.exception("nando's comparison failed")
         out["error"] = f"{type(exc).__name__}: {exc}"
+        try:
+            await asyncio.to_thread(store().finish_calibration, out["error"])
+        except Exception:  # noqa: BLE001
+            pass
     return out
 
 
@@ -1123,7 +1219,9 @@ def calibration_report() -> dict:
                 examples.append({"query": r["query"], "first": r["first"] or "none",
                                  "second": r["second"] or "none"})
     n = exact + branch + wrong
-    return {"ran": bool(rows), "compared": n, "exact": exact, "on_branch": branch,
+    run = store().calibration_run()
+    return {"ran": run is not None, "outcome": (run or {}).get("outcome", ""),
+            "finished": bool(run and run["finished_at"]), "compared": n, "exact": exact, "on_branch": branch,
             "wrong": wrong, "agree_rate": _rate(exact + branch, n),
             "exact_rate": _rate(exact, n),
             "first_model": rows[0]["first_model"] if rows else "",
@@ -1132,13 +1230,18 @@ def calibration_report() -> dict:
 
 
 def queue_calibration() -> bool:
-    """Queue the one-time comparison on Netenyahu's loop (§503), under one
-    key, so it is queued at most once. True when this call queued it."""
+    """Queue the one-time comparison on Netenyahu's loop (§503). True when
+    this call queued it. It runs once only however often it is queued."""
     from agents import tasks
     from config import settings
 
-    added = tasks.store().add("categorizer", "calibrate", "once",
-                              {"episodes": int(settings.nando_calibration_episodes)})
+    # Keyed by the click: the run-once guarantee is the comparison's own
+    # start record (`start_calibration`), so a task that found it refused
+    # (Nando switched off) never leaves the button stuck.
+    stamp = str(int(time.time()))
+    added = tasks.store().add("categorizer", "calibrate", f"once-{stamp}",
+                              {"episodes": min(int(settings.nando_calibration_episodes),
+                                               CALIBRATION_MAX), "at": stamp})
     return added == tasks.ADDED
 
 

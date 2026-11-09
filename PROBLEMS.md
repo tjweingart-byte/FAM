@@ -31810,3 +31810,97 @@ owner's click, never by itself.
 
 The proposal and the pending manifest are deleted and the proposals README
 says nothing is waiting. The owner updates the copy held outside Claude.
+
+## 506. The review before the pull request: the owner's review kept, rule 12 held, a batch's spend counted once (2026-11-09)
+
+At the owner's request, before the pull request into Main, three
+independent reviews read the branch's whole change (`git diff
+origin/Main...HEAD`): one on Nando's placement path (§501), one on the
+answer key and the batch layer (§502-§503), one on /admin, the signing tool
+and whether the documents tell the truth (§503-§505). With the agents off
+nothing changed; everything they found shows with them on, and is fixed
+here.
+
+**The answer key.**
+
+- **A batch collected after the owner's review replaced it.** A review
+  written at 09:00 for an episode in the 03:00 batch was overwritten by the
+  key's grade at 09:05. `put_label` now never replaces a grade of the
+  owner's with a model's.
+- **The one-time comparison could read an episode with the nightly key
+  twice** (rule 12: once): an episode asked about with no usable grade - a
+  failed call, a retired grade, one still in a batch - was read again. It
+  is now passed over; an episode the key never read is marked asked before
+  it is read. The episodes are capped at 100 in code (`CALIBRATION_MAX`),
+  the number signed rule 12 names, whatever the setting says.
+- **"Once only" could be lost or doubled.** Keyed by its task, a run that
+  stored nothing - every call failed, or refused at run time - either ran
+  again or could never be queued again, and the page said "Already queued".
+  Its start is now recorded before anything is read
+  (`nando_calibration_run`): once started it has run, however it ended, and
+  the page says how it ended. A run refused before starting (Nando switched
+  off) reads nothing and may be queued again; each click queues its own
+  task, and the start record keeps it to one run.
+- **A failed create was followed by a live read.** A batch whose create
+  timed out may exist all the same, so grading its episodes live as well
+  read each twice and billed twice. `submit_batch` now says whether a create
+  was sent (`attempted`); after one that failed nothing is asked again.
+  Only a vendor that cannot batch at all is graded live. Every batch API
+  call now has a time limit (`models.BATCH_CALL_SECONDS`, 120 s).
+- **A model change between sending and collecting lost the whole batch** as
+  `WRONG_MODEL` - §503 had just moved the key from Opus to Sonnet. A batch
+  now keeps the model it was sent to and is read with it.
+- **A batch could be collected twice**, recording its spend twice, if
+  keeping a grade failed after the ledger rows were written. It is now
+  finished first; a grade that cannot be kept is lost, never paid twice.
+- **One-hour cache writes were priced as five-minute ones** (the ledger
+  prices every write at the global `PROMPT_CACHE_TTL`, and a one-hour write
+  is billed at 2x). Batches now ask for the standard cache, which the
+  ledger prices correctly; at ten requests a night the longer cache bought
+  little.
+- **"Agreed" skipped what §502 meant to grade.** A tile's or edition's
+  filing and the composer's are one filing, so they agreed by construction;
+  a bare facet agreed with anything under it. Neither counts as agreement
+  now: those episodes are graded.
+
+**Nando's placement.**
+
+- **An edition or script-level warm asked him twice** when his first answer
+  ahead of the tap was "none" or failed: `prepare` could not tell "asked,
+  nothing" from "never asked". The notes now say he was asked
+  (`category_ahead_asked`), and `prepare` never asks again. §501's "one
+  call of his, not two" is now true.
+- **An edition story it will drop** (its answer a result) no longer pays for
+  his call.
+- Tests now run the whole flows the claims name: `understand` then `prepare`
+  on the same notes, and a brief built ahead then taken by a later tap.
+
+**/admin and the signing tool.** The page's panels each read on their own,
+so one store failing empties one panel, never the page. The confirm dialog
+reads the setting. The signing tool no longer waits forever on Linux's
+clipboard, says so plainly where no clipboard tool exists, and refuses a
+manifest with no books.
+
+**Known and left, said plainly.** A brief warmed at prefetch's brief level
+writes no audit row, and the tap that takes it is logged under the surface
+it was tapped on (`myfam`, which the 05:00 rails edition also uses), so
+`nando.by_origin` cannot show taps on warmed briefs apart from other myFAM
+taps. On the DailyFAM edition, a prompt whose name means two things may
+still pay for his call before the edition drops it as ambiguous, where his
+own check (`placed.ambiguous`) and the edition's (`ambiguous_readings`)
+differ.
+
+**Checked by the reviews and found sound:** nothing new in front of a
+listener's first word; a warmed (shared) brief never mutated; never a
+guess between two readings; the live agent path unchanged by the refactor;
+every batched request through the same checks as a live one; admin auth,
+escaping and validation on every endpoint; the signing tool's signature
+identical to OpenSSL's and the key never written or shown; the documents'
+claims, the settings, the signed books.
+
+**CI's two other jobs, reproduced here.** Python 3.12 (CI's version) and
+the Postgres job (PostgreSQL 16, the CI tuning), each over the whole suite.
+
+Tests: added to `tests/test_nando_background_501.py`,
+`tests/test_nando_training_502.py`, `tests/test_nando_review_503.py` and
+`tests/test_sign_rulebooks_504.py`, one or more per finding.

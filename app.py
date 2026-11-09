@@ -11640,17 +11640,27 @@ def _categories_panel() -> dict:
     tree = topics.category_tree()
     allowed, why = agent_training.calibration_allowed()
     composer_ok, composer_why = agent_training.composer_allowed()
+
+    def safely(read, empty):
+        # One store that fails is one empty panel, never the page (§503).
+        try:
+            return read()
+        except Exception:  # noqa: BLE001
+            log.exception("the categories panel could not read %s", getattr(read, "__name__", read))
+            return empty
+
     return {
         "settings": {"judge_model": settings.categorizer_judge_model,
                      "per_run": int(settings.nando_judge_per_run),
                      "batch": bool(settings.nando_judge_batch),
                      "disagreements_only": bool(settings.nando_judge_disagreements_only),
                      "calibration_model": settings.categorizer_calibration_model,
-                     "calibration_episodes": int(settings.nando_calibration_episodes),
+                     "calibration_episodes": min(int(settings.nando_calibration_episodes),
+                                                 agent_training.CALIBRATION_MAX),
                      "on": bool(settings.agents and settings.categorizer)},
-        "key": agent_training.report() if agent_training.exists() else {},
-        "owner": agent_training.owner_agreement(),
-        "calibration": dict(agent_training.calibration_report(),
+        "key": safely(agent_training.report, {}) if agent_training.exists() else {},
+        "owner": safely(agent_training.owner_agreement, {}),
+        "calibration": dict(safely(agent_training.calibration_report, {"ran": False}),
                             allowed=allowed, why_not=why),
         "composer": {"allowed": composer_ok, "why_not": composer_why},
         "nodes": sorted(set(tree.nodes()) | set(topics.FACETS)),

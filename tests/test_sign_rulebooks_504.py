@@ -82,3 +82,14 @@ def test_the_signature_is_one_base64_line():
     key = ed25519.Ed25519PrivateKey.generate()
     line = tool.sign(b"manifest", key, tool.public_of(key))
     assert "\n" not in line and len(base64.b64decode(line)) == 64
+
+
+def test_a_manifest_with_no_books_is_never_signed(tmp_path, monkeypatch, capsys):
+    (tmp_path / "MANIFEST.pending.json").write_text('{"format": 1, "version": 8}')
+    monkeypatch.chdir(tmp_path)
+    asked = []
+    monkeypatch.setattr(tool, "read_clipboard", lambda: asked.append(1) or "")
+    assert tool.main() == 1 and asked == []
+    assert not (tmp_path / "MANIFEST.json.sig").exists()
+    (tmp_path / "MANIFEST.pending.json").write_text("[1, 2]")
+    assert tool.main() == 1

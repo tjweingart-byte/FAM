@@ -56,6 +56,17 @@ def test_the_owners_settings():
 
 
 # ------------------------------------------------------------------ disagreements only
+def test_a_solid_sources_filing_or_a_bare_facet_is_never_taken_as_agreed(tree):
+    # A tile's filing and the composer's are one filing; the source itself is
+    # what needs grading. A facet agrees with anything under it.
+    row = {"nando": "nfl", "nando_request": "nfl", "writer": "nfl", "composer": "nfl",
+           "nando_how": "confirmed", "nando_request_how": "tile"}
+    assert not training.agreed(row)
+    facet = {"nando": "sports", "writer": "nfl", "nando_how": "confirmed",
+             "nando_request_how": "picked"}
+    assert not training.agreed(facet)
+
+
 def test_three_filers_on_one_branch_agree(tree):
     row = {"nando": "nfl", "writer": "nfl", "composer": "american football",
            "nando_how": "confirmed"}
@@ -140,8 +151,14 @@ def test_the_check_waits_for_the_owners_signature(tree, monkeypatch):
     assert out["refused"] and training.store().calibration() == []
 
 
+def _nando_on(monkeypatch):
+    monkeypatch.setattr(config, "settings",
+                        dataclasses.replace(config.settings, agents=True, categorizer=True))
+
+
 def test_the_check_runs_once_and_reuses_the_nightly_grade(tree, monkeypatch):
     _signed(monkeypatch, training.CALIBRATION_RULE)
+    _nando_on(monkeypatch)
     _note("graded", "how did the NFL week go")
     _note("fresh", "the Eagles film night", writer_words="film")
     training.store().put_label("graded", "how did the NFL week go", "nfl", "high", "r",
@@ -166,6 +183,58 @@ def test_the_check_runs_once_and_reuses_the_nightly_grade(tree, monkeypatch):
     assert training.calibration_allowed()[0] is False
     calls.clear()
     assert asyncio.run(training.calibrate(lambda k: ["s"]))["refused"] and calls == []
+
+
+def test_the_check_never_reads_an_episode_with_the_nightly_key_twice(tree, monkeypatch):
+    _signed(monkeypatch, training.CALIBRATION_RULE)
+    _nando_on(monkeypatch)
+    _note("asked", "asked before, no grade")
+    training.store().mark_asked("asked")             # failed, or in a batch
+    calls = []
+
+    async def judge(key, query, sentences, listing, model_setting="categorizer_judge_model"):
+        calls.append(key)
+        return {"node": "nfl", "confidence": "high", "reason": "r", "judge_model": "m"}
+    monkeypatch.setattr(training, "judge", judge)
+    asyncio.run(training.calibrate(lambda k: ["s"], limit=10))
+    assert calls == []
+
+
+def test_the_check_runs_once_even_when_every_call_fails(tree, monkeypatch):
+    _signed(monkeypatch, training.CALIBRATION_RULE)
+    _nando_on(monkeypatch)
+    _note("k", "how did the NFL week go")
+
+    async def judge(*a, **k):
+        return None
+    monkeypatch.setattr(training, "judge", judge)
+    out = asyncio.run(training.calibrate(lambda k: ["s"], limit=10))
+    assert out["compared"] == 0 and out["failed"] == 1
+    assert training.calibration_allowed()[0] is False
+    report = training.calibration_report()
+    assert report["ran"] and report["finished"] and "1 failed" in report["outcome"]
+
+
+def test_a_check_refused_at_run_time_reads_nothing_and_can_run_later(tree, monkeypatch):
+    _signed(monkeypatch, training.CALIBRATION_RULE)          # Nando off
+    out = asyncio.run(training.calibrate(lambda k: ["s"]))
+    assert "off" in out["refused"] and training.calibration_allowed()[0] is True
+
+
+def test_the_check_reads_at_most_the_signed_hundred(tree, monkeypatch):
+    _signed(monkeypatch, training.CALIBRATION_RULE)
+    _nando_on(monkeypatch)
+    for i in range(105):
+        _note(f"k{i}", f"question {i}")
+    calls = []
+
+    async def judge(key, query, sentences, listing, model_setting="categorizer_judge_model"):
+        if model_setting == "categorizer_calibration_model":
+            calls.append(key)
+        return {"node": "nfl", "confidence": "high", "reason": "r", "judge_model": "m"}
+    monkeypatch.setattr(training, "judge", judge)
+    asyncio.run(training.calibrate(lambda k: ["s"], limit=500))
+    assert len(calls) == training.CALIBRATION_MAX == 100
 
 
 def test_the_second_key_is_nandos_own_setting():
@@ -219,17 +288,21 @@ def test_the_check_is_refused_until_signed(client, monkeypatch):
     assert r.status_code == 409
 
 
-def test_the_check_is_queued_once(client, tree, monkeypatch):
+def test_the_check_is_queued_from_admin(client, tree, monkeypatch):
     import app as appmod
 
     _signed(monkeypatch, training.CALIBRATION_RULE)
     monkeypatch.setattr(appmod, "settings",
                         dataclasses.replace(appmod.settings, agents=True, categorizer=True))
     first = client.post("/api/admin/categories/calibrate", headers=ADMIN, json={}).json()
-    again = client.post("/api/admin/categories/calibrate", headers=ADMIN, json={}).json()
-    assert first["queued"] is True and again["queued"] is False
+    assert first["queued"] is True
     assert any(t.startswith("categorizer:calibrate:once") for t in tasks.store().due(
         10, kinds=["categorizer:calibrate"]))
+    # However often it is queued, it runs once: its start is recorded.
+    assert training.store().start_calibration() is True
+    assert training.store().start_calibration() is False
+    r = client.post("/api/admin/categories/calibrate", headers=ADMIN, json={})
+    assert r.status_code == 409
 
 
 @pytest.mark.parametrize("signed", [False, True])

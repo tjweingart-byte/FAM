@@ -144,3 +144,48 @@ def test_the_audit_counts_every_write_path_apart():
     assert got["prefetch"] == {"episodes": 1, "filed": 0, "filed_rate": 0.0}
     assert got["dailyfam"]["filed_rate"] == 1.0
     assert category_audit._nando_summary(rows, 3)["by_origin"] == got
+
+
+# ------------------------------------------------------------------ the review before merge
+@pytest.mark.parametrize("flag", ["ahead", "prefetch"])
+def test_a_none_answer_ahead_is_never_asked_again_in_prepare(tree, monkeypatch, flag):
+    # The same notes go from `understand` to `prepare` on an edition or a
+    # script-level warm: "none" or a failure there must not buy a second call.
+    notes = notes_with("categorizer")
+    setattr(notes, flag, True)
+    plan, asked = _understand(monkeypatch, notes, pick="")
+    assert asked == [(QUERY, True)] and plan.brief.category_pick == ""
+    calls = []
+
+    async def tie(*a, **k):
+        calls.append(a)
+        return ""
+    monkeypatch.setattr(categorizer, "ask_tie", tie)
+    _prepare(monkeypatch, plan.brief, notes)
+    assert calls == []
+
+
+def test_the_warmed_brief_flows_from_the_warm_to_the_tap(tree, monkeypatch):
+    # End to end: a brief built ahead (as prefetch's brief level builds it),
+    # then a listener's tap with fresh notes that takes that brief.
+    warm = notes_with("categorizer")
+    warm.prefetch = True
+    plan, asked = _understand(monkeypatch, warm)
+    assert asked == [(QUERY, True)] and plan.brief.category_pick
+    calls = []
+
+    async def tie(*a, **k):
+        calls.append(a)
+        return ""
+    monkeypatch.setattr(categorizer, "ask_tie", tie)
+    tap = _prepare(monkeypatch, plan.brief, notes_with("categorizer"))
+    assert tap.category_placement.node == plan.brief.category_pick
+    assert tap.category_placement.how == "picked" and calls == []
+
+
+def test_an_edition_story_it_will_drop_pays_for_no_call(tree, monkeypatch):
+    notes = notes_with("categorizer", ahead=True)
+    notes.edition = True
+    plan, asked = _understand(monkeypatch, notes,
+                              brief=ei.Brief(query=QUERY, outcome_dependent=True))
+    assert asked == [] and plan.brief.category_pick == ""

@@ -145,8 +145,8 @@ def test_a_batched_request_is_the_live_request(judge_on, monkeypatch, tree):
     batches = FakeBatches()
     _use_client(monkeypatch, FakeClient(batches))
     request = training._judge_request("how did the Eagles do", ["They won."], "nfl | sports")
-    batch_id, refused = asyncio.run(models.submit_batch({"n0": request}))
-    assert batch_id == "msgbatch_1" and refused == {}
+    batch_id, refused, attempted = asyncio.run(models.submit_batch({"n0": request}))
+    assert batch_id == "msgbatch_1" and refused == {} and attempted
     params = batches.created[0][0]["params"]
     from agents.adapters import anthropic_adapter
 
@@ -155,10 +155,8 @@ def test_a_batched_request_is_the_live_request(judge_on, monkeypatch, tree):
     live = anthropic_adapter.ADAPTER.params(
         model=spec.model, system=system, user=models.build_user_turn(request.material),
         schema=schema, max_tokens=request.max_tokens, effort=request.effort)
-    # Identical but for the longer cache, which a batch answered over
-    # minutes needs.
-    assert params["system"][0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
-    params["system"][0]["cache_control"] = live["system"][0]["cache_control"]
+    # Identical, the standard cache included: the ledger prices that one
+    # correctly (a one-hour write is billed at 2x, and nothing records that).
     assert params == live
 
 
@@ -167,18 +165,20 @@ def test_a_refused_request_is_never_sent(judge_on, monkeypatch, tree):
                         dataclasses.replace(models.settings, categorizer=False))
     batches = FakeBatches()
     _use_client(monkeypatch, FakeClient(batches))
-    batch_id, refused = asyncio.run(models.submit_batch(
+    batch_id, refused, attempted = asyncio.run(models.submit_batch(
         {"n0": training._judge_request("q", ["s"], "")}))
     assert batch_id == "" and refused["n0"].status == models.OFF and not batches.created
+    assert attempted is False
 
 
 def test_staging_sends_no_batch(judge_on, monkeypatch, tree):
     monkeypatch.setattr(models.spend_guard, "enabled", lambda: True)
     batches = FakeBatches()
     _use_client(monkeypatch, FakeClient(batches))
-    batch_id, refused = asyncio.run(models.submit_batch(
+    batch_id, refused, attempted = asyncio.run(models.submit_batch(
         {"n0": training._judge_request("q", ["s"], "")}))
     assert batch_id == "" and refused["n0"].status == models.STAGING and not batches.created
+    assert attempted is False
 
 
 def test_collected_answers_are_priced_at_half_and_recorded(judge_on, monkeypatch, tree):
@@ -239,10 +239,28 @@ def test_what_the_batch_did_not_answer_is_never_asked_again(judge_on, monkeypatc
     assert asyncio.run(training.judge_batch(lambda k: ["s"], limit=10))["looked"] == 0
 
 
-def test_a_batch_that_cannot_be_sent_is_graded_live(judge_on, monkeypatch, tree):
+def test_a_failed_create_is_never_followed_by_a_live_read(judge_on, monkeypatch, tree):
+    # The batch may exist although the create failed: reading the same
+    # episodes live as well would read each twice (rule 12, the review).
     monkeypatch.setattr(training, "allowed", lambda: (True, ""))
     category_audit.note("question a", "", "tap", key="a")
     _use_client(monkeypatch, FakeClient(FakeBatches(fail_create=True)))
+    live = []
+
+    async def judge(*a, **k):
+        live.append(a)
+    monkeypatch.setattr(training, "judge", judge)
+    out = asyncio.run(training.judge_batch(lambda k: ["s"], limit=10))
+    assert live == [] and out["failed"] == 1 and "batch_id" not in out
+
+
+def test_a_vendor_that_cannot_batch_is_graded_live(judge_on, monkeypatch, tree):
+    monkeypatch.setattr(training, "allowed", lambda: (True, ""))
+    category_audit.note("question a", "", "tap", key="a")
+
+    async def submit(requests, **k):
+        return "", {}, False                    # nothing left the machine
+    monkeypatch.setattr(models, "submit_batch", submit)
     live = []
 
     async def judge(key, query, sentences, listing):
@@ -250,7 +268,54 @@ def test_a_batch_that_cannot_be_sent_is_graded_live(judge_on, monkeypatch, tree)
         return {"node": "nfl", "confidence": "high", "reason": "r", "judge_model": "m"}
     monkeypatch.setattr(training, "judge", judge)
     out = asyncio.run(training.judge_batch(lambda k: ["s"], limit=10))
-    assert live == ["a"] and out["labelled"] == 1 and "batch_id" not in out
+    assert live == ["a"] and out["labelled"] == 1
+
+
+def test_a_batch_is_read_with_the_model_it_was_sent_to(judge_on, monkeypatch, tree):
+    # A deploy that moves the key's model while a batch waits must not fail
+    # every answer as the wrong model.
+    monkeypatch.setattr(training, "allowed", lambda: (True, ""))
+    category_audit.note("question a", "", "tap", key="a")
+    batches = FakeBatches()
+    _use_client(monkeypatch, FakeClient(batches))
+    asyncio.run(training.judge_batch(lambda k: ["s"], limit=10))
+    assert training.store().pending_batches()[0][3] == "anthropic:claude-opus-5-5"
+    monkeypatch.setattr(models, "settings", dataclasses.replace(
+        models.settings, categorizer_judge_model="anthropic:claude-sonnet-5-5"))
+    batches.results_ = {"n0": _succeeded(model="claude-opus-5-5")}
+    got = asyncio.run(training.collect_batches(lambda k: ["s"]))
+    assert got["labelled"] == 1
+
+
+def test_a_batch_whose_grade_cannot_be_kept_is_never_read_twice(judge_on, monkeypatch, tree):
+    monkeypatch.setattr(training, "allowed", lambda: (True, ""))
+    category_audit.note("question a", "", "tap", key="a")
+    batches = FakeBatches()
+    _use_client(monkeypatch, FakeClient(batches))
+    asyncio.run(training.judge_batch(lambda k: ["s"], limit=10))
+    batches.results_ = {"n0": _succeeded()}
+
+    def broken(*a, **k):
+        raise RuntimeError("database is locked")
+    monkeypatch.setattr(training, "_keep", broken)
+    first = asyncio.run(training.collect_batches(lambda k: ["s"]))
+    assert first["failed"] == 1
+    # Finished before its grades were kept: its spend is never recorded twice.
+    assert asyncio.run(training.collect_batches(lambda k: ["s"]))["batches"] == 0
+
+
+def test_a_batch_collected_after_the_owners_review_never_replaces_it(judge_on, monkeypatch,
+                                                                     tree):
+    monkeypatch.setattr(training, "allowed", lambda: (True, ""))
+    category_audit.note("question a", "", "tap", key="a")
+    batches = FakeBatches()
+    _use_client(monkeypatch, FakeClient(batches))
+    asyncio.run(training.judge_batch(lambda k: ["s"], limit=10))
+    training.owner_label("a", "film")                    # reviewed meanwhile
+    batches.results_ = {"n0": _succeeded()}               # the key says nfl
+    asyncio.run(training.collect_batches(lambda k: ["s"]))
+    label = [l for l in training.store().labels() if l["key"] == "a"][0]
+    assert (label["node"], label["judge_model"]) == ("film", training.OWNER)
 
 
 def test_a_wipe_forgets_sent_batches():

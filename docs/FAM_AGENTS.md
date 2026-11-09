@@ -409,7 +409,7 @@ night on Sonnet 5.5**, only where Nando, the writer and the composer
 disagree (`NANDO_JUDGE_PER_RUN`, `NANDO_JUDGE_DISAGREEMENTS_ONLY`, the
 owner's choice in §503; 50 on Opus before), through the Message Batches
 API at half price (`NANDO_JUDGE_BATCH`, §502): **~$0.80** if the batch
-reads the cached tree, up to ~$4 if it never does *(est. from the measured
+reads the cached tree, up to ~$3 if it never does *(est. from the measured
 prompt: ~5,850 tokens of rule books and tree, ~1,100 of episode, ~200
 out)*. The owner's own reviews on /admin (Categories) cost nothing; the
 one-time comparison against Opus, once only, about **$1.50** in all. About
@@ -2106,7 +2106,7 @@ nodes share is a tie, filed under what they share.
 | `NANDO_JUDGE_DISAGREEMENTS_ONLY` | 1: the key grades only episodes where Nando, the writer and the composer are not all on one branch (§503) |
 | `CATEGORIZER_JUDGE_TIMEOUT_SECONDS`, `CATEGORIZER_JUDGE_MAX_TOKENS` | 60, 400: the answer key's one call (§381) |
 | `NANDO_JUDGE_PER_RUN` | 10 (50 until §503): episodes a nightly run grades at most (§381), chosen by `training.choose` - every write path in turn, what teaches first (§502) |
-| `NANDO_JUDGE_BATCH`, `NANDO_JUDGE_COLLECT_SECONDS` | 1, 300: grade through the Message Batches API at half price, sent at 03:00 and collected every five minutes once it ends; 0 grades live (§502) |
+| `NANDO_JUDGE_BATCH`, `NANDO_JUDGE_COLLECT_SECONDS` | 1, 300: grade through the Message Batches API at half price, sent at 03:00 and collected every five minutes once it ends, read with the model it was sent to; a create that fails is not followed by a live read; 0 grades live (§502, §506) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
 Decided (2026-10-28): the category tag is the same everywhere for the
