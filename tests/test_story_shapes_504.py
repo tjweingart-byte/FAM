@@ -28,7 +28,7 @@ def test_profile_and_comparison_are_shapes_the_brief_may_pick():
     for shape in ("profile", "comparison"):
         assert ei.STRUCTURES[shape] and shape in ei.PICKABLE_STRUCTURES
     assert ei.INTENT_STRUCTURE["comparison"] == "comparison"
-    assert "never which one to choose" in ei.STRUCTURES["comparison"]
+    assert "never which one the listener should choose" in ei.STRUCTURES["comparison"]
     assert "in_progress" not in ei.PICKABLE_STRUCTURES          # still downstream only
     note = ei.build_structure_note(Brief(structure="profile"))
     assert note.startswith("\nA profile story usually goes:")

@@ -496,3 +496,4 @@ and `limit` = Lines.
 | 31611 | 97 | 502. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09) |
 | 31708 | 35 | 503. Story shapes, drafted for the owner (2026-11-09) |
 | 31743 | 45 | 504. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09) |
+| 31788 | 41 | 505. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09) |

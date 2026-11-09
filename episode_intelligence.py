@@ -97,62 +97,82 @@ INTENTS = (
 #: it, and `build_structure_note` says plainly that a beat with nothing real
 #: behind it is dropped rather than filled.
 STRUCTURES = {
+    #: Each shape's text is the signed playbook's word for word (Part 3,
+    #: "Story shapes", §505): `tests/test_story_shapes_505.py` fails if the
+    #: two differ. Change it there, and the owner signs it.
     "breaking": (
-        "what happened, then what is actually known, then what is not yet "
-        "known, then why it matters, then what happens next"
+        "open on the event itself - who did what, when - in particulars; then "
+        "what led to it, because that is why it happened; but then what is "
+        "disputed or unsettled in the world, said as the world's open question "
+        "and never as something that was not found; therefore what it has "
+        "already changed; land on the most concrete consequence that already "
+        "exists - a number, a decision, a person's move; never end on what "
+        "happens next, a forecast or a \"we'll see\""
     ),
     "business": (
-        "what was expected, then what the number actually was, then the "
-        "surprise in the gap, then how the market took it, then how management "
-        "explained it, then what it implies"
+        "open on the figure against what was expected; but then the gap, and "
+        "what is surprising in it; because of the explanation, attributed to "
+        "whoever gave it; therefore how the market or the people affected took "
+        "it; land on the concrete figure that shows the effect - a price move, "
+        "a rate, a count; never advice, \"investors should\", or a projection as "
+        "the last line"
     ),
     "sports_recap": (
-        "what was at stake, then the turns the game actually hinged on, then "
-        "the result, then who decided it, then what it changes"
+        "open on the result and the reason it happened, in one or two "
+        "sentences; then what was at stake; but the turn the game hinged on; "
+        "because of who or what decided it; therefore what it changes - the "
+        "table, the standings, a run - as fact; land on the most concrete name "
+        "or stat, the player or the margin; never a preview told as the result"
     ),
     "sports_preview": (
-        "what is at stake, then where both sides currently stand, then the "
-        "matchup that decides it, then what to watch for, then when it happens"
+        "open on what is at stake and when it happens; then where each side "
+        "stands, by its record; but the matchup that decides it; beside it, "
+        "never as an outcome, what the forecast markets expect; land on the one "
+        "fact the game turns on, or when and where it is; never a prediction "
+        "stated as fact"
     ),
     #: The shape the vocabulary had no word for, and whose absence produced
-    #: PROBLEMS.md §88. Between the start of an event and the existence of a
-    #: report about it, every other shape here demands an outcome - and a shape
-    #: that demands one is a shape that will be given one, invented, because
-    #: dropping the beat leaves nothing. This is the episode that is genuinely
-    #: available in that window, and it is a real episode rather than a
-    #: consolation: what is at stake and what has happened so far is most of
-    #: what a listener asking mid-event actually wants.
+    #: PROBLEMS.md §88: between the start of an event and a report of its
+    #: end, every other shape demands an outcome - and a shape that demands
+    #: one is given one, invented. Reached only downstream, from evidence.
     "in_progress": (
-        "what is at stake, then how it stands right now, then what has already "
-        "been settled and what that has changed, then what is still open - and "
-        "it ends there, because it has not finished"
+        "open on how it stands right now, with its time; then what is at stake; "
+        "because of what has already been settled, how it stands; but what is "
+        "still open - and it ends there, because it has not finished; land on "
+        "the latest concrete fact, with when it was true; never an outcome, or "
+        "a guess at one"
     ),
     "explainer": (
-        "the intuition first, then the mechanism underneath it, then one "
-        "concrete case of it working, then what follows from it, then the way "
-        "to think about it afterwards"
+        "open on the one idea that makes it surprising or simple, concretely; "
+        "then, because of it, the mechanism underneath; one real case of it "
+        "working; therefore what follows from it; land on the concrete "
+        "consequence the mechanism leads to; never a summary, a recap of the "
+        "mechanism or \"so next time you...\""
     ),
     "historical": (
-        "the setup, then the catalyst, then the turn, then the consequence, "
-        "then what it left behind"
+        "open on the moment it turned - a date, a place, a person; then the "
+        "setup, briefly; but the catalyst; therefore the turn; therefore the "
+        "consequence; land on the image or fact that closes it; never \"to this "
+        "day\" filler, or history told as how things stand now"
     ),
     "trend": (
-        "what set it off, then how much attention it is actually getting, then "
-        "the competing explanations, then which part genuinely matters"
+        "open on the specific thing that set it off, and when; then how big it "
+        "actually is, as a fact - numbers, who; but the competing explanations, "
+        "each attributed; therefore which part genuinely matters; land on that "
+        "part, concretely; never attention claimed with no number behind it"
     ),
-    #: Two the vocabulary had no word for (the owner, 2026-11-09, §504; drafted
-    #: in docs/story_shapes.md): a person, and one thing against another -
-    #: which until then was filed under explainer.
     "profile": (
-        "why they are being talked about now - what they just did - then who "
-        "they are, then the two or three turns that got them here, then where "
-        "they stand now, from dated reporting, landing on the most concrete "
-        "current fact about them"
+        "open on why they are being talked about now - what they just did; then "
+        "who they are, situated; because of the two or three turns that got "
+        "them here; therefore where they stand now, from dated reporting; land "
+        "on the most concrete current fact about them; never a biography from "
+        "memory where it can change"
     ),
     "comparison": (
-        "the difference that decides it, then each side in its own terms, then "
-        "where they actually differ, then why the difference exists, landing on "
-        "the concrete fact that separates them - never which one to choose"
+        "open on the difference that decides it; then each side in its own "
+        "terms; but where they actually differ; because of why the difference "
+        "exists; land on the concrete fact that separates them; never which one "
+        "the listener should choose"
     ),
     "general": "",  # no imposed shape; the house voice carries it
 }

@@ -1,14 +1,13 @@
 # Story shapes - draft for the owner (§503)
 
-**Status: partly decided (§504).** The owner (2026-11-09): "Add profile
-and comparison, let Shakespeare change the shape" - questions 2 and 3
-below. Both are built: `profile` and `comparison` are in
-`episode_intelligence.STRUCTURES` for the brief to pick, and Shakespeare
-names a shape ahead of the tap (`EditorAnswer.shape`). The rest - the
-rewording of the other shapes, and questions 1 and 4 - is still a draft;
-nothing in the code reads this file. Once the owner approves it (edited as they like), the shapes move into
-the journalism playbook's Part 3, which the owner signs (the rule-book
-manifest covers the playbook), and the code follows the signed text.
+**Status: approved, waiting for the owner's signature (§505).** The
+owner (2026-11-09): "Add profile and comparison, let Shakespeare change the
+shape" (§504), then "Keep the list as drafted and sign the wording". The
+wording is in the proposed playbook
+(`docs/agent_rule_proposals/journalism_playbook.md`, Part 3, "Story
+shapes") and, word for word, in `episode_intelligence.STRUCTURES`, which the
+writer reads now. The signed playbook changes when the owner signs manifest
+version 7.
 
 ## What exists today
 

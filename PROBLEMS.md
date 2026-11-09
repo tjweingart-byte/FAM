@@ -31784,3 +31784,44 @@ vocabulary; he is shown the brief's shape and every shape; ahead, his shape
 reaches the writer's prompt, the shared brief untouched, counted; an empty or
 the same shape keeps the brief's; on search the brief's stands; no brief, no
 change).
+
+## 505. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09)
+
+The owner: "Keep the list as drafted and sign the wording" - the last two
+questions of `docs/story_shapes.md` (§503).
+
+**The wording is in place where the writer reads it.** Each of the ten
+shapes in `episode_intelligence.STRUCTURES` is now the draft's, as one line:
+what it opens on, how its parts follow (because, therefore, but), what it
+lands on, and what it never does. The three endings §503 found against the
+rules are gone: `breaking`'s "what happens next", `business`'s "what it
+implies" and `explainer`'s "the way to think about it afterwards". The
+writer reads a shape through `build_structure_note`, unchanged, in its
+request rather than the cached block, and still with "drop any part you
+have nothing real for". Keys are unchanged, so nothing stored moves.
+
+**Signing is the owner's.** The key is held outside the repository, and no
+session makes, reads or asks for it (§348). The playbook is a signed book (the
+manifest covers it with `shakespeare.md`), and a session never edits a
+signed book. So the proposed playbook waits whole in
+`docs/agent_rule_proposals/journalism_playbook.md`: v2, with Part 3's new
+"Story shapes", which holds each shape's chosen, shape and example lines.
+`docs/journalism_playbook.md` is the signed v1, byte for byte, so
+`--verify` passes and every agent may run. This session first edited the
+signed playbook in place, which would have held Shakespeare and failed
+`test_the_repositorys_rule_books_are_signed_or_every_agent_is_held`. The
+proposals README's rule caught it, and the edit was moved.
+`docs/agent_rules/MANIFEST.pending.json` is version 7: only the playbook's
+fingerprint differs from version 6, and it is the proposal's.
+
+`tests/test_story_shapes_505.py` holds the code to the playbook as it will
+be signed - the proposal while it waits, the signed book after - word for
+word, with every key named in both, every shape opening, landing and saying
+what it never does, and the three old endings absent.
+
+**For the owner** (the proposals README, with one difference: the playbook
+lives in `docs/`, not `docs/agent_rules/`): download the proposal and the
+pending manifest (renamed `MANIFEST.json`), sign the manifest, then upload
+`journalism_playbook.md` to `docs/` and `MANIFEST.json` and
+`MANIFEST.json.sig` to `docs/agent_rules/`. Then the session verifies, deletes
+the proposal and the pending manifest, and the owner updates the held copy.
