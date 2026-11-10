@@ -7,11 +7,12 @@ import SwiftUI
 /// Off, as the web draws them. Where iOS has no such control the row is
 /// left out rather than drawn dead (`no-dead-controls`): Dark mode (light
 /// only, §250) and "Hey FAM" (no voice search here). iOS adds what the web
-/// has no need of: the sign-in methods (Apple, Google), Friends and Messages.
+/// has no need of: the sign-in methods (Apple, Google), under Account
+/// settings. Friends is reached from the hub's friends count, Messages is a
+/// tab - the web's groups, and no others.
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var you: YouModel
-    @EnvironmentObject private var social: SocialModel
     @EnvironmentObject private var player: StreamPlayer
     @StateObject private var flow = AvatarFlow()
 
@@ -35,7 +36,6 @@ struct SettingsView: View {
                     listeningGroup
                     PrivacyRows(consent: model.consent, open: open)
                     accountGroup
-                    friendsGroup
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 2)
@@ -89,7 +89,7 @@ struct SettingsView: View {
             SetGroup(text: "Listening")
             SetRow(label: "Your interests", value: you.interestsSummary) { interestsOpen = true }
             SetRow(label: "Listening history", value: "Last 2 weeks") { model.youPath.append(.history) }
-            SetRow(label: "My Vibe") { model.youPath.append(.myVibe) }
+            SetRow(label: "My Vibes") { model.youPath.append(.myVibe) }
             SetRow(label: "Save for Later") { model.youPath.append(.saved) }
             SetRow(label: "Default speed", value: FAMAPI.minutes(player.rate) + "x") { sheet = .speed }
             SetRow(label: "Keep the voice's pitch", value: player.keepsPitch ? "On" : "Off") { togglePitch() }
@@ -129,11 +129,10 @@ struct SettingsView: View {
             SetRow(label: "Change password") { PasswordChange.start(model: model, ask: $textAsk) }
             SetRow(label: "Log out") { Task { await model.signOut() } }
             SetRow(label: "Delete account", danger: true) { sheet = .delete }
-            // The web's note says reset is not available (Q1); it is, so
-            // that half is said only when this server cannot send the code.
-            SetNote(text: you.resetAvailable
-                    ? "Deleting your account is immediate and can\u{2019}t be undone."
-                    : "Password reset isn\u{2019}t available yet, so keep your password somewhere safe. Deleting your account is immediate and can\u{2019}t be undone.")
+            // The web's note, word for word (the owner's call over Q1).
+            // The web's note says reset isn't available; it is (the log-in screen's
+            // "Forgot password?"), so the app says what is true.
+            SetNote(text: "Deleting your account is immediate and can\u{2019}t be undone.")
         }
     }
 
@@ -144,29 +143,6 @@ struct SettingsView: View {
         if a.identities.contains(where: { $0.provider == "apple" }) { names.append("Apple") }
         if a.identities.contains(where: { $0.provider == "google" }) { names.append("Google") }
         return names.joined(separator: ", ")
-    }
-
-    // MARK: - Friends and messages (iOS: the badge the web never draws, Q10)
-
-    private var friendsGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SetGroup(text: "Friends and messages")
-            SetRow(label: "Friends", value: friendsLine, badge: social.graph?.newFollowers?.count ?? 0) {
-                social.open(.friends)
-            }
-            SetRow(label: "Messages", value: social.unread > 0 ? "\(social.unread) unread" : "") {
-                social.messagesPath = []
-                model.tabRequest = .messages
-                Task { await social.loadInbox() }
-            }
-        }
-    }
-
-    private var friendsLine: String {
-        guard let counts = social.graph?.counts else { return "" }
-        let friends = counts.friends ?? 0
-        let following = counts.following ?? 0
-        return "\(friends) \(friends == 1 ? "friend" : "friends") \u{00B7} \(following) following"
     }
 
     // MARK: - Time zone (`listener-clock`; on this device only)

@@ -207,13 +207,23 @@ final class AppModel: ObservableObject {
         await beginEntry()
     }
 
-    /// The password changed in Settings: the server signed every device
-    /// out, this one too, so this one signs in again with the new password.
-    func changePassword(current: String, new: String) async throws {
+    /// The password changed in Settings: the server ended every session,
+    /// this one too, so this phone signs in again with the new password -
+    /// held only for this call, the new token to the Keychain as any
+    /// log-in's is. False when that sign-in could not be made: the dead
+    /// token is dropped and the phone is on the log-in screen.
+    func changePassword(current: String, new: String) async throws -> Bool {
         try await api.changePassword(current: current, new: new)
         let email = listener?.email ?? ""
-        guard !email.isEmpty else { return }
-        arrive(try await api.signIn(email: email, password: new))
+        if !email.isEmpty, let who = try? await api.signIn(email: email, password: new),
+           who.authenticated {
+            arrive(who)
+            return true
+        }
+        player.stop()
+        api.token = nil
+        forgetEverything()
+        return false
     }
 
     func signIn(provider: String, idToken: String, nonce: String,

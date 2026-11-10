@@ -662,8 +662,9 @@ struct PicTile: View {
                 }
             }
             .overlay {
-                LinearGradient(stops: [.init(color: .clear, location: 0.35),
-                                       .init(color: Color.black.opacity(0.78), location: 1)],
+                // `.yf-pic::after`: transparent to 25%, then rgba(15,14,18,.88).
+                LinearGradient(stops: [.init(color: .clear, location: 0.25),
+                                       .init(color: Color(hex: 0x0F0E12).opacity(0.88), location: 1)],
                                startPoint: .top, endPoint: .bottom)
             }
             .overlay(alignment: .bottomLeading) {

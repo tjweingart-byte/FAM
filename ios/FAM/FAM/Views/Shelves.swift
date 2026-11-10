@@ -516,9 +516,9 @@ struct HistoryView: View {
 // MARK: - My Vibe (`#screen-myvibe`)
 
 /// Everything you have vibed, with your vibe folders. A row plays it as it
-/// was vibed; its folder button files it; its X deletes the vibe whole - the
-/// same act as holding it on your grid, so the same words ("Vibe deleted",
-/// Q9) and the same everywhere-at-once update.
+/// was vibed; its folder button files it; its X takes the vibe back whole -
+/// the same act as holding it on your grid, in the web's words for this
+/// list ("Vibe taken back", `unvibe`).
 struct MyVibeView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var you: YouModel
@@ -616,7 +616,7 @@ struct MyVibeView: View {
             }
             .buttonStyle(.plain)
             roundButton(Icons.folder, line: 2, label: "Choose a folder for this vibe") { filing = v }
-            roundButton(Icons.close, line: 2.4, label: "Delete this vibe") { remove(v) }
+            roundButton(Icons.close, line: 2.4, label: "Take this vibe back") { remove(v) }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
@@ -653,7 +653,7 @@ struct MyVibeView: View {
         Task {
             let ok = await you.deleteVibe(query: v.query, minutes: v.minutes ?? FAMAPI.browseMinutes)
             await load()
-            model.nowPlaying.say(ok ? "Vibe deleted" : "Could not delete that vibe")
+            model.nowPlaying.say(ok ? "Vibe taken back" : "Could not take that back")
         }
     }
 

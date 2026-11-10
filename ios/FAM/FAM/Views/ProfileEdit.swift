@@ -872,9 +872,12 @@ enum PasswordChange {
     private static func change(model: AppModel, current: String, new: String) {
         Task {
             do {
-                try await model.changePassword(current: current, new: new)
-                model.nowPlaying.say("Password changed \u{2014} other devices signed out")
-                await model.you.loadAccount()
+                if try await model.changePassword(current: current, new: new) {
+                    model.nowPlaying.say("Password changed \u{2014} other devices signed out")
+                    await model.you.loadAccount()
+                } else {
+                    model.nowPlaying.say("Password changed \u{2014} log in with the new one")
+                }
             } catch {
                 model.nowPlaying.say(SocialModel.sentence(error, else: "That did not work"))
             }
@@ -885,8 +888,8 @@ enum PasswordChange {
 // MARK: - Where you are (`screen-location`)
 
 /// Its own screen with an X and Save, opened from Settings, going back to
-/// where it was opened from. The note is the identity screen's wording -
-/// the place does show on your profile (Q6).
+/// where it was opened from. The web's words, the note under Country
+/// included (the owner's call over Q6).
 struct LocationView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var you: YouModel
@@ -919,7 +922,7 @@ struct LocationView: View {
                     field("City", "City", $city, .addressCity)
                     field("State or region", "State or region", $region, .addressState)
                     field("Country", "Country", $country, .countryName)
-                    Text("Optional. For local episodes \u{2014} and it shows on your profile.")
+                    Text("Your town shows on your profile.")  // the web says "Only you can see this.", which is not so
                         .font(FAMFont.body(10.5))
                         .foregroundStyle(FAMColor.textFaint)
                         .fixedSize(horizontal: false, vertical: true)

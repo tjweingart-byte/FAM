@@ -61,7 +61,6 @@ struct YouView: View {
                     // Attached to the content, so the wash scrolls with it.
                     LinearGradient(colors: [Self.wash, FAMColor.background], startPoint: .top, endPoint: .bottom)
                         .frame(height: 290)
-                        .padding(.horizontal, -18)
                 }
             }
             .refreshable { await you.loadProfile() }

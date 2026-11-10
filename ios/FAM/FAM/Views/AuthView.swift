@@ -327,7 +327,7 @@ struct ResetPasswordView: View {
     @State private var problem = ""
     @State private var working = false
 
-    static let firstNote = "We'll email a code to the address on your account. Signed up with only a phone number? Reset needs an email address on the account."
+    static let firstNote = "We\u{2019}ll email a code to the address on your account. Signed up with only a phone number? Reset needs an email address on the account."
 
     var body: some View {
         VStack(spacing: 0) {
@@ -347,6 +347,15 @@ struct ResetPasswordView: View {
                         .autocorrectionDisabled()
                         .modifier(FieldBox())
                     if sent { codeFields }
+                    // Under the fields, over the button, as the web's
+                    // `#resetError` (shot 93).
+                    if !problem.isEmpty {
+                        Text(problem)
+                            .font(FAMFont.body(12.5))
+                            .foregroundStyle(FAMColor.coral)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 12)
+                    }
                     Button {
                         Task { await go() }
                     } label: {
@@ -358,14 +367,7 @@ struct ResetPasswordView: View {
                     }
                     .buttonStyle(CopperButtonStyle())
                     .disabled(working)
-                    .padding(.top, 18)
-                    if !problem.isEmpty {
-                        Text(problem)
-                            .font(FAMFont.body(12.5))
-                            .foregroundStyle(FAMColor.coral)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 12)
-                    }
+                    .padding(.top, problem.isEmpty ? 18 : 12)
                     Text(note)
                         .font(FAMFont.body(12))
                         .foregroundStyle(FAMColor.textFaint)

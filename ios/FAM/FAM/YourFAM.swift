@@ -34,9 +34,6 @@ final class YouModel: ObservableObject {
     @Published private(set) var voices: VoicesPage?
     /// nil while loading (the row shows nothing), else the count.
     @Published private(set) var blockedCount: Int?
-    /// Whether this server can email a reset code (Q1: the stale note is
-    /// only shown when it cannot).
-    @Published private(set) var resetAvailable = false
     /// Vibes (0) or Mixes (1) on the hub; kept across redraws (`profileShelf`).
     @Published var shelfTab = 0
 
@@ -107,7 +104,6 @@ final class YouModel: ObservableObject {
         }
         if let found = try? await api.activation() { activation = found }
         if let found = try? await api.voices() { voices = found }
-        if let status = try? await api.resetStatus() { resetAvailable = status.available }
         if let people = try? await safety.blocked() { blockedCount = people.count }
     }
 
@@ -275,7 +271,7 @@ extension AppModel {
     func playSaved(_ item: SavedItem) {
         let title = (item.title ?? "").isEmpty ? item.query : (item.title ?? "")
         play(Episode(key: EpisodeKey(query: item.query, minutes: item.minutes),
-                     title: title, surface: "other"))
+                     title: title, surface: "other", titleOverridden: false))
         if let id = item.id, !id.isEmpty {
             let api = self.api
             Task { await api.playedSaved(id) }
