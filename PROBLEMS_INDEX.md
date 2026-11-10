@@ -524,3 +524,4 @@ and `limit` = Lines.
 | 33034 | 50 | 530. The whole branch double-checked: what the review found, and what was fixed (2026-11-10) |
 | 33084 | 41 | 531. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10) |
 | 33125 | 33 | 532. The second review, independent, before the pull request (2026-11-10) |
+| 33158 | 17 | 533. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10) |

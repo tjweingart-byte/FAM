@@ -33154,3 +33154,20 @@ Six low findings, all fixed in `tests/test_branch_review_fixes.py`:
    The status line now carries them beside the age: "Status: final,
    observed 5 minutes ago, the market is closed, the feed runs 15 minutes
    behind."
+
+## 533. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10)
+
+The owner signed `MANIFEST.pending.json` (version 8, §531) on the MacBook
+Air, as for §525: the `famsign` Miniforge environment (OpenSSL 4.1), the
+old set cleared from the Desktop folder first, and both files' SHA-256
+checked before signing. They uploaded `MANIFEST.json` and
+`MANIFEST.json.sig` to `docs/agent_rule_proposals/` (f0b30a4, exactly two
+files). The session verified the signature against `owner.pub` before
+moving anything; `MANIFEST.json` is the pending manifest byte for byte. It
+then moved, in one commit, the playbook v2 to `docs/` and the manifest and
+signature to `docs/agent_rules/`, and deleted the pending manifest.
+`python tools/rulebook_manifest.py --verify`: manifest version 8, every
+agent may run. Both changes are now signed together: `nando.md` rule 12
+(Main's §505) and the playbook's story shapes (§524).
+`test_story_shapes_524.py` now reads the signed playbook. The owner
+updates the copy held outside Claude.
