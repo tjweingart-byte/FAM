@@ -2195,10 +2195,12 @@ class Settings:
     # The house examples matched to the story (§501): the writer's request
     # names the one or two examples of the episode's facet
     # (`examples/facets.json`), and Shakespeare is told which worked plans
-    # are closest. In the request, never the cached system block. Off: the
-    # request is byte for byte what it was.
+    # are closest. In the request, never the cached system block. **Off by
+    # default since §507**: on the 50 frozen questions it bought nothing
+    # (+0.03 [-0.12, +0.18]) and cost repetition (-0.37 [-0.71, -0.04]).
+    # Off: the request is byte for byte what it was.
     example_matching: bool = field(
-        default_factory=lambda: os.environ.get("EXAMPLE_MATCHING", "1")
+        default_factory=lambda: os.environ.get("EXAMPLE_MATCHING", "0")
         not in ("0", "false", "False", ""))
     # Before-and-after pairs in the writer's instructions (§502): each the
     # same episode twice from the same sources, a flawed draft and the house

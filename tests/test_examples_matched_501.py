@@ -46,7 +46,9 @@ def test_the_closest_by_length_first():
     assert len(sg.matched_examples("sports", 2)) <= sg.MATCHED_EXAMPLES
 
 
-def test_the_request_names_them_and_the_system_block_does_not_change():
+def test_the_request_names_them_and_the_system_block_does_not_change(monkeypatch):
+    # On only by choice since §507.
+    monkeypatch.setattr(sg, "settings", dataclasses.replace(sg.settings, example_matching=True))
     system = sg.system_prompt()
     prompt = build_prompt(_plan("sports"))
     assert ('the closest to this kind of story are "why is a marathon 26.2 miles" and '
@@ -62,14 +64,19 @@ def test_off_the_request_is_as_it_was(monkeypatch):
     assert off == build_prompt(_plan(""))
 
 
+def test_off_by_default_names_none():
+    assert sg.example_hint(_plan("sports")) == ""
+
+
 def test_a_facet_with_no_example_names_none():
     assert sg.example_hint(_plan("")) == ""
 
 
 def test_the_settings_are_copied_and_on():
     text = open(os.path.join(ROOT, ".env.example")).read()
-    assert "\nEXAMPLE_MATCHING=1\n" in text and "\nEDITOR_WORKED_PLANS=1\n" in text
-    assert sg.settings.example_matching and sg.settings.editor_worked_plans
+    # Matching off since §507 (no gain, more repetition); worked plans on.
+    assert "\nEXAMPLE_MATCHING=0\n" in text and "\nEDITOR_WORKED_PLANS=1\n" in text
+    assert not sg.settings.example_matching and sg.settings.editor_worked_plans
 
 
 # ------------------------------------------------------------------ candidates

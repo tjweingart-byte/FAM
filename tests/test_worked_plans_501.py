@@ -67,13 +67,16 @@ def test_a_broken_worked_plan_is_left_out_and_said_why():
     assert worked_plans.problems({}) == ["it names no example"]
 
 
-def test_he_reads_them_numbered_as_his_own_packets():
+def test_he_reads_them_numbered_as_his_own_packets(monkeypatch):
+    _settings(monkeypatch, example_matching=True)      # the closest line is matching's
     text = worked_plans.teaching("sports")
     assert text.startswith("Worked plans:")
     assert '--- worked plan: "why is the sky blue" (it became the example 1-blue-sky) ---' in text
     assert "[P1.1] Max Verstappen won the Singapore sprint" in text
     assert "This episode is the same kind of story as 2-singapore-sprint." in text
     assert "same kind of story" not in worked_plans.teaching("")
+    _settings(monkeypatch, example_matching=False)
+    assert "same kind of story" not in worked_plans.teaching("sports")
 
 
 def _settings(monkeypatch, **changes):

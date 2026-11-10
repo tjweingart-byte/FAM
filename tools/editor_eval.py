@@ -24,6 +24,9 @@ Two more arms (§501), so the teaching is measured against §437's own results:
 * `haiku_taught` - Shakespeare on Haiku 5.5 high with his worked plans
   (`EDITOR_WORKED_PLANS`), the writer matched as in `none_matched`.
 
+And `none_low` (§507): no editor, the writer at low effort as before §502,
+to measure what `AHEAD_WRITER_EFFORT=high` buys against `none`.
+
 The first three arms run with both switched off, so they stay §437's
 comparison whatever the deployment's defaults are now.
 
@@ -114,7 +117,7 @@ QUESTIONS = [
     ("evergreen", "how do passkeys replace passwords"),
 ]
 
-ARMS = ("none", "haiku", "sonnet", "none_matched", "haiku_taught")
+ARMS = ("none", "haiku", "sonnet", "none_matched", "haiku_taught", "none_low")
 #: What `--arms` runs when it is not given: §437's three.
 DEFAULT_ARMS = ("none", "haiku", "sonnet")
 #: The editor each arm runs, or none.
@@ -139,6 +142,10 @@ class _Settings:
 
         changes = {"editor_worked_plans": arm in TAUGHT_ARMS,
                    "example_matching": arm in TAUGHT_ARMS}
+        if arm == "none_low":
+            # The writer as it was before §502: low effort ahead of the tap,
+            # to measure what high effort buys (§507).
+            changes.update(ahead_writer_effort="low", edition_writer_effort="")
         editor = ARM_EDITOR.get(arm)
         if editor:
             changes[ARM_SETTING[editor]] = ARM_MODEL[editor]

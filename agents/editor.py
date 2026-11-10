@@ -326,7 +326,9 @@ def writer_block(outline: Outline, answers: str, sources: list) -> str:
              "what order, and what to land on. The sentences under each part are "
              "the sources' own - tell them in your own words, as the story, never "
              "one after another. A part marked history is what was true on its "
-             "date, never how things stand now.", "<plan>"]
+             "date, never how things stand now. What it lands on is your last "
+             "sentence: decide that sentence first, head for it, and stop once "
+             "it is said.", "<plan>"]
     if answers.strip():
         lines.append(f"What it answers: {' '.join(answers.split())[:160]}")
     if outline.opening:
@@ -337,7 +339,10 @@ def writer_block(outline: Outline, answers: str, sources: list) -> str:
         lines.append(f"Part {i}{' (history)' if history else ''}: {beat.purpose}")
         lines += [f"- {_text(r, sources)}" for r in beat.refs]
     if outline.landing:
-        lines.append("Land on:")
+        # The landing is where the writer left the plan most (§507: 35-40%
+        # of episodes ended where he planned, against ~80% of the parts).
+        lines.append("Land on - your last sentence tells this, and the episode "
+                     "ends there:")
         lines += [f"- {_text(r, sources)}" for r in outline.landing]
     if outline.missing:
         lines.append("Not in the sources (for you only - never announce it; the "
