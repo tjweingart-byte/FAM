@@ -276,6 +276,22 @@ struct ChatScreen: View {
     }
 
     @ViewBuilder private var bodyContent: some View {
+        if who.group && !who.warning.isEmpty {
+            // The server's sentence: who in this group the listener is not
+            // friends with (§523).
+            Text(who.warning)
+                .font(FAMFont.body(11.5))
+                .foregroundStyle(FAMColor.text)
+                .lineSpacing(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 11)
+                .background(FAMColor.copper.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.copper))
+                .padding(.top, 4)
+                .padding(.bottom, 12)
+                .accessibilityAddTraits(.isStaticText)
+        }
         if chat.rows.isEmpty {
             switch chat.state {
             case .idle, .loading: SocialNote(text: "Loading\u{2026}")
@@ -651,6 +667,7 @@ extension ChatModel {
         next.avatar = w.avatar ?? next.avatar
         next.named = w.named ?? next.named
         if let m = w.members, !m.isEmpty { next.members = m }
+        if let warn = w.warning { next.warning = warn }
         who = next
     }
 }

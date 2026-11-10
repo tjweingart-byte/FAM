@@ -1526,6 +1526,9 @@ struct ChatWith: Decodable, Hashable {
     let group: Bool?
     let named: Bool?
     let members: [ChatMember]?
+    /// A group holding people this listener is not friends with: the
+    /// server's sentence saying who (§523); "" otherwise.
+    let warning: String?
 }
 
 struct SentMessage: Decodable {

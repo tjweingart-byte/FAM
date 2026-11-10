@@ -32689,3 +32689,15 @@ tags), and the picker's empty sentence says how to become friends. Tests:
 refused in `test_two_listeners_can_find_follow_and_message_each_other`.
 Tests about threads, groups, replies and notifications (not about who may
 message whom) use the `everyone_friends` fixture in `tests/conftest.py`.
+
+**Groups, refined the same day (the owner).** A group may hold people who
+are not friends with each other; whoever makes it must be friends with
+everyone in it (already so: `messages_new_group` checks each pick against
+the maker's friends), and groups gain no members after they are made. Each
+member who is not friends with everyone is told: `_group_view` marks every
+member `friend` (mutual with the viewer) and composes `warning` - "You’re
+not friends with Ben. Everyone in this group can see what you send here." -
+which the web (`threadWarnHTML`, `.thread-warn`) and iOS (`ChatView`) draw
+at the top of the conversation. Test:
+`test_a_group_may_hold_strangers_and_tells_each_member_who`.
+

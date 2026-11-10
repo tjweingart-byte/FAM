@@ -3574,14 +3574,37 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
         members.append({"name": person.get("name") or "",
                         "handle": person.get("handle") or "",
                         "avatar": person.get("avatar") or "",
-                        "me": uid == me})
+                        "me": uid == me,
+                        # Whether this listener and that member follow each
+                        # other. Whoever made the group is friends with all
+                        # of it; the others may not be (§523).
+                        "friend": uid != me and _mutual(me, uid)})
     others = [m for m in members if not m["me"]]
     name = group.get("name") or ", ".join(
         _first_name(m) for m in others[:4]) + (" +%d" % (len(others) - 4)
                                                if len(others) > 4 else "")
     return {"user_id": gid, "group": True, "name": name or "Group",
             "named": bool(group.get("name")), "handle": "",
-            "avatar": group.get("avatar") or "", "members": members}
+            "avatar": group.get("avatar") or "", "members": members,
+            "warning": _group_warning([m for m in others if not m["friend"]])}
+
+
+def _group_warning(strangers: list[dict]) -> str:
+    """The sentence a member reads when the group holds people they are not
+    friends with (§523): who, and what that means. Composed here so every
+    client says the same thing; "" when they are friends with everyone."""
+    if not strangers:
+        return ""
+    names = [_first_name(m) or ("@" + m["handle"] if m.get("handle") else "someone")
+             for m in strangers]
+    if len(names) == 1:
+        who = names[0]
+    elif len(names) <= 3:
+        who = ", ".join(names[:-1]) + " and " + names[-1]
+    else:
+        who = ", ".join(names[:2]) + " and %d others" % (len(names) - 2)
+    return (f"You’re not friends with {who}. "
+            "Everyone in this group can see what you send here.")
 
 
 def _topic_label(query: str, title: str = "") -> str:

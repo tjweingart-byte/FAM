@@ -542,3 +542,33 @@ def test_knowing_an_id_does_not_open_a_conversation(client):
     signed_in(client, "ben@b.com", "Ben", "ben")
     assert client.post("/api/messages", json={"to": ana, "text": "hi"}).status_code == 403
     assert client.post("/api/messages/groups", json={"user_ids": [ana]}).status_code == 400
+
+
+def test_a_group_may_hold_strangers_and_tells_each_member_who(client):
+    """Whoever makes a group must be friends with everyone in it; the others
+    need not be friends with each other, and each is told who they are not
+    friends with (§523)."""
+    ana = signed_in(client, "ana@b.com", "Ana", "ana")
+    client.post("/api/auth/logout")
+    ben = signed_in(client, "ben@b.com", "Ben", "ben")
+    client.post("/api/auth/logout")
+    cal = signed_in(client, "cal@b.com", "Cal", "cal")
+    # Cal is friends with Ana and with Ben; Ana and Ben are strangers.
+    for a, b in ((cal, ana), (ana, cal), (cal, ben), (ben, cal)):
+        appmod.SOCIAL.follow(a, b)
+    made = client.post("/api/messages/groups", json={"user_ids": [ana, ben]})
+    assert made.status_code == 200, made.text
+    group = made.json()["group"]
+    assert group["warning"] == ""  # the maker is friends with everyone
+    gid = group["user_id"]
+
+    client.post("/api/auth/logout")
+    client.post("/api/auth/login", json={"email": "ana@b.com", "password": "password12"})
+    seen = client.get("/api/messages/thread", params={"with": gid}).json()["with"]
+    assert seen["warning"] == ("You’re not friends with Ben. "
+                               "Everyone in this group can see what you send here.")
+    assert {m["handle"]: m["friend"] for m in seen["members"] if not m["me"]} == {
+        "ben": False, "cal": True}
+    # And Ana, who is not friends with Ben, cannot start a group with him.
+    assert client.post("/api/messages/groups",
+                       json={"user_ids": [ben, cal]}).status_code == 400

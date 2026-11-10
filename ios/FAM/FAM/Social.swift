@@ -30,6 +30,8 @@ struct ChatOpen: Hashable {
     var group: Bool = false
     var named: Bool = false
     var members: [ChatMember] = []
+    /// "You’re not friends with …" for a group with strangers in it (§523).
+    var warning: String = ""
     /// False until the server has answered once - a group opened from a
     /// banner has no members yet (quirk 16), so its sub line waits.
     var loaded: Bool = false
@@ -648,6 +650,7 @@ final class ChatModel: ObservableObject {
             next.group = true
             next.named = w.named ?? false
             next.members = w.members ?? next.members
+            next.warning = w.warning ?? next.warning
         }
         next.loaded = true
         if next != who { who = next }
