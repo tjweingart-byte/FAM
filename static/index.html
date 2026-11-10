@@ -691,6 +691,10 @@
   .fr-note{ font-size:11px; line-height:1.5; color:var(--text-faint);
     padding:0 2px 6px; }
 
+  /* A group with people this listener is not friends with says so (§520). */
+  .thread-warn{ margin:4px 0 12px; padding:11px 13px; border:1px solid var(--copper);
+    border-radius:12px; background:rgba(168,117,32,.08); color:var(--text);
+    font-size:11.5px; line-height:1.45; }
   .pf-empty{ padding:15px; border:1px dashed var(--border-strong); border-radius:12px;
     font-size:11px; line-height:1.5; color:var(--text-muted); margin-top:12px; }
 
@@ -8920,7 +8924,9 @@
     return fetch("/api/friends").then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         var seen = {}, out = [];
-        (d.friends || []).concat(d.following || [], d.followers || []).forEach(function(p){
+        // Friends only: a tag sends the episode as a message, and messages
+        // go only between people who follow each other (§520).
+        (d.friends || []).forEach(function(p){
           if(!p.handle || seen[p.handle]) return;
           seen[p.handle] = true;
           out.push(p);
@@ -19200,10 +19206,17 @@
   })();
 
   var threadShown = { thread: "", keys: {} };
+  // The server's sentence when this group holds people the listener is not
+  // friends with (§520); nothing otherwise.
+  function threadWarnHTML(){
+    var w = (currentThread && currentThread.warning) || "";
+    return w ? '<div class="thread-warn" role="note">' + escapeHtml(w) + '</div>' : "";
+  }
+
   function renderThreadBody(){
     var body = document.getElementById("thread-body");
     if(!threadMessages.length){
-      body.innerHTML = '<div class="pf-empty">Nothing here yet. Say something, '
+      body.innerHTML = threadWarnHTML() + '<div class="pf-empty">Nothing here yet. Say something, '
         + 'or share an episode with the (+).</div>' + typingRowHTML();
       return;
     }
@@ -19223,7 +19236,7 @@
       return shownBefore && !shownBefore[k] ? " msg-new" : "";
     });
     threadShown = { thread: threadId, keys: keys };
-    body.innerHTML = threadMessages.map(function(m, i){
+    body.innerHTML = threadWarnHTML() + threadMessages.map(function(m, i){
       var dirCls = (m.mine ? "out" : "in") + fresh[i];
       // A group (10.6 #4): its own lines centred, and a name over the first
       // of each run of bubbles from one person.
@@ -19427,7 +19440,9 @@
     fetch("/api/friends")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
-        var people = (d.friends || []).concat(d.following || []);
+        // Friends only - messages go only between people who follow each
+        // other (§520).
+        var people = (d.friends || []);
         var seen = {}, unique = [];
         people.forEach(function(person){
           if(seen[person.user_id]) return;
@@ -19451,7 +19466,7 @@
     var el = document.getElementById("newChatContacts");
     if(!newChatPeople.length){
       el.innerHTML = '<div class="pf-empty" style="margin:0;">Nobody to '
-        + 'message yet. Find someone under Friends first.</div>';
+        + 'message yet. When someone you follow follows you back, you can message them.</div>';
       return;
     }
     el.innerHTML = newChatPeople.map(function(person, i){
@@ -20186,7 +20201,8 @@
         if(seq !== shareSheetSeq) return;
         var seen = {};
         var people = [];
-        (d.friends || []).concat(d.following || []).forEach(function(person){
+        // Friends only (§520).
+        (d.friends || []).forEach(function(person){
           if(seen[person.user_id]) return;
           seen[person.user_id] = true;
           people.push(person);

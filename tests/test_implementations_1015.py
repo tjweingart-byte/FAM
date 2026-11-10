@@ -313,6 +313,7 @@ def test_a_story_has_instagrams_reply_row():
     assert "replied to your vibe" in INDEX and "liked your vibe" in INDEX
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_a_reply_is_one_message_with_its_episode(world):
     a, _ = _join("a@fam.test")
     b, _ = _join("b@fam.test")
@@ -356,6 +357,7 @@ def test_an_address_alone_finds_nobody_without_a_name(world):
     assert me.get("/api/waitlist/people?q=blank@fam.test").json()["people"] == []
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_a_reply_to_a_vibe_is_not_a_share(world):
     a, _ = _join("a@fam.test")
     b, _ = _join("b@fam.test")

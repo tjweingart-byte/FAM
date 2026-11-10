@@ -260,6 +260,7 @@ def test_view_more_never_shows_fewer_than_its_rail(tmp_path, monkeypatch):
 
 # --- 7 and 8. faces, and the three dots ------------------------------------
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_the_inbox_and_a_thread_carry_the_other_persons_picture(client):
     picture = "data:image/png;base64,iVBORw0KGgo="
     ana = signed_in(client, "ana127@b.com", "Ana", "ana127")
@@ -284,6 +285,7 @@ def test_typing_is_directed_and_expires():
     assert not typing_indicator.is_typing("a", "b", now=101.0)
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_the_thread_poll_says_when_they_are_typing_and_sending_stops_it(client):
     typing_indicator.reset()
     ana = signed_in(client, "ana128@b.com", "Ana", "ana128")
