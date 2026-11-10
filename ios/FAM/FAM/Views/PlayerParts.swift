@@ -319,12 +319,26 @@ struct CaptionsCard: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .shadow(color: .black.opacity(0.3), radius: 14, y: 18)
         .contentShape(RoundedRectangle(cornerRadius: 18))
-        // Swipe down to close (> 40 pt), as the web's `ccSwipe`.
-        .simultaneousGesture(DragGesture(minimumDistance: 14).onEnded { value in
-            let down = value.translation.height
-            if down > 40 && down > abs(value.translation.width) { now.setCaptions(false) }
-        })
+        // Swipe down to close (> 40 pt), as the web's `ccSwipe` - but not a
+        // swipe that starts while a long sentence is scrolled down: that
+        // one scrolls the text back up.
+        .simultaneousGesture(DragGesture(minimumDistance: 14)
+            .onChanged { _ in
+                if swipeFromScrolled == nil { swipeFromScrolled = textScrolled }
+            }
+            .onEnded { value in
+                let fromScrolled = swipeFromScrolled ?? textScrolled
+                swipeFromScrolled = nil
+                guard !fromScrolled else { return }
+                let down = value.translation.height
+                if down > 40 && down > abs(value.translation.width) { now.setCaptions(false) }
+            })
     }
+
+    /// The sentence is scrolled away from its top (`cc-text.scrollTop > 0`).
+    @State private var textScrolled = false
+    /// Whether the swipe in progress started with the text scrolled.
+    @State private var swipeFromScrolled: Bool?
 
     private var topRow: some View {
         HStack(spacing: 8) {
@@ -392,7 +406,19 @@ struct CaptionsCard: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .leading)
                 .animation(.easeInOut(duration: 0.32), value: sentenceKey)
+                .background(GeometryReader { inner in
+                    // Where the text's top sits in the scroll view: above
+                    // it once a long sentence is scrolled down.
+                    let top = inner.frame(in: .named("ccScroll")).minY
+                    Color.clear.onChange(of: top) { _, y in
+                        let scrolled = y < -1
+                        if scrolled != textScrolled { textScrolled = scrolled }
+                    }
+                })
             }
+            .coordinateSpace(name: "ccScroll")
+            // A sentence that fits does not bounce, so the swipe is the card's.
+            .scrollBounceBehavior(.basedOnSize)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.updatesFrequently)

@@ -202,9 +202,9 @@ struct PlayerView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let sources = now.sources, !sources.items.isEmpty || sources.known {
-                SourcesStrip(sources: sources) {
-                    if !sources.items.isEmpty { popup = .sources }
-                }
+                // "from knowledge" opens too: "No sources for this episode."
+                // (`openSources`: items or `known`).
+                SourcesStrip(sources: sources) { popup = .sources }
             }
         }
         .padding(.horizontal, 20)

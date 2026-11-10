@@ -202,10 +202,13 @@ struct PlayerMenu: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Picture(url: now.picture ?? player.picture)
-                .frame(width: 44, height: 44)
-                .background(FAMColor.surface2)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            // The picture only when there is one (`menuHead`'s thumb).
+            if let pic = now.picture ?? player.picture {
+                Picture(url: pic)
+                    .frame(width: 44, height: 44)
+                    .background(FAMColor.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(now.episode == nil ? player.title : now.title)
                     .font(FAMFont.body(14, .semibold))
@@ -220,10 +223,13 @@ struct PlayerMenu: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 16)
+        // `.sheet-head`: padding 4 4 12 inside the sheet's 10 top, a faint
+        // rule under it and 6 below.
+        .padding(.horizontal, 4)
+        .padding(.top, 14)
         .padding(.bottom, 12)
-        .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.borderStrong).frame(height: 1) }
+        .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+        .padding(.bottom, 6)
     }
 
     @ViewBuilder private var rows: some View {
@@ -315,9 +321,13 @@ struct PlayerMenu: View {
 /// (`addToPlaylistLabel`, `myFamMark`); read aloud as the words.
 struct AddToPlaylistLabel: View {
     var body: some View {
+        // "my" in the row's own type; F A M the heading's glyphs, one cap
+        // tall and muted like every svg in a menu row (`.menu-row svg`).
         HStack(alignment: .firstTextBaseline, spacing: 0) {
-            Text("Add to ")
-            Wordmark(lead: "my", size: 13.5)
+            Text("Add to my")
+            FAMLetters(capHeight: 13.5 * 0.7, color: FAMColor.textMuted)
+                .padding(.leading, 13.5 * 0.15)
+                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] }
             Text(" Playlist")
         }
         .font(FAMFont.body(13.5, .semibold))
@@ -354,13 +364,22 @@ struct SourcesSheet: View {
             .accessibilityLabel("Close")
         }
         .padding(.bottom, 8)
-        // The card grows with its rows up to 76% of the screen, then scrolls.
-        ViewThatFits(in: .vertical) {
+        // The card grows with its rows up to 76% of the screen, then scrolls
+        // (`max-height: 76%`). Measured rather than `.frame(maxHeight:)`,
+        // which would always take the whole 76%.
+        ScrollView {
             list
-            ScrollView { list }
+                .background(GeometryReader { geo in
+                    Color.clear
+                        .onAppear { listHeight = geo.size.height }
+                        .onChange(of: geo.size.height) { _, h in listHeight = h }
+                })
         }
-        .frame(maxHeight: UIScreen.main.bounds.height * 0.76 - 90)
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: min(max(listHeight, 40), UIScreen.main.bounds.height * 0.76 - 90))
     }
+
+    @State private var listHeight: CGFloat = 0
 
     private var list: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -555,13 +574,31 @@ struct QueueSheet: View {
         }
     }
 
+    /// The playlist's episode a Go Deeper interrupted: it comes back first,
+    /// where it was (the owner's call, PARITY.md), so it heads the list.
+    private var resuming: InterruptedItem? {
+        model.playingDetour ? model.mixPlay?.interrupted : nil
+    }
+
     @ViewBuilder private var mixRows: some View {
-        if let list = model.mixPlay, !model.mixUpNext.isEmpty {
+        if let list = model.mixPlay, !model.mixUpNext.isEmpty || resuming != nil {
             let name = list.name.isEmpty ? "your playlist" : list.name
+            let offset = resuming == nil ? 0 : 1
             group("Next from \(name)")
+            if let back = resuming {
+                HStack(spacing: 12) {
+                    pic(back.episode.picture, mark: "1", now: false)
+                    texts(back.episode.title, sub: name, now: false)
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 22)
+                .padding(.trailing, 14)
+                .padding(.vertical, 7)
+                .frame(minHeight: 56)
+            }
             ForEach(Array(model.mixUpNext.enumerated()), id: \.offset) { index, item in
                 HStack(spacing: 12) {
-                    pic(nil, mark: "\(index + 1)", now: false)
+                    pic(nil, mark: "\(index + 1 + offset)", now: false)
                     texts(item.title.isEmpty ? item.query : item.title, sub: name, now: false)
                     Spacer(minLength: 0)
                 }

@@ -351,11 +351,17 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
                 fail("the server refused the episode")
             } catch let error as FAMError {
                 if case let .refused(_, message) = error { failureWords = message }
+                // The handler may start the next episode at once (a 409
+                // asked again by its question, a playlist's resume): that
+                // new stream must not be torn down here.
+                let asked = generation
                 if onRefused?(error) == true {
-                    stopStream()
-                    epoch += 1
-                    phase = .idle
-                    nowPlaying()
+                    if asked == generation {
+                        stopStream()
+                        epoch += 1
+                        phase = .idle
+                        nowPlaying()
+                    }
                 } else {
                     fail(error.localizedDescription)
                 }

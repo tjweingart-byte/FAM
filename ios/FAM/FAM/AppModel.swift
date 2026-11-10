@@ -71,6 +71,10 @@ final class AppModel: ObservableObject {
     /// what was being made, not what is on the player - a follow-up can fail
     /// before it ever reaches the player (§519).
     private var lastAsked: Episode?
+    /// The loading screen the last episode asked for (a playlist's glide, a
+    /// tile's dial), so asking again after a 409 waits behind the same one.
+    private var lastGlide: LoadingModel.Glide?
+    private var lastDial: LoadingModel.Dial?
     /// "Which one do you mean?" (§426): a name in the question means more
     /// than one thing; the server's readings, asked before anything is made.
     @Published private(set) var readingAsk: ReadingAsk?
@@ -576,6 +580,8 @@ final class AppModel: ObservableObject {
         // episode's "next" (§500 review). The Queue and the category keep it.
         if !ep.queued && !ep.fromCategory { nowPlaying.dropCategoryQueue() }
         self.resumeAt = resumeAt
+        lastGlide = glide
+        lastDial = dial
         // Which reading of a name is asked on any tap that may write an
         // episode, never on a replay (§426).
         let askReading = !cachedOnly && ep.episodeID.isEmpty
@@ -650,8 +656,13 @@ final class AppModel: ObservableObject {
             again.episodeID = ""
             loading.stop()
             // A resumed episode (Pick up, a playlist's after a detour) still
-            // goes back to where it was.
-            play(again, resumeAt: resumeAt)
+            // goes back to where it was, behind the same loading screen.
+            if again.own {
+                play(again, resumeAt: resumeAt)
+            } else {
+                startPlaying(again, resumeAt: resumeAt, cachedOnly: again.cachedOnly,
+                             glide: lastGlide, dial: lastDial)
+            }
             return true
         case let .refused(status, _) where status == 300 && (player.refusal?.readings?.count ?? 0) > 1:
             // A name that means two things (§426): which one, then the same
