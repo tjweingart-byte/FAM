@@ -30,7 +30,9 @@ struct FacesRow: View {
                         let label = firstName(person.name, handle: person.handle)
                         let face = faceItem(name: person.name, handle: person.handle, avatar: person.avatar,
                                             label: label, ring: state, plus: false)
-                        if person.stories.isEmpty {
+                        if person.stories.isEmpty && person.handle.isEmpty && !model.social.isFriend(person.userId) {
+                            face.accessibilityElement(children: .combine)
+                        } else if person.stories.isEmpty {
                             Button { openFace(person) } label: { face }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(person.handle.isEmpty ? "Message \(label)" : "\(label)'s profile")
@@ -161,6 +163,11 @@ struct FacesRow: View {
     /// `openCircleFace`: the profile by handle, else a conversation.
     private func openFace(_ p: CirclePerson) {
         if p.handle.isEmpty {
+            // A conversation only with a friend (§523).
+            guard model.social.isFriend(p.userId) else {
+                model.nowPlaying.say("You can message people who follow you back.")
+                return
+            }
             model.social.open(.thread(ChatOpen(with: p.userId, name: p.name, avatar: p.avatar)))
         } else {
             model.social.open(.person(PersonOpen(handle: p.handle, userID: p.userId, name: p.name,

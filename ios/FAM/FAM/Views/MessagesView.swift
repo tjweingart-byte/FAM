@@ -423,6 +423,12 @@ struct NewMessageCard: View {
     }
 
     private func go(_ chat: ChatOpen) {
+        // One-to-one only with a friend (§523): the server's own sentence,
+        // before a conversation that could not send opens.
+        if !chat.group && !social.isFriend(chat.with) {
+            model.nowPlaying.say("You can message people who follow you back.")
+            return
+        }
         dismiss()
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 350_000_000)
