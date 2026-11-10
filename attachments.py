@@ -276,7 +276,7 @@ class AttachmentStore:
             # own. With sqlite3's implicit transactions a write that is not
             # inside `with conn:` stays open - on Postgres holding this
             # store's lock until the process dies, so no new server could
-            # start (PROBLEMS.md §521).
+            # start (PROBLEMS.md §518).
             conn = store_db.connect(self.path, check_same_thread=False, isolation_level=None)
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn

@@ -237,7 +237,7 @@ def test_a_link_is_still_paced_as_a_spend(client, monkeypatch):
 def test_deleting_an_account_leaves_no_transaction_open(store):
     """Account deletion's `forget` once wrote without committing. On Postgres
     that held this store's lock until the server died, and every new server
-    timed out on it at startup (PROBLEMS.md §521)."""
+    timed out on it at startup (PROBLEMS.md §518)."""
     item = A.Attachment(id="a1", kind="text", name="n", created=time.time(), text="x")
     store.put("u1", item)
     assert store.forget("u1") == 1

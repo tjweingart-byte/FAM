@@ -16,7 +16,7 @@ import UIKit
 /// **Every sample is kept, and the player node only ever holds a copy.** iOS
 /// throws away whatever is queued on an `AVAudioPlayerNode` when the audio
 /// route changes or a call takes the session (the first phone test, PROBLEMS.md
-/// §518: a call mid-episode read as the episode ending, and the last 17
+/// §519: a call mid-episode read as the episode ending, and the last 17
 /// seconds were skipped). So the position is the truth, and after any pause,
 /// interruption or route change the node is refilled from that position.
 /// A buffer's completion only counts if it belongs to the current filling

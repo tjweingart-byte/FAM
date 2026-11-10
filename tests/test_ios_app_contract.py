@@ -1,6 +1,6 @@
 """The iOS app (`ios/FAM`) asks for what the server has.
 
-The Swift was written without a compiler to hand (PROBLEMS.md §519). A
+The Swift was written without a compiler to hand (PROBLEMS.md §520). A
 compiler would not catch these anyway: a path that is not a route, a field
 the server does not send, or a request the waitlist refuses all fail on a
 phone, in review. So CI checks that every `/api/v1/...` path routes with the

@@ -509,7 +509,7 @@ and `limit` = Lines.
 | 32306 | 12 | 515. "world cup qualifiers" and "power outage" seeded (2026-11-10) |
 | 32318 | 12 | 516. "power grid" and "world record" seeded (2026-11-10) |
 | 32330 | 9 | 517. "nfl trade rumors" seeded (2026-11-10) |
-| 32339 | 85 | 518. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
-| 32424 | 128 | 519. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
-| 32552 | 32 | 520. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
-| 32584 | 36 | 521. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
+| 32339 | 43 | 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
+| 32382 | 85 | 519. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
+| 32467 | 128 | 520. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 32595 | 32 | 521. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
