@@ -80,6 +80,18 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     var onReady: ((Bool) -> Void)?
     /// Called when an episode fails, so the loading screen can step aside.
     var onFailed: (() -> Void)?
+    /// Called once every sample of a streamed episode has arrived: the app
+    /// keeps it on the phone for offline listening if it may (`OfflineShelf`).
+    var onArrived: (() -> Void)?
+    /// The server said this audio may be kept on the device
+    /// (`X-FAM-Keepable: 1`: a production voice, never the placeholder tone,
+    /// never an attachment's).
+    private(set) var keepable = false
+    /// Playing samples kept on this phone, not a stream (`playStored`).
+    private(set) var fromDevice = false
+    /// Which play this is: bumped by every play, device play and stop, so a
+    /// watcher from an earlier episode knows the player has moved on.
+    var playToken: Int { generation }
     /// The last failure was the connection itself - the stream broke and
     /// every reconnect failed - not the server saying no. A playlist stops
     /// on it rather than walking on (`mixItemFailed`'s `err.network`).
@@ -167,6 +179,8 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         self.holdStart = holdStart
         gated = false
         cacheHit = false
+        keepable = false
+        fromDevice = false
         generation += 1
         self.title = title
         self.picture = picture
@@ -186,6 +200,60 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         connect()
         startTicker()
         nowPlaying()
+    }
+
+    /// An episode kept on this phone, played with no connection (the web's
+    /// `FamAudio.playStored`): every sample is in hand before the first, so
+    /// it is a replay to the loading screen (`onReady(true)`), complete from
+    /// the start, and nothing is kept again.
+    func playStored(title: String, picture: URL? = nil, rate: Double, stored: [Float],
+                    holdStart: Bool = false) {
+        stopStream()
+        guard !stored.isEmpty, rate > 0 else {
+            fail("that episode isn\u{2019}t on this phone")
+            return
+        }
+        complete = false
+        episodeID = ""
+        self.holdStart = holdStart
+        gated = false
+        cacheHit = true
+        keepable = false
+        fromDevice = true
+        generation += 1
+        self.title = title
+        self.picture = picture
+        problem = ""
+        request = nil
+        samples = []; bytesTaken = 0; skipBytes = 0; carry = Data()
+        epoch += 1; base = 0; next = 0; outstanding = 0; lastFrame = 0
+        streamDone = false; started = false; retries = 0
+        refusedResponse = nil; refusalBody = Data()
+        refusal = nil; failureWords = ""
+        position = 0; arrived = 0
+        listenedBefore = listened
+        guard activateSession() else { return }
+        askedAt = Date()
+        phase = .connecting
+        log("playing \"\(title)\" from this phone")
+        if rate != sampleRate { configure(rate: rate) }
+        samples = stored
+        bytesTaken = stored.count * 2
+        arrived = Double(stored.count) / sampleRate
+        expected = arrived
+        streamDone = true
+        complete = true
+        startTicker()
+        feed()
+        nowPlaying()
+    }
+
+    /// The whole episode as it arrived, for the offline shelf: only once
+    /// every sample is here, only when the server marked it keepable, never
+    /// for a device replay. A copy the player never changes under it.
+    func wholeEpisode() -> (rate: Double, samples: [Float])? {
+        guard streamDone, keepable, !fromDevice, !samples.isEmpty else { return nil }
+        return (rate: sampleRate, samples: samples)
     }
 
     func pause() {
@@ -324,6 +392,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         if retries == 0 {
             cacheHit = cache == "hit"
             episodeID = http?.value(forHTTPHeaderField: "X-FAM-Episode") ?? ""
+            keepable = http?.value(forHTTPHeaderField: "X-FAM-Keepable") == "1"
         }
         log(retries == 0
             ? "first byte after \(ms) ms (\(Int(rate)) Hz, cache \(cache))"
@@ -401,6 +470,11 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         feed()
         log("all \(fmt(arrived)) arrived")
         nowPlaying()
+        // Told before the ending is checked: an episode that finishes on
+        // this very sample has still arrived whole.
+        let asked = generation
+        onArrived?()
+        guard asked == generation else { return }
         finishIfDone()
     }
 
