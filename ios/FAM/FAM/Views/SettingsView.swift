@@ -6,8 +6,8 @@ import SwiftUI
 /// again (`op-profile-hub`). Toggle rows stay rows whose value reads On /
 /// Off, as the web draws them. Where iOS has no such control the row is
 /// left out rather than drawn dead (`no-dead-controls`): Dark mode (light
-/// only, §250) and "Hey FAM" (it needs a microphone open whenever the app is,
-/// which iOS 1.0 does not do; voice search itself is on searchFAM's mic). iOS adds what the web
+/// only, §250). "Hey FAM" is drawn worded for iOS (`WakeRow`: it listens
+/// only while FAM is open on screen). iOS adds what the web
 /// has no need of: the sign-in methods (Apple, Google), under Account
 /// settings. Friends is reached from the hub's friends count, Messages is a
 /// tab - the web's groups, and no others.
@@ -113,6 +113,10 @@ struct SettingsView: View {
             SetRow(label: "Keep the voice's pitch", value: player.keepsPitch ? "On" : "Off") { togglePitch() }
             if let voices = you.voices, !voices.voices.isEmpty {
                 SetRow(label: "Voice for your searches", value: voiceLabel(voices)) { sheet = .voice }
+            }
+            // "Hey FAM" (§158), only where the phone can recognise speech.
+            if VoiceSearchModel.available {
+                WakeRow(wake: model.wake)
             }
         }
     }
@@ -474,6 +478,22 @@ struct PrivacyRows: View {
     }
 }
 
+/// "Say “Hey FAM” to search", On / Off, and the note under it. The web's
+/// note says the microphone listens "whenever FAM is open"; iOS lets no app
+/// listen in the background, so here it is "open on screen", and it says so.
+struct WakeRow: View {
+    @ObservedObject var wake: WakeListener
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SetRow(label: "Say \u{201C}Hey FAM\u{201D} to search", value: wake.isOn ? "On" : "Off") {
+                wake.set(!wake.isOn)
+            }
+            SetNote(text: "Say \u{201C}Hey FAM\u{201D} or \u{201C}What\u{2019}s up FAM\u{201D} to search by voice. While it\u{2019}s on, the microphone listens whenever FAM is open on your screen and nothing is playing. iPhone lets no app listen in the background, so it stops when you leave FAM.")
+        }
+    }
+}
+
 // MARK: - Your details: date of birth, place, gender (`#activationOverlay`)
 
 /// "Your details" (shot 35): the date (required, under 13 asked to be
@@ -482,6 +502,10 @@ struct PrivacyRows: View {
 /// policy link, Continue once a date is set. Every help line is the server's.
 struct ActivationCard: View {
     let activation: Activation
+    /// The first time it is owed, at launch (`openActivation(false)`): the
+    /// server's title, no X and no closing by the backdrop - the date is
+    /// required - and nothing toasted on Continue.
+    var owed = false
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var you: YouModel
     @Environment(\.dismiss) private var dismiss
@@ -495,7 +519,7 @@ struct ActivationCard: View {
     @State private var working = false
 
     var body: some View {
-        ModalCard(close: { if gone == nil { dismiss() } }) {
+        ModalCard(close: { if gone == nil && !owed { dismiss() } }) {
             if let gone {
                 Text(gone)
                     .font(FAMFont.body(13))
@@ -520,11 +544,14 @@ struct ActivationCard: View {
     private var form: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
-                Text("Your details")
+                Text(owed ? (activation.title ?? "A few things before you start") : "Your details")
                     .font(FAMFont.heading(16))
                     .foregroundStyle(FAMColor.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                CloseCircle(label: "Close") { dismiss() }
+                if !owed {
+                    CloseCircle(label: "Close") { dismiss() }
+                }
             }
             .padding(.bottom, 10)
             FieldLabel(text: "Date of birth")
@@ -605,10 +632,10 @@ struct ActivationCard: View {
                 .font(FAMFont.heading(16))
                 .foregroundStyle(FAMColor.text)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                Spacer()
-                ModalButton(label: "Change it") { confirm = nil }
-                ModalButton(label: "Yes", primary: true, enabled: !working) { submit(confirmed: true) }
+            // `.modal-btns.stack`: Yes above Change it, both full width.
+            VStack(spacing: 8) {
+                ModalButton(label: "Yes", primary: true, wide: true, enabled: !working) { submit(confirmed: true) }
+                ModalButton(label: "Change it", wide: true) { confirm = nil }
             }
             .padding(.top, 16)
         }
@@ -657,7 +684,7 @@ struct ActivationCard: View {
                     gone = answer.message ?? "We've deleted your account."
                     return
                 }
-                model.nowPlaying.say("Saved")
+                if !owed { model.nowPlaying.say("Saved") }
                 _ = await you.loadActivation()
                 await you.loadPrefs()
                 dismiss()

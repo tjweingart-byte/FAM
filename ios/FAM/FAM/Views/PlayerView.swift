@@ -28,6 +28,8 @@ struct PlayerView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var sheet: PlayerSheet?
+    /// Your story, opened from "Vibed to your story · View".
+    @State private var myStory: StoryReel?
     @State private var popup: PlayerPopup?
     @State private var badgePop: CGFloat = 1
 
@@ -53,11 +55,23 @@ struct PlayerView: View {
         .background(FAMColor.background.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: popup)
         .animation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36), value: now.nextUp.isEmpty)
-        .sheet(item: $sheet) { which in
+        .sheet(item: Binding(get: { sheet == .vibe ? nil : sheet }, set: { sheet = $0 })) { which in
             sheetView(which)
                 .environmentObject(model)
                 .environmentObject(player)
                 .environmentObject(now)
+        }
+        // VIBE! is the story editor, over the whole player as on the web.
+        .fullScreenCover(isPresented: Binding(get: { sheet == .vibe },
+                                              set: { if !$0 && sheet == .vibe { sheet = nil } })) {
+            VibeComposer(openMine: { showMyStory() })
+                .environmentObject(model)
+                .environmentObject(player)
+                .environmentObject(now)
+        }
+        .fullScreenCover(item: $myStory) { reel in
+            StoryViewerCover(reel: reel)
+                .environmentObject(model)
         }
         .onChange(of: now.showQueue) { _, wanted in
             guard wanted else { return }
@@ -78,6 +92,15 @@ struct PlayerView: View {
         let fromSearch = now.episode?.surface == "search"
         model.tabRequest = fromSearch ? .search : .daily
         dismiss()
+    }
+
+    /// `viewMyNewStory`: your story read again, once the editor has gone.
+    private func showMyStory() {
+        Task { @MainActor in
+            await model.loadCircle()
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            if let reel = StoryReel.mine(model) { myStory = reel }
+        }
     }
 
     /// A sheet after whatever is up has gone (one presentation at a time).
@@ -383,7 +406,7 @@ struct PlayerView: View {
         switch which {
         case .menu: PlayerMenu(sheet: $sheet)
         case .queue: QueueSheet()
-        case .vibe: VibeComposer()
+        case .vibe: EmptyView()
         case .share: ShareSheet()
         case .speed: ActionSheetList(items: speedItems)
         case .length: ActionSheetList(items: lengthItems)

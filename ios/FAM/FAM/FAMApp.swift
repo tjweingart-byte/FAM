@@ -76,6 +76,13 @@ struct RootView: View {
             }
         }
         .background(FAMColor.background.ignoresSafeArea())
+        // The activation step the first time it is owed (§411, §414): the
+        // web's card over the app, with no X - the date is required.
+        .fullScreenCover(item: $model.owedActivation) { owed in
+            ActivationCard(activation: owed, owed: true)
+                .famObjects(model)
+                .interactiveDismissDisabled(true)
+        }
         .overlay { LoadingLayer(loading: model.loading) }
         // "Which one do you mean?" and the limit screen (`onGenerationFailed`).
         .overlay { RefusalLayer() }

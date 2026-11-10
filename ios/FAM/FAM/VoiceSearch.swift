@@ -18,8 +18,9 @@ import SwiftUI
 /// * Apple's recogniser stops itself after about a minute: that is the end
 ///   of speech, like the web's `onend`.
 ///
-/// "Hey FAM" is not on iOS 1.0: it needs a microphone open whenever the app
-/// is, which iOS gives no app in the background (`PARITY.md`).
+/// "Hey FAM" (`WakeListener`, §158) opens this with whatever followed the
+/// phrase already in the words; it listens only while FAM is in front,
+/// since iOS gives no app the microphone in the background for it.
 @MainActor
 final class VoiceSearchModel: ObservableObject {
     /// `VOICE_SILENCE_MS`.
@@ -60,6 +61,9 @@ final class VoiceSearchModel: ObservableObject {
     var onSend: (String) -> Void = { _ in }
     /// Closed without searching.
     var onCancel: () -> Void = {}
+    /// Closed either way: "Hey FAM" waits a moment before it listens again
+    /// (`WAKE_AFTER_CLOSE_MS`).
+    var onClosed: () -> Void = {}
     /// An episode is loaded on the player (paused for the mic, or done):
     /// the session goes straight back to playback and stays FAM's, so the
     /// lock screen keeps its controls and the episode resumes as before.
@@ -129,10 +133,11 @@ final class VoiceSearchModel: ObservableObject {
 
     // MARK: - Opening and closing
 
-    /// `openVoiceSearch`: open and listen at once.
-    func present() {
+    /// `openVoiceSearch`: open and listen at once. `seed` is what followed
+    /// "hey FAM" in the same breath: on screen already, listening adds to it.
+    func present(seed: String = "") {
         before = ""
-        heard = ""
+        heard = Self.collapse(seed)
         interim = ""
         error = ""
         editing = false
@@ -155,6 +160,7 @@ final class VoiceSearchModel: ObservableObject {
         error = ""
         editText = ""
         if !sending { onCancel() }
+        onClosed()
     }
 
     /// The app left the foreground: a count stops and leaves the button to

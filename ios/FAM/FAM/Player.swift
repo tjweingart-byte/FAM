@@ -80,6 +80,9 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     var onReady: ((Bool) -> Void)?
     /// Called when an episode fails, so the loading screen can step aside.
     var onFailed: (() -> Void)?
+    /// Called just before the player takes the audio session (a start or a
+    /// resume, the lock screen's too): "Hey FAM" gets off the microphone.
+    var willStartAudio: () -> Void = {}
     /// Called once every sample of a streamed episode has arrived: the app
     /// keeps it on the phone for offline listening if it may (`OfflineShelf`).
     var onArrived: (() -> Void)?
@@ -667,6 +670,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
 
     @discardableResult
     private func activateSession() -> Bool {
+        willStartAudio()
         let audio = AVAudioSession.sharedInstance()
         do {
             try audio.setCategory(.playback, mode: .spokenAudio)

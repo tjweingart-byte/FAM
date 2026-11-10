@@ -8,14 +8,15 @@ import SwiftUI
 /// their own.
 ///
 /// A face with no story opens that person's profile (by handle; with no
-/// handle, a conversation - `openCircleFace`). Your own face with no story
-/// (or its (+)) opens the note composer on the web; that is not built
-/// here, so it does nothing (`no-dead-controls`).
+/// handle, a conversation - `openCircleFace`). Your own face plays your
+/// story when one is up, else opens the note composer; its (+) always
+/// opens the composer (`tapMyFace`, §297).
 struct FacesRow: View {
     @EnvironmentObject private var model: AppModel
     /// Observed so a face turns into a button once the graph says friend.
     @EnvironmentObject private var social: SocialModel
     @State private var viewing: StoryReel?
+    @State private var composing: StoryEditorSubject?
     @State private var invite = false
     @AppStorage("storiesSeen") private var seenJSON = "{}"
 
@@ -63,7 +64,12 @@ struct FacesRow: View {
                 .padding(.bottom, 4)
             }
             .fullScreenCover(item: $viewing) { reel in
-                StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 })
+                StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
+                            openMine: { showMine() })
+                    .environmentObject(model)
+            }
+            .fullScreenCover(item: $composing) { subject in
+                StoryEditor(subject: subject, openMine: { showMine() })
                     .environmentObject(model)
             }
             .sheet(isPresented: $invite) {
@@ -72,22 +78,53 @@ struct FacesRow: View {
         }
     }
 
-    /// Your face: your story when one is up; the (+) is always drawn, as
-    /// the web draws it, but adds nothing until the composer exists.
-    @ViewBuilder private func myFace(_ me: CircleMe) -> some View {
+    /// Your face (`myFaceHTML`): a tap plays your story when one is up,
+    /// else starts one; the (+) - a button of its own laid over the face,
+    /// never inside it - always starts one, a note (`openNoteComposer`).
+    private func myFace(_ me: CircleMe) -> some View {
         let mine = me.stories ?? []
         let face = faceItem(name: me.name ?? "", handle: me.handle ?? "", avatar: me.avatar ?? "",
-                            label: "Your story", ring: mine.isEmpty ? .none : ring(for: "me", mine), plus: true)
-        if mine.isEmpty {
-            face.accessibilityElement(children: .combine)
-        } else {
-            Button {
+                            label: "Your story", ring: mine.isEmpty ? .none : ring(for: "me", mine), plus: false)
+        return Button {
+            if mine.isEmpty {
+                compose()
+            } else {
                 viewing = StoryReel(people: [StoryPerson(id: "me", name: "Your story", handle: me.handle ?? "",
                                                          avatar: me.avatar ?? "", stories: mine, mine: true)],
                                     start: 0)
-            } label: { face }
+            }
+        } label: { face }
+            .buttonStyle(.press)
+            .accessibilityLabel(mine.isEmpty ? "Add to your story" : "Your story")
+            .overlay(alignment: .topLeading) {
+                // `.yf-add`: 24 pt, the text colour, a 3 pt border of the page.
+                Button { compose() } label: {
+                    ZStack {
+                        Circle().fill(FAMColor.background).frame(width: 30, height: 30)
+                        Circle().fill(FAMColor.text).frame(width: 24, height: 24)
+                        WebIcon(path: Icons.plus, size: 13).foregroundStyle(FAMColor.background)
+                    }
+                    .contentShape(Circle())
+                }
                 .buttonStyle(.press)
-                .accessibilityLabel("Your story")
+                .offset(x: 42, y: 42)
+                .accessibilityLabel("Add to your story")
+            }
+    }
+
+    /// The note composer: an account's only (`openNoteComposer`).
+    private func compose() {
+        guard model.listener?.authenticated == true else { return }
+        composing = .note()
+    }
+
+    /// The snack's View after posting: your story, read again
+    /// (`viewMyNewStory`), once whatever was up has gone.
+    private func showMine() {
+        Task { @MainActor in
+            await model.loadCircle()
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            if let reel = StoryReel.mine(model) { viewing = reel }
         }
     }
 
@@ -222,13 +259,18 @@ enum StoryLikes {
 /// their first unseen story. A vibe's title or Play episode opens it; a
 /// friend's has a reply box with its send inside, a heart and the VIBE!
 /// arrows (`story-reply`); ⋯ saves, shares, queues, deletes your own or
-/// reports somebody else's.
+/// reports somebody else's. A story laid out in the editor, and every
+/// note, is drawn from its layout (`StoryCanvas`); a vibe from before the
+/// editor keeps the title-and-caption page.
 struct StoryViewer: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let reel: StoryReel
     let markSeen: (String, Double) -> Void
     let seenAt: (String) -> Double
+    /// Opens your own story again: the snack's View after the VIBE!
+    /// arrows posted one (`viewMyNewStory`). Nil draws no View.
+    var openMine: (() -> Void)? = nil
 
     @State private var people: [StoryPerson] = []
     @State private var person = 0
@@ -245,8 +287,11 @@ struct StoryViewer: View {
     @State private var storyMenu = false
     @State private var addingTopic = false
     @State private var blocking = false
-    @State private var resharing = false
+    /// The editor opened by the VIBE! arrows (`shareStoryToMine`).
+    @State private var resharing: StoryEditorSubject?
     @State private var sharing: ShareSubject?
+    /// Where a composed story's episode card is, so a tap there plays.
+    @State private var postFrame: CGRect = .zero
     @FocusState private var typing: Bool
 
     private static let seconds = 6.0
@@ -257,6 +302,7 @@ struct StoryViewer: View {
     private var who: StoryPerson { people[person] }
     private var story: Story { who.stories[index] }
     private var isNote: Bool { story.kind == "note" }
+    private var composed: Bool { StoryDraft.isComposed(story) }
 
     var body: some View {
         ZStack {
@@ -269,10 +315,11 @@ struct StoryViewer: View {
                         .gesture(surfaceGesture(width: geo.size.width))
                 }
                 .ignoresSafeArea()
-                if isNote {
+                if composed {
                     // Only its @mentions take a tap (`storyOpenTag`); the
-                    // rest lets the story's own taps and holds through.
-                    NoteCanvas(story: story, openTag: { tag in openTag(tag) })
+                    // rest lets the story's own taps and holds through, and
+                    // a tap on the episode's card plays (`playStoryTap`).
+                    StoryCanvas(draft: StoryDraft(story: story), openTag: { tag in openTag(tag) })
                         .padding(.horizontal, 12)
                         .padding(.top, 52)
                         .padding(.bottom, who.mine ? 40 : 76)
@@ -284,7 +331,7 @@ struct StoryViewer: View {
                     }
                     .opacity(held ? 0 : 1)
                     Spacer(minLength: 0)
-                    if !isNote { main }
+                    if !composed { main }
                     Spacer(minLength: 0)
                     card.opacity(held ? 0 : 1)
                 }
@@ -308,6 +355,7 @@ struct StoryViewer: View {
             index = firstUnseen(start, in: reel.people)
             liked = StoryLikes.marks
         }
+        .onPreferenceChange(StoryPostFrameKey.self) { frame in postFrame = frame }
         .task(id: "\(person)-\(index)-\(people.count)") { await tick() }
         .confirmationDialog(ready ? (story.title ?? "") : "", isPresented: $storyMenu, titleVisibility: .hidden) {
             if ready { storyMenuButtons }
@@ -319,11 +367,11 @@ struct StoryViewer: View {
                     .environmentObject(model.mixes)
             }
         }
-        .sheet(isPresented: $resharing) {
-            if ready {
-                StoryVibeSheet(key: storyKey(), title: story.title ?? story.query ?? "")
-                    .environmentObject(model)
-            }
+        // The web closes the story and opens the editor: here the editor
+        // covers the story, and the story closes behind it when it goes.
+        .fullScreenCover(item: $resharing, onDismiss: { dismiss() }) { subject in
+            StoryEditor(subject: subject, openMine: openMine)
+                .environmentObject(model)
         }
         .sheet(item: $sharing) { subject in
             ShareSheet(subject: subject)
@@ -417,9 +465,9 @@ struct StoryViewer: View {
         .contentShape(Rectangle())
     }
 
-    /// A tag on a note opens that person's profile, once the story has
+    /// A tag on a story opens that person's profile, once the story has
     /// closed (`storyOpenTag`).
-    private func openTag(_ tag: StoryTag) {
+    private func openTag(_ tag: StoryMention) {
         guard !tag.handle.isEmpty else { return }
         let route = SocialRoute.person(PersonOpen(handle: tag.handle, name: tag.name))
         dismiss()
@@ -529,7 +577,7 @@ struct StoryViewer: View {
             .accessibilityLabel("Like")
             .accessibilityAddTraits(on ? .isSelected : [])
             if !isNote {
-                Button { resharing = true } label: {
+                Button { reshare() } label: {
                     WebIcon(path: Icons.reshare, size: 24, line: 1.9).frame(width: 42, height: 44)
                 }
                 .buttonStyle(.press)
@@ -545,7 +593,7 @@ struct StoryViewer: View {
     /// finger lifts; a horizontal swipe of 50 pt changes friend; a drag down
     /// closes; otherwise a tap steps back (left half) or on (right half).
     private func surfaceGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
                 if !pressing {
                     pressing = true
@@ -581,7 +629,13 @@ struct StoryViewer: View {
                     return
                 }
                 if abs(dx) < 12 && abs(dy) < 12 {
-                    if value.startLocation.x < width / 2 { back() } else { forward() }
+                    if composed && !isNote && postFrame.contains(value.startLocation) {
+                        play()
+                    } else if value.startLocation.x < width / 2 {
+                        back()
+                    } else {
+                        forward()
+                    }
                 }
             }
     }
@@ -590,7 +644,7 @@ struct StoryViewer: View {
 
     /// The story holds while its menu, or anything the menu opened, is up.
     private var paused: Bool {
-        held || typing || storyMenu || addingTopic || reporting || blocking || resharing || sharing != nil
+        held || typing || storyMenu || addingTopic || reporting || blocking || resharing != nil || sharing != nil
     }
 
     private var firstName: String {
@@ -627,6 +681,16 @@ struct StoryViewer: View {
 
     private func later(_ action: @escaping () -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: action)
+    }
+
+    /// The VIBE! arrows (`shareStoryToMine`): your own story editor on this
+    /// episode, with the story's own picture.
+    private func reshare() {
+        guard ready, !isNote else { return }
+        let key = storyKey()
+        let title = story.title ?? key.query
+        let thumb = story.style?.thumb ?? ""
+        resharing = .episode(key, title: title, thumb: thumb, thread: "")
     }
 
     private func storyKey() -> EpisodeKey {
@@ -835,194 +899,5 @@ struct StoryViewer: View {
         if mins < 1 { return "just now" }
         if mins < 60 { return "\(mins)m" }
         return "\(Int((Double(mins) / 60).rounded()))h"
-    }
-}
-
-/// A note (§297), drawn from its layout (`noteCanvasHTML`): its background
-/// by name, the words at their place and size in their face - dark on the
-/// light backgrounds - and the stickers. Positions are fractions of the
-/// canvas and sizes are in 360ths of its width, as on the web, so it reads
-/// the same on any phone. An @mention opens that person's profile when the
-/// caller says how (`openTag`); nothing else on the canvas takes a tap.
-struct NoteCanvas: View {
-    let story: Story
-    var openTag: ((StoryTag) -> Void)? = nil
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            let style = story.style
-            let unit = w / 360
-            let cx = style?.cx ?? 0.5
-            let cy = style?.cy ?? 0.5
-            let room = max(10, min(86, (200 * min(cx, 1 - cx)).rounded() - 4)) / 100
-            let light = style?.bg == "cream" || style?.bg == "candy"
-            ZStack(alignment: .topLeading) {
-                Self.background(style?.bg ?? "ink")
-                    .allowsHitTesting(false)
-                if let text = story.text, !text.isEmpty {
-                    Text(text)
-                        .font(Self.font(style?.font ?? "strong", size: CGFloat(style?.size ?? 24) * unit))
-                        .foregroundStyle(light ? Color(hex: 0x1A1620) : Color(hex: 0xF4EFE4))
-                        .shadow(color: light ? .clear : .black.opacity(0.55), radius: 4, y: 1)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(2)
-                        .frame(maxWidth: w * CGFloat(room))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .position(x: w * CGFloat(cx), y: h * CGFloat(cy))
-                        .allowsHitTesting(false)
-                }
-                ForEach(Array((style?.stickers ?? []).enumerated()), id: \.offset) { _, sticker in
-                    stickerView(sticker, unit: unit)
-                        .scaleEffect(CGFloat(sticker.s))
-                        .rotationEffect(.degrees(sticker.r))
-                        .position(x: w * CGFloat(sticker.x), y: h * CGFloat(sticker.y))
-                        .allowsHitTesting(false)
-                }
-                ForEach(Array((story.tags ?? []).enumerated()), id: \.offset) { _, tag in
-                    tagView(tag, unit: unit)
-                        .position(x: w * CGFloat(tag.x), y: h * CGFloat(tag.y))
-                }
-            }
-            .frame(width: w, height: h)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(story.text ?? "A story")
-    }
-
-    /// An @mention: a button when the caller can open a profile, else
-    /// drawn and passed through.
-    @ViewBuilder private func tagView(_ tag: StoryTag, unit: CGFloat) -> some View {
-        let label = Text("@" + tag.handle)
-            .font(FAMFont.body(14 * unit, .bold))
-            .foregroundStyle(Color(hex: 0x1A1620))
-            .padding(.horizontal, 10 * unit)
-            .padding(.vertical, 5 * unit)
-            .background(Color(hex: 0xF4EFE4).opacity(0.94), in: RoundedRectangle(cornerRadius: 7 * unit))
-            .fixedSize()
-        if let openTag, !tag.handle.isEmpty {
-            Button { openTag(tag) } label: { label }
-                .buttonStyle(.press)
-        } else {
-            label.allowsHitTesting(false)
-        }
-    }
-
-    @ViewBuilder private func stickerView(_ s: StorySticker, unit: CGFloat) -> some View {
-        let word = s.k.contains(where: { $0.isUppercase })
-        if word {
-            Text(s.k)
-                .font(FAMFont.mono(13 * unit, bold: true))
-                .tracking(13 * unit * 0.06)
-                .foregroundStyle(FAMColor.ink)
-                .padding(.horizontal, 13 * unit * 0.8)
-                .padding(.vertical, 13 * unit * 0.45)
-                .background(FAMColor.copper, in: RoundedRectangle(cornerRadius: 13 * unit * 0.6))
-                .fixedSize()
-        } else {
-            Text(s.k).font(.system(size: 46 * unit)).fixedSize()
-        }
-    }
-
-    /// The caption's faces (`.sc-cap.f-*`).
-    static func font(_ name: String, size: CGFloat) -> Font {
-        switch name {
-        case "classic": return FAMFont.body(size, .semibold)
-        case "type": return FAMFont.mono(size)
-        case "serif": return .custom("Georgia-Italic", size: size)
-        case "script": return .custom("SnellRoundhand", size: size)
-        default: return FAMFont.heading(size, .bold)
-        }
-    }
-
-    /// `NOTE_BACKGROUNDS`, the gradients at 160°.
-    @ViewBuilder static func background(_ name: String) -> some View {
-        let stops = Self.stops(name)
-        if stops.count == 1 {
-            stops[0].color
-        } else {
-            LinearGradient(stops: stops, startPoint: UnitPoint(x: 0.33, y: 0.03), endPoint: UnitPoint(x: 0.67, y: 0.97))
-        }
-    }
-
-    private static func stops(_ name: String) -> [Gradient.Stop] {
-        func s(_ hex: UInt32, _ at: CGFloat) -> Gradient.Stop { Gradient.Stop(color: Color(hex: hex), location: at) }
-        switch name {
-        case "copper": return [s(0xC08A2E, 0)]
-        case "sunset": return [s(0xFEDA75, 0), s(0xFA7E1E, 0.35), s(0xD62976, 0.75), s(0x962FBF, 1)]
-        case "ocean": return [s(0x5EE7DF, 0), s(0x3A7BD5, 0.55), s(0x283C86, 1)]
-        case "forest": return [s(0xA8E063, 0), s(0x3E8E5E, 0.55), s(0x134E3A, 1)]
-        case "berry": return [s(0xF78CA0, 0), s(0xC43A79, 0.5), s(0x5B1A5E, 1)]
-        case "dusk": return [s(0x3A2F44, 0), s(0x6B4C7A, 0.5), s(0xE0B563, 1)]
-        case "cream": return [s(0xF4EFE4, 0)]
-        case "night": return [s(0x000000, 0)]
-        case "candy": return [s(0xFBC2EB, 0), s(0xA6C1EE, 1)]
-        default: return [s(0x18151F, 0)]
-        }
-    }
-}
-
-/// VIBE! a friend's story to your own (`shareStoryToMine`): the episode
-/// with a caption, posted with `/api/vibe`. The web opens its full story
-/// editor here; that editor is not ported (PARITY.md), so this is the
-/// caption box the player's VIBE! uses.
-struct StoryVibeSheet: View {
-    @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
-    let key: EpisodeKey
-    let title: String
-    @State private var caption = ""
-    @State private var posting = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("VIBE! to your story").font(FAMFont.heading(16, .medium)).foregroundStyle(FAMColor.text)
-            Text(title)
-                .font(FAMFont.heading(14))
-                .foregroundStyle(FAMColor.text)
-                .lineSpacing(3)
-            TextField("", text: $caption, prompt: Text("Say something about it").foregroundColor(FAMColor.textFaint),
-                      axis: .vertical)
-                .font(FAMFont.body(14))
-                .foregroundStyle(FAMColor.text)
-                .lineLimit(1...4)
-                .onChange(of: caption) { _, text in
-                    if text.count > 150 { caption = String(text.prefix(150)) }
-                }
-                .padding(12)
-                .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
-            Button {
-                post()
-            } label: {
-                if posting { ProgressView().tint(FAMColor.ink) } else { Text("VIBE!") }
-            }
-            .buttonStyle(CopperButtonStyle())
-            .disabled(posting)
-            Spacer(minLength: 0)
-        }
-        .padding(20)
-        .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
-    }
-
-    private func post() {
-        posting = true
-        let words = caption
-        Task {
-            do {
-                try await model.api.vibe(key, title: title, thread: "", caption: words)
-                model.nowPlaying.say("Vibed to your story")
-                posting = false
-                dismiss()
-                await model.loadCircle()
-            } catch {
-                posting = false
-                model.nowPlaying.say((error as? FAMError)?.errorDescription ?? "Could not vibe that")
-            }
-        }
     }
 }

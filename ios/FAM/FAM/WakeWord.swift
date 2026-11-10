@@ -188,14 +188,16 @@ final class WakeListener: ObservableObject {
     }
 
     private func begin(_ mine: Int) async {
-        if let refusal = await Self.permissionProblem() {
+        let refusal = await Self.permissionProblem()
+        // A later start or a stop owns `starting` now.
+        guard mine == generation else { return }
+        if let refusal {
             starting = false
-            guard mine == generation else { return }
             turnOff(saying: refusal + ", so \u{201C}Hey FAM\u{201D} is off")
             return
         }
         // Asked again: the answer took a moment, and things change.
-        guard mine == generation, shouldRun else {
+        guard shouldRun else {
             starting = false
             return
         }

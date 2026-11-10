@@ -957,7 +957,8 @@ struct MixShareSheet: View {
                         .padding(.bottom, 4)
                     if let link {
                         ShareTargetRows(url: link.url, targets: link.targets ?? [:],
-                                        isPublic: link.public) { dismiss() }
+                                        isPublic: link.public,
+                                        card: link.card ?? "", cardName: "fam-mix.png") { dismiss() }
                     } else {
                         Text(problem.isEmpty ? "Making a link\u{2026}" : problem)
                             .font(FAMFont.body(12))

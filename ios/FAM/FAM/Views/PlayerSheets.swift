@@ -701,54 +701,26 @@ struct QueueSheet: View {
 
 // MARK: - VIBE!
 
-/// Posts the episode to your story with a caption. The web's full story
-/// editor (layouts, fonts, stickers, @tags) is not ported yet - see PARITY.md.
+/// VIBE! (`toggleEcho` → `openVibeComposer`): the story editor on the
+/// episode playing, holding that episode, so a card that turns underneath
+/// does not change what is posted. Its picture is the player's, as a path
+/// on the server, else the one `/api/episode/card` gives (`StoryEditor`).
 struct VibeComposer: View {
+    @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var now: NowPlayingModel
     @EnvironmentObject private var player: StreamPlayer
-    @Environment(\.dismiss) private var dismiss
-    @State private var caption = ""
-    @State private var posting = false
+    /// The snack's View: your story, read again.
+    var openMine: (() -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("VIBE! to your story").font(FAMFont.heading(16, .medium)).foregroundStyle(FAMColor.text)
-            ZStack(alignment: .bottomLeading) {
-                PlayerPicture(url: now.picture ?? player.picture)
-                    .aspectRatio(4 / 3, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                Text(now.title)
-                    .font(FAMFont.heading(17, .semibold))
-                    .foregroundStyle(FAMColor.text)
-                    .padding(14)
-            }
-            TextField("", text: $caption, prompt: Text("Say something about it").foregroundColor(FAMColor.textFaint),
-                      axis: .vertical)
-                .font(FAMFont.body(14))
-                .lineLimit(1...4)
-                .onChange(of: caption) { _, text in
-                    if text.count > 150 { caption = String(text.prefix(150)) }
-                }
-                .padding(12)
-                .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
-            Button {
-                posting = true
-                Task {
-                    let ok = await now.vibe(caption: caption)
-                    posting = false
-                    if ok { dismiss() }
-                }
-            } label: {
-                if posting { ProgressView().tint(FAMColor.ink) } else { Text("VIBE!") }
-            }
-            .buttonStyle(CopperButtonStyle())
-            .disabled(posting)
-        }
-        .padding(20)
-        .background(FAMColor.surface)
-        .presentationDetents([.large])
-        .presentationBackground(FAMColor.surface)
+        StoryEditor(subject: subject, openMine: openMine)
+            .environmentObject(model)
+    }
+
+    private var subject: StoryEditorSubject {
+        let key = now.episode?.key ?? EpisodeKey(query: "", minutes: FAMAPI.browseMinutes)
+        let thumb = StoryEditorSubject.thumbPath(now.picture ?? player.picture)
+        return .episode(key, title: now.title, thumb: thumb, thread: now.thread)
     }
 }
 
@@ -798,7 +770,8 @@ struct ShareSheet: View {
                         .padding(.bottom, 4)
                     if let link {
                         ShareTargetRows(url: link.url, targets: link.targets ?? [:],
-                                        isPublic: link.public ?? true) { dismiss() }
+                                        isPublic: link.public ?? true,
+                                        card: link.card ?? "") { dismiss() }
                     } else {
                         Text(problem.isEmpty ? "Making a link\u{2026}" : problem)
                             .font(FAMFont.body(12))

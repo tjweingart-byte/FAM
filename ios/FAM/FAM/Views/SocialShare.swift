@@ -170,36 +170,72 @@ struct SendInsideFAM: View {
     }
 }
 
-/// ANYWHERE ELSE: the server's destinations (`sharing.TARGETS`), each with
-/// how it goes - Copy is the clipboard; a destination opens its app with
-/// the words (Facebook and LinkedIn drop them, so they go to the
-/// clipboard too); anything else to iOS's share sheet - and the note when
-/// the server has no public address.
+/// ANYWHERE ELSE: the server's destinations (`sharing.TARGETS`) as the
+/// web's grid (`.sh-grid`): four to a row, each a 40 pt circle with its
+/// glyph, the name, and how it goes - Copy is the clipboard; a destination
+/// opens its app with the words (Facebook and LinkedIn drop them, so they
+/// go to the clipboard too); Instagram and Snapchat get the story card
+/// (`shareStoryCard`) - the server's SVG drawn to a 1080x1920 PNG here and
+/// handed to iOS's share sheet with the words, which is where those apps
+/// take a picture for a story; anything else goes to iOS's share sheet.
+/// Then the note when the server has no public address.
 struct ShareTargetRows: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.openURL) private var openURL
     let url: String
     let targets: [String: ShareTarget]
     let isPublic: Bool
+    /// The story card's address from the share answer ("" for none).
+    var card: String = ""
+    /// What the card's file is called (`fam-episode.png` / `fam-mix.png`).
+    var cardName: String = "fam-episode.png"
     let done: () -> Void
     @State private var activity: [Any]?
+    @State private var making = false
 
-    /// The web's order (`sharing.TARGETS`); story targets need a card.
-    static let order = ["copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin"]
+    /// The server's order (`sharing.TARGETS`).
+    static let order = ["copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
+                        "instagram_story", "snapchat_story"]
+
+    /// `shareGlyph`.
+    static func glyph(_ key: String) -> String {
+        switch key {
+        case "copy": return "\u{29C9}"
+        case "sms": return "\u{2709}"
+        case "email": return "@"
+        case "whatsapp": return "W"
+        case "x": return "X"
+        case "facebook": return "f"
+        case "linkedin": return "in"
+        case "instagram_story": return "IG"
+        case "snapchat_story": return "SC"
+        default: return "\u{2197}"
+        }
+    }
+
+    /// The server's keys in its order, then any it adds later.
+    private var keys: [String] {
+        var out = Self.order.filter { targets[$0] != nil }
+        for k in targets.keys.sorted() where !out.contains(k) { out.append(k) }
+        return out
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Self.order, id: \.self) { key in
-                if let t = targets[key], t.needsImage != true {
-                    row(key, t)
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 6, alignment: .top), count: 4)
+            LazyVGrid(columns: columns, alignment: .center, spacing: 10) {
+                ForEach(keys, id: \.self) { key in
+                    if let t = targets[key] { tile(key, t) }
                 }
             }
+            .padding(.top, 4)
             if !isPublic {
                 Text("This server has no public address set, so the link only works on this network.")
-                    .font(FAMFont.mono(9.5))
+                    .font(FAMFont.mono(7.5))
                     .foregroundStyle(FAMColor.coral)
                     .lineSpacing(4)
-                    .padding(.top, 12)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
             }
         }
         .sheet(isPresented: Binding(get: { activity != nil }, set: { if !$0 { activity = nil } })) {
@@ -210,31 +246,56 @@ struct ShareTargetRows: View {
         }
     }
 
-    /// Which way a tap goes, said on the row (`shareHint`).
+    /// Which way a tap goes, said on the tile (`shareHint`).
     private func hint(_ key: String, _ t: ShareTarget) -> String {
         if key == "copy" { return "clipboard" }
+        if t.needsImage == true { return "card" }
         let destination = t.destination ?? ""
         return destination.isEmpty ? "share sheet" : "opens"
     }
 
-    private func row(_ key: String, _ t: ShareTarget) -> some View {
-        Button { send(key, t) } label: {
-            HStack(spacing: 12) {
-                Text(t.label ?? key)
-                    .font(FAMFont.body(13.5, .semibold))
+    private func tile(_ key: String, _ t: ShareTarget) -> some View {
+        let name = t.label ?? key
+        return Button { send(key, t) } label: {
+            VStack(spacing: 5) {
+                Text(Self.glyph(key))
+                    .font(FAMFont.body(12, .bold))
                     .foregroundStyle(FAMColor.text)
-                Spacer()
-                Text(hint(key, t)).monoLabel(8.5, color: FAMColor.copper, tracking: 0.85)
+                    .frame(width: 40, height: 40)
+                    .background(FAMColor.surface2, in: Circle())
+                    .overlay(Circle().stroke(FAMColor.border))
+                Text(name)
+                    .font(FAMFont.mono(7.5))
+                    .tracking(0.15)
+                    .foregroundStyle(FAMColor.textFaint)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(hint(key, t))
+                    .font(FAMFont.mono(6.5))
+                    .tracking(0.39)
+                    .textCase(.uppercase)
+                    .foregroundStyle(FAMColor.copper)
+                    .opacity(0.75)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 2)
             }
-            .padding(.vertical, 13)
+            .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.press)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name + ", " + hint(key, t))
+        .accessibilityAddTraits(.isButton)
     }
 
     /// `shareTo`.
     private func send(_ key: String, _ t: ShareTarget) {
         let text = t.text ?? url
+        // A story is a picture with a link on it, not a sentence with a URL.
+        if t.needsImage == true {
+            shareCard(text: text)
+            return
+        }
         if key == "copy" {
             UIPasteboard.general.string = text
             model.nowPlaying.say("Link copied \u{2014} paste it wherever you like")
@@ -254,6 +315,37 @@ struct ShareTargetRows: View {
             activity = [link]
         } else {
             activity = [text]
+        }
+    }
+
+    /// `shareStoryCard`: "Making your card…", the card fetched and drawn to
+    /// a PNG, then the share sheet with the picture as a file and the words.
+    /// A failure is said, never silent.
+    private func shareCard(text: String) {
+        guard !making else { return }
+        guard !card.isEmpty else {
+            model.nowPlaying.say("The card could not be made")
+            return
+        }
+        making = true
+        model.nowPlaying.say("Making your card\u{2026}")
+        let api = model.api
+        let address = card
+        let name = cardName
+        Task {
+            defer { making = false }
+            do {
+                let svg = try await api.storyCardSVG(address)
+                guard let png = StoryCardRenderer.png(svg: svg) else {
+                    model.nowPlaying.say("The card could not be drawn")
+                    return
+                }
+                let file = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+                try png.write(to: file, options: .atomic)
+                activity = [file, text]
+            } catch {
+                model.nowPlaying.say("The card could not be made")
+            }
         }
     }
 }

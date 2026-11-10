@@ -16,6 +16,8 @@ struct YouView: View {
     @State private var editing = false
     @State private var held: MyVibe?
     @State private var story: StoryReel?
+    /// The note composer, from your picture or its (+) (§297).
+    @State private var composing: StoryEditorSubject?
     @AppStorage("storiesSeen") private var seenJSON = "{}"
 
     /// The top strip's wash (`.screen-top`: copper 24% over the page), in
@@ -36,7 +38,12 @@ struct YouView: View {
         }
         .sheet(item: $held) { v in holdSheet(v) }
         .fullScreenCover(item: $story) { reel in
-            StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 })
+            StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
+                        openMine: { showMine() })
+                .environmentObject(model)
+        }
+        .fullScreenCover(item: $composing) { subject in
+            StoryEditor(subject: subject, openMine: { showMine() })
                 .environmentObject(model)
         }
         .task(id: model.listener?.userId) {
@@ -154,27 +161,64 @@ struct YouView: View {
     }
 
     /// Your face: with a story up, the ring (copper while any of it is
-    /// unseen, faint once seen) and a tap opens it. With none, the web
-    /// opens the note composer, which is not built here - so the face is
-    /// not a button and carries no (+) (`no-dead-controls`). The picture
-    /// is changed in Edit profile and Settings (Q4).
-    @ViewBuilder private func photo(_ p: MyProfile) -> some View {
+    /// unseen, faint once seen) and a tap opens it; with none, a tap opens
+    /// the note composer. The (+) badge - a button of its own beside the
+    /// face, never inside it - always adds to your story (§297, account
+    /// only). The picture is changed in Edit profile and Settings (Q4).
+    private func photo(_ p: MyProfile) -> some View {
         let mine = p.stories ?? []
         let name = p.name ?? ""
         let handle = p.handle ?? ""
         let avatar = p.avatar ?? ""
-        if mine.isEmpty {
-            Face(name: name, handle: handle, avatar: avatar, size: 92, initialsSize: 28)
-        } else {
-            Button { openMyStory(p) } label: {
-                ZStack {
-                    Circle().strokeBorder(ringColor(mine), lineWidth: 2)
-                    Face(name: name, handle: handle, avatar: avatar, size: 86, initialsSize: 28)
+        let account = model.listener?.authenticated == true
+        return ZStack(alignment: .bottomTrailing) {
+            if mine.isEmpty {
+                Button { compose() } label: {
+                    Face(name: name, handle: handle, avatar: avatar, size: 92, initialsSize: 28)
                 }
-                .frame(width: 94, height: 94)
+                .buttonStyle(.press)
+                .disabled(!account)
+                .accessibilityLabel("Add to your story")
+            } else {
+                Button { openMyStory(p) } label: {
+                    ZStack {
+                        Circle().strokeBorder(ringColor(mine), lineWidth: 2)
+                        Face(name: name, handle: handle, avatar: avatar, size: 86, initialsSize: 28)
+                    }
+                    .frame(width: 94, height: 94)
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel("Your story")
             }
-            .buttonStyle(.press)
-            .accessibilityLabel("Your story")
+            if account {
+                // `.yf-hero .yf-add`: 24 pt, the text colour, a 3 pt border
+                // of the page, at the picture's bottom right.
+                Button { compose() } label: {
+                    ZStack {
+                        Circle().fill(FAMColor.background).frame(width: 30, height: 30)
+                        Circle().fill(FAMColor.text).frame(width: 24, height: 24)
+                        WebIcon(path: Icons.plus, size: 11).foregroundStyle(FAMColor.background)
+                    }
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel("Add to your story")
+            }
+        }
+    }
+
+    private func compose() {
+        guard model.listener?.authenticated == true else { return }
+        composing = .note()
+    }
+
+    /// The snack's View after posting: your story, read again.
+    private func showMine() {
+        Task { @MainActor in
+            await model.loadCircle()
+            await you.loadProfile()
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            if let p = you.profile { openMyStory(p) }
         }
     }
 

@@ -379,3 +379,15 @@ def test_the_topic_screen_and_story_cards_decode(monkeypatch):
     card = c.get(where.path + ("?" + where.query if where.query else ""), headers=headers)
     assert card.status_code == 200 and "<svg" in card.text
     assert '"card"' in inspect.getsource(appmod.share_mix)
+
+
+def test_hey_fam_hears_what_the_web_hears():
+    """`WakeListener`'s phrase is the web's `WAKE_PHRASE` (§158): the same
+    greetings and the same spellings of the name."""
+    web = (ROOT / "static" / "index.html").read_text()
+    found = re.search(r"var WAKE_PHRASE = /\\b\(\?:([^)]*)\)\[\\s,\.!\]\+\(\?:([^)]*)\)", web)
+    assert found, "WAKE_PHRASE moved"
+    swift = (SWIFT / "WakeWord.swift").read_text()
+    for word in found.group(1).split("|") + found.group(2).split("|"):
+        plain = word.replace("'?", "['\\u{2019}]?")
+        assert plain in swift, word

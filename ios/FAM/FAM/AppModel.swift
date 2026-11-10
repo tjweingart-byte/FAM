@@ -58,7 +58,21 @@ final class AppModel: ObservableObject {
     /// The YourFAM tab's stack (Settings, the shelves), and the first-run
     /// step after an account is made or signed in (`afterAccount`).
     @Published var youPath: [YouRoute] = []
-    @Published var entry: EntryStep?
+    /// The first-run step; when it ends, an activation step held through it
+    /// opens (`releaseActivation`, §414).
+    @Published var entry: EntryStep? {
+        didSet {
+            if entry == nil && oldValue != nil && activationOwed {
+                Task { [weak self] in await self?.checkActivation() }
+            }
+        }
+    }
+    /// The activation step owed at launch (§411, `activation_needed` on
+    /// `/api/auth/me`): the web's first-time card, not closable, over the
+    /// app until it is answered.
+    @Published var owedActivation: Activation?
+    /// `/api/auth/me` said the step is owed and it has not been shown yet.
+    private var activationOwed = false
     let mixes: MixesModel
     /// YourFAM: the profile, Settings and the shelves.
     let you: YouModel
@@ -119,6 +133,9 @@ final class AppModel: ObservableObject {
     let speller: Speller
     let attachments: AttachModel
     let voiceSearch = VoiceSearchModel()
+    /// "Hey FAM" (§158), opt-in in Settings; listens only while FAM is in
+    /// front and nothing is playing, being made, or using the microphone.
+    let wake = WakeListener()
 
     // Offline listening (the web's `OfflineShelf`, §161).
 
@@ -252,6 +269,20 @@ final class AppModel: ObservableObject {
         attachments.say = { [weak self] text in self?.nowPlaying.say(text) }
         you.prefsLoaded = { [weak self] prefs in self?.privateSearch = prefs.privateSearch ?? false }
         voiceSearch.keepsPlayback = { [weak self] in self?.player.isLoaded ?? false }
+        voiceSearch.onClosed = { [weak self] in self?.wake.holdAfterVoiceSearch() }
+        wake.keepsPlayback = { [weak self] in self?.player.isLoaded ?? false }
+        wake.say = { [weak self] text in self?.nowPlaying.say(text) }
+        wake.mayListen = { [weak self] in self?.wakeMayListen ?? false }
+        wake.heard = { [weak self] rest in self?.wakeHeard(rest) }
+        // Off the microphone before the player takes the audio session, on
+        // every start and resume, lock screen included.
+        player.willStartAudio = { [weak self] in
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { self?.wake.stop(restore: false) }
+            } else {
+                Task { @MainActor in self?.wake.stop(restore: false) }
+            }
+        }
         voiceSearch.onCancel = { [weak self] in
             guard let self, self.resumeAfterVoice else { return }
             self.resumeAfterVoice = false
@@ -282,6 +313,7 @@ final class AppModel: ObservableObject {
         do {
             let who = try await api.me()
             arrive(who)
+            noteActivation(who)
         } catch FAMError.signedOut {
             api.token = nil
             dropFirstFeed()
@@ -296,11 +328,39 @@ final class AppModel: ObservableObject {
     func signIn(email: String, password: String) async throws {
         arrive(try await api.signIn(email: email, password: password))
         await beginEntry()
+        await askActivation()
     }
 
     func signUp(email: String, password: String) async throws {
         arrive(try await api.signUp(email: email, password: password))
         await beginEntry()
+        await askActivation()
+    }
+
+    // MARK: - The activation step (§411, §414)
+
+    /// `checkActivation` after `refreshAuth`: a log-in's answer does not
+    /// say whether the step is owed, so `/api/auth/me` is asked, as the web
+    /// asks it after every sign-in.
+    func askActivation() async {
+        guard stage == .ready, let who = try? await api.me() else { return }
+        noteActivation(who)
+    }
+
+    private func noteActivation(_ who: Listener) {
+        guard who.authenticated, who.activationNeeded == true else { return }
+        activationOwed = true
+        Task { [weak self] in await self?.checkActivation() }
+    }
+
+    /// `checkActivation`: held through sign-up's own steps (a new account
+    /// is asked its name and place first); then `/api/activation`, and the
+    /// card if it is still owed.
+    func checkActivation() async {
+        guard activationOwed, stage == .ready, entry == nil, owedActivation == nil else { return }
+        guard let found = await you.loadActivation() else { return }
+        activationOwed = false
+        if found.needed == true { owedActivation = found }
     }
 
     /// "Forgot password?" finished (§244): the code and the new password
@@ -308,6 +368,7 @@ final class AppModel: ObservableObject {
     func finishReset(email: String, code: String, password: String) async throws {
         arrive(try await api.resetFinish(email: email, code: code, new: password))
         await beginEntry()
+        await askActivation()
     }
 
     /// The password changed in Settings: the server ended every session,
@@ -334,6 +395,7 @@ final class AppModel: ObservableObject {
         arrive(try await api.signIn(provider: provider, idToken: idToken, nonce: nonce,
                                     authorizationCode: authorizationCode, acceptTerms: acceptTerms))
         await beginEntry()
+        await askActivation()
     }
 
     /// Link Apple or Google to the account signed in now (`sign_in_with`
@@ -384,6 +446,8 @@ final class AppModel: ObservableObject {
     }
 
     func forgetEverything() {
+        activationOwed = false
+        owedActivation = nil
         listener = nil
         you.reset()
         youPath = []
@@ -930,20 +994,50 @@ final class AppModel: ObservableObject {
         play(ep)
     }
 
+    /// `wakeShouldRun`, apart from the app being in front: in the app, no
+    /// voice search, no episode playing or being made.
+    private var wakeMayListen: Bool {
+        guard stage == .ready, entry == nil, listener != nil else { return false }
+        if voiceSearch.isOpen || loading.visible || player.playing { return false }
+        return true
+    }
+
+    /// `wakeUp`: heard. Voice search is drawn over searchFAM, and its X says
+    /// it goes back there, so searchFAM is what is under it - the player or
+    /// a social screen closes first.
+    private func wakeHeard(_ rest: String) {
+        let go: () -> Void = { [weak self] in
+            guard let self else { return }
+            self.tabRequest = .search
+            self.openVoiceSearch(seed: rest)
+        }
+        if showPlayer {
+            showPlayer = false
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                go()
+            }
+        } else {
+            social.closeCover(go)
+        }
+    }
+
     /// The mic: voice search opens and listens at once. Whatever is playing
-    /// pauses while the microphone has the audio.
-    func openVoiceSearch() {
+    /// pauses while the microphone has the audio. `seed` is what followed
+    /// "hey FAM".
+    func openVoiceSearch(seed: String = "") {
         guard VoiceSearchModel.available else {
             nowPlaying.say("This phone can't turn speech into a search")
             return
         }
+        wake.stop(restore: false)
         if player.playing {
             player.pause()
             resumeAfterVoice = true
         } else {
             resumeAfterVoice = false
         }
-        voiceSearch.present()
+        voiceSearch.present(seed: seed)
     }
 
     /// A voice search was sent: what was playing stays paused for it.
@@ -969,6 +1063,8 @@ final class AppModel: ObservableObject {
     /// player opened when the five steps are done (`search-no-cover`). A
     /// typed follow-up asks the AI question first, like a search.
     func play(_ ep: Episode, resumeAt: Double = 0) {
+        // "Hey FAM" never listens while an episode is being made (§158).
+        wake.stop()
         if ep.own && consent.current?.given != true {
             Task {
                 guard await consent.ensure() else { return }
