@@ -84,6 +84,13 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     /// every reconnect failed - not the server saying no. A playlist stops
     /// on it rather than walking on (`mixItemFailed`'s `err.network`).
     private(set) var lastFailureWasNetwork = false
+    /// The body of the last refusal (`AudioRefusal`): the readings of a name
+    /// (300), the allowance's verdict (429). Nil until something refuses.
+    private(set) var refusal: AudioRefusal?
+    /// The server's own sentence when the last failure was a refusal it
+    /// explained; "" otherwise, so the app says "Could not generate that
+    /// briefing" (`onGenerationFailed`).
+    private(set) var failureWords = ""
 
     private let engine = AVAudioEngine()
     private let node = AVAudioPlayerNode()
@@ -169,6 +176,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         epoch += 1; base = 0; next = 0; outstanding = 0; lastFrame = 0
         streamDone = false; started = false; retries = 0
         refusedResponse = nil; refusalBody = Data()
+        refusal = nil; failureWords = ""
         position = 0; arrived = 0
         listenedBefore = listened
         guard activateSession() else { return }
@@ -337,10 +345,12 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         guard finished == task else { return }
         task = nil
         if let response = refusedResponse {
+            refusal = try? FAMAPI.decoder.decode(AudioRefusal.self, from: refusalBody)
             do {
                 try FAMAPI.check(response, refusalBody)
                 fail("the server refused the episode")
             } catch let error as FAMError {
+                if case let .refused(_, message) = error { failureWords = message }
                 if onRefused?(error) == true {
                     stopStream()
                     epoch += 1

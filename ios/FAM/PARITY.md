@@ -19,16 +19,16 @@ the app.
 | Drawn wordmark (daily/my/yourFAM, the chevron A) | Done | from the web's SVG paths |
 | Dark mode (Settings) | Not yet | web default is light (§250) |
 | Larger phone text never breaks a screen (`large-text`) | Partial | sizes scale; not yet checked at the largest sizes |
-| Motion (§292: screen pushes, the burst on save/vibe) | Not yet | |
+| Motion (§292: screen pushes, the burst on save/vibe) | Partial | the player's save / VIBE! burst (squeeze, ring, six sparks, the SAVED / VIBED lozenge, VIBED 300 ms after the composer), the title wipe, the picture's blur-up, the What's next rise, the modals' fade and lift and the mini bar's rise are drawn with SwiftUI animations at the web's timings; screen pushes are iOS's own |
 
 ## Navigation
 
 | Web | iOS | Note |
 |---|---|---|
-| Bottom bar: DailyFAM, myFAM, search (centre), Messages, YourFAM | Done | five equal slots; each icon has the web's tone fill (.16, .45 when on); Messages carries the coral unread badge ("9+" above nine) from the notifications poll; tapping Messages opens its list read afresh |
+| Bottom bar: dailyFAM, myFAM, search (centre), Messages, yourFAM (the 11.9 packet's labels, §519) | Done | five equal slots; each icon has the web's tone fill (.16, .45 when on); Messages carries the coral unread badge ("9+" above nine) from the notifications poll; tapping Messages opens its list read afresh |
 | No tab bar or mini player on a conversation, a profile or Friends | Done | the web's pushed screens have none; opened from another tab they come up over it with a stack of their own |
 | No tab bar or mini player on a rail's View more (`screen-section`) | Done | |
-| Mini player above the bar, X stops (`transport`) | Done | |
+| Mini player above the bar, X stops (`transport`) | Done | 58 tall, inset 12, the strong border; a 38 pt crop of the picture (headphones when none), the title with its E, "m:ss left", the copper play and a bare X ("Hide the player"), the 2 pt progress along the bottom; shown from the first word until the episode ends, fails or is stopped, as the web's `showNowBar` / `hideNowBar`; rises and drops with the web's timing. Its title is the full player's title - the web's bar takes the writer's title even over a tile's own (`titleOverridden`); the owner chose the player's for both |
 | Leaving the player never stops it | Done | |
 
 ## Accounts and the waitlist
@@ -104,21 +104,38 @@ Checked against a specification written from `static/index.html` (the web's
 
 ## The player
 
+Checked against the 11.9 packet (§519) web player: phone-size screenshots and
+measured sizes (`player-layout`, `transport`, `queue`, `post-episode-grid`,
+`next-is-prediction`, `live-captions`, `speed-pitch`).
+
 | Web | iOS | Note |
 |---|---|---|
-| Full-screen player: Home mark, picture (4:3, faded), title with the explicit E and the writer's title swap, scrubber (requested length until complete, arrived drawn, clamped 2 s short), ±15, copper play | Done | the picture's blur-up and the title's wipe are simple fades |
-| Lock screen: title, play/pause, ±15, scrub | Done | |
-| GO DEEPER pill and sheet (`next-is-prediction`, §170) | Done | thread from `/api/next`, typed = own, 1-5 lengths |
-| Share / VIBE! / save on the right (§192) | Partial | save and share done - "Share this FAM" sends inside FAM to a group or a friend (friends only, §520; with the heard episode's id, which the web's sheet drops; "Sent to Beth"), each row's search filtering by name or @handle, and lists the server's destinations; the same sheet opens from a card's ⋯ and a story's ⋯ for that episode; it is a bottom sheet, not the web's centred card; VIBE! posts with a caption - the web's full story editor not yet; the burst animation not yet |
-| Sources by the title, and the Sources sheet | Done | favicons over initials |
-| Live captions sheet (`live-captions`) | Done, differs on purpose | the owner's call for iOS: the whole script, scrollable, the current sentence highlighted and followed (the web shows the current sentence alone); tap a sentence to jump there |
-| ⋯ menu in the web's order: Share, VIBE!, Save, Captions, Add to myFAM Playlist ("myFAM" drawn as the wordmark), Remove from this playlist, Add to/Go to Queue, Report (1.2) | Done | "Remove from this playlist" only for your own mix, as a `remove` operation (the web sends the whole list, §498); the playing order is spliced as the web does so the next item still follows; the rows' other icons are SF Symbols, not the web's `MENU_ICONS` |
-| Speed 0.5-2x, keep the voice's pitch (`speed-pitch`) | Done | time-pitch unit; length for searches rebuilds |
-| Queue (§190), next-in-queue button, badge | Done | |
-| After an episode: four recommendations, first starts in 15 s (`post-episode-grid`) | Done | `/api/nextup`; album tile n/a |
-| The searcher shown if `searches_public` | Done | in the ⋯ menu header |
+| Full-screen player: Home mark, GO DEEPER, ⋯ (the web's three dots); picture 40 pt wider than the screen, 4:3, faded, blurring up as it loads; title (Bricolage 22, three lines) with the 17 pt explicit E and the writer's title wiped in over 320 ms (`titleOverridden` keeps a tile's) | Done | |
+| Share / VIBE! / save on the right (§192), 34 pt up (+12) and above the captions card (§519); the web's glyphs; captions hung 43 pt below; VIBE! on copper, save on sage, each caption's words in that colour | Done | |
+| Save / VIBE! burst when turned on (`Motion.celebrate`) | Done | ring, six sparks and the lozenge as plain SwiftUI shapes at the web's timings |
+| Share sheet ("Share this FAM") | Partial | sends inside FAM to a group or a friend (friends only, §520; with the heard episode's id, which the web's sheet drops; "Sent to Beth"), each row's search filtering by name or @handle, and lists the server's destinations; the same sheet opens from a card's ⋯ and a story's ⋯; it is a bottom sheet, not the web's centred card |
+| VIBE! story editor (`openVibeComposer`) | Not yet | VIBE! posts the episode with a caption; the web's editor (layouts, fonts, stickers, @tags) is not ported |
+| Sources pill by the title ("from knowledge" when known and none), and the Sources card | Done | the web's centred card with its round X; favicons over initials; green live rows, copper attachments, ↗ when it opens; "Cross-checked across …" |
+| Scrubber: requested length until complete then the real one, the arrived range, the knob's ring, a drag clamped 2 s short of what arrived, sought on release, "Caught up with the writing — it will keep going" landing short | Done | |
+| Transport (§519): five-slot grid at most 330 wide, empty first slot, bare 48 pt ±15 with the web's 34 pt arrows and a Geist 10.5 bold "15", the 66 pt copper play with its shadow and icon swap, the solid 26 pt next in slot five; bottom padding 22 | Done | ±15 with nothing playing says "Nothing playing yet" |
+| Next: shows for a playlist or a non-empty queue; "Skip to the next episode in this playlist" | Done | the web's label even when it is the queue's next |
+| Speed · length pill, Captions pill, queue (32 pt, "QUEUE" under it, the badge popping when something is queued) | Done | |
+| Captions (§519): the Captions pill, the dark card over the picture - one sentence at a time, Bricolage 24 semibold, cross-fading - with copy ("Transcript copied ✓") and X, a swipe down closes, remembered on the device (`fam.captions`) and turned back on for each new episode; `/api/transcript` at once and every 1.2 s until done | Done | replaces the whole-script captions sheet iOS had (an earlier owner call, reversed) |
+| ⋯ menu in the web's order with the web's icons: Share, VIBE!, Save, Closed captions · On/Off, Add to myFAM Playlist ("myFAM" as the wordmark), Remove from this playlist, Add to / Go to Queue, Report; the searcher in the header if `searches_public` | Done | "Remove from this playlist" only for your own mix and only while it plays its own entry (hidden during a detour), as a `remove` operation (the web sends the whole list, §498) |
+| Go Deeper (`next-is-prediction`, §170): the centred modal - "Pick up the thread" / "Follow the thread" chip, the box, 1-5 lengths on the playing length, Cancel / Continue; the episode keeps playing, and one ending under it starts nothing (no queue, playlist or What's next) | Done | a typed follow-up is not run through the server's spelling fix at send (`acCorrectQuestion`, `/api/spell`) - not built on iOS for searches either |
+| Playback modal: Speed (action sheet 0.5-2x, "Voice" · "Keep the voice's pitch ✓", `speed-pitch`), Length for a search ("Rebuilding at N min"), Done | Partial | the search's Voice row is not built: iOS searches have no voice choice yet (`/api/voices`) |
+| Queue (§190, §519): "Queue", Now playing (picture or ▶; "Going deeper · {mix} carries on after" during a detour), "Next from {mix}" numbered, "Next in queue" with pictures or places, "Queued", 40 pt ×, Undo; a tap plays it and ends a playlist; "Added to Queue · Open" opens it | Done | |
+| A playlist (§134) and Go Deeper (§519): a follow-up started from the player during a playlist - Go Deeper, What's next's lead or search, nested follow-ups - is a detour, not the end; anything else started ends the playlist | Done, differs on purpose | the owner's call - the interrupted episode resumes: when the detour ends, is skipped or fails ("That follow-up couldn’t play — back to your playlist."), the playlist's episode it interrupted replays by its episode id and seeks back to where it was, then the playlist carries on after it; if that episode had already finished, the playlist goes on to the next. The web's §519 goes straight on to the next episode |
+| After an episode: four recommendations, the first starting in 15 s with its emptying bar, the search box pausing it, Back (`post-episode-grid`) | Done | `/api/nextup`; the album tile is n/a (no albums on iOS) |
+| Polling: `/api/next` at the first word, +6 s, +20 s, at the end and on Go Deeper; `/api/sources` +6 s, +20 s, then every 8 s while playing (75 tries); progress every 15 s, on pause and at the end; complete at 85 %, skip after 5 s | Done | |
+| Failures: the server's sentence or "Could not generate that briefing"; a playlist's failures as the web words them | Done | |
+| "Which one do you mean?" (§426): `ask_reading` on any tap that may write; the server's readings (up to four), the choice joining the question | Done | |
+| Limit screen (`showLimitReached`) | Partial | the server's title and sentence, the meter, "Resets … in your time", Not now; no "See plans" (no plans screen or checkout on iOS); unreachable while `ENFORCE_QUOTAS=0` |
+| Toasts and snacks: the plain line with the copper rule (§299), 2.2 s / 3.5 s with an action | Done | "Saved for Later · Open" and "Vibed to your story · View" have no action on iOS (no Saved screen; the story view is not opened from here) |
+| Offline: play an episode kept on the device, the offline bar | Not yet | no OfflineShelf on iOS |
+| Lock screen: title, play/pause, ±15, scrub | iOS only | the web has no Media Session; kept |
 | Opus stream (stage 3) and signed replay links (§252) | Not yet | PCM today |
-| Kept episodes replay by `X-FAM-Episode` (§173) | Partial | a message's Listen replays the sender's exact episode (`episode=`), asking the question when it is gone (409); the listening history's replay is not built |
+| Kept episodes replay by `X-FAM-Episode` (§173) | Partial | a message's Listen replays the sender's exact episode (`episode=`), asking the question when it is gone (409); a playlist's interrupted episode resumes the same way; the listening history's replay is not built |
 
 ## myFAM (mixes)
 

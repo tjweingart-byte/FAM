@@ -67,6 +67,15 @@ final class AppModel: ObservableObject {
 
     /// The last thing asked to play, so a refusal can be answered and retried.
     private var lastPlay: (() -> Void)?
+    /// The episode last asked for (`lastGenerate`): a failure is read against
+    /// what was being made, not what is on the player - a follow-up can fail
+    /// before it ever reaches the player (§519).
+    private var lastAsked: Episode?
+    /// "Which one do you mean?" (§426): a name in the question means more
+    /// than one thing; the server's readings, asked before anything is made.
+    @Published private(set) var readingAsk: ReadingAsk?
+    /// The limit screen (`showLimitReached`): an allowance ran out.
+    @Published var limitReached: QuotaVerdict?
 
     init(api: FAMAPI = FAMAPI()) {
         self.api = api
@@ -87,11 +96,10 @@ final class AppModel: ObservableObject {
         player.onFailed = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                if self.mixPlay != nil { self.mixItemFailed(); return }
-                guard self.loading.visible else { return }
-                // Step aside and let the player say why, in the server's words.
-                self.loading.stop()
-                self.showPlayer = true
+                // One episode of a playlist (or its detour) that would not
+                // play is that episode's failure, not the playlist's.
+                if self.mixPlay != nil && self.mixItemFailed() { return }
+                self.generationFailed()
             }
         }
         loading.onRelease = { [weak self] in
@@ -99,7 +107,10 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 self.player.release()
                 if let ep = self.pending { self.nowPlaying.begin(ep) }
-                if var list = self.mixPlay {
+                // The glide marks the playlist's own episode Played only now:
+                // a skip before a word, or a failure, is not something that
+                // played. A detour is not one of its items.
+                if var list = self.mixPlay, let ep = self.pending, !list.key.isEmpty, ep.mixKey == list.key {
                     list.failures = 0
                     list.played.insert(list.pos)
                     self.mixPlay = list
@@ -113,7 +124,8 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated { self?.nowPlaying.ended() }
         }
         nowPlaying.playEpisode = { [weak self] ep in self?.play(ep) }
-        nowPlaying.onEnded = { [weak self] in self?.mixItemEnded() ?? false }
+        nowPlaying.onEnded = { [weak self] ep in self?.mixItemEnded(ep) ?? false }
+        nowPlaying.detourFor = { [weak self] base in self?.detour(for: base) ?? "" }
         mixes.say = { [weak self] text, action, perform in
             self?.nowPlaying.say(text, action: action, perform: perform)
         }
@@ -554,22 +566,33 @@ final class AppModel: ObservableObject {
 
     private func startPlaying(_ ep: Episode, resumeAt: Double = 0, cachedOnly: Bool = false,
                               glide: LoadingModel.Glide? = nil, dial: LoadingModel.Dial? = nil) {
-        // Anything else started ends a mix's playlist.
-        if glide == nil { mixPlay = nil }
+        // A playlist's own episode, and a Go Deeper detour off it, keep the
+        // playlist; anything else started on the player ends it - a search,
+        // a tile, What's next, a shared episode, the Queue, a category (§519).
+        noteInterruption(by: ep)
+        if !keepsPlaylist(ep) { mixPlay = nil }
+        // Something else started: the rest of a category's list is not this
+        // episode's "next" (§500 review). The Queue and the category keep it.
+        if !ep.queued && !ep.fromCategory { nowPlaying.dropCategoryQueue() }
         self.resumeAt = resumeAt
+        // Which reading of a name is asked on any tap that may write an
+        // episode, never on a replay (§426).
+        let askReading = !cachedOnly && ep.episodeID.isEmpty
         let request = api.audio(query: ep.key.query, minutes: ep.key.minutes, surface: ep.surface,
                                 topicID: ep.topicID, context: ep.key.context, own: ep.own,
-                                cachedOnly: cachedOnly, episode: ep.episodeID)
+                                cachedOnly: cachedOnly, episode: ep.episodeID,
+                                reading: ep.key.reading, askReading: askReading)
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }
             self.nowPlaying.leaving()
             self.showPlayer = false
             self.pending = ep
+            self.lastAsked = ep
             self.loading.start(ask: {
                 try? await api.progress(query: ep.key.query, minutes: ep.key.minutes,
                                         surface: ep.surface, topicID: ep.topicID,
-                                        context: ep.key.context)
+                                        context: ep.key.context, reading: ep.key.reading)
             }, glide: glide, dial: dial)
             self.player.play(title: ep.title, picture: ep.picture, request: request,
                              minutes: ep.key.minutes, holdStart: true)
@@ -622,7 +645,29 @@ final class AppModel: ObservableObject {
             guard var again = pending else { return false }
             again.episodeID = ""
             loading.stop()
-            play(again)
+            // A resumed episode (Pick up, a playlist's after a detour) still
+            // goes back to where it was.
+            play(again, resumeAt: resumeAt)
+            return true
+        case let .refused(status, _) where status == 300 && (player.refusal?.readings?.count ?? 0) > 1:
+            // A name that means two things (§426): which one, then the same
+            // episode again with the reading chosen (`askReading`).
+            guard let ep = pending ?? lastAsked else { return false }
+            loading.stop()
+            pending = nil
+            showPlayer = false
+            let readings = Array((player.refusal?.readings ?? []).prefix(4))
+            readingAsk = ReadingAsk(question: ep.key.query, readings: readings, episode: ep)
+            return true
+        case let .refused(status, _) where status == 429 && player.refusal?.refusedBy == "quota"
+            && player.refusal?.quota != nil:
+            // An allowance running out is not a failure to generate: the
+            // limit screen, in the server's words, and the playlist is over
+            // - the next would be refused the same way (`endMixQueue`).
+            loading.stop()
+            pending = nil
+            mixPlay = nil
+            limitReached = player.refusal?.quota
             return true
         case let .refused(status, message):
             // An allowance running out (429, `X-FAM-Quota`) or a plan that
@@ -638,6 +683,37 @@ final class AppModel: ObservableObject {
             return false
         }
     }
+
+    /// Anything else that would not play (`onGenerationFailed`): said in the
+    /// server's words, else "Could not generate that briefing".
+    private func generationFailed() {
+        loading.stop()
+        pending = nil
+        let words = player.failureWords
+        nowPlaying.say(words.isEmpty ? "Could not generate that briefing" : words)
+    }
+
+    /// The listener's answer to "Which one do you mean?": the choice joins
+    /// the question - "how did United do (Manchester United)" - so saving,
+    /// sharing and history name it as they name any question (§432), and the
+    /// same episode is asked again. Cancel (nil) leaves it unplayed.
+    func answerReading(_ choice: String?) {
+        guard let ask = readingAsk else { return }
+        readingAsk = nil
+        guard let choice, !choice.isEmpty else { return }
+        var ep = ask.episode
+        let asked = ep.key.query
+        if !asked.hasSuffix("(" + choice + ")") { ep.key.query = asked + " (" + choice + ")" }
+        ep.key.reading = choice
+        play(ep)
+    }
+}
+
+/// "Which one do you mean?": the question asked and the server's readings.
+struct ReadingAsk: Equatable {
+    let question: String
+    let readings: [String]
+    let episode: Episode
 }
 
 // MARK: - myFAM: a mix playing as a playlist (§134)
@@ -669,14 +745,19 @@ extension AppModel {
         playMixItem()
     }
 
-    /// One item, as today's edition, behind the glide (`playMixItem`).
+    /// One item, as today's edition, behind the glide (`playMixItem`). Each
+    /// play gets a key of its own (`mixPlay.key`): an end, a skip or a
+    /// failure arriving for anything else moves nothing.
     private func playMixItem() {
-        guard let list = mixPlay, let item = list.current else { return }
+        guard var list = mixPlay, let item = list.current else { return }
+        list.key = UUID().uuidString
+        mixPlay = list
         let (words, dated) = MixPlaylist.prompt(item)
-        let ep = Episode(key: EpisodeKey(query: words, minutes: item.minutes),
+        var ep = Episode(key: EpisodeKey(query: words, minutes: item.minutes),
                          title: dated ? item.title + " · today" : item.title,
                          surface: "dailyfam",
                          topicID: (item.custom || item.follow) ? "" : item.id)
+        ep.mixKey = list.key
         let glide = LoadingModel.Glide(mixName: list.name,
                                        titles: list.order.map { list.items[$0].title },
                                        pos: list.pos, played: list.played,
@@ -685,9 +766,77 @@ extension AppModel {
         startPlaying(ep, glide: glide)
     }
 
-    /// An item ended: the next one, or the end of the playlist. False lets
-    /// the queue (or What's next) carry on.
-    func mixItemEnded() -> Bool {
+    /// The playlist a follow-up of `base` is a detour of (`mixDetourFor`):
+    /// the playlist's own episode, or a follow-up already on its detour.
+    func detour(for base: Episode) -> String {
+        guard let list = mixPlay, !list.key.isEmpty else { return "" }
+        return (base.mixKey == list.key || base.mixDetour == list.key) ? list.key : ""
+    }
+
+    /// Whether starting `ep` leaves the playlist playing (§519): only its
+    /// own episode and a detour off it do.
+    private func keepsPlaylist(_ ep: Episode) -> Bool {
+        guard let list = mixPlay, !list.key.isEmpty else { return false }
+        return ep.mixKey == list.key || ep.mixDetour == list.key
+    }
+
+    /// A detour starting off the playlist's own episode part way through
+    /// keeps where that episode was, so it can resume there (the owner's
+    /// call: Go Deeper only interrupts the playlist - it never skips one).
+    /// An episode already finished keeps nothing: the playlist then carries
+    /// on with the next. Nested follow-ups keep the first interruption.
+    private func noteInterruption(by ep: Episode) {
+        guard var list = mixPlay, !list.key.isEmpty, ep.mixDetour == list.key,
+              let current = nowPlaying.episode, current.mixKey == list.key else { return }
+        let midway = player.phase == .playing || player.phase == .buffering || player.phase == .paused
+        if midway && player.position > 0 {
+            list.interrupted = InterruptedItem(episode: current, episodeID: player.episodeID,
+                                               position: player.position)
+        } else {
+            list.interrupted = nil
+        }
+        mixPlay = list
+    }
+
+    /// An episode ended: for the playlist's own episode, the playlist's
+    /// next; for a detour off it, back to the interrupted episode (or the
+    /// next, if it had finished); else nothing (false lets the queue, or
+    /// What's next, carry on).
+    func mixItemEnded(_ ep: Episode) -> Bool {
+        guard var list = mixPlay, !list.key.isEmpty else { return false }
+        guard ep.mixKey == list.key || ep.mixDetour == list.key else { return false }
+        // One played through (`mixOnEnd`).
+        list.failures = 0
+        mixPlay = list
+        if ep.mixDetour == list.key { return resumeMix() }
+        return advanceMix()
+    }
+
+    /// The detour is over (ended, skipped or failed): the interrupted
+    /// episode resumes from where it was - the same audio by its episode id,
+    /// sought once that much has arrived, as Pick up's resume does - and the
+    /// playlist carries on after it. The owner's call; the web's §519 moves
+    /// on to the next episode instead (PARITY.md, the player).
+    private func resumeMix() -> Bool {
+        guard var list = mixPlay, let back = list.interrupted else { return advanceMix() }
+        list.interrupted = nil
+        list.key = UUID().uuidString
+        mixPlay = list
+        var ep = back.episode
+        ep.mixKey = list.key
+        ep.mixDetour = ""
+        if !back.episodeID.isEmpty { ep.episodeID = back.episodeID }
+        let glide = LoadingModel.Glide(mixName: list.name,
+                                       titles: list.order.map { list.items[$0].title },
+                                       pos: list.pos, played: list.played,
+                                       first: false)
+        startPlaying(ep, resumeAt: back.position, glide: glide)
+        return true
+    }
+
+    /// The next one in the playlist, from the playlist's own episode - never
+    /// from a detour's follow-up (`advanceMix`) - or the end of it.
+    private func advanceMix() -> Bool {
         guard var list = mixPlay else { return false }
         if list.pos + 1 < list.order.count {
             list.pos += 1
@@ -698,14 +847,23 @@ extension AppModel {
         return finishMix()
     }
 
-    /// The player's skip while a mix plays (`skipMixItem`).
+    /// The player's next while a mix plays (`skipMixItem`): during a detour
+    /// it moves on from the playlist's episode too. With no playlist it is
+    /// the queue's next.
     func skipMixItem() {
-        guard var list = mixPlay else { nowPlaying.playQueueNext(); return }
+        guard var list = mixPlay else {
+            stopEpisode()
+            nowPlaying.playQueueNext()
+            return
+        }
         // A skip is the listener moving on, not a failure: the count of
         // failures in a row starts again (`skipMixItem`).
         list.failures = 0
         mixPlay = list
-        if !mixItemEnded() { nowPlaying.playQueueNext() }
+        // Skipping a detour goes back to the interrupted episode (the
+        // owner's call); skipping the playlist's own episode moves on.
+        let moved = playingDetour ? resumeMix() : advanceMix()
+        if !moved { nowPlaying.playQueueNext() }
     }
 
     /// After the last item: the listener's Queue carries on, else the
@@ -715,38 +873,47 @@ extension AppModel {
         mixPlay = nil
         if !nowPlaying.queue.isEmpty { return false }
         stopEpisode()
+        loading.stop()
         showPlayer = false
         mixDone = name
         return true
     }
 
-    /// An item could not play: the next one, unless two failed in a row
-    /// (`mixItemFailed`).
-    func mixItemFailed() {
-        guard var list = mixPlay, let item = list.current else { return }
+    /// Something being made for the playlist could not play
+    /// (`mixItemFailed`). Read from what was asked for (`lastGenerate`): a
+    /// detour's follow-up that failed goes back to the playlist; the
+    /// playlist's own episode moves on to the next, unless two failed in a
+    /// row or there is no connection. False when it was neither.
+    @discardableResult
+    func mixItemFailed() -> Bool {
+        guard var list = mixPlay, !list.key.isEmpty else { return false }
+        let asked = lastAsked
+        if let off = asked, off.mixDetour == list.key, off.mixKey != list.key {
+            loading.stop()
+            nowPlaying.say("That follow-up couldn\u{2019}t play \u{2014} back to your playlist.")
+            _ = resumeMix()
+            return true
+        }
+        guard let mine = asked, mine.mixKey == list.key, let item = list.current else { return false }
         loading.stop()
         let title = item.title.isEmpty ? "That episode" : item.title
         list.failures += 1
+        mixPlay = list
         // No connection: the next one would fail the same way.
         if player.lastFailureWasNetwork {
             mixPlay = nil
-            nowPlaying.say("\(title) couldn’t play (no connection), so the playlist stopped.")
-            return
+            nowPlaying.say("\(title) couldn\u{2019}t play (no connection), so the playlist stopped.")
+            return true
         }
         if list.failures >= 2 {
             mixPlay = nil
-            nowPlaying.say("\(title) couldn’t play, and neither could the one before it, so the playlist stopped.")
-            return
+            nowPlaying.say("\(title) couldn\u{2019}t play, and neither could the one before it, so the playlist stopped.")
+            return true
         }
-        if list.pos + 1 >= list.order.count {
-            mixPlay = nil
-            nowPlaying.say("\(title) couldn’t play.")
-            return
-        }
-        nowPlaying.say("\(title) couldn’t play — playing the next one.")
-        list.pos += 1
-        mixPlay = list
-        playMixItem()
+        let last = list.pos + 1 >= list.order.count
+        nowPlaying.say("\(title) couldn\u{2019}t play" + (last ? "." : " \u{2014} playing the next one."))
+        _ = advanceMix()
+        return true
     }
 
     /// The items still to come, for the Queue sheet's "Next from {mix}".
@@ -788,9 +955,19 @@ extension AppModel {
         mixPlay = list
     }
 
+    /// Only while the playlist plays its own entry - not during a detour
+    /// (`openPlayerMenu`: `mixPlay.key === current`).
     var canRemoveFromPlayingMix: Bool {
-        guard let list = mixPlay, list.mine, let item = list.current else { return false }
+        guard let list = mixPlay, list.mine, !list.key.isEmpty, let item = list.current,
+              nowPlaying.episode?.mixKey == list.key else { return false }
         return mixes.mix(list.mixID)?.items.contains(where: { $0.id == item.id }) == true
+    }
+
+    /// The Queue's "Going deeper · {mix} carries on after": the episode on
+    /// the player is a detour of the playlist playing.
+    var playingDetour: Bool {
+        guard let list = mixPlay, !list.key.isEmpty else { return false }
+        return nowPlaying.episode?.mixDetour == list.key
     }
 
     /// A category's episode: replay only, never written anew, with the rest
@@ -806,6 +983,7 @@ extension AppModel {
             var made = Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
                                title: e.title, surface: "", picture: api.picture(e.thumb ?? ""))
             made.cachedOnly = true
+            made.fromCategory = true
             return made
         }
         // The rest of the category after the one tapped, never the ones

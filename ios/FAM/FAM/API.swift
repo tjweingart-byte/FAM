@@ -230,7 +230,8 @@ final class FAMAPI: @unchecked Sendable {
     /// names its topic; a search names its length and says it is a search.
     func audio(query: String, minutes: Double, surface: String,
                topicID: String = "", context: String = "", own: Bool = false,
-               cachedOnly: Bool = false, episode: String = "") -> URLRequest {
+               cachedOnly: Bool = false, episode: String = "",
+               reading: String = "", askReading: Bool = false) -> URLRequest {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -248,6 +249,12 @@ final class FAMAPI: @unchecked Sendable {
         // message's Listen replays the sender's, current or not, and never
         // writes; a 409 says it is no longer kept.
         if !episode.isEmpty { items.append(URLQueryItem(name: "episode", value: episode)) }
+        // Which thing a shared name means (§426): the reading chosen is part
+        // of the episode's key; `ask_reading` lets the server stop and ask
+        // (300 with `readings`) on any tap that may write an episode -
+        // never a replay (`askReading` on the web's `playOpts`).
+        if !reading.isEmpty { items.append(URLQueryItem(name: "reading", value: reading)) }
+        if askReading { items.append(URLQueryItem(name: "ask_reading", value: "1")) }
         return request("GET", "api/v1/audio", query: items)
     }
 
@@ -255,7 +262,8 @@ final class FAMAPI: @unchecked Sendable {
     /// finished (`/api/progress`), asked with exactly the audio request's
     /// key-shaped fields - a different field asks about a different episode.
     func progress(query: String, minutes: Double, surface: String,
-                  topicID: String = "", context: String = "") async throws -> Progress {
+                  topicID: String = "", context: String = "",
+                  reading: String = "") async throws -> Progress {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -263,6 +271,7 @@ final class FAMAPI: @unchecked Sendable {
         ]
         if !topicID.isEmpty { items.append(URLQueryItem(name: "topic_id", value: topicID)) }
         if !context.isEmpty { items.append(URLQueryItem(name: "context", value: context)) }
+        if !reading.isEmpty { items.append(URLQueryItem(name: "reading", value: reading)) }
         let (data, response) = try await URLSession.shared.data(
             for: request("GET", "api/v1/progress", query: items))
         try Self.check(response, data)
@@ -278,6 +287,7 @@ final class FAMAPI: @unchecked Sendable {
             URLQueryItem(name: "minutes", value: Self.minutes(ep.minutes)),
         ]
         if !ep.context.isEmpty { items.append(URLQueryItem(name: "context", value: ep.context)) }
+        if !ep.reading.isEmpty { items.append(URLQueryItem(name: "reading", value: ep.reading)) }
         return items
     }
 
@@ -814,6 +824,31 @@ struct EpisodeKey: Equatable, Hashable {
     var query: String
     var minutes: Double
     var context: String = ""
+    /// The reading the listener chose for a name that means two things
+    /// (§426), already joined to `query` as "(reading)"; "" when none.
+    var reading: String = ""
+}
+
+/// The body of a refused `/api/audio` (`http_error`, §426): the server's
+/// sentence, who refused (`refused_by`: "quota", "account"), the allowance's
+/// verdict, and - with 300 - the readings of a name to choose between.
+struct AudioRefusal: Decodable {
+    let error: String?
+    let detail: String?
+    let refusedBy: String?
+    let quota: QuotaVerdict?
+    let readings: [String]?
+    let likeliest: String?
+}
+
+/// `quotas.Verdict.as_dict`: the limit screen's words and numbers.
+struct QuotaVerdict: Decodable, Equatable {
+    let title: String?
+    let message: String?
+    let limit: Int?
+    let used: Int?
+    let unlimited: Bool?
+    let resetsAt: Double?
 }
 
 /// `/api/next`.

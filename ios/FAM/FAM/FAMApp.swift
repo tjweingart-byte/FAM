@@ -45,6 +45,8 @@ struct RootView: View {
         }
         .background(FAMColor.background.ignoresSafeArea())
         .overlay { LoadingLayer(loading: model.loading) }
+        // "Which one do you mean?" and the limit screen (`onGenerationFailed`).
+        .overlay { RefusalLayer() }
     }
 }
 
@@ -65,8 +67,8 @@ enum Tab: Hashable {
     case daily, myfam, search, messages, you
 }
 
-/// The web's bottom bar (`.tabbar`): DailyFAM, myFAM, the round search
-/// button in the middle, Messages (with its unread badge) and YourFAM. The
+/// The web's bottom bar (`.tabbar`): dailyFAM, myFAM, the round search
+/// button in the middle, Messages (with its unread badge) and yourFAM. The
 /// mini player sits just above it, and leaving the player never stops it
 /// (`transport`). The notifications poll runs here, every 3 s while the
 /// app is in front (`op-social-live`), with its banners and the follower
@@ -75,6 +77,7 @@ struct MainTabs: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var social: SocialModel
+    @EnvironmentObject private var now: NowPlayingModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .daily
     @State private var scrollToTop = 0
@@ -83,6 +86,19 @@ struct MainTabs: View {
     /// conversation, a profile, Friends), have no tab bar or mini player.
     private var sectionOpen: Bool {
         (tab == .daily && !model.dailyPath.isEmpty) || (tab == .messages && !social.messagesPath.isEmpty)
+    }
+
+    /// The mini bar is there from the first word until the episode ends or
+    /// its X is pressed (`showNowBar`, `hideNowBar`): not while it is being
+    /// made, not once it has finished or failed.
+    private var miniShown: Bool {
+        player.phase == .playing || player.phase == .buffering || player.phase == .paused
+    }
+
+    /// "Added to Queue · Open" with the player down.
+    private var queueOpen: Binding<Bool> {
+        Binding(get: { now.showQueue && !model.showPlayer },
+                set: { if !$0 { now.showQueue = false } })
     }
 
     var body: some View {
@@ -108,10 +124,11 @@ struct MainTabs: View {
             // A rail's View more is a screen of its own on the web, with
             // neither the tab bar nor the mini player.
             if !sectionOpen {
-                if player.isLoaded {
+                if miniShown {
                     MiniPlayer()
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 12)
                         .padding(.bottom, 8)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 TabBar(tab: $tab, unread: social.unread, onDaily: {
                     // DailyFAM again while on it: back to the rails from View
@@ -135,6 +152,13 @@ struct MainTabs: View {
                     Task { await social.loadInbox() }
                 })
             }
+        }
+        // The bar rises from behind the tabs (260 ms) and drops (200 ms).
+        .animation(.easeOut(duration: 0.26), value: miniShown)
+        .sheet(isPresented: queueOpen) {
+            QueueSheet()
+                .environmentObject(model)
+                .environmentObject(now)
         }
         .overlay(alignment: .top) { SocialBannerLayer() }
         .overlay {
@@ -209,11 +233,13 @@ struct TabBar: View {
         // Five equal slots with the search in the middle, as the web's five
         // tabs sit.
         HStack(alignment: .bottom, spacing: 0) {
-            item(.daily, "DailyFAM", Icons.daily, tone: Icons.dailyTone)
+            // The 11.9 packet's labels (§519); the screens' meanings stay
+            // swapped (§185).
+            item(.daily, "dailyFAM", Icons.daily, tone: Icons.dailyTone)
             item(.myfam, "myFAM", Icons.myfam, tone: Icons.myfamTone)
             centre
             item(.messages, "Messages", Icons.messages, tone: Icons.messages, badge: unread)
-            item(.you, "YourFAM", Icons.you, tone: Icons.youTone)
+            item(.you, "yourFAM", Icons.you, tone: Icons.youTone)
         }
         .padding(.horizontal, 8)
         .padding(.top, 10)

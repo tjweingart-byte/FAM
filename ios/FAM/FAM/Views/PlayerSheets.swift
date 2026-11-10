@@ -5,11 +5,19 @@ import UIKit
 // (`static/index.html`): Go Deeper (`openGoDeeper`), the ⋯ menu
 // (`openPlayerMenu`), Sources (`openSources`), Playback
 // (`openSpeedLengthModal`), the Queue (`openQueue`), VIBE! (`toggleEcho`),
-// Share (`openShareModal`), the captions sheet (`toggleCC`) and What's next
-// (`maybeOfferNextUp`). Words are the web's own.
+// Share (`openShareModal`) and What's next (`maybeOfferNextUp`). Go Deeper,
+// Sources and Playback are the web's centred modals, drawn over the player
+// (`OverlayModal`); the captions card is in PlayerParts.swift. Words are the
+// web's own.
 
 // MARK: - Go Deeper
 
+/// "Go deeper" (`#goDeeperOverlay`): the suggestion chip ("Pick up the
+/// thread" - the episode's `<<NEXT:>>` - or "Follow the thread" and a line
+/// built from the title), the box, the six lengths, Cancel / Continue. The
+/// episode keeps playing under it; one that ends under it starts nothing
+/// (`goDeeperIsOpen`). Over the player it is the centred modal (`close`);
+/// from a message it is a sheet.
 struct GoDeeperSheet: View {
     @EnvironmentObject private var now: NowPlayingModel
     @Environment(\.dismiss) private var dismiss
@@ -18,6 +26,8 @@ struct GoDeeperSheet: View {
     var base: SharedEpisode? = nil
     /// Where a follow-up of `base` goes (the chat plays it).
     var onGo: ((String, Double, Bool) -> Void)? = nil
+    /// Set when drawn as the player's modal: how it closes.
+    var close: (() -> Void)? = nil
     @State private var typed = ""
     @State private var minutes: Double = 1.5
     @State private var baseThread = ""
@@ -34,86 +44,112 @@ struct GoDeeperSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Go deeper")
-                .font(FAMFont.heading(16, .medium))
-                .foregroundStyle(FAMColor.text)
-            Text("Ask a follow-up, or steer where this goes next").monoLabel(9.5)
+        if close == nil {
+            form
+                .padding(20)
+                .background(FAMColor.surface)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(FAMColor.surface)
+        } else {
+            form
+        }
+    }
+
+    private func shut() {
+        if let close { close() } else { dismiss() }
+    }
+
+    private var form: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ModalTitle(text: "Go deeper")
+            Text("Ask a follow-up, or steer where this goes next")
+                .monoLabel(9.5, tracking: 0.76)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 8)
             if !suggestion.isEmpty {
-                Button { go(suggestion, typed: false) } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(thread.isEmpty ? "Follow the thread" : "Pick up the thread").monoLabel(8)
-                        Text(suggestion)
-                            .font(FAMFont.body(12, .semibold))
-                            .foregroundStyle(FAMColor.text)
-                            .multilineTextAlignment(.leading)
-                            .lineSpacing(2)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.copper))
-                }
-                .buttonStyle(.plain)
+                chip.padding(.bottom, 10)
             }
             TextField("", text: $typed, prompt: Text("Or type your own follow-up").foregroundColor(FAMColor.textFaint))
                 .font(FAMFont.body(13))
+                .foregroundStyle(FAMColor.text)
                 .focused($typing)
-                .submitLabel(.go)
-                .onSubmit { confirm() }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 11)
+                .frame(height: 41)
                 .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
-            Text("Length (minutes)").monoLabel(9.5)
-            HStack(spacing: 6) {
-                ForEach(Self.lengths, id: \.self) { value in
-                    let on = value == minutes
-                    Button { minutes = value } label: {
-                        Text(FAMAPI.minutes(value))
-                            .font(FAMFont.mono(9.5, bold: on))
-                            .foregroundStyle(on ? FAMColor.ink : FAMColor.textMuted)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(on ? FAMColor.copper : FAMColor.surface, in: Capsule())
-                            .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(FAMAPI.minutes(value)) minutes")
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
-            }
-            HStack {
+                .submitLabel(.go)
+                .onSubmit { confirm() }
+            Text("Length (minutes)")
+                .monoLabel(9.5, tracking: 0.76)
+                .padding(.top, 22)
+                .padding(.bottom, 8)
+            lengthRow
+            // No gap above the buttons: the web's row touches the lengths.
+            HStack(spacing: 8) {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                    .font(FAMFont.body(12, .bold))
-                    .foregroundStyle(FAMColor.textMuted)
-                    .padding(.horizontal, 16)
-                Button("Continue") { confirm() }
-                    .font(FAMFont.body(12, .bold))
-                    .foregroundStyle(FAMColor.ink)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(FAMColor.copper, in: Capsule())
+                ModalButton(label: "Cancel") { shut() }
+                ModalButton(label: "Continue", primary: true) { confirm() }
             }
-            .padding(.top, 4)
         }
-        .padding(20)
-        .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
         .onAppear {
-            // The episode's own length, rounded to a half and kept to 1-5.
+            now.goDeeperOpen = true
+            // The episode's own length, rounded to a half and kept to 1-5
+            // (`offeredMinutes`).
             let m = ((base?.minutes ?? now.episode?.key.minutes ?? 1.5) * 2).rounded() / 2
             minutes = min(max(m, 1), 5)
         }
+        .onDisappear { now.goDeeperOpen = false }
         .task {
             // A shared episode's own predicted follow-up, from what is kept.
             guard let base else { return }
             let key = EpisodeKey(query: base.query, minutes: base.minutes)
             if let next = try? await now.api.next(key, cachedOnly: true) { baseThread = next.thread ?? "" }
         }
+    }
+
+    private var chip: some View {
+        Button { go(suggestion, typed: false) } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(thread.isEmpty ? "Follow the thread" : "Pick up the thread")
+                    .monoLabel(8, tracking: 0.64)
+                Text(suggestion)
+                    .font(FAMFont.body(12, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(12 * 0.35 - 3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.copper))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var lengthRow: some View {
+        HStack(spacing: 6) {
+            ForEach(Self.lengths, id: \.self) { value in
+                lengthPill(value)
+            }
+        }
+    }
+
+    private func lengthPill(_ value: Double) -> some View {
+        let on = value == minutes
+        return Button { minutes = value } label: {
+            Text(FAMAPI.minutes(value))
+                .font(FAMFont.mono(9.5, bold: on))
+                .foregroundStyle(on ? FAMColor.ink : FAMColor.textMuted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(on ? FAMColor.copper : FAMColor.surface, in: Capsule())
+                .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(FAMAPI.minutes(value)) minutes")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private func confirm() {
@@ -127,7 +163,8 @@ struct GoDeeperSheet: View {
     }
 
     private func go(_ words: String, typed: Bool) {
-        dismiss()
+        shut()
+        now.goDeeperOpen = false
         if base != nil, let onGo {
             let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !question.isEmpty else { return }
@@ -140,86 +177,108 @@ struct GoDeeperSheet: View {
 
 // MARK: - The ⋯ menu
 
+/// `openPlayerMenu`: the episode's picture, title and searcher, then the
+/// rows in the web's order with the web's icons (`MENU_ICONS`), and Cancel.
 struct PlayerMenu: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var now: NowPlayingModel
     @EnvironmentObject private var player: StreamPlayer
     @Environment(\.dismiss) private var dismiss
     @Binding var sheet: PlayerSheet?
-    @Binding var captionsOpen: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Picture(url: now.picture ?? player.picture)
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(now.title)
-                        .font(FAMFont.body(14, .semibold))
-                        .foregroundStyle(FAMColor.text)
-                        .lineLimit(2)
-                    if !now.searcher.isEmpty {
-                        Text(now.searcher)
-                            .font(FAMFont.body(11.5))
-                            .foregroundStyle(FAMColor.textMuted)
-                    }
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                rows
+                SheetCancelButton { dismiss() }
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 16)
-            Divider()
-            row("Share", "square.and.arrow.up") { open(.share) }
-            row(now.vibed ? "Take back your VIBE!" : "VIBE! to your friends", "arrow.2.squarepath") {
-                if now.vibed { dismiss(); now.unvibe() } else { open(.vibe) }
-            }
-            row(now.saved ? "Remove from Save for Later" : "Save for later",
-                now.saved ? "bookmark.fill" : "bookmark") { dismiss(); now.toggleSave() }
-            row("Closed captions · \(captionsOpen ? "On" : "Off")", "captions.bubble") {
-                dismiss(); captionsOpen.toggle()
-            }
-            // The web's order (`openPlayerMenu`): the playlist rows, then the
-            // queue, then Report.
-            Button {
-                if (now.episode?.key.query ?? "").isEmpty {
-                    dismiss()
-                    now.say("Play something first")
-                } else {
-                    open(.addToMix)
-                }
-            } label: {
-                HStack(spacing: 14) {
-                    WebIcon(path: Icons.circlePlus, size: 18, line: 1.8)
-                        .foregroundStyle(FAMColor.textMuted)
-                        .frame(width: 22)
-                    AddToPlaylistLabel()
-                    Spacer()
-                }
-                .padding(.horizontal, 22)
-                .padding(.vertical, 14)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            if model.canRemoveFromPlayingMix {
-                row("Remove from this playlist", "minus.circle") { dismiss(); model.removeFromPlayingMix() }
-            }
-            row("Add to Queue", "text.badge.plus") {
-                dismiss()
-                if let ep = now.episode { now.addToQueue(ep) } else { now.say("Nothing to queue") }
-            }
-            row("Go to Queue", "list.bullet") { open(.queue) }
-            if now.episode != nil {
-                row("Report", "flag", danger: true) { open(.report) }
-            }
-            Button("Cancel") { dismiss() }
-                .font(FAMFont.body(14, .semibold))
-                .foregroundStyle(FAMColor.textMuted)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+            .padding(.bottom, 12)
         }
         .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationBackground(FAMColor.surface)
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Picture(url: now.picture ?? player.picture)
+                .frame(width: 44, height: 44)
+                .background(FAMColor.surface2)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(now.episode == nil ? player.title : now.title)
+                    .font(FAMFont.body(14, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .lineLimit(1)
+                if !now.searcher.isEmpty {
+                    Text(now.searcher)
+                        .font(FAMFont.body(11.5))
+                        .foregroundStyle(FAMColor.textMuted)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
+        .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.borderStrong).frame(height: 1) }
+    }
+
+    @ViewBuilder private var rows: some View {
+        row("Share", Icons.menuShare) { open(.share) }
+        row(now.vibed ? "Take back your VIBE!" : "VIBE! to your friends", Icons.reshare) {
+            if now.vibed {
+                dismiss()
+                now.unvibe()
+            } else if now.episode == nil {
+                dismiss()
+                now.say("Play something first")
+            } else {
+                open(.vibe)
+            }
+        }
+        row(now.saved ? "Remove from Save for Later" : "Save for later", Icons.bookmark) {
+            dismiss()
+            now.toggleSave()
+        }
+        row("Closed captions \u{00B7} \(now.captionsOn ? "On" : "Off")", PlayerIcons.captionsMenu) {
+            dismiss()
+            now.setCaptions(!now.captionsOn)
+        }
+        Button {
+            if (now.episode?.key.query ?? "").isEmpty {
+                dismiss()
+                now.say("Play something first")
+            } else {
+                open(.addToMix)
+            }
+        } label: {
+            HStack(spacing: 14) {
+                menuIcon(Icons.circlePlus)
+                AddToPlaylistLabel()
+                Spacer()
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        if model.canRemoveFromPlayingMix {
+            row("Remove from this playlist", PlayerIcons.circleMinus) {
+                dismiss()
+                model.removeFromPlayingMix()
+            }
+        }
+        row("Add to Queue", Icons.addQueue) {
+            dismiss()
+            if let ep = now.episode { now.addToQueue(ep) } else { now.say("Nothing to queue") }
+        }
+        row("Go to Queue", Icons.queue) { open(.queue) }
+        if now.episode != nil {
+            row("Report", PlayerIcons.flag, danger: true) { open(.report) }
+        }
     }
 
     private func open(_ next: PlayerSheet) {
@@ -228,14 +287,17 @@ struct PlayerMenu: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { sheet = next }
     }
 
-    private func row(_ label: String, _ icon: String, danger: Bool = false,
+    private func menuIcon(_ path: Path) -> some View {
+        WebIcon(path: path, size: 18, line: 1.8)
+            .foregroundStyle(FAMColor.textMuted)
+            .frame(width: 22)
+    }
+
+    private func row(_ label: String, _ icon: Path, danger: Bool = false,
                      action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundStyle(danger ? FAMColor.coral : FAMColor.textMuted)
-                    .frame(width: 22)
+                menuIcon(icon)
                 Text(label)
                     .font(FAMFont.body(13.5, .semibold))
                     .foregroundStyle(danger ? FAMColor.coral : FAMColor.text)
@@ -267,69 +329,87 @@ struct AddToPlaylistLabel: View {
 
 // MARK: - Sources
 
+/// `openSources`: the centred card, "Sources" and a 30 pt round X; a row
+/// per publisher (its mark, the headline - green for a live feed, copper
+/// for an attachment - and "host · tier · date", ↗ when it opens); the
+/// cross-check note under them.
 struct SourcesSheet: View {
     @EnvironmentObject private var now: NowPlayingModel
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    let close: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Sources").font(FAMFont.heading(16, .medium)).foregroundStyle(FAMColor.text)
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark").foregroundStyle(FAMColor.textMuted)
-                }
-                .accessibilityLabel("Close")
+        HStack {
+            Text("Sources")
+                .font(FAMFont.heading(16, .medium))
+                .foregroundStyle(FAMColor.text)
+            Spacer()
+            Button(action: close) {
+                WebIcon(path: Icons.close, size: 14, line: 2)
+                    .foregroundStyle(FAMColor.text)
+                    .frame(width: 30, height: 30)
+                    .overlay(Circle().stroke(FAMColor.borderStrong))
             }
-            .padding(20)
-            ScrollView {
-                VStack(spacing: 0) {
-                    let items = now.sources?.items ?? []
-                    if items.isEmpty {
-                        Text("No sources for this episode.")
-                            .font(FAMFont.body(12))
-                            .foregroundStyle(FAMColor.textMuted)
-                            .padding(20)
-                    }
-                    ForEach(items, id: \.self) { item in
-                        Button {
-                            if let s = item.url, let url = URL(string: s) { openURL(url) }
-                        } label: {
-                            HStack(spacing: 12) {
-                                SourceMark(label: item.label, size: 30)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(item.title?.isEmpty == false ? item.title! : item.label)
-                                        .font(FAMFont.body(12, .semibold))
-                                        .foregroundStyle(nameColor(item))
-                                        .multilineTextAlignment(.leading)
-                                    Text([item.label, item.tier, item.at].compactMap { $0 }.filter { !$0.isEmpty }
-                                        .joined(separator: " · "))
-                                        .monoLabel(8, color: FAMColor.textFaint)
-                                }
-                                Spacer()
-                                if item.url != nil {
-                                    Image(systemName: "arrow.up.right").foregroundStyle(FAMColor.textMuted)
-                                }
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.plain)
-                        Divider().padding(.leading, 62)
-                    }
-                    if let r = now.sources?.retrievers, r.count > 1 {
-                        Text("Cross-checked across \(r.joined(separator: " and ")).")
-                            .font(FAMFont.body(11))
-                            .foregroundStyle(FAMColor.textMuted)
-                            .padding(20)
-                    }
-                }
-            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
         }
-        .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
+        .padding(.bottom, 8)
+        // The card grows with its rows up to 76% of the screen, then scrolls.
+        ViewThatFits(in: .vertical) {
+            list
+            ScrollView { list }
+        }
+        .frame(maxHeight: UIScreen.main.bounds.height * 0.76 - 90)
+    }
+
+    private var list: some View {
+        VStack(alignment: .leading, spacing: 0) {
+                let items = now.sources?.items ?? []
+                if items.isEmpty {
+                    Text("No sources for this episode.")
+                        .font(FAMFont.body(12))
+                        .foregroundStyle(FAMColor.textMuted)
+                        .padding(.vertical, 10)
+                }
+                ForEach(items, id: \.self) { item in
+                    sourceRow(item)
+                }
+                if let r = now.sources?.retrievers, r.count > 1 {
+                    Text("Cross-checked across \(r.joined(separator: " and ")).")
+                        .font(FAMFont.body(11))
+                        .foregroundStyle(FAMColor.textMuted)
+                        .padding(.top, 12)
+                }
+            }
+    }
+
+    private func sourceRow(_ item: SourceItem) -> some View {
+        Button {
+            if let s = item.url, let url = URL(string: s) { openURL(url) }
+        } label: {
+            HStack(spacing: 12) {
+                SourceMark(label: item.label, size: 30)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title?.isEmpty == false ? item.title! : item.label)
+                        .font(FAMFont.body(12, .semibold))
+                        .foregroundStyle(nameColor(item))
+                        .multilineTextAlignment(.leading)
+                    Text([item.label, item.tier, item.at].compactMap { $0 }.filter { !$0.isEmpty }
+                        .joined(separator: " \u{00B7} "))
+                        .monoLabel(8, color: FAMColor.textFaint, tracking: 0.48)
+                }
+                Spacer(minLength: 0)
+                if item.url != nil {
+                    Text("\u{2197}")
+                        .font(FAMFont.body(13))
+                        .foregroundStyle(FAMColor.textFaint)
+                }
+            }
+            .padding(.vertical, 10)
+            .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+        }
+        .buttonStyle(.plain)
+        .disabled(item.url == nil)
     }
 
     private func nameColor(_ item: SourceItem) -> Color {
@@ -341,140 +421,220 @@ struct SourcesSheet: View {
     }
 }
 
-// MARK: - Playback: speed and length
+// MARK: - Playback (`openSpeedLengthModal`)
 
+/// "Playback": Speed - and, for a search, Length - each a white row that
+/// opens its choices as an action sheet; Done. A search's Voice row is not
+/// built (PARITY.md: the iOS search has no voice choice yet).
 struct PlaybackSheet: View {
-    @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
-    @Environment(\.dismiss) private var dismiss
-
-    private static let speeds: [Double] = [0.5, 0.8, 1, 1.2, 1.5, 2]
-    private static let lengths: [Double] = [1, 1.5, 2, 3, 4, 5]
+    let close: () -> Void
+    /// The action sheet a row opens (speed, length).
+    let open: (PlayerSheet) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Playback").font(FAMFont.heading(16, .medium)).foregroundStyle(FAMColor.text)
-            Text("Speed").monoLabel(9.5)
-            Menu {
-                ForEach(Self.speeds, id: \.self) { s in
-                    Button("\(FAMAPI.minutes(s))x" + (s == player.rate ? "  ✓" : "")) { player.setRate(s) }
-                }
-                Section("Voice") {
-                    Button("Keep the voice's pitch" + (player.keepsPitch ? "  ✓" : "")) {
-                        player.setKeepsPitch(!player.keepsPitch)
-                        now.say(player.keepsPitch ? "Speed changes keep the voice's pitch"
-                                                  : "Speed changes will shift the voice's pitch")
-                    }
-                }
-            } label: { valueBox("\(FAMAPI.minutes(player.rate))x") }
-            // Length only for a search: everything else is the browse length.
-            if let ep = now.episode, ep.surface == "search" {
-                Text("Length").monoLabel(9.5)
-                Menu {
-                    ForEach(Self.lengths, id: \.self) { m in
-                        Button("\(FAMAPI.minutes(m)) min" + (m == ep.key.minutes ? "  ✓" : "")) {
-                            guard m != ep.key.minutes else { return }
-                            dismiss()
-                            now.say("Rebuilding at \(FAMAPI.minutes(m)) min")
-                            var again = ep
-                            again.key.minutes = m
-                            model.play(again)
-                        }
-                    }
-                } label: { valueBox("\(FAMAPI.minutes(ep.key.minutes)) min") }
-            }
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }
-                    .font(FAMFont.body(12, .bold))
-                    .foregroundStyle(FAMColor.ink)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(FAMColor.copper, in: Capsule())
-            }
+        ModalTitle(text: "Playback")
+        field("Speed", "\(FAMAPI.minutes(player.rate))x") { open(.speed) }
+        // Length only for a search: everything else is the browse length.
+        if let ep = now.episode, ep.surface == "search" {
+            field("Length", "\(FAMAPI.minutes(ep.key.minutes)) min") { open(.length) }
         }
-        .padding(20)
-        .background(FAMColor.surface)
-        .presentationDetents([.medium])
-        .presentationBackground(FAMColor.surface)
+        ModalButton(label: "Done", primary: true, wide: true) { close() }
+            .padding(.top, 4)
     }
 
-    private func valueBox(_ text: String) -> some View {
-        HStack {
-            Text(text).font(FAMFont.body(13, .semibold)).foregroundStyle(FAMColor.text)
-            Spacer()
-            Image(systemName: "chevron.up.chevron.down").foregroundStyle(FAMColor.textMuted)
+    private func field(_ label: String, _ value: String, action: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).monoLabel(9.5, tracking: 0.76)
+            Button(action: action) {
+                Text(value)
+                    .font(FAMFont.body(13, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .frame(height: 39)
+                    .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(label): \(value)")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
+        .padding(.bottom, 14)
     }
 }
 
 // MARK: - The queue
 
+/// `openQueue` (§519): "Queue", then Now playing (its picture, or ▶; the
+/// detour line while Go Deeper is a detour of a playlist), "Next from
+/// {mix}" numbered from the next one and not tappable, and "Next in queue"
+/// - a tap plays it and ends any playlist, × takes it out (Undo). Close.
 struct QueueSheet: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var now: NowPlayingModel
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Now playing").monoLabel(9)
-            Text(now.episode == nil ? "Nothing is playing." : now.title)
-                .font(FAMFont.body(13, .semibold))
-                .foregroundStyle(now.episode == nil ? FAMColor.textMuted : FAMColor.copper)
-            if let list = model.mixPlay, !model.mixUpNext.isEmpty {
-                Text("Next from \(list.name)").monoLabel(9).padding(.top, 10)
-                ForEach(model.mixUpNext) { item in
-                    Text(item.title)
-                        .font(FAMFont.body(13, .semibold))
-                        .foregroundStyle(FAMColor.text)
-                }
-            }
-            Text("Next in queue").monoLabel(9).padding(.top, 10)
-            if now.queue.isEmpty {
-                Text("Your queue is empty. Add episodes from the three dots on the player or on a DailyFAM tile.")
-                    .font(FAMFont.body(12))
-                    .foregroundStyle(FAMColor.textMuted)
-            }
-            ForEach(now.queue) { entry in
-                HStack {
-                    Button {
-                        dismiss()
-                        model.stopEpisode()
-                        now.playFromQueue(entry)
-                    } label: {
-                        Text(entry.episode.title)
-                            .font(FAMFont.body(13))
-                            .foregroundStyle(FAMColor.text)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Queue")
+                .font(FAMFont.heading(19, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .padding(.horizontal, 22)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
+                .accessibilityAddTraits(.isHeader)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    group("Now playing")
+                    nowRow
+                    mixRows
+                    group("Next in queue")
+                    if now.queue.isEmpty {
+                        empty("Your queue is empty. Add episodes from the three dots on the player or on a DailyFAM tile.")
                     }
-                    .buttonStyle(.plain)
-                    Button { withAnimation { now.removeFromQueue(entry) } } label: {
-                        Image(systemName: "xmark")
-                            .foregroundStyle(FAMColor.textMuted)
-                            .frame(width: 32, height: 32)
+                    ForEach(Array(now.queue.enumerated()), id: \.element.id) { index, entry in
+                        queueRow(entry, place: index + 1)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
-                    .accessibilityLabel("Remove from the queue")
                 }
+                .animation(.easeOut(duration: 0.22), value: now.queue)
             }
-            HStack {
-                Spacer()
-                Button("Close") { dismiss() }
-                    .font(FAMFont.body(12, .bold))
+            Button { dismiss() } label: {
+                Text("Close")
+                    .font(FAMFont.body(13, .bold))
                     .foregroundStyle(FAMColor.textMuted)
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 14))
             }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
             .padding(.top, 8)
         }
-        .padding(22)
+        .padding(.bottom, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(FAMColor.surface)
         .presentationDetents([.medium, .large])
         .presentationBackground(FAMColor.surface)
+    }
+
+    private func group(_ text: String) -> some View {
+        Text(text)
+            .monoLabel(9, color: FAMColor.textFaint, tracking: 1.08)
+            .padding(.horizontal, 22)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
+    }
+
+    private func empty(_ text: String) -> some View {
+        Text(text)
+            .font(FAMFont.body(12.5))
+            .foregroundStyle(FAMColor.textFaint)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 22)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+    }
+
+    @ViewBuilder private var nowRow: some View {
+        if now.episode == nil {
+            empty("Nothing is playing.")
+        } else {
+            let detourLine = (model.playingDetour && model.mixPlay != nil)
+                ? "Going deeper \u{00B7} \(model.mixPlay?.name ?? "your playlist") carries on after" : ""
+            HStack(spacing: 12) {
+                pic(now.picture, mark: "\u{25B6}", now: true)
+                texts(now.title, sub: detourLine, now: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 22)
+            .padding(.trailing, 14)
+            .padding(.vertical, 7)
+            .frame(minHeight: 56)
+        }
+    }
+
+    @ViewBuilder private var mixRows: some View {
+        if let list = model.mixPlay, !model.mixUpNext.isEmpty {
+            let name = list.name.isEmpty ? "your playlist" : list.name
+            group("Next from \(name)")
+            ForEach(Array(model.mixUpNext.enumerated()), id: \.offset) { index, item in
+                HStack(spacing: 12) {
+                    pic(nil, mark: "\(index + 1)", now: false)
+                    texts(item.title.isEmpty ? item.query : item.title, sub: name, now: false)
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 22)
+                .padding(.trailing, 14)
+                .padding(.vertical, 7)
+                .frame(minHeight: 56)
+            }
+        }
+    }
+
+    private func queueRow(_ entry: QueueEntry, place: Int) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                dismiss()
+                model.stopEpisode()
+                now.playFromQueue(entry)
+            } label: {
+                HStack(spacing: 12) {
+                    pic(entry.episode.picture, mark: "\(place)", now: false)
+                    texts(entry.episode.title, sub: "Queued", now: false)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Button { now.removeFromQueue(entry) } label: {
+                Text("\u{00D7}")
+                    .font(.system(size: 20))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .frame(width: 40, height: 40)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Take \(entry.episode.title) out of the queue")
+        }
+        .padding(.leading, 22)
+        .padding(.trailing, 14)
+        .padding(.vertical, 7)
+        .frame(minHeight: 56)
+    }
+
+    /// `.q-pic`: 42 pt, radius 8, the picture or its place in line.
+    private func pic(_ url: URL?, mark: String, now playing: Bool) -> some View {
+        ZStack {
+            FAMColor.surface2
+            if let url {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: { Color.clear }
+            } else {
+                Text(mark)
+                    .font(FAMFont.mono(playing ? 12 : 11, bold: true))
+                    .foregroundStyle(playing ? FAMColor.copper : FAMColor.textMuted)
+            }
+        }
+        .frame(width: 42, height: 42)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityHidden(true)
+    }
+
+    private func texts(_ title: String, sub: String, now playing: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(FAMFont.body(14, .semibold))
+                .foregroundStyle(playing ? FAMColor.copper : FAMColor.text)
+                .lineLimit(1)
+            if !sub.isEmpty {
+                Text(sub)
+                    .font(FAMFont.body(11.5))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .lineLimit(1)
+            }
+        }
     }
 }
 
@@ -650,226 +810,138 @@ struct ActivityView: UIViewControllerRepresentable {
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
 
-// MARK: - Captions
-
-/// The captions sheet (`#ccPanel`): a 46 pt strip until opened. Open, it
-/// shows the whole script so far, scrollable, with the sentence being said
-/// highlighted and kept in view as the episode plays (the owner's call for
-/// iOS - the web shows the current sentence alone). Scrolling by hand stops
-/// the following until the listener taps "Follow along". Copy takes it all.
-struct CaptionsPanel: View {
-    @EnvironmentObject private var player: StreamPlayer
-    @EnvironmentObject private var now: NowPlayingModel
-    @Binding var open: Bool
-    @State private var following = true
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Text("Closed captions")
-                    .monoLabel(8.5, color: open ? Color(hex: 0xE0B563) : FAMColor.textMuted)
-                Spacer()
-                Button(action: copy) {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 10))
-                        .foregroundStyle(open ? FAMColor.paper : FAMColor.textMuted)
-                        .frame(width: 20, height: 20)
-                        .overlay(RoundedRectangle(cornerRadius: 6)
-                            .stroke(open ? Color(hex: 0xF4EFE4).opacity(0.22) : FAMColor.borderStrong))
-                }
-                .accessibilityLabel("Copy the transcript")
-            }
-            .frame(height: 46)
-            .overlay(alignment: .top) {
-                Capsule().fill(FAMColor.borderStrong).frame(width: 36, height: 4).padding(.top, 6)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { withAnimation(.easeInOut(duration: 0.26)) { open.toggle() } }
-            // Swipe the strip up to open, down to close; the script below
-            // scrolls on its own.
-            .gesture(DragGesture(minimumDistance: 20).onEnded { value in
-                if value.translation.height < -30 { withAnimation { open = true } }
-                if value.translation.height > 30 { withAnimation { open = false } }
-            })
-            if open {
-                script
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.bottom, open ? 18 : 0)
-        .background(open ? FAMColor.ink : FAMColor.surface,
-                    in: UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16))
-        .overlay(UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16)
-            .stroke(open ? FAMColor.ink : FAMColor.border))
-        .ignoresSafeArea(edges: .bottom)
-    }
-
-    /// Every sentence so far; the current one bright and copper-edged, the
-    /// rest dimmed; tap a sentence to jump there.
-    @ViewBuilder private var script: some View {
-        if now.sentences.isEmpty {
-            Text(now.captionsDone
-                 ? "No transcript for this one — an episode you attached a file to is never stored, so there is nothing to read back."
-                 : "Catching up with the script…")
-                .font(FAMFont.body(12).italic())
-                .foregroundStyle(FAMColor.textFaint)
-                .frame(maxWidth: .infinity, minHeight: 60, alignment: .topLeading)
-        } else {
-            let current = now.captionIndex(at: player.position, total: player.total) ?? 0
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(Array(now.sentences.enumerated()), id: \.offset) { i, sentence in
-                            Text(sentence)
-                                .font(FAMFont.body(15, i == current ? .semibold : .regular))
-                                .foregroundStyle(i == current ? FAMColor.paper : FAMColor.paper.opacity(i < current ? 0.45 : 0.6))
-                                .lineSpacing(4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.leading, 10)
-                                .overlay(alignment: .leading) {
-                                    if i == current {
-                                        Capsule().fill(Color(hex: 0xE0B563)).frame(width: 3)
-                                    }
-                                }
-                                .id(i)
-                                .contentShape(Rectangle())
-                                .onTapGesture { jump(to: i) }
-                                .accessibilityAddTraits(i == current ? .isSelected : [])
-                        }
-                    }
-                    .padding(.vertical, 6)
-                    .animation(.easeOut(duration: 0.25), value: current)
-                }
-                .frame(maxHeight: UIScreen.main.bounds.height * 0.5)
-                .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in following = false })
-                .onChange(of: current) { _, i in
-                    guard following else { return }
-                    withAnimation(.easeOut(duration: 0.35)) { proxy.scrollTo(i, anchor: .center) }
-                }
-                .onAppear { proxy.scrollTo(current, anchor: .center) }
-                .overlay(alignment: .bottomTrailing) {
-                    if !following {
-                        Button {
-                            following = true
-                            withAnimation { proxy.scrollTo(current, anchor: .center) }
-                        } label: {
-                            Text("Follow along")
-                                .monoLabel(8.5, color: FAMColor.ink, bold: true)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color(hex: 0xE0B563), in: Capsule())
-                        }
-                        .padding(6)
-                    }
-                }
-            }
-        }
-    }
-
-    /// A sentence tapped: play from where it starts, when that is known
-    /// and has arrived.
-    private func jump(to index: Int) {
-        guard let starts = now.captionStarts, starts.indices.contains(index) else { return }
-        player.seek(to: starts[index])
-        following = true
-    }
-
-    private func copy() {
-        guard !now.sentences.isEmpty else { now.say("No transcript for this one yet"); return }
-        UIPasteboard.general.string = now.sentences.joined(separator: " ")
-        now.say("Transcript copied ✓")
-    }
-}
-
 // MARK: - What's next
 
-/// After an episode (`post-episode-grid`): four tiles, the first - Go
-/// Deeper's own suggestion - starts in 15 s; touching the search box pauses
-/// it for good.
+/// After an episode (`post-episode-grid`): "What’s next", four tiles - the
+/// first, Go Deeper's own suggestion, starts in 15 s, its copper bar
+/// emptying - the search box (touching it pauses the countdown for good)
+/// and "Back to search" / "Back to DailyFAM". The card rises in over 360 ms.
 struct NextUpOverlay: View {
     @EnvironmentObject private var now: NowPlayingModel
     @EnvironmentObject private var model: AppModel
     let onBack: () -> Void
     @State private var words = ""
+    @State private var shown = false
     @FocusState private var typing: Bool
 
     var body: some View {
         ZStack {
             Color(red: 10 / 255, green: 9 / 255, blue: 15 / 255).opacity(0.62).ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 12) {
-                Text("What's next").font(FAMFont.heading(16, .semibold)).foregroundStyle(FAMColor.text)
-                Text(now.nextUpPaused ? "Paused - pick one or search"
-                     : now.nextUpLeft > 0 ? "First one starts in \(now.nextUpLeft)" : "Starting…")
-                    .monoLabel(9, color: FAMColor.textFaint)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible())], spacing: 9) {
-                    ForEach(Array(now.nextUp.enumerated()), id: \.element.id) { index, tile in
-                        Button { now.playNextUp(index) } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(tile.title)
-                                    .font(FAMFont.heading(12.5, .semibold))
-                                    .foregroundStyle(FAMColor.text)
-                                    .lineLimit(3)
-                                    .multilineTextAlignment(.leading)
-                                Spacer(minLength: 0)
-                                Text(tile.sub)
-                                    .monoLabel(8, color: index == 0 && tile.deeper ? FAMColor.copper : FAMColor.textFaint)
-                                    .lineLimit(2)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
-                            .padding(12)
-                            .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 14))
-                            .overlay(RoundedRectangle(cornerRadius: 14)
-                                .stroke(index == 0 && tile.deeper ? FAMColor.copper : FAMColor.border))
-                            .overlay(alignment: .top) {
-                                if index == 0 && !now.nextUpPaused {
-                                    GeometryReader { geo in
-                                        Capsule().fill(FAMColor.copper)
-                                            .frame(width: geo.size.width * Double(now.nextUpLeft) / Double(NowPlayingModel.nextUpSeconds),
-                                                   height: 3)
-                                            .animation(.linear(duration: 1), value: now.nextUpLeft)
-                                    }
-                                    .frame(height: 3)
-                                    .padding(.horizontal, 6)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                HStack(spacing: 8) {
-                    TextField("", text: $words, prompt: Text("Search for anything").foregroundColor(FAMColor.textFaint))
-                        .font(FAMFont.body(16))
-                        .focused($typing)
-                        .submitLabel(.search)
-                        .onSubmit(search)
-                        .onChange(of: typing) { _, on in if on { now.pauseNextUp() } }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(typing ? FAMColor.copper : FAMColor.borderStrong))
-                    Button(action: search) {
-                        WebIcon(path: Icons.search, size: 18)
-                            .foregroundStyle(FAMColor.ink)
-                            .frame(width: 40, height: 40)
-                            .background(FAMColor.copper, in: Circle())
-                    }
-                    .accessibilityLabel("Search")
-                }
-                Button(now.episode?.surface == "search" ? "Back to search" : "Back to DailyFAM") {
-                    now.stopNextUp()
-                    onBack()
-                }
-                .font(FAMFont.body(13, .semibold))
-                .foregroundStyle(FAMColor.textMuted)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 4)
-            }
-            .padding(18)
-            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong))
-            .padding(.horizontal, 26)
+            card
+                .opacity(shown ? 1 : 0)
+                .offset(y: shown ? 0 : 12)
+                .scaleEffect(shown ? 1 : 0.985)
         }
-        .transition(.opacity.combined(with: .scale(scale: 0.985)))
+        .transition(.opacity)
+        .onAppear {
+            withAnimation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36)) { shown = true }
+        }
+    }
+
+    private var subline: String {
+        if now.nextUpPaused { return "Paused - pick one or search" }
+        return now.nextUpLeft > 0 ? "First one starts in \(now.nextUpLeft)" : "Starting\u{2026}"
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("What\u{2019}s next")
+                .font(FAMFont.heading(16, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .padding(.bottom, 3)
+            Text(subline)
+                .monoLabel(9, color: FAMColor.textFaint, tracking: 0.63)
+                .padding(.bottom, 14)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible())], spacing: 9) {
+                ForEach(Array(now.nextUp.enumerated()), id: \.element.id) { index, tile in
+                    tileView(tile, index: index)
+                }
+            }
+            searchBox.padding(.top, 12)
+            Button {
+                now.stopNextUp()
+                onBack()
+            } label: {
+                Text(now.episode?.surface == "search" ? "Back to search" : "Back to DailyFAM")
+                    .monoLabel(10, color: FAMColor.textMuted, tracking: 0.7)
+                    .frame(maxWidth: .infinity)
+                    .padding(11)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 14)
+        }
+        .padding(18)
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong))
+        .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
+        .padding(.horizontal, 27)
+    }
+
+    private func tileView(_ tile: NextUpTile, index: Int) -> some View {
+        let lead = index == 0 && tile.deeper
+        return Button { now.playNextUp(index) } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(tile.title)
+                    .font(FAMFont.heading(12.5, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 7)
+                Text(tile.sub)
+                    .monoLabel(8, color: lead ? FAMColor.copper : FAMColor.textFaint, tracking: 0.48)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 13)
+            .background(FAMColor.background)
+            .overlay(alignment: .topLeading) {
+                if index == 0 && !now.nextUpPaused { timerBar }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(lead ? FAMColor.copper : FAMColor.border))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The countdown, drawn rather than described: a 3 pt bar that empties
+    /// from the right over 15 s (`#nextUpTimer`).
+    private var timerBar: some View {
+        GeometryReader { geo in
+            Rectangle()
+                .fill(FAMColor.copper)
+                .frame(width: geo.size.width * Double(now.nextUpLeft) / Double(NowPlayingModel.nextUpSeconds),
+                       height: 3)
+                .animation(.linear(duration: 1), value: now.nextUpLeft)
+        }
+        .frame(height: 3)
+    }
+
+    private var searchBox: some View {
+        HStack(spacing: 6) {
+            TextField("", text: $words, prompt: Text("Search for anything").foregroundColor(FAMColor.textFaint))
+                .font(FAMFont.body(16))
+                .foregroundStyle(FAMColor.text)
+                .focused($typing)
+                .submitLabel(.search)
+                .onSubmit(search)
+                .onChange(of: typing) { _, on in if on { now.pauseNextUp() } }
+                .onChange(of: words) { _, _ in now.pauseNextUp() }
+                .padding(.vertical, 11)
+            Button(action: search) {
+                WebIcon(path: Icons.search, size: 15, line: 2.2)
+                    .foregroundStyle(FAMColor.copper)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Search")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(typing ? FAMColor.copper : FAMColor.border))
     }
 
     private func search() {

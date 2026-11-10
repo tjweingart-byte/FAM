@@ -213,7 +213,10 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
     # none of them changes which episode it is.
     # `episode` names a kept episode to replay exactly (§173, §288): it
     # never writes, so the loading screen has nothing to ask about it.
-    assert names("audio") - {"fmt", "own", "cached_only", "episode"} == names("progress"), (names("audio"), names("progress"))
+    # `ask_reading` lets the server ask which reading of a name is meant
+    # (300, §426); the reading chosen (`reading`) is part of the key, so
+    # both requests carry that.
+    assert names("audio") - {"fmt", "own", "cached_only", "episode", "ask_reading"} == names("progress"), (names("audio"), names("progress"))
 
 
 def test_the_players_side_channels_decode_what_the_server_sends():
@@ -223,6 +226,9 @@ def test_the_players_side_channels_decode_what_the_server_sends():
     server = "\n".join(p.read_text() for p in ROOT.glob("*.py"))
     for struct in ("NextThread", "Sources", "SourceItem", "Transcript", "EpisodeCard",
                    "SavedState", "SharedLink", "NextUpPage",
+                   # A refused episode: "Which one do you mean?" and the limit
+                   # screen (§426, `showLimitReached`).
+                   "AudioRefusal", "QuotaVerdict",
                    # DailyFAM: View more, Pick up, the faces row, the library.
                    "SectionPage", "TileGroup", "PickUpPage", "PickUpThread", "PickUpResume",
                    "SavedPage", "SavedItem", "CirclePage", "CirclePerson", "CircleMe", "Story",

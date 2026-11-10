@@ -21,6 +21,18 @@ struct Episode: Equatable {
     /// A kept episode's id (`X-FAM-Episode`): a message's Listen replays the
     /// sender's exact episode (§288); "" asks the question as usual.
     var episodeID: String = ""
+    /// A myFAM playlist's own episode: the playlist's key while it plays it
+    /// (`fromMix`, `mixPlay.key` on the web).
+    var mixKey: String = ""
+    /// A Go Deeper off a playlist's episode, or off a follow-up already on
+    /// that detour (§519, `mixDetour`): the playlist waits behind it and
+    /// carries on from its next episode when this ends, is skipped or fails.
+    var mixDetour: String = ""
+    /// One of a category's episodes, played or queued from its list
+    /// (`fromCategory`): the rest of that list stays queued behind it.
+    var fromCategory: Bool = false
+    /// Played from the Queue, which keeps a category's list as it is.
+    var queued: Bool = false
 }
 
 /// A queued episode (§190): client state only, never sent to the server.
@@ -53,6 +65,8 @@ final class NowPlayingModel: ObservableObject {
     static let resumeEvery: TimeInterval = 15 // RESUME_EVERY_MS
     static let skipAfter: Double = 5          // a skip counts after 5 s
     static let nextUpSeconds = 15
+    /// `localStorage["fam.captions"]` on the web: "1" on, "0" off.
+    static let captionsKey = "fam.captions"
 
     @Published private(set) var episode: Episode?
     @Published private(set) var title = ""
@@ -63,9 +77,13 @@ final class NowPlayingModel: ObservableObject {
     @Published private(set) var sources: Sources?
     @Published private(set) var saved = false
     @Published private(set) var vibed = false
-    @Published var captionsOn = false {
-        didSet { if captionsOn != oldValue { captionsOn ? startCaptions() : stopCaptions() } }
-    }
+    /// The save and VIBE! bursts (`Motion.celebrate`): counted up only when
+    /// the listener turns one on, never when painted from the server.
+    @Published private(set) var savedBurst = 0
+    @Published private(set) var vibedBurst = 0
+    /// The captions card (§519): off for each new episode unless this device
+    /// remembers it on (`fam.captions`, `captionsWanted`).
+    @Published private(set) var captionsOn = false
     @Published private(set) var sentences: [String] = []
     @Published private(set) var captionStarts: [Double]?
     @Published private(set) var captionsDone = false
@@ -74,6 +92,11 @@ final class NowPlayingModel: ObservableObject {
     @Published private(set) var nextUpLeft = NowPlayingModel.nextUpSeconds
     @Published private(set) var nextUpPaused = false
     @Published private(set) var toast: Toast?
+    /// "Added to Queue · Open": whoever is on screen opens the Queue sheet.
+    @Published var showQueue = false
+    /// Go Deeper is open (`goDeeperIsOpen`): an episode ending under it
+    /// starts nothing - no queue, no playlist, no What's next (10.1).
+    var goDeeperOpen = false
 
     struct Toast: Identifiable, Equatable {
         let id = UUID()
@@ -133,6 +156,7 @@ final class NowPlayingModel: ObservableObject {
         sourcesShown = false
         saved = false
         vibed = false
+        stopCaptions()
         captionsOn = false
         sentences = []
         captionStarts = nil
@@ -151,6 +175,8 @@ final class NowPlayingModel: ObservableObject {
         Task { await askThread(mine) }
         Task { await askSources(mine) }
         Task { await watch(mine) }
+        // Turned on again if that is how the listener left them (§519).
+        if Self.captionsRemembered { showCaptions(true) }
     }
 
     /// The episode played to its end.
@@ -167,12 +193,15 @@ final class NowPlayingModel: ObservableObject {
             await refreshThreadOnce(mine)
             await refreshSourcesOnce(mine)
         }
-        // A mix playing as a playlist plays its next item instead of
-        // offering What's next (`fromMix`).
-        if onEnded?() == true { return }
+        // Ended under an open Go Deeper: the sound stops and the sheet
+        // stays up on its own - nothing else starts over it (10.1).
+        if goDeeperOpen { return }
+        // A playlist's episode, or a Go Deeper detour off it, plays the
+        // playlist's next instead of offering What's next (`fromMix`, §519).
+        if onEnded?(ep) == true { return }
         if let next = queue.first {
             queue.removeFirst()
-            playEpisode?(next.episode)
+            playQueued(next)
             return
         }
         Task { await offerNextUp(mine) }
@@ -182,6 +211,7 @@ final class NowPlayingModel: ObservableObject {
     func stopped() {
         reportSkipIfAbandoned()
         stopCaptions()
+        captionsOn = false
         stopNextUp()
         run += 1
         episode = nil
@@ -231,13 +261,15 @@ final class NowPlayingModel: ObservableObject {
     // MARK: - The thread and the writer's title (`fetchEpisodeThread`)
 
     private func askThread(_ mine: Int) async {
-        // Every 2 s until the thread and the final title are in; two minutes at most.
-        for _ in 0..<60 {
-            guard mine == run else { return }
-            await refreshThreadOnce(mine)
-            if !thread.isEmpty && titleFinal { return }
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-        }
+        // At the first word, +6 s and +20 s (`onFirstAudio`); again at the
+        // end and when Go Deeper opens.
+        await refreshThreadOnce(mine)
+        try? await Task.sleep(nanoseconds: 6_000_000_000)
+        guard mine == run else { return }
+        await refreshThreadOnce(mine)
+        try? await Task.sleep(nanoseconds: 14_000_000_000)
+        guard mine == run else { return }
+        await refreshThreadOnce(mine)
     }
 
     private func refreshThreadOnce(_ mine: Int) async {
@@ -248,7 +280,8 @@ final class NowPlayingModel: ObservableObject {
             let becameFinal = answer.titleFinal == true && !titleFinal
             titleFinal = answer.titleFinal == true
             if !ep.titleOverridden && t != title {
-                withAnimation(.easeOut(duration: 0.32)) { title = t }
+                // The wipe is drawn by the title itself (`WipeText`).
+                title = t
                 if signedIn() {
                     Task { await api.noteListen(ep.key, surface: ep.surface, title: t,
                                                 episode: player.episodeID, retitle: true) }
@@ -328,6 +361,7 @@ final class NowPlayingModel: ObservableObject {
             }
         } else {
             saved = true
+            savedBurst += 1
             Task {
                 do {
                     try await api.save(ep.key, title: title)
@@ -347,6 +381,11 @@ final class NowPlayingModel: ObservableObject {
             try await api.vibe(ep.key, title: title, thread: thread, caption: caption)
             if episode == ep { vibed = true }
             say("Vibed to your story")
+            // VIBED bursts 300 ms after the composer closes (`toggleEcho`).
+            Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                if self.episode == ep { self.vibedBurst += 1 }
+            }
             return true
         } catch {
             say((error as? FAMError)?.errorDescription ?? "Could not vibe that")
@@ -382,6 +421,23 @@ final class NowPlayingModel: ObservableObject {
     // MARK: - Captions (`toggleCC`, `fetchCaptions`, `captionIndexNow`)
 
     private var captionTask: Task<Void, Never>?
+
+    static var captionsRemembered: Bool {
+        UserDefaults.standard.string(forKey: captionsKey) == "1"
+    }
+
+    /// The listener's toggle - the Captions pill, the card's X, a swipe
+    /// down, the menu row: remembered on this device every time (`toggleCC`).
+    func setCaptions(_ on: Bool) {
+        UserDefaults.standard.set(on ? "1" : "0", forKey: Self.captionsKey)
+        showCaptions(on)
+    }
+
+    private func showCaptions(_ on: Bool) {
+        guard on != captionsOn else { return }
+        captionsOn = on
+        if on { startCaptions() } else { stopCaptions() }
+    }
 
     private func startCaptions() {
         captionTask?.cancel()
@@ -425,11 +481,28 @@ final class NowPlayingModel: ObservableObject {
 
     /// Asked when an episode ends, before the queue: true if a mix's
     /// playlist took over.
-    var onEnded: (() -> Bool)?
+    var onEnded: ((Episode) -> Bool)?
+    /// The playlist a follow-up of this episode is a detour of (§519,
+    /// `mixDetourFor`), "" when none.
+    var detourFor: ((Episode) -> String)?
 
     func addToQueue(_ ep: Episode) {
         queue.append(QueueEntry(episode: ep))
-        say("Added to Queue")
+        say("Added to Queue", action: "Open") { [weak self] in self?.showQueue = true }
+    }
+
+    /// Something else started (§500 review): the rest of a category's list
+    /// is not its "next". What the listener queued themselves stays.
+    func dropCategoryQueue() {
+        guard !categoryQueued.isEmpty else { return }
+        queue.removeAll { categoryQueued.contains($0.id) }
+        categoryQueued = []
+    }
+
+    private func playQueued(_ entry: QueueEntry) {
+        var ep = entry.episode
+        ep.queued = true
+        playEpisode?(ep)
     }
 
     /// What a category tap queued: replaced by the next category tap,
@@ -454,13 +527,13 @@ final class NowPlayingModel: ObservableObject {
     func playFromQueue(_ entry: QueueEntry) {
         guard let i = queue.firstIndex(of: entry) else { return }
         queue.remove(at: i)
-        playEpisode?(entry.episode)
+        playQueued(entry)
     }
 
     func playQueueNext() {
         guard let next = queue.first else { return }
         queue.removeFirst()
-        playEpisode?(next.episode)
+        playQueued(next)
     }
 
     // MARK: - What's next (`maybeOfferNextUp`)
@@ -527,11 +600,14 @@ final class NowPlayingModel: ObservableObject {
         let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty else { return }
         Task { await api.event("search", text: question) }
-        let ep = Episode(key: EpisodeKey(query: question, minutes: minutes, context: title),
+        var ep = Episode(key: EpisodeKey(query: question, minutes: minutes, context: title),
                          title: Self.titleFromQuestion(question),
                          surface: base.surface == "search" ? "search" : "other",
                          own: typed || question != thread,
                          picture: nil, titleOverridden: false)
+        // Going deeper on a playlist's episode is a detour, never the end of
+        // the playlist (§519); a Go Deeper on that follow-up is the same one.
+        ep.mixDetour = detourFor?(base) ?? ""
         playEpisode?(ep)
     }
 
@@ -549,8 +625,11 @@ final class NowPlayingModel: ObservableObject {
         toastAction = perform
         let t = Toast(text: text, action: action)
         toast = t
+        // A plain toast 2.2 s, one with an action (Undo, Open) 3.5 s
+        // (`toast`, `snack`).
+        let wait: UInt64 = action == nil ? 2_200_000_000 : 3_500_000_000
         Task {
-            try? await Task.sleep(nanoseconds: 3_200_000_000)
+            try? await Task.sleep(nanoseconds: wait)
             if toast?.id == t.id { toast = nil }
         }
     }

@@ -298,6 +298,23 @@ struct MixPlaylist: Equatable {
     var played: Set<Int> = []
     /// Somebody else's public mix: not yours to edit, not yours to note.
     var mine: Bool
+    /// The episode the playlist is on (`mixPlay.key`): a fresh key for each
+    /// item played, carried by that episode (`Episode.mixKey`) and by any Go
+    /// Deeper detour off it (`Episode.mixDetour`, §519).
+    var key: String = ""
+    /// The playlist's episode a Go Deeper interrupted part way, to resume
+    /// where it was once the detour is over (the owner's call, differing
+    /// from the web's §519, which moves on to the next episode).
+    var interrupted: InterruptedItem?
+}
+
+/// The playlist's episode as a detour left it: the episode, the id of the
+/// audio heard (`X-FAM-Episode`, so the same audio replays, never rewritten)
+/// and the position to seek back to.
+struct InterruptedItem: Equatable {
+    var episode: Episode
+    var episodeID: String
+    var position: Double
 
     /// Nil while `pos` is -1: the item playing was taken out of the
     /// playlist and the next one is still to come.
