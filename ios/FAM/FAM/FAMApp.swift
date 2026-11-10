@@ -1,4 +1,5 @@
 import FAMSafety
+import GoogleSignIn
 import SwiftUI
 
 @main
@@ -15,6 +16,8 @@ struct FAMApp: App {
                 .tint(FAMColor.copper)
                 .preferredColorScheme(.light)
                 .task { await model.open() }
+                // Google's sign-in comes back to the app through its URL scheme.
+                .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
         }
     }
 }

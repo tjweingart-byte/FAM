@@ -36,7 +36,7 @@ the app.
 | Sign up (email + password, terms box unticked, §228) | Done | |
 | Log in | Done | |
 | Phone number on sign-up | Not yet | deliberately off for iOS 1.0 (APP_STORE.md gap 12) |
-| Sign in with Apple / Google (`op-identity`, 4.8) | Not yet | **required for App Store** - server built |
+| Sign in with Apple / Google (`op-identity`, 4.8) | Done (iOS only) | the web has neither on purpose. Apple: nonce hashed to Apple, raw to the server, the one-time code sent so deletion revokes. Google: GoogleSignIn, drawn only once `GOOGLE_IOS_CLIENT_ID` is set in `project.yml`. Both wait for the terms box on sign-up |
 | Password reset (`/reset`, §297) | Not yet | |
 | Identity step after sign-up (name, handle, photo) | Not yet | |
 | Activation step (§411) | Not yet | `activation_needed` on `/api/auth/me` |

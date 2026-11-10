@@ -115,6 +115,12 @@ final class AppModel: ObservableObject {
         arrive(try await api.signUp(email: email, password: password))
     }
 
+    func signIn(provider: String, idToken: String, nonce: String,
+                authorizationCode: String = "", acceptTerms: Bool) async throws {
+        arrive(try await api.signIn(provider: provider, idToken: idToken, nonce: nonce,
+                                    authorizationCode: authorizationCode, acceptTerms: acceptTerms))
+    }
+
     func signOut() async {
         player.stop()
         await api.signOut()

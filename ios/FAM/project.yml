@@ -13,6 +13,10 @@ options:
 packages:
   FAMSafety:
     path: ../FAMSafety
+  # Google's own sign-in for iOS: the system browser sheet and the token.
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 8.0.0
 settings:
   base:
     MARKETING_VERSION: "1.0.0"
@@ -23,6 +27,12 @@ settings:
     # Apali, LLC (developer.apple.com > Membership), so a regenerated
     # project keeps its team.
     DEVELOPMENT_TEAM: 484A7YD2S3
+    # Google sign-in: the iOS OAuth client made in Google Cloud for
+    # net.familiarize.fam, and the same id reversed (its URL scheme). Until
+    # they are set the Google button is not drawn (`no-dead-controls`).
+    # The client id also belongs in the server's GOOGLE_CLIENT_IDS.
+    GOOGLE_IOS_CLIENT_ID: ""
+    GOOGLE_REVERSED_CLIENT_ID: com.googleusercontent.apps.unset
 targets:
   FAM:
     type: application
@@ -31,6 +41,15 @@ targets:
       - path: FAM
     dependencies:
       - package: FAMSafety
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: GoogleSignIn
+        product: GoogleSignInSwift
+    # Sign in with Apple (App Store 4.8).
+    entitlements:
+      path: FAM/FAM.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
     info:
       path: FAM/Info.plist
       properties:
@@ -42,6 +61,9 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true
+        GIDClientID: $(GOOGLE_IOS_CLIENT_ID)
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]
         # The web's three typefaces (`typefaces`), as static instances of
         # the Google Fonts variable files (OFL; licences in FAM/Fonts).
         UIAppFonts:

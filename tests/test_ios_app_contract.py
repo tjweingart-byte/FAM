@@ -221,3 +221,18 @@ def test_listening_is_recorded_like_the_web():
     for kind in ('"complete"', '"skip"', '"search"'):
         assert kind in now, kind
     assert "api.noteResume(" in now and "api.noteListen(" in now
+
+
+def test_provider_sign_in_sends_what_the_server_reads():
+    """Sign in with Apple / Google: every body field is a ProviderRequest
+    field, the token is asked for, and Apple's one-time code is passed so
+    deleting the account can revoke it (5.1.1(v))."""
+    body = re.search(r"func signIn\(provider:.*?\n    \}", _api(), re.S).group(0)
+    sent = set(re.findall(r'"(\w+)":', body)) | set(re.findall(r'body\["(\w+)"\]', body))
+    fields = set(appmod.ProviderRequest.model_fields)
+    assert sent <= fields, sorted(sent - fields)
+    assert {"provider", "id_token", "nonce", "accept_terms", "authorization_code", "want_token"} <= sent
+    swift = (SWIFT / "Views" / "ProviderSignIn.swift").read_text()
+    # Apple is sent the hash of the nonce; the server gets the raw value.
+    assert "request.nonce = Self.sha256(appleNonce)" in swift
+    assert 'send(provider: "apple", token: token, nonce: appleNonce' in swift

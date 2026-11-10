@@ -66,6 +66,21 @@ final class FAMAPI: @unchecked Sendable {
         return who
     }
 
+    /// Sign in with Apple or Google (`/api/auth/provider`): the platform's
+    /// identity token, the raw nonce it was asked with, and - Apple only -
+    /// the one-time code the server exchanges so that deleting the account
+    /// can revoke it (5.1.1(v), `apple_tokens.py`). `accept_terms` when the
+    /// sign-in may make an account and the box was ticked (§228).
+    func signIn(provider: String, idToken: String, nonce: String,
+                authorizationCode: String = "", acceptTerms: Bool) async throws -> Listener {
+        var body: [String: Any] = ["provider": provider, "id_token": idToken, "nonce": nonce,
+                                   "accept_terms": acceptTerms, "want_token": true]
+        if !authorizationCode.isEmpty { body["authorization_code"] = authorizationCode }
+        let who = try await send("POST", "api/v1/auth/provider", body: body, as: Listener.self)
+        if let fresh = who.sessionToken { token = fresh }
+        return who
+    }
+
     func signOut() async {
         _ = try? await send("POST", "api/v1/auth/logout", body: [:], as: OK.self)
         token = nil

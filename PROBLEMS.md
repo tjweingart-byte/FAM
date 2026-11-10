@@ -31693,3 +31693,19 @@ offline, the rails' arrival animation. **Found on the way, not changed:**
 cache key - on the web as on the phone. The fix is a schema change
 (SQLite stores 1.5 as REAL in an INTEGER column, Postgres rounds it), so it is
 the owner's call.
+
+**Sign in with Apple and Google on iOS.** `/api/auth/provider` was built
+(§222, `oauth.py`) and waiting. The app draws Continue with Apple
+(`SignInWithAppleButton`: a fresh nonce per sign-in, its SHA-256 to Apple and
+the raw value to the server, which accepts either; Apple's one-time
+`authorization_code` sent so `apple_tokens.py` can revoke on deletion) and
+Continue with Google (the GoogleSignIn package, its nonce echoed raw) above
+the email form, both held until the terms box is ticked on sign-up, as the
+form is (§228). The web has neither on purpose - they only complete on a
+phone. **Two settings only the owner can make:** the server's
+`APPLE_CLIENT_IDS` must contain `net.familiarize.fam`, and Google needs an iOS
+OAuth client for that bundle id in Google Cloud, its id put in `project.yml`
+(`GOOGLE_IOS_CLIENT_ID` and the reversed `GOOGLE_REVERSED_CLIENT_ID`) and added
+to the server's `GOOGLE_CLIENT_IDS`. Until the client id is set the Google
+button is not drawn (`no-dead-controls`). `/api/health` > `oauth` says which
+provider the server can verify.

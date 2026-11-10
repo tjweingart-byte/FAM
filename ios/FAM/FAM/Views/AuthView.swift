@@ -38,7 +38,16 @@ struct AuthView: View {
                     .foregroundStyle(FAMColor.textMuted)
                     .padding(.top, 10)
 
-                label("Email").padding(.top, 26)
+                ProviderButtons(making: making, agreed: agreed, problem: $problem, working: $working)
+                    .padding(.top, 24)
+                HStack(spacing: 10) {
+                    Rectangle().fill(FAMColor.border).frame(height: 1)
+                    Text("or").monoLabel(9)
+                    Rectangle().fill(FAMColor.border).frame(height: 1)
+                }
+                .padding(.top, 20)
+
+                label("Email").padding(.top, 18)
                 TextField("", text: $email,
                           prompt: Text("you@example.com").foregroundColor(FAMColor.textFaint))
                     .keyboardType(.emailAddress)
