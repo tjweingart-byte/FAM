@@ -418,7 +418,9 @@ struct ExplicitBadge: View {
         Text("E")
             .font(FAMFont.mono(8, bold: true))
             .foregroundStyle(FAMColor.ink)
-            .frame(width: 14, height: 14)
+            .padding(.horizontal, 3)
+            // 14 x 14 at the default size, a floor as the E grows (`large-text`).
+            .frame(minWidth: 14, minHeight: 14)
             .background(FAMColor.textMuted, in: RoundedRectangle(cornerRadius: 3))
             .accessibilityLabel("Explicit")
     }

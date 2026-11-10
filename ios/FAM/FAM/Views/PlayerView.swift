@@ -457,7 +457,9 @@ struct PlayerExplicitBadge: View {
         Text("E")
             .font(FAMFont.mono(size * 0.8, bold: true))
             .foregroundStyle(FAMColor.ink)
-            .frame(width: size, height: size)
+            .padding(.horizontal, 2)
+            // A floor, so the E is never cut as the text grows (`large-text`).
+            .frame(minWidth: size, minHeight: size)
             .background(FAMColor.textMuted, in: RoundedRectangle(cornerRadius: 3))
             .accessibilityLabel("Explicit")
     }

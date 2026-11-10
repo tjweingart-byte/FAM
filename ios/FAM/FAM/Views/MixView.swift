@@ -796,19 +796,31 @@ struct ListenTimeSheet: View {
     @Binding var time: Date
     let done: (Date) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Button("Cancel") { dismiss() }
-                    .font(FAMFont.body(13, .semibold))
-                    .foregroundStyle(FAMColor.textMuted)
-                Spacer()
-                Text("Listen time").font(FAMFont.heading(16, .semibold)).foregroundStyle(FAMColor.text)
-                Spacer()
-                Button("Done") { done(time) }
-                    .font(FAMFont.body(13, .bold))
-                    .foregroundStyle(FAMColor.copper)
+            // At the accessibility sizes the heading has a row of its own
+            // under Cancel and Done (`large-text`).
+            Group {
+                if typeSize.isAccessibilitySize {
+                    VStack(spacing: 6) {
+                        HStack {
+                            cancelButton
+                            Spacer()
+                            doneButton
+                        }
+                        heading
+                    }
+                } else {
+                    HStack {
+                        cancelButton
+                        Spacer()
+                        heading
+                        Spacer()
+                        doneButton
+                    }
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 18)
@@ -821,6 +833,26 @@ struct ListenTimeSheet: View {
         .background(FAMColor.surface)
         .presentationDetents([.height(300), .large])
         .presentationBackground(FAMColor.surface)
+    }
+
+    private var cancelButton: some View {
+        Button("Cancel") { dismiss() }
+            .font(FAMFont.body(13, .semibold))
+            .foregroundStyle(FAMColor.textMuted)
+    }
+
+    private var doneButton: some View {
+        Button("Done") { done(time) }
+            .font(FAMFont.body(13, .bold))
+            .foregroundStyle(FAMColor.copper)
+    }
+
+    private var heading: some View {
+        Text("Listen time")
+            .font(FAMFont.heading(16, .semibold))
+            .foregroundStyle(FAMColor.text)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
