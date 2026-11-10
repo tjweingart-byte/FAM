@@ -162,6 +162,11 @@ struct StoryViewer: View {
     @State private var reply = ""
     @State private var liked: Set<Int> = []
     @State private var reporting = false
+    /// The story's ⋯ (`openStoryMenu`), and what it opens.
+    @State private var storyMenu = false
+    @State private var addingTopic = false
+    @State private var blocking = false
+    @State private var shareItems: [Any]?
     @FocusState private var typing: Bool
 
     private static let seconds = 6.0
@@ -196,6 +201,22 @@ struct StoryViewer: View {
             markSeen(who.id, story.at)
         }
         .task(id: "\(person)-\(index)") { await tick() }
+        .confirmationDialog(story.title ?? "", isPresented: $storyMenu, titleVisibility: .hidden) {
+            storyMenuButtons
+        }
+        .sheet(isPresented: $addingTopic) {
+            AddToMixSheet(query: story.query ?? "", title: story.title ?? story.query ?? "")
+                .environmentObject(model)
+                .environmentObject(model.mixes)
+        }
+        .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
+            ActivityView(items: shareItems ?? []) { shareItems = nil }
+        }
+        .blockConfirmation(isPresented: $blocking, name: who.name, handle: who.handle, api: model.safety,
+                           onBlocked: {
+                               model.nowPlaying.say("Blocked")
+                               dismiss()
+                           })
         .sheet(isPresented: $reporting) {
             ReportSheet(api: model.safety,
                         subject: story.kind == "note" ? .note(id: story.id) : .vibe(id: story.id)) { _ in }
@@ -225,11 +246,11 @@ struct StoryViewer: View {
                 Text(age(story.at)).font(FAMFont.mono(10)).foregroundStyle(Self.paper.opacity(0.7))
             }
             Spacer()
-            if !who.mine {
-                Button { reporting = true } label: {
+            if hasMenu {
+                Button { storyMenu = true } label: {
                     Image(systemName: "ellipsis").foregroundStyle(Self.paper).frame(width: 36, height: 36)
                 }
-                .accessibilityLabel("Report")
+                .accessibilityLabel("More")
             }
             Button { dismiss() } label: {
                 Image(systemName: "xmark").foregroundStyle(Self.paper).frame(width: 36, height: 36)
@@ -305,12 +326,85 @@ struct StoryViewer: View {
         }
     }
 
+    /// A vibe has an episode to save, share, queue or add to a mix; somebody
+    /// else's story can be reported, and its person blocked.
+    private var isVibe: Bool { story.kind != "note" && !(story.query ?? "").isEmpty }
+    private var hasMenu: Bool { isVibe || !who.mine }
+
+    /// The story holds while its menu, or anything the menu opened, is up.
+    private var paused: Bool {
+        holding || typing || storyMenu || addingTopic || reporting || blocking || shareItems != nil
+    }
+
+    private var firstName: String {
+        let first = who.name.split(separator: " ").first.map(String.init) ?? ""
+        return first.isEmpty ? "@" + who.handle : first
+    }
+
+    /// The rows the web's story ⋯ has that this app can do. What opens
+    /// another sheet waits for the dialog to close (as `PlayerMenu.open`).
+    @ViewBuilder
+    private var storyMenuButtons: some View {
+        if isVibe {
+            Button("Save for later") { saveStory() }
+            Button("Share") { shareStory() }
+            Button("Add to Queue") { queueStory() }
+            Button("Add topic to playlist") { later { addingTopic = true } }
+        }
+        if !who.mine {
+            Button("Report", role: .destructive) { later { reporting = true } }
+            if !who.handle.isEmpty {
+                Button("Block \(firstName)", role: .destructive) { later { blocking = true } }
+            }
+        }
+        Button("Cancel", role: .cancel) {}
+    }
+
+    private func later(_ action: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: action)
+    }
+
+    private func storyKey() -> EpisodeKey {
+        EpisodeKey(query: story.query ?? "", minutes: story.minutes ?? FAMAPI.browseMinutes)
+    }
+
+    private func saveStory() {
+        let key = storyKey()
+        let title = story.title ?? key.query
+        Task {
+            do {
+                try await model.api.save(key, title: title, source: "story")
+                model.nowPlaying.say("Saved for Later")
+            } catch {
+                model.nowPlaying.say(MixesModel.sentence(error, else: "Could not save that"))
+            }
+        }
+    }
+
+    private func shareStory() {
+        let key = storyKey()
+        let title = story.title ?? key.query
+        Task {
+            if let link = try? await model.api.share(key, title: title) {
+                let words = link.targets?["copy"]?.text ?? link.url
+                later { shareItems = [words] }
+            } else {
+                model.nowPlaying.say("Could not make a link")
+            }
+        }
+    }
+
+    private func queueStory() {
+        let key = storyKey()
+        model.nowPlaying.addToQueue(Episode(key: key, title: story.title ?? key.query, surface: ""))
+    }
+
     private func tick() async {
         progress = 0
         while progress < 1 {
             try? await Task.sleep(nanoseconds: 50_000_000)
             if Task.isCancelled { return }
-            if holding || typing { continue }
+            if paused { continue }
             progress += 0.05 / Self.seconds
         }
         forward()

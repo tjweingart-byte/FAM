@@ -34,7 +34,7 @@ struct MyFAMView: View {
                 if mixes.state == .ready {
                     Button { path.append(.new) } label: {
                         HStack(spacing: 7) {
-                            Image(systemName: "plus").font(.system(size: 11, weight: .bold))
+                            WebIcon(path: Icons.plus, size: 13, line: 2.4)
                             Text("Create new mix")
                         }
                         .font(FAMFont.body(12, .bold))
@@ -60,7 +60,7 @@ struct MyFAMView: View {
                             .id(node)
                     } else {
                     VStack(alignment: .leading, spacing: 0) {
-                        searchBar.padding(.top, mixes.categories == nil ? 14 : 8)
+                        searchBar.padding(.top, 18)
                         if searching {
                             searchResults
                         } else {
@@ -123,8 +123,7 @@ struct MyFAMView: View {
     private var searchBar: some View {
         HStack(spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13, weight: .semibold))
+                WebIcon(path: Icons.search, size: 15, line: 2.2)
                     .foregroundStyle(FAMColor.textMuted)
                 TextField("", text: $words,
                           prompt: Text("Search mixes, topics or people").foregroundColor(FAMColor.textMuted))
@@ -200,14 +199,16 @@ struct MyFAMView: View {
                     .padding(.top, 16)
             } else {
                 Text(q.isEmpty ? "Public mixes" : "Public mixes matching “\(q)”")
-                    .monoLabel(8.5)
+                    .monoLabel(8.5, tracking: 0.85)
                     .padding(.top, 16)
                     .padding(.bottom, 10)
+                // Not a Button: the card holds its own (+), and a tap on
+                // that must not open the mix as well.
                 ForEach(results) { mix in
-                    Button { path.append(.publicMix(mix.id)) } label: {
-                        MixCard(mix: mix, trailing: mix.mine ? .none : .add)
-                    }
-                    .buttonStyle(.plain)
+                    MixCard(mix: mix, trailing: mix.mine ? .none : .add)
+                        .onTapGesture { path.append(.publicMix(mix.id)) }
+                        .accessibilityElement(children: .contain)
+                        .accessibilityAddTraits(.isButton)
                 }
             }
         } else {
@@ -225,10 +226,14 @@ struct MixArt: View {
     let cover: String
     var size: CGFloat = 46
     var radius: CGFloat = 12
+    /// Paper on a card and a page; surface-2 in the add-to-mix sheet.
+    var tile: Color = FAMColor.paper
+    var glyph: Color = FAMColor.ink
+    var glyphSize: CGFloat? = nil
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: radius).fill(FAMColor.paper)
+            RoundedRectangle(cornerRadius: radius).fill(tile)
             if let image = MixCover.image(cover) {
                 Image(uiImage: image).resizable().scaledToFill()
             } else if cover.hasPrefix("/"), let url = model.api.picture(cover) {
@@ -243,7 +248,8 @@ struct MixArt: View {
     }
 
     private var folder: some View {
-        WebIcon(path: Icons.folder, size: size * 0.43, line: 1.9).foregroundStyle(FAMColor.ink)
+        WebIcon(path: Icons.folder, size: glyphSize ?? size * 0.43, line: size >= 80 ? 1.7 : 1.9)
+            .foregroundStyle(glyph)
     }
 }
 
@@ -265,6 +271,7 @@ struct MixCard: View {
                     .multilineTextAlignment(.leading)
                 meta
                     .font(FAMFont.mono(8.5))
+                    .tracking(0.425)
                     .textCase(.uppercase)
                 Text(mix.items.isEmpty ? "Nothing in it yet" : mix.items.map(\.title).joined(separator: " · "))
                     .font(FAMFont.body(10))
@@ -274,8 +281,7 @@ struct MixCard: View {
             Spacer(minLength: 4)
             switch trailing {
             case .chevron:
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                WebIcon(path: Icons.chevron, size: 15, line: 2.2)
                     .foregroundStyle(FAMColor.textMuted.opacity(0.6))
             case .add:
                 AddMixButton(mix: mix)
@@ -321,8 +327,11 @@ struct AddMixButton: View {
     @State private var busy = false
     @State private var confirmRemove = false
 
+    /// Once your list has loaded it is the only truth - a copy of this mix
+    /// is in it or not; before that, what the server said with the search.
     private var isAdded: Bool {
-        added ?? (mix.added || mixes.mixes.contains { $0.sourceId == mix.id })
+        if mixes.state == .ready { return mixes.mixes.contains { $0.sourceId == mix.id } }
+        return added ?? mix.added
     }
 
     var body: some View {
@@ -330,18 +339,19 @@ struct AddMixButton: View {
             if isAdded { confirmRemove = true } else { Task { await add() } }
         } label: {
             if wide {
+                // `.pub-add-btn`: a 44 pt rounded bar.
                 HStack(spacing: 8) {
-                    Image(systemName: isAdded ? "checkmark" : "plus").font(.system(size: 12, weight: .bold))
+                    glyph
                     Text(isAdded ? "In your myFAM" : "Add to myFAM")
                 }
-                .font(FAMFont.body(13, .bold))
+                .font(FAMFont.body(12, .bold))
                 .foregroundStyle(isAdded ? FAMColor.ink : FAMColor.copper)
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .background(isAdded ? FAMColor.copper : Color.clear, in: Capsule())
-                .overlay(Capsule().stroke(FAMColor.copper, lineWidth: 1.5))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(isAdded ? FAMColor.copper : Color.clear, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.copper, lineWidth: 1.5))
             } else {
-                Image(systemName: isAdded ? "checkmark" : "plus")
-                    .font(.system(size: 13, weight: .bold))
+                // `.mix-add`: a 34 pt ring.
+                glyph
                     .foregroundStyle(isAdded ? FAMColor.ink : FAMColor.copper)
                     .frame(width: 34, height: 34)
                     .background(isAdded ? FAMColor.copper : Color.clear, in: Circle())
@@ -357,6 +367,10 @@ struct AddMixButton: View {
             Button("Yes, remove it", role: .destructive) { Task { await remove() } }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    private var glyph: some View {
+        WebIcon(path: isAdded ? Icons.check : Icons.plus, size: 14, line: isAdded ? 2.8 : 2.6)
     }
 
     private func add() async {
@@ -403,10 +417,10 @@ struct MixHeader<Trailing: View>: View {
             }
             .accessibilityLabel(backLabel)
             Text(title)
-                .font(FAMFont.heading(17, .medium))
+                .font(FAMFont.heading(19, .medium))
                 .foregroundStyle(FAMColor.text)
                 .lineLimit(1)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
             trailing().frame(minWidth: 36)
         }
         .padding(.horizontal, 10)
@@ -449,22 +463,37 @@ struct MixDoneOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35).ignoresSafeArea()
-            VStack(spacing: 12) {
-                Text("You have finished listening to your \(name) playlist for today")
-                    .font(FAMFont.heading(20, .semibold))
+            Color(red: 10 / 255, green: 9 / 255, blue: 15 / 255).opacity(0.62).ignoresSafeArea()
+            VStack(spacing: 0) {
+                Text("You have finished listening to your \(name.isEmpty ? "myFAM" : name) playlist for today")
+                    .font(FAMFont.heading(19, .semibold))
                     .foregroundStyle(FAMColor.text)
                     .multilineTextAlignment(.center)
+                    .lineSpacing(5)
+                    .padding(.bottom, 8)
                 Text("Fresh episodes on the same topics tomorrow.")
-                    .font(FAMFont.body(13))
+                    .font(FAMFont.body(12))
                     .foregroundStyle(FAMColor.textMuted)
-                Button("Back to myFAM", action: back)
-                    .buttonStyle(CopperButtonStyle())
-                    .padding(.top, 8)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(6)
+                // `.nextup-back`: words only, no fill.
+                Button(action: back) {
+                    Text("Back to myFAM")
+                        .monoLabel(10, tracking: 0.7)
+                        .frame(maxWidth: .infinity)
+                        .padding(11)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 14)
             }
-            .padding(24)
-            .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 20))
-            .padding(.horizontal, 28)
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 14)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong))
+            .shadow(color: .black.opacity(0.45), radius: 30, y: 30)
+            .padding(.horizontal, 27)
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
         }

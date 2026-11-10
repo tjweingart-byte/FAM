@@ -228,6 +228,7 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # myFAM: mixes, the catalogue, sharing, push, the episode's topic.
                    "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",
                    "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic",
+                   "ProfileSummary", "ProfileInterest",
                    # The category chips and panel on the myFAM tab (§500).
                    "CategoriesPage", "CategoryFacet", "CategoryNode", "CategoryEpisodes",
                    "CategorySub", "CategoryEpisode"):

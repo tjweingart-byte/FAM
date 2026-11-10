@@ -157,15 +157,36 @@ struct PlayerMenu: View {
             row("Closed captions · \(captionsOpen ? "On" : "Off")", "captions.bubble") {
                 dismiss(); captionsOpen.toggle()
             }
+            // The web's order (`openPlayerMenu`): the playlist rows, then the
+            // queue, then Report.
+            Button {
+                if (now.episode?.key.query ?? "").isEmpty {
+                    dismiss()
+                    now.say("Play something first")
+                } else {
+                    open(.addToMix)
+                }
+            } label: {
+                HStack(spacing: 14) {
+                    WebIcon(path: Icons.circlePlus, size: 18, line: 1.8)
+                        .foregroundStyle(FAMColor.textMuted)
+                        .frame(width: 22)
+                    AddToPlaylistLabel()
+                    Spacer()
+                }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if model.canRemoveFromPlayingMix {
+                row("Remove from this playlist", "minus.circle") { dismiss(); model.removeFromPlayingMix() }
+            }
             row("Add to Queue", "text.badge.plus") {
                 dismiss()
                 if let ep = now.episode { now.addToQueue(ep) } else { now.say("Nothing to queue") }
             }
             row("Go to Queue", "list.bullet") { open(.queue) }
-            row("Add to myFAM Playlist", "plus.circle") { open(.addToMix) }
-            if model.canRemoveFromPlayingMix {
-                row("Remove from this playlist", "minus.circle") { dismiss(); model.removeFromPlayingMix() }
-            }
             if now.episode != nil {
                 row("Report", "flag", danger: true) { open(.report) }
             }
@@ -204,6 +225,22 @@ struct PlayerMenu: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// "Add to myFAM Playlist", with "myFAM" drawn as the wordmark
+/// (`addToPlaylistLabel`, `myFamMark`); read aloud as the words.
+struct AddToPlaylistLabel: View {
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text("Add to ")
+            Wordmark(lead: "my", size: 13.5)
+            Text(" Playlist")
+        }
+        .font(FAMFont.body(13.5, .semibold))
+        .foregroundStyle(FAMColor.text)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Add to myFAM Playlist")
     }
 }
 

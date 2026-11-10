@@ -199,35 +199,49 @@ struct CategoryPanel: View {
 
     private func hero(_ page: CategoryEpisodes) -> some View {
         let first = page.episodes[0]
+        let shade = Color(red: 10 / 255, green: 9 / 255, blue: 13 / 255)
+        // The frame is a 16:9 box of the facet's colour; the picture is an
+        // overlay cut to it, so a 4:3 thumbnail can never make it taller.
         return Button { model.playCategory(page.episodes, from: 0) } label: {
-            ZStack(alignment: .bottomLeading) {
-                Rectangle().fill(Self.tones[page.facet ?? ""] ?? Color(hex: 0x56402F))
-                if let thumb = first.thumb, let url = model.api.picture(thumb) {
-                    AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+            Rectangle()
+                .fill(Self.tones[page.facet ?? ""] ?? FAMColor.surface2)
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .frame(maxWidth: .infinity, minHeight: 150)
+                .overlay {
+                    if let thumb = first.thumb, let url = model.api.picture(thumb) {
+                        AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                    }
                 }
-                LinearGradient(stops: [.init(color: Color(red: 10 / 255, green: 9 / 255, blue: 13 / 255).opacity(0), location: 0.35),
-                                       .init(color: Color(red: 10 / 255, green: 9 / 255, blue: 13 / 255).opacity(0.78), location: 1)],
-                               startPoint: .top, endPoint: .bottom)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text((first.explicit == true ? "🅴 " : "") + first.title)
-                        .font(FAMFont.heading(18, .semibold))
-                        .foregroundStyle(Color(hex: 0xF4EFE4))
-                        .multilineTextAlignment(.leading)
-                    Text("Most played in \(page.label) today")
-                        .font(FAMFont.mono(8.5))
-                        .tracking(0.85)
-                        .textCase(.uppercase)
-                        .foregroundStyle(Color(hex: 0xF4EFE4).opacity(0.78))
+                .overlay {
+                    LinearGradient(stops: [.init(color: shade.opacity(0), location: 0.35),
+                                           .init(color: shade.opacity(0.78), location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
                 }
-                .padding(14)
-            }
-            .aspectRatio(16 / 9, contentMode: .fit)
-            .frame(minHeight: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(alignment: .bottomLeading) { heroText(page, first) }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .contentShape(RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
         .padding(.top, 4)
         .padding(.bottom, 10)
+    }
+
+    private func heroText(_ page: CategoryEpisodes, _ first: CategoryEpisode) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                if first.explicit == true { ExplicitBadge() }
+                Text(first.title)
+                    .font(FAMFont.heading(18, .semibold))
+                    .foregroundStyle(Color(hex: 0xF4EFE4))
+                    .multilineTextAlignment(.leading)
+            }
+            Text("Most played in \(page.label) today")
+                .font(FAMFont.mono(8.5))
+                .tracking(0.85)
+                .textCase(.uppercase)
+                .foregroundStyle(Color(hex: 0xF4EFE4).opacity(0.78))
+        }
+        .padding(14)
     }
 
     private func actions(_ page: CategoryEpisodes) -> some View {
@@ -383,5 +397,18 @@ struct CategoryFind: View {
             if hit { seen.insert(node.id) }
             return hit
         }.prefix(60).map { $0 }
+    }
+}
+
+/// The E before an explicit title - the same badge Search DailyFAM draws
+/// (`CatalogView`).
+struct ExplicitBadge: View {
+    var body: some View {
+        Text("E")
+            .font(FAMFont.mono(8, bold: true))
+            .foregroundStyle(FAMColor.ink)
+            .frame(width: 14, height: 14)
+            .background(FAMColor.textMuted, in: RoundedRectangle(cornerRadius: 3))
+            .accessibilityLabel("Explicit")
     }
 }

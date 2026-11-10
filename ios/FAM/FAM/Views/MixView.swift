@@ -45,7 +45,7 @@ struct MixView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MixHeader(title: mix?.name ?? "", back: back) {
+            MixHeader(title: mix?.name ?? "", back: { back() }) {
                 Button { menu = true } label: { HeadDots() }
                     .buttonStyle(.plain)
                     .accessibilityLabel("More options")

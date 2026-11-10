@@ -335,56 +335,37 @@ struct PublicMixView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 14) {
                             MixArt(cover: mix.cover, size: 84, radius: 16)
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 0) {
                                 Text(mix.name).font(FAMFont.heading(17, .semibold)).foregroundStyle(FAMColor.text)
-                                Text("\(MixesModel.briefings(mix.items.count)) · daily").monoLabel(8.5)
+                                Text("\(MixesModel.briefings(mix.items.count)) · daily")
+                                    .monoLabel(8.5, tracking: 0.51)
+                                    .padding(.top, 5)
                                 if let owner = mix.owner {
                                     Text("by " + ownerLine(owner))
-                                        .font(FAMFont.body(11.5, .semibold))
+                                        .font(FAMFont.body(11, .bold))
                                         .foregroundStyle(FAMColor.copper)
+                                        .padding(.top, 7)
                                 }
                             }
                             Spacer(minLength: 0)
                         }
                         .padding(.top, 8)
                         if mix.mine {
-                            Text("This is one of your mixes").monoLabel(8.5).padding(.top, 14)
+                            Text("This is one of your mixes").monoLabel(8.5, tracking: 0.425).padding(.top, 16)
                         } else {
                             AddMixButton(mix: mix, wide: true).padding(.top, 16)
                         }
                         if mix.items.isEmpty {
                             EmptyNote(text: "This mix is empty.").padding(.top, 16)
                         } else {
-                            Button { model.playMix(mix) } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "play.fill").font(.system(size: 12))
-                                    Text(mix.items.count == 1 ? "Play today’s 1 episode"
-                                         : "Play today’s \(mix.items.count) episodes")
-                                }
-                            }
-                            .buttonStyle(CopperButtonStyle())
-                            .padding(.top, 18)
-                            Text("Today’s edition · \(MixView.today)").monoLabel(8.5).padding(.vertical, 10)
+                            MixPlayButton(count: mix.items.count) { model.playMix(mix) }
+                                .padding(.top, 18)
+                            Text("Today’s edition · \(MixView.today)")
+                                .monoLabel(8.5, tracking: 0.425)
+                                .padding(.top, 16)
+                                .padding(.bottom, 9)
                             ForEach(mix.items) { item in
-                                HStack(spacing: 11) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(item.title).font(FAMFont.heading(12.5, .semibold)).foregroundStyle(FAMColor.text)
-                                        Text(item.subtitle).font(FAMFont.body(9.5)).foregroundStyle(FAMColor.textMuted)
-                                    }
-                                    Spacer()
-                                    Button { model.playMix(mix, from: item.id) } label: {
-                                        Image(systemName: "play.fill").font(.system(size: 10))
-                                            .foregroundStyle(FAMColor.text)
-                                            .frame(width: 30, height: 30)
-                                            .overlay(Circle().stroke(FAMColor.borderStrong))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Play this one")
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 11)
-                                .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
-                                .padding(.bottom, 8)
+                                publicRow(mix, item)
                             }
                         }
                     }
@@ -407,6 +388,29 @@ struct PublicMixView: View {
         }
     }
 
+    /// A topic of somebody else's mix (`.mix-topic`, no handle, no icon).
+    private func publicRow(_ mix: Mix, _ item: MixItem) -> some View {
+        HStack(spacing: 11) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title).font(FAMFont.heading(12.5, .semibold)).foregroundStyle(FAMColor.text)
+                Text(item.subtitle).font(FAMFont.body(9.5)).foregroundStyle(FAMColor.textMuted)
+            }
+            Spacer(minLength: 4)
+            Button { model.playMix(mix, from: item.id) } label: {
+                PlayTriangle().fill(FAMColor.text).frame(width: 11, height: 11)
+                    .frame(width: 30, height: 30)
+                    .overlay(Circle().stroke(FAMColor.borderStrong))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Play this one")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
+        .padding(.bottom, 9)
+    }
+
     private func ownerLine(_ owner: MixOwner) -> String {
         if let name = owner.name, !name.isEmpty {
             if let handle = owner.handle, !handle.isEmpty { return "\(name) · @\(handle)" }
@@ -416,9 +420,11 @@ struct PublicMixView: View {
     }
 }
 
-/// "Add to myFAM Playlist" from the player's ⋯ and a DailyFAM card's ⋯
-/// (`openAddToMix`): what the episode is about, then which mix - or a new
-/// one named for it.
+/// "Add to myFAM Playlist" from the player's ⋯, a DailyFAM card's ⋯ and a
+/// story's ⋯ (`openAddToMix`): what the episode is about, then which mix -
+/// or a new one named for it. Drawn as the web's action sheet (shot 09).
+/// Callers check there is something to add before opening it; with no
+/// query they say "Play something first" instead.
 struct AddToMixSheet: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var mixes: MixesModel
@@ -434,43 +440,15 @@ struct AddToMixSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let topic {
-                Text("Add \(topic.label) to a myFAM mix")
-                    .font(FAMFont.heading(16, .semibold))
-                    .foregroundStyle(FAMColor.text)
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 16)
-                Divider()
+                SheetGroupLabel(text: "Add \(topic.label) to a myFAM mix")
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(mixes.mixes) { mix in
-                            Button { Task { await add(to: mix, topic) } } label: {
-                                HStack(spacing: 12) {
-                                    MixArt(cover: mix.cover, size: 42, radius: 10)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(mix.name).font(FAMFont.body(14, .semibold)).foregroundStyle(FAMColor.text)
-                                            .lineLimit(1)
-                                        Text(MixesModel.briefings(mix.items.count)).monoLabel(8.5)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 22)
-                                .padding(.vertical, 8)
-                            }
+                            Button { Task { await add(to: mix, topic) } } label: { mixRow(mix) }
+                                .buttonStyle(.plain)
+                        }
+                        Button { newName = topic.label; naming = true } label: { createRow }
                             .buttonStyle(.plain)
-                        }
-                        Button { newName = topic.label; naming = true } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "plus").font(.system(size: 15, weight: .bold))
-                                    .foregroundStyle(FAMColor.text)
-                                    .frame(width: 42, height: 42)
-                                    .background(FAMColor.surface2, in: RoundedRectangle(cornerRadius: 10))
-                                Text("Create new playlist").font(FAMFont.body(14, .semibold)).foregroundStyle(FAMColor.text)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 22)
-                            .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
             } else if !problem.isEmpty {
@@ -478,12 +456,10 @@ struct AddToMixSheet: View {
             } else {
                 ProgressView().frame(maxWidth: .infinity).padding(30)
             }
-            Button("Cancel") { dismiss() }
-                .font(FAMFont.body(14, .semibold))
-                .foregroundStyle(FAMColor.textMuted)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+            SheetCancelButton { dismiss() }
         }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
         .background(FAMColor.surface)
         .presentationDetents([.medium, .large])
         .presentationBackground(FAMColor.surface)
@@ -495,20 +471,58 @@ struct AddToMixSheet: View {
         }
     }
 
+    /// `.mix-pick`: a 42 pt tile on surface-2, the name, "{n} briefings".
+    private func mixRow(_ mix: Mix) -> some View {
+        HStack(spacing: 12) {
+            MixArt(cover: mix.cover, size: 42, radius: 8, tile: FAMColor.surface2,
+                   glyph: FAMColor.text, glyphSize: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(mix.name)
+                    .font(FAMFont.body(13.5, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .lineLimit(1)
+                Text(MixesModel.briefings(mix.items.count))
+                    .font(FAMFont.body(11.5, .medium))
+                    .foregroundStyle(FAMColor.textMuted)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+    }
+
+    private var createRow: some View {
+        HStack(spacing: 12) {
+            WebIcon(path: Icons.plus, size: 20, line: 2)
+                .foregroundStyle(FAMColor.text)
+                .frame(width: 42, height: 42)
+                .background(FAMColor.surface2, in: RoundedRectangle(cornerRadius: 8))
+            Text("Create new playlist")
+                .font(FAMFont.body(13.5, .semibold))
+                .foregroundStyle(FAMColor.text)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+    }
+
+    /// One after the other, on the main actor: the topic, then the list.
     private func load() async {
         guard !query.isEmpty else { problem = "Play something first"; return }
-        async let found = model.api.episodeTopic(query: query, title: title)
-        async let refreshed: Void = mixes.load()
+        let answer: EpisodeTopic
         do {
-            let answer = try await found
-            _ = await refreshed
-            if answer.id.isEmpty && (answer.query ?? "").isEmpty {
-                problem = "Could not tell what this episode is about"
-            } else {
-                topic = answer
-            }
+            answer = try await model.api.episodeTopic(query: query, title: title)
         } catch {
             problem = "Could not load your myFAM mixes"
+            return
+        }
+        await mixes.load()
+        if answer.id.isEmpty && (answer.query ?? "").isEmpty {
+            problem = "Could not tell what this episode is about"
+        } else {
+            topic = answer
         }
     }
 
@@ -543,5 +557,40 @@ struct AddToMixSheet: View {
         } catch {
             model.nowPlaying.say(MixesModel.sentence(error, else: "Could not save that mix"))
         }
+    }
+}
+
+/// An action sheet's group header (`.sheet-group`): Geist Mono 9.5,
+/// uppercase, faint.
+struct SheetGroupLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .monoLabel(9.5, color: FAMColor.textFaint, tracking: 1.14)
+            .padding(.horizontal, 22)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// An action sheet's Cancel (`.sheet-cancel`): a white rounded bar.
+struct SheetCancelButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text("Cancel")
+                .font(FAMFont.body(13, .bold))
+                .foregroundStyle(FAMColor.textMuted)
+                .frame(maxWidth: .infinity)
+                .padding(12)
+                .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 }

@@ -288,9 +288,10 @@ final class FAMAPI: @unchecked Sendable {
                       as: SavedState.self).saved
     }
 
-    func save(_ ep: EpisodeKey, title: String) async throws {
+    /// `source` says where it was saved from: the player, or a story.
+    func save(_ ep: EpisodeKey, title: String, source: String = "player") async throws {
         _ = try await send("POST", "api/v1/saved", body: [
-            "query": ep.query, "minutes": ep.minutes, "title": title, "source": "player",
+            "query": ep.query, "minutes": ep.minutes, "title": title, "source": source,
         ], as: SavedState.self)
     }
 

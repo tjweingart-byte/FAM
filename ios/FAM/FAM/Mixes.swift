@@ -40,6 +40,16 @@ final class MixesModel: ObservableObject {
 
     func mix(_ id: String) -> Mix? { mixes.first { $0.id == id } }
 
+    /// Signed out: nothing of the last account stays (its face included).
+    func reset() {
+        mixes = []
+        state = .loading
+        me = nil
+        categories = nil
+        categoryState = CategoryState()
+        categorySubs = []
+    }
+
     /// Arriving on the tab (`loadMixes`).
     func load() async {
         Task { await loadCategories() }

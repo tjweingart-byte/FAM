@@ -324,7 +324,7 @@ struct GlideView: View {
     private let gap: CGFloat = 10
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 14) {
             kicker
             GeometryReader { geo in
                 let step = cardWidth + gap
@@ -335,20 +335,19 @@ struct GlideView: View {
                         card(i, title)
                     }
                 }
+                .padding(.vertical, 10)
                 .offset(x: arrived || still ? centre : from)
             }
-            .frame(height: 112)
+            .frame(height: 118)
             if glide.titles.count >= 2 && glide.titles.count <= 12 { dots }
-            VStack(spacing: 6) {
-                Text(glide.titles.indices.contains(glide.pos) ? glide.titles[glide.pos] : "")
-                    .font(FAMFont.heading(19))
-                    .foregroundStyle(FAMColor.text)
-                    .multilineTextAlignment(.center)
-                Text(glide.first ? "Getting your episode ready" : "Getting the next episode ready")
-                    .font(FAMFont.body(12.5))
-                    .foregroundStyle(FAMColor.textMuted)
-            }
-            .padding(.horizontal, 28)
+            Text(glide.titles.indices.contains(glide.pos) ? glide.titles[glide.pos] : "")
+                .font(FAMFont.heading(19, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .frame(maxWidth: 300)
+                .padding(.horizontal, 32)
+            status
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
@@ -359,32 +358,61 @@ struct GlideView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// "myFAM · {mix} · 2 of 4", the mix's name in copper (`.fam-ld-kick`).
     private var kicker: some View {
-        (Text("myFAM · ") + Text(glide.mixName).bold()
-            + Text(glide.titles.count > 1 ? " · \(glide.pos + 1) of \(glide.titles.count)" : ""))
-            .font(FAMFont.mono(9.5))
+        let count = glide.titles.count > 1 ? " · \(glide.pos + 1) of \(glide.titles.count)" : ""
+        var line = Text("myFAM")
+        if !glide.mixName.isEmpty {
+            line = line + Text(" · ") + Text(glide.mixName).foregroundColor(FAMColor.copper)
+        }
+        line = line + Text(count)
+        return line
+            .font(FAMFont.mono(10.5))
+            .tracking(1.05)
             .foregroundStyle(FAMColor.textMuted)
             .textCase(.uppercase)
-            .padding(.horizontal, 24)
-            .multilineTextAlignment(.center)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.horizontal, 32)
     }
 
+    /// "Getting your episode ready", after a pulsing copper dot.
+    private var status: some View {
+        HStack(spacing: 8) {
+            PulsingDot(still: still)
+            Text(glide.first ? "Getting your episode ready" : "Getting the next episode ready")
+                .font(FAMFont.mono(11.5))
+                .tracking(0.345)
+                .foregroundStyle(FAMColor.textMuted)
+        }
+        .padding(.horizontal, 32)
+    }
+
+    /// Number at the top (copper on the current card; "Played" or
+    /// "Skipped" on the ones before), title at the bottom.
     private func card(_ i: Int, _ title: String) -> some View {
         let current = i == glide.pos
-        let label: String = i < glide.pos ? "\(i + 1) · \(glide.played.contains(i) ? "Played" : "Skipped")" : "\(i + 1)"
-        return VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(FAMFont.mono(9.5)).foregroundStyle(FAMColor.textMuted)
+        let before = i < glide.pos
+        let played = glide.played.contains(i)
+        let label: String = before ? "\(i + 1) · \(played ? "Played" : "Skipped")" : "\(i + 1)"
+        let numberColor: Color = current ? FAMColor.copper : ((before && played) ? FAMColor.textMuted : FAMColor.textFaint)
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(label)
+                .font(FAMFont.mono(9.5))
+                .tracking(0.76)
+                .foregroundStyle(numberColor)
+            Spacer(minLength: 4)
             Text(title)
-                .font(FAMFont.heading(13, .semibold))
-                .foregroundStyle(FAMColor.text)
+                .font(FAMFont.body(12))
+                .foregroundStyle(current ? FAMColor.text : FAMColor.textMuted)
+                .lineSpacing(3)
                 .lineLimit(3)
-            Spacer(minLength: 0)
         }
-        .padding(11)
+        .padding(10)
         .frame(width: cardWidth, height: 96, alignment: .topLeading)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(current ? FAMColor.copper : FAMColor.border,
-                                                          lineWidth: current ? 1.5 : 1))
+                                                          lineWidth: 1))
         .opacity(current ? 1 : 0.4)
         .scaleEffect(current && (arrived || still) ? 1.08 : 1)
         .animation(still ? nil : .spring(response: 0.4, dampingFraction: 0.6).delay(0.25), value: arrived)
@@ -394,9 +422,28 @@ struct GlideView: View {
         HStack(spacing: 6) {
             ForEach(0..<glide.titles.count, id: \.self) { i in
                 Capsule()
-                    .fill(i == glide.pos ? FAMColor.copper : (i < glide.pos ? FAMColor.textFaint : FAMColor.border))
+                    .fill(i == glide.pos ? FAMColor.copper : (i < glide.pos ? FAMColor.textFaint : FAMColor.borderStrong))
                     .frame(width: i == glide.pos ? 18 : 6, height: 6)
             }
         }
+    }
+}
+
+/// The 7 pt copper dot before the glide's status, pulsing 0.3 to 1 over
+/// 1.2 s (`.fam-ld-status::before`); still with reduced motion.
+private struct PulsingDot: View {
+    let still: Bool
+    @State private var bright = false
+
+    var body: some View {
+        Circle()
+            .fill(FAMColor.copper)
+            .frame(width: 7, height: 7)
+            .opacity(still ? 1 : (bright ? 1 : 0.3))
+            .onAppear {
+                guard !still else { return }
+                withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { bright = true }
+            }
+            .accessibilityHidden(true)
     }
 }

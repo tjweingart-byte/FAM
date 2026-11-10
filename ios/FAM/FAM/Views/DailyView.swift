@@ -386,9 +386,16 @@ struct TileMenu: View {
                     }
                 }
             }
+            row("Add to myFAM Playlist", "plus.circle") {
+                if tile.query.isEmpty {
+                    dismiss()
+                    model.nowPlaying.say("Play something first")
+                } else {
+                    addToMix = true
+                }
+            }
             row("Add to Queue", "text.badge.plus") { dismiss(); model.addToQueue(tile) }
             row("Go to Queue", "list.bullet") { queue = true }
-            row("Add to myFAM Playlist", "plus.circle") { addToMix = true }
             row("Not interested", "hand.thumbsdown") { dismiss(); model.notInterested(tile) }
             Button("Cancel") { dismiss() }
                 .font(FAMFont.body(14, .semibold))

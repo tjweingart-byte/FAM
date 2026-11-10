@@ -82,13 +82,12 @@ Checked against a specification written from `static/index.html` (the web's
 | Header: the centred dailyFAM wordmark, nothing else (the bookshelf moved to search) | Done | |
 | Tap DailyFAM again: scroll to top; arriving from another tab refetches | Done | |
 | Friends' stories row: your story, friends with fresh/seen rings, Invite | Done | seen state per device |
-| Story viewer: 6 s a story, bars, tap back/on, hold, swipe between friends, play the episode, reply, heart, Report | Partial | the note composer, reshare, "Delete vibe" and a friend's profile wait for those screens |
+| Story viewer: 6 s a story, bars, tap back/on, hold, swipe between friends, play the episode, reply, heart; the ⋯ list (Save for later, Share, Add to Queue, Add topic to playlist, Report, Block) | Partial | the story holds while its ⋯ is open; the note composer, reshare, "Delete vibe" / "Remove from your story" and a friend's profile wait for those screens |
 | Pick up where you left off: resume (time left, bar) and thread cards, X dismisses for good | Done | resumes seek once the audio has arrived. **Server bug found:** progress keeps `minutes` as an integer, so a 1.5-minute resume is asked as 1 minute (a different episode) - on the web too |
 | Five rails in the server's order, "Made for you, {Day} {part}" / "Start here", the others' headings | Done | |
 | Each rail's empty sentence from the server; friends rail silent with nobody followed | Done | |
 | Card: picture, subject chip, ready badge, save bookmark, ⋯, friends pill and "N friends listened", title size steps (>48, >72), live line with its age, hook with each rail's fallback | Done, differs on purpose | the owner's call for iOS: the picture at its full 4:3 (the web crops rail pictures to a 96 pt strip), the whole hook (the web clamps it to two lines), and the friends' faces on the subject chip's line, centred on it (the web lifts them above the chip) |
-| Card ⋯: Share, Add to Queue, Go to Queue, Not interested | Done | |
-| Card ⋯: Add to myFAM Playlist | Done | |
+| Card ⋯ in the web's order: Share, Add to myFAM Playlist, Add to Queue, Go to Queue, Not interested | Done | |
 | VIEW MORE at a rail's end → View more: 16 at a time, Refresh, the reason line, wrap notes, caught up, Trending by continent | Done | VIEW MORE always shows (the web shows an arrow until the rail is scrolled to its end) |
 | Find new friends pill after the friends rail | Not yet | waits for the Friends screen |
 | Guest sample note | n/a | the iOS app requires an account |
@@ -108,7 +107,7 @@ Checked against a specification written from `static/index.html` (the web's
 | Share / VIBE! / save on the right (§192) | Partial | save and share done (iOS share sheet for the web's targets); VIBE! posts with a caption - the web's full story editor and "send inside FAM" not yet; the burst animation not yet |
 | Sources by the title, and the Sources sheet | Done | favicons over initials |
 | Live captions sheet (`live-captions`) | Done, differs on purpose | the owner's call for iOS: the whole script, scrollable, the current sentence highlighted and followed (the web shows the current sentence alone); tap a sentence to jump there |
-| ⋯ menu: Share, VIBE!, Save, Captions, Add to/Go to Queue, Add to myFAM Playlist, Remove from this playlist, Report (1.2) | Done | "Remove from this playlist" only for your own mix, as a `remove` operation (the web sends the whole list, §498) |
+| ⋯ menu in the web's order: Share, VIBE!, Save, Captions, Add to myFAM Playlist ("myFAM" drawn as the wordmark), Remove from this playlist, Add to/Go to Queue, Report (1.2) | Done | "Remove from this playlist" only for your own mix, as a `remove` operation (the web sends the whole list, §498); the playing order is spliced as the web does so the next item still follows; the rows' other icons are SF Symbols, not the web's `MENU_ICONS` |
 | Speed 0.5-2x, keep the voice's pitch (`speed-pitch`) | Done | time-pitch unit; length for searches rebuilds |
 | Queue (§190), next-in-queue button, badge | Done | |
 | After an episode: four recommendations, first starts in 15 s (`post-episode-grid`) | Done | `/api/nextup`; album tile n/a |
@@ -125,22 +124,23 @@ and icons (2026-11-10), and a specification written from `static/index.html`
 
 | Web | iOS | Note |
 |---|---|---|
-| The myFAM tab: wordmark, Create new mix (shown once `/api/mixes` answers), subtitle, your mixes (cover, meta with public/private, from, joint; preview), empty and error sentences | Done | every arrival opens on the list and asks afresh |
-| Public-mix search: Cancel, 180 ms debounce, out-of-order answers dropped, the four sentences, result cards with (+) | Done | |
-| Category filter chips on the myFAM tab (§500): All, followed (starred), facets, More; inside a category the X, root and sub chips; the 16:9 hero in the facet's colour, Play all · N min, Follow/Following, episode rows; Find a category | Done | plays replay-only, the rest queued; the web's oversized row picture (a bug the shots found) is not copied |
-| New mix: cover, live name preview, 40-character name, the client's duplicate check, Create opens the empty mix | Done | cover is cut square from the middle; the web's position-and-zoom editor not yet |
-| A mix's page: hero, Change, people line and Who's in it, Share and Invite, Add topics, Play today's N, Today's edition date, topics with the adder's face | Done | updates in place (the web pushes the page again) |
-| Drag to reorder (one whole-list write) | Done | |
-| Recommended topics: five, Shuffle, personalised order or local ranking, (+) adds | Done | |
-| Listen time: picker, Clear, the toasts | Partial | saved for the server; the "ready" notification is Web Push only - APNs is not built on the server, and the row says so |
+| The myFAM tab: wordmark, Create new mix (shown once `/api/mixes` answers), subtitle, your mixes (cover, meta with public/private, from, joint; preview), empty and error sentences | Done | every arrival opens on the list and asks afresh; the tab icon carries the web's filled tone under its chevrons |
+| Public-mix search: Cancel, 180 ms debounce, out-of-order answers dropped, the four sentences, result cards with (+) | Done | the (+) reads the loaded list once it has loaded; a tap on it never opens the mix |
+| Category filter chips on the myFAM tab (§500): All, followed (starred), facets, More; inside a category the X, root and sub chips; the 16:9 hero in the facet's colour (surface-2 for an unknown facet, the E badge on an explicit title), Play all · N min, Follow/Following, episode rows; Find a category | Done | plays replay-only with no surface, and only the episodes after the one tapped are queued, each still replay-only; the web's oversized row picture (a bug the shots found) is not copied |
+| New mix: X, the step label, cover, live name preview, 40-character name, the client's duplicate check, Create opens the empty mix | Done | |
+| A mix's page: hero, Change, people line (your own face and name on a mix that is yours alone, from `/api/profile`) and Who's in it (a sheet; rows open nothing until the profile screen exists), Share and Invite, Add topics, Play today's N, Today's edition date, topics with the adder's face | Done | updates in place (the web pushes the page again); Back asks for the list afresh |
+| Drag to reorder (one whole-list write) | Done | the new order is drawn at once and kept until the server answers; a refusal says the server's sentence and puts the old order back |
+| Recommended topics: five, Shuffle, personalised order or local ranking (your profile's `interests_shown`, else every facet, then the mix's facets), (+) adds | Done | |
+| Listen time: the time pill ("--:--" when none), picker, Clear, the toasts | Partial | the picker is a wheel in a small sheet and writes once, on Done; saved for the server; the "ready" notification is Web Push only - APNs is not built on the server, and the row says so |
 | Public / Private switch | Done | |
 | ⋯ menu, owner and member, each action and sentence | Done, differs on purpose | Delete asks first (the web deletes in one tap); Rename starts from the current name |
-| Joint mixes: invite link, make it yours alone, leave, member permissions | Partial | joining from a `/j/` link needs universal links (not yet); invites are sent from the app |
-| Covers: choose, change, remove, the AI-check note | Done | |
-| Sharing a mix (make public first; the share text) | Done | iOS share sheet; story cards not yet |
+| Joint mixes: invite link, make it yours alone, leave, member permissions | Partial | joining from a `/j/` link needs universal links (not yet); invites go to iOS's share sheet (no title on it) |
+| Covers: choose, change, remove, the AI-check note before a photo is used (new mix and mix page) | Partial | cut square from the middle; the web's position-and-zoom editor not ported |
+| Sharing a mix (make public first): "Share this mix" with the server's destinations (copy, iMessage, Email, WhatsApp, X, Facebook, LinkedIn) and the no-public-address note | Partial | sending to a person or group inside FAM (`/api/messages`) waits for Messages - the episode share has none either; the Instagram/Snapchat story cards not ported |
 | Add topics: recommended, typed topic first (short-named by the server), teams and companies, topics, (+)/✓ as operations; the web's 48 subject icons | Done | icons generated from `CAT_ICONS` by `tools/ios_icons.py`; a test fails if they drift |
 | Somebody else's public mix: owner, Add to myFAM / In your myFAM, play, remove a copy | Done | the owner's profile link waits for the profile screen |
-| Playing a mix: the playlist, today's edition prompts, the glide loading screen, skip, failures, Next from {mix} in the Queue, the finished overlay | Done | |
+| Add to myFAM Playlist sheet (player, card and story ⋯) | Done | with nothing playing it says "Play something first" and opens nothing |
+| Playing a mix: the playlist, today's edition prompts, the glide loading screen, skip (which starts the failure count again), failures (two in a row, or no connection, stop it), an allowance refusal ends it in the server's words, Next from {mix} in the Queue, the finished overlay | Partial | the glide's status line never carries the server's "cannot write" note: the app does not read `/api/health`, where the web gets it |
 | Guest sample mix | n/a | the iOS app requires an account |
 
 ## Social

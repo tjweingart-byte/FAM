@@ -183,6 +183,9 @@ final class AppModel: ObservableObject {
     private func forget() {
         listener = nil
         rails = []
+        mixes.reset()
+        mixPlay = nil
+        mixPath = []
         stage = .signedOut
     }
 
