@@ -375,7 +375,7 @@ final class FAMAPI: @unchecked Sendable {
         _ = try await send("POST", "api/v1/vibe", body: [
             "query": ep.query, "title": title, "minutes": ep.minutes,
             "thread": thread, "caption": caption,
-        ], as: OK.self)
+        ], as: Ignored.self)
     }
 
     func unvibe(_ ep: EpisodeKey) async throws {
@@ -681,43 +681,54 @@ struct Story: Decodable, Identifiable, Hashable {
 
 /// A story's layout (`social.clean_style` / `clean_note_style`). Every
 /// field optional and read leniently: a layout the app cannot read draws
-/// the plain page rather than dropping the faces row.
+/// the plain page rather than dropping the faces row. A vibe's picture is
+/// framed (`frame`), sized (`zoom`) and moved (`tx`, `ty`); a note has a
+/// background (`bg`) instead.
 struct StoryStyle: Decodable, Hashable {
-    var bg: String?
-    var font: String?
-    var size: Double?
-    var cx: Double?
-    var cy: Double?
-    var thumb: String?
-    var stickers: [StorySticker]
+    let bg: String?
+    let font: String?
+    let size: Double?
+    let cx: Double?
+    let cy: Double?
+    let frame: String?
+    let zoom: Double?
+    let tx: Double?
+    let ty: Double?
+    let thumb: String?
+    let stickers: [StorySticker]
 
-    enum CodingKeys: String, CodingKey { case bg, font, size, cx, cy, thumb, stickers }
+    enum CodingKeys: String, CodingKey { case bg, font, size, cx, cy, frame, zoom, tx, ty, thumb, stickers }
 
     init(from decoder: Decoder) throws {
-        stickers = []
-        guard let c = try? decoder.container(keyedBy: CodingKeys.self) else { return }
-        bg = try? c.decodeIfPresent(String.self, forKey: .bg)
-        font = try? c.decodeIfPresent(String.self, forKey: .font)
-        size = try? c.decodeIfPresent(Double.self, forKey: .size)
-        cx = try? c.decodeIfPresent(Double.self, forKey: .cx)
-        cy = try? c.decodeIfPresent(Double.self, forKey: .cy)
-        thumb = try? c.decodeIfPresent(String.self, forKey: .thumb)
-        stickers = (try? c.decodeIfPresent([StorySticker].self, forKey: .stickers)) ?? []
+        let c = try? decoder.container(keyedBy: CodingKeys.self)
+        bg = try? c?.decodeIfPresent(String.self, forKey: .bg)
+        font = try? c?.decodeIfPresent(String.self, forKey: .font)
+        size = try? c?.decodeIfPresent(Double.self, forKey: .size)
+        cx = try? c?.decodeIfPresent(Double.self, forKey: .cx)
+        cy = try? c?.decodeIfPresent(Double.self, forKey: .cy)
+        frame = try? c?.decodeIfPresent(String.self, forKey: .frame)
+        zoom = try? c?.decodeIfPresent(Double.self, forKey: .zoom)
+        tx = try? c?.decodeIfPresent(Double.self, forKey: .tx)
+        ty = try? c?.decodeIfPresent(Double.self, forKey: .ty)
+        thumb = try? c?.decodeIfPresent(String.self, forKey: .thumb)
+        let found = try? c?.decodeIfPresent([StorySticker].self, forKey: .stickers)
+        stickers = found ?? []
     }
 
     /// Whether the editor laid this out at all (`storyHasLayout`).
     var isEmpty: Bool {
-        bg == nil && font == nil && size == nil && cx == nil && cy == nil && thumb == nil && stickers.isEmpty
+        bg == nil && font == nil && size == nil && cx == nil && cy == nil && frame == nil && zoom == nil
+            && tx == nil && ty == nil && thumb == nil && stickers.isEmpty
     }
 }
 
 /// A sticker on a story: an emoji or a word, where it sits, its scale and turn.
 struct StorySticker: Decodable, Hashable {
-    var k: String
-    var x: Double
-    var y: Double
-    var s: Double
-    var r: Double
+    let k: String
+    let x: Double
+    let y: Double
+    let s: Double
+    let r: Double
 
     enum CodingKeys: String, CodingKey { case k, x, y, s, r }
 
@@ -733,10 +744,10 @@ struct StorySticker: Decodable, Hashable {
 
 /// Somebody @mentioned on a story, and where the tag sits.
 struct StoryTag: Decodable, Hashable {
-    var handle: String
-    var name: String
-    var x: Double
-    var y: Double
+    let handle: String
+    let name: String
+    let x: Double
+    let y: Double
 
     enum CodingKeys: String, CodingKey { case handle, name, x, y }
 

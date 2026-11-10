@@ -475,6 +475,18 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
+    /// A vibe posted from the story editor (`postVibeStory`): VIBE! is lit
+    /// only if the episode playing is still the one vibed, and VIBED bursts
+    /// 300 ms after the editor has gone back to it.
+    func vibedFromEditor(_ key: EpisodeKey) {
+        guard let ep = episode, ep.key.query == key.query, ep.key.minutes == key.minutes else { return }
+        vibed = true
+        Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            if self.episode == ep { self.vibedBurst += 1 }
+        }
+    }
+
     func unvibe() {
         guard let ep = episode else { say("Play something first"); return }
         Task {

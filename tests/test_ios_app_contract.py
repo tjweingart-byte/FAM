@@ -243,6 +243,8 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # DailyFAM: View more, Pick up, the faces row, the library.
                    "SectionPage", "TileGroup", "PickUpPage", "PickUpThread", "PickUpResume",
                    "SavedPage", "SavedItem", "CirclePage", "CirclePerson", "CircleMe", "Story",
+                   # The story editor's layout, its stickers and @tags (§213, §297).
+                   "StoryStyle", "StorySticker", "StoryTag",
                    "CatalogPage", "CatalogEpisode", "FriendFace", "RailsPage",
                    # myFAM: mixes, the catalogue, sharing, push, the episode's topic.
                    "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",

@@ -52,6 +52,9 @@ struct ChatScreen: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var deeper: SharedEpisode?
     @State private var popReady = false
+    /// FAM's word-by-word autocorrect behind the keyboard (`acInstall` on
+    /// `#threadInput`), made once the screen has the app's speller.
+    @State private var corrector: LiveCorrector?
     @FocusState private var typing: Bool
 
     init(api: FAMAPI, open: ChatOpen) {
@@ -451,7 +454,12 @@ struct ChatScreen: View {
                 .frame(maxHeight: 112)
                 .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
-                .onChange(of: chat.draft) { _, _ in chat.noteTyping() }
+                .onChange(of: chat.draft) { old, now in
+                    chat.noteTyping()
+                    let box = chat
+                    corrector?.changed(from: old, to: now, read: { box.draft }, write: { box.draft = $0 })
+                }
+                .onAppear { if corrector == nil { corrector = LiveCorrector(speller: model.speller) } }
             Button { chat.sendText() } label: {
                 RoundIcon(gold: true) { WebIcon(path: Icons.arrow, size: 16, line: 2.4) }
             }
