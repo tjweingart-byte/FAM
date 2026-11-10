@@ -232,3 +232,18 @@ def test_a_link_is_still_paced_as_a_spend(client, monkeypatch):
     monkeypatch.setattr(appmod, "_rate_limit", lambda request: called.append(1))
     client.post("/api/attach", json={"kind": "link", "url": "https://example.com/a"})
     assert called, "a link was not paced"
+
+
+def test_deleting_an_account_leaves_no_transaction_open(store):
+    """Account deletion's `forget` once wrote without committing. On Postgres
+    that held this store's lock until the server died, and every new server
+    timed out on it at startup (PROBLEMS.md §518)."""
+    item = A.Attachment(id="a1", kind="text", name="n", created=time.time(), text="x")
+    store.put("u1", item)
+    assert store.forget("u1") == 1
+    assert not store._conn().in_transaction
+    # Every write commits on its own, the way the other stores' do.
+    store.put("u2", A.Attachment(id="a2", kind="text", name="n", created=time.time(), text="y"))
+    assert not store._conn().in_transaction
+    other = A.AttachmentStore(store.path)
+    assert other.get("u2", "a2") is not None and other.get("u1", "a1") is None
