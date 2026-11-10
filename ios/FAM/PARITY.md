@@ -17,7 +17,7 @@ the app.
 | Light theme colours (`:root` light) | Done | `Theme.swift` |
 | Bricolage Grotesque / Geist / Geist Mono (`typefaces`) | Done | bundled, static instances |
 | Drawn wordmark (daily/my/yourFAM, the chevron A) | Done | from the web's SVG paths |
-| Dark mode (Settings) | Not yet | web default is light (§250) |
+| Dark mode (Settings) | Not built, on purpose | light only (`typefaces`, §250, the owner's call); Settings draws no Dark mode row rather than a dead one (`no-dead-controls`) |
 | Larger phone text never breaks a screen (`large-text`, §499): a fixed height on anything holding words is a floor; a heading never squeezed by a control on its row; the wordmark on one line | Partial | every size scales (`relativeTo`); every fixed height round words - pills, buttons, search fields, the Pick up cards, the friends pill, the story's reply box, the profile's tabs - is a floor (`frame(minHeight:)`), identical at the default size; the wordmarks never wrap (`fixedSize`); a View more heading wraps rather than being cut to two lines by Refresh. Not yet looked at on a phone at the accessibility sizes. Left as on the web: the mix glide's 96 pt cards (the web's are fixed too) |
 | Motion (§292: screen pushes, the burst on save/vibe) | Partial | the player's save / VIBE! burst (squeeze, ring, six sparks, the SAVED / VIBED lozenge, VIBED 300 ms after the composer), the title wipe, the picture's blur-up, the What's next rise, the modals' fade and lift and the mini bar's rise are drawn with SwiftUI animations at the web's timings; screen pushes are iOS's own |
 
@@ -38,16 +38,16 @@ the app.
 |---|---|---|
 | Sign up (email + password, terms box unticked, §228) | Done | |
 | Log in | Done | |
-| Phone number on sign-up | Not yet | deliberately off for iOS 1.0 (APP_STORE.md gap 12) |
+| Phone number on sign-up | Deliberately off | off for iOS 1.0, the owner's decision (APP_STORE.md gap 12): neither the sign-up form nor the identity step asks for it, and "required" is on the name alone |
 | Sign in with Apple / Google (`op-identity`, 4.8) | Done (iOS only) | the web has neither on purpose. Apple: nonce hashed to Apple, raw to the server, the one-time code sent so deletion revokes. Google: GoogleSignIn, client `FAM iOS` in Google Cloud project `fam-app-514301`. Both confirmed on a phone, linked to one account (2026-11-10). Both wait for the terms box on sign-up |
 | Linking Apple / Google to an account (YourFAM → Sign-in methods) | Done (iOS only) | the server never joins accounts by email, so a provider used while signed out makes its own account; linking is a provider sign-in while signed in. Unlink when another way in remains |
 | Delete the account from the waiting screen (5.1.1(v)) | Done | `/api/account` is open past the waitlist |
-| Password reset (`/reset`, §297) | Not yet | |
-| Identity step after sign-up (name, handle, photo) | Not yet | |
-| Activation step (§411) | Not yet | `activation_needed` on `/api/auth/me` |
+| Password reset (`/reset`, §297) | Done | on the log-in screen, as the web's: "Forgot password?" only when `/api/auth/reset` says `available`; email → "Email me a code" → the 6-digit code and a new password ("Set new password", the eye, "Send a new code", "Remembered it? Log in"); the server's `message` becomes the note, its refusals show under the button; done, the phone is signed in (`want_token`) and told "Password changed. You're signed in." |
+| Identity step after sign-up (name, handle, photo) | Done | after a sign-up or a log-in (email, Apple, Google), as the web's `afterAccount`: interests already done (`intro_done`) - straight in; a name, a handle and a place - the interests; otherwise "Who are you?" (the three step marks, no X, "required" on the name, Next, Skip for now dimmed and refused while the name is missing, the required-fields popup that puts you back on the name), then the interests ("Start listening" / "Skip for now"), then DailyFAM. The phone field is off (row above) |
+| Activation step (§411) | Partial | the editor is built ("Your details" from Settings' Date of birth / Gender: the date, one place box, the gender chips, the counting notice with its link, the under-13 confirm, the deleted message); the first-time owed modal at launch (`activation_needed`) is not shown on iOS |
 | Terms re-acceptance when the version changes | Not yet | `terms` on `/api/consent` |
 | Waitlist: waiting screen plays today's samples | Done | |
-| Intro / first-run screens | Not yet | |
+| Intro / first-run screens | Partial | the identity step and the interests list (above) are built; the boot intro animation and the welcome screen are not |
 
 ## The loading screen
 
@@ -134,11 +134,11 @@ measured sizes (`player-layout`, `transport`, `queue`, `post-episode-grid`,
 | Album swipe and "scroll up for next in {album}" (`#nextHint`) | n/a | no albums (Play-all) on iOS |
 | "Which one do you mean?" (§426): `ask_reading` on any tap that may write; the server's readings (up to four), the choice joining the question | Done | |
 | Limit screen (`showLimitReached`) | Partial | the server's title and sentence, the meter, "Resets … in your time", Not now; no "See plans" (no plans screen or checkout on iOS). Drawn only on the server's 429 quota refusal, which production no longer sends: everyone is unlimited (`ENFORCE_QUOTAS=0` in `render.yaml`, §519); the app shows no meter, plan or allowance anywhere else |
-| Toasts and snacks: the plain line with the copper rule (§299), 2.2 s / 3.5 s with an action | Done | "Saved for Later · Open" and "Vibed to your story · View" have no action on iOS (no Saved screen; the story view is not opened from here) |
+| Toasts and snacks: the plain line with the copper rule (§299), 2.2 s / 3.5 s with an action | Done | "Saved for Later · Open" (player, a card's bookmark, a message's card) opens Save for Later on yourFAM, the player and any cover taken down first; "Vibed to your story · View" has no action (the story view is not opened from here) |
 | Offline: play an episode kept on the device, the offline bar | Not yet | no OfflineShelf on iOS |
 | Lock screen: title, play/pause, ±15, scrub | iOS only | the web has no Media Session; kept |
 | Opus stream (stage 3) and signed replay links (§252) | Not yet | PCM today |
-| Kept episodes replay by `X-FAM-Episode` (§173) | Partial | a message's Listen replays the sender's exact episode (`episode=`), asking the question when it is gone (409); a playlist's interrupted episode resumes the same way; the listening history's replay is not built |
+| Kept episodes replay by `X-FAM-Episode` (§173) | Done | a message's Listen replays the sender's exact episode (`episode=`), asking the question when it is gone (409); a playlist's interrupted episode resumes the same way; a listening history row replays the episode that was heard, under the tab it was first heard on |
 
 ## myFAM (mixes)
 
@@ -186,16 +186,39 @@ and icons (2026-11-10), and a specification written from `static/index.html`
 
 ## YourFAM (profile) and Settings
 
+Checked against phone-size screenshots of the web, measured sizes and the
+YourFAM specification (`screen-profile`, `screen-settings`, `screen-identity`,
+`screen-location`, `screen-intro`, `screen-saved`, `screen-history`,
+`screen-myvibe`), item by item. Guests never reach the app, so no guest gate
+or guest rows are built.
+
 | Web | iOS | Note |
 |---|---|---|
-| Account details, privacy and safety, sign out, delete account (5.1.1(v)) | Done | |
-| Profile hero, picture, interests line, Vibes/Mixes tiles (§341) | Not yet | |
-| Hold a vibe on your own grid: "Remove vibe from profile" (§499, `DELETE /api/vibe`) | Not yet | needs the grid above; a vibe is deleted whole from your story's ⋯ ("Delete vibe") and the player's VIBE! |
-| Saved for later, folders (`save-pointer`) | Not yet | |
-| Listening history | Not yet | |
-| Edit profile, interests, place, time zone | Not yet | |
-| Blocked people | Done | FAMSafety; the row shows the count or "None"; unblocking says "Unblocked @handle" |
-| Feedback report | Not yet | |
+| The hub's header: yourFAM wordmark, the 36 pt gear (Settings), no (+) (`friends-vibes-first`) | Done | the wash scrolls with the page under an opaque strip; the header stays on a failed load, with Try again (the web's error page has neither, Q2) |
+| Hero: 92 pt face, name ("Set up your profile" unnamed), "place · @handle" / "no handle yet" | Done | faces are initials on the person's colour, as everywhere on iOS (quirk 8b) |
+| Your story ring on your face (copper while unseen, faint once seen) opens your story | Done | from `/api/profile` `stories`, seen state shared with the faces row |
+| Your face with no story and the (+) badge open the note composer | Not yet | the composer is not built, so the face is not a button and no (+) is drawn (`no-dead-controls`) |
+| friends / vibes / mixes (singular and plural, 0 drawn), friends opens Friends, vibes / mixes switch the tab and scroll to it | Done | friends carries the new-followers count (Q10: the web fetches it and draws nothing), cleared by opening Friends |
+| Edit profile ("Set up profile" unnamed) and Saved for Later (paper, bookmark) | Done | |
+| Interests line: `interests_shown`, at most `interests_max`, one sideways line cut at the edge; "Add interests in Edit profile" when empty | Partial | the server chooses and orders (`op-profile-hub`); chips open no Topic screen (none on iOS), so they are not buttons; the empty chip opens Edit profile |
+| Vibes / Mixes tabs (kept across redraws), 3:4 grid, titles never clamped, See all after twelve, the two empty notes | Done | a vibe plays by its question and length; a mix opens its page if it is yours, else its public page |
+| Hold a vibe on your own grid: 500 ms (a move past 10 pt cancels), the sheet's head and "Remove vibe from profile" → `DELETE /api/vibe` | Done | the vibe goes whole - grid, story, My Vibe, folder - the profile, faces row and chat (+) re-read; "Vibe deleted" or "Could not delete that vibe"; VoiceOver has it as an action |
+| Settings, YOU: Name and handle, Profile picture, Where you are, Date of birth, Gender, Time zone | Done | each opens its editor and returns to Settings (Q3 not copied); Where you are reads the profile's place before preferences answer (Q13) |
+| Time zone: Automatic (zone) or one of the twelve, "Episodes use … time" (`listener-clock`) | Done | kept on this phone only; the pin goes out as `X-FAM-TZ` on every request, else the phone's own zone |
+| Settings, LISTENING: Your interests (the whole list, X / Save), Listening history, My Vibe, Save for Later, Default speed (with the pitch under "Voice"), Keep the voice's pitch, Voice for your searches | Done | speed and pitch are the player's own device settings; the voice is kept on the server (§147) and so governs iOS searches too; the row is drawn only when the server reports voices. "My Vibe" names both the row and the screen (Q9) |
+| Dark mode, Say "Hey FAM" | Not built | light only (§250); no voice search on iOS - neither row is drawn |
+| Settings, PRIVACY AND SAFETY: Send my questions to AI (Allowed / Off / Not asked yet; Turn off sheet, or the consent sheet), Count me in FAM's totals, Blocked people (count, "You haven't blocked anyone", the tap-to-unblock sheet), Terms / Privacy / Help | Done | toggle rows are rows whose value reads On / Off, as the web draws them (Q7 left to the owner); the three pages open in Safari's sheet |
+| Settings, ACCOUNT SETTINGS: Subscription (the plans sheet), Private search, Show my name on episodes I searched, Signed in as, Change password, Log out, Delete account | Done | the plans sheet lists the server's tiers with "YOUR PLAN", the limits in the refusal's words and the note from `enforced` - no checkout (`tiers-off`); private search is honoured by the server for every search, so it works with no bubble on iOS's search; Delete is the web's sheet ("This deletes everything FAM holds about you, now. It cannot be undone." / "Delete my account"); the stale "Password reset isn't available yet" half of the note is said only when this server cannot send a code (Q1) |
+| Change / set a password (`has_password`): Current → New, or Set a password | Done | the server signs every device out on a change, this one too, so this phone signs in again with the new password |
+| Sign-in methods: Apple / Google link and unlink | Done (iOS only) | a row under ACCOUNT SETTINGS opening its own screen |
+| Friends and Messages rows | Done (iOS only) | Friends with the new-followers badge; Messages with the unread count, opening the tab |
+| Edit profile: X, "Edit profile", the 78 pt picture with the camera badge (TAP TO CHANGE / ADD A PHOTO), YOUR NAME, USERNAME (the @ inside, cleaned as typed, the note under it - "A handle needs at least three characters.", the server's "@x is taken."), YOUR INTERESTS (N OF 5, shown → ranked → every facet, dim when full, add any topic), WHERE YOU ARE, ACCOUNT (Signed in as, Change password), Save | Done | `/api/me` always gets the name and handle together, the picture left out to keep it; interests written only if touched, typed topics added to the stored ones; a place that did not save is said (Q12); returns to where it was opened from |
+| Profile picture: no picture - library / camera / file; with one - Move and scale (when chosen on this phone), Choose a different photo, Remove photo; "This photo was set on another device…" | Done | the editor: 270 pt stage, the circle and its dim, drag, 1-3x about the middle, always covering the circle, the AI-check sentence before Save; 256 px JPEG 0.85; a refusal is the server's sentence; "Set your name and handle first" from Settings opens Edit profile |
+| Where you are: X, the three fields, Save, "Saved" / "Could not save that" | Done | the note says the place shows on your profile, as the identity screen's does (Q6: the web's says "Only you can see this") |
+| Save for Later: All (no count), your folders with counts, + New folder, Rename / Delete folder; rows play by question and length and post `/played`; folder button (Put this episode in a folder, ✓, No folder, + New folder files it at once); X off at once, "Removed" / back with "Could not remove that"; the player's save goes off | Done | one 18 pt gutter (Q8); "Loading…" while the shelf loads (Q16); deleting a folder unfiles its episodes; no folder is ever made for the listener |
+| Recent listening history: All / dailyFAM / myFAM / searchFAM (ids swapped, `names-swapped`), TODAY / YESTERDAY / FRI, NOV 6, "2 MIN · 6:58 · dailyFAM", the loading, error and empty sentences | Done | a row replays its episode id (`heard-is-kept`); a reply for a tab left mid-flight is dropped; nothing clears it, as on the web |
+| My Vibe: folders, cards ("2 MIN · VIBED · BEST OF THE WEEK"), play, file, delete | Done | delete is the same act as the grid's hold and says the same, "Vibe deleted" (Q9: the web's list says "Vibe taken back") |
+| Feedback report | n/a | the web's "Instant feedback" is demo chrome outside the phone frame, not a YourFAM control |
 
 ## Sharing
 

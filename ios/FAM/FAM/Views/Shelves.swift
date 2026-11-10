@@ -187,7 +187,11 @@ struct SavedView: View {
                             .lineSpacing(2)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(meta).monoLabel(8, color: FAMColor.textFaint, tracking: 0.32)
+                        Text(meta)
+                            .font(FAMFont.mono(8))
+                            .tracking(0.32)
+                            .foregroundStyle(FAMColor.textFaint)
+                            .lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }
@@ -446,7 +450,11 @@ struct HistoryView: View {
                         .font(FAMFont.heading(12.5, .medium))
                         .foregroundStyle(FAMColor.text)
                         .lineLimit(1)
-                    Text(meta).monoLabel(8, color: FAMColor.textFaint, tracking: 0.32)
+                    Text(meta)
+                            .font(FAMFont.mono(8))
+                            .tracking(0.32)
+                            .foregroundStyle(FAMColor.textFaint)
+                            .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }

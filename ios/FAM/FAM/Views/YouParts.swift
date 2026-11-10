@@ -598,7 +598,7 @@ struct SafariView: UIViewControllerRepresentable {
 }
 
 /// A page to show in Safari's sheet.
-struct WebPage: Identifiable {
+struct LegalPage: Identifiable {
     let id = UUID()
     let url: URL
 }

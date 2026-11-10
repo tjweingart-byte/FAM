@@ -23,7 +23,7 @@ struct SettingsView: View {
     @State private var blocked: [BlockedPerson] = []
     @State private var plans: PlansPage?
     @State private var textAsk: TextAsk?
-    @State private var page: WebPage?
+    @State private var page: LegalPage?
     @AppStorage(FAMAPI.zoneKey) private var pinnedZone = ""
 
     var body: some View {
@@ -207,7 +207,7 @@ struct SettingsView: View {
         case .aiOff: YouSheet(items: aiOffItems).environmentObject(model)
         case .blocked: YouSheet(items: blockedItems).environmentObject(model)
         case .delete: YouSheet(items: deleteItems).environmentObject(model)
-        case .plans: PlansSheet(page: plans)
+        case .plans: PlansSheet(page: plans).environmentObject(model)
         }
     }
 
@@ -296,7 +296,7 @@ struct SettingsView: View {
             }
         case .counting(let on): setCounting(on)
         case .blocked: openBlocked()
-        case .page(let path): page = WebPage(url: model.api.base.appendingPathComponent(path))
+        case .page(let path): page = LegalPage(url: model.api.base.appendingPathComponent(path))
         case .activationValue: break
         }
     }
@@ -427,7 +427,7 @@ private struct SettingsPresentations<Sheet: View>: ViewModifier {
     @Binding var activation: Activation?
     @Binding var sheet: SettingsSheet?
     @Binding var textAsk: TextAsk?
-    @Binding var page: WebPage?
+    @Binding var page: LegalPage?
     let sheetView: (SettingsSheet) -> Sheet
     let savePicture: (String) -> Void
 
@@ -523,7 +523,12 @@ struct ActivationCard: View {
             } else if let confirm {
                 confirmView(confirm)
             } else {
-                form
+                // A small phone or a large text size scrolls the card
+                // rather than cutting it (`large-text`).
+                ViewThatFits(in: .vertical) {
+                    form
+                    ScrollView { form }
+                }
             }
         }
         .onAppear { fill() }

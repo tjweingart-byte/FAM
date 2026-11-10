@@ -326,8 +326,8 @@ extension AppModel {
 
     /// The first run finished or skipped (`finishEntry`): into DailyFAM.
     func finishEntry() {
+        // The tabs are drawn afresh, on DailyFAM.
         entry = nil
-        tabRequest = .daily
         Task { await loadRails() }
     }
 
