@@ -82,6 +82,7 @@ struct RootView: View {
             ActivationCard(activation: owed, owed: true)
                 .famObjects(model)
                 .interactiveDismissDisabled(true)
+                .famThemed()
         }
         .overlay { LoadingLayer(loading: model.loading) }
         // "Which one do you mean?" and the limit screen (`onGenerationFailed`).

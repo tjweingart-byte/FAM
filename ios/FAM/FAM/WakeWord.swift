@@ -26,7 +26,7 @@ import UIKit
 ///   microphone forever. Anything else backs off and tries again.
 @MainActor
 final class WakeListener: ObservableObject {
-    static let key = "fam.wakePhrase"
+    nonisolated static let key = "fam.wakePhrase"
     /// `WAKE_AFTER_CLOSE_MS`: voice search closed, then an episode may start.
     static let afterClose: TimeInterval = 1.5
     /// The web's `setInterval(syncWake, 2000)` safety net.
@@ -210,9 +210,12 @@ final class WakeListener: ObservableObject {
         holdsSession = true
         do {
             // Alongside whatever else is playing on the phone, so opening
-            // FAM never silences somebody's music to listen for its name.
+            // FAM never silences somebody's music to listen for its name -
+            // nor moves it: Bluetooth stays the high-quality output (A2DP)
+            // rather than dropping to the headset's call mode (HFP), so the
+            // phone's own microphone does the listening.
             try session.setCategory(.playAndRecord, mode: .default,
-                                    options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
+                                    options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothA2DP])
             try session.setActive(true)
         } catch {
             restoreSession()

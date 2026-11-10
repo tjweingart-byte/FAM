@@ -10,8 +10,8 @@ import UIKit
 ///
 /// Private search turns this screen and its tab bar charcoal; the player,
 /// the sheets and voice search stay in the chosen theme, as on the web. Length goes back
-/// to 1.5 whenever the app returns. "Hey FAM" is not on iOS 1.0, so there
-/// is no control for it (`no-dead-controls`).
+/// to 1.5 whenever the app returns. "Hey FAM" (§158) is Settings' row; when
+/// it hears the phrase it opens voice search over this screen.
 struct SearchView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase

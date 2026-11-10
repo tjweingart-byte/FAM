@@ -929,7 +929,8 @@ struct MixPeopleSheet: View {
 /// mix" - to a group or a person inside FAM (the link's words as a
 /// message), then the server's destinations from `/api/mixes/{id}/share`.
 /// Copy is the clipboard; a destination opens its app with the words; the
-/// rest go to iOS's share sheet. The story cards are not ported.
+/// rest go to iOS's share sheet; Instagram and Snapchat get the mix's story
+/// card as a picture (`ShareTargetRows`).
 struct MixShareSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss

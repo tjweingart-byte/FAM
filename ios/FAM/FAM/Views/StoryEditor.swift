@@ -721,9 +721,13 @@ final class StoryEditorModel: ObservableObject {
         app = model
         dictation.keepsPlayback = { [weak model] in model?.player.isLoaded ?? false }
         dictation.onHeard = { [weak self] words in self?.heard(words) }
-        dictation.onEnd = { [weak self] in self?.listening = false }
+        dictation.onEnd = { [weak self] in
+            self?.listening = false
+            self?.releaseMicrophone()
+        }
         dictation.onError = { [weak self] sentence in
             self?.listening = false
+            self?.releaseMicrophone()
             self?.app?.nowPlaying.say(sentence)
         }
         if !note && draft.layout.thumb.isEmpty {
@@ -913,7 +917,10 @@ final class StoryEditorModel: ObservableObject {
     func dragged(_ id: String, dx: Double, dy: Double) {
         if !dragging {
             dragging = true
-            if piece.isEmpty {
+            // A new touch takes its own piece, unless a pinch is holding one
+            // (a finger left of a pinch carries on as a drag) - so a gesture
+            // the system cancelled without an end leaves nothing stuck.
+            if piece.isEmpty || !pinching {
                 touchedCanvas()
                 piece = id
                 origin = value(id) ?? (0, 0, 1)
@@ -964,6 +971,9 @@ final class StoryEditorModel: ObservableObject {
     static var canDictate: Bool { VoiceSearchModel.available }
 
     private var before = ""
+    /// An episode was playing when Speak took the microphone: it carries on
+    /// when Speak ends, as it does after voice search.
+    private var resumeAfter = false
 
     func toggleDictation() {
         if listening {
@@ -972,6 +982,17 @@ final class StoryEditorModel: ObservableObject {
         }
         before = draft.text
         listening = true
+        // One user of the microphone at a time: "Hey FAM" stands aside
+        // (`AppModel.storyDictating`), and an episode playing pauses rather
+        // than being cut off by the recording session under it.
+        if let app {
+            app.storyDictating = true
+            app.wake.stop(restore: false)
+            if app.player.playing {
+                app.player.pause()
+                resumeAfter = true
+            }
+        }
         dictation.start()
     }
 
@@ -979,6 +1000,17 @@ final class StoryEditorModel: ObservableObject {
         guard listening else { return }
         listening = false
         dictation.stop()
+        releaseMicrophone()
+    }
+
+    /// Speak is over: "Hey FAM" may listen again, and a paused episode plays on.
+    private func releaseMicrophone() {
+        guard let app else { return }
+        app.storyDictating = false
+        if resumeAfter {
+            resumeAfter = false
+            app.player.resume()
+        }
     }
 
     /// What is heard is added to what is there (`voiceJoin`), cut at 280.
@@ -1104,8 +1136,15 @@ struct StoryEditor: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(ed.note ? "Add to your story" : "VIBE! to your story")
-        .onAppear { ed.attach(model) }
-        .onDisappear { ed.stopDictation() }
+        .onAppear {
+            ed.attach(model)
+            model.storyEditing = true
+            model.wake.stop()
+        }
+        .onDisappear {
+            ed.stopDictation()
+            model.storyEditing = false
+        }
         .onChange(of: ed.focusAsk) { _, _ in boxFocused = true }
         .onChange(of: ed.blurAsk) { _, _ in
             boxFocused = false
@@ -1535,6 +1574,8 @@ struct StoryEditor: View {
             .accessibilityLabel("Post to your story")
         }
         .disabled(ed.sending)
+        // `.vcs-aud:disabled` / `.vcs-go:disabled`: half strength while sending.
+        .opacity(ed.sending ? 0.5 : 1)
     }
 
     private func send() {

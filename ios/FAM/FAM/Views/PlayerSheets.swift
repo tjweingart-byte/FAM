@@ -443,9 +443,8 @@ struct SourcesSheet: View {
 
 // MARK: - Playback (`openSpeedLengthModal`)
 
-/// "Playback": Speed - and, for a search, Length - each a white row that
-/// opens its choices as an action sheet; Done. A search's Voice row is not
-/// built (PARITY.md: the iOS search has no voice choice yet).
+/// "Playback": Speed - and, for a search, Length and Voice - each a white
+/// row that opens its choices as an action sheet; Done.
 struct PlaybackSheet: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer

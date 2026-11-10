@@ -4,10 +4,10 @@ import SwiftUI
 /// Settings (`#screen-settings`, `renderSettings`, shots 20-23): the web's
 /// rows in the web's order and words, each an editor, never the first run
 /// again (`op-profile-hub`). Toggle rows stay rows whose value reads On /
-/// Off, as the web draws them. Where iOS has no such control the row is
-/// left out rather than drawn dead (`no-dead-controls`): Dark mode (light
-/// only, §250). "Hey FAM" is drawn worded for iOS (`WakeRow`: it listens
-/// only while FAM is open on screen). iOS adds what the web
+/// Off, as the web draws them. Dark mode is this device's (`fam.theme`,
+/// light by default, §250). "Hey FAM" is drawn worded for iOS (`WakeRow`: it
+/// listens only while FAM is open on screen), and only where the phone can
+/// recognise speech (`no-dead-controls`). iOS adds what the web
 /// has no need of: the sign-in methods (Apple, Google), under Account
 /// settings. Friends is reached from the hub's friends count, Messages is a
 /// tab - the web's groups, and no others.

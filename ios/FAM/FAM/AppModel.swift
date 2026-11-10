@@ -136,6 +136,12 @@ final class AppModel: ObservableObject {
     /// "Hey FAM" (§158), opt-in in Settings; listens only while FAM is in
     /// front and nothing is playing, being made, or using the microphone.
     let wake = WakeListener()
+    /// The story editor's Speak has the microphone: "Hey FAM" stands aside.
+    var storyDictating = false
+    /// The story editor is up (a cover over everything, voice search
+    /// included): "Hey FAM" stands aside rather than open voice search
+    /// where nobody can see it.
+    var storyEditing = false
 
     // Offline listening (the web's `OfflineShelf`, §161).
 
@@ -925,8 +931,15 @@ final class AppModel: ObservableObject {
         voicePicked = true
         guard let page = voices, id != (page.selected ?? "") else { return }
         voices = VoicesPage(selected: id, voices: page.voices)
-        let ep = nowPlaying.episode
-        let again = showPlayer && ep?.surface == "search" ? ep : nil
+        // `generate(key)`: asked again, never the kept episode replayed by
+        // its id (that would be the old voice).
+        var asked: Episode?
+        if showPlayer, var ep = nowPlaying.episode, ep.surface == "search" {
+            ep.episodeID = ""
+            ep.cachedOnly = false
+            asked = ep
+        }
+        let again = asked
         if again != nil { nowPlaying.say("Switching to " + label) }
         Task {
             try? await api.chooseVoice(id)
@@ -998,7 +1011,8 @@ final class AppModel: ObservableObject {
     /// voice search, no episode playing or being made.
     private var wakeMayListen: Bool {
         guard stage == .ready, entry == nil, listener != nil else { return false }
-        if voiceSearch.isOpen || loading.visible || player.playing { return false }
+        if voiceSearch.isOpen || storyDictating || storyEditing || owedActivation != nil { return false }
+        if loading.visible || player.playing { return false }
         return true
     }
 
