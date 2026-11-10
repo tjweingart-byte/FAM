@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import UIKit
 
 /// One episode as the app asked for it: what it is, where it came from,
 /// and what the player should say about it. Built at the tap, before audio.
@@ -109,6 +110,9 @@ final class NowPlayingModel: ObservableObject {
     /// Who to ask to play an episode (the app model, which owns the loading screen).
     var playEpisode: ((Episode) -> Void)?
     var signedIn: () -> Bool = { false }
+    /// Whether the full player is on screen: What's next is offered there
+    /// only, never under the mini bar (`post-episode-grid`).
+    var playerShowing: () -> Bool = { true }
 
     private var run = 0
     private var reported = false
@@ -131,15 +135,53 @@ final class NowPlayingModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+        // Leaving the app sends the position too (`pagehide` on the web).
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.sendResume() }
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - An episode's life
 
     /// Called at the tap, before any audio: an episode that was playing and
-    /// is being left counts as skipped if it got far enough.
-    func leaving() {
-        reportSkipIfAbandoned()
+    /// is being left counts as skipped if it got far enough - unless a Go
+    /// Deeper only interrupts it, to resume it afterwards (`reportSkip`
+    /// false: a playlist's episode the owner's detour comes back to).
+    func leaving(reportSkip: Bool = true) {
+        if reportSkip { reportSkipIfAbandoned() } else { sendResume() }
         stopNextUp()
+    }
+
+    // MARK: - The title before the first word (`titleWatch`)
+
+    /// A provisional title (`/api/next`'s `title`) that landed while the
+    /// episode was still being made, so the player opens on it rather than
+    /// on the question.
+    private var earlyTitle: (key: EpisodeKey, title: String)?
+    private var titleWatchTask: Task<Void, Never>?
+
+    /// Every 2 s until the first audio, for an episode whose title the
+    /// writer's may replace (`titleWatch`); a replay asks nothing.
+    func watchTitle(_ ep: Episode) {
+        titleWatchTask?.cancel()
+        titleWatchTask = nil
+        earlyTitle = nil
+        guard !ep.titleOverridden, ep.episodeID.isEmpty else { return }
+        let api = self.api
+        titleWatchTask = Task { [weak self] in
+            for _ in 0..<45 {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if Task.isCancelled { return }
+                let answer = try? await api.next(ep.key)
+                if Task.isCancelled { return }
+                if let t = answer?.title, !t.isEmpty {
+                    self?.earlyTitle = (key: ep.key, title: t)
+                    return
+                }
+            }
+        }
     }
 
     /// The first audio is playing: everything the player shows starts here.
@@ -148,6 +190,10 @@ final class NowPlayingModel: ObservableObject {
         let mine = run
         episode = ep
         title = ep.title
+        titleWatchTask?.cancel()
+        titleWatchTask = nil
+        if !ep.titleOverridden, let early = earlyTitle, early.key == ep.key { title = early.title }
+        earlyTitle = nil
         explicit = false
         thread = ""
         picture = ep.picture
@@ -204,6 +250,8 @@ final class NowPlayingModel: ObservableObject {
             playQueued(next)
             return
         }
+        // What's next is the full player's, never the mini bar's.
+        guard playerShowing() else { return }
         Task { await offerNextUp(mine) }
     }
 

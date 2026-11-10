@@ -130,6 +130,7 @@ final class AppModel: ObservableObject {
             self?.nowPlaying.say(text, action: action, perform: perform)
         }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
+        nowPlaying.playerShowing = { [weak self] in self?.showPlayer ?? false }
         social.say = { [weak self] text in self?.nowPlaying.say(text) }
         social.requestTab = { [weak self] tab in self?.tabRequest = tab }
         social.leavePlayer = { [weak self] in
@@ -569,7 +570,7 @@ final class AppModel: ObservableObject {
         // A playlist's own episode, and a Go Deeper detour off it, keep the
         // playlist; anything else started on the player ends it - a search,
         // a tile, What's next, a shared episode, the Queue, a category (§519).
-        noteInterruption(by: ep)
+        let interrupting = noteInterruption(by: ep)
         if !keepsPlaylist(ep) { mixPlay = nil }
         // Something else started: the rest of a category's list is not this
         // episode's "next" (§500 review). The Queue and the category keep it.
@@ -585,7 +586,10 @@ final class AppModel: ObservableObject {
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }
-            self.nowPlaying.leaving()
+            // A playlist's episode a Go Deeper only interrupts is not
+            // skipped: it comes back where it was (the owner's call).
+            self.nowPlaying.leaving(reportSkip: !interrupting)
+            self.nowPlaying.watchTitle(ep)
             self.showPlayer = false
             self.pending = ep
             self.lastAsked = ep
@@ -667,6 +671,7 @@ final class AppModel: ObservableObject {
             loading.stop()
             pending = nil
             mixPlay = nil
+            showPlayer = false
             limitReached = player.refusal?.quota
             return true
         case let .refused(status, message):
@@ -689,6 +694,8 @@ final class AppModel: ObservableObject {
     private func generationFailed() {
         loading.stop()
         pending = nil
+        // With the player on screen, back first (`onGenerationFailed`).
+        showPlayer = false
         let words = player.failureWords
         nowPlaying.say(words.isEmpty ? "Could not generate that briefing" : words)
     }
@@ -785,17 +792,23 @@ extension AppModel {
     /// call: Go Deeper only interrupts the playlist - it never skips one).
     /// An episode already finished keeps nothing: the playlist then carries
     /// on with the next. Nested follow-ups keep the first interruption.
-    private func noteInterruption(by ep: Episode) {
+    /// True when it kept one: that episode is paused for the detour, not
+    /// skipped.
+    @discardableResult
+    private func noteInterruption(by ep: Episode) -> Bool {
         guard var list = mixPlay, !list.key.isEmpty, ep.mixDetour == list.key,
-              let current = nowPlaying.episode, current.mixKey == list.key else { return }
+              let current = nowPlaying.episode, current.mixKey == list.key else { return false }
         let midway = player.phase == .playing || player.phase == .buffering || player.phase == .paused
+        var kept = false
         if midway && player.position > 0 {
             list.interrupted = InterruptedItem(episode: current, episodeID: player.episodeID,
                                                position: player.position)
+            kept = true
         } else {
             list.interrupted = nil
         }
         mixPlay = list
+        return kept
     }
 
     /// An episode ended: for the playlist's own episode, the playlist's

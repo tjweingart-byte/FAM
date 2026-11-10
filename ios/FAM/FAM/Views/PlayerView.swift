@@ -44,7 +44,7 @@ struct PlayerView: View {
                 controls
             }
             if !now.nextUp.isEmpty {
-                NextUpOverlay(onBack: { dismiss() })
+                NextUpOverlay(onBack: backFromNextUp)
             }
             popupLayer
             ToastView()
@@ -70,6 +70,14 @@ struct PlayerView: View {
             badgePop = 0
             withAnimation(.spring(response: 0.26, dampingFraction: 0.55)) { badgePop = 1 }
         }
+    }
+
+    /// What's next's Back: to the search page for a search, else DailyFAM
+    /// (`Back to search` / `Back to DailyFAM`).
+    private func backFromNextUp() {
+        let fromSearch = now.episode?.surface == "search"
+        model.tabRequest = fromSearch ? .search : .daily
+        dismiss()
     }
 
     /// A sheet after whatever is up has gone (one presentation at a time).
