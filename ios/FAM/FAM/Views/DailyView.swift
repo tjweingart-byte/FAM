@@ -173,18 +173,30 @@ struct TileCard: View {
     private var thumb: some View {
         ZStack {
             Picture(url: model.api.picture(tile.thumb))
-            // The subject chip, bottom left.
-            if !tile.thumbFacet.isEmpty {
-                Text(tile.thumbFacet)
-                    .monoLabel(8, color: Color(hex: 0x2A2530))
-                    .padding(.horizontal, 6)
-                    .padding(.top, 3)
-                    .padding(.bottom, 2)
-                    .background(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.92),
-                                in: RoundedRectangle(cornerRadius: 4))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                    .padding(.leading, 9)
-                    .padding(.bottom, 8)
+            // The subject chip bottom left and the friends who listened
+            // bottom right, on one line and centred on each other (the
+            // owner's call for iOS: the web lifts the faces above the chip).
+            if !tile.thumbFacet.isEmpty || tile.friendsListened > 0 {
+                HStack(alignment: .center, spacing: 6) {
+                    if !tile.thumbFacet.isEmpty {
+                        Text(tile.thumbFacet)
+                            .monoLabel(8, color: Color(hex: 0x2A2530))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.horizontal, 6)
+                            .padding(.top, 3)
+                            .padding(.bottom, 2)
+                            .background(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.92),
+                                        in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    Spacer(minLength: 0)
+                    if tile.friendsListened > 0 {
+                        friendsPill.fixedSize()
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
             // "ready": written already, plays at once.
             if tile.cached {
@@ -206,13 +218,6 @@ struct TileCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             .padding(6)
-            // Friends who listened, bottom right.
-            if tile.friendsListened > 0 {
-                friendsPill
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(.trailing, 8)
-                    .padding(.bottom, tile.thumbFacet.isEmpty ? 8 : 30)
-            }
         }
         // The whole picture, at its own 4:3 - never the web's 96 pt strip,
         // which cropped the top and bottom off every one (the owner, on iOS).
@@ -247,9 +252,9 @@ struct TileCard: View {
                     .background(FAMColor.copper, in: RoundedRectangle(cornerRadius: 4))
             } else {
                 HStack(spacing: 4) {
-                    HStack(spacing: -7) {
+                    HStack(spacing: -6) {
                         ForEach(Array(faces.prefix(3).enumerated()), id: \.offset) { i, face in
-                            Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "", size: 22)
+                            Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "", size: 18)
                                 // A ring in the pill's own colour, so each overlapped face reads whole.
                                 .overlay(Circle().stroke(Color(red: 42 / 255, green: 37 / 255, blue: 48 / 255), lineWidth: 1.5))
                                 .zIndex(Double(3 - i))
@@ -261,9 +266,9 @@ struct TileCard: View {
                             .foregroundStyle(Color(hex: 0xE0B563))
                     }
                 }
-                .padding(.leading, 3)
-                .padding(.trailing, 7)
-                .padding(.vertical, 3)
+                .padding(.leading, 2)
+                .padding(.trailing, faces.count > 0 && tile.friendsListened > 3 ? 6 : 2)
+                .padding(.vertical, 2)
                 .background(Color(red: 42 / 255, green: 37 / 255, blue: 48 / 255).opacity(0.88), in: Capsule())
                 .overlay(Capsule().stroke(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.18)))
             }
