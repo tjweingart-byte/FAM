@@ -449,6 +449,8 @@ final class AppModel: ObservableObject {
     }
 
     private func loadSavedTiles() async {
+        // Offline the bookmarks are not drawn and not asked for (`loadTileSaves`).
+        if isOffline { return }
         if let keys = try? await api.savedKeys() { savedTiles = keys }
     }
 
@@ -897,8 +899,8 @@ final class AppModel: ObservableObject {
                              minutes: ep.key.minutes, holdStart: true)
             // Kept on this phone once all of it has arrived, so it plays
             // offline next time - never an attachment's (the listener's own
-            // document) nor a private search's.
-            self.keepWatch = ep.keepsRecord ? (token: self.player.playToken, episode: ep) : nil
+            // document), exactly as the web's `keepWhenWhole`.
+            self.keepWatch = ep.attach.isEmpty ? (token: self.player.playToken, episode: ep) : nil
         }
         lastPlay = go
         go()

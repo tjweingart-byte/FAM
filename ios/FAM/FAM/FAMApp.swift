@@ -335,7 +335,7 @@ struct TabBar: View {
                     // (`Motion.badge`).
                     ZStack {
                         if badge > 0 {
-                            TabBadge(count: badge)
+                            TabBadge(count: badge, bumps: !reduceMotion)
                                 .transition(.scale(scale: 0.01).combined(with: .opacity))
                         }
                     }
@@ -394,8 +394,23 @@ struct TabBar: View {
 /// bold; "9+" above nine; drawn on the icon's top right.
 struct TabBadge: View {
     let count: Int
+    /// The count bumps when it goes up (`Motion.badge`): 1.3 at 40 %, 220 ms.
+    var bumps = false
+    @State private var bump = false
 
     var body: some View {
+        label
+            .scaleEffect(bump ? 1.3 : 1)
+            .onChange(of: count) { old, new in
+                guard bumps, new > old else { return }
+                withAnimation(.easeOut(duration: 0.09)) { bump = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) {
+                    withAnimation(.easeOut(duration: 0.13)) { bump = false }
+                }
+            }
+    }
+
+    private var label: some View {
         Text(count > 9 ? "9+" : "\(count)")
             .font(FAMFont.mono(8, bold: true))
             .foregroundStyle(Color.white)

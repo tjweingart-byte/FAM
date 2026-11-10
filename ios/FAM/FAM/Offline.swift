@@ -24,9 +24,8 @@ struct OfflineEpisode: Codable, Equatable {
 /// * **What is kept**: an episode whose whole stream has arrived on this
 ///   phone and that the server marked keepable (`X-FAM-Keepable: 1`, a
 ///   production voice, never the placeholder tone, never an attachment's).
-///   Automatic, not a download button. Not a private search's either - the
-///   web keeps those; on iOS a private search leaves nothing behind
-///   (`private-search`: no history), the owner's rule applied to the phone.
+///   Automatic, not a download button. A private search's is kept too, as
+///   the web keeps it (it stays on this phone and is never sent anywhere).
 /// * **How**: exactly what the player already holds - the episode's raw
 ///   16-bit PCM, no header, no audio file format, nothing converted
 ///   (`no-audio-files`) - plus a small index, so what is here is known

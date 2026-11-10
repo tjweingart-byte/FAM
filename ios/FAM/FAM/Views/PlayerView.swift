@@ -704,10 +704,22 @@ struct MiniPlayer: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Something was queued: the picture bumps, as the web's queue target
+    /// does when the queued episode lands on it (`Motion.toQueue`).
+    @State private var bump = false
 
     var body: some View {
         HStack(spacing: 11) {
             thumb
+                .scaleEffect(bump ? 1.3 : 1)
+                .onChange(of: now.queue.count) { old, new in
+                    guard new > old, !reduceMotion else { return }
+                    withAnimation(.easeOut(duration: 0.1)) { bump = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.easeOut(duration: 0.16)) { bump = false }
+                    }
+                }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     if now.explicit && now.episode != nil { PlayerExplicitBadge(size: 15) }

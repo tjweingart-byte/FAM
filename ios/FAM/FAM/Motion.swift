@@ -153,12 +153,15 @@ struct ArriveOnce: ViewModifier {
 }
 
 extension View {
-    /// The first three tiles of a rail arrive one after another; the rest
-    /// (and anything seen before) just appear.
+    /// The first three tiles of each rail arrive one after another in
+    /// reading order - along a rail, then the next rail down, each heading
+    /// before its tiles - `slot` places this one in that order (40 ms a
+    /// step, eight steps at most). `index` is its place along its rail:
+    /// past the third (and anything seen before) it just appears.
     @ViewBuilder
-    func arriving(_ key: String, index: Int, book: ArrivalBook) -> some View {
+    func arriving(_ key: String, index: Int, slot: Int, book: ArrivalBook) -> some View {
         if index < 3 {
-            modifier(ArriveOnce(key: key, delay: Double(min(index, 8)) * 0.04, book: book))
+            modifier(ArriveOnce(key: key, delay: Double(min(slot, 8)) * 0.04, book: book))
         } else {
             self
         }

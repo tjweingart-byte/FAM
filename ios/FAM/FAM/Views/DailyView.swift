@@ -44,8 +44,8 @@ struct DailyView: View {
                                         EmptyNote(text: model.railsProblem).padding(.top, 20)
                                     }
                                 }
-                                ForEach(model.rails) { rail in
-                                    RailRow(rail: rail)
+                                ForEach(Array(model.rails.enumerated()), id: \.element.id) { n, rail in
+                                    RailRow(rail: rail, order: n)
                                 }
                             }
                             .padding(.horizontal, 18)
@@ -140,6 +140,8 @@ struct OfflineBar: View {
 struct RailRow: View {
     @EnvironmentObject private var model: AppModel
     let rail: Rail
+    /// Which rail down the page this is, for the arrival's reading order.
+    var order = 0
     /// Scrolled to its end (or never needed scrolling): the chevron gives
     /// way to VIEW MORE (`watchRailEnds`).
     @State private var atEnd = false
@@ -156,6 +158,8 @@ struct RailRow: View {
                 .padding(.top, 26)
                 .padding(.bottom, 12)
                 .accessibilityAddTraits(.isHeader)
+                // Headings arrive only on the page's first draw (`arriveRails`).
+                .arriving("heading:" + rail.key, index: 0, slot: order * 4, book: model.arrivals)
             if rail.topics.isEmpty {
                 // The friends rail with nobody followed says nothing.
                 if !(rail.key == "followers" && rail.hasCircle == false) {
@@ -169,7 +173,7 @@ struct RailRow: View {
                         ForEach(Array(rail.topics.enumerated()), id: \.element.id) { i, tile in
                             TileCard(tile: tile, railKey: rail.key, faces: model.friendFaces, width: 150)
                                 .frame(maxHeight: .infinity, alignment: .top)
-                                .arriving(tile.id, index: i, book: model.arrivals)
+                                .arriving(tile.id, index: i, slot: order * 4 + 1 + i, book: model.arrivals)
                         }
                         viewMore
                     }
@@ -277,6 +281,10 @@ struct TileCard: View {
 
     @State private var menu = false
     @State private var friends = false
+    /// Held down: the card squeezes like every button (`Motion`'s
+    /// `.seed-card`), springing back on release; it plays on the tap as before.
+    @State private var pressed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let pillInk = Color(red: 42 / 255, green: 37 / 255, blue: 48 / 255)
 
@@ -310,7 +318,15 @@ struct TileCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 13))
         .overlay(RoundedRectangle(cornerRadius: 13).stroke(FAMColor.border))
         .contentShape(Rectangle())
+        .animation(pressed ? .easeOut(duration: 0.09) : .spring(response: 0.22, dampingFraction: 0.55)) { card in
+            card.scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
+        }
         .onTapGesture { model.play(tile, railKey: railKey) }
+        // Never completes (30 s): only its pressing state is used, and a
+        // move of 8 pt - a scroll - lets go at once.
+        .onLongPressGesture(minimumDuration: 30, maximumDistance: 8, perform: {}, onPressingChanged: { down in
+            pressed = down
+        })
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.play(tile, railKey: railKey) }
