@@ -31497,7 +31497,846 @@ faults in the chips, all fixed with tests in
   but a queue entry or another category play starts; what the listener
   queued themselves stays.
 
-## 501. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09)
+## 501. Nando on the background paths: a warmed brief carries his decision, and each path is counted (2026-11-09)
+
+The owner: categorisation early in the pipeline matters more than anything,
+and Nando must work on the background paths as much as on a search. Every
+write path was traced, with the agents on (`AGENTS=1 CATEGORIZER=1`):
+
+| path | before | now |
+|---|---|---|
+| a search | his call beside the brief, placed in `prepare`, settled | unchanged |
+| prefetch, `script` level | placed in `prepare`, his call awaited, settled | his call made in `understand`, read in `prepare` |
+| the Trending and DailyFAM editions (batched or not) | the same, through `batch_request` / `stream_sentences` | the same as prefetch |
+| **prefetch, `brief` level** (the default; what myFAM warms for likely taps) | **`understand` only: no placement and no call of his** | his call made in `understand`, kept on the brief |
+| **a tap that takes that warmed brief** | **`understand` returns before his call beside the brief starts, so only a solid source filed it - a tile's own filing, or nothing** | files the pick the brief carries |
+
+So the gap was the commonest myFAM tap: a brief warmed ahead, then tapped.
+Where the tile carried its own category (a live or Trending story) that
+still filed it; anything else - a Go Deeper prediction, a trending search,
+a bank question with no tree tag - went unfiled, the writer's words
+standing, and no grade of the answer key could teach him from it, because
+he never decided.
+
+**What changed.** `script_generator._nando_decides_ahead`, at the end of
+`ScriptGenerator.understand` whenever the episode is written ahead of the
+tap: under exactly `prepare`'s conditions (Nando working, C3P0 neither
+picking nor calling it ambiguous, nothing solid filing it, candidates, no
+undecided two-meaning name), his own call is awaited - nobody waits - and
+the node kept as `Brief.category_pick`. `prepare` reads it as it reads his
+tie call: never over C3P0's unsureness, and dropped under the
+"never a guess" rule (§426) the same way. Since it is on the brief,
+`prepare`'s own ahead call is not made a second time, so an edition or a
+script-level warm still costs one call of his, not two. A failed call
+leaves the brief as it was.
+
+**Counted per path.** `category_audit.summary()["nando"]["by_origin"]`
+(and so `tools/categories_report.py --audit`): per origin, the episodes
+written, how many he filed, the rate - `None`, never 0, with none. The
+first production numbers after this ships say whether the background paths
+file as often as a search.
+
+**Latency.** None on a search or in front of the first word: the call is
+made ahead of the tap. A brief-level warm now costs at most one Haiku call
+more (about 0.01 cents), counted in prefetch's dollar budget with the rest
+of the warm.
+
+**Not measured here.** The rates need episodes written with the agents on.
+
+**Training, proposed for the owner's choice** (nothing below is built):
+
+1. **Grade what teaches, not what is newest.** The key grades the 50
+   newest episodes a night (`training.judge_batch`), so an edition's burst
+   crowds out searches or the reverse. Choose them instead: stratified by
+   write path and facet, then disagreement first - Nando filed nothing,
+   Nando against the writer's words, re-filed episodes, his small model
+   unsure.
+2. **The judge through the Batch API**, at half price: nobody waits at
+   03:00, the rule the editions' writers keep (§179). Twice the grades a
+   night for the same money.
+3. **Check the solid sources too.** A tile's or an edition's category is
+   solid - the words may narrow it, never move it - so a composer's wrong
+   category is filed on every tap of that story, and the key's correction
+   counts as Nando's mistake though he could not have made another choice.
+   Report the key against the source that filed it (composer, bank tag,
+   DailyFAM subject), and feed the composer's corrected mistakes to its own
+   prompt as worked examples.
+4. **The owner's labels above Opus's.** A short daily queue on /admin of
+   the key's grades to confirm or correct: it measures how often Opus
+   agrees with the owner ([episode-quality]: a grader trusted once it
+   matches the owner), and each correction becomes a worked example ahead
+   of the key's.
+5. **Listeners' signals point the key, never label.** A category chip tap
+   (§500) followed by a quick skip, or a "Not interested" from a category
+   page, puts that episode first in the night's grading.
+6. **Measure on real traffic.** Freeze a held-out set from graded
+   production requests each month, per write path, so `nando_eval.py`
+   measures DailyFAM prompts and tile titles as well as typed searches.
+7. **§389's untried experiment**: drafted definitions on code's own matches
+   only, no exclusions.
+
+Tests: `tests/test_nando_background_501.py` (ahead of the tap and on a
+prefetch the brief carries his pick, asked as an ahead call; a search
+unchanged; not asked when C3P0 chose or was unsure, when the tap files it,
+or when he is not working; a failed call changes nothing; the tap taking a
+warmed brief files the pick without asking again; an edition asks once;
+the pick dropped when the brief is unsure; the audit per origin).
+
+## 502. Training Nando: grade what teaches, through the Batch API, and grade every source that files (2026-11-09)
+
+The owner chose three of §501's proposals (1, 2 and 3) and asked what they
+cost and whether the cost scales.
+
+**1. What is graded** (`training.choose`). The answer key graded the 50
+newest episodes a night, so a DailyFAM edition's burst crowded out
+searches, or the reverse. Now every write path takes its turn (round robin
+over `origin`); within a path, what teaches most comes first
+(`training._tier`: Nando filed nothing, then the writer made him re-file,
+then his node and the writer's words disagree, then his small model filed
+it, then a solid source filed it, then everything agreed); within a tier
+the facets take turns, newest first. The night's run reports how many it
+took from each path and tier. Code only; no call is added.
+
+**2. Through the Message Batches API** (`NANDO_JUDGE_BATCH=1`, default on;
+`0` grades live as before). In two steps, so nothing holds Netenyahu's loop
+(handlers are awaited inline, and Mclovin's review and Consuela's jobs run
+in the same night hours) and a restart loses nothing:
+
+* `categorizer:judge` at 03:00 sends one batch (`models.submit_batch`) and
+  keeps its id and each request's episode (`nando_batches`);
+* `categorizer:collect`, every `NANDO_JUDGE_COLLECT_SECONDS` (300), reads
+  every batch that has ended (`models.collect_batch`) and keeps the grades.
+
+The batch goes through the agent layer like any agent call: every request
+passes the same checks (`models._ready`: switches, signed rule books,
+consent, priced, zero-spend staging - staging sends nothing), carries the
+same Messages parameters as the live call (the adapter's `params`, shared
+by `send`; a test holds them equal but for the one-hour cache a batch
+needs), and each answer is priced at the batch rate, checked against the
+model asked, validated and recorded in `agent_calls` (`models._answered`,
+shared with the live path). A batch that cannot be sent at all was never
+read, so its episodes are graded live at once. **A request the batch did
+not answer is not asked again**: nando.md rule 12 lets the key read each
+finished episode once, and §391 settled "never asked again, answered or
+not" - the batch gets the single attempt a live grade gets. (A live retry
+was written first and taken out on reading the rule.) Grades collected
+after 04:00 are trained on the next night. A wipe forgets sent batches.
+
+**3. Every source that files is graded.** A tile's, a bank topic's, a
+DailyFAM subject's, an edition's or a provider's filing is solid: the
+words may narrow it, never move it. So a wrong one is filed on every tap of
+that story and the key's correction counted as Nando's mistake, though he
+could not have chosen otherwise.
+
+* The audit now keeps the filing Nando started from and who supplied it
+  (`nando_prior`, `nando_prior_source`; from `prepare` through `settle`).
+* `training.filed_by` names who decided each graded episode: a solid
+  source when the filing is its node or a narrowing on its branch, else
+  how Nando found it (`picked`, `category`, `facet`, `model`, `parent`).
+* `training.report` (and so `categories_report.py --audit`) grades each
+  filer apart (`by_source`), each write path apart (`by_origin`), and the
+  story composer's own category (`composer`), each with its commonest
+  wrong filings. Bank topics and DailyFAM subjects are hand-seeded, so
+  their wrong filings are a list for the owner, never changed in code.
+* **The composer is shown its own corrected categories**
+  (`training.composer_corrections`: the key sure, one per question, up to
+  12, in `stories.build_composer_prompt`). **Locked until the owner signs**:
+  rule 12 as signed says the grades "only teach you and measure you", so a
+  session may not use them to teach the composer. The amendment ("and
+  teach the story composer whose categories you inherit") waits in
+  `docs/agent_rule_proposals/nando.md` with
+  `docs/agent_rules/MANIFEST.pending.json` (version 7, only `nando.md`'s
+  fingerprint changes); `training.composer_allowed` refuses until a signed
+  book carries those words, so today the composer is shown nothing.
+
+**Cost**, from the measured prompts and `metering.PRICES` (Opus 5.5 $4 /
+$20, cache read $0.20, one-hour cache write 2x input; Haiku 5.5 $0.10 /
+$0.50; batch half of every token):
+
+| | per grade | 50 a night, a month |
+|---|---|---|
+| the key live, as before (5,850 tokens of rule books and tree cached, ~1,100 of episode, ~200 out) | ~$0.0096 | **~$15** |
+| batched, reading the tree from the cache (expected) | ~$0.0048 | **~$8** |
+| batched, no request ever reading the cache (worst) | ~$0.028 | ~$41 |
+
+The batch's saving is only as good as its cache hits, which the API gives
+as best effort; each collection logs `cost_usd` and `cache_hit_share`, and
+`NANDO_JUDGE_BATCH=0` goes back to live if the share is poor. Choosing
+what to grade (1) and grading each source (3) are code: $0. The composer's
+corrections, once signed: about 300 more tokens on one Sonnet 5 call per
+refresh window, about $0.0006 a compose.
+
+**Does it scale?** Not with listeners. The key is capped per night
+(`NANDO_JUDGE_PER_RUN`), so it costs the same at 100 listeners or 100,000;
+it grows only with the tree (about 19 tokens a node in the cached block,
+311 nodes today) and with that setting, which is the owner's lever (100 a
+night batched costs about what 50 did live). The composer runs on a
+schedule, not per listener. What does grow with traffic is §501's call of
+Nando's ahead of the tap - ~$0.0005 each (~1,700 tokens cached and ~4,200
+of request, the whole tree on his list; `FAM_AGENTS.md` said <$0.0001,
+from before the whole tree was listed), made only when nothing solid files
+the request and C3P0 did not choose. On prefetch it sits inside
+`PREFETCH_DAILY_DOLLARS` ($2) and `PREFETCH_DAILY_BRIEFS` (400): at most
+~$0.20 a day; on the DailyFAM edition it grows with active mixes.
+
+Tests: `tests/test_nando_training_502.py` (every path takes its turn; what
+teaches first; facets take turns; the night grades in that order; a batched
+request is the live request; refused and staging requests never sent;
+collected answers priced at half and recorded; a running batch left for
+later; sent at night and collected once; a request the batch did not answer
+never asked again; a batch that cannot be sent graded live; a wipe forgets
+batches; the collector scheduled and on the roster; settings agree with
+`.env.example`; settle keeps the prior; who filed it; the report by source,
+path and composer; the composer's sure mistakes; shown to the composer only
+once signed; the proposal is the signed book with only rule 12 amended).
+Four older tests now pin live grading where they mock `models.ask`, and the
+listener-path import guard lists `stories.py` reading `training`.
+
+## 503. The answer key on Sonnet, ten a night where the filers disagree; the owner's review queue; the one-time check against Opus (2026-11-09)
+
+The owner found §502's answer key too expensive (~$8-15 a month) and chose,
+from the alternatives offered: Sonnet in place of Opus, 10 a night in place
+of 50, only where the filers disagree; a free review queue on /admin; and
+a comparison against Opus run once, never nightly.
+
+**The nightly key.** `CATEGORIZER_JUDGE_MODEL=anthropic:claude-sonnet-5-5`
+- still stronger than Nando's Haiku, as rule 12 asks ("a stronger model
+chosen by the owner"); `NANDO_JUDGE_PER_RUN=10`;
+`NANDO_JUDGE_DISAGREEMENTS_ONLY=1`: an episode is skipped when Nando, the
+writer and the composer all filed it on one branch (`training.agreed`: the
+same node or one more specific; never when Nando filed nothing, the writer
+named nothing, or the writer made him re-file - then nothing checked it).
+Still batched (§502) and in `choose`'s order.
+
+**The owner's review queue** (/admin, Categories). Recent episodes
+(`training.review_queue`: the last week, while scripts are kept), in the
+key's own order, disagreements first, each with what Nando, the writer, the
+composer and the key said, and the script's opening. The owner confirms or
+types a node ("none" when nothing fits). A review (`training.owner_label`)
+is kept twice: as the owner's review beside the key's grade at that
+moment, and as the episode's grade (`judge_model` `owner`, confidence
+high), so it teaches Nando ahead of any model - his memory, his mistakes,
+his small model - and the key never spends a call on it. It never re-files
+the episode (rule 10 is a separate, reviewed step). `owner_agreement`
+says how often the key's grade matched the owner's: the number that says
+whether the key can be trusted ([episode-quality]). No model is asked.
+
+**The one-time check** (`training.calibrate`, from the page's button,
+queued as Netenyahu's `categorizer:calibrate` under the key `once`): up to
+`NANDO_CALIBRATION_EPISODES` (100) recent episodes, each graded by the
+nightly key - its existing grade reused, so it is not read again - and
+once by `CATEGORIZER_CALIBRATION_MODEL` (Opus 5.5), four at a time. Only
+the comparison is kept (`calibration_report` on the page); the nightly
+grades stand. It refuses to run a second time. Because the second key
+reads episodes the first already read, it is past rule 12 as signed
+("read each finished episode once"), so it waits for the amendment.
+
+**One amendment for the owner to sign.** §502's proposal now carries both
+additions to rule 12: "once only and at the owner's request, let a second
+answer key read at most 100 of those episodes again so the owner can
+compare the two", and "teach the story composer whose categories you
+inherit". `docs/agent_rule_proposals/nando.md`, with
+`docs/agent_rules/MANIFEST.pending.json` (version 7, only `nando.md`'s
+fingerprint changes); steps in that folder's README. Until it is signed the
+button is hidden and the composer is shown nothing.
+
+**Cost**, from the measured prompt (Sonnet 5.5 $2 / $10, cache read $0.20):
+
+| | a month |
+|---|---|
+| the key, 10 a night, batched, reading the cached tree (expected) | **~$0.80** |
+| the same, no request reading the cache (worst) | ~$4 |
+| the owner's reviews | $0 |
+| the one-time check, once in all: up to 100 on Opus (~$0.0096 each) and Sonnet for any not yet graded (~$0.0054) | **~$1.50, once** |
+
+None of it grows with listeners: the key is capped per night and the check
+runs once.
+
+Tests: `tests/test_nando_review_503.py` (the owner's settings, and
+`.env.example` agrees; three filers on one branch agree, and when they do
+not; the key spent only on disagreements; the queue's order, what it skips,
+a review leaving it; a review is the grade, never graded again, measures
+the key and teaches as a mistake; "none" is a review, an unknown node or
+episode refused; a review with no key grade not counted; the check waits
+for the signature, runs once, reuses the nightly grade and reads with the
+second key only, and never again; the second key is Nando's own setting; a
+wipe forgets reviews and the check; /admin for admins only, a review from
+the page, the check refused unsigned and queued once; the page draws in a
+browser and saves a review). The old pin of the judge to Opus now pins
+Sonnet.
+
+## 504. Signing the rule books on a borrowed computer (2026-11-09)
+
+The owner's own computer stopped working while manifest version 7 waited
+(§503), and they asked to sign every agent at once from a family member's
+computer. One signature already covers every agent - the manifest lists
+all ten books' fingerprints - so what was missing is the tool: the owner's
+Mac had OpenSSL 3 in a conda environment (`famsign`), and a computer with
+only a Mac's LibreSSL cannot make an Ed25519 signature (§470).
+
+`tools/sign_rulebooks.py` signs with Python's `cryptography` package, the
+one the lock verifies with. Run in a folder holding the pending manifest
+and any changed book, it checks each book against the manifest's
+fingerprint, waits while the owner copies the key from the password
+manager, reads it from the clipboard and empties the clipboard at once, so
+the key is never pasted into a terminal (the lesson of §352) nor saved to
+the borrowed disk; refuses a key whose public half is not `owner.pub`'s;
+checks its signature before writing `MANIFEST.json` and
+`MANIFEST.json.sig`. Ed25519 is deterministic, and its signature was
+compared with `openssl pkeyutl -sign -rawin` on the same key and manifest:
+identical.
+
+Tests: `tests/test_sign_rulebooks_504.py` (the trusted key is owner.pub's;
+its signature is accepted by the lock; the key as a PEM block or its one
+line; an untrusted key or non-key signs nothing; a book that does not
+match is caught; one base64 line of 64 bytes).
+
+## 505. The owner signed manifest version 7, from a borrowed computer (2026-11-09)
+
+The owner signed `MANIFEST.pending.json` (version 7, §503) on a family
+member's Mac with `tools/sign_rulebooks.py` (§504): the Command Line Tools'
+Python 3.9.6 and `cryptography` 50.0.2, the key copied from the password
+manager and read from the clipboard, never pasted. The commit (629b9ff)
+holds exactly `MANIFEST.json`, `MANIFEST.json.sig` and `nando.md`;
+`MANIFEST.json` is the pending manifest byte for byte and `nando.md` the
+proposal byte for byte. `python tools/rulebook_manifest.py --verify`: every
+agent may run, signed with the same `owner.pub`; all ten books match.
+
+So both of rule 12's additions are in force: `training.composer_allowed`
+and `training.calibration_allowed` are true, the composer is shown its
+corrected categories once there are any, and the one-time comparison's
+button appears on /admin (Categories) - where it runs once, from the
+owner's click, never by itself.
+
+The proposal and the pending manifest are deleted and the proposals README
+says nothing is waiting. The owner updates the copy held outside Claude.
+
+## 506. The review before the pull request: the owner's review kept, rule 12 held, a batch's spend counted once (2026-11-09)
+
+At the owner's request, before the pull request into Main, three
+independent reviews read the branch's whole change (`git diff
+origin/Main...HEAD`): one on Nando's placement path (§501), one on the
+answer key and the batch layer (§502-§503), one on /admin, the signing tool
+and whether the documents tell the truth (§503-§505). With the agents off
+nothing changed; everything they found shows with them on, and is fixed
+here.
+
+**The answer key.**
+
+- **A batch collected after the owner's review replaced it.** A review
+  written at 09:00 for an episode in the 03:00 batch was overwritten by the
+  key's grade at 09:05. `put_label` now never replaces a grade of the
+  owner's with a model's.
+- **The one-time comparison could read an episode with the nightly key
+  twice** (rule 12: once): an episode asked about with no usable grade - a
+  failed call, a retired grade, one still in a batch - was read again. It
+  is now passed over; an episode the key never read is marked asked before
+  it is read. The episodes are capped at 100 in code (`CALIBRATION_MAX`),
+  the number signed rule 12 names, whatever the setting says.
+- **"Once only" could be lost or doubled.** Keyed by its task, a run that
+  stored nothing - every call failed, or refused at run time - either ran
+  again or could never be queued again, and the page said "Already queued".
+  Its start is now recorded before anything is read
+  (`nando_calibration_run`): once started it has run, however it ended, and
+  the page says how it ended. A run refused before starting (Nando switched
+  off) reads nothing and may be queued again; each click queues its own
+  task, and the start record keeps it to one run.
+- **A failed create was followed by a live read.** A batch whose create
+  timed out may exist all the same, so grading its episodes live as well
+  read each twice and billed twice. `submit_batch` now says whether a create
+  was sent (`attempted`); after one that failed nothing is asked again.
+  Only a vendor that cannot batch at all is graded live. Every batch API
+  call now has a time limit (`models.BATCH_CALL_SECONDS`, 120 s).
+- **A model change between sending and collecting lost the whole batch** as
+  `WRONG_MODEL` - §503 had just moved the key from Opus to Sonnet. A batch
+  now keeps the model it was sent to and is read with it.
+- **A batch could be collected twice**, recording its spend twice, if
+  keeping a grade failed after the ledger rows were written. It is now
+  finished first; a grade that cannot be kept is lost, never paid twice.
+- **One-hour cache writes were priced as five-minute ones** (the ledger
+  prices every write at the global `PROMPT_CACHE_TTL`, and a one-hour write
+  is billed at 2x). Batches now ask for the standard cache, which the
+  ledger prices correctly; at ten requests a night the longer cache bought
+  little.
+- **"Agreed" skipped what §502 meant to grade.** A tile's or edition's
+  filing and the composer's are one filing, so they agreed by construction;
+  a bare facet agreed with anything under it. Neither counts as agreement
+  now: those episodes are graded.
+
+**Nando's placement.**
+
+- **An edition or script-level warm asked him twice** when his first answer
+  ahead of the tap was "none" or failed: `prepare` could not tell "asked,
+  nothing" from "never asked". The notes now say he was asked
+  (`category_ahead_asked`), and `prepare` never asks again. §501's "one
+  call of his, not two" is now true.
+- **An edition story it will drop** (its answer a result) no longer pays for
+  his call.
+- Tests now run the whole flows the claims name: `understand` then `prepare`
+  on the same notes, and a brief built ahead then taken by a later tap.
+
+**/admin and the signing tool.** The page's panels each read on their own,
+so one store failing empties one panel, never the page. The confirm dialog
+reads the setting. The signing tool no longer waits forever on Linux's
+clipboard, says so plainly where no clipboard tool exists, and refuses a
+manifest with no books.
+
+**Known and left, said plainly.** A brief warmed at prefetch's brief level
+writes no audit row, and the tap that takes it is logged under the surface
+it was tapped on (`myfam`, which the 05:00 rails edition also uses), so
+`nando.by_origin` cannot show taps on warmed briefs apart from other myFAM
+taps. On the DailyFAM edition, a prompt whose name means two things may
+still pay for his call before the edition drops it as ambiguous, where his
+own check (`placed.ambiguous`) and the edition's (`ambiguous_readings`)
+differ.
+
+**Checked by the reviews and found sound:** nothing new in front of a
+listener's first word; a warmed (shared) brief never mutated; never a
+guess between two readings; the live agent path unchanged by the refactor;
+every batched request through the same checks as a live one; admin auth,
+escaping and validation on every endpoint; the signing tool's signature
+identical to OpenSSL's and the key never written or shown; the documents'
+claims, the settings, the signed books.
+
+**CI's two other jobs, reproduced here.** Python 3.12 (CI's version) and
+the Postgres job (PostgreSQL 16, the CI tuning), each over the whole suite.
+
+Tests: added to `tests/test_nando_background_501.py`,
+`tests/test_nando_training_502.py`, `tests/test_nando_review_503.py` and
+`tests/test_sign_rulebooks_504.py`, one or more per finding.
+
+
+## 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09)
+
+The owner sent a screenshot of a PGA Tour episode on the player wearing a
+painting of a rock on a workbench - "This rock is everywhere for some
+reason" - and asked why episodes on a broad category (sports, soccer,
+politics, world) keep showing the same picture.
+
+**Why, measured offline.** Production's pictures and episodes are not
+reachable from a session, so the real picker (`pick_for_tile`) was run over a
+seeded tree and 92 realistic episode titles, each with the category a writer
+would plausibly give it. With only the eight facets painted, 85 of 92 borrowed
+a facet's picture and 41 (45%) wore sport's; with the facets and the level
+under them painted, football's one picture was on 13 and elections and
+politics' on 10; with every node painted, elections and politics was still on
+8. On words alone (an episode with no category), the seed tree placed 22 of
+92: it holds "boston celtics", not "Celtics", and no politics below one node.
+46 fell to the last borrowing step - one facet picture chosen by a hash of the
+words - so an Arsenal match wore business's picture and a hurricane culture's.
+
+**Why the PGA Tour wore the rock.** "PGA Tour" matched no node (golf is in the
+tree; "pga" is not). `tags_for_text` read "tour" as music, so culture, and the
+league as sport, and `picture_facets` returned them alphabetically -
+culture before sports - and the player takes the first painted. Every episode
+whose words touched two facets went to the alphabetically earlier one. Which
+painting the rock is was not checked from here (`fam.onrender.com` is outside
+the session's network); `/api/thumb/culture` and the seven other facets, or
+`/admin/thumbnails`, say.
+
+**What changed.**
+
+1. **Strongest first, never alphabetical.** `topics.picture_facets` orders the
+   facets by the deepest tree node the words name, then a named sport (a
+   league or team, `_names_a_sport`), then keyword count; and a borrowed
+   picture tries the facet of the episode's category before any of them.
+2. **A sport's shared words file nothing else.** `SPORT_SHARED_WORDS`
+   ("tour", "series", "box", "chart"): a subtag matched only by those is
+   dropped from `tags_for_text` when the words name a sport. "PGA Tour" is no
+   longer music; "Taylor Swift tour dates" still is.
+3. **Other names for a node** (`category_seed.ALIASES`, matched in
+   `CategoryStore.match`): "lakers", "yankees", "pga tour", "wta",
+   "epl", "man city", "senate", "prime minister" ... each answered as its node
+   with that node's ancestry, never as a node. The seed's rule for teams
+   holds: no short name that is also an everyday word ("kings", "eagles",
+   "spurs" - two sports - "packers", "governor", "shutdown"); a test keeps
+   "meat packers", "a plant shutdown" and "the Bank of England governor" out.
+   An alias with a word under `MIN_WORD` could never match and is refused.
+   A review of the branch took out seven more that another field owns:
+   "atp" (the molecule), "ucl" (the university), "mls" (house listings),
+   "midterms" (exams), "house speaker", "wimbledon" (the place) and "grand
+   prix" (skating, riding); the test holds each of those questions out.
+   "celtics" was tried and taken out: Nando's corpus (§378) files "Heat beat
+   the Celtics in the playoffs" under the NBA, a game between two teams, and
+   with the Heat left to grow the alias put it under the one team it knew.
+4. **More subjects under the busy nodes**: under football, spanish football,
+   international football, womens football, football managers; under
+   elections and politics, congress, white house, supreme court, government
+   shutdown, state politics, parliament, national elections. `apply_seed` adds
+   them on the next boot; the writer sees them among its branch's names.
+5. **No hashed picture** (the owner: "drop the random fallback"). An episode
+   nothing places - no branch, no facet - shows no picture, as tiles did
+   before any picture existed. This reverses §193's "never missing" and
+   §214's "every tile" for that case only.
+6. **Several pictures per broad node** (the owner: "attach the extra
+   pictures to the node they belong to ... randomly select from the pictures
+   within that node"). Each facet and each node directly under one holds
+   `THUMBNAILS_BROAD_PICTURES` (4) pictures, as rows `node#2`, `node#3` in the
+   same table, so review, repaint, approve, reject, the duplicate check and
+   export work on them unchanged. `ThumbnailStore.approved` stays keyed by the
+   node (every "is this node painted?" reader is unchanged) and `pictures`
+   lists its live rows. `choose_picture` picks one by a hash of the node and
+   the episode's words: random across episodes, but the same one for one
+   episode on its tile, player, vibe and share card (§286). The sweep
+   (`wanted`) paints extras only after every node's first, and only for a
+   node whose first is live; `writer_line` tells the scene writer the
+   number and what the node's other pictures show, so the new one is a
+   different scene (§177).
+
+**After, the same 92 titles.** On words alone the tree now places 51 (was
+22). The category-anchored runs are unchanged by 1-5 (their categories were
+fixed). With the facets and the level under them painted, the most-worn
+picture fell from 13 of 92 episodes (football) to 5 once each of those
+nodes held four, and the effective number of distinct pictures rose from
+17.6 to 46.5; with every node painted as well, from 38.1 to 58.0.
+
+**Cost and pace.** 8 facets and 75 nodes under them, three extras each, is
+249 images, about $17 at `THUMBNAILS_IMAGE_PRICE`, painted inside the daily
+ceiling (60) after every unpainted node: roughly four days once the first
+pictures are done. Extras for the facets go first.
+
+**Unseen** with a real key, like §166-§177: look at the first few extras of
+sports and football in `/admin/thumbnails` before letting the sweep paint the
+rest.
+
+## 508. A backend operations handbook, for the weeks the owner is away (2026-11-08)
+
+The owner: "I have built the entire backend and am the only person who knows
+how to operate it ... when I am not available to work on fam someone will
+need to be responsible for the backend. I want to put together a
+presentation and a series of documents that clearly lays out how to operate
+the backend. This should include Claude, GitHub, render, runpod, cloudfare,
+mongodb, and anything else we normally interact with. Also, include how to
+sign off on new agent documents."
+
+**Written** in `docs/operations/`, a draft the owner edits on the branch:
+`README.md` (the index and the five rules of the job), `00_SYSTEM_MAP.md`,
+`01_ACCESS.md` (each account, the role to grant, the alert inboxes, and the
+owner-only decisions), `02_GITHUB.md`, `03_CLAUDE.md`, `04_RENDER.md`,
+`05_RUNPOD.md`, `06_CLOUDFLARE.md`, `07_MONGODB.md`,
+`08_OTHER_SERVICES.md`, `09_AGENT_RULE_SIGNOFF.md` and `10_RUNBOOKS.md`.
+The deck is `slides.md`, built by `build_deck.py` into
+`FAM_Backend_Operations.pptx` (python-pptx, already in
+`requirements-docs.txt`). Every step is taken from the existing setup
+documents and `render.yaml`; nothing in the code changed.
+
+**What writing it found**, each left as a `TODO(owner)` in the handbook
+rather than guessed:
+- Every recent PR (#229-#231) went from a `claude/*` branch straight into
+  `Main`, and `staging` is level with `Main`: the staging-first flow of
+  §172 is not the one in use. The handbook recommends it while the owner
+  is away and leaves the choice open.
+- `docs/ONBOARDING.md` §7.1 still listed a production disk `fam-data`;
+  production has had no disk since §339. Corrected there to Postgres.
+- Signing a rule book needs the owner's key, and that is the point of the
+  lock (§343-§352). The operator reviews a proposal against a written
+  checklist; the owner still signs. Whether a second signing key should
+  exist is an owner decision, and would itself be a signed change.
+- Facts only the owner holds: the production and staging hosts, the SMTP
+  provider, whether `familiarize.net` is on Cloudflare, whether
+  production's archive is on Atlas yet, the database plan and its recovery
+  window, spend limits on Anthropic and RunPod, branch protection on
+  `Main` and `staging`, and how to reach the owner in an emergency.
+
+**The owner's follow-up** (the same day): "Include merging into staging
+and then back into main ... these documents should spell out how to do
+everything very simply and understandably. Clear step by step instructions
+with notes under on stopping points to check if they are seeing the right
+responses to their steps."
+
+**Rewritten.** Every document in `docs/operations/` is now numbered tasks,
+each important step followed by a **Check** (the exact words or values the
+screen should show) and an **If not** (what to do instead); the README
+explains the format and says not to go on until a Check matches.
+`02_GITHUB.md` is the whole route in six steps - feature branch into
+`staging`, watch `fam-staging` deploy, test there, `staging` into `Main`,
+check production, then `Main` back into `staging` so the two are level -
+with the urgent-fix route and reverts for each case. The health page is
+read in a browser with find rather than `curl`. The deck has six new slides
+for the route (28 in all).
+
+**A beginner's read** (2026-11-09, the owner: "Look through all of the
+documentation with the eyes of someone who has no idea how it works"). A
+separate session read the handbook as someone who had never used GitHub,
+Render or a terminal, and checked its claims against the code. What it
+found, and what changed:
+- **The sample-script symptom was wrong.** `DEMO_MODE` is only "no key set"
+  (`app.py`), so a refused key shows `mode: live` and episodes *fail*; the
+  field that says so is the top-level `credentials → state`
+  (`ok`/`rejected`/`absent`, checked at start-up), not the one under
+  `credentials → secrets`. 00, 03, 08 and 10 now tell the two apart.
+- **The health page could not be searched as written.** `reachable`,
+  `held`, `ok`, `lock` and `state` each appear several times, and Firefox's
+  viewer hides quote marks. README now teaches Firefox's Filter JSON box and
+  writes every field as a path (`database → reachable`), with a table, and
+  says which counters restart at every deploy.
+- **GitHub starts a new pull request with base `Main`.** Step 1 now changes
+  base first and checks the merged message says `into staging`; every merge
+  is "Create a merge commit"; a third pre-check catches changes already
+  waiting on staging; reverts say they undo the whole batch, and that
+  bringing a reverted change back needs a new branch.
+- **An author cannot approve their own pull request**, so the rule-book
+  sign-off is now a comment, and 02 tells the owner what required approvals
+  would do to the operator.
+- **Steps needing a terminal on the operator's computer are gone** (deck
+  rebuild, replaying episodes, the admin-token generator, the plan change by
+  `curl`): routed to Claude, a password manager or the owner. The Render
+  Shell is the one place a command is typed.
+- **Real names from the code:** `/admin`'s menu (Pipeline errors, Reported
+  content with Remove/Suspend/Dismiss and Open/Answered, Outside service
+  requests), the waitlist page's controls and outbox line, `/admin`'s
+  not-an-admin message, each agent's role and switch (`agents/names.py`),
+  `usage_report`'s "Worth a look" wording, `audio → check → why`.
+- Moderation moved to the daily check (Apple's 24 hours); one set of wait
+  times in the README; Render's Auto-Deploy checked after a rollback; roles
+  in 01 listed against the pages they must open, with a trial week; prompts
+  name the existing branch and say what to do if Claude pushes a new one.
+
+**A fact-check against the code** (2026-11-09, the owner: "Double check all
+changes made in this branch"). A separate session checked every concrete
+claim in the handbook against the code (about 140 held). Twenty-two did not,
+all now corrected:
+- `voice_doctor.py` speaks only with `--speak` (without it, it is free and
+  ends "Not asking it to speak"); `stories_report.py` writes to the live story
+  pool unless given `--dry`, so the Shell table now says `--dry`; its
+  `wait` and `--` marks are normal; `rulebook_manifest.py --verify` prints
+  each agent `may run` and `manifest version N, signed with owner.pub`, not
+  `signed: True`.
+- Trending: GNews is reported at `trending_bank → gnews`, not
+  `trending → sources`; a failed build retries every 30 minutes and the last
+  edition stays up to 36 hours, so an empty row is never "waiting for 17:00".
+- `archive → enabled` checks settings and sends nothing: a refused
+  connection or a bad password leaves it `true` and shows as `errors` and
+  `last_error` (07, and the same mistake in `ARCHIVE.md`); the read-only
+  user's `connection` line proves only that the setting exists.
+- `usage_report.py --flagged`'s **Worth a look** covers the last hour only;
+  the week is **Most expensive listeners**.
+- Keith's alert email needs `AGENTS` and `IT_AGENT`; Apple is four `APPLE_`
+  settings plus `IOS_BUNDLE_ID`; web push also needs `VAPID_SUBJECT`;
+  Consuela has two dry-run switches; only *active* mixes are written at 05:00;
+  a single held agent logs `netenyahu held <role>`, so the log search is
+  `held`; `credentials → rejected` is any failed start-up check, and
+  `audio → check` is measured once at boot.
+- The owner-only file list now matches `.github/CODEOWNERS`, and allows a
+  proposal's `MANIFEST.pending.json`; `/admin`'s menu is a left sidebar,
+  behind a button only on narrow windows; not every report has all three
+  buttons; CI on `Main` took 34-57 minutes over its last eight runs, so the
+  handbook says 35-60; the deck's five contradictions with the documents are
+  gone.
+- Vendor details that cannot be checked from code were softened rather than
+  asserted: a personal repository has no collaborator roles; RunPod's
+  console is at `console.runpod.io`; the Anthropic console may forward to
+  `platform.claude.com`; staging (which has a disk) blinks out for a minute
+  on a deploy. The staging address `fam-staging.onrender.com` is taken from
+  `.github/workflows/load-test.yml`, left for the owner to confirm.
+
+**Main moved under the handbook** (2026-11-09, the owner: "Double check all
+changes made in this branch", again). #232 merged into `Main` with §501-§506,
+so this section, written as §501, was renumbered; #233 then took §507 as
+well, so it is §508. Two of #232's changes
+made the handbook wrong, now fixed in 09: the rule books are on **manifest
+version 7** (§505), and the owner can now sign from any computer with
+`tools/sign_rulebooks.py` (§504), which reads the key from the clipboard,
+so Step 5 uses that tool (with OpenSSL left as the alternative) and the
+signing decision's option 2 is no longer Mac-only. #232's `/admin`
+**Categories (Nando)** page and its **Run the one-time check** button
+(§503) are added to the owner-only list in 01. The agents' names, roles and
+switches are unchanged (`agents/names.py` gained only a model setting).
+
+## 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09)
+
+The owner sent a photo of FAMiliarizing with its five steps - "I like this
+loading screen for when someone searches. But when it's on myFAM mix or a
+DailyFAM episode, I think I want to create a different one" - and asked for
+six options, easy to compare, with the animations visible, leaving search and
+Go Deeper as they are. A comparison page put six animated phones on one clock
+(Cover Rise, Warm-up Wave, Rail Glide, Spinning Record, Tuning Dial, Chevron
+Meter), each switchable between a DailyFAM tap and a mix's next episode, three
+wait lengths and slow motion. The owner chose **option 5 (Tuning Dial) for
+DailyFAM and option 3 (Rail Glide) for mixes.**
+
+**What changed.** `generate` reads `loader` off the topic: `startBankTopic`
+(every DailyFAM tile, the rails and their View more) sets `dial`;
+`playMixItem` sets `glide`. With a loader the loading screen takes the class
+`alt`, hides the wordmark, chevrons, word, dots and steps, and
+`paintLoadingVariant` draws the screen into `#famLoadingAlt`:
+
+- *Dial:* the categories of the rail the tile came from (`seedTagText`, at
+  most four besides the tile's own, which sits fourth), the needle sweeping
+  across, overshooting and settling on the tile's; the rail's heading in the
+  kicker. The dial keeps the short tag, in capitals; the line under it names
+  the category in full, capitalised (`dialWord`, owner's direction): a broad
+  category's own name ("Tuning in to Technology"), else the tree's label,
+  else the tag with each word capitalised.
+- *Glide:* the mix's episodes in `mixPlay.order`, earlier ones marked Played
+  (only once their first audio arrived, `mixPlay.played`) or Skipped - a
+  failure or a skip before a word is not something that played -
+  the row sliding one card along (measured, since the screen is a phone frame
+  on a desktop and the whole width on a phone); "Morning Eagles · 2 of 5";
+  dots up to twelve episodes.
+
+Both show the episode's title and "Getting your episode ready" (or "the next
+episode") - true whether the script was written ahead or is being written now.
+A server that cannot write (`genStatusNote`) says so there instead.
+
+**What did not change, deliberately.** The five steps hold the audio until the
+fifth is shown (§148); that is search's honest wait and stays search's and Go
+Deeper's. These two screens hold nothing: `startGenSteps(free)` still polls
+`/api/progress`, because the server's marks are what move the give-up time
+(§497) - without the poll a cold voice would be abandoned at a flat 45 s again
+- but `genStepsGate` starts the audio the moment it arrives. On a cache hit the
+screen is up for `GEN_MIN_VISIBLE_MS` (450 ms) and the dial is cut off
+mid-sweep; that is the rule (§292), not a bug. Reduced motion shows each at
+rest: needle on the category, row on the episode.
+
+## 510. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09)
+
+The owner's note (11.9): a PGA Tour episode played over the `lead` node's
+picture - a lump of grey metal in a workshop - and the theory was that a
+player "in the lead" put it there. **The theory was right**, reproduced
+against the seed: the tree grew `lead` from listeners' questions and the
+placer filed it under science (the metal). Placed two levels deep (e.g.
+under `materials science`), it reached `SUBJECT_DEPTH`, so §282's
+`_named_subject` - written for a Seahawks episode filed under sports
+betting - read "Scheffler takes a two-stroke lead" as naming a deeper
+subject on another branch and drew it **even when the episode's own
+category was golf**. Placed one level deep it still wins whenever the
+episode has no category yet (while it is being written) and the words
+name nothing deeper than `golf`.
+
+What decides the picture, in order (`thumbnails.pick_for_player`): the
+episode's category (Nando's node, else the writer's `<<CATEGORY:>>`) unless
+the words name a deeper subject (`_named_subject`); with no category, the
+deepest node the words name (`categories.match`: whole words, in order,
+no stemming - "leads" and "leading" never matched, "lead" did); then the
+nearest node by meaning; then a painted ancestor; then the facets; else
+none (§507).
+
+The fix: **a named subject outranks the category only on the category's
+own facet.** §282's case is a team beside a node of its own sport; a word
+on another facet's branch is another sense of the word. The uncategorised
+case is unchanged - it is a vocabulary problem (an everyday word grown as
+a node), not a ranking one, and is left open: `lead`, like the team names
+in `LEFT_TO_GROW`, should probably not match as a bare word.
+`tests/test_implementations_1015.py::test_a_word_on_another_facet_never_outranks_the_category`.
+
+## 511. "lead" is never a category on its own (2026-11-09)
+
+§510 left one case open: an episode with no category yet whose words say
+"lead" still matched the grown `lead` node (the metal, under science) and
+wore its picture. At the owner's word ("stop 'lead' from matching on its
+own too"), `category_seed.NEVER_ALONE` lists words that are a subject only
+inside a longer phrase - for now only `lead`. `CategoryStore.mint` refuses
+one alone, and `CategoryStore.match` drops a one-word node named there
+from its candidates, so the `lead` row already on the deployment reads as
+nothing without a migration or a wipe (its picture stays in the store,
+unreached). "lead poisoning" still grows and matches. The §510 test now
+uses another cross-facet word (`irons`); `test_lead_is_never_a_category_on_its_own`
+pins this. Add a word to the list rather than a stopword: a stopword would
+also stop "lead poisoning" from ever growing (`phrases_in` breaks runs on
+stopwords).
+
+## 512. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09)
+
+The owner: "add any other everyday words that show the wrong picture".
+**The deployed tree is not readable from a development container**, so the
+words that have actually grown there could not be listed; the thumbnail
+review page (`/admin`) and the new report can. What was added is chosen by
+§511's rule, not from sightings: a word a headline uses every day as a verb
+or a plain noun, whose subject senses sit on different facets - `record`,
+`draft`, `strike`, `pitch`, `court`, `match`, `race`, `trade`, `bond`,
+`stock`, `charge`, `shot`, `drive`, `iron`, `fire`, `plant`, `star`, `club`,
+`spring`, `fall`, `net`, `bowl`, `cup`, `crane`, `seal`, `bat`, `suit`,
+`cell`, `power`, `tank`, `current`, `ring`, `round`, `cap`, `base`, `field`,
+`table` (each with its senses in `category_seed.NEVER_ALONE`). Left off on
+purpose: a word whose one sense is the subject ("golf", "inflation"), a
+company or product ("apple", "amazon" - real, frequent subjects), and
+anything the seed or `ALIASES` names (a test pins that none is). The cost
+of a word on the list is that it never grows alone; its phrases
+("wildfire", "power grid", "world record") still do.
+
+`python tools/categories_report.py --alone` (or `--alone --json`) lists
+every one-word node the tree grew, most listeners first, with its branch
+and whether the list already silences it - run it on the deployment to
+find the next word; adding one is a line in `NEVER_ALONE`.
+
+## 513. No grown phrase holding an everyday word is a category (2026-11-09)
+
+The owner, on §512's "its phrases ('wildfire', 'power grid', 'world
+record') still do": "There should be a way that the categories tree is
+checked so that longer phrases can't be categories. These are not
+important categories to have."
+
+**The check is in `CategoryStore.reload`**, where the tree is read: a
+grown node whose phrase holds any `NEVER_ALONE` word is left out of
+`_nodes`, the match index and the ancestry closure, so it never matches,
+`get` returns None (an episode whose stored category it was falls back to
+the words, as for a node the tree no longer holds), `nodes()` omits it and
+`category_near` never offers it. `mint` refuses such a phrase unless it is
+already a node. A child of a silenced node keeps its place, its ancestry
+skipping the silenced one. **The rows stay on disk** - no wipe, no
+migration - so taking a word off the list brings its phrases back;
+`CategoryStore.silenced()` lists them and `categories_report.py --alone`
+prints them, marked.
+
+**The seed is exempt, by name as well as by source**: "super bowl", "world
+cup", "stanley cup", "stock market", "bond market", "supreme court", "trade
+policy", "draft prospects" and "fusion power" hold listed words and are the
+owner's vocabulary; a row first grown before the seed named it keeps a
+grown source, so the source alone would have hidden it. The aliases ("ryder
+cup", "governor race") come from the seed and are never nodes. "wildfire"
+is one word, not "fire", and still grows.
+
+The cost, said plainly: a grown "nfl draft", "trade deadline", "salary cap"
+or "power outage" is now never a node - such an episode is placed by its
+other words (the league, the team) or the facet. A phrase worth keeping is
+added to the seed, where the check does not reach.
+
+## 514. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10)
+
+The owner, after §513 named them as its cost: "add nfl draft, trade
+deadline and salary cap to the seed". Each holds a `NEVER_ALONE` word, so
+the seed is the only place they can live. `nfl draft` sits under `nfl`
+(beside the teams) so it is deeper than the league and wins the picture
+for a draft episode; `trade deadline` and `salary cap` belong to every
+league and sit directly under `sports`, beside the sports. They are
+painted by the next thumbnail sweep like any new node.
+`test_the_owners_phrases_with_everyday_words_are_seeded`.
+
+## 515. "world cup qualifiers" and "power outage" seeded (2026-11-10)
+
+The owner: "add world cup qualifiers and power outage to the seed". Both
+hold `NEVER_ALONE` words ("cup", "power"), so only the seed can hold them
+(§513). `world cup qualifiers` sits under `world cup`, so a qualifying
+episode is deeper than the tournament and wins the picture.
+`power outage` sits under `local news` and joins `LOCAL_NODES`: an outage
+is nearly always a town's question, so the writer is offered it first when
+the brief names a town (`stories.writer_vocabulary`) and the scene writer
+paints it as an ordinary town (`thumbnails.WRITER_SYSTEM`).
+`test_world_cup_qualifiers_and_power_outage_are_seeded`.
+
+## 516. "power grid" and "world record" seeded (2026-11-10)
+
+The owner: "add power grid and world record to the seed". Both hold
+`NEVER_ALONE` words, so only the seed can hold them (§513). `power grid`
+sits under `energy security` beside `oil supply`; `world record` belongs
+to every sport and sits directly under `sports`. `test_category_seed`
+bans "record" from seed names because a category names a subject, never a
+claim ("record high"); "world record" is a subject and is exempted by
+name, the ban otherwise unchanged. §513's tests used both phrases as
+examples of grown phrases the check hides; they now use "record label"
+and "power bill". `test_power_grid_and_world_record_are_seeded`.
+
+## 517. "nfl trade rumors" seeded (2026-11-10)
+
+The owner: "add nfl trade rumors to the seed". It holds "trade", a
+`NEVER_ALONE` word, so only the seed can hold it (§513). It sits under
+`nfl`, beside `nfl draft`, so it is deeper than the league and wins the
+picture. Matching is the phrase in order (§209): "NFL trade rumors"
+matches; "Steelers trade rumors" does not (that is the team's node).
+`test_nfl_trade_rumors_is_seeded`.
+
+## 518. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09)
 
 **What was asked.** The owner walked App Store Connect with Claude for the
 first TestFlight and App Store submission, then asked for the audio spike
@@ -31582,9 +32421,9 @@ second, and once the queue emptied short of the end it was logged as
 did send "interruption over; resume" this time, so a call resumes on its
 own.
 
-## 502. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09)
+## 519. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09)
 
-**What was asked.** With the spike passed (§501), the owner asked to start the
+**What was asked.** With the spike passed (§518), the owner asked to start the
 real app. `ios/FAM` is an XcodeGen project (`project.yml`, bundle id
 `net.familiarize.fam`, build 2, so it replaces the spike on a phone) that
 links `ios/FAMSafety`.
@@ -31710,7 +32549,7 @@ to the server's `GOOGLE_CLIENT_IDS`. Until the client id is set the Google
 button is not drawn (`no-dead-controls`). `/api/health` > `oauth` says which
 provider the server can verify.
 
-## 503. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10)
+## 520. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10)
 
 **What happened.** On the phone, signed out, the owner tapped Sign in with
 Apple. The button still read "Sign up with Apple" (Apple's button sets its

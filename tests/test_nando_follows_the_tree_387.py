@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 
 import pytest
 
@@ -85,6 +86,11 @@ def test_a_minted_node_flags_the_grades_under_its_parent_and_never_reads_them_ag
                                                             reason="r"), model="m")
 
     monkeypatch.setattr(models, "ask", ask)
+    # Graded live here; the Message Batches path has its own tests (§501).
+    import config
+
+    monkeypatch.setattr(config, "settings",
+                        dataclasses.replace(config.settings, nando_judge_batch=False))
     asyncio.run(training.judge_batch(lambda _k: ["s"], limit=5))
     assert asked == ["question q"] and training.store().to_regrade() == {"p"}
 

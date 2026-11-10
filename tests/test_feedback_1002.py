@@ -64,14 +64,12 @@ def test_the_player_borrows_the_branch_when_its_node_is_unpainted(tree):
     assert got["node"] == "sports" and got["fallback"] is True
 
 
-def test_a_question_the_tree_knows_nothing_about_still_gets_a_picture(tree):
+def test_a_question_the_tree_knows_nothing_about_gets_no_unrelated_picture(tree):
+    """11.9 reverses 10.2's hashed facet picture: an episode nothing places
+    wears no picture rather than another subject's."""
     _put("tech", facet="tech")
     _put("health", facet="health")
-    words = "why gen z took up grandma hobbies"
-    got = th.pick_for_player(words)
-    assert got["node"] in {"tech", "health"} and got["fallback"] is True
-    # The same episode always wears the same one.
-    assert th.pick_for_player(words) == got
+    assert th.pick_for_player("why gen z took up grandma hobbies") is None
 
 
 def test_nothing_approved_means_no_picture(tree):
@@ -81,7 +79,7 @@ def test_nothing_approved_means_no_picture(tree):
 def test_the_card_says_when_its_picture_was_borrowed(client, tree):
     _put("sports")
     out = client.get("/api/episode/card",
-                     params={"q": "why gen z took up grandma hobbies"}).json()
+                     params={"q": "the nba trade deadline"}).json()
     assert out["thumb"].startswith("/api/thumb/sports")
     assert out["fallback"] is True
 

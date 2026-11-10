@@ -173,6 +173,52 @@ def audit(days: int, as_json: bool) -> int:
     return 0
 
 
+def alone_rows(store) -> list[dict]:
+    """The everyday-word candidates (§512, §513), most listeners first:
+    every one-word node the tree grew (not the seed), and every grown node
+    the check leaves out because it holds a `NEVER_ALONE` word, marked
+    `silenced`, each with its branch."""
+    rows = []
+
+    def branch(node_id, parent_id):
+        chain = [node_id] + ([parent_id] + list(store.ancestors(parent_id))
+                             if parent_id else [])
+        return " > ".join(reversed(chain))
+
+    for node in store.nodes().values():
+        if node.source == cat.SOURCE_SEED or len(node.id.split()) != 1:
+            continue
+        rows.append({"node": node.id, "branch": branch(node.id, node.parent_id),
+                     "listeners": node.listeners, "uses": node.uses,
+                     "silenced": False})
+    for node in store.silenced().values():
+        rows.append({"node": node.id, "branch": branch(node.id, node.parent_id),
+                     "listeners": node.listeners, "uses": node.uses,
+                     "silenced": True})
+    rows.sort(key=lambda r: (r["silenced"], -r["listeners"], -r["uses"],
+                             r["node"]))
+    return rows
+
+
+def alone(store, as_json: bool = False) -> int:
+    rows = alone_rows(store)
+    if as_json:
+        print(json.dumps(rows, indent=2))
+        return 0
+    if not rows:
+        print("  No one-word node has grown.")
+        return 0
+    print("  One-word nodes the tree grew, then the grown phrases left out")
+    print("  because they hold a category_seed.NEVER_ALONE word (§513). An")
+    print("  everyday word in the first list belongs in NEVER_ALONE (§512).")
+    print()
+    for row in rows:
+        mark = "  silenced" if row["silenced"] else ""
+        print(f"    {row['node']:18} {row['listeners']:>4} listeners"
+              f"  {row['branch']}{mark}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tree", action="store_true",
@@ -187,10 +233,15 @@ def main() -> int:
     parser.add_argument("--audit", action="store_true",
                         help="how often the writer, the composer and the"
                              " keyword map agree (§209)")
+    parser.add_argument("--alone", action="store_true",
+                        help="one-word nodes this tree has grown, and the phrases"
+                             " NEVER_ALONE leaves out (§512, §513)")
     args = parser.parse_args()
 
     if args.audit:
         return audit(args.days, args.json)
+    if args.alone:
+        return alone(cat.CategoryStore(), args.json)
 
     store = cat.CategoryStore()
     if args.seed:

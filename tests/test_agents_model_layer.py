@@ -393,6 +393,9 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         # The audit report reads the answer key's agreement (§381); the
         # judge itself is a background task, never on the listener's path.
         "category_audit.py": {"training"},
+        # The story composer is shown its own corrected categories from the
+        # answer key's stored grades (§501): a read, in a thread, no model.
+        "stories.py": {"training"},
         # The archive asks whether Consuela may run - her switches and her
         # lock, read only, no model (§397) - and, only while she may, queues
         # her consolidation on Netenyahu's loop and reports it (§399). Her

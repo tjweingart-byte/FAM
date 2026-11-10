@@ -492,6 +492,23 @@ and `limit` = Lines.
 | 31221 | 108 | 498. The 11.7 myFAM packet: a mix is made by naming it, Spotify's playlist page, short names for long topics, joint mixes (2026-11-08) |
 | 31329 | 109 | 499. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
-| 31500 | 85 | 501. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
-| 31585 | 128 | 502. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
-| 31713 | 32 | 503. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
+| 31500 | 85 | 501. Nando on the background paths: a warmed brief carries his decision, and each path is counted (2026-11-09) |
+| 31585 | 110 | 502. Training Nando: grade what teaches, through the Batch API, and grade every source that files (2026-11-09) |
+| 31695 | 73 | 503. The answer key on Sonnet, ten a night where the filers disagree; the owner's review queue; the one-time check against Opus (2026-11-09) |
+| 31768 | 26 | 504. Signing the rule books on a borrowed computer (2026-11-09) |
+| 31794 | 20 | 505. The owner signed manifest version 7, from a borrowed computer (2026-11-09) |
+| 31814 | 95 | 506. The review before the pull request: the owner's review kept, rule 12 held, a batch's spend counted once (2026-11-09) |
+| 31909 | 93 | 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09) |
+| 32002 | 144 | 508. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
+| 32146 | 46 | 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09) |
+| 32192 | 31 | 510. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09) |
+| 32223 | 16 | 511. "lead" is never a category on its own (2026-11-09) |
+| 32239 | 24 | 512. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09) |
+| 32263 | 32 | 513. No grown phrase holding an everyday word is a category (2026-11-09) |
+| 32295 | 11 | 514. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10) |
+| 32306 | 12 | 515. "world cup qualifiers" and "power outage" seeded (2026-11-10) |
+| 32318 | 12 | 516. "power grid" and "world record" seeded (2026-11-10) |
+| 32330 | 9 | 517. "nfl trade rumors" seeded (2026-11-10) |
+| 32339 | 85 | 518. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
+| 32424 | 128 | 519. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 32552 | 32 | 520. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |

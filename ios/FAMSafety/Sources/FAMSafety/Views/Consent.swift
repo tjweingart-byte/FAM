@@ -104,7 +104,7 @@ public extension View {
 
 /// Observes the model, so the sheet appears when `asking` changes. Read
 /// through a plain parameter (as this first did), nothing redraws when
-/// `ensure()` starts asking, and the question is never shown (§502).
+/// `ensure()` starts asking, and the question is never shown (§519).
 struct AIConsentSheet: ViewModifier {
     @ObservedObject var model: ConsentModel
 

@@ -508,7 +508,7 @@ its accounts.
 |---|---|---|
 | Branch | `Main` (autoDeploy on until the App Store) | `staging` |
 | `FAM_ENV` | `production` | `staging` (spend guard plus network guard) |
-| Disk | `fam-data` at `/data` | `fam-staging-data` at `/data` |
+| Storage | Render Postgres via `DATABASE_URL`; no disk since §339 | `fam-staging-data` disk at `/data` |
 | Keys | every paid key, set in the dashboard or `FAM_SECRETS` | none, and any that arrive are removed |
 | Quotas | `ENFORCE_QUOTAS=1` | off (code default) |
 | Voice | `VOICE_BACKEND=remote`, RunPod | placeholder tone |

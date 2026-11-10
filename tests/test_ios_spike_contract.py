@@ -1,6 +1,6 @@
 """The audio spike (`ios/FAMSpike`) asks for what the server gives a guest.
 
-The Swift was written without a compiler (PROBLEMS.md §501). A phone would
+The Swift was written without a compiler (PROBLEMS.md §518). A phone would
 find a broken request only as a 403 or a decoding failure, so CI checks the
 parts a compiler could not: every path routes, every field the spike decodes
 is in a sample, and the audio request has exactly the shape the waitlist

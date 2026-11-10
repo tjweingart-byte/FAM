@@ -68,7 +68,10 @@ def test_the_judge_is_nandos_background_call_on_its_own_model(tree, monkeypatch)
     assert (r.agent, r.task, r.surface) == ("categorizer", "judge", "background")
     assert r.model_setting == "categorizer_judge_model" and r.rule_book == "nando.md"
     assert dict(r.material)["script"] == "The Eagles won."
-    assert settings.categorizer_judge_model == "anthropic:claude-opus-5-5"
+    # Sonnet since §503, at the owner's direction (Opus before): still
+    # stronger than Nando's Haiku, as nando.md rule 12 asks.
+    assert settings.categorizer_judge_model == "anthropic:claude-sonnet-5-5"
+    assert settings.categorizer_model == "anthropic:claude-haiku-5-5"
 
 
 def test_the_judge_never_files_a_node_the_tree_lacks(tree, monkeypatch):
@@ -97,6 +100,11 @@ def test_a_failed_call_labels_nothing(tree, monkeypatch):
 
 def test_a_batch_grades_each_episode_once_and_never_a_private_one(tree, monkeypatch):
     monkeypatch.setattr(training, "allowed", lambda: (True, ""))
+    # Graded live here; the Message Batches path has its own tests (§501).
+    import config
+
+    monkeypatch.setattr(config, "settings",
+                        dataclasses.replace(config.settings, nando_judge_batch=False))
     for key, origin in (("a", "tap"), ("b", "private"), ("c", "prefetch"), ("d", "tap")):
         category_audit.note(f"question {key}", "", origin, key=key)
     category_audit.note("old row", "", "tap")                      # no key: skipped
@@ -111,7 +119,8 @@ def test_a_batch_grades_each_episode_once_and_never_a_private_one(tree, monkeypa
     out = asyncio.run(training.judge_batch(lambda k: scripts.get(k, []), limit=10))
     # "d" has no script yet: not asked (it may be another night), so not
     # counted (§391).
-    assert out == {"looked": 2, "labelled": 2, "skipped": 0, "failed": 0}
+    assert {k: out[k] for k in ("looked", "labelled", "skipped", "failed")} == \
+        {"looked": 2, "labelled": 2, "skipped": 0, "failed": 0}
     assert "question b" not in asked
     again = asyncio.run(training.judge_batch(lambda k: scripts.get(k, []), limit=10))
     assert again["labelled"] == 0 and asked.count("question a") == 1

@@ -2,7 +2,7 @@
 
 The native app (`IOS_APP.md` stage 4): a client of the same API the web uses,
 built on the player that passed the lock-screen spike (`ios/FAMSpike`,
-PROBLEMS.md §501).
+PROBLEMS.md §518).
 
 **Stage 1 (this):** sign in / make an account (terms ticked, §228), the
 waitlist's waiting screen with today's samples, **DailyFAM** (the rails, a

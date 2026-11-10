@@ -276,6 +276,22 @@ Corollary: **latency is answered by starting earlier, never by filling the
 gap.** The cold open tried to fill it and was removed. Prefetch on the browse
 surfaces; on search, keep the work small enough that there is no gap to fill.
 
+<!-- rule:browse-loaders -->
+**DailyFAM and a mix have their own loading screens** *(PROBLEMS.md §509, the
+owner's pick from a six-option page, 11.9).* A DailyFAM tile tapped shows a
+tuning dial: the needle sweeps the categories of the rail the tile came from,
+overshoots and settles on the tile's own, named in full under it ("Tuning in
+to Technology"), with the tile's title and "Getting your episode ready". A
+myFAM mix's episode shows the mix gliding along: its episodes in order, the
+ones before marked Played (its audio started) or Skipped, this one slid to the
+middle, "2 of 5" in the header. Neither shows the five steps - those stay search's and
+Go Deeper's (§148, `search-no-cover`) - and **neither holds the audio**: the
+server's marks are still polled, only to move the give-up time (§497), and the
+screen goes the moment audio arrives, wherever the needle has got to (§292).
+Chosen by `loader` on the topic (`dial` in `startBankTopic`, `glide` in
+`playMixItem`); drawn by `paintLoadingVariant` from what is already on the
+listener's screen, never invented.
+
 <!-- rule:search-no-cover -->
 **On search that once meant two calls at once, and no longer does**
 *(PROBLEMS.md §56, reversed by §108).* A question that needed today's facts
@@ -544,6 +560,8 @@ candidate list. It deliberately
 does not fire on Explore or Explore New, which are already continuous.
 
 <!-- rule:one-category -->
+> **Current (PROBLEMS.md §501):** on every path written ahead of the tap - prefetch at either level, both editions - Nando's own call is made where the brief is built (`understand`) and kept on it as `Brief.category_pick`, so a myFAM tap that takes a warmed brief files his decision; the audit counts his filings per write path (`nando.by_origin`).
+
 > **Current (PROBLEMS.md §371-§375, decided item 5):** when Nando works on an episode (`AGENTS=1`, `CATEGORIZER=1`) he files it under one node at the request when a solid source or a model's pick places it (§379), and confirms it after the writer, and that node is stored with the episode (`category_node`) and read **first** by `app._episode_category`; the writer's `<<CATEGORY:>>` words below are the reader's fallback - for an episode Nando did not file (nothing is stored for it, §391), or a node the tree no longer holds. With Nando off, everything below is exactly as written.
 
 **One episode, one category, everywhere it is read.** *(PROBLEMS.md §209, at
@@ -768,6 +786,7 @@ to the writer is judged.
 > **Current (PROBLEMS.md §305, the owner 10.23):** the length a search opens on, and returns to every time somebody comes back into the app, is **one minute**, not two (`DEFAULT_LENGTH_MINUTES`); the Length bubble still offers 1-5, and the Voice bubble is unchanged. Where the text below says two minutes, read one.
 
 > **Current (PROBLEMS.md §332, the owner 10.28):** the standard length is **a minute and a half** (`DEFAULT_LENGTH_MINUTES` and `DEFAULT_MINUTES` 1.5): "2 minutes feels too long and 1 minute feels too short". The Length bubble and Go Deeper offer 1, 1.5, 2, 3, 4 and 5. Where the text says one or two minutes, read 1.5.
+> **Current (PROBLEMS.md §510, the owner 11.9, "Rock Lead Theory"):** a named subject outranks the category **only on the category's own facet** - a grown `lead` node under science drew a golf episode "in the lead" as a lump of metal.
 > **Current (PROBLEMS.md §282, the owner 10.15):** a third bubble, **Private**, is searchFAM's incognito for one search (`private-search`); while it is on the search page is charcoal in either theme.
 > **Current (PROBLEMS.md §219):** the Length menu offers **1, 2, 3, 4 and 5 minutes** (`SEARCH_LENGTHS`); the server still accepts up to ten, so no installed client is refused.
 - **The search page is Google's shape** *(PROBLEMS.md §190, the owner's 10.1
@@ -781,6 +800,7 @@ to the writer is judged.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §507, the owner 11.9, "this rock is everywhere"):** a picture is **borrowed, never hashed**: past the episode's branch and the facets its category and words fall under (strongest first - the category's facet, then the facet of the deepest node the words name, then a named sport, then keyword count; never alphabetical), an episode nothing places has **no picture**, reversing §193's "never missing" and §214's "every tile" for that case. **A broad node holds several pictures** - each facet and each node directly under one, `THUMBNAILS_BROAD_PICTURES` (4) - as rows `node#2`, `node#3` beside the node's own; the sweep paints them after every node has its first, telling the scene writer what the others show. An episode wears one of its node's pictures chosen by a hash of its words (`thumbnails.choose_picture`), so it is random across episodes and the same on its tile, player, vibe and share card.
 > **Current (PROBLEMS.md §363, the owner 10.31):** when the words name several subjects and the deepest is unpainted, the borrowed picture is the **most specific** painted one any of them reaches (a painted team beats another subject's league); an episode's category still walks its own branch first (§209).
 
 > **Current (PROBLEMS.md §282, the owner 10.15):** a picture follows the category **unless the words name a specific subject on another branch** - a league, team or person at `thumbnails.SUBJECT_DEPTH` or deeper (`_named_subject`): a Seahawks odds episode filed under sports betting wore the betting node's poker chips. Then the subject's picture (or its branch's, borrowed) is drawn, on the tile, the player and the vibe alike; the category is still the episode's for everything else (`one-category`). Words naming only a facet or a sport never outrank it (§209's boxing case).
