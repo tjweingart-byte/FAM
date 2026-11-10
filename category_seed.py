@@ -135,6 +135,67 @@ LEFT_TO_GROW = (
     "chicago bulls", "chicago bears", "buffalo bills", "orlando magic",
 )
 
+#: Words that are a subject only inside a longer phrase (the owner 11.9,
+#: "Rock Lead Theory", PROBLEMS.md §511). "lead" is the metal, and it is
+#: also who is winning: grown alone and filed under science, every golf
+#: leader wore a lump of grey metal. The same rule as `LEFT_TO_GROW`, for
+#: words rather than teams.
+#:
+#: **Nor any grown phrase holding one** (§513): "lead poisoning", "world
+#: record" and "power grid" are refused at mint, and a grown node already on
+#: disk is left out of the tree as read (`categories.CategoryStore.reload`).
+#: The seed's own phrases are exempt: a phrase worth keeping is seeded here
+#: ("super bowl", "nfl draft", "power grid").
+#:
+#: The rest (§512): words a headline uses every day as a verb or a plain
+#: noun, whose subject senses sit on different facets - so grown alone and
+#: placed under one, they paint the other's episodes. Not on the list: a
+#: word whose one sense is the subject ("golf", "inflation"), a company or
+#: product ("apple", "amazon"), or anything the seed or `ALIASES` names.
+#: `tools/categories_report.py --alone` lists the one-word nodes a deployment
+#: has grown, to find the next one.
+NEVER_ALONE = frozenset({
+    "lead",      # the metal; who is winning
+    "record",    # a music record; a world record; "record high"
+    "draft",     # the NFL draft; a draft bill
+    "strike",    # a labour strike; a military strike; a baseball strike
+    "pitch",     # a football pitch; a baseball pitch; a sales pitch
+    "court",     # a law court; a basketball or tennis court
+    "match",     # a game; a match that lights
+    "race",      # a horse or car race; an election race; race
+    "trade",     # a player trade; trade policy
+    "bond",      # a government bond; James Bond
+    "stock",     # a share; soup stock; "in stock"
+    "charge",    # a criminal charge; a battery charge; a fee
+    "shot",      # a vaccine shot; a basketball shot; a gunshot
+    "drive",     # a golf drive; a hard drive; driving
+    "iron",      # the metal; a golf club; a clothes iron
+    "fire",      # a wildfire; fired from a job
+    "plant",     # a factory; a houseplant; a power plant
+    "star",      # a celebrity; a star in the sky
+    "club",      # a football club; a nightclub; a golf club
+    "spring",    # the season; a water spring; spring training
+    "fall",      # the season; a market fall
+    "net",       # a tennis net; net income
+    "bowl",      # the Super Bowl; a dish
+    "cup",       # the World Cup; a cup of coffee
+    "crane",     # the bird; the machine
+    "seal",      # the animal; a seal of approval
+    "bat",       # the animal; a baseball bat
+    "suit",      # a lawsuit; clothing
+    "cell",      # biology; a prison cell; a phone
+    "power",     # electricity; political power
+    "tank",      # the weapon; a fish tank; "shares tanked"
+    "current",   # the present; an ocean or electric current
+    "ring",      # a boxing ring; jewellery
+    "round",     # a golf round; a funding round
+    "cap",       # the salary cap; a hat
+    "base",      # a military base; a baseball base
+    "field",     # a playing field; a field of study
+    "table",     # a league table; furniture
+})
+
+
 NFL_TEAMS = _teams(
     "bengals", "steelers", "baltimore ravens", "cleveland browns",
     "indianapolis colts", "jacksonville jaguars", "tennessee titans",
@@ -172,15 +233,28 @@ NHL_TEAMS = _teams(
 
 SEED: dict[str, dict] = {
     "sports": {
+        # §514: every league's, so beside the sports rather than under one.
+        # Seeded because each holds a `NEVER_ALONE` word and the tree would
+        # otherwise never grow it (§513).
+        "trade deadline": {}, "salary cap": {},
+        # §516: every sport's.
+        "world record": {},
         # §187: the leagues, so a question about one files it as a subject
         # (depth two) rather than as the whole of a sport. §202: and their
         # teams, a level below.
         "american football": {"college football": {}, "super bowl": {},
-                              "quarterback play": {}, "nfl": NFL_TEAMS},
+                              "quarterback play": {},
+                              # §514: under the league, so the draft
+                              # outranks "nfl" for its own episodes.
+                              "nfl": {**NFL_TEAMS, "nfl draft": {},
+                                      # §517: "trade" is never alone.
+                                      "nfl trade rumors": {}}},
         "basketball": {"playoff basketball": {}, "draft prospects": {},
                        "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
-                     "world cup": {}, "premier league": {},
+                     # §515: seeded, as "cup" is never alone (§513).
+                     "world cup": {"world cup qualifiers": {}},
+                     "premier league": {},
                      "bundesliga": {}, "major league soccer": {},
                      # 11.9: so an episode is filed below "football"
                      # rather than wearing its one picture.
@@ -297,14 +371,19 @@ SEED: dict[str, dict] = {
                                    "national elections": {}},
         "trade policy": {"tariffs": {}, "sanctions": {}},
         "immigration": {},
-        "energy security": {"oil supply": {}},
+        "energy security": {"oil supply": {},
+                            # §516: seeded, as "power" is never alone.
+                            "power grid": {}},
         "urban policy": {"urban housing": {}, "public transport": {}},
         "food supply": {},
         # §235: what one town is talking about - its council, its schools,
         # what is being built - under the heading it is, never the globe.
         "local news": {"town council": {}, "local schools": {},
                        "school board": {}, "local elections": {},
-                       "zoning": {}},
+                       "zoning": {},
+                       # §515: a town's question, and "power" is never
+                       # alone (§513).
+                       "power outage": {}},
         "international law": {},
         "global development": {},
     },
@@ -319,7 +398,7 @@ SEED: dict[str, dict] = {
 LOCAL_NODES = ("local news", "town council", "local schools",
                "school board", "local elections", "zoning", "food scene",
                "local restaurants", "local events", "local business",
-               "high school sports")
+               "high school sports", "power outage")
 
 
 #: Other names for a node, matched as the node (11.9, `categories.match`):

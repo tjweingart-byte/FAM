@@ -501,4 +501,13 @@ and `limit` = Lines.
 | 31909 | 93 | 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09) |
 | 32002 | 144 | 508. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
 | 32146 | 46 | 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09) |
-| 32192 | 74 | 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |
+| 32192 | 31 | 510. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09) |
+| 32223 | 16 | 511. "lead" is never a category on its own (2026-11-09) |
+| 32239 | 24 | 512. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09) |
+| 32263 | 32 | 513. No grown phrase holding an everyday word is a category (2026-11-09) |
+| 32295 | 11 | 514. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10) |
+| 32306 | 12 | 515. "world cup qualifiers" and "power outage" seeded (2026-11-10) |
+| 32318 | 12 | 516. "power grid" and "world record" seeded (2026-11-10) |
+| 32330 | 9 | 517. "nfl trade rumors" seeded (2026-11-10) |
+| 32339 | 43 | 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
+| 32382 | 74 | 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |
