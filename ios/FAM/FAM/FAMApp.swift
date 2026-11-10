@@ -17,6 +17,10 @@ struct FAMApp: App {
         URLCache.shared = URLCache(memoryCapacity: 50 * 1024 * 1024,
                                    diskCapacity: 300 * 1024 * 1024,
                                    directory: nil)
+        // The Keychain's bearer token is the only identity (`listener-header`):
+        // no session cookie is ever stored, by any session - the API's, the
+        // player's, AsyncImage's - and any an older build kept is dropped.
+        FAMAPI.forgetCookies()
     }
 
     var body: some Scene {
@@ -38,8 +42,22 @@ struct FAMApp: App {
                 // either theme (`#screen-home.private-search`).
                 .preferredColorScheme(model.darkChrome ? .dark : FAMTheme.scheme(theme))
                 .task { await model.open() }
-                // Google's sign-in comes back to the app through its URL scheme.
-                .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
+                // Google's sign-in comes back to the app through its URL scheme;
+                // any other link may carry a waitlist invite code.
+                .onOpenURL { url in
+                    if !GIDSignIn.sharedInstance.handle(url) {
+                        model.noteReferral(url)
+                        // A shared /s/, /m/ or /j/ link (decision 5).
+                        model.openLink(url)
+                    }
+                }
+                // A universal link (`applinks:familiarize.net`) may come as
+                // a web activity rather than a URL.
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    guard let url = activity.webpageURL else { return }
+                    model.noteReferral(url)
+                    model.openLink(url)
+                }
         }
     }
 }
@@ -48,17 +66,66 @@ struct FAMApp: App {
 /// signed out, waiting for a place, or in.
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
+    /// The app went to the background since it was last active: a return
+    /// passes through `.inactive`, so `old == .background` is never seen.
+    @State private var wentAway = false
+
+    /// The front door's own toasts (the tabs and the first run draw theirs).
+    private var rootToasts: Bool {
+        switch model.stage {
+        case .opening, .signedOut: return true
+        case .waiting: return model.entry != .identity
+        case .ready: return model.entry == .checking
+        }
+    }
 
     var body: some View {
+        stages
+            .overlay(alignment: .bottom) {
+                if rootToasts { ToastView().padding(.bottom, 40) }
+            }
+            // The Terms (§228) and the update screen (§208) over everything,
+            // then the FAM intro and the log-out splash, which take no touches.
+            .overlay { TermsLayer() }
+            .overlay { IntroLayer(run: model.introRun) }
+            .overlay { SplashLayer(shown: model.splash) }
+            .overlay {
+                if let notice = model.updateRequired {
+                    UpdateRequiredView(notice: notice)
+                }
+            }
+            // Back in the foreground (§329): the voice is asked for now.
+            .onChange(of: scenePhase) { _, new in
+                if new == .background {
+                    wentAway = true
+                } else if new == .active && wentAway {
+                    wentAway = false
+                    model.cameToFront()
+                }
+            }
+            // On the waitlist the first run is the status page's profile
+            // (`?setup=1`): who you are, then the status page; the interests
+            // come once the account is let in.
+            .onChange(of: model.entry) { _, step in
+                if model.stage == .waiting && step == .interests { model.entry = nil }
+            }
+    }
+
+    private var stages: some View {
         Group {
             switch model.stage {
             case .opening:
                 Wordmark(size: 30)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .signedOut:
-                AuthView()
+                FrontDoorView()
             case .waiting:
-                WaitingView()
+                if model.entry == .identity {
+                    IdentityView(mode: .firstRun)
+                } else {
+                    WaitingView()
+                }
             case .ready:
                 // The first run's steps after an account (`afterAccount`):
                 // who you are, then your interests - then the app.
@@ -71,7 +138,9 @@ struct RootView: View {
                 case .interests:
                     InterestsView(mode: .firstRun)
                 case nil:
+                    // Drawn afresh for another account (`accountEpoch`).
                     MainTabs()
+                        .id(model.accountEpoch)
                 }
             }
         }
@@ -138,6 +207,9 @@ struct MainTabs: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .daily
     @State private var scrollToTop = 0
+    /// Where the tab's own page ends on screen: the top of the mini player,
+    /// else of the tabs (the toast's floor, `placeAboveBars`).
+    @State private var pageBottom: CGFloat = 0
     /// The tabs drawn so far (a faster start): at launch only DailyFAM is
     /// built, so only its data is asked for; every other tab is built - and
     /// asks for its own - the first time it is shown, and stays alive after.
@@ -176,6 +248,13 @@ struct MainTabs: View {
         player.phase == .playing || player.phase == .buffering || player.phase == .paused
     }
 
+    /// The toast's distance from the bottom: 2 pt above the page's end
+    /// (the mini player's top, else the tabs'), never under 16.
+    private func toastLift(_ bottom: CGFloat) -> CGFloat {
+        guard pageBottom > 0 else { return 96 }
+        return max(16, bottom - pageBottom + 2)
+    }
+
     /// "Added to Queue · Open" with the player down.
     private var queueOpen: Binding<Bool> {
         Binding(get: { now.showQueue && !model.showPlayer },
@@ -201,6 +280,11 @@ struct MainTabs: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(GeometryReader { geo in
+                Color.clear
+                    .onAppear { pageBottom = geo.frame(in: .global).maxY }
+                    .onChange(of: geo.frame(in: .global).maxY) { _, bottom in pageBottom = bottom }
+            })
             // A social screen opened from another tab: over it, with a
             // stack of its own (a face, a story's header, Find new friends).
             .fullScreenCover(item: $social.cover) { cover in
@@ -275,19 +359,30 @@ struct MainTabs: View {
         .animation(.easeOut(duration: 0.2), value: social.follower)
         .onChange(of: tab) { _, now in
             built.insert(now)
+            // The tab under the player (`stack[0]`): a Go Deeper's surface.
+            model.shownTab = now
             social.onMessagesTab = now == .messages
             // YourFAM showing is one of the web's two moments to raise a
             // new follower (`checkNewFollowers`); its first showing does it
             // in the page's own first look.
             if now == .you {
                 if youShown {
+                    // `loadProfile` on every arrival: new followers, the
+                    // unread count (`loadHubMessages`) and the invite link.
                     Task {
                         await social.loadGraph()
                         social.checkNewFollowers()
+                        await social.loadInbox()
+                        await model.loadInviteLink()
                     }
                 }
                 youShown = true
             }
+        }
+        // A shared link that waited for the tabs (decision 5).
+        .onAppear {
+            model.shownTab = tab
+            model.openPendingLink()
         }
         // Search DailyFAM's "Search FAM for it" before searchFAM was ever
         // shown: built now, and it takes the words as it starts.
@@ -303,7 +398,17 @@ struct MainTabs: View {
         // New message: the web's centred card over every tab and the bar.
         .overlay { NewMessageLayer() }
         .overlay(alignment: .bottom) {
-            ToastView().padding(.bottom, 96)
+            // Just above whatever is lowest that it must not cover: the mini
+            // player when it is up, else the tabs; 16 with neither
+            // (`placeAboveBars`).
+            GeometryReader { geo in
+                ToastView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, toastLift(geo.frame(in: .global).maxY))
+            }
+            // Only an action takes a tap; the line leaves the page under it
+            // pressable (`.snack.show .snack-act{ pointer-events:auto }`).
+            .allowsHitTesting(now.toast?.action != nil)
         }
         // Voice search (§151): full screen over the tabs and the mini player.
         .overlay { VoiceSearchLayer(voice: model.voiceSearch) }
@@ -412,13 +517,15 @@ struct TabBar: View {
                     // (`Motion.badge`).
                     ZStack {
                         if badge > 0 {
+                            // In: 0 → 1.25 → 1 over 300 ms (the badge's own
+                            // pop); out: 1 → 0 over 160 ms, easing in.
                             TabBadge(count: badge, bumps: !reduceMotion)
-                                .transition(.scale(scale: 0.01).combined(with: .opacity))
+                                .transition(.asymmetric(insertion: .identity,
+                                                        removal: .scale(scale: 0.01).combined(with: .opacity)))
                         }
                     }
                     .offset(x: 7, y: -4)
-                    .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.55),
-                               value: badge > 0)
+                    .animation(reduceMotion ? nil : .easeIn(duration: 0.16), value: badge > 0)
                 }
                 // The labels stop growing at the largest standard size, as
                 // Apple's own tab bar does - five slots cannot hold
@@ -474,10 +581,14 @@ struct TabBadge: View {
     /// The count bumps when it goes up (`Motion.badge`): 1.3 at 40 %, 220 ms.
     var bumps = false
     @State private var bump = false
+    /// The pop-in's scale (`Motion.badge`: 0, 1.25 at 60 %, 1 at 300 ms).
+    @State private var pop: CGFloat = 1
 
     var body: some View {
         label
             .scaleEffect(bump ? 1.3 : 1)
+            .scaleEffect(pop)
+            .onAppear { popIn() }
             .onChange(of: count) { old, new in
                 guard bumps, new > old else { return }
                 withAnimation(.easeOut(duration: 0.09)) { bump = true }
@@ -485,6 +596,19 @@ struct TabBadge: View {
                     withAnimation(.easeOut(duration: 0.13)) { bump = false }
                 }
             }
+    }
+
+    private func popIn() {
+        guard bumps else { return }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { pop = 0.01 }
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.18)) { pop = 1.25 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                withAnimation(.easeOut(duration: 0.12)) { pop = 1 }
+            }
+        }
     }
 
     private var label: some View {

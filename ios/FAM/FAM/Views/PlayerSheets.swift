@@ -31,6 +31,8 @@ struct GoDeeperSheet: View {
     @State private var typed = ""
     @State private var minutes: Double = 1.5
     @State private var baseThread = ""
+    /// The AI question is up over the sheet (`withAiConsent`): one ask at a time.
+    @State private var asking = false
     @FocusState private var typing: Bool
 
     private static let lengths: [Double] = [1, 1.5, 2, 3, 4, 5]
@@ -162,16 +164,39 @@ struct GoDeeperSheet: View {
         }
     }
 
+    /// A Go Deeper question is the listener's words too (consent.py): the
+    /// AI question first, for any Go Deeper - the suggestion's too - with
+    /// this still open over the player (`confirmGoDeeper`). A message's Go
+    /// Deeper is a sheet, which would cover the question, so it closes
+    /// first and asks over the conversation.
     private func go(_ words: String, typed: Bool) {
-        shut()
-        now.goDeeperOpen = false
-        if base != nil, let onGo {
-            let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !question.isEmpty else { return }
-            onGo(question, minutes, typed || question != thread)
+        guard !asking else { return }
+        if base != nil {
+            shut()
+            now.goDeeperOpen = false
+            let chosen = minutes
+            let suggested = suggestion
+            let send = onGo
+            let ensure = now.ensureConsent
+            Task { @MainActor in
+                guard await ensure() else { return }
+                let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !question.isEmpty, let send else { return }
+                // FAM's own suggestion is not the listener's words (`own`).
+                send(question, chosen, typed || question != suggested)
+            }
             return
         }
-        now.followUp(words, minutes: minutes, typed: typed)
+        asking = true
+        let ensure = now.ensureConsent
+        Task { @MainActor in
+            let allowed = await ensure()
+            asking = false
+            guard allowed else { return }
+            shut()
+            now.goDeeperOpen = false
+            now.followUp(words, minutes: minutes, typed: typed)
+        }
     }
 }
 
@@ -408,7 +433,7 @@ struct SourcesSheet: View {
             if let s = item.url, let url = URL(string: s) { openURL(url) }
         } label: {
             HStack(spacing: 12) {
-                SourceMark(label: item.label, size: 30)
+                SourceMark(label: item.label, url: item.url, size: 30)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.title?.isEmpty == false ? item.title! : item.label)
                         .font(FAMFont.body(12, .semibold))
@@ -737,6 +762,9 @@ struct ShareSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var link: SharedLink?
     @State private var problem = ""
+    /// The rows' own height, so the card is as tall as they are and
+    /// scrolls past 500 pt (one copy of the rows: a picked friend is kept).
+    @State private var rowsHeight: CGFloat = 0
     /// What a tile's or a story's ⋯ shares; nil for the episode playing.
     let subject: ShareSubject?
 
@@ -752,40 +780,29 @@ struct ShareSheet: View {
         return ShareSubject(key: ep.key, title: now.title, episode: model.player.episodeID)
     }
 
+    /// The web's centred `.modal-card` ("Share this FAM" over the dim, a
+    /// tap on the dim or Cancel closes it), its rows scrolling inside it
+    /// once they are taller than the card may be.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ModalCard(close: { dismiss() }) {
             Text("Share this FAM")
                 .font(FAMFont.heading(16, .medium))
                 .foregroundStyle(FAMColor.text)
-                .padding(.horizontal, 22)
-                .padding(.top, 20)
                 .padding(.bottom, 14)
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    SendInsideFAM(send: { to, label in await sendInside(to: to, label: label) },
-                                  sent: { dismiss() })
-                    Text("Anywhere else").monoLabel(9.5, tracking: 0.76)
-                        .padding(.top, 20)
-                        .padding(.bottom, 4)
-                    if let link {
-                        ShareTargetRows(url: link.url, targets: link.targets ?? [:],
-                                        isPublic: link.public ?? true,
-                                        card: link.card ?? "") { dismiss() }
-                    } else {
-                        Text(problem.isEmpty ? "Making a link\u{2026}" : problem)
-                            .font(FAMFont.body(12))
-                            .foregroundStyle(FAMColor.textMuted)
-                            .padding(.vertical, 10)
-                    }
-                }
-                .padding(.horizontal, 22)
+                shareRows
+                    .background(GeometryReader { geo in
+                        Color.clear
+                            .onAppear { rowsHeight = geo.size.height }
+                            .onChange(of: geo.size.height) { _, height in rowsHeight = height }
+                    })
             }
-            SheetCancelButton { dismiss() }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(height: min(max(rowsHeight, 60), 500))
+            ModalButton(label: "Cancel", wide: true) { dismiss() }
+                .padding(.top, 16)
         }
-        .padding(.bottom, 12)
-        .background(FAMColor.surface)
         .presentationDetents([.large])
-        .presentationBackground(FAMColor.surface)
         .environmentObject(model.social)
         // The toast over the sheet: a send's refusal in the server's words
         // ("You can message people who follow you back.") would be under it.
@@ -797,6 +814,26 @@ struct ShareSheet: View {
         .task { await makeLink() }
     }
 
+    private var shareRows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SendInsideFAM(send: { to, label in await sendInside(to: to, label: label) },
+                          sent: { dismiss() })
+            Text("Anywhere else").monoLabel(9.5, tracking: 0.76)
+                .padding(.top, 20)
+                .padding(.bottom, 4)
+            if let link {
+                ShareTargetRows(url: link.url, targets: link.targets ?? [:],
+                                isPublic: link.public ?? true,
+                                card: link.card ?? "") { dismiss() }
+            } else {
+                Text(problem.isEmpty ? "Making a link\u{2026}" : problem)
+                    .font(FAMFont.body(12))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .padding(.vertical, 10)
+            }
+        }
+    }
+
     private func makeLink() async {
         guard let ep = current else {
             problem = "Play something first"
@@ -805,7 +842,8 @@ struct ShareSheet: View {
         do {
             link = try await model.api.share(ep.key, title: ep.title)
         } catch {
-            problem = "Could not make a link"
+            // The server's sentence, else the web's (`loadShareTargets`).
+            problem = SocialModel.sentence(error, else: "Could not make a share link")
         }
     }
 

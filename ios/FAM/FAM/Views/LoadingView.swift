@@ -13,8 +13,16 @@ import SwiftUI
 /// server finished it; the fifth when the audio has arrived. Each stays on
 /// screen at least 2 s (the first 0.5 s, the owner's direction), and the
 /// audio is held until the fifth check has been seen for 0.4 s. A replay
-/// has nothing to write: all five show done and it starts after 0.45 s, so
-/// it never reads as a flash. The numbers are the web's own.
+/// has nothing to write: all five show done and its audio starts at once,
+/// the screen staying up 0.45 s so it never reads as a flash. The numbers
+/// are the web's own.
+///
+/// It gives up as the web does (§497, `holdGenTimeout`): 45 s of silence
+/// from the server, started again by every step it checks off; once the
+/// script is with the voice, the voice's own `voice_wait` plus 15 s; and
+/// for an episode being made where the poll cannot see it (`known: false`),
+/// 45 s plus that wait from the tap. The dial and the glide poll too, only
+/// to move that time.
 @MainActor
 final class LoadingModel: ObservableObject {
     static let labels = [
@@ -30,6 +38,10 @@ final class LoadingModel: ObservableObject {
     static let firstPoll: TimeInterval = 0.25       // GEN_STEP_FIRST_POLL_MS
     static let lastBeat: TimeInterval = 0.4         // GEN_STEP_LAST_BEAT_MS
     static let minVisible: TimeInterval = 0.45      // GEN_MIN_VISIBLE_MS
+    static let quiet: TimeInterval = 45             // GEN_QUIET_MS
+    static let voiceMargin: TimeInterval = 15       // GEN_VOICE_MARGIN_MS
+    static let serverSilent = "That is taking longer than expected. Is the server running?"
+    static let voiceSlow = "The voice is taking longer than expected to start. Try again in a moment."
 
     @Published private(set) var visible = false
     /// How many steps are checked off (0-5).
@@ -69,6 +81,18 @@ final class LoadingModel: ObservableObject {
 
     /// Start the held audio and open the player.
     var onRelease: (() -> Void)?
+    /// A replay, the dial and the glide: start the audio now, while the
+    /// screen stays up for the rest of its 0.45 s (`genStepsGate`'s
+    /// `begin()` with `finishGenOverlay`). The player opens at `onRelease`.
+    var onAudioNow: (() -> Void)?
+    /// Given up (§497): the sentence to say. The screen is already down.
+    var onGiveUp: ((String) -> Void)?
+
+    /// What this server says under the steps and in place of the dial's
+    /// and the glide's status (`genStatusNote`, from `/api/health`): the
+    /// sample script on staging or with no key, or a rejected key. Empty
+    /// on a server that writes real episodes.
+    @Published var note = ""
 
     private var server = [false, false, false, false]
     private var audioReady = false
@@ -77,6 +101,11 @@ final class LoadingModel: ObservableObject {
     private var shownAt = Date()
     private var run = 0
     private var ask: (() async -> Progress?)?
+    /// The give-up time and the sentence it says (`genDeadline`).
+    private var deadline: Date?
+    private var deadlineWords = ""
+    private var startedAt = Date()
+    private var handedAt: Date?
 
     func start(ask: @escaping () async -> Progress?, glide: Glide? = nil, dial: Dial? = nil) {
         run += 1
@@ -91,17 +120,47 @@ final class LoadingModel: ObservableObject {
         since = Date()
         shownAt = Date()
         visible = true
+        deadline = nil
+        handedAt = nil
+        startedAt = Date()
+        hold(until: startedAt.addingTimeInterval(Self.quiet), words: Self.serverSilent)
         Task { await self.tick(mine) }
         Task { await self.pollLoop(mine) }
+        Task { await self.watchDeadline(mine) }
+    }
+
+    /// Move the give-up time to `at`, never earlier, and never once the
+    /// audio is here (`holdGenTimeout`).
+    private func hold(until at: Date, words: String) {
+        if audioReady { return }
+        if let current = deadline, at <= current { return }
+        deadline = at
+        deadlineWords = words
+    }
+
+    /// Gives up at the deadline: the screen goes and the sentence is said.
+    private func watchDeadline(_ mine: Int) async {
+        while mine == run && visible && !audioReady {
+            if let at = deadline, Date() >= at {
+                let words = deadlineWords
+                stop()
+                onGiveUp?(words)
+                return
+            }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
     }
 
     /// The audio has arrived and is held.
     func ready(cacheHit: Bool) {
         guard visible else { onRelease?(); return }
         audioReady = true
+        deadline = nil
         if cacheHit || free {
-            // A replay: all five done, held only long enough to be seen.
+            // A replay: all five done and the audio started now; only the
+            // screen stays, long enough to be seen (`finishGenOverlay`).
             shown = Self.labels.count
+            onAudioNow?()
             let wait = max(0, Self.minVisible - Date().timeIntervalSince(shownAt))
             releaseAfter(wait)
         }
@@ -150,14 +209,36 @@ final class LoadingModel: ObservableObject {
     }
 
     private func pollLoop(_ mine: Int) async {
-        while mine == run && visible && !audioReady && !free {
-            if let answer = await ask?() {
-                for (i, done) in answer.steps.marks.enumerated() where done {
-                    server[i] = true
-                }
+        // The dial and the glide draw nothing from the marks, but they are
+        // still read: they are what moves the give-up time (§497).
+        while mine == run && visible && !audioReady {
+            if let answer = await ask?(), mine == run, !audioReady {
+                heard(answer)
             }
             let wait = server[0] ? Self.poll : Self.firstPoll
             try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+        }
+    }
+
+    /// One answer from `/api/progress` (`pollGenSteps`): the marks, and the
+    /// give-up time moved for a server that is working.
+    private func heard(_ answer: Progress) {
+        var moved = false
+        for (i, done) in answer.steps.marks.enumerated() where done && !server[i] {
+            server[i] = true
+            moved = true
+        }
+        let now = Date()
+        if moved { hold(until: now.addingTimeInterval(Self.quiet), words: Self.serverSilent) }
+        let wait = max(0, answer.voiceWait ?? 0)
+        if wait > 0 && server[3] {
+            // The script is with the voice: as long as the voice may take.
+            if handedAt == nil { handedAt = now }
+            let from = handedAt ?? now
+            hold(until: from.addingTimeInterval(wait + Self.voiceMargin), words: Self.voiceSlow)
+        } else if wait > 0 && answer.known == false {
+            // Alive, but making the episode where this poll cannot see.
+            hold(until: startedAt.addingTimeInterval(Self.quiet + wait), words: Self.voiceSlow)
         }
     }
 }
@@ -174,9 +255,9 @@ struct LoadingView: View {
         ZStack(alignment: .topTrailing) {
             background
             if let glide = loading.glide {
-                GlideView(glide: glide, still: reduceMotion)
+                GlideView(glide: glide, still: reduceMotion, note: loading.note)
             } else if let dial = loading.dial {
-                DialView(dial: dial, still: reduceMotion)
+                DialView(dial: dial, still: reduceMotion, note: loading.note)
                     .padding(.horizontal, 32)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -194,6 +275,18 @@ struct LoadingView: View {
                     .transformEffect(CGAffineTransform(a: 1, b: 0, c: -0.18, d: 1, tx: 3, ty: 0))
                 steps
                     .padding(.top, 2)
+                // `#famLoadingStatus` (`.gen-text`): what this server cannot
+                // do - the sample script, a rejected key - where attention
+                // is. Nothing at all on a server that writes (§232).
+                if !loading.note.isEmpty {
+                    Text(loading.note)
+                        .font(FAMFont.mono(11))
+                        .foregroundStyle(FAMColor.textMuted)
+                        .lineSpacing(5)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 250)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(.horizontal, 32)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -342,6 +435,8 @@ private struct RisingChevrons: View {
 struct GlideView: View {
     let glide: LoadingModel.Glide
     let still: Bool
+    /// `genStatusNote`, in place of the status when the server has one.
+    var note: String = ""
 
     @State private var arrived = false
 
@@ -371,6 +466,7 @@ struct GlideView: View {
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
                 .frame(maxWidth: 300)
+                .modifier(LoadingTitleUp(still: still))
                 .padding(.horizontal, 32)
             status
         }
@@ -401,11 +497,14 @@ struct GlideView: View {
             .padding(.horizontal, 32)
     }
 
-    /// "Getting your episode ready", after a pulsing copper dot.
+    /// "Getting your episode ready", after a pulsing copper dot; "the next"
+    /// past the playlist's first (`glide.pos > 0`); the server's note instead
+    /// when it has one.
     private var status: some View {
-        HStack(spacing: 8) {
+        let words = glide.pos > 0 ? "Getting the next episode ready" : "Getting your episode ready"
+        return HStack(spacing: 8) {
             PulsingDot(still: still)
-            Text(glide.first ? "Getting your episode ready" : "Getting the next episode ready")
+            Text(note.isEmpty ? words : note)
                 .font(FAMFont.mono(11.5))
                 .tracking(0.345)
                 .foregroundStyle(FAMColor.textMuted)
@@ -443,14 +542,39 @@ struct GlideView: View {
         .animation(still ? nil : .spring(response: 0.4, dampingFraction: 0.6).delay(0.25), value: arrived)
     }
 
+    private func dotWidth(_ i: Int) -> CGFloat {
+        guard i == glide.pos else { return 6 }
+        return (arrived || still) ? 18 : 6
+    }
+
     private var dots: some View {
         HStack(spacing: 6) {
             ForEach(0..<glide.titles.count, id: \.self) { i in
                 Capsule()
                     .fill(i == glide.pos ? FAMColor.copper : (i < glide.pos ? FAMColor.textFaint : FAMColor.borderStrong))
-                    .frame(width: i == glide.pos ? 18 : 6, height: 6)
+                    .frame(width: dotWidth(i), height: 6)
+                    // The current dot grows to 18 (`famGlideDot`, .4 s after .25 s).
+                    .animation(still ? nil : .easeInOut(duration: 0.4).delay(0.25), value: arrived)
             }
         }
+    }
+}
+
+/// The dial's and the glide's title coming up into place (`famLdUp`: from
+/// 8 pt below and clear, .3 s ease); still with reduced motion.
+private struct LoadingTitleUp: ViewModifier {
+    let still: Bool
+    @State private var up = false
+
+    func body(content: Content) -> some View {
+        let shown = still || up
+        return content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 8)
+            .onAppear {
+                guard !still else { return }
+                withAnimation(.easeInOut(duration: 0.3)) { up = true }
+            }
     }
 }
 
@@ -482,6 +606,8 @@ private struct PulsingDot: View {
 struct DialView: View {
     let dial: LoadingModel.Dial
     let still: Bool
+    /// `genStatusNote`, in place of the status when the server has one.
+    var note: String = ""
 
     @State private var shownAt = Date()
 
@@ -507,9 +633,10 @@ struct DialView: View {
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
                 .frame(maxWidth: 300)
+                .modifier(LoadingTitleUp(still: still))
             HStack(spacing: 8) {
                 PulsingDot(still: still)
-                Text("Getting your episode ready")
+                Text(note.isEmpty ? "Getting your episode ready" : note)
                     .font(FAMFont.mono(11.5))
                     .tracking(0.345)
                     .foregroundStyle(FAMColor.textMuted)
@@ -518,7 +645,7 @@ struct DialView: View {
         .onAppear { shownAt = Date() }
         .id(dial)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Tuning in to \(dial.tune). \(dial.title). Getting your episode ready")
+        .accessibilityLabel("Tuning in to \(dial.tune). \(dial.title). " + (note.isEmpty ? "Getting your episode ready" : note))
     }
 
     /// "DAILYFAM · {heading}", the heading in copper (`.fam-ld-kick`).

@@ -56,7 +56,8 @@ struct MyFAMView: View {
                     if mixes.categoryState.finding {
                         CategoryFind(state: $mixes.categoryState)
                     } else if let node = mixes.categoryState.node {
-                        CategoryPanel(node: node, subs: $mixes.categorySubs)
+                        CategoryPanel(node: node, subs: $mixes.categorySubs,
+                                      root: mixes.categoryState.root ?? node)
                             .id(node)
                     } else {
                     VStack(alignment: .leading, spacing: 0) {
@@ -79,8 +80,12 @@ struct MyFAMView: View {
                 }
                 .refreshable { await mixes.load() }
                 .onChange(of: mixes.categoryState) { old, new in
-                    if old.root != new.root { mixes.categorySubs = [] }
-                    proxy.scrollTo("top")
+                    // A new category goes to the top (`pickCategory`); a sub
+                    // chosen inside it does not.
+                    if old.root != new.root {
+                        mixes.categorySubs = []
+                        proxy.scrollTo("top")
+                    }
                 }
                 }
             }

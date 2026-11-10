@@ -130,6 +130,9 @@ struct CategoryPanel: View {
     @EnvironmentObject private var mixes: MixesModel
     let node: String
     @Binding var subs: [CategorySub]
+    /// The category the chips are inside: its answer alone sets the sub
+    /// row, and its facet colours the hero (`catPage.root`).
+    var root: String = ""
 
     @State private var page: CategoryEpisodes?
     @State private var failed = false
@@ -169,9 +172,16 @@ struct CategoryPanel: View {
             } else if failed {
                 VStack(spacing: 6) {
                     note("Could not load this category right now.")
-                    Button("Try again") { Task { await load() } }
-                        .font(FAMFont.body(11, .bold))
-                        .foregroundStyle(FAMColor.copper)
+                    // `.sample-note-btn`: the copper pill.
+                    Button { Task { await load() } } label: {
+                        Text("Try again")
+                            .font(FAMFont.body(12, .bold))
+                            .foregroundStyle(FAMColor.ink)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(FAMColor.copper, in: Capsule())
+                    }
+                    .buttonStyle(.press)
                 }
                 .frame(maxWidth: .infinity)
             } else {
@@ -187,7 +197,10 @@ struct CategoryPanel: View {
         do {
             let answer = try await model.api.categoryEpisodes(node)
             page = answer
-            if !answer.subcategories.isEmpty || subs.isEmpty { subs = answer.subcategories }
+            // The level below comes from the category's own answer only,
+            // so narrowing to one of its subs keeps the row
+            // (`if(node === catPage.root)`).
+            if root.isEmpty || node == root { subs = answer.subcategories }
         } catch {
             failed = true
         }
@@ -211,7 +224,7 @@ struct CategoryPanel: View {
         // overlay cut to it, so a 4:3 thumbnail can never make it taller.
         return Button { model.playCategory(page.episodes, from: 0) } label: {
             Rectangle()
-                .fill(Self.tones[page.facet ?? ""] ?? FAMColor.surface2)
+                .fill(Self.tones[heroFacet(page)] ?? FAMColor.surface2)
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .frame(maxWidth: .infinity, minHeight: 150)
                 .overlay {
@@ -233,11 +246,22 @@ struct CategoryPanel: View {
         .padding(.bottom, 10)
     }
 
+    /// The root's facet (`categoryFacetOf(catPage.root)`), else the node's own.
+    private func heroFacet(_ page: CategoryEpisodes) -> String {
+        let id = root.isEmpty ? node : root
+        if let cats = mixes.categories {
+            if cats.facets.contains(where: { $0.id == id }) { return id }
+            if let found = cats.all.first(where: { $0.id == id }), let facet = found.facet { return facet }
+            return ""
+        }
+        return page.facet ?? ""
+    }
+
     private func heroText(_ page: CategoryEpisodes, _ first: CategoryEpisode) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if first.explicit == true { ExplicitBadge() }
-                Text(first.title)
+                Text(first.title.isEmpty ? first.query : first.title)
                     .font(FAMFont.heading(18, .semibold))
                     .foregroundStyle(Color(hex: 0xF4EFE4))
                     .multilineTextAlignment(.leading)
@@ -309,10 +333,13 @@ struct CategoryPanel: View {
                 .frame(width: 38, height: 38)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(e.title)
-                        .font(FAMFont.heading(12.5, .medium))
-                        .foregroundStyle(FAMColor.text)
-                        .multilineTextAlignment(.leading)
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        if e.explicit == true { ExplicitBadge() }
+                        Text(e.title.isEmpty ? e.query : e.title)
+                            .font(FAMFont.heading(12.5, .medium))
+                            .foregroundStyle(FAMColor.text)
+                            .multilineTextAlignment(.leading)
+                    }
                     Text(meta(e, page))
                         .font(FAMFont.mono(8))
                         .tracking(0.32)
@@ -330,7 +357,11 @@ struct CategoryPanel: View {
 
     /// "SPORT · 1.5 MIN · 12 PLAYS" (`catRowMeta`).
     private func meta(_ e: CategoryEpisode, _ page: CategoryEpisodes) -> String {
-        var parts = [(e.nodeLabel ?? page.label).uppercased(), "\(FAMAPI.minutes(e.minutes ?? FAMAPI.browseMinutes)) MIN"]
+        // The node's own label, or nothing (`catRowMeta`'s filter(Boolean)).
+        var parts: [String] = []
+        let nodeLabel = (e.nodeLabel ?? "").uppercased()
+        if !nodeLabel.isEmpty { parts.append(nodeLabel) }
+        parts.append("\(FAMAPI.minutes(e.minutes ?? FAMAPI.browseMinutes)) MIN")
         if let plays = e.plays, plays > 0 { parts.append(plays == 1 ? "1 PLAY" : "\(plays) PLAYS") }
         return parts.joined(separator: " · ")
     }
@@ -367,7 +398,8 @@ struct CategoryFind: View {
                     .font(FAMFont.body(11)).foregroundStyle(FAMColor.textFaint)
                     .frame(maxWidth: .infinity).padding(.vertical, 30)
             }
-            ForEach(found) { c in
+            // By place: a facet can also be one of the tree's nodes, listed twice as on the web.
+            ForEach(Array(found.enumerated()), id: \.offset) { _, c in
                 Button { state = CategoryState(root: c.id, node: c.id) } label: {
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 4) {
@@ -392,22 +424,24 @@ struct CategoryFind: View {
         .onAppear { focused = true }
     }
 
-    /// Nothing typed: the facets. Typed: word starts across every node, 60 at most.
+    /// Nothing typed: the facets. Typed: the facets and then every node
+    /// whose label has a word starting with what was typed - spaces split
+    /// words, so "york gi" finds the New York Giants - 60 at most
+    /// (`renderCategoryFind`: `(" " + label).indexOf(" " + q)`).
     private var matches: [CategoryNode] {
         guard let page = mixes.categories else { return [] }
         let q = words.trimmingCharacters(in: .whitespaces).lowercased()
-        if q.isEmpty {
-            return page.facets.map { CategoryNode(id: $0.id, label: $0.label, facet: $0.id, path: []) }
-        }
-        let facets = page.facets.map { CategoryNode(id: $0.id, label: $0.label, facet: $0.id, path: []) }
-        var seen = Set<String>()
-        return (facets + page.all).filter { node in
-            guard !seen.contains(node.id) else { return false }
-            let hit = node.label.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-                .contains { $0.hasPrefix(q) } || node.label.lowercased().hasPrefix(q)
-            if hit { seen.insert(node.id) }
-            return hit
-        }.prefix(60).map { $0 }
+        let facets = page.facets
+            .filter { Self.starts($0.label, q) }
+            .map { CategoryNode(id: $0.id, label: $0.label, facet: $0.id, path: []) }
+        if q.isEmpty { return facets }
+        let nodes = page.all.filter { Self.starts($0.label, q) }
+        return Array((facets + nodes).prefix(60))
+    }
+
+    static func starts(_ label: String, _ q: String) -> Bool {
+        if q.isEmpty { return true }
+        return (" " + label.lowercased()).contains(" " + q)
     }
 }
 

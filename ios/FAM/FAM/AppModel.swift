@@ -49,9 +49,24 @@ final class AppModel: ObservableObject {
     /// Words for searchFAM's box, from Search DailyFAM's "Search FAM for
     /// it" (`searchFromMyFam`): put in the box, not sent.
     @Published var searchPrefill: String?
+    /// The search page's Length (`selectedLengthMinutes`): the bubble and
+    /// the player's Length menu are one choice, back to 1.5 on every return
+    /// to the app (SearchView keeps the two in step).
+    @Published var searchLength: Double = 1.5
+    /// The tab under everything (`stack[0]` on the web), told by the tabs:
+    /// what a Go Deeper and What's next's tiles say they came from.
+    var shownTab: Tab = .daily
+    /// A link the app was opened with (`/s/`, `/m/`, `/j/`), waiting until
+    /// somebody is signed in and let in (decision 5).
+    var pendingLink: URL?
+    /// The last link followed, so one that arrives twice is followed once.
+    var lastLink: (link: AppLink, at: Date)?
     /// Tiles marked "Not interested" since the page was drawn, so an open
     /// View more drops them too.
     @Published private(set) var notInterestedIDs: Set<String> = []
+    /// Rails whose last card "Not interested" took: their heading and View
+    /// more end stay until the page is drawn again (the web removes cards only).
+    @Published private(set) var emptiedRails: Set<String> = []
     /// This member's referral link while the waitlist runs, fetched ahead
     /// because a share sheet must open inside the tap (`loadInviteLink`).
     @Published private(set) var inviteLink: String?
@@ -73,6 +88,39 @@ final class AppModel: ObservableObject {
     @Published var owedActivation: Activation?
     /// `/api/auth/me` said the step is owed and it has not been shown yet.
     private var activationOwed = false
+
+    // The front door and account life.
+
+    /// Whether the waitlist runs, from the last `/api/auth/me` (a log-in's
+    /// answer leaves it out): nil until the server has said.
+    private var waitlistOn: Bool?
+    /// The app's public home (`APP_HOME_URL`, `/api/auth/me`'s `home`).
+    private(set) var home = ""
+    /// The FAM mark over everything for half a second on log-out
+    /// (`LOGOUT_SPLASH_MS`), so it reads as the app resetting.
+    @Published private(set) var splash = false
+    /// Bumped whenever the FAM intro plays (§201): every open, and when
+    /// signing in or finishing sign-up hands over to DailyFAM.
+    @Published private(set) var introRun = 0
+    /// Bumped when the phone changes account without signing out (linking
+    /// an Apple ID or Google account that had a FAM account of its own):
+    /// every tab is drawn afresh, nothing of the last account left on it.
+    @Published private(set) var accountEpoch = 0
+    /// The Terms to agree to before going on (§228, `checkTerms`).
+    @Published private(set) var termsOwed: TermsState?
+    /// This build is retired (426): the update screen over everything.
+    @Published private(set) var updateRequired: UpdateNotice?
+    /// `deprecated` is said once a launch (`clientStatusSaid`).
+    private var deprecatedSaid = false
+    /// A sample playing in place on the welcome or status page
+    /// (`welcomePlaying`): its question, "" when none; and the line under it.
+    @Published private(set) var sampleQuery = ""
+    @Published private(set) var sampleNote = ""
+    /// An invite code a link carried (`referralCode`), kept until an
+    /// account is made with it (the web's `famReferral`).
+    static let referralKey = "fam.referral"
+    /// This phone finished the first run (`fam.prefs` `entry: "done"`).
+    static let entryKey = "fam.entryDone"
     let mixes: MixesModel
     /// YourFAM: the profile, Settings and the shelves.
     let you: YouModel
@@ -191,6 +239,13 @@ final class AppModel: ObservableObject {
         player.onFailed = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                // A sample played in place says why under its card, and
+                // nothing else moves (`playWelcomeSample`'s onError).
+                if !self.sampleQuery.isEmpty {
+                    let words = self.player.failureWords
+                    self.sampleEnded(words.isEmpty ? "That episode could not be played just now." : words)
+                    return
+                }
                 // No connection, and this one is on the phone: play it from
                 // here (`onError` with `err.network` on the web).
                 if self.playFromShelfAfterNetworkFailure() { return }
@@ -199,6 +254,14 @@ final class AppModel: ObservableObject {
                 if self.mixPlay != nil && self.mixItemFailed() { return }
                 self.generationFailed()
             }
+        }
+        // A replay, the dial and the glide start their audio the moment it
+        // arrives; the player opens after the screen's 0.45 s (`genStepsGate`).
+        loading.onAudioNow = { [weak self] in
+            MainActor.assumeIsolated { self?.player.release() }
+        }
+        loading.onGiveUp = { [weak self] words in
+            MainActor.assumeIsolated { self?.loadingGaveUp(words) }
         }
         loading.onRelease = { [weak self] in
             MainActor.assumeIsolated {
@@ -222,7 +285,15 @@ final class AppModel: ObservableObject {
             }
         }
         player.onFinished = { [weak self] in
-            MainActor.assumeIsolated { self?.nowPlaying.ended() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                // A sample on the front door is not an episode of the app's.
+                if !self.sampleQuery.isEmpty {
+                    self.sampleEnded("")
+                    return
+                }
+                self.nowPlaying.ended()
+            }
         }
         player.onArrived = { [weak self] in
             MainActor.assumeIsolated { self?.keepIfWhole() }
@@ -272,6 +343,7 @@ final class AppModel: ObservableObject {
         nowPlaying.openSaved = { [weak self] in self?.openSaved() }
         nowPlaying.speller = speller
         nowPlaying.privateOn = { [weak self] in self?.privateSearch ?? false }
+        wirePlayerHooks()
         attachments.say = { [weak self] text in self?.nowPlaying.say(text) }
         you.prefsLoaded = { [weak self] prefs in self?.privateSearch = prefs.privateSearch ?? false }
         voiceSearch.keepsPlayback = { [weak self] in self?.player.isLoaded ?? false }
@@ -295,6 +367,12 @@ final class AppModel: ObservableObject {
             self.player.resume()
         }
         social.requestTab = { [weak self] tab in self?.tabRequest = tab }
+        // "Couldn't reach FAM. Try again." when the AI answer cannot be read.
+        consent.unreachable = { [weak self] in self?.nowPlaying.say("Couldn\u{2019}t reach FAM. Try again.") }
+        // A deprecated or retired build hears it from any answer (§208).
+        ClientStatusWatch.handler = { [weak self] status, words, link in
+            MainActor.assumeIsolated { self?.clientNotice(status, words: words, link: link) }
+        }
         social.leavePlayer = { [weak self] in
             guard let self, self.showPlayer else { return false }
             self.showPlayer = false
@@ -304,10 +382,22 @@ final class AppModel: ObservableObject {
 
     // MARK: - Opening and accounts
 
-    /// Asked on every open: who is this, and may they in?
+    /// Asked on every open: who is this, and may they in? The boot chain
+    /// (`refreshAuth → bootToFirstScreen → checkTerms → checkActivation`):
+    /// the FAM intro over the first screen, the first run on a phone that
+    /// never finished it (an account let in off the waitlist), the Terms.
     func open() async {
+        // What the server makes of this build, beside everything else
+        // (IOS_APP.md: version 1.0 asks at launch).
+        Task { await checkClient() }
+        // Whether this server writes real episodes, for the loading
+        // screen's note (`genStatusNote`, from `/api/health`).
+        Task { await loadHealthNote() }
         guard api.token != nil else {
             stage = .signedOut
+            playIntro()
+            // The waitlist switch and the home address, asked as a guest.
+            Task { await learnServer() }
             return
         }
         // The last page drawn on this phone, at once, so the tab opens on
@@ -319,28 +409,219 @@ final class AppModel: ObservableObject {
         do {
             let who = try await api.me()
             arrive(who)
+            playIntro()
             noteActivation(who)
+            // Signed in on a phone that never finished the first run (most
+            // often somebody let in off the waitlist): the steps a new
+            // account gets (`routeFirstScreen` → `afterAccount({fromBoot})`).
+            if stage == .ready && !UserDefaults.standard.bool(forKey: Self.entryKey) {
+                await beginEntry(handoff: false)
+            }
+            await checkTerms()
         } catch FAMError.signedOut {
             api.token = nil
             dropFirstFeed()
             stage = .signedOut
+            playIntro()
         } catch {
             // Offline or the server is away: keep the account, show what
             // can be shown, and let the rails say why they are empty.
             stage = .ready
+            playIntro()
         }
     }
 
     func signIn(email: String, password: String) async throws {
         arrive(try await api.signIn(email: email, password: password))
-        await beginEntry()
-        await askActivation()
+        await afterSignIn(toast: "Signed in")
     }
 
     func signUp(email: String, password: String) async throws {
         arrive(try await api.signUp(email: email, password: password))
+        UserDefaults.standard.removeObject(forKey: Self.referralKey)
+        await afterSignIn(toast: "Welcome to FAM")
+    }
+
+    /// Sign up (decision 1): the web's `/waitlist` join - the email alone
+    /// (§296), the terms ticked, the invite code a link carried - then
+    /// straight on to the profile with a way to skip it (`?setup=1`), and
+    /// the status page after. With the waitlist off the account goes in.
+    func joinWaitlist(email: String) async throws {
+        let who = try await api.joinWaitlist(email: email, referral: pendingReferral)
+        UserDefaults.standard.removeObject(forKey: Self.referralKey)
+        arrive(who)
+        await refreshWho()
+        if stage == .waiting {
+            entry = .identity
+        } else if stage == .ready {
+            nowPlaying.say("Welcome to FAM")
+            await beginEntry()
+            await checkTerms()
+        }
+    }
+
+    /// After any sign-in (`postAuth`): the toast, `/api/auth/me` (whether
+    /// the waitlist runs, the activation step), the first run, the Terms.
+    private func afterSignIn(toast: String) async {
+        await refreshWho()
+        if stage == .ready && !toast.isEmpty { nowPlaying.say(toast) }
         await beginEntry()
-        await askActivation()
+        await checkTerms()
+    }
+
+    /// `/api/auth/me` again: the waitlist switch and `activation_needed`
+    /// are its alone (a log-in's answer leaves them out).
+    private func refreshWho() async {
+        guard let who = try? await api.me() else { return }
+        arrive(who)
+        noteActivation(who)
+    }
+
+    /// Signed out: the waitlist switch and the home address, as a guest.
+    private func learnServer() async {
+        guard let who = try? await api.me() else { return }
+        if let on = who.waitlist { waitlistOn = on }
+        if let at = who.home, !at.isEmpty { home = at }
+    }
+
+    /// The invite code a link carried (`?referralCode=`), kept until an
+    /// account is made (`famReferral`).
+    var pendingReferral: String {
+        UserDefaults.standard.string(forKey: Self.referralKey) ?? ""
+    }
+
+    /// Any link that opens the app may carry a waitlist invite code.
+    func noteReferral(_ url: URL) {
+        let parts = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let code = parts?.queryItems?.first { $0.name == "referralCode" }?.value ?? ""
+        let clean = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        UserDefaults.standard.set(String(clean.prefix(64)), forKey: Self.referralKey)
+    }
+
+    // MARK: - The FAM intro, the splash, the client's status
+
+    /// The FAM intro (§201): skipped under Reduce Motion by the layer.
+    func playIntro() {
+        introRun += 1
+    }
+
+    /// `/api/health` once (`genStatusNote`): "Staging: playing the built-in
+    /// sample script…", "Playing the built-in sample script…" or "The
+    /// server's API key was rejected…", under the steps and in place of the
+    /// dial's and the glide's status. Unread, nothing is said.
+    private func loadHealthNote() async {
+        guard let health = try? await api.health() else { return }
+        loading.note = health.loadingNote
+    }
+
+    /// The loading screen gave up (§497): the audio stops and the episode
+    /// may be asked again; a playlist's episode is that episode's failure
+    /// (`mixItemFailed`), anything else the web's sentence.
+    private func loadingGaveUp(_ words: String) {
+        player.stop()
+        if mixPlay != nil && mixItemFailed() { return }
+        pending = nil
+        showPlayer = false
+        nowPlaying.say(words)
+    }
+
+    /// `/api/client-status` at launch.
+    private func checkClient() async {
+        guard let status = try? await api.clientStatus() else { return }
+        if status.updateRequired {
+            clientNotice("retired", words: status.message, link: "")
+            // The store link is the 426's (`update_url`): one more question
+            // hears it, and the watch fills it in.
+            _ = try? await api.me()
+        } else if status.updateRecommended {
+            clientNotice("deprecated", words: status.message, link: "")
+        }
+    }
+
+    /// `clientStatusSeen`: retired raises the update screen (the server's
+    /// sentence and store link); deprecated is said once.
+    func clientNotice(_ status: String, words: String, link: String) {
+        if status == "retired" {
+            let old = updateRequired
+            let sentence = words.isEmpty ? (old?.message ?? UpdateNotice.fallback) : words
+            let store = link.isEmpty ? (old?.link ?? "") : link
+            let next = UpdateNotice(message: sentence, link: store)
+            if next != old {
+                updateRequired = next
+                // Nothing else will work: the player comes down, so the
+                // update screen is what shows.
+                showPlayer = false
+            }
+            return
+        }
+        guard !deprecatedSaid else { return }
+        deprecatedSaid = true
+        nowPlaying.say(words.isEmpty ? "A newer version of FAM is available in the App Store" : words)
+    }
+
+    /// Back in the foreground (`visibilitychange`, §329): a signed-in
+    /// listener's voice is asked for now, not at the tap. Never awaited.
+    func cameToFront() {
+        guard listener?.authenticated == true, stage == .ready else { return }
+        let api = self.api
+        Task { await api.voiceWake() }
+    }
+
+    // MARK: - The Terms, agreed (§228)
+
+    /// `checkTerms`, after the open and every sign-in: an account that
+    /// never agreed (an Apple or Google one made from Log in, an older
+    /// release) or agreed to an older version is asked once.
+    func checkTerms() async {
+        guard stage == .ready, listener?.authenticated == true else { return }
+        guard let terms = try? await api.termsState() else { return }
+        termsOwed = terms.accepted ? nil : terms
+    }
+
+    /// Continue on the Terms card (`acceptTerms`).
+    func acceptTerms() async {
+        guard let owed = termsOwed else { return }
+        if let now = try? await api.acceptTerms(version: owed.version), now.accepted {
+            termsOwed = nil
+        } else {
+            nowPlaying.say("Couldn\u{2019}t save that. Try again.")
+        }
+    }
+
+    // MARK: - Samples in place (`playWelcomeSample`, the status page's card)
+
+    /// A tap plays or pauses in place: a replay, no player, no navigation.
+    func toggleSample(_ tile: Tile) {
+        if sampleQuery == tile.query && player.isLoaded {
+            player.toggle()
+            return
+        }
+        sampleQuery = tile.query
+        sampleNote = "Starting the episode\u{2026}"
+        player.play(title: tile.title, picture: api.picture(tile.thumb),
+                    request: api.sampleAudio(query: tile.query),
+                    minutes: FAMAPI.browseMinutes, holdStart: false)
+    }
+
+    /// The first word: the note goes.
+    func sampleStarted() {
+        if !sampleQuery.isEmpty && sampleNote.hasPrefix("Starting") { sampleNote = "" }
+    }
+
+    /// Ended or failed: the card is a play button again, with why if it failed.
+    private func sampleEnded(_ why: String) {
+        sampleQuery = ""
+        sampleNote = why
+    }
+
+    /// Past the front door the sample is not one of the app's players
+    /// (`stopWelcomeSampleLeaving`).
+    func stopSample() {
+        guard !sampleQuery.isEmpty else { return }
+        player.stop()
+        sampleQuery = ""
+        sampleNote = ""
     }
 
     // MARK: - The activation step (§411, §414)
@@ -373,8 +654,8 @@ final class AppModel: ObservableObject {
     /// sign this phone in, like a log-in.
     func finishReset(email: String, code: String, password: String) async throws {
         arrive(try await api.resetFinish(email: email, code: code, new: password))
-        await beginEntry()
-        await askActivation()
+        // "Password changed. You're signed in." is the reset screen's own.
+        await afterSignIn(toast: "")
     }
 
     /// The password changed in Settings: the server ended every session,
@@ -382,14 +663,13 @@ final class AppModel: ObservableObject {
     /// held only for this call, the new token to the Keychain as any
     /// log-in's is. False when that sign-in could not be made: the dead
     /// token is dropped and the phone is on the log-in screen.
+    /// `/api/auth/password` signs out every device, this one included, and
+    /// the web lets it: its `postAuth` toasts, then `refreshAuth` finds this
+    /// tab signed out too. So does this phone - no quiet sign-in again with
+    /// the new password. Returns whether this device is still signed in
+    /// (always false now; kept so the caller's shape does not change).
     func changePassword(current: String, new: String) async throws -> Bool {
         try await api.changePassword(current: current, new: new)
-        let email = listener?.email ?? ""
-        if !email.isEmpty, let who = try? await api.signIn(email: email, password: new),
-           who.authenticated {
-            arrive(who)
-            return true
-        }
         player.stop()
         api.token = nil
         forgetEverything()
@@ -399,9 +679,12 @@ final class AppModel: ObservableObject {
     func signIn(provider: String, idToken: String, nonce: String,
                 authorizationCode: String = "", acceptTerms: Bool) async throws {
         arrive(try await api.signIn(provider: provider, idToken: idToken, nonce: nonce,
-                                    authorizationCode: authorizationCode, acceptTerms: acceptTerms))
-        await beginEntry()
-        await askActivation()
+                                    authorizationCode: authorizationCode, acceptTerms: acceptTerms,
+                                    referral: pendingReferral))
+        UserDefaults.standard.removeObject(forKey: Self.referralKey)
+        // A new Apple or Google account made from Log in never ticked the
+        // box: `checkTerms` (in `afterSignIn`) asks it once (§228).
+        await afterSignIn(toast: acceptTerms ? "Welcome to FAM" : "Signed in")
     }
 
     /// Link Apple or Google to the account signed in now (`sign_in_with`
@@ -412,25 +695,41 @@ final class AppModel: ObservableObject {
         let before = listener?.userId
         let who = try await api.signIn(provider: provider, idToken: idToken, nonce: nonce,
                                        authorizationCode: authorizationCode, acceptTerms: false)
-        arrive(who)
         let name = provider == "apple" ? "Apple ID" : "Google account"
         if who.userId != before {
+            // Another account: nothing of the old one stays on screen or on
+            // the phone - the same clearing a sign-out does, the new token
+            // kept - and every tab is drawn afresh for the new one.
+            player.stop()
+            forgetEverything()
+            accountEpoch += 1
+            arrive(who)
             nowPlaying.say("That \(name) already had its own FAM account, so you're signed in to it now.")
+            Task { [weak self] in await self?.afterSignIn(toast: "") }
         } else {
+            arrive(who)
             nowPlaying.say(provider == "apple" ? "Apple is linked to your account" : "Google is linked to your account")
         }
     }
 
+    /// Log out (`logOut`): the FAM mark over the screen for half a second
+    /// while everything of theirs is forgotten, then the front door.
     func signOut() async {
+        let began = Date()
+        splash = true
         player.stop()
         await api.signOut()
         forgetEverything()
+        let left = 0.5 - Date().timeIntervalSince(began)
+        if left > 0 { try? await Task.sleep(nanoseconds: UInt64(left * 1_000_000_000)) }
+        splash = false
     }
 
     func deleteAccount() async throws {
         player.stop()
         try await api.deleteAccount()
         forgetEverything()
+        nowPlaying.say("Account deleted")
     }
 
     private func arrive(_ who: Listener) {
@@ -439,8 +738,16 @@ final class AppModel: ObservableObject {
             stage = .signedOut
             return
         }
+        if let on = who.waitlist { waitlistOn = on }
+        if let at = who.home, !at.isEmpty { home = at }
         listener = who
-        stage = who.waitlisted ? .waiting : .ready
+        // Waiting only when the server says the waitlist runs and this
+        // account is on it (`d.waitlist && d.status === "waitlisted"`); a
+        // log-in's answer leaves `waitlist` out, so the last word on it
+        // stands until `/api/auth/me` is asked again.
+        let held = who.waitlisted && (waitlistOn ?? true)
+        stage = held ? .waiting : .ready
+        if !held { stopSample() }
         // At launch the AI question's answer and the search settings are
         // asked behind the feed (`warmBehindFeed`); once the app is running
         // (a link, a new password) they are asked again at once, as before.
@@ -448,10 +755,28 @@ final class AppModel: ObservableObject {
         Task { await consent.load() }
         // Painted from the stored preference, so private search is on from
         // the first search after a launch (`loadPreferences`).
-        if !who.waitlisted { Task { await loadSearchSettings() } }
+        if !held { Task { await loadSearchSettings() } }
     }
 
     func forgetEverything() {
+        stopSample()
+        termsOwed = nil
+        // Search DailyFAM's way back and searchFAM's Length are the last
+        // listener's too.
+        catalogReturn = false
+        searchLength = 1.5
+        // DailyFAM's own: the faces row, Pick up, the lit bookmarks, the
+        // friends on the cards, the tiles turned down and "Start here"
+        // (`goDeeperData`, `savedTileQueries`, §127) - the next listener
+        // never sees the last one's while a reload is on its way.
+        pickUp = nil
+        circle = nil
+        friendFaces = []
+        savedTiles = []
+        notInterestedIDs = []
+        emptiedRails = []
+        tasteSource = "taste"
+        forgetDevicePrefs()
         activationOwed = false
         owedActivation = nil
         listener = nil
@@ -485,6 +810,22 @@ final class AppModel: ObservableObject {
         stage = .signedOut
     }
 
+    /// The web's `forgetLocalPrefs` and the device half of
+    /// `forgetOfflineCopies`: the speed and the pitch lock, "Hey FAM", the
+    /// pinned time zone, the first run's "done" and the stories seen are
+    /// this listener's, not the phone's. The theme and captions stay (their
+    /// own keys on the web too).
+    private func forgetDevicePrefs() {
+        player.setRate(1)
+        player.setKeepsPitch(true)
+        wake.forget()
+        let store = UserDefaults.standard
+        for key in ["speed", "pitch_lock", FAMAPI.zoneKey, "storiesSeen", Self.entryKey] {
+            store.removeObject(forKey: key)
+        }
+        FAMAPI.forgetCookies()
+    }
+
     // MARK: - DailyFAM
 
     /// The page, and with it the faces row, the saved bookmarks and Pick
@@ -492,6 +833,7 @@ final class AppModel: ObservableObject {
     func loadRails() async {
         loadingRails = true
         defer { loadingRails = false }
+        var drew = false
         // The rails first, then the faces row, Pick up and the bookmarks
         // (a faster start: the cards are what the listener came for).
         do {
@@ -499,6 +841,7 @@ final class AppModel: ObservableObject {
             if Task.isCancelled { return }
             let page = try FAMAPI.decodeRails(data)
             rails = page.sections
+            emptiedRails = []
             tasteSource = page.tasteSource ?? "taste"
             friendFaces = page.friendFaces ?? []
             railsProblem = ""
@@ -506,6 +849,7 @@ final class AppModel: ObservableObject {
             // Remembered only once it has drawn, so a page that fails to
             // draw is never the one an offline open falls back to.
             shelf.rememberFeed(data)
+            drew = true
         } catch FAMError.waitlisted {
             stage = .waiting
         } catch {
@@ -517,6 +861,7 @@ final class AppModel: ObservableObject {
             if network || isOffline, let last = shelf.rememberedFeed() {
                 setOffline(true)
                 rails = last.sections
+                emptiedRails = []
                 tasteSource = last.tasteSource ?? "taste"
                 friendFaces = last.friendFaces ?? []
                 railsProblem = ""
@@ -525,9 +870,11 @@ final class AppModel: ObservableObject {
             }
         }
         async let faces: Void = loadCircle()
-        async let pick: Void = loadPickUp()
         async let saves: Void = loadSavedTiles()
-        _ = await (faces, pick, saves)
+        // Pick up only once the feed has drawn (`loadGoDeeper` after
+        // `renderMyFamFeed`), never after a failure or a remembered page.
+        if drew { await loadPickUp() }
+        _ = await (faces, saves)
     }
 
     // MARK: - A faster start
@@ -625,13 +972,15 @@ final class AppModel: ObservableObject {
     /// The words an invite sends, with the link: "Come listen with me on
     /// FAM — I'm @handle." and the referral link or the app's address.
     func inviteText(handle: String) -> String {
-        let url = inviteLink ?? (FAMAPI.production.absoluteString + "/")
+        // The server's home (`AUTH.home`), else the address this build talks to.
+        let url = inviteLink ?? ((home.isEmpty ? api.base.absoluteString : home) + "/")
         let who = handle.isEmpty ? "" : " \u{2014} I'm @" + handle
         return "Come listen with me on FAM" + who + ". " + url
     }
 
+    /// A failed read leaves what was drawn (`loadGoDeeper`).
     func loadPickUp() async {
-        pickUp = (try? await api.pickUp()) ?? PickUpPage(threads: [], resume: [])
+        if let page = try? await api.pickUp() { pickUp = page }
     }
 
     private func loadSavedTiles() async {
@@ -679,26 +1028,26 @@ final class AppModel: ObservableObject {
     /// The card's bookmark (`saveTile`).
     func toggleSave(_ tile: Tile) {
         let key = "\(tile.query)|\(FAMAPI.minutes(FAMAPI.browseMinutes))"
+        // The bookmark changes once the server has answered, as the web's
+        // `saveTile` paints it - never lit for a save that did not happen.
         if savedTiles.contains(key) {
-            savedTiles.remove(key)
             Task {
                 do {
                     try await api.unsaveTile(query: tile.query)
-                    nowPlaying.say("Removed from Saved for Later")
+                    savedTiles.remove(key)
+                    nowPlaying.snack("Removed from Saved for Later")
                 } catch {
-                    savedTiles.insert(key)
                     nowPlaying.say("Could not take that off")
                 }
             }
         } else {
-            savedTiles.insert(key)
             Task {
                 do {
                     try await api.saveTile(query: tile.query, title: tile.title, source: "myfam")
+                    savedTiles.insert(key)
                     nowPlaying.say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
                     await api.event("save", topicID: tile.id, text: tile.query)
                 } catch {
-                    savedTiles.remove(key)
                     nowPlaying.say("Could not save that")
                 }
             }
@@ -720,7 +1069,7 @@ final class AppModel: ObservableObject {
             do {
                 if on {
                     try await api.unsaveShared(query: query, minutes: minutes)
-                    nowPlaying.say("Removed from Saved for Later")
+                    nowPlaying.snack("Removed from Saved for Later")
                 } else {
                     try await api.saveShared(query: query, minutes: minutes, title: title)
                     nowPlaying.say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
@@ -746,9 +1095,13 @@ final class AppModel: ObservableObject {
     func notInterested(_ tile: Tile) {
         Task { await api.event("not_interested", topicID: tile.id,
                                text: tile.query.isEmpty ? tile.title : tile.query) }
-        for i in rails.indices { rails[i].topics.removeAll { $0.id == tile.id } }
+        for i in rails.indices {
+            let had = !rails[i].topics.isEmpty
+            rails[i].topics.removeAll { $0.id == tile.id }
+            if had && rails[i].topics.isEmpty { emptiedRails.insert(rails[i].key) }
+        }
         notInterestedIDs.insert(tile.id)
-        nowPlaying.say("Got it — you’ll see less like this")
+        nowPlaying.snack("Got it — you’ll see less like this")
     }
 
     func addToQueue(_ tile: Tile) {
@@ -765,7 +1118,7 @@ final class AppModel: ObservableObject {
     /// thread plays as a follow-up.
     func playPickUp(resume card: PickUpResume) {
         let ep = Episode(key: EpisodeKey(query: card.query, minutes: card.minutes, context: card.context ?? ""),
-                         title: card.title.isEmpty ? NowPlayingModel.titleFromQuestion(card.query) : card.title,
+                         title: card.title.isEmpty ? SearchTitle.from(card.query) : card.title,
                          surface: "other")
         play(ep, resumeAt: card.seconds)
     }
@@ -785,16 +1138,31 @@ final class AppModel: ObservableObject {
             pickUp = page
         }
         Task {
-            await api.dismissPickUp(query: query)
-            await loadPickUp()
+            if await api.dismissPickUp(query: query) { await loadPickUp() }
         }
     }
 
     /// Search DailyFAM: an episode somebody else made, replayed.
+    /// A replay (`cachedOnly`, so no history row, as `historySurface`),
+    /// titled by its question when it has no title (`playMyFamSearch`).
     func playCatalog(_ item: CatalogEpisode) {
-        startPlaying(Episode(key: EpisodeKey(query: item.query, minutes: item.minutes),
-                             title: item.title, surface: "", picture: api.picture(item.thumb ?? "")),
-                     cachedOnly: true)
+        var ep = Episode(key: EpisodeKey(query: item.query, minutes: item.minutes),
+                         title: item.title.isEmpty ? item.query : item.title, surface: "",
+                         picture: api.picture(item.thumb ?? ""))
+        ep.cachedOnly = true
+        startPlaying(ep, cachedOnly: true)
+    }
+
+    /// Search DailyFAM's tap closed the list for the player: it comes back
+    /// once the player or the loading screen has gone and nothing else
+    /// (the limit screen, "Which one do you mean?") stands in its place.
+    @Published var catalogReturn = false
+
+    func catalogShouldReturn() -> Bool {
+        guard catalogReturn, !loading.visible, !showPlayer else { return false }
+        guard limitReached == nil, readingAsk == nil else { return false }
+        catalogReturn = false
+        return true
     }
 
     // MARK: - Playing
@@ -821,9 +1189,9 @@ final class AppModel: ObservableObject {
         let tag = tile.tagText.isEmpty ? "DailyFAM" : tile.tagText
         var key = ""
         let holds: (Rail) -> Bool = { rail in rail.topics.contains(where: { other in other.id == tile.id }) }
-        if !railKey.isEmpty, let tapped = rails.first(where: { rail in rail.key == railKey }), holds(tapped) {
-            key = railKey
-        } else if let found = rails.first(where: holds) {
+        // The first rail holding the tile, in the page's order, whichever
+        // one was tapped - as the web finds it in `railTiles`.
+        if let found = rails.first(where: holds) {
             key = found.key
         }
         let heading = key == "from_history" ? madeForTitle(multiline: false) : Self.sectionTitle(key)
@@ -1157,10 +1525,14 @@ final class AppModel: ObservableObject {
         let at = resumeAt
         resumeAt = 0
         guard at > 0 else { return }
+        // As long as it takes, while this episode is the one playing
+        // (`pendingResumeSeek`): another play, a stop or a failure ends it.
+        let token = player.playToken
         Task {
-            for _ in 0..<120 {
+            while player.playToken == token {
                 if player.seekLimit >= at { player.seek(to: at); return }
                 if player.complete { player.seek(to: min(at, player.seekLimit)); return }
+                if player.phase == .failed || player.phase == .idle { return }
                 try? await Task.sleep(nanoseconds: 250_000_000)
             }
         }
@@ -1169,6 +1541,9 @@ final class AppModel: ObservableObject {
     /// The server said no. The AI question is asked and the episode tried
     /// again on a yes; the waitlist moves the app to its waiting screen.
     private func refused(_ error: FAMError) -> Bool {
+        // A front-door sample refused is that sample's failure, said under
+        // its card; nothing else moves.
+        if !sampleQuery.isEmpty { return false }
         switch error {
         case .consentRequired:
             loading.stop()
@@ -1320,7 +1695,9 @@ extension AppModel {
                                        titles: list.order.map { list.items[$0].title },
                                        pos: list.pos, played: list.played,
                                        first: list.pos == 0)
-        if list.mine { Task { await api.noteMixOpen(list.mixID, played: true) } }
+        // Any mix played - somebody else's public one too - keeps it out of
+        // dormancy (`playMixItem`: `noteMixOpen(mixPlay.id, true)`).
+        if !list.mixID.isEmpty { Task { await api.noteMixOpen(list.mixID, played: true) } }
         startPlaying(ep, glide: glide)
     }
 
@@ -1425,8 +1802,11 @@ extension AppModel {
         list.failures = 0
         mixPlay = list
         // Skipping a detour goes back to the interrupted episode (the
-        // owner's call); skipping the playlist's own episode moves on.
-        let moved = playingDetour ? resumeMix() : advanceMix()
+        // owner's call); skipping the playlist's own episode moves on. A
+        // detour is read from the player or from what is still being made
+        // (`lastGenerate`): a skip while a Go Deeper follow-up loads is a
+        // skip of that follow-up.
+        let moved = (playingDetour || askingDetour) ? resumeMix() : advanceMix()
         if !moved { nowPlaying.playQueueNext() }
     }
 
@@ -1455,7 +1835,8 @@ extension AppModel {
         if let off = asked, off.mixDetour == list.key, off.mixKey != list.key {
             loading.stop()
             nowPlaying.say("That follow-up couldn\u{2019}t play \u{2014} back to your playlist.")
-            _ = resumeMix()
+            // Past the last item, the listener's Queue carries on (`finishMix`).
+            if !resumeMix() { nowPlaying.playQueueNext() }
             return true
         }
         guard let mine = asked, mine.mixKey == list.key, let item = list.current else { return false }
@@ -1476,7 +1857,9 @@ extension AppModel {
         }
         let last = list.pos + 1 >= list.order.count
         nowPlaying.say("\(title) couldn\u{2019}t play" + (last ? "." : " \u{2014} playing the next one."))
-        _ = advanceMix()
+        // The last one failed with something queued: the Queue plays, as
+        // the web's `finishMix` plays it.
+        if !advanceMix() { nowPlaying.playQueueNext() }
         return true
     }
 
@@ -1504,7 +1887,7 @@ extension AppModel {
         Task {
             guard let saved = await mixes.update(mixID, ["remove": [item.id]]) else { return }
             spliceFromPlaylist(mixID: mixID, itemID: item.id)
-            nowPlaying.say("Removed from \(saved.name.isEmpty ? name : saved.name)")
+            nowPlaying.snack("Removed from \(saved.name.isEmpty ? name : saved.name)")
         }
     }
 
@@ -1534,6 +1917,13 @@ extension AppModel {
         return list.removedKey != list.key
     }
 
+    /// What was asked last - still loading, or playing - is a detour of
+    /// the playlist (`lastGenerate.mixDetour`), not one of its own items.
+    var askingDetour: Bool {
+        guard let list = mixPlay, !list.key.isEmpty, let asked = lastAsked else { return false }
+        return asked.mixDetour == list.key && asked.mixKey != list.key
+    }
+
     /// The Queue's "Going deeper · {mix} carries on after": the episode on
     /// the player is a detour of the playlist playing.
     var playingDetour: Bool {
@@ -1552,7 +1942,8 @@ extension AppModel {
         // (`categoryQueueEntry`, `surface: ""`).
         func ep(_ e: CategoryEpisode) -> Episode {
             var made = Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
-                               title: e.title, surface: "", picture: api.picture(e.thumb ?? ""))
+                               title: e.title.isEmpty ? e.query : e.title, surface: "",
+                               picture: api.picture(e.thumb ?? ""))
             made.cachedOnly = true
             made.fromCategory = true
             return made

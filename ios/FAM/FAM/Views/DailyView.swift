@@ -20,8 +20,6 @@ struct DailyView: View {
                 Wordmark(lead: "daily", size: 28)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .padding(.top, 4)
-                // No connection: what still plays (`#offlineBar`).
-                if model.isOffline { OfflineBar() }
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
@@ -37,16 +35,10 @@ struct DailyView: View {
                             LazyVStack(alignment: .leading, spacing: 0) {
                                 FacesRow()
                                 PickUpBlock()
-                                if model.rails.isEmpty {
-                                    if model.loadingRails || model.railsProblem.isEmpty {
-                                        Skeleton()
-                                    } else {
-                                        EmptyNote(text: model.railsProblem).padding(.top, 20)
-                                    }
-                                }
-                                ForEach(Array(model.rails.enumerated()), id: \.element.id) { n, rail in
-                                    RailRow(rail: rail, order: n)
-                                }
+                                // No connection: what still plays (`#offlineBar`),
+                                // in the page under the faces and Pick up.
+                                if model.isOffline { OfflineBar() }
+                                feed
                             }
                             .padding(.horizontal, 18)
                             .padding(.bottom, 24)
@@ -72,6 +64,28 @@ struct DailyView: View {
         // The launch's first feed, asked once who-you-are has answered
         // (this tab is built only then), never a second time.
         .task { await model.firstFeed() }
+    }
+
+    /// The rails, or why there are none. A feed that fails to load says so
+    /// in place of the rails, even ones already drawn (`loadMyFamFeed`).
+    @ViewBuilder private var feed: some View {
+        if !model.railsProblem.isEmpty {
+            EmptyNote(text: model.railsProblem).padding(.top, 20)
+        } else if model.rails.isEmpty {
+            Skeleton(top: tight ? 0 : 18)
+        } else {
+            ForEach(Array(model.rails.enumerated()), id: \.element.id) { n, rail in
+                RailRow(rail: rail, order: n, tight: n == 0 && tight)
+            }
+        }
+    }
+
+    /// The first rail sits close under the faces when nothing (Pick up)
+    /// is between them (CSS `.myfam-circle:not([hidden]) + #goDeeperBlock:empty`).
+    private var tight: Bool {
+        guard let circle = model.circle, !(circle.circle.isEmpty && circle.me == nil) else { return false }
+        guard let page = model.pickUp else { return true }
+        return page.resume.isEmpty && page.threads.isEmpty
     }
 
     /// The DailyFAM tab tapped while showing: from View more back to the
@@ -101,9 +115,12 @@ private struct DailyTopKey: PreferenceKey {
 
 /// The loading skeleton (first load only): "Loading" and three blocks.
 private struct Skeleton: View {
+    /// `.feed-section`'s 18, or none right under the faces.
+    var top: CGFloat = 18
+
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("Loading").monoLabel(9.5).padding(.top, 26)
+            Text("Loading").monoLabel(9.5).padding(.top, top)
             HStack(spacing: 11) {
                 ForEach(0..<3, id: \.self) { _ in
                     RoundedRectangle(cornerRadius: 13)
@@ -142,6 +159,8 @@ struct RailRow: View {
     let rail: Rail
     /// Which rail down the page this is, for the arrival's reading order.
     var order = 0
+    /// The first rail right under the faces row: its heading 8 on top, not 26.
+    var tight = false
     /// Scrolled to its end (or never needed scrolling): the chevron gives
     /// way to VIEW MORE (`watchRailEnds`).
     @State private var atEnd = false
@@ -155,32 +174,28 @@ struct RailRow: View {
                 .foregroundStyle(FAMColor.text)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 26)
+                .padding(.top, tight ? 8 : 26)
                 .padding(.bottom, 12)
                 .accessibilityAddTraits(.isHeader)
                 // Headings arrive only on the page's first draw (`arriveRails`).
                 .arriving("heading:" + rail.key, index: 0, slot: order * 4, book: model.arrivals)
-            if rail.topics.isEmpty {
-                // The friends rail with nobody followed says nothing.
-                if !(rail.key == "followers" && rail.hasCircle == false) {
-                    EmptyNote(text: rail.emptyReason ?? "Nothing here yet.")
+            if rail.topics.isEmpty && !model.emptiedRails.contains(rail.key) {
+                // The friends rail with nobody followed says nothing, and
+                // nothing is said that the server did not send: never an
+                // empty dashed box.
+                let reason = rail.emptyReason ?? ""
+                if !(rail.key == "followers" && rail.hasCircle == false) && !reason.isEmpty {
+                    EmptyNote(text: reason)
                 }
             } else {
+                // A rail emptied by "Not interested" keeps its heading and
+                // its View more end (the web removes only the cards).
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 11) {
-                        // New tiles arrive one after another (§292); tiles
-                        // already drawn on this phone do not arrive again.
-                        ForEach(Array(rail.topics.enumerated()), id: \.element.id) { i, tile in
-                            TileCard(tile: tile, railKey: rail.key, faces: model.friendFaces, width: 150)
-                                .frame(maxHeight: .infinity, alignment: .top)
-                                .arriving(tile.id, index: i, slot: order * 4 + 1 + i, book: model.arrivals)
-                        }
-                        viewMore
-                    }
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.trailing, 14)
-                    .padding(.vertical, 2)
+                    railCards
                 }
+                // `scroll-snap-type: x proximity`: a flick settles on a
+                // card's leading edge, and may travel past several.
+                .scrollTargetBehavior(.viewAligned(limitBehavior: .never))
                 .coordinateSpace(name: "rail-" + rail.key)
                 .background(GeometryReader { geo in
                     Color.clear
@@ -218,6 +233,24 @@ struct RailRow: View {
                 .accessibilityHint("Opens Friends")
             }
         }
+    }
+
+    /// The cards, then the end (`.feed-rail`): each a snap target.
+    private var railCards: some View {
+        HStack(alignment: .top, spacing: 11) {
+            // New tiles arrive one after another (§292); tiles
+            // already drawn on this phone do not arrive again.
+            ForEach(Array(rail.topics.enumerated()), id: \.element.id) { i, tile in
+                TileCard(tile: tile, railKey: rail.key, faces: model.friendFaces, width: 150)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .arriving(tile.id, index: i, slot: order * 4 + 1 + i, book: model.arrivals)
+            }
+            viewMore
+        }
+        .scrollTargetLayout()
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.trailing, 14)
+        .padding(.vertical, 2)
     }
 
     /// Within 8 pt of the end, counting the rail's 14 pt of trailing room,
@@ -280,6 +313,8 @@ struct TileCard: View {
     var width: CGFloat? = 150
 
     @State private var menu = false
+    @State private var menuShare: ShareSubject?
+    @State private var menuAddToMix = false
     @State private var friends = false
     /// Held down: the card squeezes like every button (`Motion`'s
     /// `.seed-card`), springing back on release; it plays on the tap as before.
@@ -313,9 +348,36 @@ struct TileCard: View {
             content.scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
         }
         .accessibilityElement(children: .contain)
-        .sheet(isPresented: $menu) { TileMenu(tile: tile) }
+        .sheet(isPresented: $menu) { TileMenu(tile: tile, then: { next in menuThen(next) }) }
+        // What a menu row opens, once the menu has gone (`showActionSheet`:
+        // every row closes the sheet, then acts).
+        .sheet(item: $menuShare) { subject in
+            ShareSheet(subject: subject)
+                .environmentObject(model)
+                .environmentObject(model.nowPlaying)
+        }
+        .sheet(isPresented: $menuAddToMix) {
+            AddToMixSheet(query: tile.query, title: tile.title)
+                .environmentObject(model)
+                .environmentObject(model.mixes)
+                .environmentObject(model.nowPlaying)
+        }
         .fullScreenCover(isPresented: $friends) {
             FriendsListened(count: tile.friendsListened, faces: shownFaces(limit: nil))
+        }
+    }
+
+    /// A menu row's next screen, 0.35 s after the menu has closed (one
+    /// presentation at a time). Go to Queue opens the app's own Queue.
+    private func menuThen(_ next: TileMenu.Next) {
+        let subject = ShareSubject(key: model.episode(for: tile).key, title: tile.title)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            switch next {
+            case .share: menuShare = subject
+            case .addToMix: menuAddToMix = true
+            case .queue: model.nowPlaying.showQueue = true
+            }
         }
     }
 
@@ -370,12 +432,15 @@ struct TileCard: View {
     private var acts: some View {
         let saved = model.isSaved(tile)
         return HStack(spacing: 5) {
-            actButton(on: saved, label: saved ? "Take it off Save for Later" : "Save \(tile.title) for later") {
+            // The web's words, with the toggle's state as a trait
+            // (`aria-label` "Save {title} for later", `aria-pressed`).
+            actButton(on: saved, label: "Save \(tile.title) for later") {
                 WebIcon(path: Icons.bookmark, size: 13, line: 2.2)
             } action: {
                 model.toggleSave(tile)
             }
-            actButton(on: false, label: "More for \(tile.title)") {
+            .accessibilityAddTraits(saved ? .isSelected : [])
+            actButton(on: false, label: "More options for \(tile.title)") {
                 WebFill(path: Icons.dots(2.2), size: 13)
             } action: {
                 menu = true
@@ -405,10 +470,11 @@ struct TileCard: View {
     private var thumb: some View {
         let url = tile.thumb.isEmpty ? nil : model.api.picture(tile.thumb)
         return ZStack {
+            // The drawing always, the picture over it: one that fails, or
+            // has not landed, leaves the subject's drawing (`seedThumbOpen`).
+            SeedThumb(icon: tile.icon)
             if let url {
-                Picture(url: url)
-            } else {
-                SeedThumb(icon: tile.icon)
+                Picture(url: url, clearGround: true, blurUp: true)
             }
             // The subject chip bottom left and the friends who listened
             // bottom right, on one line and centred on each other (the
@@ -435,9 +501,10 @@ struct TileCard: View {
     /// `.seed-tag`: plain words on the drawing; on a picture, a cream chip.
     @ViewBuilder private func chip(onPicture: Bool) -> some View {
         if onPicture {
+            // Wraps, never cut (`white-space: normal`, `overflow-wrap`).
             Text(tile.tagText)
                 .monoLabel(8, color: Color(hex: 0x2A2530), tracking: 0.8)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 6)
                 .padding(.top, 3)
                 .padding(.bottom, 2)
@@ -446,7 +513,7 @@ struct TileCard: View {
         } else {
             Text(tile.tagText)
                 .monoLabel(8, color: Color(hex: 0x5A5347), tracking: 0.8)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -491,8 +558,11 @@ struct TileCard: View {
                     }
                 }
             }
-            .padding(.horizontal, onPicture ? 8 : 11)
-            .padding(.bottom, 8)
+            // The chip at left 9 / bottom 8 on a picture, 12 / 9 on the
+            // drawing; the friends pill at right 8 (`.seed-tag`, `.seed-friends`).
+            .padding(.leading, onPicture ? 9 : 12)
+            .padding(.trailing, 8)
+            .padding(.bottom, onPicture ? 8 : 9)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }
@@ -652,6 +722,9 @@ struct TileMenu: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let tile: Tile
+    /// What a row opens, asked of the card once this menu has closed.
+    enum Next { case share, addToMix, queue }
+    var then: ((Next) -> Void)? = nil
     @State private var sharing: ShareSubject?
     @State private var queue = false
     @State private var addToMix = false
@@ -665,7 +738,8 @@ struct TileMenu: View {
                         .frame(width: 44, height: 44)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                Text(tile.title)
+                // The title, else the question (`menuHead`).
+                Text(tile.title.isEmpty ? tile.query : tile.title)
                     .font(FAMFont.body(14, .semibold))
                     .foregroundStyle(FAMColor.text)
                     .lineLimit(2)
@@ -677,24 +751,42 @@ struct TileMenu: View {
             // from `openTileMenu`): to a friend or a group inside FAM, or
             // anywhere else.
             row("Share", Icons.menuShare) {
-                sharing = ShareSubject(key: model.episode(for: tile).key, title: tile.title)
+                if let then { dismiss(); then(.share) } else {
+                    sharing = ShareSubject(key: model.episode(for: tile).key, title: tile.title)
+                }
             }
-            row("Add to myFAM Playlist", Icons.circlePlus) {
+            // "Add to {myFAM wordmark} Playlist" (`addToPlaylistLabel`), as
+            // the player's menu draws it.
+            Button {
                 if tile.query.isEmpty {
                     dismiss()
                     model.nowPlaying.say("Play something first")
+                } else if let then {
+                    dismiss()
+                    then(.addToMix)
                 } else {
                     addToMix = true
                 }
+            } label: {
+                HStack(spacing: 14) {
+                    WebIcon(path: Icons.circlePlus, size: 18, line: 1.8)
+                        .foregroundStyle(FAMColor.textMuted)
+                    AddToPlaylistLabel()
+                    Spacer()
+                }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 14)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.press)
             row("Add to Queue", Icons.addQueue) { dismiss(); model.addToQueue(tile) }
-            row("Go to Queue", Icons.queue) { queue = true }
+            row("Go to Queue", Icons.queue) {
+                if let then { dismiss(); then(.queue) } else { queue = true }
+            }
             row("Not interested", Icons.frown) { dismiss(); model.notInterested(tile) }
-            Button("Cancel") { dismiss() }
-                .font(FAMFont.body(14, .semibold))
-                .foregroundStyle(FAMColor.textMuted)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+            // The web's `.sheet-cancel` pill.
+            SheetCancelButton { dismiss() }
+                .padding(.bottom, 12)
         }
         .background(FAMColor.surface)
         // Room to grow at the larger text sizes (`large-text`).
@@ -769,9 +861,14 @@ struct FriendsListened: View {
                 }
                 .padding(.bottom, 10)
                 ForEach(Array(faces.enumerated()), id: \.offset) { i, face in
-                    Button { openProfile(face) } label: { listenedRow(i, face) }
-                        .buttonStyle(.press)
-                        .disabled((face.handle ?? "").isEmpty)
+                    // Only a row with a handle opens anything; one without
+                    // is plain words at full strength, not a dimmed button.
+                    if (face.handle ?? "").isEmpty {
+                        listenedRow(i, face)
+                    } else {
+                        Button { openProfile(face) } label: { listenedRow(i, face) }
+                            .buttonStyle(.press)
+                    }
                 }
             }
             .padding(20)
@@ -781,6 +878,13 @@ struct FriendsListened: View {
             .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
         }
         .presentationBackground(Color(hex: 0x0A090F).opacity(0.62))
+    }
+
+    /// `f.name || f.handle || "A friend"`.
+    private func listenedName(_ face: FriendFace) -> String {
+        if !face.name.isEmpty { return face.name }
+        if let h = face.handle, !h.isEmpty { return h }
+        return "A friend"
     }
 
     private func openProfile(_ face: FriendFace) {
@@ -795,15 +899,23 @@ struct FriendsListened: View {
             Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
                  size: 30, initialsSize: 12)
             VStack(alignment: .leading, spacing: 4) {
-                Text(face.name.isEmpty ? "@" + (face.handle ?? "") : face.name)
-                    .font(FAMFont.body(12, .semibold))
-                    .foregroundStyle(FAMColor.text)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    if face.explicit == true { ExplicitBadge() }
+                    Text(listenedName(face))
+                        .font(FAMFont.body(12, .semibold))
+                        .foregroundStyle(FAMColor.text)
+                        .lineLimit(1)
+                }
                 if let h = face.handle, !h.isEmpty {
                     Text("@" + h).monoLabel(8, color: FAMColor.textFaint, tracking: 0.48)
                 }
             }
             Spacer(minLength: 0)
+            // `.src-go`: the way in, on a row that opens a profile.
+            if let h = face.handle, !h.isEmpty {
+                WebIcon(path: Icons.chevron, size: 13, line: 2)
+                    .foregroundStyle(FAMColor.textFaint)
+            }
         }
         .padding(.vertical, 10)
         .overlay(alignment: .bottom) {
@@ -865,7 +977,8 @@ struct PickUpBlock: View {
         switch card {
         case .resume(let r):
             let whole = (r.duration ?? 0) > 0 ? r.duration! : r.minutes * 60
-            cardBody(title: r.title.isEmpty ? NowPlayingModel.titleFromQuestion(r.query) : r.title,
+            // A resume's provisional title is the web's `deriveTitleFromPrompt`.
+            cardBody(title: r.title.isEmpty ? SearchTitle.from(r.query) : r.title,
                  summary: r.summary ?? "",
                  meta: "\(clock(max(0, whole - r.seconds))) left", copperMeta: false,
                  progress: min(r.seconds / max(whole, 1), 1),
@@ -927,8 +1040,8 @@ struct PickUpBlock: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.press)
-                .padding(5)
-                .accessibilityLabel("Don't offer this again")
+                .padding(4)
+                .accessibilityLabel("Dismiss \(title)")
             }
     }
 }
@@ -950,6 +1063,8 @@ struct SectionView: View {
     @State private var wrappedNote = ""
     /// Counts the pages dealt, so each one scrolls back to the top.
     @State private var dealt = 0
+    /// Which cards of which page have arrived already.
+    @State private var arrivals = ArrivalBook()
 
     /// Made for you cycles through what is written (`SECTION_CYCLES`).
     private var cycles: Bool { key == "from_history" }
@@ -1002,18 +1117,22 @@ struct SectionView: View {
                         .font(FAMFont.body(12.5))
                         .foregroundStyle(FAMColor.textMuted)
                         .lineSpacing(4)
+                        // `.xn-reason`: 16 to the grid (the stack gives 11).
+                        .padding(.bottom, 5)
                     if page?.caughtUp == true {
                         caughtUp
                     } else if let groups = page?.groups, !groups.isEmpty {
-                        ForEach(groups) { group in
+                        ForEach(Array(groups.enumerated()), id: \.element.id) { n, group in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(group.label).font(FAMFont.heading(17)).foregroundStyle(FAMColor.text)
                                 if group.yours == true {
                                     Text("Where you are").monoLabel(8.5, color: FAMColor.copper)
                                 }
                             }
-                            .padding(.top, 14)
-                            grid(group.topics)
+                            // The first group sits right under the reason.
+                            .padding(.top, n == 0 ? 0 : 14)
+                            // Grouped pages draw without the arrival, as the web's.
+                            grid(group.topics, arrive: false)
                         }
                     } else {
                         grid(page?.topics ?? [])
@@ -1044,7 +1163,7 @@ struct SectionView: View {
     private var canRefresh: Bool {
         guard let page else { return false }
         if cycles { return page.caughtUp != true }
-        return (page.total ?? 0) > page.topics.count
+        return (page.pageSize ?? 0) > 0 && (page.total ?? 0) > page.topics.count
     }
 
     private var reason: String {
@@ -1059,15 +1178,28 @@ struct SectionView: View {
 
     /// Two across; "Not interested" takes a card off here as well as off
     /// the rails. Faces resolve against this page's own `friend_faces`.
-    private func grid(_ tiles: [Tile]) -> some View {
+    private func grid(_ tiles: [Tile], arrive: Bool = true) -> some View {
         let shown = tiles.filter { !model.notInterestedIDs.contains($0.id) }
         let faces = page?.friendFaces ?? []
+        let round = dealt
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 11), GridItem(.flexible())], spacing: 11) {
-            ForEach(shown) { tile in
-                TileCard(tile: tile, railKey: key, faces: faces, width: nil)
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, tile in
+                sectionCard(tile, faces: faces, at: arrive ? i : 8, round: round)
             }
         }
     }
+
+    /// The first eight cards of every page dealt arrive (`Motion.arrive`).
+    @ViewBuilder private func sectionCard(_ tile: Tile, faces: [FriendFace], at n: Int, round: Int) -> some View {
+        let card = TileCard(tile: tile, railKey: key, faces: faces, width: nil)
+        if n < 8 {
+            card.modifier(ArriveOnce(key: "section:\(round):" + tile.id, delay: Double(n) * 0.04, book: arrivals))
+        } else {
+            card
+        }
+    }
+
+
 
     private var caughtUp: some View {
         VStack(spacing: 6) {
@@ -1105,7 +1237,8 @@ struct SectionView: View {
                 next = SectionPage(key: next.key, topics: topics, emptyReason: next.emptyReason,
                                    ready: topics.filter(\.cached).count, total: next.total,
                                    more: next.more, wrapped: next.wrapped, caughtUp: false,
-                                   friendFaces: next.friendFaces, groups: next.groups)
+                                   friendFaces: next.friendFaces, groups: next.groups,
+                                   pageSize: next.pageSize)
             }
             let before = seen.count
             if next.wrapped == true { seen = [] }

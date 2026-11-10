@@ -24,6 +24,10 @@ public final class ConsentModel: ObservableObject {
 
     private let api: SafetyAPI
     private var waiting: CheckedContinuation<Bool, Never>?
+    /// Called when the answer could not be read, so the tap that asked is
+    /// not silent: the web says "Couldn't reach FAM. Try again."
+    /// (`withAiConsent`). The app sets it to its toast.
+    public var unreachable: () -> Void = {}
 
     public init(api: SafetyAPI) { self.api = api }
 
@@ -39,7 +43,10 @@ public final class ConsentModel: ObservableObject {
     public func ensure() async -> Bool {
         if current?.given == true { return true }
         if current == nil { current = try? await api.consent() }
-        guard let consent = current else { return false }
+        guard let consent = current else {
+            unreachable()
+            return false
+        }
         if consent.given { return true }
         return await withCheckedContinuation { continuation in
             waiting?.resume(returning: false)

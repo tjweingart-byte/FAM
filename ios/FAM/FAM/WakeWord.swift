@@ -119,6 +119,17 @@ final class WakeListener: ObservableObject {
         }
     }
 
+    /// Signed out: the opt-in is the listener's, not the phone's (it lives
+    /// in `fam.prefs` on the web, which `forgetLocalPrefs` removes). Off,
+    /// silently - there is nobody to tell.
+    func forget() {
+        isOn = false
+        UserDefaults.standard.set(false, forKey: Self.key)
+        pollTask?.cancel()
+        pollTask = nil
+        stop()
+    }
+
     private func turnOff(saying sentence: String) {
         isOn = false
         UserDefaults.standard.set(false, forKey: Self.key)

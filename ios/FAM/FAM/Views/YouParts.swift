@@ -369,13 +369,29 @@ struct StepMarks: View {
     /// The unfilled marks (`--border-strong` on the page): light's measured
     /// grey, or dark's border over the dark page.
     private static let track = Color(light: 0xD6D2CB, dark: 0x524F56)
+    /// The bar this step fills grows in from 0.3 over 260 ms (`Motion.steps`).
+    @State private var grown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 5) {
             ForEach(1...3, id: \.self) { i in
-                Capsule()
-                    .fill(i <= step ? FAMColor.copper : Self.track)
-                    .frame(width: 18, height: 3)
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Self.track)
+                    if i <= step {
+                        Capsule()
+                            .fill(FAMColor.copper)
+                            .scaleEffect(x: (i == step && !grown) ? 0.3 : 1, y: 1, anchor: .leading)
+                    }
+                }
+                .frame(width: 18, height: 3)
+            }
+        }
+        .onAppear {
+            if reduceMotion {
+                grown = true
+            } else {
+                withAnimation(.easeOut(duration: 0.26)) { grown = true }
             }
         }
         .frame(maxWidth: .infinity)
@@ -458,9 +474,12 @@ struct YouSheet: View {
     /// the sub 11.5 muted, a line under it.
     private var head: some View {
         HStack(spacing: 12) {
-            Picture(url: model.api.picture(headThumb))
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            // No picture, no square (`menuHead` draws none without a thumb).
+            if !headThumb.isEmpty {
+                Picture(url: model.api.picture(headThumb))
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(headTitle)
                     .font(FAMFont.body(14, .semibold))

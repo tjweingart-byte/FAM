@@ -12,9 +12,23 @@ import Security
 final class FAMAPI: @unchecked Sendable {
     static let production = URL(string: "https://familiarize.net")!
 
+    /// The server this build talks to (decision 6): `FAMAPIBase` in
+    /// Info.plist, written from the `FAM_API_BASE` build setting in
+    /// project.yml - production by default, the staging service in the
+    /// "FAM Staging" scheme, so the owner chooses per archive. An address,
+    /// never a secret; anything but an https address falls back to
+    /// production.
+    static let configuredBase: URL = {
+        var raw = (Bundle.main.object(forInfoDictionaryKey: "FAMAPIBase") as? String ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        while raw.hasSuffix("/") { raw.removeLast() }
+        if raw.hasPrefix("https://"), let url = URL(string: raw) { return url }
+        return production
+    }()
+
     let base: URL
 
-    init(base: URL = FAMAPI.production) {
+    init(base: URL = FAMAPI.configuredBase) {
         self.base = base
     }
 
@@ -72,10 +86,13 @@ final class FAMAPI: @unchecked Sendable {
     /// can revoke it (5.1.1(v), `apple_tokens.py`). `accept_terms` when the
     /// sign-in may make an account and the box was ticked (§228).
     func signIn(provider: String, idToken: String, nonce: String,
-                authorizationCode: String = "", acceptTerms: Bool) async throws -> Listener {
+                authorizationCode: String = "", acceptTerms: Bool,
+                referral: String = "") async throws -> Listener {
         var body: [String: Any] = ["provider": provider, "id_token": idToken, "nonce": nonce,
                                    "accept_terms": acceptTerms, "want_token": true]
         if !authorizationCode.isEmpty { body["authorization_code"] = authorizationCode }
+        // The invite code a waitlist link carried (`referral_code`).
+        if !referral.isEmpty { body["referral_code"] = String(referral.prefix(64)) }
         let who = try await send("POST", "api/v1/auth/provider", body: body, as: Listener.self)
         if let fresh = who.sessionToken { token = fresh }
         return who
@@ -95,12 +112,24 @@ final class FAMAPI: @unchecked Sendable {
     func signOut() async {
         _ = try? await send("POST", "api/v1/auth/logout", body: [:], as: OK.self)
         token = nil
+        Self.forgetCookies()
+    }
+
+    /// No session cookie is ever kept beside the Keychain's token (every
+    /// request says `httpShouldHandleCookies = false`, and the app's cookie
+    /// store refuses them); anything an older build stored goes too, so a
+    /// sign-out whose POST failed cannot leave the last account alive.
+    static func forgetCookies() {
+        let store = HTTPCookieStorage.shared
+        store.cookieAcceptPolicy = .never
+        for cookie in store.cookies ?? [] { store.deleteCookie(cookie) }
     }
 
     /// Delete the account and everything FAM holds about it (5.1.1(v)).
     func deleteAccount() async throws {
         _ = try await send("DELETE", "api/v1/account", as: OK.self)
         token = nil
+        Self.forgetCookies()
     }
 
     // MARK: - Listening
@@ -143,8 +172,15 @@ final class FAMAPI: @unchecked Sendable {
     }
 
     /// Never offer this one again, on any device.
-    func dismissPickUp(query: String) async {
-        _ = try? await send("POST", "api/v1/godeeper/dismiss", body: ["query": query], as: Ignored.self)
+    /// True when the server took it (`dismissGoDeeper` reloads only then).
+    @discardableResult
+    func dismissPickUp(query: String) async -> Bool {
+        do {
+            _ = try await send("POST", "api/v1/godeeper/dismiss", body: ["query": query], as: Ignored.self)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Which episodes are saved, so the cards' bookmarks are lit.
@@ -154,8 +190,10 @@ final class FAMAPI: @unchecked Sendable {
     }
 
     func saveTile(query: String, title: String, source: String) async throws {
+        // Cut to `SaveRequest`'s limits, so a long field is never a silent 422.
         _ = try await send("POST", "api/v1/saved", body: [
-            "query": query, "minutes": Self.browseMinutes, "title": title, "source": source,
+            "query": Self.cut(query, 500), "minutes": Self.browseMinutes,
+            "title": Self.cut(title, 200), "source": Self.cut(source, 40),
         ], as: SavedState.self)
     }
 
@@ -206,9 +244,63 @@ final class FAMAPI: @unchecked Sendable {
     }
 
     /// While the waitlist runs, an invite is this member's own referral
-    /// link (`loadInviteLink`).
+    /// link (`loadInviteLink`); the status page draws all of it.
     func waitlistMe() async throws -> WaitlistMe {
         try await get("api/v1/waitlist/me", [], as: WaitlistMe.self)
+    }
+
+    /// Sign up, the web's way (decision 1): every sign-up goes through the
+    /// waitlist (`/waitlist`'s join form) - the email alone, no password
+    /// (§296), the terms box ticked (§228) and the invite code a link
+    /// carried. The account is put on the list; the token comes back
+    /// because it is asked for.
+    func joinWaitlist(email: String, referral: String) async throws -> Listener {
+        let who = try await send("POST", "api/v1/waitlist/join",
+                                 body: ["email": email, "referral_code": String(referral.prefix(64)),
+                                        "accept_terms": true, "want_token": true],
+                                 as: Listener.self)
+        if let fresh = who.sessionToken { token = fresh }
+        return who
+    }
+
+    /// The status page's friend search: two characters or more.
+    func waitlistPeople(_ words: String) async throws -> [WaitlistPerson] {
+        try await get("api/v1/waitlist/people", [URLQueryItem(name: "q", value: words)],
+                      as: WaitlistPeople.self).people
+    }
+
+    /// Add somebody the search found: a follow; friends once they add back.
+    func waitlistAdd(userID: String) async throws -> WaitlistAdded {
+        try await send("POST", "api/v1/waitlist/add", body: ["user_id": userID], as: WaitlistAdded.self)
+    }
+
+    /// Whether this server writes real episodes (`/api/health`, asked once
+    /// at launch): the loading screen's note (`genStatusNote`).
+    func health() async throws -> ServerHealth {
+        try await get("api/v1/health", [], as: ServerHealth.self)
+    }
+
+    /// What the server makes of this build (asked at launch).
+    func clientStatus() async throws -> ClientStatus {
+        try await get("api/v1/client-status", [], as: ClientStatus.self)
+    }
+
+    /// Back in the foreground: start a GPU booting now, not at the tap
+    /// (§329). Fire and forget - a lost wake costs only the cold start.
+    func voiceWake() async {
+        _ = try? await send("POST", "api/v1/voice/wake", body: [:], as: Ignored.self)
+    }
+
+    /// The Terms block of `/api/consent` (`checkTerms`).
+    func termsState() async throws -> TermsState {
+        try await get("api/v1/consent", [], as: ConsentTermsPage.self).terms
+    }
+
+    /// "Continue" on the Terms card (`acceptTerms`): `scope: "terms"`.
+    func acceptTerms(version: Int) async throws -> TermsState {
+        try await send("POST", "api/v1/consent",
+                       body: ["scope": "terms", "allow": true, "version": version],
+                       as: ConsentTermsPage.self).terms
     }
 
     /// The heart on a friend's story.
@@ -238,7 +330,11 @@ final class FAMAPI: @unchecked Sendable {
         try await send("GET", "api/v1/welcome", as: Samples.self).episodes
     }
 
-    /// The audio of one episode as bare PCM (`fmt=pcm`). A DailyFAM tile
+    /// The audio of one episode, asked as the web asks it (decision 3,
+    /// §242, §252): Opus (`fmt=opus`, "fam-opus v1"), and a replay may be
+    /// answered with a signed link to its kept Ogg Opus file (`link=1`).
+    /// `StreamPlayer` decodes both, and falls back to PCM by itself (the
+    /// same request with `fmt=pcm`) if this phone cannot. A DailyFAM tile
     /// names its topic; a search names its length and says it is a search.
     func audio(query: String, minutes: Double, surface: String,
                topicID: String = "", context: String = "", own: Bool = false,
@@ -249,7 +345,8 @@ final class FAMAPI: @unchecked Sendable {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
-            URLQueryItem(name: "fmt", value: "pcm"),
+            URLQueryItem(name: "fmt", value: "opus"),
+            URLQueryItem(name: "link", value: "1"),
             URLQueryItem(name: "surface", value: surface),
         ]
         if !topicID.isEmpty { items.append(URLQueryItem(name: "topic_id", value: topicID)) }
@@ -279,7 +376,12 @@ final class FAMAPI: @unchecked Sendable {
         if isPrivate { items.append(URLQueryItem(name: "private", value: "1")) }
         // What the listener attached (`/api/attach`): ids, never the file.
         if !attach.isEmpty { items.append(URLQueryItem(name: "attach", value: String(attach.prefix(400)))) }
-        return request("GET", "api/v1/audio", query: items)
+        var audioRequest = request("GET", "api/v1/audio", query: items)
+        // A cold voice may be silent longer than URLSession's 60 s: the
+        // loading screen's own give-up (§497, `voice_wait` + 15 s) decides,
+        // never the idle timeout.
+        audioRequest.timeoutInterval = 300
+        return audioRequest
     }
 
     /// Which of the loading screen's steps the episode being made has
@@ -361,7 +463,8 @@ final class FAMAPI: @unchecked Sendable {
     /// `source` says where it was saved from: the player, or a story.
     func save(_ ep: EpisodeKey, title: String, source: String = "player") async throws {
         _ = try await send("POST", "api/v1/saved", body: [
-            "query": ep.query, "minutes": ep.minutes, "title": title, "source": source,
+            "query": Self.cut(ep.query, 500), "minutes": ep.minutes,
+            "title": Self.cut(title, 200), "source": Self.cut(source, 40),
         ], as: SavedState.self)
     }
 
@@ -372,9 +475,10 @@ final class FAMAPI: @unchecked Sendable {
 
     /// VIBE! the episode to your story (`/api/vibe`, `echo` in code).
     func vibe(_ ep: EpisodeKey, title: String, thread: String, caption: String) async throws {
+        // `EchoRequest`'s limits: query 300, title 200, thread 200, caption 1000.
         _ = try await send("POST", "api/v1/vibe", body: [
-            "query": ep.query, "title": title, "minutes": ep.minutes,
-            "thread": thread, "caption": caption,
+            "query": Self.cut(ep.query, 300), "title": Self.cut(title, 200), "minutes": ep.minutes,
+            "thread": Self.cut(thread, 200), "caption": Self.cut(caption, 1000),
         ], as: Ignored.self)
     }
 
@@ -386,7 +490,7 @@ final class FAMAPI: @unchecked Sendable {
     /// A share link (`/s/<id>`) and its wording; no account needed.
     func share(_ ep: EpisodeKey, title: String) async throws -> SharedLink {
         try await send("POST", "api/v1/share", body: [
-            "query": ep.query, "minutes": ep.minutes, "title": title,
+            "query": Self.cut(ep.query, 500), "minutes": ep.minutes, "title": Self.cut(title, 200),
         ], as: SharedLink.self)
     }
 
@@ -397,26 +501,39 @@ final class FAMAPI: @unchecked Sendable {
                                    "text": String(text.prefix(300)),
                                    "thread": String(thread.prefix(200))]
         if minutes > 0 { body["minutes"] = minutes }
-        if !episode.isEmpty { body["episode"] = episode }
+        if !episode.isEmpty { body["episode"] = String(episode.prefix(80)) }
         _ = try? await send("POST", "api/v1/event", body: body, as: Ignored.self)
     }
 
     /// How far through it is, kept on the account (`POST /api/progress`).
     func noteResume(_ ep: EpisodeKey, seconds: Double, title: String, duration: Double,
                     episode: String) async {
+        // `ProgressRequest`'s limits - query 500, title 200, context 300,
+        // episode 80 - so a long field never silently loses the position.
         _ = try? await send("POST", "api/v1/progress", body: [
-            "query": ep.query, "minutes": ep.minutes, "seconds": min(max(0, seconds), 3600),
-            "title": title, "context": ep.context, "duration": min(max(0, duration), 3600),
-            "episode": episode,
+            "query": Self.cut(ep.query, 500), "minutes": ep.minutes, "seconds": min(max(0, seconds), 3600),
+            "title": Self.cut(title, 200), "context": Self.cut(ep.context, 300),
+            "duration": min(max(0, duration), 3600),
+            "episode": Self.cut(episode, 80),
         ], as: Ignored.self)
+    }
+
+    /// A field cut to the server's `max_length` (counted in characters, as
+    /// Python counts them; the web's `slice`).
+    static func cut(_ text: String, _ most: Int) -> String {
+        text.count > most ? String(text.prefix(most)) : text
     }
 
     /// The listening history row (`POST /api/history`).
     func noteListen(_ ep: EpisodeKey, surface: String, title: String, episode: String,
                     retitle: Bool = false) async {
+        // The web's cuts (`noteListen`): query 500, title 200, context 300,
+        // episode 80 - an over-long field is a 422 that would silently
+        // leave the episode out of the history.
         var body: [String: Any] = [
-            "query": ep.query, "minutes": ep.minutes, "surface": surface,
-            "title": title, "context": ep.context, "episode": episode,
+            "query": String(ep.query.prefix(500)), "minutes": ep.minutes, "surface": surface,
+            "title": String(title.prefix(200)), "context": String(ep.context.prefix(300)),
+            "episode": String(episode.prefix(80)),
         ]
         if retitle { body["retitle"] = true }
         _ = try? await send("POST", "api/v1/history", body: body, as: Ignored.self)
@@ -498,6 +615,10 @@ final class FAMAPI: @unchecked Sendable {
         if !query.isEmpty { parts.queryItems = query }
         var req = URLRequest(url: parts.url!)
         req.httpMethod = method
+        // The Keychain's bearer token is the only identity (`listener-header`):
+        // the server's session cookie is never stored or sent, so it can
+        // never outrank the token (`_session_token` reads the cookie first).
+        req.httpShouldHandleCookies = false
         req.setValue(Self.client, forHTTPHeaderField: "X-FAM-Client")
         // The listener's clock (`listener-clock`): the zone pinned in
         // Settings on this device, else the device's own.
@@ -530,9 +651,17 @@ final class FAMAPI: @unchecked Sendable {
     }()
 
     static func check(_ response: URLResponse, _ data: Data) throws {
+        if let http = response as? HTTPURLResponse { ClientStatusWatch.seen(http, data) }
         guard let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) else { return }
         let detail = message(in: data)
-        if http.value(forHTTPHeaderField: "X-FAM-Waitlist") != nil { throw FAMError.waitlisted(detail) }
+        // Only a waitlisted account is moved to its status page
+        // (`/waitlist/me`); any other refusal of this kind is somebody the
+        // server does not know as a member - signed out, to the front door
+        // (§217, §231), exactly as the web's fetch wrapper decides.
+        if let go = http.value(forHTTPHeaderField: "X-FAM-Waitlist") {
+            if go == "/waitlist/me" { throw FAMError.waitlisted(detail) }
+            throw FAMError.signedOut(detail)
+        }
         if http.value(forHTTPHeaderField: "X-FAM-Consent") == "ai" { throw FAMError.consentRequired }
         if http.statusCode == 401 { throw FAMError.signedOut(detail) }
         throw FAMError.refused(status: http.statusCode, message: detail)
@@ -560,6 +689,13 @@ struct Listener: Decodable, Equatable {
     /// The activation step is still owed (§411): only `/api/auth/me` says
     /// so (a sign-up or log-in answer leaves it out, and it decodes nil).
     let activationNeeded: Bool?
+    /// Whether the waitlist runs (`settings.waitlist`): only `/api/auth/me`
+    /// says so. The app waits only when this and `waitlisted` are both true,
+    /// as the web's `refreshAuth` does (`d.waitlist && d.status === "waitlisted"`).
+    let waitlist: Bool?
+    /// The app's public home (`APP_HOME_URL`), from `/api/auth/me`: where an
+    /// invite sends somebody when there is no referral link.
+    let home: String?
 
     /// Waiting for a place while the waitlist runs (`waitlist.WAITLISTED`).
     var waitlisted: Bool { status == "waitlisted" }
@@ -578,6 +714,8 @@ struct FriendFace: Decodable, Hashable {
     let name: String
     let handle: String?
     let avatar: String?
+    /// The E mark before a flagged name (§224).
+    let explicit: Bool?
 }
 
 /// `/api/myfam/section`.
@@ -592,6 +730,9 @@ struct SectionPage: Decodable {
     let caughtUp: Bool?
     let friendFaces: [FriendFace]?
     let groups: [TileGroup]?
+    /// The page's size when it was dealt one (`page_size`): Refresh is
+    /// offered only then (`renderSection`).
+    let pageSize: Int?
 }
 
 /// Trending's View more, by continent: Worldwide first (§174).
@@ -761,9 +902,111 @@ struct StoryTag: Decodable, Hashable {
 }
 
 /// `/api/waitlist/me`, the two fields an invite needs.
+/// `/api/waitlist/me`: everything the web's status page (`/waitlist/me`)
+/// draws (decision 2) - the place, the line, the referral link, Your FAM.
 struct WaitlistMe: Decodable {
     let waitlist: Bool?
     let referralLink: String?
+    let status: String?
+    let admin: Bool?
+    let name: String?
+    let place: Int?
+    let total: Int?
+    let cutoff: Int?
+    let placesUntil: Int?
+    let inNextBatch: Bool?
+    let referralCode: String?
+    let invites: Int?
+    let fam: [WaitlistFamPerson]?
+    let details: WaitlistDetails?
+}
+
+/// One of "Your FAM" on the status page: a friend, or somebody who joined
+/// with this account's link.
+struct WaitlistFamPerson: Decodable, Hashable {
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    let initials: String?
+    let invited: Bool?
+    let waitlisted: Bool?
+}
+
+/// The status page's own details: `has_password` false for an email-only
+/// join (§296), whose sign-out is warned about first.
+struct WaitlistDetails: Decodable, Hashable {
+    let email: String?
+    let hasPassword: Bool?
+}
+
+/// `/api/waitlist/people`: the status page's friend search.
+struct WaitlistPeople: Decodable {
+    let people: [WaitlistPerson]
+}
+
+struct WaitlistPerson: Decodable, Hashable, Identifiable {
+    let userId: String
+    let name: String
+    let handle: String
+    let avatar: String
+    let initials: String
+    let waitlisted: Bool
+    let added: Bool
+    let friend: Bool
+    var id: String { userId }
+}
+
+/// `/api/waitlist/add`.
+struct WaitlistAdded: Decodable {
+    let ok: Bool
+    let friend: Bool?
+}
+
+/// `/api/client-status` (`client_versions.status_for`): what the server
+/// makes of this build - asked at launch (IOS_APP.md: 1.0 must).
+struct ClientStatus: Decodable {
+    let status: String
+    let supported: Bool
+    let updateRecommended: Bool
+    let updateRequired: Bool
+    let message: String
+}
+
+/// `X-FAM-Client-Status` on any answer, and a 426 (§172, §208): the app is
+/// told on the main queue - `deprecated` to say once that a newer FAM is
+/// out, `retired` (or the 426) to raise the update screen with the server's
+/// sentence and its `update_url` (APP_STORE_URL).
+enum ClientStatusWatch {
+    /// Set by the app: the status ("deprecated" / "retired"), the 426's
+    /// sentence and its store link ("" when the answer had none).
+    static var handler: ((String, String, String) -> Void)?
+
+    static func seen(_ http: HTTPURLResponse, _ data: Data) {
+        let header = http.value(forHTTPHeaderField: "X-FAM-Client-Status") ?? ""
+        let retired = http.statusCode == 426 || header == "retired"
+        guard retired || header == "deprecated" else { return }
+        var words = ""
+        var link = ""
+        if http.statusCode == 426,
+           let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            words = body["error"] as? String ?? ""
+            link = body["update_url"] as? String ?? ""
+        }
+        let status = retired ? "retired" : "deprecated"
+        DispatchQueue.main.async { ClientStatusWatch.handler?(status, words, link) }
+    }
+}
+
+/// The Terms block of `/api/consent` (§228, `consent.describe_terms`).
+struct TermsState: Decodable, Equatable {
+    let version: Int
+    let accepted: Bool
+    let acceptedVersion: Int?
+}
+
+/// `/api/consent`, read for its `terms` block only (FAMSafety reads `ai`).
+struct ConsentTermsPage: Decodable {
+    let terms: TermsState
 }
 
 /// `/api/myfam/catalog` and `/api/myfam/search`.
@@ -881,6 +1124,37 @@ struct Progress: Decodable {
     let known: Bool
     let cached: Bool
     let steps: ProgressSteps
+    /// How long the voice may take once the script is with it (the
+    /// server's REMOTE_VOICE_TIMEOUT), for the give-up time (§497).
+    let voiceWait: Double?
+}
+
+/// The three things the web reads from `/api/health` for the loading
+/// screen's note (`genStatusNote`): demo mode (no key, the sample script),
+/// zero spend (staging) and a rejected key.
+struct ServerHealth: Decodable {
+    let mode: String?
+    let environment: ServerHealthEnvironment?
+    let credentials: ServerHealthCredentials?
+
+    /// The web's three sentences, in its order; "" for a server that writes.
+    var loadingNote: String {
+        if mode == "demo" && environment?.zeroSpend == true {
+            return "Staging: playing the built-in sample script\u{2026}"
+        }
+        if mode == "demo" { return "Playing the built-in sample script\u{2026}" }
+        if credentials?.state == "rejected" { return "The server's API key was rejected\u{2026}" }
+        return ""
+    }
+}
+
+struct ServerHealthEnvironment: Decodable {
+    let name: String?
+    let zeroSpend: Bool?
+}
+
+struct ServerHealthCredentials: Decodable {
+    let state: String?
 }
 
 struct ProgressSteps: Decodable {
@@ -938,6 +1212,30 @@ struct AudioRefusal: Decodable {
     let likeliest: String?
 }
 
+/// A replay answered with a link to its kept audio (`_linked_audio`,
+/// §252, `X-FAM-Audio-Link: 1`): where the Ogg Opus file is, and its true
+/// length in samples at `X-Sample-Rate`.
+struct AudioLinkBody: Decodable {
+    let link: String
+    let frames: Int?
+}
+
+/// One bank topic's id and tags (`Topic.as_dict`), for Recommended topics.
+struct BankTopic: Decodable {
+    let id: String
+    let tags: [String]?
+}
+
+struct BankPage: Decodable { let topics: [BankTopic] }
+
+/// `sharing.landing_payload`: what a shared link plays.
+struct SharePayload: Decodable {
+    let id: String
+    let title: String
+    let question: String
+    let minutes: Double
+}
+
 /// `quotas.Verdict.as_dict`: the limit screen's words and numbers.
 struct QuotaVerdict: Decodable, Equatable {
     let title: String?
@@ -983,6 +1281,9 @@ struct Transcript: Decodable {
 /// `/api/episode/card`.
 struct EpisodeCard: Decodable {
     let thumb: String?
+    /// The picture is borrowed from the episode's category, not its own
+    /// (`fallback`): a later answer may replace it (`askPlayerCard`).
+    let fallback: Bool?
     let placed: Bool?
     let searcher: String?
 }
@@ -1185,6 +1486,24 @@ extension FAMAPI {
         try await send("POST", "api/v1/mixes/join", body: ["token": token], as: Mix.self)
     }
 
+    /// The shared bank with each topic's tags (`/api/topics?ranked=1`):
+    /// an older bank episode in a mix ranks Recommended topics by its tags
+    /// (`itemTags`, `bankById`), as the web's `topicBank` does.
+    func topicBank() async throws -> [BankTopic] {
+        try await get("api/v1/topics", [URLQueryItem(name: "ranked", value: "1")], as: BankPage.self).topics
+    }
+
+    /// One share, for a universal link to `/s/<id>` (decision 5): the same
+    /// payload the landing page is drawn from (`/api/share/{id}`).
+    func sharedEpisode(_ id: String) async throws -> SharePayload {
+        try await get("api/v1/share/" + id, [], as: SharePayload.self)
+    }
+
+    /// Somebody looked at a shared episode (the landing page's open count).
+    func shareOpened(_ id: String) async {
+        _ = try? await send("POST", "api/v1/share/\(id)/open", as: Ignored.self)
+    }
+
     func leaveMix(_ id: String) async throws {
         _ = try await send("POST", "api/v1/mixes/\(id)/leave", as: Ignored.self)
     }
@@ -1239,6 +1558,7 @@ extension FAMAPI {
         var req = URLRequest(url: url)
         req.httpMethod = "GET"
         req.setValue(Self.client, forHTTPHeaderField: "X-FAM-Client")
+        req.setValue(Self.listenerZone, forHTTPHeaderField: "X-FAM-TZ")
         if url.host == base.host, let token {
             req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         }
@@ -1657,7 +1977,8 @@ extension FAMAPI {
     /// Save or unsave an episode a message carries (`saveSharedEpisode`).
     func saveShared(query: String, minutes: Double, title: String) async throws {
         _ = try await send("POST", "api/v1/saved", body: [
-            "query": query, "minutes": minutes, "title": title, "source": "message",
+            "query": Self.cut(query, 500), "minutes": minutes, "title": Self.cut(title, 200),
+            "source": "message",
         ], as: SavedState.self)
     }
 
@@ -2064,7 +2385,8 @@ extension FAMAPI {
 
     /// Everything you have vibed, with your vibe folders (`/api/vibes`).
     func myVibes() async throws -> VibesPage {
-        try await get("api/v1/vibes", [URLQueryItem(name: "limit", value: "200")], as: VibesPage.self)
+        // The server's default (40), as the web's `loadMyVibe` asks it.
+        try await get("api/v1/vibes", [], as: VibesPage.self)
     }
 
     func fileVibe(query: String, minutes: Double, folderID: String) async throws {

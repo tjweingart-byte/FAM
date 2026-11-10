@@ -52,6 +52,13 @@ struct QueueEntry: Identifiable, Equatable {
     var episode: Episode
 }
 
+/// Something just queued, flying to the Queue button or the mini player's
+/// picture (`Motion.toQueue`): a 28x22 copy of its picture.
+struct QueueFlight: Identifiable, Equatable {
+    let id = UUID()
+    var picture: URL?
+}
+
 /// One tile of the What's next grid.
 struct NextUpTile: Identifiable {
     let id = UUID()
@@ -130,12 +137,27 @@ final class NowPlayingModel: ObservableObject {
     var privateOn: () -> Bool = { false }
     /// FAM's speller, for a typed follow-up (`acCorrectQuestion`).
     var speller: Speller?
+    /// The AI question (`withAiConsent`): asked before any Go Deeper, the
+    /// suggestion's too, with Go Deeper still open (`confirmGoDeeper`).
+    var ensureConsent: () async -> Bool = { true }
+    /// The tab under the player (`stack[0]` on the web): what a follow-up
+    /// and What's next's tiles say they came from (`historySurface`).
+    var tabSurface: () -> String = { "other" }
+    /// The search page's Length (`selectedLengthMinutes`), for a tile that
+    /// is not a browse surface's (`episodeMinutes`).
+    var searchLength: () -> Double = { FAMAPI.browseMinutes }
+    /// Something was queued: its picture flies to the Queue (`Motion.toQueue`).
+    @Published var queueFlight: QueueFlight?
 
     private var run = 0
     private var reported = false
     private var lastResume = Date.distantPast
     private var titleFinal = false
     private var sourcesShown = false
+    /// What the picture is (`PLAYER_CARD`): a borrowed one (`fallback`) may
+    /// be replaced by any later answer, a placed one only by nothing.
+    private var cardBorrowed = false
+    private var cardPlaced = false
     private var cancellables = Set<AnyCancellable>()
     private var toastAction: (() -> Void)?
 
@@ -190,7 +212,7 @@ final class NowPlayingModel: ObservableObject {
             for _ in 0..<45 {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if Task.isCancelled { return }
-                let answer = try? await api.next(ep.key)
+                let answer = try? await api.next(ep.key, cachedOnly: ep.cachedOnly)
                 if Task.isCancelled { return }
                 if let t = answer?.title, !t.isEmpty {
                     self?.earlyTitle = (key: ep.key, title: t)
@@ -213,6 +235,8 @@ final class NowPlayingModel: ObservableObject {
         explicit = false
         thread = ""
         picture = ep.picture
+        cardBorrowed = false
+        cardPlaced = false
         searcher = ""
         sources = nil
         sourcesShown = false
@@ -232,7 +256,9 @@ final class NowPlayingModel: ObservableObject {
             let heard = title
             // A private search is nobody's history, its searcher's included
             // (§282); an attachment's episode is never stored.
-            if ep.keepsRecord {
+            // A replay from a category's list or Search DailyFAM is not
+            // written down either (`historySurface`: `cachedOnly`).
+            if ep.keepsRecord && !ep.cachedOnly {
                 Task { await api.noteListen(ep.key, surface: ep.surface, title: heard,
                                             episode: player.episodeID) }
             }
@@ -348,7 +374,11 @@ final class NowPlayingModel: ObservableObject {
     }
 
     private func refreshThreadOnce(_ mine: Int) async {
-        guard let ep = episode, let answer = try? await api.next(ep.key), mine == run else { return }
+        // A replay may be told about whatever is kept; anything else only
+        // about what is current, or it would take a superseded episode's
+        // title (`episodeReplay`, §143).
+        guard let ep = episode, let answer = try? await api.next(ep.key, cachedOnly: ep.cachedOnly),
+              mine == run else { return }
         if thread.isEmpty, let t = answer.thread, !t.isEmpty { thread = t }
         if answer.explicit == true { explicit = true }
         if let t = answer.title, !t.isEmpty, (answer.titleFinal == true || !titleFinal) {
@@ -357,7 +387,8 @@ final class NowPlayingModel: ObservableObject {
             if !ep.titleOverridden && t != title {
                 // The wipe is drawn by the title itself (`WipeText`).
                 title = t
-                if signedIn() && ep.keepsRecord {
+                // No row to retitle for a category-list replay (`cachedOnly`).
+                if signedIn() && ep.keepsRecord && !ep.cachedOnly {
                     Task { await api.noteListen(ep.key, surface: ep.surface, title: t,
                                                 episode: player.episodeID, retitle: true) }
                 }
@@ -375,9 +406,15 @@ final class NowPlayingModel: ObservableObject {
               mine == run else { return }
         if let s = card.searcher { searcher = s }
         guard let path = card.thumb, !path.isEmpty, let url = api.picture(path) else { return }
-        // A picture from the tile stands; otherwise the episode's own
-        // (placed in its category) replaces a borrowed one.
-        if ep.picture == nil && (picture == nil || card.placed == true) { picture = url }
+        // `askPlayerCard`: a placed answer replaces anything but a tile's
+        // picture; any other answer fills an empty picture or replaces a
+        // borrowed one that was never placed.
+        let fromTile = ep.picture != nil
+        let may = card.placed == true ? !fromTile : (picture == nil || (cardBorrowed && !cardPlaced))
+        guard may else { return }
+        cardBorrowed = card.fallback == true
+        cardPlaced = cardPlaced || card.placed == true
+        if picture != url { picture = url }
     }
 
     // MARK: - Sources (`fetchEpisodeSources`)
@@ -422,36 +459,53 @@ final class NowPlayingModel: ObservableObject {
         saved = false
     }
 
+    /// `saveForLater`: lit once the server has it - the burst and "Saved
+    /// for Later · Open" after its OK, its own sentence on a no. Taking it
+    /// off says "Removed from Saved for Later · Undo", and Undo puts back
+    /// the episode taken off, not whatever plays by then.
     func toggleSave() {
         guard let ep = episode else { say("Play something first"); return }
         guard signedIn() else { say("Could not save that"); return }
+        let heard = title
         if saved {
-            saved = false
             Task {
                 do {
                     try await api.unsave(ep.key)
-                    // Inside a Task that already holds the model; the undo
-                    // only re-saves if the same episode is still playing.
-                    say("Removed from Saved for Later", action: "Undo") {
-                        guard self.episode == ep else { return }
-                        self.toggleSave()
+                    if self.episode == ep { self.saved = false }
+                    say("Removed from Saved for Later", action: "Undo") { [weak self] in
+                        self?.resave(ep, title: heard)
                     }
                 } catch {
-                    saved = true
                     say("Could not take that off")
                 }
             }
         } else {
-            saved = true
-            savedBurst += 1
             Task {
                 do {
-                    try await api.save(ep.key, title: title)
+                    try await api.save(ep.key, title: heard)
+                    if self.episode == ep {
+                        self.saved = true
+                        self.savedBurst += 1
+                    }
                     say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
                 } catch {
-                    saved = false
-                    say("Could not save that")
+                    say((error as? FAMError)?.errorDescription ?? "Could not save that")
                 }
+            }
+        }
+    }
+
+    /// Undo after taking an episode off the shelf: that episode, saved
+    /// again; the player's save lit only if it is still the one playing.
+    private func resave(_ ep: Episode, title: String) {
+        Task {
+            do {
+                try await api.save(ep.key, title: title)
+                if let now = self.episode, now.key.query == ep.key.query, now.key.minutes == ep.key.minutes {
+                    self.saved = true
+                }
+            } catch {
+                say("Could not save that")
             }
         }
     }
@@ -493,7 +547,7 @@ final class NowPlayingModel: ObservableObject {
             do {
                 try await api.unvibe(ep.key)
                 vibed = false
-                say("Vibe taken back")
+                snack("Vibe taken back")
             } catch {
                 say("Could not take that back")
             }
@@ -587,6 +641,8 @@ final class NowPlayingModel: ObservableObject {
             return
         }
         queue.append(QueueEntry(episode: ep))
+        // It flies from wherever it was to the Queue (`Motion.toQueue`).
+        queueFlight = QueueFlight(picture: ep.picture)
         say("Added to Queue", action: "Open") { [weak self] in self?.showQueue = true }
     }
 
@@ -641,18 +697,28 @@ final class NowPlayingModel: ObservableObject {
 
     private func offerNextUp(_ mine: Int) async {
         guard let ep = episode else { return }
+        let topics = (try? await api.nextUp(topicID: ep.topicID, query: ep.key.query)) ?? []
+        guard mine == run else { return }
+        // The lead is read after the round trip (`buildNextUpTiles`), so a
+        // `<<NEXT:>>` line fetched as the episode ended has had the same
+        // time to land.
         var tiles: [NextUpTile] = []
-        let lead = thread.isEmpty ? "What's the bigger story behind \(title)?" : thread
-        tiles.append(NextUpTile(title: lead, sub: "go deeper", deeper: true, episode: nil))
-        if let topics = try? await api.nextUp(topicID: ep.topicID, query: ep.key.query) {
-            for (i, t) in topics.enumerated() where tiles.count < 4 {
-                let sub = !t.angle.isEmpty ? t.angle : !t.subtitle.isEmpty ? t.subtitle
-                    : (i == 0 && tiles.isEmpty ? "most likely next" : "recommended")
-                let next = Episode(key: EpisodeKey(query: t.query, minutes: FAMAPI.browseMinutes),
-                                   title: t.title, surface: ep.surface == "search" ? "search" : "myfam",
-                                   topicID: t.id, picture: api.picture(t.thumb))
-                tiles.append(NextUpTile(title: t.title, sub: sub, deeper: false, episode: next))
-            }
+        let lead = goDeeperSuggestion
+        if !lead.isEmpty {
+            tiles.append(NextUpTile(title: lead, sub: "go deeper", deeper: true, episode: nil))
+        }
+        // A tile says where it was tapped from - the tab under the player -
+        // and is that surface's length (`historySurface`, `episodeMinutes`).
+        let surface = tabSurface()
+        let browse = surface == "myfam" || surface == "dailyfam"
+        let minutes = browse ? FAMAPI.browseMinutes : searchLength()
+        for (i, t) in topics.enumerated() where tiles.count < 4 {
+            let sub = !t.angle.isEmpty ? t.angle : !t.subtitle.isEmpty ? t.subtitle
+                : (i == 0 && lead.isEmpty ? "most likely next" : "recommended")
+            let next = Episode(key: EpisodeKey(query: t.query, minutes: minutes),
+                               title: t.title, surface: surface,
+                               topicID: t.id, picture: api.picture(t.thumb))
+            tiles.append(NextUpTile(title: t.title, sub: sub, deeper: false, episode: next))
         }
         guard mine == run, tiles.count >= 2 else { return }
         nextUp = tiles
@@ -700,9 +766,10 @@ final class NowPlayingModel: ObservableObject {
         guard !question.isEmpty else { return }
         let context = title
         // A typed follow-up is a search, corrected whole at send as the
-        // search box's is (`acCorrectQuestion`); FAM's own suggestion is
-        // sent as written.
-        let own = typed || question != thread
+        // search box's is (`acCorrectQuestion`); FAM's own suggestion - the
+        // thread, or the line built from the title - is sent as written and
+        // is not the listener's words (`own`, consent.py).
+        let own = typed || question != goDeeperSuggestion
         guard own, let speller else {
             startFollowUp(question, base: base, context: context, minutes: minutes, own: own)
             return
@@ -721,7 +788,9 @@ final class NowPlayingModel: ObservableObject {
         if !hush { Task { await api.event("search", text: question) } }
         var ep = Episode(key: EpisodeKey(query: question, minutes: minutes, context: context),
                          title: Self.titleFromPrompt(question),
-                         surface: base.surface == "search" ? "search" : "other",
+                         // The tab under the player, as the web's
+                         // `stack[0] === "home"` decides it.
+                         surface: tabSurface() == "search" ? "search" : "other",
                          own: own,
                          picture: nil, titleOverridden: false)
         ep.isPrivate = hush
@@ -729,6 +798,13 @@ final class NowPlayingModel: ObservableObject {
         // the playlist (§519); a Go Deeper on that follow-up is the same one.
         ep.mixDetour = detourFor?(base) ?? ""
         playEpisode?(ep)
+    }
+
+    /// Go Deeper's suggestion (`goDeeperSuggestionText`): the episode's
+    /// `<<NEXT:>>` thread, else a line built from its title.
+    var goDeeperSuggestion: String {
+        if !thread.isEmpty { return thread }
+        return title.isEmpty ? "" : "What's the bigger story behind \(title)?"
     }
 
     /// A search's provisional title (`deriveTitleFromPrompt`, `SearchTitle`).
@@ -755,6 +831,18 @@ final class NowPlayingModel: ObservableObject {
         let wait: UInt64 = action == nil ? 2_200_000_000 : 3_500_000_000
         Task {
             try? await Task.sleep(nanoseconds: wait)
+            if toast?.id == t.id { toast = nil }
+        }
+    }
+
+    /// What an action did, with nothing to tap (`snack(msg)` with no
+    /// action): the same line for 2.4 s, where a plain toast is 2.2.
+    func snack(_ text: String) {
+        toastAction = nil
+        let t = Toast(text: text, action: nil)
+        toast = t
+        Task {
+            try? await Task.sleep(nanoseconds: 2_400_000_000)
             if toast?.id == t.id { toast = nil }
         }
     }

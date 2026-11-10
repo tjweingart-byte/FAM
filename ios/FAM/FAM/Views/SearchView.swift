@@ -27,6 +27,23 @@ struct SearchView: View {
     @State private var trendFetchedAt = Date.distantPast
     @FocusState private var typing: Bool
     @State private var library = false
+
+    /// The list again, after a second for the closing cover (presentations
+    /// are 0.35 s apart): only on searchFAM, and only if nothing else took
+    /// its place.
+    private func catalogBack() {
+        guard model.catalogReturn else { return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !library else { return }
+            guard tab == .search else {
+                // Somewhere else now: the way back is not this list's.
+                if !model.loading.visible && !model.showPlayer { model.catalogReturn = false }
+                return
+            }
+            if model.catalogShouldReturn() { library = true }
+        }
+    }
     @State private var sheet: SearchSheet?
     @State private var linkOpen = false
     @State private var photoPicking = false
@@ -89,6 +106,10 @@ struct SearchView: View {
         // Without the blind (reduced motion), `transition: background .25s`.
         .animation(reduceMotion ? Animation.easeInOut(duration: 0.25) : nil, value: model.privateSearch)
         .onChange(of: model.privateSearch) { old, now in dropBlind(from: old, turningOn: now) }
+        // Search DailyFAM comes back once the episode it played is closed
+        // or given up (`playMyFamSearch` keeps the list under the player).
+        .onChange(of: model.showPlayer) { _, _ in catalogBack() }
+        .onChange(of: loading.visible) { _, _ in catalogBack() }
         .fullScreenCover(isPresented: $library) {
             CatalogView()
                 .environmentObject(model)
@@ -131,6 +152,15 @@ struct SearchView: View {
         .onChange(of: tab) { _, now in
             if now == .search { Task { await loadTrending(force: false) } }
         }
+        // The Length bubble and the player's Length menu are one choice
+        // (`selectedLengthMinutes`).
+        .onChange(of: minutes) { _, value in
+            if model.searchLength != value { model.searchLength = value }
+        }
+        .onChange(of: model.searchLength) { _, value in
+            if minutes != value { minutes = value }
+        }
+        .onAppear { if minutes != model.searchLength { minutes = model.searchLength } }
         .onChange(of: chromeDark) { _, dark in model.darkChrome = dark }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
@@ -339,9 +369,9 @@ struct SearchView: View {
             if VoiceSearchModel.available {
                 barIcon(SearchIcons.mic, pal, label: "Search by voice") { openVoice() }
             }
-            if !attach.full {
-                barIcon(SearchIcons.attach, pal, label: "Add a document, photo or link") { openAttach() }
-            }
+            // Always drawn (`#attachBtn`); past what one search can carry a
+            // tap says so instead of opening the menu.
+            barIcon(SearchIcons.attach, pal, label: "Add a document, photo or link") { openAttach() }
             if goShown {
                 Button { go(words) } label: {
                     GoArrow(size: 13)
@@ -375,7 +405,7 @@ struct SearchView: View {
         guard !words.isEmpty else { return false }
         var shown = 0
         if VoiceSearchModel.available { shown += 1 }
-        if !attach.full { shown += 1 }
+        shown += 1
         if goShown { shown += 1 }
         let buttonsWidth = CGFloat(shown) * 40 + CGFloat(max(shown - 1, 0)) * 2
         let gap: CGFloat = shown > 0 ? 6 : 0
@@ -464,11 +494,13 @@ struct SearchView: View {
                     HStack(spacing: 8) {
                         WebIcon(path: Icons.trend, size: 13)
                             .foregroundStyle(pal.textMuted)
+                        // One line, an ellipsis past the width (`white-space:
+                        // nowrap; text-overflow: ellipsis`).
                         Text(search.label)
                             .font(FAMFont.body(12, .medium))
                             .foregroundStyle(pal.text)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 14)
@@ -513,10 +545,19 @@ struct SearchView: View {
             }
             return list
         case .attach:
+            // The web's two rows (`openAttachMenu`). Its "Photo or document"
+            // is one file input, which iOS Safari answers with its own
+            // chooser; here that chooser is the next sheet.
             return [
-                YouSheetItem(label: "Photo") { photoPicking = true },
-                YouSheetItem(label: "File") { filePicking = true },
+                YouSheetItem(label: "Photo or document") { sheet = .attachSource },
                 YouSheetItem(label: "Link") { linkOpen = true },
+            ]
+        case .attachSource:
+            // The photo library and Files, the two places the web's
+            // `accept=".pdf,.docx,.txt,.md,.csv,.json,image/*"` reaches.
+            return [
+                YouSheetItem(label: "Photo Library") { photoPicking = true },
+                YouSheetItem(label: "Choose File") { filePicking = true },
             ]
         }
     }
@@ -538,9 +579,15 @@ struct SearchView: View {
     }
 
     /// `openAttachMenu`: the AI question first (an attachment is the
-    /// listener's words), then Photo / File / Link.
+    /// listener's words), then "Photo or document" / "Link".
     private func openAttach() {
         typing = false
+        if attach.full {
+            // `attach=` holds 400 characters of ids, 23 of them: the server
+            // refuses a search past that, so the next one is not taken.
+            model.nowPlaying.say("One search can carry \(AttachModel.most) attachments")
+            return
+        }
         let asked = model.consent.current?.given != true
         Task {
             guard await model.consent.ensure() else { return }
@@ -625,14 +672,18 @@ struct SearchView: View {
             return
         }
         ownChange = nil
-        if now.contains("\n") {
-            let flat = now.replacingOccurrences(of: "\n", with: "")
+        let oldNS = old as NSString
+        let nowNS = now as NSString
+        // Return typed at the caret sends, as Enter without Shift does; a
+        // paste that carries newlines only inserts them (the web's textarea),
+        // so the listener can still edit it before sending.
+        if let at = Self.insertion(oldNS, nowNS),
+           nowNS.substring(with: NSRange(location: at, length: 1)) == "\n" {
+            let flat = nowNS.replacingCharacters(in: NSRange(location: at, length: 1), with: "")
             setWords(flat)
             go(flat)
             return
         }
-        let oldNS = old as NSString
-        let nowNS = now as NSString
         if let fix = lastFix, revert(fix, oldNS, nowNS) { return }
         lastFix = nil
         askAfterPause(now)
@@ -671,6 +722,18 @@ struct SearchView: View {
         }
     }
 
+    /// Where one character was typed into `old` to make `now` (UTF-16
+    /// offset), or nil when the change was anything else (a paste, a
+    /// deletion, the keyboard's own replacement).
+    private static func insertion(_ old: NSString, _ now: NSString) -> Int? {
+        guard now.length == old.length + 1 else { return nil }
+        var i = 0
+        while i < old.length && old.character(at: i) == now.character(at: i) { i += 1 }
+        let restOld = old.substring(from: i)
+        let restNow = now.substring(from: i + 1)
+        return restOld == restNow ? i : nil
+    }
+
     /// The backspace straight after a fix: the fix and the character after
     /// it were the end of the box, and that character went.
     private func revert(_ fix: WordFix, _ old: NSString, _ now: NSString) -> Bool {
@@ -704,7 +767,7 @@ struct SearchView: View {
 
 /// Which action sheet searchFAM has up.
 enum SearchSheet: String, Identifiable {
-    case length, voice, attach
+    case length, voice, attach, attachSource
     var id: String { rawValue }
 }
 

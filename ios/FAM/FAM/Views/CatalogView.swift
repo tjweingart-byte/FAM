@@ -31,7 +31,7 @@ struct CatalogView: View {
             HStack(spacing: 8) {
                 WebIcon(path: Icons.search, size: 15).foregroundStyle(FAMColor.textMuted)
                 TextField("", text: $words, prompt: Text("Search episodes people made").foregroundColor(FAMColor.textMuted))
-                    .font(FAMFont.body(14))
+                    .font(FAMFont.body(12.5))
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .onChange(of: words) { _, text in search(text) }
@@ -40,8 +40,10 @@ struct CatalogView: View {
             .frame(minHeight: 40)
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 13))
             .overlay(RoundedRectangle(cornerRadius: 13).stroke(FAMColor.border))
-            .padding(.horizontal, 18)
-            .padding(.bottom, 6)
+            // `.mfs-box`: margin 10 16 4.
+            .padding(.horizontal, 16)
+            .padding(.top, 0)
+            .padding(.bottom, 4)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     if !words.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -67,19 +69,15 @@ struct CatalogView: View {
             if all.isEmpty {
                 note("Nobody else has made an episode yet. The ones they make come up here, A to Z, ready to play.")
             }
-            ForEach(groups(all), id: \.0) { group in
+            // The letters as the server sent them, a heading wherever the
+            // letter changes (`drawMyFamSearch`), never re-sorted here.
+            ForEach(serverGroups(all), id: \.index) { group in
                 Section {
-                    ForEach(group.1, id: \.self) { row($0) }
+                    ForEach(group.rows, id: \.self) { row($0) }
                 } header: {
-                    Text(group.0)
-                        .font(FAMFont.heading(18, .semibold))
-                        .foregroundStyle(FAMColor.copper)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 18)
-                        .padding(.top, 14)
-                        .padding(.bottom, 6)
-                        .background(FAMColor.background)
-                        .padding(.horizontal, 18)
+                    if !group.letter.isEmpty {
+                        letterHead(group.letter)
+                    }
                 }
             }
         } else {
@@ -87,8 +85,21 @@ struct CatalogView: View {
         }
     }
 
+    private func letterHead(_ letter: String) -> some View {
+        Text(letter)
+            .font(FAMFont.heading(18, .semibold))
+            .foregroundStyle(FAMColor.copper)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 18)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+            .background(FAMColor.background)
+            .padding(.horizontal, 18)
+    }
+
     @ViewBuilder private var searchResults: some View {
-        if searching && found == nil {
+        if searching {
+            // "Searching…" in place of the list on every search (`runMyFamSearch`).
             note("Searching…")
         } else if searchFailed {
             note("Could not search right now. Try again in a moment.")
@@ -106,13 +117,20 @@ struct CatalogView: View {
     }
 
     private func row(_ ep: CatalogEpisode) -> some View {
-        Button { dismiss(); model.playCatalog(ep) } label: {
-            HStack(spacing: 12) {
+        // The player cannot open over this screen on iPhone (one cover at a
+        // time), so the list closes for it and comes back when the player
+        // or the loading screen goes - back and Cancel land on this list,
+        // as on the web, where the catalogue stays under the player.
+        Button { model.catalogReturn = true; dismiss(); model.playCatalog(ep) } label: {
+            // `.sv-row`'s gap 11.
+            HStack(spacing: 11) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10).fill(FAMColor.surface2)
                     WebFill(path: Icons.rowPlay, size: 14).foregroundStyle(FAMColor.copper)
                     if let url = model.api.picture(ep.thumb ?? "") {
-                        AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                        // The play glyph stays under a picture that fails;
+                        // one that lands late blurs up (`.seed-img`).
+                        Picture(url: url, clearGround: true, blurUp: true)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
@@ -201,6 +219,33 @@ struct CatalogView: View {
         }
     }
 
+    struct LetterGroup {
+        let index: Int
+        let letter: String
+        let rows: [CatalogEpisode]
+    }
+
+    /// Runs of the server's own order: a new group wherever `letter`
+    /// changes; a row with no letter stays in the group before it.
+    private func serverGroups(_ rows: [CatalogEpisode]) -> [LetterGroup] {
+        var out: [LetterGroup] = []
+        var letter = ""
+        var run: [CatalogEpisode] = []
+        for ep in rows {
+            let next = ep.letter ?? ""
+            if !next.isEmpty && next != letter {
+                if !run.isEmpty || !letter.isEmpty {
+                    out.append(LetterGroup(index: out.count, letter: letter, rows: run))
+                }
+                letter = next
+                run = []
+            }
+            run.append(ep)
+        }
+        if !run.isEmpty { out.append(LetterGroup(index: out.count, letter: letter, rows: run)) }
+        return out
+    }
+
     /// A to Z by the first letter, ignoring leading punctuation; "#" last.
     private func groups(_ rows: [CatalogEpisode]) -> [(String, [CatalogEpisode])] {
         var out: [String: [CatalogEpisode]] = [:]
@@ -229,19 +274,23 @@ struct CatalogView: View {
         let q = text.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else {
             found = nil
+            searching = false
             if failed { Task { await loadAll() } }
             return
         }
-        searching = true
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 250_000_000)
             if Task.isCancelled { return }
+            searching = true
+            searchFailed = false
+            found = nil
             do {
                 let rows = try await model.api.searchCatalog(q)
                 if Task.isCancelled { return }
                 found = rows
                 searchFailed = false
             } catch {
+                if Task.isCancelled { return }
                 searchFailed = true
             }
             searching = false

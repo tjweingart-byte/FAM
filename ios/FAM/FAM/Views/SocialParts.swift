@@ -6,7 +6,7 @@ import SwiftUI
 // the social spec): the dashed notice card (`.pf-empty`), the round 36 pt
 // buttons (`.yf-round`), the action sheet (`#sheetOverlay`), the in-app
 // banner (`#notifBanner`), the follower popup (`#followerOverlay`), and the
-// web's clock words (`yfWhen`) - in the phone's own 12/24-hour setting.
+// web's clock words (`yfWhen`) - "16:17", as the web prints them.
 
 // MARK: - Icons the social screens draw (the web's SVG paths)
 
@@ -56,6 +56,14 @@ extension Icons {
         return p
     }()
 
+    /// Block (`MENU_ICONS.block`: `circle r9`, `M5.6 5.6l12.8 12.8`).
+    static let blockMark: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 3, y: 3, width: 18, height: 18))
+        p.move(to: CGPoint(x: 5.6, y: 5.6)); p.addLine(to: CGPoint(x: 18.4, y: 18.4))
+        return p
+    }()
+
     /// Search messages / friends (`circle cx11 cy11 r7`, `M21 21l-4.3-4.3`).
     static let magnifier: Path = {
         var p = Path()
@@ -70,9 +78,11 @@ extension Icons {
 enum SocialTime {
     static func date(_ at: Double) -> Date { Date(timeIntervalSince1970: at) }
 
-    /// The clock in the phone's own 12/24-hour setting ("4:17 PM").
+    /// The web's clock (`yfWhen`): the hour without a leading zero and the
+    /// minutes, on 24 hours ("9:02", "16:17").
     static func clock(_ at: Double) -> String {
-        date(at).formatted(date: .omitted, time: .shortened)
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: date(at))
+        return String(format: "%d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
 
     /// A list row's time: today the clock, within 6.5 days the weekday
@@ -86,7 +96,7 @@ enum SocialTime {
         return d.formatted(.dateTime.month(.abbreviated).day())
     }
 
-    /// A conversation's day separator: "TODAY 4:17 PM", else "SUN, NOV 8".
+    /// A conversation's day separator: "TODAY 16:17", else "SUN, NOV 8".
     static func day(_ at: Double) -> String {
         let d = date(at)
         if Calendar.current.isDateInToday(d) { return "TODAY " + clock(at) }
@@ -156,6 +166,9 @@ struct RoundIcon<Mark: View>: View {
 
 /// The web's back button on a social screen (`.yf-back`, 36 pt, chevron 20).
 struct SocialBackButton: View {
+    /// What VoiceOver reads: "Back", or the web's own label where it has
+    /// one ("Back to messages" on a conversation).
+    var label: String = "Back"
     let action: () -> Void
 
     var body: some View {
@@ -167,7 +180,7 @@ struct SocialBackButton: View {
         }
         .buttonStyle(.press)
         .padding(.leading, -8)
-        .accessibilityLabel("Back")
+        .accessibilityLabel(label)
     }
 }
 
@@ -246,9 +259,11 @@ struct SheetSpec: Identifiable {
     var header: String = ""
     let actions: [SheetAction]
 
-    /// The card's height: 10 on top, the header, 46 a row, Cancel and 22.
+    /// The card's height: 10 on top, the header (a long sentence - a
+    /// block's or a leave's - over several lines), 46 a row, Cancel and 22.
     var height: CGFloat {
-        let head: CGFloat = header.isEmpty ? 0 : 33
+        let lines = max(1, (header.count + 39) / 40)
+        let head: CGFloat = header.isEmpty ? 0 : 20 + 13.5 * CGFloat(lines)
         return 10 + head + CGFloat(actions.count) * 46 + 8 + 41 + 22 + 12
     }
 }
@@ -431,7 +446,9 @@ struct SocialBannerLayer: View {
         .padding(.vertical, 11)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(FAMColor.borderStrong))
-        .shadow(color: .black.opacity(0.3), radius: 16, y: 12)
+        // `0 22px 44px -18px rgba(0,0,0,.75)`: SwiftUI has no spread, so
+        // the -18 is taken out of the strength rather than the size.
+        .shadow(color: .black.opacity(0.5), radius: 22, y: 22)
     }
 
     private var swipe: some Gesture {
@@ -454,9 +471,12 @@ struct FollowerPopup: View {
     @EnvironmentObject private var social: SocialModel
     let person: FollowPerson
 
+    /// `showFollowerPopup`: the name, else "@handle", else "@someone".
     private var name: String {
         let n = person.name ?? ""
-        return n.isEmpty ? "@" + (person.handle ?? "") : n
+        if !n.isEmpty { return n }
+        let h = person.handle ?? ""
+        return "@" + (h.isEmpty ? "someone" : h)
     }
 
     var body: some View {
@@ -489,7 +509,8 @@ struct FollowerPopup: View {
                         .padding(.top, 18)
                         .padding(.bottom, 10)
                 } else {
-                    ModalButton(label: "Follow back", primary: true, wide: true) { social.followBack(person) }
+                    ModalButton(label: "Follow back", primary: true, wide: true,
+                                enabled: !social.followingBack) { social.followBack(person) }
                         .padding(.top, 14)
                         .padding(.bottom, 8)
                 }
@@ -720,5 +741,75 @@ struct SocialCoverView: View {
         .environment(\.inSocialCover, true)
         .overlay(alignment: .top) { SocialBannerLayer() }
         .overlay(alignment: .bottom) { ToastView().padding(.bottom, 80) }
+    }
+}
+
+// MARK: - Block, as the web's action sheet (`blockPerson`)
+
+/// "Block <name>? Neither of you will see…" as the sheet's group line and
+/// one coral "Block" row, as the web asks (`blockPerson`), not a system
+/// dialog. The block itself: the server's sentence on a refusal, else
+/// "Couldn’t block them"; on success the caller's `blocked` (which says
+/// "Blocked" and re-reads what it shows).
+@MainActor
+enum FAMBlock {
+    static let consequence = "Neither of you will see the other\u{2019}s comments, messages, vibes or profile, and they can\u{2019}t message you. They won\u{2019}t be told."
+
+    static func sheet(name: String, handle: String, model: AppModel,
+                      blocked: @escaping () -> Void) -> SheetSpec {
+        let who = name.isEmpty ? "@" + handle : name
+        let action = SheetAction(label: "Block", danger: true) {
+            run(handle: handle, model: model, blocked: blocked)
+        }
+        return SheetSpec(header: "Block " + who + "? " + consequence, actions: [action])
+    }
+
+    static func run(handle: String, model: AppModel, blocked: @escaping () -> Void) {
+        guard !handle.isEmpty else { return }
+        let safety = model.safety
+        Task { @MainActor in
+            do {
+                try await safety.block(handle: handle)
+                blocked()
+            } catch SafetyError.http(_, let detail) where !detail.isEmpty {
+                model.nowPlaying.say(detail)
+            } catch SafetyError.accountRequired(let detail) where !detail.isEmpty {
+                model.nowPlaying.say(detail)
+            } catch {
+                model.nowPlaying.say("Couldn\u{2019}t block them")
+            }
+        }
+    }
+}
+
+// MARK: - Follow's tick (`Motion.follow`)
+
+/// The tick on "✓ Following": drawn in over 220 ms after 80 ms
+/// (`M4 12.5l5 5L20 7`, stroke 3, 11 pt); whole at once under Reduce Motion.
+struct FollowTick: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var drawn: CGFloat = 0
+
+    private static let path: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 4, y: 12.5))
+        p.addLine(to: CGPoint(x: 9, y: 17.5))
+        p.addLine(to: CGPoint(x: 20, y: 7))
+        return p
+    }()
+
+    var body: some View {
+        Glyph(path: FollowTick.path, box: CGRect(x: 0, y: 0, width: 24, height: 24))
+            .trim(from: 0, to: drawn)
+            .stroke(style: StrokeStyle(lineWidth: 3 * 11 / 24, lineCap: .round, lineJoin: .round))
+            .frame(width: 11, height: 11)
+            .accessibilityHidden(true)
+            .onAppear {
+                if reduceMotion {
+                    drawn = 1
+                } else {
+                    withAnimation(.easeOut(duration: 0.22).delay(0.08)) { drawn = 1 }
+                }
+            }
     }
 }

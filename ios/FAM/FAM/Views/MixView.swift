@@ -23,7 +23,8 @@ struct MixView: View {
     @State private var coverChoice = false
     @State private var pickingPhoto = false
     @State private var photo: PhotosPickerItem?
-    @State private var pendingCover: String?
+    /// The chosen photo in the cover editor ("Position your cover").
+    @State private var coverEditing: EditingPhoto?
     @State private var shareItems: [Any]?
     @State private var sharing = false
     @State private var shown: [String] = []
@@ -87,6 +88,9 @@ struct MixView: View {
             await mixes.loadForPage()
             if shown.isEmpty { shuffle() }
         }
+        // A topic added anywhere - Add topics, a member - leaves the five,
+        // and the next takes its place.
+        .onChange(of: mix?.items.count ?? 0) { _, _ in refill() }
         .confirmationDialog(mix?.name ?? "", isPresented: $menu, titleVisibility: .hidden) { menuButtons }
         .sheet(isPresented: $people) {
             if let mix {
@@ -132,23 +136,21 @@ struct MixView: View {
             guard let item else { return }
             Task {
                 photo = nil
+                // Downscaled to 1024 px, then the editor: square, moved and
+                // scaled, the AI-check note above Save (`coverChosen`).
                 guard let data = try? await item.loadTransferable(type: Data.self),
-                      let url = MixCover.dataURL(from: data) else {
+                      let image = AvatarSource.prepare(data) else {
                     model.nowPlaying.say("That file is not an image FAM can read")
                     return
                 }
-                pendingCover = url
+                later { coverEditing = EditingPhoto(image: image) }
             }
         }
-        .alert("Use this photo as the cover?", isPresented: Binding(get: { pendingCover != nil },
-                                                                     set: { if !$0 { pendingCover = nil } })) {
-            Button("Cancel", role: .cancel) { pendingCover = nil }
-            Button("Use photo") {
-                let cover = pendingCover ?? ""
-                pendingCover = nil
-                Task { if await mixes.update(id, ["cover": cover]) != nil { model.nowPlaying.say("Cover updated") } }
-            }
-        } message: { Text(MixCover.note) }
+        .fullScreenCover(item: $coverEditing) { e in
+            PhotoEditor(image: e.image, save: { cover in applyCover(cover) },
+                        square: true, title: "Position your cover", pixels: 360)
+                .famThemed()
+        }
         .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
             ActivityView(items: shareItems ?? []) { shareItems = nil }
         }
@@ -464,6 +466,8 @@ struct MixView: View {
                         Task {
                             if await mixes.update(id, ["add": ["f:" + s.id]]) != nil {
                                 model.nowPlaying.say("Added \(s.label) to \(mix.name)")
+                                // Topped back up to five (`recommendedHTML`).
+                                refill()
                             }
                         }
                     }
@@ -476,6 +480,26 @@ struct MixView: View {
     private func recommendedSub(_ mix: Mix) -> String {
         if mixes.recommended?.personalised == true { return "Based on what you listen to" }
         return mix.items.isEmpty ? "Topics to follow, based on your interests" : "Topics to follow, based on this mix"
+    }
+
+    /// Whatever is now in the mix leaves the five, and the next not yet
+    /// shown takes its place - round again once the order runs out - so
+    /// five stay on offer (`recommendedHTML`, `recNext`).
+    private func refill() {
+        guard let mix else { return }
+        let inMix = Set(mix.items.map { MixesModel.base($0.id) })
+        var kept = shown.filter { !inMix.contains($0) }
+        if kept.count < 5 {
+            let pool = mixes.recommendations(for: mix, excludingMix: true).map(\.id)
+            for id in pool where kept.count < 5 && !kept.contains(id) && !seen.contains(id) {
+                kept.append(id)
+                seen.insert(id)
+            }
+            for id in pool where kept.count < 5 && !kept.contains(id) {
+                kept.append(id)
+            }
+        }
+        if kept != shown { shown = kept }
     }
 
     /// The next five not yet shown; round again once the catalogue runs out
@@ -563,7 +587,9 @@ struct MixView: View {
     }
 
     private func setListenTime(_ hhmm: String) async {
-        let zone = TimeZone.current.identifier
+        // The listener's clock: the zone pinned in Settings, else the
+        // phone's (`listenerZone`), so "ready" is sent at their hour.
+        let zone = FAMAPI.listenerZone
         guard await mixes.update(id, ["listen_at": hhmm, "listen_tz": zone]) != nil else { return }
         model.nowPlaying.say(hhmm.isEmpty ? "Listen time removed" : "Listen time set for \(MixesModel.timeLabel(hhmm))")
     }
@@ -638,6 +664,15 @@ struct MixView: View {
         }
     }
 
+    /// `applyCover`: saved, and said.
+    private func applyCover(_ cover: String) {
+        Task {
+            if await mixes.update(id, ["cover": cover]) != nil {
+                model.nowPlaying.say(cover.isEmpty ? "Cover removed" : "Cover updated")
+            }
+        }
+    }
+
     private func tapCover(_ mix: Mix) {
         if mix.cover.isEmpty { pickingPhoto = true } else { coverChoice = true }
     }
@@ -647,9 +682,15 @@ struct MixView: View {
         renaming = true
     }
 
+    /// `renameMix`: an empty name keeps the box open (`showModal`
+    /// refocuses), so it is asked again; any name - the same one too - is
+    /// saved.
     private func rename() async {
         let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name != mix?.name else { return }
+        guard !name.isEmpty else {
+            later { renaming = true }
+            return
+        }
         await mixes.update(id, ["name": name])
     }
 
@@ -701,7 +742,13 @@ struct MixView: View {
     private func invite() async {
         do {
             let link = try await model.api.inviteToMix(id)
-            shareItems = ["Help me build “\(link.name)” on FAM — add the topics you want to hear. \(link.url)"]
+            // `navigator.share({title, text, url})`: the mix's name as the
+            // subject, the words, and the link made absolute (`/j/<token>`
+            // may come back relative).
+            let address = URL(string: link.url, relativeTo: model.api.base)?.absoluteURL
+            let text = "Help me build “\(link.name)” on FAM — add the topics you want to hear."
+            let shared = address?.absoluteString ?? link.url
+            shareItems = [ShareTextItem(text: text + " " + shared, subject: link.name)]
         } catch {
             model.nowPlaying.say(MixesModel.sentence(error, else: "Could not make an invite"))
         }
@@ -1142,3 +1189,4 @@ struct PlayTriangle: Shape {
         return p
     }
 }
+

@@ -17,12 +17,15 @@ struct PersonView: View {
     @State private var allFriends = false
     @State private var menu = false
     @State private var reporting = false
-    @State private var blocking = false
-    @State private var confirmUnfollow = false
+    /// Block's sheet (`blockPerson`): the sentence, then "Block".
+    @State private var confirm: SheetSpec?
     @State private var working = false
     /// Follow tapped and not yet answered: "✓ Following" at once, put
     /// back if the server says no (`Motion.follow`).
     @State private var flipped = false
+    /// Unfollow tapped and not yet answered: "Follow" at once, one tap
+    /// (`unfollowPerson`, the owner's decision 7).
+    @State private var unflipped = false
     @State private var followedHandles: Set<String> = []
     @State private var addedMixes: [String: Bool] = [:]
     /// A mix of theirs already in your myFAM, asked about before it goes.
@@ -47,6 +50,12 @@ struct PersonView: View {
         return social.person(handle: handle)?.userId ?? ""
     }
     private var following: Bool { !userID.isEmpty && social.isFollowing(userID) }
+    /// The E beside their name (§224): their profile says so, or - before
+    /// it answers - the follow graph does (`pub.explicit || person.explicit`).
+    private var explicit: Bool {
+        if page?.explicit == true { return true }
+        return social.person(handle: handle)?.explicit == true
+    }
 
     var body: some View {
         presentations(screen)
@@ -91,20 +100,7 @@ struct PersonView: View {
             FAMReportSheet(api: model.safety, subject: .person(handle: handle),
                            say: { model.nowPlaying.say($0) }) { _ in }
         }
-        .blockConfirmation(isPresented: $blocking, name: name, handle: handle, api: model.safety,
-                           onBlocked: {
-                               model.nowPlaying.say("Blocked")
-                               Task {
-                                   await social.loadGraph()
-                                   await social.loadInbox()
-                               }
-                               social.back()
-                           },
-                           onError: { model.nowPlaying.say($0) })
-        .confirmationDialog("Unfollow \(name)?", isPresented: $confirmUnfollow, titleVisibility: .visible) {
-            Button("Unfollow", role: .destructive) { unfollow() }
-            Button("Cancel", role: .cancel) {}
-        }
+        .sheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
         // `confirmRemoveMix`: the copy may have been renamed since, so ask.
         .confirmationDialog(removingMix.map { "Remove \($0.name ?? "this mix") from your myFAM?" } ?? "",
                             isPresented: Binding(get: { removingMix != nil },
@@ -169,7 +165,7 @@ struct PersonView: View {
                     .font(FAMFont.heading(24, .semibold))
                     .foregroundStyle(FAMColor.text)
                     .multilineTextAlignment(.center)
-                if page?.explicit == true { ExplicitBadge() }
+                if explicit { ExplicitBadge() }
             }
             .padding(.top, 12)
             if !placeLine.isEmpty {
@@ -302,13 +298,13 @@ struct PersonView: View {
                 .buttonStyle(.press)
                 }
                 Button {
-                    if following { confirmUnfollow = true } else { follow() }
+                    if shownFollowing { unfollow() } else { follow() }
                 } label: {
                     HStack(spacing: 5) {
                         if flipped {
-                            WebIcon(path: Icons.check, size: 11, line: 3)
+                            FollowTick()
                         }
-                        Text(following || flipped ? "Following" : "Follow")
+                        Text(shownFollowing ? "Following" : "Follow")
                             .font(FAMFont.body(12, .medium))
                     }
                     .foregroundStyle(FAMColor.text)
@@ -333,6 +329,13 @@ struct PersonView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// What the button says: the tap's answer at once, then the graph's.
+    private var shownFollowing: Bool {
+        if flipped { return true }
+        if unflipped { return false }
+        return following
     }
 
     @ViewBuilder private var interests: some View {
@@ -494,10 +497,14 @@ struct PersonView: View {
                 HStack(spacing: 10) {
                     Face(name: f.name ?? "", handle: f.handle, avatar: f.avatar ?? "", size: 34, initialsSize: 12)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text((f.name ?? "").isEmpty ? "@" + f.handle : (f.name ?? ""))
-                            .font(FAMFont.body(13, .medium))
-                            .foregroundStyle(FAMColor.text)
-                            .lineLimit(1)
+                        HStack(spacing: 5) {
+                            Text((f.name ?? "").isEmpty ? "@" + f.handle : (f.name ?? ""))
+                                .font(FAMFont.body(13, .medium))
+                                .foregroundStyle(FAMColor.text)
+                                .lineLimit(1)
+                            // The E beside a name that swears (§224).
+                            if f.explicit == true { ExplicitBadge() }
+                        }
                         Text("@" + f.handle).monoLabel(8.5, tracking: 0.34)
                     }
                     Spacer(minLength: 0)
@@ -529,7 +536,7 @@ struct PersonView: View {
         var actions: [SheetAction] = []
         if !userID.isEmpty {
             if following {
-                actions.append(SheetAction(label: "Unfollow", danger: true) { confirmUnfollow = true })
+                actions.append(SheetAction(label: "Unfollow", danger: true) { unfollow() })
             } else {
                 actions.append(SheetAction(label: "Follow") { follow() })
             }
@@ -537,7 +544,7 @@ struct PersonView: View {
         }
         if !handle.isEmpty {
             actions.append(SheetAction(label: "Report", danger: true) { reporting = true })
-            actions.append(SheetAction(label: "Block", danger: true) { blocking = true })
+            actions.append(SheetAction(label: "Block", danger: true) { askBlock() })
         }
         return FAMActionSheet(spec: SheetSpec(actions: actions))
     }
@@ -564,13 +571,31 @@ struct PersonView: View {
         }
     }
 
+    /// One tap (`unfollowPerson`): "Follow" at once, put back if refused.
     private func unfollow() {
         let id = userID
         guard !id.isEmpty else { return }
         working = true
+        unflipped = true
         Task {
             await social.unfollow(id)
+            unflipped = false
             working = false
+        }
+    }
+
+    /// `blockPerson(handle, name, goBack)`: the web's sheet, then "Blocked",
+    /// the graph and the inbox re-read, and back.
+    private func askBlock() {
+        let app = model
+        let social = self.social
+        confirm = FAMBlock.sheet(name: page?.name ?? open.name, handle: handle, model: model) {
+            app.nowPlaying.say("Blocked")
+            Task {
+                await social.loadGraph()
+                await social.loadInbox()
+            }
+            social.back()
         }
     }
 

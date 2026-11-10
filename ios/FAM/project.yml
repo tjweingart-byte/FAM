@@ -10,6 +10,14 @@ options:
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
+# Debug and Release as Xcode makes them, and Staging: a Release build that
+# talks to the staging service (decision 6). The "FAM Staging" scheme runs
+# and archives it; the "FAM" scheme stays production - the owner chooses
+# per archive.
+configs:
+  Debug: debug
+  Release: release
+  Staging: release
 packages:
   FAMSafety:
     path: ../FAMSafety
@@ -33,6 +41,16 @@ settings:
     # The client id also belongs in the server's GOOGLE_CLIENT_IDS.
     GOOGLE_IOS_CLIENT_ID: 1051916637197-u6bh2tjrdt38p8t3d5f2tmq3o3rii5co.apps.googleusercontent.com
     GOOGLE_REVERSED_CLIENT_ID: com.googleusercontent.apps.1051916637197-u6bh2tjrdt38p8t3d5f2tmq3o3rii5co
+    # The server this build talks to (Info.plist `FAMAPIBase`, read by
+    # `FAMAPI.configuredBase`): production unless the Staging configuration
+    # says otherwise. An address, never a secret.
+    FAM_API_BASE: https://familiarize.net
+  configs:
+    # The staging service (`fam-staging` in render.yaml, zero spend,
+    # STAGING.md): Render's address for that service name (DEPLOY.md). If
+    # staging is given a domain of its own, change it here.
+    Staging:
+      FAM_API_BASE: https://fam-staging.onrender.com
 targets:
   FAM:
     type: application
@@ -45,11 +63,15 @@ targets:
         product: GoogleSignIn
       - package: GoogleSignIn
         product: GoogleSignInSwift
-    # Sign in with Apple (App Store 4.8).
+    # Sign in with Apple (App Store 4.8), and shared links that open the
+    # app (decision 5): /s/ (an episode), /m/ (a mix) and /j/ (a joint-mix
+    # invite) on familiarize.net, routed by `AppModel.openLink`. The server
+    # lists the paths in /.well-known/apple-app-site-association.
     entitlements:
       path: FAM/FAM.entitlements
       properties:
         com.apple.developer.applesignin: [Default]
+        com.apple.developer.associated-domains: ["applinks:familiarize.net"]
     info:
       path: FAM/Info.plist
       properties:
@@ -66,6 +88,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true
         GIDClientID: $(GOOGLE_IOS_CLIENT_ID)
+        FAMAPIBase: $(FAM_API_BASE)
         # A group chat's "Take a photo" (the web's camera source).
         NSCameraUsageDescription: FAM uses the camera only when you take a photo for your profile or a group chat.
         # searchFAM's mic (§151) while voice search is open, a story's Speak
@@ -94,3 +117,35 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: false
+schemes:
+  # Production: what the App Store gets.
+  FAM:
+    build:
+      targets:
+        FAM: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+  # TestFlight on staging (decision 6): the same app against the staging
+  # service, run and archived from the Staging configuration.
+  FAM Staging:
+    build:
+      targets:
+        FAM: all
+    run:
+      config: Staging
+    test:
+      config: Staging
+    profile:
+      config: Staging
+    analyze:
+      config: Staging
+    archive:
+      config: Staging

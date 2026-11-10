@@ -1805,8 +1805,10 @@ extension FAMAPI {
     func vibeStory(_ ep: EpisodeKey, title: String, thread: String, caption: String,
                    style: [String: Any], tags: [[String: Any]]) async throws {
         let body: [String: Any] = [
-            "query": ep.query, "title": title, "minutes": ep.minutes, "thread": thread,
-            "caption": caption, "style": style, "tags": tags,
+            // `EchoRequest`'s limits, so a long field is never a silent 422.
+            "query": FAMAPI.cut(ep.query, 300), "title": FAMAPI.cut(title, 200),
+            "minutes": ep.minutes, "thread": FAMAPI.cut(thread, 200),
+            "caption": FAMAPI.cut(caption, 1000), "style": style, "tags": tags,
         ]
         _ = try await send("POST", "api/v1/vibe", body: body, as: Ignored.self)
     }

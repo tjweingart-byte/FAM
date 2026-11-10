@@ -149,6 +149,11 @@ struct HoleShape: Shape {
 struct PhotoEditor: View {
     let image: UIImage
     let save: (String) -> Void
+    /// A mix's cover (`cover-mode`, `coverChosen`): the whole square kept,
+    /// framed rather than cut to a circle, "Position your cover", 360 px.
+    var square: Bool = false
+    var title: String = "Move and scale"
+    var pixels: CGFloat = 256
     @Environment(\.dismiss) private var dismiss
     @State private var zoom: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -160,7 +165,7 @@ struct PhotoEditor: View {
     var body: some View {
         ModalCard(close: { dismiss() }) {
             HStack(alignment: .top) {
-                Text("Move and scale")
+                Text(title)
                     .font(FAMFont.heading(16))
                     .foregroundStyle(FAMColor.text)
                 Spacer()
@@ -201,16 +206,27 @@ struct PhotoEditor: View {
                 .resizable()
                 .frame(width: size.width, height: size.height)
                 .offset(offset)
-            HoleShape()
-                .fill(Self.ink.opacity(0.62), style: FillStyle(eoFill: true))
-            Circle()
-                .stroke(Color(hex: 0xF4EFE4).opacity(0.35), lineWidth: 1)
+            mask
         }
         .frame(width: stage, height: stage)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contentShape(Rectangle())
         .gesture(drag)
         .frame(maxWidth: .infinity)
+    }
+
+    /// The circle cut out of a wash; a cover's square is kept whole, so
+    /// its mask is a frame (`#photoOverlay.cover-mode .photo-mask`).
+    @ViewBuilder private var mask: some View {
+        if square {
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color(hex: 0xF4EFE4).opacity(0.5), lineWidth: 1.5)
+        } else {
+            HoleShape()
+                .fill(Self.ink.opacity(0.62), style: FillStyle(eoFill: true))
+            Circle()
+                .stroke(Color(hex: 0xF4EFE4).opacity(0.35), lineWidth: 1)
+        }
     }
 
     private var drag: some Gesture {
@@ -262,14 +278,15 @@ struct PhotoEditor: View {
         }
     }
 
-    /// The circle's square, 256 px, JPEG 0.85, as a data URL.
+    /// The circle's square (or the cover's), 256 px (360 for a cover),
+    /// JPEG 0.85, as a data URL (`savePhotoCrop`).
     private func cut() -> String? {
         let perPixel = fit * zoom
         guard perPixel > 0 else { return nil }
         let side = stage / perPixel
         let cx = image.size.width / 2 - offset.width / perPixel
         let cy = image.size.height / 2 - offset.height / perPixel
-        let out: CGFloat = 256
+        let out: CGFloat = pixels
         let k = out / side
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -698,10 +715,11 @@ struct IdentityView: View {
             "region": region.trimmingCharacters(in: .whitespacesAndNewlines),
             "country": country.trimmingCharacters(in: .whitespacesAndNewlines),
         ]
+        // The place beside the name, never in its way (`saveIdentity` sends
+        // both at once); its failure is said here, not swallowed (Q12).
+        let prefs = you
+        let placeTask = Task { () -> Bool in await prefs.savePreference(place) }
         Task {
-            // The place beside the name, never in its way (`saveIdentity`);
-            // its failure is said here, not swallowed (Q12).
-            let placeSaved = await you.savePreference(place)
             do {
                 try await model.api.setMe(name: n, handle: h, avatar: nil)
             } catch {
@@ -716,6 +734,7 @@ struct IdentityView: View {
                 return
             }
             if editing { await saveInterests() }
+            let placeSaved = await placeTask.value
             await you.loadProfile()
             you.meChanged()
             saving = false
@@ -759,7 +778,13 @@ struct IdentityView: View {
             return
         }
         Task {
-            try? await model.api.updateAccount(["display_name": n])
+            // A failed save is said and the step stays (`skipIdentity`).
+            do {
+                try await model.api.updateAccount(["display_name": n])
+            } catch {
+                model.nowPlaying.say(SocialModel.sentence(error, else: "Could not save that"))
+                return
+            }
             model.entry = .interests
         }
     }
@@ -835,8 +860,8 @@ struct RequiredPopup: View {
 @MainActor
 enum PasswordChange {
     /// An account with no password sets a first one; otherwise the current
-    /// one, then the new - and every other device is signed out (this one
-    /// signs in again with the new password).
+    /// one, then the new - and every device is signed out, this one too,
+    /// as on the web.
     static func start(model: AppModel, ask: Binding<TextAsk?>) {
         Task {
             let info = try? await model.api.account()
@@ -872,12 +897,11 @@ enum PasswordChange {
     private static func change(model: AppModel, current: String, new: String) {
         Task {
             do {
-                if try await model.changePassword(current: current, new: new) {
-                    model.nowPlaying.say("Password changed \u{2014} other devices signed out")
-                    await model.you.loadAccount()
-                } else {
-                    model.nowPlaying.say("Password changed \u{2014} log in with the new one")
-                }
+                // The web's words (`askCurrentPassword`); the server has
+                // signed this device out too, so it lands on the front door.
+                let still = try await model.changePassword(current: current, new: new)
+                model.nowPlaying.say("Password changed \u{2014} other devices signed out")
+                if still { await model.you.loadAccount() }
             } catch {
                 model.nowPlaying.say(SocialModel.sentence(error, else: "That did not work"))
             }
@@ -969,10 +993,9 @@ struct LocationView: View {
             let ok = await you.savePreference(body)
             saving = false
             model.nowPlaying.say(ok ? "Saved" : "Could not save that")
-            if ok {
-                await you.loadProfile()
-                dismiss()
-            }
+            // Closed either way, as the web's `saveLocation` closes it.
+            dismiss()
+            if ok { await you.loadProfile() }
         }
     }
 }

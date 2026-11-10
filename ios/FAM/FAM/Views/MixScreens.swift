@@ -14,7 +14,8 @@ struct NewMixView: View {
     @State private var photo: PhotosPickerItem?
     @State private var picking = false
     @State private var coverChoice = false
-    @State private var pendingCover: String?
+    /// The chosen photo in the cover editor ("Position your cover").
+    @State private var coverEditing: EditingPhoto?
     @State private var working = false
     @FocusState private var focused: Bool
 
@@ -25,7 +26,7 @@ struct NewMixView: View {
             // The back row with an X; the step label where a title would be,
             // beside it (`h2.nm-step`).
             HStack(spacing: 10) {
-                Button { path.removeAll() } label: {
+                Button { cancel() } label: {
                     WebIcon(path: Icons.close, size: 20, line: 2.4)
                         .foregroundStyle(FAMColor.text)
                         .frame(width: 36, height: 36)
@@ -103,23 +104,23 @@ struct NewMixView: View {
             guard let item else { return }
             Task {
                 photo = nil
-                if let data = try? await item.loadTransferable(type: Data.self), let url = MixCover.dataURL(from: data) {
-                    // Said before the photo is used, as on a mix's page:
-                    // others see it, so it is checked.
-                    pendingCover = url
+                // The editor, square, as on a mix's page (`coverChosen`):
+                // moved and scaled, the AI-check note above Save.
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = AvatarSource.prepare(data) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        coverEditing = EditingPhoto(image: image)
+                    }
                 } else {
                     model.nowPlaying.say("That file is not an image FAM can read")
                 }
             }
         }
-        .alert("Use this photo as the cover?", isPresented: Binding(get: { pendingCover != nil },
-                                                                     set: { if !$0 { pendingCover = nil } })) {
-            Button("Cancel", role: .cancel) { pendingCover = nil }
-            Button("Use photo") {
-                cover = pendingCover ?? ""
-                pendingCover = nil
-            }
-        } message: { Text(MixCover.note) }
+        .fullScreenCover(item: $coverEditing) { e in
+            PhotoEditor(image: e.image, save: { chosen in cover = chosen },
+                        square: true, title: "Position your cover", pixels: 360)
+                .famThemed()
+        }
         .confirmationDialog("Cover", isPresented: $coverChoice, titleVisibility: .hidden) {
             // The picker waits for the dialog to close, or it is dropped.
             Button("Choose a different photo") {
@@ -164,6 +165,13 @@ struct NewMixView: View {
         .overlay(alignment: .bottomTrailing) {
             CoverBadge(size: 30, glyph: 13, ring: 2.5).offset(x: 7, y: 7)
         }
+    }
+
+    /// `cancelNewMix` → `openPlayFAM`: back on All, the list asked afresh.
+    private func cancel() {
+        path.removeAll()
+        mixes.categoryState = CategoryState()
+        Task { await mixes.load() }
     }
 
     private func create() async {
@@ -242,7 +250,7 @@ struct AddTopicsView: View {
             Text(mixes.recommended?.personalised == true ? "Recommended for you" : "Topics to follow")
                 .monoLabel(9, tracking: 1.08).padding(.top, 14).padding(.bottom, 8)
             ForEach(mixes.recommendations(for: nil, excludingMix: false).prefix(15)) { s in
-                row(s, id: "f:" + s.id, title: s.label, sub: mixes.subjectSub(s), label: s.label)
+                row(s, id: "f:" + s.id, title: s.label, sub: mixes.addTopicsSub(s), label: s.label)
             }
         }
     }
@@ -256,8 +264,10 @@ struct AddTopicsView: View {
                    added: false, label: "Add it to this mix") { Task { await addTyped() } }
             .contentShape(Rectangle())
             .onTapGesture { Task { await addTyped() } }
+        // Teams and topics in the listener's interest order (`followRanked`).
+        let ranked = mixes.interestOrder()
         if typed.count >= 2 {
-            let picks = mixes.subjects.filter { $0.id != "sports" }.flatMap { s in
+            let picks = ranked.filter { $0.id != "sports" }.flatMap { s in
                 (s.focusPicks ?? []).filter { $0.lowercased().contains(lower) }.map { (s, $0) }
             }.prefix(5)
             if !picks.isEmpty {
@@ -268,7 +278,7 @@ struct AddTopicsView: View {
                 }
             }
         }
-        let subjects = mixes.subjects.filter { $0.label.lowercased().contains(lower) }.prefix(12)
+        let subjects = ranked.filter { $0.label.lowercased().contains(lower) }.prefix(12)
         if !subjects.isEmpty {
             Text("Topics").monoLabel(9, tracking: 1.08).padding(.top, 14).padding(.bottom, 8)
             ForEach(Array(subjects)) { s in
@@ -377,8 +387,10 @@ struct PublicMixView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             do {
-                let found = try await model.api.publicMix(id)
-                if found.mine { path = [.mix(found.id)] } else { mix = found }
+                // Your own mix found in the search shows its public page,
+                // "This is one of your mixes" (`renderPublicMix`); only a
+                // shared link opens your own page (`openLinkedMix`).
+                mix = try await model.api.publicMix(id)
             } catch {
                 problem = MixesModel.sentence(error, else: "That mix is private or no longer exists.")
             }
@@ -525,21 +537,29 @@ struct AddToMixSheet: View {
     }
 
     /// One after the other, on the main actor: the topic, then the list.
+    /// The topic and the mixes, both read before anything is offered; a
+    /// failure is a toast and no sheet (`openAddToMix`).
     private func load() async {
-        guard !query.isEmpty else { problem = "Play something first"; return }
+        guard !query.isEmpty else { fail("Play something first"); return }
         let answer: EpisodeTopic
         do {
             answer = try await model.api.episodeTopic(query: query, title: title)
+            try await mixes.loadOrThrow()
         } catch {
-            problem = "Could not load your myFAM mixes"
+            fail("Could not load your myFAM mixes")
             return
         }
-        await mixes.load()
         if answer.id.isEmpty && (answer.query ?? "").isEmpty {
-            problem = "Could not tell what this episode is about"
+            fail("Could not tell what this episode is about")
         } else {
             topic = answer
         }
+    }
+
+    private func fail(_ words: String) {
+        problem = words
+        dismiss()
+        model.nowPlaying.say(words)
     }
 
     private func entry(_ t: EpisodeTopic) -> Any {
@@ -548,7 +568,7 @@ struct AddToMixSheet: View {
 
     private func add(to mix: Mix, _ t: EpisodeTopic) async {
         let present = mix.items.contains { item in
-            (!t.id.isEmpty && item.id == t.id)
+            (!t.id.isEmpty && item.id.lowercased() == t.id.lowercased())
                 || (t.id.isEmpty && item.custom && item.query.lowercased() == (t.query ?? "").lowercased())
         }
         dismiss()

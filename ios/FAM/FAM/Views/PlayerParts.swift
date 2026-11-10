@@ -373,6 +373,9 @@ struct CaptionsCard: View {
     }
 
     private var currentText: String {
+        // What the web's card says while captions are off (`renderCaptions`),
+        // here only as the card fades out.
+        if !now.captionsOn { return "Displayed here when captions are turned on." }
         if now.sentences.isEmpty {
             return now.captionsDone
                 ? "No transcript for this one \u{2014} an episode you attached a file to is never stored, so there is nothing to read back."
@@ -658,24 +661,36 @@ struct ActionSheetList: View {
 /// "Which one do you mean?" (§426) and the limit screen, over every screen.
 struct RefusalLayer: View {
     @EnvironmentObject private var model: AppModel
+    /// "See plans" (`openPlansFromLimit`): the plans list, asked as it opens.
+    @State private var plans = false
 
     var body: some View {
         ZStack {
             if let ask = model.readingAsk {
-                OverlayModal(close: { model.answerReading(nil) }) {
+                // The web's reading card has no backdrop close: Cancel is
+                // the only way out without an answer.
+                OverlayModal(close: {}) {
                     ReadingCard(ask: ask)
                 }
                 .transition(.opacity)
             }
             if let verdict = model.limitReached {
                 OverlayModal(close: { model.limitReached = nil }) {
-                    LimitCard(verdict: verdict)
+                    LimitCard(verdict: verdict) {
+                        model.limitReached = nil
+                        plans = true
+                    }
                 }
                 .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.2), value: model.readingAsk)
         .animation(.easeOut(duration: 0.2), value: model.limitReached)
+        .sheet(isPresented: $plans) {
+            PlansSheet(page: nil, fetch: true)
+                .environmentObject(model)
+                .famThemed()
+        }
     }
 }
 
@@ -711,6 +726,8 @@ struct ReadingCard: View {
 struct LimitCard: View {
     @EnvironmentObject private var model: AppModel
     let verdict: QuotaVerdict
+    /// "See plans": the card closes and the plans list opens.
+    var seePlans: () -> Void = {}
 
     var body: some View {
         WebIcon(path: PlayerIcons.alert, size: 18, line: 2)
@@ -742,9 +759,10 @@ struct LimitCard: View {
                 .foregroundStyle(FAMColor.textMuted)
                 .padding(.top, 10)
         }
-        HStack {
+        HStack(spacing: 8) {
             Spacer()
             ModalButton(label: "Not now") { model.limitReached = nil }
+            ModalButton(label: "See plans", primary: true) { seePlans() }
         }
         .padding(.top, 14)
     }

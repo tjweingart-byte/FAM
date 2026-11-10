@@ -114,6 +114,12 @@ final class YouModel: ObservableObject {
         if let people = try? await safety.blocked() { blockedCount = people.count }
     }
 
+    /// The voice bank again, for Settings' "Voice for your searches" tapped
+    /// before it had loaded (`openVoiceMenu('settings')`).
+    func reloadVoices() async {
+        if let found = try? await api.voices() { voices = found }
+    }
+
     func loadActivation() async -> Activation? {
         if let found = try? await api.activation() {
             activation = found
@@ -277,6 +283,10 @@ extension AppModel {
     /// and length, and the shelf is told it was played.
     func playSaved(_ item: SavedItem) {
         let title = (item.title ?? "").isEmpty ? item.query : (item.title ?? "")
+        // The web's `playSaved` plays it by setting the chosen length
+        // (`selectedLengthMinutes = item.minutes`), so searchFAM's Length
+        // follows it until the next return to the app puts it back to 1.5.
+        if item.minutes > 0 { searchLength = item.minutes }
         play(Episode(key: EpisodeKey(query: item.query, minutes: item.minutes),
                      title: title, surface: "other", titleOverridden: false))
         if let id = item.id, !id.isEmpty {
@@ -307,16 +317,22 @@ extension AppModel {
     /// After a sign-up or a sign-in (`afterAccount`): the interests already
     /// done - straight in; who they are already set (a name, a handle and a
     /// place) - the interests; otherwise who they are first. Any failure
-    /// lets them in rather than holding the app shut.
-    func beginEntry() async {
+    /// lets them in rather than holding the app shut. Going straight in
+    /// hands over to DailyFAM with the FAM intro (`finishEntry`), except
+    /// from the app's own opening, where the intro has already played
+    /// (`afterAccount({fromBoot: true})`).
+    func beginEntry(handoff: Bool = true) async {
         guard stage == .ready else { return }
         entry = .checking
         guard let prefs = try? await api.preferences() else {
             entry = nil
+            if handoff { playIntro() }
             return
         }
         if prefs.introDone == true {
+            UserDefaults.standard.set(true, forKey: AppModel.entryKey)
             entry = nil
+            if handoff { playIntro() }
             return
         }
         let profile = try? await api.myProfile()
@@ -329,6 +345,10 @@ extension AppModel {
 
     /// The first run finished or skipped (`finishEntry`): into DailyFAM.
     func finishEntry() {
+        // This phone has finished the first run (`entry: "done"`), and the
+        // wordmark hands them into DailyFAM (`beginEntryHandoff`, §201).
+        UserDefaults.standard.set(true, forKey: AppModel.entryKey)
+        playIntro()
         // The tabs are drawn afresh, on DailyFAM.
         entry = nil
         Task { await loadRails() }

@@ -5,30 +5,22 @@ import SwiftUI
 /// FRIENDS (mutual follows, `op-follow-graph`), FOLLOWING (one-way) and
 /// FOLLOWS YOU. Opening it is what clears "new followers"
 /// (`POST /api/friends/seen`) - never the popup. Rows open the profile;
-/// Follow flips to "✓ Following" at once; Following unfollows (asked
-/// first here - the web does it in one tap, quirk 7).
+/// Follow flips to "✓ Following" at once, the tick drawing in; Following
+/// unfollows in one tap, flipping back at once (the owner's decision 7).
 struct FriendsView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var social: SocialModel
     @State private var search = ""
     @State private var found: [FollowPerson]?
     @State private var flipping: Set<String> = []
-    @State private var unfollowing: FollowPerson?
+    /// Unfollowed on the tap, before the server has answered (`Motion.follow`).
+    @State private var unflipping: Set<String> = []
     @State private var invite: [Any]?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                SocialBackButton { social.back() }
-                Text("Friends")
-                    .font(FAMFont.heading(19, .medium))
-                    .foregroundStyle(FAMColor.text)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
+            // `.back-row`: the double chevron (stroke 2.6, .85) and "Friends".
+            YouBackRow(title: "Friends") { social.back() }
             ModalField(placeholder: "Find someone by handle", text: $search, plain: true)
                 .padding(.horizontal, 18)
                 .task(id: search) { await lookUp() }
@@ -68,14 +60,6 @@ struct FriendsView: View {
         // Your handle, for the invite's "I'm @handle".
         .task { if social.me == nil { await social.loadMe() } }
         .task { await social.friendsOpened() }
-        .confirmationDialog(unfollowing.map { "Unfollow \(displayName($0))?" } ?? "",
-                            isPresented: Binding(get: { unfollowing != nil }, set: { if !$0 { unfollowing = nil } }),
-                            titleVisibility: .visible) {
-            if let p = unfollowing {
-                Button("Unfollow", role: .destructive) { unfollow(p) }
-                Button("Cancel", role: .cancel) {}
-            }
-        }
         .sheet(isPresented: Binding(get: { invite != nil }, set: { if !$0 { invite = nil } })) {
             ActivityView(items: invite ?? []) { invite = nil }
         }
@@ -183,7 +167,8 @@ struct FriendsView: View {
                     Face(name: p.name ?? "", handle: p.handle ?? "", avatar: p.avatar ?? "", size: 40, initialsSize: 14)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 5) {
-                            Text(displayName(p))
+                            // `personRow`: the name, else "Someone".
+                            Text(rowName(p))
                                 .font(FAMFont.body(13.5, .semibold))
                                 .foregroundStyle(FAMColor.text)
                                 .lineLimit(1)
@@ -209,6 +194,7 @@ struct FriendsView: View {
 
     private func isFollowing(_ p: FollowPerson) -> Bool {
         if flipping.contains(p.userId) { return true }
+        if unflipping.contains(p.userId) { return false }
         if let f = p.following, found != nil { return f || social.isFollowing(p.userId) }
         return social.isFollowing(p.userId)
     }
@@ -219,14 +205,14 @@ struct FriendsView: View {
         let on = isFollowing(p)
         return Button {
             if on {
-                if !flipping.contains(p.userId) { unfollowing = p }
-            } else {
+                if !flipping.contains(p.userId) { unfollow(p) }
+            } else if !unflipping.contains(p.userId) {
                 follow(p)
             }
         } label: {
             HStack(spacing: 5) {
                 if flipping.contains(p.userId) {
-                    WebIcon(path: Icons.check, size: 12, line: 2.6)
+                    FollowTick()
                 }
                 Text(on ? "Following" : "Follow").font(FAMFont.body(12.5, .medium))
             }
@@ -254,11 +240,14 @@ struct FriendsView: View {
         }
     }
 
-    /// `unfollowPerson`: then the search clears and the graph is re-read,
-    /// as after a follow - a result still saying "Following" would be wrong.
+    /// `unfollowPerson`: one tap, "Follow" at once and put back if refused;
+    /// then the search clears and the graph is re-read, as after a follow -
+    /// a result still saying "Following" would be wrong.
     private func unfollow(_ p: FollowPerson) {
+        unflipping.insert(p.userId)
         Task {
             let ok = await social.unfollow(p.userId)
+            unflipping.remove(p.userId)
             if ok {
                 search = ""
                 found = nil
@@ -266,15 +255,21 @@ struct FriendsView: View {
         }
     }
 
+    private func rowName(_ p: FollowPerson) -> String {
+        let n = p.name ?? ""
+        return n.isEmpty ? "Someone" : n
+    }
+
     private func displayName(_ p: FollowPerson) -> String {
         let n = p.name ?? ""
         return n.isEmpty ? "@" + (p.handle ?? "") : n
     }
 
-    /// `inviteFriends`: "Come listen with me on FAM — I'm @handle." and the
-    /// referral link (while the waitlist runs) or the app's address.
+    /// `inviteFriends`: "Come listen with me on FAM — I'm @handle.", the
+    /// title "FAM" and the referral link (while the waitlist runs) or the
+    /// app's address, as three things - not one string.
     private func inviteNewUsers() {
         let handle = social.myHandle.isEmpty ? (model.circle?.me?.handle ?? "") : social.myHandle
-        invite = [model.inviteText(handle: handle)]
+        invite = model.inviteItems(handle: handle)
     }
 }

@@ -144,6 +144,7 @@ final class SocialModel: ObservableObject {
         coverPath = []
         banner = nil
         follower = nil
+        followingBack = false
         newChatOpen = false
         cursor = 0
         bootstrapped = false
@@ -466,7 +467,10 @@ final class SocialModel: ObservableObject {
             return
         }
         let next = bannerQueue.removeFirst()
-        withAnimation(.easeOut(duration: 0.25)) { banner = next }
+        // `#notifBanner.show`: down from above, 0.28 s cubic-bezier(.2,.8,.3,1).
+        withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.28)) { banner = next }
+        // `role=status aria-live=polite`: VoiceOver reads it as it lands.
+        AccessibilityNotification.Announcement(next.title + ". " + next.text).post()
         scheduleBannerEnd(next.id)
     }
 
@@ -512,14 +516,12 @@ final class SocialModel: ObservableObject {
         route(b)
     }
 
+    /// A message opens its conversation over whatever is on screen, without
+    /// changing tab (`openThreadWith` pushes the thread on the stack shown);
+    /// a follow goes to YourFAM, then Friends.
     private func route(_ b: SocialBanner) {
         if let chat = b.chat {
-            if cover != nil {
-                coverPath.append(.thread(chat))
-            } else {
-                requestTab(.messages)
-                messagesPath = [.thread(chat)]
-            }
+            open(.thread(chat))
         } else {
             if cover != nil {
                 coverPath.append(.friends)
@@ -542,19 +544,32 @@ final class SocialModel: ObservableObject {
         Task { await api.followerAnnounced(next.userId) }
     }
 
-    /// Follow back from the popup: "You and <Name> are friends now".
+    /// The follow-back in flight, so a second tap sends nothing.
+    @Published private(set) var followingBack = false
+
+    /// Follow back from the popup (`followBack`): the popup stays up until
+    /// the server says yes - a refusal is only the toast, the server's
+    /// sentence, else "Could not follow them back" - then "You and <Name>
+    /// are friends now" ("they" with no name).
     func followBack(_ p: FollowPerson) {
-        follower = nil
+        guard !followingBack else { return }
+        followingBack = true
         Task {
             do {
                 try await api.follow(userID: p.userId)
-                let name = (p.name ?? "").isEmpty ? "@" + (p.handle ?? "") : (p.name ?? "")
+                followingBack = false
+                if follower?.userId == p.userId { follower = nil }
+                let name = (p.name ?? "").isEmpty ? "they" : (p.name ?? "")
                 say("You and \(name) are friends now")
                 await loadGraph()
+                Task { await loadMe() }
+                // The next follower waits for this popup to have gone.
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                checkNewFollowers()
             } catch {
-                say(SocialModel.sentence(error, else: "Could not follow that person"))
+                followingBack = false
+                say(SocialModel.sentence(error, else: "Could not follow them back"))
             }
-            checkNewFollowers()
         }
     }
 
@@ -654,6 +669,12 @@ final class ChatModel: ObservableObject {
         } catch {
             if rows.isEmpty { state = .failed }
         }
+    }
+
+    /// A poll at once (`pollThread` after a rename or a new photo): the
+    /// group's system line arrives without waiting for the beat.
+    func pollNow() async {
+        await poll()
     }
 
     private func poll() async {

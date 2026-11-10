@@ -89,7 +89,9 @@ struct SendInsideFAM: View {
             faces {
                 ForEach(shown) { g in
                     let name = (g.name ?? "").isEmpty ? "Group" : (g.name ?? "")
-                    let pick = Pick(to: g.with, label: name, button: "Share with " + name)
+                    // "Sent to <group name|the group>" (`confirmShareContact`).
+                    let said = (g.name ?? "").isEmpty ? "the group" : name
+                    let pick = Pick(to: g.with, label: said, button: "Share with " + name)
                     Button { toggle(pick) } label: {
                         PickFace(name: name, handle: "", avatar: g.avatar ?? "", on: picked == pick, label: name)
                     }
@@ -298,7 +300,7 @@ struct ShareTargetRows: View {
         }
         if key == "copy" {
             UIPasteboard.general.string = text
-            model.nowPlaying.say("Link copied \u{2014} paste it wherever you like")
+            model.nowPlaying.snack("Link copied \u{2014} paste it wherever you like")
             done()
             return
         }
@@ -310,11 +312,14 @@ struct ShareTargetRows: View {
             done()
             return
         }
+        // A bare link goes as a link (the receiving app draws its card);
+        // words go with the server's subject (`title: t.subject`), which
+        // Mail takes for the email's subject.
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("http"), !trimmed.contains(" "), let link = URL(string: trimmed) {
             activity = [link]
         } else {
-            activity = [text]
+            activity = [ShareTextItem(text: text, subject: t.subject ?? "")]
         }
     }
 

@@ -37,12 +37,6 @@ struct ChatScreen: View {
     @State private var person: PersonPage?
     @State private var sheet: SheetSpec?
     @State private var reporting: ReportTarget?
-    @State private var blocking = false
-    @State private var blockName = ""
-    @State private var blockHandle = ""
-    @State private var blockingMember = false
-    @State private var confirmDelete = false
-    @State private var confirmLeave = false
     @State private var renaming = false
     @State private var newName = ""
     @State private var showMembers = false
@@ -103,11 +97,6 @@ struct ChatScreen: View {
             .sheet(item: $reporting) { target in reportSheet(target) }
             .sheet(isPresented: $showMembers) { membersSheet }
             .sheet(item: $deeper) { base in deeperSheet(base) }
-            .modifier(ChatConfirmations(chat: chat, confirmDelete: $confirmDelete, confirmLeave: $confirmLeave,
-                                        first: first, deleteChat: deleteChat, leaveGroup: leaveGroup))
-            .blockConfirmation(isPresented: $blocking, name: blockName, handle: blockHandle, api: model.safety,
-                               onBlocked: { blocked(member: blockingMember) },
-                               onError: { model.nowPlaying.say($0) })
             .alert("Name this group", isPresented: $renaming) {
                 TextField("Group name", text: $newName)
                 Button("Cancel", role: .cancel) {}
@@ -180,12 +169,16 @@ struct ChatScreen: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                SocialBackButton { social.back() }
+                SocialBackButton(label: "Back to messages") { social.back() }
                 Button(action: whoTapped) { whoLabel }
                     .buttonStyle(.press)
+                    // The web's who button (`aria-label="View profile"`).
+                    .accessibilityLabel(who.group ? displayName : "View profile")
+                    .accessibilityHint(who.group ? "See who\u{2019}s here" : "")
                 if who.group {
                     Button { photoMenu() } label: {
-                        RoundIcon { Image(systemName: "paperclip").font(.system(size: 15, weight: .medium)) }
+                        // Search's paperclip, as the web draws it here.
+                        RoundIcon { WebIcon(path: SearchIcons.attach, size: 17, line: 2) }
                     }
                     .buttonStyle(.press)
                     .accessibilityLabel(who.avatar.isEmpty ? "Add a group photo" : "Change the group photo")
@@ -255,8 +248,18 @@ struct ChatScreen: View {
     private var chipLabels: [String] { person?.interestLabels ?? [] }
     private var inCommon: Int { social.inCommon(chipLabels) }
 
+    /// `openThreadProfile`: a group's people, else the profile by handle -
+    /// with no handle, "They have not chosen a handle yet".
     private func whoTapped() {
         if who.group { showMembers = true; return }
+        openProfile()
+    }
+
+    private func openProfile() {
+        guard !who.handle.isEmpty else {
+            model.nowPlaying.say("They have not chosen a handle yet")
+            return
+        }
         social.openPerson(handle: who.handle, userID: who.with, name: who.name, avatar: who.avatar)
     }
 
@@ -344,32 +347,41 @@ struct ChatScreen: View {
         }
     }
 
-    /// Each row with its day separator (every row, system lines too -
-    /// quirk 4) and, in a group, the sender's first name over the first
-    /// bubble of a run - not over a card, whose label already names them
-    /// (quirk 5).
+    /// Each row with its day separator and, in a group, the sender's first
+    /// name over the first of each run (`renderThreadBody`): a separator
+    /// only when the day changes, never on a system line, which also leaves
+    /// the last day alone; the name over cards as well as bubbles, a run
+    /// broken by a system line, by your own message or by another sender -
+    /// never by a new day.
     private var chatLines: [ChatLine] {
         var out: [ChatLine] = []
-        var previous: ChatMessage?
+        var lastDay: Date?
+        var lastFrom = ""
         for row in chat.rows {
             let m = row.message
-            let at = m.at ?? Date().timeIntervalSince1970
-            var day = ""
-            if let p = previous, let pat = p.at, SocialTime.sameDay(pat, at) {
-                day = ""
-            } else {
-                day = SocialTime.day(at)
+            if who.group && m.kind == "system" {
+                lastFrom = ""
+                out.append(ChatLine(row: row, day: "", from: ""))
+                continue
             }
             var from = ""
-            if who.group && m.mine != true && m.kind == "text" {
-                let sender = m.from?.name ?? ""
-                let sameRun = previous.map { p in
-                    p.mine != true && p.kind != "system" && (p.from?.name ?? "") == sender && day.isEmpty
-                } ?? false
-                if !sameRun { from = socialFirstName(sender, handle: m.from?.handle ?? "") }
+            if who.group && m.mine != true {
+                let name = socialFirstName(m.from?.name ?? "", handle: m.from?.handle ?? "")
+                if name != lastFrom { from = name }
+                lastFrom = name
+            } else {
+                lastFrom = ""
+            }
+            var day = ""
+            if let at = m.at {
+                let when = SocialTime.date(at)
+                let same = lastDay.map { Calendar.current.isDate($0, inSameDayAs: when) } ?? false
+                if !same {
+                    lastDay = when
+                    day = SocialTime.day(at)
+                }
             }
             out.append(ChatLine(row: row, day: day, from: from))
-            previous = m
         }
         return out
     }
@@ -448,6 +460,7 @@ struct ChatScreen: View {
                 .lineLimit(1...5)
                 .textInputAutocapitalization(.sentences)
                 .focused($typing)
+                .accessibilityLabel("Message")
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
                 .frame(minHeight: 36)
@@ -466,9 +479,10 @@ struct ChatScreen: View {
             .buttonStyle(.press)
             .accessibilityLabel("Send")
         }
+        // `.yf-composer`: 10 on top, 12 at the sides, 14 under.
         .padding(.horizontal, 12)
         .padding(.top, 10)
-        .padding(.bottom, 10)
+        .padding(.bottom, 14)
         .background(FAMColor.background.ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
     }
@@ -525,16 +539,14 @@ struct ChatScreen: View {
             actions.append(SheetAction(label: who.avatar.isEmpty ? "Add a group photo" : "Change group photo") {
                 photoMenu()
             })
-            actions.append(SheetAction(label: "Leave group", danger: true) { confirmLeave = true })
-            actions.append(SheetAction(label: "Delete chat", danger: true) { confirmDelete = true })
+            actions.append(SheetAction(label: "Leave group", danger: true) { askLeave() })
+            actions.append(SheetAction(label: "Delete chat", danger: true) { askDelete() })
             actions.append(SheetAction(label: "Report this chat", danger: true) {
                 reporting = ReportTarget(subject: .group(id: who.with))
             })
         } else {
-            actions.append(SheetAction(label: "View profile") {
-                social.openPerson(handle: who.handle, userID: who.with, name: who.name, avatar: who.avatar)
-            })
-            actions.append(SheetAction(label: "Delete chat", danger: true) { confirmDelete = true })
+            actions.append(SheetAction(label: "View profile") { openProfile() })
+            actions.append(SheetAction(label: "Delete chat", danger: true) { askDelete() })
             if !who.handle.isEmpty {
                 let name = who.name.isEmpty ? "@" + who.handle : who.name
                 let handle = who.handle
@@ -549,11 +561,22 @@ struct ChatScreen: View {
         sheet = SheetSpec(actions: actions)
     }
 
+    /// The web's action sheets (`blockPerson`, `confirmDeleteChat`,
+    /// `confirmLeaveGroup`): the sentence as the sheet's group line, then
+    /// the one coral row.
     private func askBlock(name: String, handle: String, member: Bool) {
-        blockName = name
-        blockHandle = handle
-        blockingMember = member
-        blocking = true
+        sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked(member: member) }
+    }
+
+    private func askDelete() {
+        let them = who.group ? "everybody else" : first
+        let header = "Delete this chat? It goes from your messages only \u{2014} " + them + " still has it."
+        sheet = SheetSpec(header: header, actions: [SheetAction(label: "Delete chat", danger: true) { deleteChat() }])
+    }
+
+    private func askLeave() {
+        let header = "Leave " + displayName + "? You won\u{2019}t get its messages any more, and the others are told."
+        sheet = SheetSpec(header: header, actions: [SheetAction(label: "Leave group", danger: true) { leaveGroup() }])
     }
 
     /// After a block: "Blocked", the graph and inbox re-read; a 1:1 chat
@@ -606,6 +629,8 @@ struct ChatScreen: View {
             do {
                 let answer = try await model.api.renameGroup(gid, name: name)
                 if let g = answer.group { chat.apply(g) }
+                // The "named the group" line at once (`pollThread`).
+                await chat.pollNow()
             } catch {
                 model.nowPlaying.say(SocialModel.sentence(error, else: "Could not rename it"))
             }
@@ -656,6 +681,7 @@ struct ChatScreen: View {
             do {
                 let answer = try await model.api.setGroupPhoto(gid, avatar: avatar)
                 if let g = answer.group { chat.apply(g) }
+                await chat.pollNow()
             } catch {
                 model.nowPlaying.say(SocialModel.sentence(error, else: "Could not change the photo"))
             }
@@ -674,34 +700,6 @@ struct ChatScreen: View {
                               askBlock(name: m.name.isEmpty ? "@" + m.handle : m.name, handle: m.handle, member: true)
                           })
             .environmentObject(model)
-    }
-}
-
-/// The confirmations, as dialogs with a title and a normal-case message
-/// (quirk 3), kept out of `ChatScreen.body` so it type-checks quickly.
-private struct ChatConfirmations: ViewModifier {
-    @ObservedObject var chat: ChatModel
-    @Binding var confirmDelete: Bool
-    @Binding var confirmLeave: Bool
-    let first: String
-    let deleteChat: () -> Void
-    let leaveGroup: () -> Void
-
-    func body(content: Content) -> some View {
-        content
-            .confirmationDialog("Delete this chat?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete chat", role: .destructive) { deleteChat() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("It goes from your messages only \u{2014} \(chat.who.group ? "everybody else" : first) still has it.")
-            }
-            .confirmationDialog("Leave \(chat.who.name.isEmpty ? "this group" : chat.who.name)?",
-                                isPresented: $confirmLeave, titleVisibility: .visible) {
-                Button("Leave group", role: .destructive) { leaveGroup() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("You won\u{2019}t get its messages any more, and the others are told.")
-            }
     }
 }
 
@@ -820,8 +818,10 @@ struct ChatLineView: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(FAMColor.surface, in: Capsule())
-                .overlay(Capsule().stroke(FAMColor.borderStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                // `.msg-receipt`: radius 11, a dashed rgba(fg, .22) line.
+                .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 11))
+                .overlay(RoundedRectangle(cornerRadius: 11)
+                    .stroke(FAMColor.text.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
             }
             .padding(.top, -2)
             .padding(.bottom, 10)
@@ -1036,9 +1036,9 @@ struct TypingBubble: View {
     }
 }
 
-/// See who's here (shot 25), without the web's inert "You" row (quirk 2):
-/// each other member opens their profile, and each has Report and Block -
-/// the web has neither for a group's people (1.2).
+/// See who's here (shot 25): each other member opens their profile, and
+/// each has Report and Block - the web has neither for a group's people
+/// (1.2) - then the web's last row, "You", which does nothing but close.
 struct GroupMembersSheet: View {
     @Environment(\.dismiss) private var dismiss
     let name: String
@@ -1056,6 +1056,7 @@ struct GroupMembersSheet: View {
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(others, id: \.self) { m in row(m) }
+                    youRow
                 }
             }
             SheetCancelButton { dismiss() }
@@ -1115,6 +1116,19 @@ struct GroupMembersSheet: View {
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 9)
+    }
+
+    /// `openGroupMembers`' last item: "You", a row whose tap only closes.
+    private var youRow: some View {
+        Button { dismiss() } label: {
+            Text("You")
+                .font(FAMFont.body(13.5, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                .padding(.horizontal, 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
     }
 
     /// Close the sheet, then act once it has gone.

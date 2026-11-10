@@ -49,10 +49,17 @@ final class Speller {
     func ask(_ word: String, first: Bool) async -> String? {
         let k = Self.key(word, first)
         if let i = cache.index(forKey: k) { return cache[i].value }
-        guard let answer = try? await api.spell([word], first: [first]) else { return nil }
-        let fix: String? = answer.corrections.first ?? nil
-        cache[k] = fix
-        return fix
+        do {
+            let answer = try await api.spell([word], first: [first])
+            let fix: String? = answer.corrections.first ?? nil
+            cache[k] = fix
+            return fix
+        } catch {
+            // A server that answered and refused is remembered as no fix, as
+            // the web's `r.ok ? … : null` does; offline is asked again.
+            if error is FAMError { cache[k] = Optional<String>.none }
+            return nil
+        }
     }
 
     func noteReverted(_ word: String) {
@@ -86,11 +93,17 @@ final class Speller {
     private var answered: Set<Int> = []
 
     private func fill(_ ask: [Word], request: Int) async {
-        let answer = try? await api.spell(ask.map { $0.word }, first: ask.map { $0.first })
-        if let answer {
+        do {
+            let answer = try await api.spell(ask.map { $0.word }, first: ask.map { $0.first })
             for (i, w) in ask.enumerated() {
                 let fix: String? = i < answer.corrections.count ? answer.corrections[i] : nil
                 cache[Self.key(w.word, w.first)] = fix
+            }
+        } catch {
+            // Refused: every word asked is remembered as no fix (the web's
+            // `fixes[i] || null` over a null answer); offline: nothing kept.
+            if error is FAMError {
+                for w in ask { cache[Self.key(w.word, w.first)] = Optional<String>.none }
             }
         }
         answered.insert(request)

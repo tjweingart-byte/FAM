@@ -11,11 +11,22 @@ import UIKit
 /// handed back to the app (the AI question, the waitlist) instead of a
 /// generic failure.
 ///
-/// What the server sends with `fmt=pcm`: bare 16-bit little-endian mono
-/// samples at the rate in `X-Sample-Rate`, no header, until the episode
-/// ends. `static/fam-audio.js` is the reference player; this does what its
-/// PCM path does: keep every sample that arrives, start once half a second
-/// is in hand, never play past what has arrived.
+/// What the server sends (decision 3): asked as the web asks, with
+/// `fmt=opus&link=1`. A stream is "fam-opus v1" (`X-FAM-Audio-Format:
+/// opus`), decoded here as it arrives (`OpusStream.swift`); a replay may
+/// be JSON with a signed link to its kept Ogg Opus file (`X-FAM-Audio-Link:
+/// 1`, §252), read from the bucket and decoded the same way - and if that
+/// file will not play, the episode is streamed instead with `link_failed=1`,
+/// as the web does. A server that cannot send Opus answers PCM: bare 16-bit
+/// little-endian mono samples at the rate in `X-Sample-Rate`. **PCM is the
+/// automatic fallback**: if this phone cannot decode Opus, the same request
+/// is asked again with `fmt=pcm` from the sample already in hand, and later
+/// episodes ask PCM from the start (`opusBroken`), so nothing stops
+/// playing. `static/fam-audio.js` is the reference player; whatever came,
+/// this keeps the decoded samples - the same samples PCM would have carried
+/// - start once half a second is in hand, and never plays past what has
+/// arrived, so seeking, the arrived range, the offline shelf, speed and the
+/// lock screen are what they were.
 ///
 /// **Every sample is kept, and the player node only ever holds a copy.** iOS
 /// throws away whatever is queued on an `AVAudioPlayerNode` when the audio
@@ -143,6 +154,33 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     /// when the node's own clock is gone (after a stop or a route change).
     private var lastFrame = 0
 
+    /// How this episode's bytes are coming in (decision 3): PCM, the Opus
+    /// stream, a replay's link (its JSON), or the linked Ogg Opus file.
+    private enum Wire { case pcm, opus, link, ogg }
+    private var wire: Wire = .pcm
+    private var framer = FamOpusFramer()
+    private var ogg = OggOpusReader()
+    private var decoder: FamOpusDecoder?
+    /// Pre-skip samples (at the stream's rate) still to drop.
+    private var preskipLeft = 0
+    private var preskipKnown = false
+    /// The episode's true length in samples, from the end marker or the
+    /// link; -1 until known.
+    private var finalLength = -1
+    private var linkBody = Data()
+    private var packetsDecoded = 0
+    private var framesDecoded = 0
+    /// The first answer's headers (cache, episode id, keepable) are read
+    /// once; a fallback's answer does not overwrite them.
+    private var headersRead = false
+
+    /// This phone could not decode Opus: every later episode asks PCM
+    /// (kept per build, so an update tries Opus again).
+    static var opusBroken: Bool {
+        get { UserDefaults.standard.bool(forKey: "opus_broken " + FAMAPI.client) }
+        set { UserDefaults.standard.set(newValue, forKey: "opus_broken " + FAMAPI.client) }
+    }
+
     private var streamDone = false
     private var started = false
     private var retries = 0
@@ -188,7 +226,9 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         self.title = title
         self.picture = picture
         problem = ""
-        self.request = request
+        // Opus as the web asks, unless this phone has shown it cannot.
+        self.request = Self.opusBroken ? Self.asking(request, fmt: "pcm", link: false, linkFailed: false) : request
+        resetWire()
         samples = []; bytesTaken = 0; skipBytes = 0; carry = Data()
         epoch += 1; base = 0; next = 0; outstanding = 0; lastFrame = 0
         streamDone = false; started = false; retries = 0
@@ -228,6 +268,7 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         self.picture = picture
         problem = ""
         request = nil
+        resetWire()
         samples = []; bytesTaken = 0; skipBytes = 0; carry = Data()
         epoch += 1; base = 0; next = 0; outstanding = 0; lastFrame = 0
         streamDone = false; started = false; retries = 0
@@ -377,30 +418,63 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         guard dataTask == task else { completionHandler(.cancel); return }
         let http = response as? HTTPURLResponse
-        if let http, !(200..<300).contains(http.statusCode) {
-            refusedResponse = http
+        if wire == .ogg {
+            // The bucket's answer for a replay's link (§252): anything but
+            // the file streams the episode instead.
+            if let http, !(200..<300).contains(http.statusCode) {
+                completionHandler(.cancel)
+                linkFailed("the kept audio answered \(http.statusCode)")
+                return
+            }
             completionHandler(.allow)
             return
         }
-        if http?.value(forHTTPHeaderField: "X-FAM-Audio-Format") == "opus" {
-            // Asked for pcm; the spike does not decode Opus (that is stage 3).
-            completionHandler(.cancel)
-            fail("the server sent Opus to a request for PCM")
+        if let http, !(200..<300).contains(http.statusCode) {
+            refusedResponse = http
+            completionHandler(.allow)
             return
         }
         let rate = Double(http?.value(forHTTPHeaderField: "X-Sample-Rate") ?? "") ?? 22050
         if bytesTaken == 0 && rate != sampleRate { configure(rate: rate) }
         let ms = Int(Date().timeIntervalSince(askedAt) * 1000)
         let cache = http?.value(forHTTPHeaderField: "X-FAM-Cache") ?? "-"
-        if retries == 0 {
+        if !headersRead {
+            headersRead = true
             cacheHit = cache == "hit"
             episodeID = http?.value(forHTTPHeaderField: "X-FAM-Episode") ?? ""
             keepable = http?.value(forHTTPHeaderField: "X-FAM-Keepable") == "1"
         }
+        if http?.value(forHTTPHeaderField: "X-FAM-Audio-Link") == "1" {
+            wire = .link
+            linkBody = Data()
+        } else if http?.value(forHTTPHeaderField: "X-FAM-Audio-Format") == "opus" {
+            wire = .opus
+            framer = FamOpusFramer()
+            let preskip48 = Double(http?.value(forHTTPHeaderField: "X-FAM-Opus-Preskip") ?? "") ?? 0
+            preskipLeft = bytesTaken == 0 ? Int((preskip48 * sampleRate / 48000).rounded()) : 0
+            preskipKnown = true
+            decoder = FamOpusDecoder.make(rate: sampleRate)
+            if decoder == nil {
+                completionHandler(.cancel)
+                opusFailed("this phone has no Opus decoder")
+                return
+            }
+        } else {
+            wire = .pcm
+        }
         log(retries == 0
-            ? "first byte after \(ms) ms (\(Int(rate)) Hz, cache \(cache))"
+            ? "first byte after \(ms) ms (\(Int(rate)) Hz, cache \(cache), \(wireName))"
             : "reconnected; skipping the \(bytesTaken) bytes already here")
         completionHandler(.allow)
+    }
+
+    private var wireName: String {
+        switch wire {
+        case .pcm: return "pcm"
+        case .opus: return "opus"
+        case .link: return "link"
+        case .ogg: return "ogg"
+        }
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
@@ -409,7 +483,12 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
             refusalBody.append(data)
             return
         }
-        take(data)
+        switch wire {
+        case .pcm: take(data)
+        case .opus: takeOpus(data)
+        case .link: linkBody.append(data)
+        case .ogg: takeOgg(data)
+        }
     }
 
     func urlSession(_ session: URLSession, task finished: URLSessionTask,
@@ -444,6 +523,20 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         }
         if let error = error as NSError? {
             if error.code == NSURLErrorCancelled { return }
+            if wire == .ogg || wire == .link {
+                // The bucket's file broke off: streamed instead (§252).
+                linkFailed("the kept audio broke off: \(error.localizedDescription)")
+                return
+            }
+            if wire == .opus {
+                // A broken Opus stream picks up as PCM, from the sample in
+                // hand: PCM is the same bytes on every ask, Opus framing
+                // need not be.
+                wire = .pcm
+                if let asked = request {
+                    request = Self.asking(asked, fmt: "pcm", link: false, linkFailed: false)
+                }
+            }
             if retries < 3 {
                 // Wi-Fi to cellular, a tunnel: ask again and drop what we
                 // already have. A replay is the same bytes every time; if a
@@ -464,6 +557,19 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
                  network: error.domain == NSURLErrorDomain)
             return
         }
+        if wire == .link {
+            openLink()
+            return
+        }
+        if wire == .ogg && bytesTaken == 0 {
+            linkFailed("the kept audio held no sound")
+            return
+        }
+        if wire == .opus && bytesTaken == 0 && packetsDecoded > 0 {
+            opusFailed("Opus decoded to nothing")
+            return
+        }
+        if wire == .opus || wire == .ogg { trimToLength() }
         if bytesTaken == 0 {
             fail("the server sent no audio")
             return
@@ -502,6 +608,175 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         bytesTaken += usable
         arrived = Double(samples.count) / sampleRate
         if phase != .paused { feed() }
+    }
+
+    // MARK: - Opus (decision 3, §242, §252)
+
+    private func resetWire() {
+        wire = .pcm
+        framer = FamOpusFramer()
+        ogg = OggOpusReader()
+        decoder = nil
+        preskipLeft = 0
+        preskipKnown = false
+        finalLength = -1
+        linkBody = Data()
+        packetsDecoded = 0
+        framesDecoded = 0
+        headersRead = false
+    }
+
+    /// The same request with another format: `fmt` replaced, `link=1` and
+    /// `link_failed=1` as asked, everything else - headers, timeout - kept.
+    static func asking(_ req: URLRequest, fmt: String, link: Bool, linkFailed: Bool) -> URLRequest {
+        guard let url = req.url,
+              var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return req }
+        let dropped: Set<String> = ["fmt", "link", "link_failed"]
+        var items = (parts.queryItems ?? []).filter { !dropped.contains($0.name) }
+        items.append(URLQueryItem(name: "fmt", value: fmt))
+        if link { items.append(URLQueryItem(name: "link", value: "1")) }
+        if linkFailed { items.append(URLQueryItem(name: "link_failed", value: "1")) }
+        parts.queryItems = items
+        guard let changed = parts.url else { return req }
+        var copy = req
+        copy.url = changed
+        return copy
+    }
+
+    /// The Opus stream's bytes: whole packets decoded, the rest held.
+    private func takeOpus(_ data: Data) {
+        let packets = framer.push(data)
+        if let length = framer.finalLength { finalLength = length }
+        decode(packets)
+    }
+
+    /// The linked Ogg Opus file's bytes, as they arrive.
+    private func takeOgg(_ data: Data) {
+        let packets: [Data]
+        do {
+            packets = try ogg.push(data)
+        } catch {
+            linkFailed("the kept audio is not an Ogg Opus file")
+            return
+        }
+        if !preskipKnown && ogg.headerDone {
+            preskipKnown = true
+            preskipLeft = Int((Double(ogg.preskip) * sampleRate / 48000).rounded())
+        }
+        decode(packets)
+    }
+
+    /// Packets to samples, the pre-skip dropped, never past the true
+    /// length; then kept and fed exactly as PCM's are.
+    private func decode(_ packets: [Data]) {
+        guard !packets.isEmpty else { return }
+        guard let decoder else {
+            opusFailed("no Opus decoder")
+            return
+        }
+        var fresh: [Float] = []
+        for packet in packets {
+            do {
+                let out = try decoder.decode(packet)
+                framesDecoded += out.count
+                fresh.append(contentsOf: out)
+            } catch {
+                opusFailed("Opus would not decode: \(error.localizedDescription)")
+                return
+            }
+            packetsDecoded += 1
+        }
+        // A decoder that takes packets and gives nothing back is no decoder.
+        if packetsDecoded >= 25 && framesDecoded == 0 {
+            opusFailed("Opus decoded to silence")
+            return
+        }
+        if preskipLeft > 0 {
+            let cut = min(preskipLeft, fresh.count)
+            fresh.removeFirst(cut)
+            preskipLeft -= cut
+        }
+        if finalLength >= 0 {
+            let room = max(0, finalLength - samples.count)
+            if fresh.count > room { fresh = Array(fresh.prefix(room)) }
+        }
+        guard !fresh.isEmpty else { return }
+        samples.append(contentsOf: fresh)
+        bytesTaken = samples.count * 2
+        arrived = Double(samples.count) / sampleRate
+        if phase != .paused { feed() }
+    }
+
+    /// Exactly the episode's length once all of it is here: the encoder's
+    /// last frame is padded, and a caption must never run past the voice.
+    private func trimToLength() {
+        guard finalLength >= 0, samples.count > finalLength else { return }
+        let keep = max(finalLength, next)
+        if samples.count > keep { samples.removeLast(samples.count - keep) }
+        bytesTaken = samples.count * 2
+        arrived = Double(samples.count) / sampleRate
+    }
+
+    /// This phone cannot decode the Opus that came: the same episode asked
+    /// again as PCM from the sample already in hand, and PCM from the
+    /// start for every later one. The listener hears no gap they can help.
+    private func opusFailed(_ why: String) {
+        log("Opus failed (\(why)); asking for PCM instead")
+        Self.opusBroken = true
+        let fromLink = wire == .ogg || wire == .link
+        task?.cancel()
+        task = nil
+        wire = .pcm
+        decoder = nil
+        guard let asked = request else { fail(why); return }
+        request = Self.asking(asked, fmt: "pcm", link: false, linkFailed: fromLink)
+        skipBytes = samples.count * 2
+        bytesTaken = samples.count * 2
+        carry = Data()
+        connect()
+    }
+
+    /// The replay's link answered: its file is read from the bucket.
+    private func openLink() {
+        guard let body = try? FAMAPI.decoder.decode(AudioLinkBody.self, from: linkBody),
+              let url = URL(string: body.link) else {
+            linkFailed("the link could not be read")
+            return
+        }
+        if let frames = body.frames, frames > 0 { finalLength = frames }
+        decoder = FamOpusDecoder.make(rate: sampleRate)
+        guard decoder != nil else {
+            opusFailed("this phone has no Opus decoder")
+            return
+        }
+        wire = .ogg
+        ogg = OggOpusReader()
+        preskipKnown = false
+        var file = URLRequest(url: url)
+        file.httpShouldHandleCookies = false
+        log("reading the kept audio from its link")
+        let fileTask = session.dataTask(with: file)
+        task = fileTask
+        fileTask.resume()
+    }
+
+    /// The link would not play (`playLinked`'s catch): streamed instead,
+    /// and the server told (`link_failed=1`) so the fallback is counted.
+    /// What has already arrived stays; PCM picks up after it.
+    private func linkFailed(_ why: String) {
+        log("link failed (\(why)); streaming instead")
+        task?.cancel()
+        task = nil
+        guard let asked = request else { fail(why); return }
+        let keepGoing = !samples.isEmpty
+        let fmt = (keepGoing || Self.opusBroken) ? "pcm" : "opus"
+        request = Self.asking(asked, fmt: fmt, link: false, linkFailed: true)
+        wire = .pcm
+        decoder = nil
+        skipBytes = samples.count * 2
+        bytesTaken = samples.count * 2
+        carry = Data()
+        connect()
     }
 
     // MARK: - Feeding the node

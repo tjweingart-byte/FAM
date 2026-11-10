@@ -103,8 +103,10 @@ def test_the_listener_fields_are_sent(monkeypatch):
         "email": "ios-contract@example.com", "password": "password12",
         "accept_terms": True, "want_token": True}).json()
     fields = _fields("Listener")
-    # `activation_needed` is `/me`'s alone (§411); a sign-up decodes it nil.
-    assert fields - {"activation_needed"} <= set(signup), sorted(fields - set(signup))
+    # `activation_needed`, `waitlist` and `home` are `/me`'s alone (§411);
+    # a sign-up decodes them nil.
+    mine = {"activation_needed", "waitlist", "home"}
+    assert fields - mine <= set(signup), sorted(fields - mine - set(signup))
     token = signup["session_token"]
     me = c.get("/api/v1/auth/me", headers={**headers, "Authorization": "Bearer " + token}).json()
     required = fields - {"session_token", "display_name", "status"}
@@ -159,7 +161,11 @@ def test_a_waiting_listener_may_play_the_samples(monkeypatch):
 def test_a_tile_names_its_surface_and_topic():
     body = re.search(r"func audio\(query.*?\n    \}", _api(), re.S).group(0)
     assert 'name: "surface"' in body and 'name: "topic_id"' in body
-    assert '"fmt", value: "pcm"' in body
+    # Opus as the web asks (decision 3, §242), and a replay may be a link
+    # to its kept file (§252); the player falls back to PCM by itself.
+    assert '"fmt", value: "opus"' in body and '"link", value: "1"' in body
+    player = (SWIFT / "Player.swift").read_text()
+    assert 'fmt: "pcm"' in player and "link_failed" in player
     model = (SWIFT / "AppModel.swift").read_text()
     assert 'surface: "myfam"' in model and 'surface: "search"' in model
 
@@ -206,6 +212,23 @@ def test_the_loading_screen_keeps_the_webs_clock():
     assert labels and all(f'"{label}"' in swift for label in labels), labels
 
 
+def test_the_loading_screen_gives_up_as_the_web_does():
+    """§497: the give-up time and its two sentences are the web's, and the
+    voice's own wait is a field `/api/progress` really sends."""
+    web = (ROOT / "static" / "index.html").read_text()
+    swift = (SWIFT / "Views" / "LoadingView.swift").read_text()
+    for js, name in {"GEN_QUIET_MS": "quiet", "GEN_VOICE_MARGIN_MS": "voiceMargin"}.items():
+        ms = re.search(r"var %s = (\d+);" % js, web)
+        seconds = re.search(r"static let %s: TimeInterval = ([0-9.]+)" % name, swift)
+        assert ms and seconds, (js, name)
+        assert abs(float(seconds.group(1)) * 1000 - int(ms.group(1))) < 1e-6, (js, name)
+    for js in ("GEN_SERVER_SILENT", "GEN_VOICE_SLOW"):
+        words = re.search(r'var %s = "([^"]+)";' % js, web)
+        assert words and f'"{words.group(1)}"' in swift, js
+    assert "let voiceWait: Double?" in _api()
+    assert "voice_wait=_voice_wait()" in (ROOT / "app.py").read_text()
+
+
 def test_progress_asks_about_the_same_episode_as_the_audio():
     """`/api/progress` is keyed like the audio request: the same fields."""
     def names(fn: str) -> set[str]:
@@ -225,7 +248,8 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
     # is filed, not which episode; `attach` makes an episode with no key at
     # all, and `/api/progress` takes no attachments - the web's
     # `trackGenSteps` sends exactly these same fields.
-    not_key = {"fmt", "own", "cached_only", "episode", "ask_reading",
+    # `link` asks for a replay's kept file instead of a stream (§252).
+    not_key = {"fmt", "link", "own", "cached_only", "episode", "ask_reading",
                "voice", "voice_picked", "private", "attach"}
     assert names("audio") - not_key == names("progress"), (names("audio"), names("progress"))
 
@@ -240,6 +264,11 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # A refused episode: "Which one do you mean?" and the limit
                    # screen (§426, `showLimitReached`).
                    "AudioRefusal", "QuotaVerdict",
+                   # A replay answered with a link to its kept Opus (§252).
+                   "AudioLinkBody",
+                   # A shared /s/ link opened in the app (decision 5), and the
+                   # bank's tags for Recommended topics (`itemTags`).
+                   "SharePayload", "BankTopic", "BankPage",
                    # DailyFAM: View more, Pick up, the faces row, the library.
                    "SectionPage", "TileGroup", "PickUpPage", "PickUpThread", "PickUpResume",
                    "SavedPage", "SavedItem", "CirclePage", "CirclePerson", "CircleMe", "Story",
@@ -268,7 +297,16 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    "VoiceOption", "SavedShelf", "SavedFolder", "FolderAnswer", "HistoryPage",
                    "HistoryItem", "VibesPage", "VibeRow",
                    # searchFAM: the speller, attachments, trending searches.
-                   "SpellAnswer", "AttachedFile", "TrendingSearch"):
+                   "SpellAnswer", "AttachedFile", "TrendingSearch",
+                   # The loading screen: the give-up time and the server's note
+                   # (§497, `genStatusNote`).
+                   "ServerHealth", "ServerHealthEnvironment",
+                   "ServerHealthCredentials",
+                   # The front door: the waitlist's status page (decision 2),
+                   # its friend search, the client's status and the Terms (§228).
+                   "WaitlistMe", "WaitlistFamPerson", "WaitlistDetails", "WaitlistPeople",
+                   "WaitlistPerson", "WaitlistAdded", "ClientStatus", "TermsState",
+                   "ConsentTermsPage"):
         body = re.search(r"struct %s:[^{]*\{(.*?)\n\}" % struct, _api(), re.S)
         assert body, struct
         for field in {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}:
@@ -391,3 +429,42 @@ def test_hey_fam_hears_what_the_web_hears():
     for word in found.group(1).split("|") + found.group(2).split("|"):
         plain = word.replace("'?", "['\\u{2019}]?")
         assert plain in swift, word
+
+
+def test_the_front_door_decodes_what_the_server_sends(monkeypatch, tmp_path):
+    """Sign up is the waitlist's join (decision 1): its body is the join's
+    fields and its answer carries a token; the status page (decision 2),
+    the client's status and the Terms block decode what the server sends."""
+    import accounts as accounts_mod
+    import preferences as prefs_mod
+    import social as social_mod
+    import waitlist as waitlist_mod
+    acc = accounts_mod.AccountStore(str(tmp_path / "accounts.db"))
+    monkeypatch.setattr(appmod, "ACCOUNTS", acc)
+    monkeypatch.setattr(appmod, "WAITLIST", waitlist_mod.Waitlist(acc))
+    monkeypatch.setattr(appmod, "SOCIAL", social_mod.SocialStore(str(tmp_path / "social.db")))
+    monkeypatch.setattr(appmod, "PREFS", prefs_mod.PreferenceStore(str(tmp_path / "prefs.db")))
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    body = re.search(r"func joinWaitlist.*?\n    \}", _api(), re.S).group(0)
+    sent = set(re.findall(r'"(\w+)":', body))
+    assert sent <= set(appmod.WaitlistJoinRequest.model_fields), sorted(sent)
+    assert {"email", "referral_code", "accept_terms", "want_token"} <= sent
+    c = TestClient(appmod.app)
+    headers = {"X-FAM-Client": "ios/1.0.0+2"}
+    joined = c.post("/api/v1/waitlist/join", headers=headers, json={
+        "email": "ios-join@example.com", "referral_code": "",
+        "accept_terms": True, "want_token": True}).json()
+    assert {"user_id", "email", "authenticated", "session_token"} <= set(joined), joined
+    auth = {**headers, "Authorization": "Bearer " + joined["session_token"]}
+    me = c.get("/api/v1/waitlist/me", headers=auth).json()
+    assert _fields("WaitlistMe") <= set(me), sorted(_fields("WaitlistMe") - set(me))
+    assert _fields("WaitlistDetails") <= set(me["details"])
+    people = c.get("/api/v1/waitlist/people", params={"q": "zz"}, headers=auth).json()
+    assert "people" in people
+    status = c.get("/api/v1/client-status", headers=headers).json()
+    assert _fields("ClientStatus") <= set(status), status
+    terms = c.get("/api/v1/consent", headers=auth).json()["terms"]
+    assert _fields("TermsState") <= set(terms), terms
+    who = c.get("/api/v1/auth/me", headers=auth).json()
+    assert {"waitlist", "home"} <= set(who)

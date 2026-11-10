@@ -654,7 +654,7 @@ struct MyVibeView: View {
         Task {
             let ok = await you.deleteVibe(query: v.query, minutes: v.minutes ?? FAMAPI.browseMinutes)
             await load()
-            model.nowPlaying.say(ok ? "Vibe taken back" : "Could not take that back")
+            if ok { model.nowPlaying.snack("Vibe taken back") } else { model.nowPlaying.say("Could not take that back") }
         }
     }
 

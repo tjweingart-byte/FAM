@@ -21,6 +21,9 @@ final class MixesModel: ObservableObject {
     @Published private(set) var tagParent: [String: String] = [:]
     @Published private(set) var tagLabels: [String: String] = [:]
     @Published private(set) var recommended: RecommendedTopics?
+    /// The shared bank's tags by topic id (`topicBank`): an older bank
+    /// episode in a mix ranks Recommended topics by them (`itemTags`).
+    @Published private(set) var bankTags: [String: [String]] = [:]
     @Published private(set) var push: PushStatus?
     /// Your own profile: the face on a mix that is yours alone, and the
     /// interests the local recommendation order starts from.
@@ -44,21 +47,35 @@ final class MixesModel: ObservableObject {
     func reset() {
         mixes = []
         state = .loading
+        // The push state and the recommendations are the last account's
+        // (`pushState = null`, 10.1 third set).
+        push = nil
+        recommended = nil
+        bankTags = [:]
         me = nil
         categories = nil
         categoryState = CategoryState()
         categorySubs = []
     }
 
-    /// Arriving on the tab (`loadMixes`).
+    /// Arriving on the tab (`loadMixes`): a failure looks like one - the
+    /// sentence in place of the list, whatever was drawn before - because
+    /// an old list would read as a fresh one.
     func load() async {
         Task { await loadCategories() }
         do {
             mixes = try await api.mixes()
             state = .ready
         } catch {
-            if mixes.isEmpty { state = .failed }
+            state = .failed
         }
+    }
+
+    /// The mixes, read now, or the reason they could not be (Add to myFAM
+    /// Playlist, which says so in a toast rather than an empty sheet).
+    func loadOrThrow() async throws {
+        mixes = try await api.mixes()
+        state = .ready
     }
 
     /// Warmed a few seconds after DailyFAM's feed is on screen, before the
@@ -115,6 +132,11 @@ final class MixesModel: ObservableObject {
     func loadForPage() async {
         await loadVocabulary()
         if let rec = try? await api.recommendedTopics() { recommended = rec }
+        if bankTags.isEmpty, let bank = try? await api.topicBank() {
+            var tags: [String: [String]] = [:]
+            for t in bank { tags[t.id] = t.tags ?? [] }
+            bankTags = tags
+        }
         if push == nil { push = try? await api.pushStatus() }
         if me == nil, let found = try? await api.profile() { me = found }
     }
@@ -161,6 +183,12 @@ final class MixesModel: ObservableObject {
 
     func subject(_ id: String) -> Subject? { subjects.first { $0.id == id } }
 
+    /// Add topics' suggestions (`renderAddTopics`): "{Facet} · new
+    /// briefing every day", "Topic · new briefing every day" with none.
+    func addTopicsSub(_ s: Subject) -> String {
+        (facetLabel(s) ?? "Topic") + " · new briefing every day"
+    }
+
     /// "{Facet} · new briefing every day", or just the second half.
     func subjectSub(_ s: Subject) -> String {
         if let facet = facetLabel(s) { return "\(facet) · new briefing every day" }
@@ -190,10 +218,16 @@ final class MixesModel: ObservableObject {
         let inMix = Set((mix?.items ?? []).map { Self.base($0.id) })
         var ordered: [Subject]
         if let rec = recommended, rec.personalised {
+            // The server's order only (`recRanked`): what it does not rank
+            // is not recommended.
             let byId = Dictionary(subjects.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            ordered = rec.order.compactMap { byId[Self.base($0)] }
-            let named = Set(ordered.map(\.id))
-            ordered += subjects.filter { !named.contains($0.id) }
+            var named: Set<String> = []
+            ordered = []
+            for id in rec.order {
+                guard let s = byId[Self.base(id)], !named.contains(s.id) else { continue }
+                named.insert(s.id)
+                ordered.append(s)
+            }
         } else {
             ordered = byMixFacets(followRanked(), mix: mix)
         }
@@ -240,11 +274,23 @@ final class MixesModel: ObservableObject {
         return scored.map { $0.subject }
     }
 
+    /// The catalogue in the listener's interest order (`followRanked`),
+    /// for Add topics' teams and topics.
+    func interestOrder() -> [Subject] { followRanked() }
+
+    /// Tags for anything that can sit in a mix (`itemTags`): a followed
+    /// subject's, an older bank episode's, or none for a typed topic.
+    private func itemTags(_ id: String) -> [String] {
+        let base = Self.base(id)
+        if id.hasPrefix("f:"), let c = subject(base) { return c.tags ?? [] }
+        return bankTags[base] ?? []
+    }
+
     /// Re-ranked by how many of the mix's items share each facet.
     private func byMixFacets(_ ranked: [Subject], mix: Mix?) -> [Subject] {
         var want: [String: Int] = [:]
         for item in mix?.items ?? [] {
-            let tags = subject(Self.base(item.id))?.tags ?? []
+            let tags = itemTags(item.id)
             for k in facets(tags) { want[k] = (want[k] ?? 0) + 1 }
         }
         if want.isEmpty { return ranked }

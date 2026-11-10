@@ -18,6 +18,10 @@ struct FacesRow: View {
     @State private var viewing: StoryReel?
     @State private var composing: StoryEditorSubject?
     @State private var invite = false
+    /// Where each face is on screen, for the story to grow out of
+    /// (`pressedCircle`). A plain box: a scroll does not redraw the row.
+    @State private var frames = FaceFrames()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("storiesSeen") private var seenJSON = "{}"
 
     var body: some View {
@@ -33,16 +37,19 @@ struct FacesRow: View {
                         let label = firstName(person.name, handle: person.handle)
                         let face = faceItem(name: person.name, handle: person.handle, avatar: person.avatar,
                                             label: label, ring: state, plus: false)
+                            .background(FaceFrameReader(box: frames, id: person.userId))
                         if person.stories.isEmpty && person.handle.isEmpty && !social.isFriend(person.userId) {
                             face.accessibilityElement(children: .combine)
                         } else if person.stories.isEmpty {
                             Button { openFace(person) } label: { face }
                                 .buttonStyle(.press)
-                                .accessibilityLabel(person.handle.isEmpty ? "Message \(label)" : "\(label)'s profile")
+                                // Every friend's face reads as the web's does
+                                // (`circleRowHTML`): "View {first}'s profile".
+                                .accessibilityLabel("View \(label)'s profile")
                         } else {
                             Button { open(circle: circle.circle, at: index) } label: { face }
                                 .buttonStyle(.press)
-                                .accessibilityLabel("\(label)'s story")
+                                .accessibilityLabel("View \(label)'s profile")
                         }
                     }
                     Button { invite = true } label: {
@@ -65,7 +72,7 @@ struct FacesRow: View {
             }
             .fullScreenCover(item: $viewing) { reel in
                 StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
-                            openMine: { showMine() })
+                            openMine: { showMine() }, origin: reel.origin)
                     .environmentObject(model)
             }
             .fullScreenCover(item: $composing) { subject in
@@ -73,7 +80,7 @@ struct FacesRow: View {
                     .environmentObject(model)
             }
             .sheet(isPresented: $invite) {
-                ActivityView(items: [model.inviteText(handle: model.circle?.me?.handle ?? "")]) { invite = false }
+                ActivityView(items: model.inviteItems(handle: model.circle?.me?.handle ?? "")) { invite = false }
             }
         }
     }
@@ -85,13 +92,16 @@ struct FacesRow: View {
         let mine = me.stories ?? []
         let face = faceItem(name: me.name ?? "", handle: me.handle ?? "", avatar: me.avatar ?? "",
                             label: "Your story", ring: mine.isEmpty ? .none : ring(for: "me", mine), plus: false)
+            .background(FaceFrameReader(box: frames, id: "me"))
         return Button {
             if mine.isEmpty {
                 compose()
             } else {
-                viewing = StoryReel(people: [StoryPerson(id: "me", name: "Your story", handle: me.handle ?? "",
-                                                         avatar: me.avatar ?? "", stories: mine, mine: true)],
-                                    start: 0)
+                var reel = StoryReel(people: [StoryPerson(id: "me", name: "Your story", handle: me.handle ?? "",
+                                                          avatar: me.avatar ?? "", stories: mine, mine: true)],
+                                     start: 0)
+                reel.origin = frames.frame("me")
+                present(reel)
             }
         } label: { face }
             .buttonStyle(.press)
@@ -218,10 +228,49 @@ struct FacesRow: View {
         let withStories = people.filter { !$0.stories.isEmpty }
         guard !people[index].stories.isEmpty,
               let start = withStories.firstIndex(where: { $0.id == people[index].id }) else { return }
-        viewing = StoryReel(people: withStories.map {
+        var reel = StoryReel(people: withStories.map {
             StoryPerson(id: $0.userId, name: $0.name, handle: $0.handle, avatar: $0.avatar,
                         stories: $0.stories, mine: false)
         }, start: start)
+        reel.origin = frames.frame(people[index].userId)
+        present(reel)
+    }
+
+    /// Opened out of the tapped face (`growStory`): the cover comes up
+    /// without iOS's slide, and the story grows from the face itself.
+    /// Under Reduce Motion it is iOS's own cover.
+    private func present(_ reel: StoryReel) {
+        guard !reduceMotion, reel.origin != .zero else {
+            viewing = reel
+            return
+        }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { viewing = reel }
+    }
+}
+
+/// Each face's frame on screen, kept out of SwiftUI's state so a scroll
+/// of the row redraws nothing.
+final class FaceFrames {
+    private var frames: [String: CGRect] = [:]
+
+    func set(_ id: String, _ frame: CGRect) { frames[id] = frame }
+
+    func frame(_ id: String) -> CGRect { frames[id] ?? .zero }
+}
+
+/// Writes a face's global frame into the box as it moves.
+struct FaceFrameReader: View {
+    let box: FaceFrames
+    let id: String
+
+    var body: some View {
+        GeometryReader { geo in
+            Color.clear
+                .onAppear { box.set(id, geo.frame(in: .global)) }
+                .onChange(of: geo.frame(in: .global)) { _, frame in box.set(id, frame) }
+        }
     }
 }
 
@@ -238,6 +287,8 @@ struct StoryReel: Identifiable {
     let id = UUID()
     let people: [StoryPerson]
     let start: Int
+    /// The face it was opened from, on screen (`.zero`: none).
+    var origin: CGRect = .zero
 }
 
 /// Which stories have been liked this session, so a second like sends no
@@ -271,6 +322,25 @@ struct StoryViewer: View {
     /// Opens your own story again: the snack's View after the VIBE!
     /// arrows posted one (`viewMyNewStory`). Nil draws no View.
     var openMine: (() -> Void)? = nil
+    /// The face it was opened from, on screen: the story grows out of it
+    /// and shrinks back into it (`growStory`, `shrinkStory`). `.zero`:
+    /// iOS's own cover.
+    var origin: CGRect = .zero
+
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The circle the story shows through: the face's, then the screen's.
+    @State private var grown = false
+    @State private var closing = false
+    /// A cube's turn to another friend (`turnStory`): the angle, the edge
+    /// it hinges on and the slide that goes with it.
+    @State private var turn: Double = 0
+    @State private var turnAnchor: UnitPoint = .center
+    @State private var turnShift: CGFloat = 0
+    @State private var turning = false
+    @State private var stageWidth: CGFloat = 390
+    /// Block's sheet (`blockPerson`): the sentence, then "Block".
+    @State private var confirm: SheetSpec?
 
     @State private var people: [StoryPerson] = []
     @State private var person = 0
@@ -286,7 +356,6 @@ struct StoryViewer: View {
     /// The story's ⋯ (`openStoryMenu`), and what it opens.
     @State private var storyMenu = false
     @State private var addingTopic = false
-    @State private var blocking = false
     /// The editor opened by the VIBE! arrows (`shareStoryToMine`).
     @State private var resharing: StoryEditorSubject?
     @State private var sharing: ShareSubject?
@@ -313,6 +382,7 @@ struct StoryViewer: View {
                     Color.clear
                         .contentShape(Rectangle())
                         .gesture(surfaceGesture(width: geo.size.width))
+                        .onAppear { stageWidth = geo.size.width }
                 }
                 .ignoresSafeArea()
                 if composed {
@@ -340,6 +410,16 @@ struct StoryViewer: View {
                 .animation(.easeOut(duration: 0.2), value: held)
             }
         }
+        // The cube's turn between friends, over the dark behind it.
+        .rotation3DEffect(.degrees(turn), axis: (x: 0, y: 1, z: 0), anchor: turnAnchor, perspective: 0.55)
+        .offset(x: turnShift)
+        .background(Color.black.opacity(turning ? 1 : 0).ignoresSafeArea())
+        // Out of the face and back into it.
+        .mask {
+            GeometryReader { geo in storyMask(geo) }
+                .ignoresSafeArea()
+        }
+        .presentationBackground(grows ? Color.clear : Color(hex: 0x16121C))
         .foregroundStyle(Self.paper)
         // The app's toast over the story: "Sent to Beth" after a reply or a
         // share, a block's refusal - the tab bar's own toast is under it.
@@ -354,12 +434,19 @@ struct StoryViewer: View {
             person = start
             index = firstUnseen(start, in: reel.people)
             liked = StoryLikes.marks
+            growIn()
         }
         .onPreferenceChange(StoryPostFrameKey.self) { frame in postFrame = frame }
         .task(id: "\(person)-\(index)-\(people.count)") { await tick() }
-        .confirmationDialog(ready ? (story.title ?? "") : "", isPresented: $storyMenu, titleVisibility: .hidden) {
-            if ready { storyMenuButtons }
+        // `openStoryMenu` / `openNoteMenu`: the web's sheet, its head and
+        // an icon on every row.
+        .sheet(isPresented: $storyMenu) {
+            if ready {
+                storyMenuSheet
+                    .environmentObject(model)
+            }
         }
+        .sheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
         .sheet(isPresented: $addingTopic) {
             if ready {
                 AddToMixSheet(query: story.query ?? "", title: story.title ?? story.query ?? "")
@@ -369,7 +456,7 @@ struct StoryViewer: View {
         }
         // The web closes the story and opens the editor: here the editor
         // covers the story, and the story closes behind it when it goes.
-        .fullScreenCover(item: $resharing, onDismiss: { dismiss() }) { subject in
+        .fullScreenCover(item: $resharing, onDismiss: { close(animated: false) }) { subject in
             StoryEditor(subject: subject, openMine: openMine)
                 .environmentObject(model)
         }
@@ -378,25 +465,17 @@ struct StoryViewer: View {
                 .environmentObject(model)
                 .environmentObject(model.nowPlaying)
         }
-        .blockConfirmation(isPresented: $blocking, name: ready ? who.name : "", handle: ready ? who.handle : "",
-                           api: model.safety, onBlocked: {
-                               model.nowPlaying.say("Blocked")
-                               Task {
-                                   await model.social.loadGraph()
-                                   await model.loadCircle()
-                               }
-                               dismiss()
-                           }, onError: { model.nowPlaying.say($0) })
         .sheet(isPresented: $reporting) {
             if ready {
                 FAMReportSheet(api: model.safety,
                                subject: isNote ? .note(id: story.id) : .vibe(id: story.id),
                                say: { model.nowPlaying.say($0) }) { receipt in
-                    // Taken off this listener's screen at once: the story closes.
-                    if receipt?.hidden == true {
+                    // Any receipt closes the story (`reportContent`'s
+                    // `onHidden` runs after every one the server sends).
+                    if receipt != nil {
                         Task { @MainActor in
                             try? await Task.sleep(nanoseconds: 450_000_000)
-                            dismiss()
+                            close()
                         }
                     }
                 }
@@ -426,12 +505,22 @@ struct StoryViewer: View {
     /// picture and name open their profile, once the story has closed.
     private var header: some View {
         HStack(spacing: 10) {
-            if who.mine || who.handle.isEmpty {
-                headerWho
-            } else {
+            if who.mine {
+                // Your own: the header closes the story (`storyProfile`).
+                Button { close() } label: { headerWho }
+                    .buttonStyle(.press)
+                    .accessibilityHint("Closes your story")
+            } else if !who.handle.isEmpty {
                 Button { openProfile() } label: { headerWho }
                     .buttonStyle(.press)
-                    .accessibilityHint("Opens their profile")
+                    .accessibilityLabel("View profile")
+            } else if !who.id.isEmpty {
+                // No handle: a conversation (`openCircleFace`).
+                Button { openChat() } label: { headerWho }
+                    .buttonStyle(.press)
+                    .accessibilityHint("Opens your conversation")
+            } else {
+                headerWho
             }
             Spacer()
             Button { storyMenu = true } label: {
@@ -439,7 +528,7 @@ struct StoryViewer: View {
             }
             .buttonStyle(.press)
             .accessibilityLabel("More")
-            Button { dismiss() } label: {
+            Button { close() } label: {
                 WebIcon(path: Icons.close, size: 14, line: 2.4).frame(width: 32, height: 32)
             }
             .buttonStyle(.press)
@@ -470,14 +559,26 @@ struct StoryViewer: View {
     private func openTag(_ tag: StoryMention) {
         guard !tag.handle.isEmpty else { return }
         let route = SocialRoute.person(PersonOpen(handle: tag.handle, name: tag.name))
-        dismiss()
+        close()
         model.social.openAfterClose(route)
     }
 
     private func openProfile() {
         let route = SocialRoute.person(PersonOpen(handle: who.handle, userID: who.id, name: who.name,
                                                   avatar: who.avatar))
-        dismiss()
+        close()
+        model.social.openAfterClose(route)
+    }
+
+    /// Somebody with no handle: your conversation with them, once the
+    /// story has closed - a friend's only (§520), as the faces row does.
+    private func openChat() {
+        guard model.social.isFriend(who.id) else {
+            model.nowPlaying.say("You can message people who follow you back.")
+            return
+        }
+        let route = SocialRoute.thread(ChatOpen(with: who.id, name: who.name, avatar: who.avatar))
+        close()
         model.social.openAfterClose(route)
     }
 
@@ -547,6 +648,11 @@ struct StoryViewer: View {
                 TextField("", text: $reply, prompt: Text("Send message...").foregroundColor(Self.paper.opacity(0.75)))
                     .font(FAMFont.body(14))
                     .focused($typing)
+                    .accessibilityLabel("Reply to this vibe")
+                    // `maxlength="500"`.
+                    .onChange(of: reply) { _, words in
+                        if words.count > 500 { reply = String(words.prefix(500)) }
+                    }
                     .submitLabel(.send)
                     .onSubmit(sendReply)
                     .padding(.leading, 18)
@@ -625,7 +731,7 @@ struct StoryViewer: View {
                     return
                 }
                 if dy > 80 && dy > abs(dx) {
-                    dismiss()
+                    close()
                     return
                 }
                 if abs(dx) < 12 && abs(dy) < 12 {
@@ -643,8 +749,12 @@ struct StoryViewer: View {
     // MARK: The ⋯ menu
 
     /// The story holds while its menu, or anything the menu opened, is up.
+    /// And while FAM is not in front (the web's `visibilitychange`), and
+    /// while it turns to another friend or closes.
     private var paused: Bool {
-        held || typing || storyMenu || addingTopic || reporting || blocking || resharing != nil || sharing != nil
+        if held || typing || storyMenu || addingTopic || reporting { return true }
+        if confirm != nil || resharing != nil || sharing != nil { return true }
+        return scenePhase != .active || turning || closing
     }
 
     private var firstName: String {
@@ -652,31 +762,73 @@ struct StoryViewer: View {
         return first.isEmpty ? (who.handle.isEmpty ? "Someone" : who.handle) : first
     }
 
-    /// `openStoryMenu` / `openNoteMenu`: a vibe's episode can be saved,
-    /// shared, queued or added to a mix; your own vibe deleted and your own
-    /// note taken down; somebody else's reported, and its person blocked.
-    /// What opens another sheet waits for the dialog to close.
-    @ViewBuilder
-    private var storyMenuButtons: some View {
+    /// `openStoryMenu` / `openNoteMenu`: the head - the vibe's title (a
+    /// note's first 60 letters), "Your story" / "Vibed by <First>" (a
+    /// note's "<First>’s story") and the picture - then a vibe's episode
+    /// saved, shared, queued or added to a mix; your own vibe deleted and
+    /// your own note taken down; somebody else's reported (only when it has
+    /// an id) and its person blocked (only with a handle). Each row waits
+    /// for the sheet to close.
+    private var storyMenuSheet: some View {
+        YouSheet(headTitle: menuTitle, headSub: menuSub, headThumb: isNote ? "" : (story.style?.thumb ?? ""),
+                 items: menuItems)
+    }
+
+    private var menuTitle: String {
+        if isNote {
+            let words = story.text ?? ""
+            return words.isEmpty ? "A story" : String(words.prefix(60))
+        }
+        let title = story.title ?? ""
+        return title.isEmpty ? (story.query ?? "") : title
+    }
+
+    private var menuSub: String {
+        if who.mine { return "Your story" }
+        return isNote ? firstName + "\u{2019}s story" : "Vibed by " + firstName
+    }
+
+    private var menuItems: [YouSheetItem] {
+        var items: [YouSheetItem] = []
+        let hasID = story.id > 0
         if !isNote {
-            Button("Save for later") { saveStory() }
-            Button("Share") { shareStory() }
-            Button("Add to Queue") { queueStory() }
-            Button("Add topic to playlist") { later { addingTopic = true } }
+            items.append(YouSheetItem(label: "Save for later", icon: Icons.bookmark) { saveStory() })
+            items.append(YouSheetItem(label: "Share", icon: Icons.menuShare) { shareStory() })
+            items.append(YouSheetItem(label: "Add to Queue", icon: Icons.addQueue) { queueStory() })
+            items.append(YouSheetItem(label: "Add topic to playlist", icon: Icons.circlePlus) { addingTopic = true })
         }
         if who.mine {
-            if isNote {
-                Button("Remove from your story", role: .destructive) { removeNote() }
-            } else {
-                Button("Delete vibe", role: .destructive) { deleteVibe() }
+            if hasID && isNote {
+                items.append(YouSheetItem(label: "Remove from your story", danger: true,
+                                          icon: PlayerIcons.circleMinus) { removeNote() })
+            } else if hasID {
+                items.append(YouSheetItem(label: "Delete vibe", danger: true,
+                                          icon: PlayerIcons.circleMinus) { deleteVibe() })
             }
         } else {
-            Button("Report", role: .destructive) { later { reporting = true } }
+            if hasID {
+                items.append(YouSheetItem(label: "Report", danger: true, icon: PlayerIcons.flag) { reporting = true })
+            }
             if !who.handle.isEmpty {
-                Button("Block \(firstName)", role: .destructive) { later { blocking = true } }
+                items.append(YouSheetItem(label: "Block " + firstName, danger: true, icon: Icons.blockMark) {
+                    askBlock()
+                })
             }
         }
-        Button("Cancel", role: .cancel) {}
+        return items
+    }
+
+    /// `blockPerson(handle, name, closeStory)`.
+    private func askBlock() {
+        let app = model
+        confirm = FAMBlock.sheet(name: who.name, handle: who.handle, model: model) {
+            app.nowPlaying.say("Blocked")
+            Task {
+                await app.social.loadGraph()
+                await app.loadCircle()
+            }
+            close()
+        }
     }
 
     private func later(_ action: @escaping () -> Void) {
@@ -703,7 +855,7 @@ struct StoryViewer: View {
         Task {
             do {
                 try await model.api.save(key, title: title, source: "story")
-                model.nowPlaying.say("Saved for Later")
+                model.nowPlaying.snack("Saved for Later")
             } catch {
                 model.nowPlaying.say(MixesModel.sentence(error, else: "Could not save that"))
             }
@@ -716,12 +868,17 @@ struct StoryViewer: View {
     private func shareStory() {
         let key = storyKey()
         let title = story.title ?? key.query
-        later { sharing = ShareSubject(key: key, title: title) }
+        sharing = ShareSubject(key: key, title: title)
     }
 
+    /// With the story's picture and its own title (`thumb`,
+    /// `titleOverridden`), as the web's queue entry carries them.
     private func queueStory() {
         let key = storyKey()
-        model.nowPlaying.addToQueue(Episode(key: key, title: story.title ?? key.query, surface: ""))
+        let thumb = story.style?.thumb ?? ""
+        let picture: URL? = thumb.isEmpty ? nil : model.api.picture(thumb)
+        let ep = Episode(key: key, title: story.title ?? key.query, surface: "", picture: picture)
+        model.nowPlaying.addToQueue(ep)
     }
 
     /// "Delete vibe": deleted everywhere, not only off the story
@@ -732,9 +889,10 @@ struct StoryViewer: View {
         Task {
             do {
                 try await model.api.unvibe(key)
-                model.nowPlaying.say("Vibe deleted")
+                model.nowPlaying.snack("Vibe deleted")
                 drop(gone)
                 await model.loadCircle()
+                await model.you.loadProfile()
             } catch {
                 model.nowPlaying.say("Could not delete that vibe")
             }
@@ -748,9 +906,11 @@ struct StoryViewer: View {
         Task {
             do {
                 try await model.api.removeNote(gone.id)
-                model.nowPlaying.say("Removed from your story")
+                model.nowPlaying.snack("Removed from your story")
                 drop(gone)
                 await model.loadCircle()
+                // `loadProfileQuietly`: the hub's story ring and grid.
+                await model.you.loadProfile()
             } catch {
                 model.nowPlaying.say("Could not take that down")
             }
@@ -768,7 +928,7 @@ struct StoryViewer: View {
         if at < next { next -= 1 }
         if next >= list.count { next = list.count - 1 }
         if list.isEmpty {
-            dismiss()
+            close()
             return
         }
         people[person].stories = list
@@ -802,10 +962,9 @@ struct StoryViewer: View {
         if index + 1 < who.stories.count {
             index += 1
         } else if person + 1 < people.count {
-            person += 1
-            index = 0
+            turnTo(person + 1, index: 0, dir: 1)
         } else {
-            dismiss()
+            close()
         }
     }
 
@@ -815,8 +974,8 @@ struct StoryViewer: View {
         if index > 0 {
             index -= 1
         } else if person > 0 {
-            person -= 1
-            index = max(0, people[person].stories.count - 1)
+            let previous = person - 1
+            turnTo(previous, index: max(0, people[previous].stories.count - 1), dir: -1)
         } else {
             progress = 0
         }
@@ -827,10 +986,9 @@ struct StoryViewer: View {
     private func friend(_ dir: Int) {
         let next = person + dir
         if next >= 0 && next < people.count {
-            person = next
-            index = firstUnseen(next, in: people)
+            turnTo(next, index: firstUnseen(next, in: people), dir: dir)
         } else if dir > 0 {
-            dismiss()
+            close()
         } else {
             index = 0
             progress = 0
@@ -844,13 +1002,14 @@ struct StoryViewer: View {
     private func play() {
         guard let q = story.query, !q.isEmpty else { return }
         if model.player.isLoaded && model.nowPlaying.episode?.key.query == q {
-            dismiss()
+            close(animated: false)
             model.showPlayer = true
             return
         }
         let ep = Episode(key: EpisodeKey(query: q, minutes: story.minutes ?? FAMAPI.browseMinutes),
                          title: story.title ?? q, surface: "other")
-        dismiss()
+        // At once: the loading screen and the player come up as it goes.
+        close(animated: false)
         model.play(ep)
     }
 
@@ -890,6 +1049,97 @@ struct StoryViewer: View {
         if before == nil && on {
             let to = who.id
             Task { try? await model.api.reply(to: to, text: FAMAPI.storyLike, story: s) }
+        }
+    }
+
+    // MARK: Motion: out of the face, back into it, a cube's turn
+
+    /// Whether it grows from a face: one was given, and motion is on.
+    private var grows: Bool { origin != .zero && !reduceMotion }
+
+    /// The circle the story shows through: the face's 72 pt circle at
+    /// first, then one past every corner of the screen (`circleIn`).
+    @ViewBuilder
+    private func storyMask(_ geo: GeometryProxy) -> some View {
+        if grows {
+            let frame = geo.frame(in: .global)
+            let side = min(origin.width, 72)
+            let cx = origin.midX - frame.minX
+            let cy = origin.minY + side / 2 - frame.minY
+            let far = (frame.width * frame.width + frame.height * frame.height).squareRoot()
+            let d: CGFloat = grown ? far * 2 + 8 : max(16, side)
+            Circle()
+                .frame(width: d, height: d)
+                .position(x: cx, y: cy)
+        } else {
+            Rectangle()
+        }
+    }
+
+    /// `growStory`: 300 ms from the face to the whole screen.
+    private func growIn() {
+        guard grows, !grown else {
+            grown = true
+            return
+        }
+        DispatchQueue.main.async {
+            withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.3)) { grown = true }
+        }
+    }
+
+    /// Every way out of the story: `shrinkStory` back into the face over
+    /// 240 ms, then gone without iOS's slide. `animated: false` - a play,
+    /// whose loading screen comes up at once - goes straight away.
+    private func close(animated: Bool = true) {
+        guard !closing else { return }
+        closing = true
+        typing = false
+        guard grows && animated else {
+            dismiss()
+            return
+        }
+        withAnimation(.easeInOut(duration: 0.24)) { grown = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { dismiss() }
+        }
+    }
+
+    /// `turnToFriend`: the next friend's stories turn in like a cube's next
+    /// face - this one turns away about its far edge, theirs turns in about
+    /// the near one (340 ms in all, perspective as the web's 900 px). One
+    /// friend's own stories change in place. Still under Reduce Motion.
+    private func turnTo(_ next: Int, index start: Int, dir: Int) {
+        guard people.indices.contains(next) else { return }
+        guard !reduceMotion, !turning else {
+            person = next
+            index = start
+            return
+        }
+        turning = true
+        let half = 0.17
+        let width = stageWidth
+        turnAnchor = dir > 0 ? .trailing : .leading
+        withAnimation(.easeIn(duration: half)) {
+            turn = Double(-90 * dir)
+            turnShift = -width * CGFloat(dir)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + half) {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) {
+                person = next
+                index = start
+                turnAnchor = dir > 0 ? .leading : .trailing
+                turn = Double(90 * dir)
+                turnShift = width * CGFloat(dir)
+            }
+            withAnimation(.easeOut(duration: half)) {
+                turn = 0
+                turnShift = 0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + half) { turning = false }
         }
     }
 

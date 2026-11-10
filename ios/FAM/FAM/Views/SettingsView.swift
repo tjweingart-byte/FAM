@@ -111,9 +111,9 @@ struct SettingsView: View {
             SetRow(label: "Save for Later") { model.youPath.append(.saved) }
             SetRow(label: "Default speed", value: FAMAPI.minutes(player.rate) + "x") { sheet = .speed }
             SetRow(label: "Keep the voice's pitch", value: player.keepsPitch ? "On" : "Off") { togglePitch() }
-            if let voices = you.voices, !voices.voices.isEmpty {
-                SetRow(label: "Voice for your searches", value: voiceLabel(voices)) { sheet = .voice }
-            }
+            // Always drawn (`renderSettings`), the label falling back as the
+            // web's `voiceLabel` does; a tap with no bank says so.
+            SetRow(label: "Voice for your searches", value: voiceValue) { openVoices() }
             // "Hey FAM" (§158), only where the phone can recognise speech.
             if VoiceSearchModel.available {
                 WakeRow(wake: model.wake)
@@ -123,6 +123,31 @@ struct SettingsView: View {
 
     private func voiceLabel(_ page: VoicesPage) -> String {
         page.voices.first { $0.id == page.selected }?.label ?? ""
+    }
+
+    /// `voiceLabel(selectedVoice)`: the chosen voice, else the bank's
+    /// first, else "Ian" before the bank has loaded.
+    private var voiceValue: String {
+        guard let page = you.voices, !page.voices.isEmpty else { return "Ian" }
+        let chosen = voiceLabel(page)
+        return chosen.isEmpty ? page.voices[0].label : chosen
+    }
+
+    /// `openVoiceMenu('settings')`: the bank, asked again once if it has
+    /// not come; "No voices reported by the server" if it still has none.
+    private func openVoices() {
+        if let page = you.voices, !page.voices.isEmpty {
+            sheet = .voice
+            return
+        }
+        Task {
+            await you.reloadVoices()
+            if let page = you.voices, !page.voices.isEmpty {
+                sheet = .voice
+            } else {
+                model.nowPlaying.say("No voices reported by the server")
+            }
+        }
     }
 
     private func togglePitch() {
@@ -204,7 +229,7 @@ struct SettingsView: View {
         case .aiOff: YouSheet(items: aiOffItems).environmentObject(model)
         case .blocked: YouSheet(items: blockedItems).environmentObject(model)
         case .delete: YouSheet(items: deleteItems).environmentObject(model)
-        case .plans: PlansSheet(page: plans).environmentObject(model)
+        case .plans: PlansSheet(page: plans, fetch: true).environmentObject(model)
         }
     }
 
@@ -345,11 +370,11 @@ struct SettingsView: View {
         }
     }
 
+    /// `openPlans`: open at once on "Loading your plan…", filled when the
+    /// server answers.
     private func openPlans() {
-        Task {
-            plans = try? await model.api.plans()
-            sheet = .plans
-        }
+        plans = nil
+        sheet = .plans
     }
 
     private func setSearchesPublic(_ on: Bool) {
@@ -521,8 +546,9 @@ struct ActivationCard: View {
     var body: some View {
         ModalCard(close: { if gone == nil && !owed { dismiss() } }) {
             if let gone {
+                // The web draws the message as the card's `modal-title`.
                 Text(gone)
-                    .font(FAMFont.body(13))
+                    .font(FAMFont.heading(16, .medium))
                     .foregroundStyle(FAMColor.text)
                     .fixedSize(horizontal: false, vertical: true)
                 ModalButton(label: "OK", primary: true, wide: true) { finishGone() }
@@ -562,7 +588,7 @@ struct ActivationCard: View {
                 .opacity(dateSet ? 1 : 0.6)
             help(activation.help?.birthDate)
             FieldLabel(text: "Where you live").padding(.top, 12)
-            TextField("", text: $place, prompt: Text("Town, state").foregroundColor(FAMColor.textFaint))
+            TextField("", text: $place, prompt: Text("Town or city").foregroundColor(FAMColor.textFaint))
                 .youInput()
             help(activation.help?.location)
             FieldLabel(text: "Gender").padding(.top, 12)
@@ -719,8 +745,16 @@ struct ActivationCard: View {
 /// (`tiers-off`): another tier says so when tapped rather than doing nothing.
 struct PlansSheet: View {
     let page: PlansPage?
+    /// Asked as it opens (`openPlans`, from the limit card's "See plans"):
+    /// "Loading your plan…" until the answer, then the plans or why not.
+    var fetch: Bool = false
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @State private var fetched: PlansPage?
+    /// The plans have been asked for and answered (or not).
+    @State private var asked = false
+
+    private var shown: PlansPage? { page ?? fetched }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -728,7 +762,7 @@ struct PlansSheet: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Your plan").monoLabel(9.5, color: FAMColor.textFaint, tracking: 1.14)
                         .padding(.bottom, 14)
-                    if let page {
+                    if let page = shown {
                         ForEach(page.tiers, id: \.name) { tier in row(tier, current: page.current ?? "free") }
                         if page.checkout != true {
                             EmptyNote(text: page.enforced == true
@@ -736,6 +770,10 @@ struct PlansSheet: View {
                                       : "Upgrades aren\u{2019}t available yet. Everything is free for now.")
                                 .padding(.top, 6)
                         }
+                    } else if fetch && !asked {
+                        Text("Loading your plan\u{2026}")
+                            .font(FAMFont.body(12))
+                            .foregroundStyle(FAMColor.textMuted)
                     } else {
                         Text("Plans could not load. Check your connection and try again.")
                             .font(FAMFont.body(12))
@@ -752,6 +790,11 @@ struct PlansSheet: View {
         .presentationDetents([.large])
         .presentationBackground(FAMColor.surface)
         .presentationCornerRadius(20)
+        .task {
+            guard fetch, page == nil, fetched == nil else { return }
+            fetched = try? await model.api.plans()
+            asked = true
+        }
     }
 
     private func row(_ tier: PlanTier, current: String) -> some View {

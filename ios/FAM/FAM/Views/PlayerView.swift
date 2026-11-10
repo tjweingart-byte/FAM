@@ -32,6 +32,12 @@ struct PlayerView: View {
     @State private var myStory: StoryReel?
     @State private var popup: PlayerPopup?
     @State private var badgePop: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The queue's flight (`Motion.toQueue`): from the picture to the Queue.
+    @State private var flying: QueueFlight?
+    @State private var pictureFrame: CGRect = .zero
+    @State private var queueFrame: CGRect = .zero
+    @State private var queueBump: CGFloat = 1
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -52,6 +58,8 @@ struct PlayerView: View {
             ToastView()
                 .padding(.bottom, 8)
         }
+        .overlay { flightLayer }
+        .coordinateSpace(name: Self.space)
         .background(FAMColor.background.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: popup)
         .animation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36), value: now.nextUp.isEmpty)
@@ -79,10 +87,37 @@ struct PlayerView: View {
             openSheet(.queue)
         }
         .onChange(of: now.queue.count) { old, new in
-            // The badge pops when something is queued (0 → 1.25 → 1, 260 ms).
+            // The badge pops when something is queued (0 → 1.25 → 1, 260 ms),
+            // as the flight lands (450 ms later) when there is one.
             guard new > old else { return }
             badgePop = 0
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.55)) { badgePop = 1 }
+            let wait = reduceMotion ? 0 : 0.45
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.55)) { badgePop = 1 }
+            }
+        }
+        .onChange(of: now.queueFlight) { _, flight in
+            guard let flight, !reduceMotion, queueFrame != .zero else { return }
+            flying = flight
+        }
+    }
+
+    static let space = "playerRoot"
+
+    /// The copy of the picture flying to the Queue button; the button
+    /// bumps as it lands.
+    @ViewBuilder private var flightLayer: some View {
+        if let flight = flying {
+            let start = CGPoint(x: pictureFrame.midX, y: pictureFrame.midY)
+            let end = CGPoint(x: queueFrame.midX, y: queueFrame.midY)
+            QueueGhost(picture: flight.picture ?? now.picture, from: start, to: end) {
+                flying = nil
+                withAnimation(.easeOut(duration: 0.1)) { queueBump = 1.3 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.easeOut(duration: 0.16)) { queueBump = 1 }
+                }
+            }
+            .id(flight.id)
         }
     }
 
@@ -161,6 +196,7 @@ struct PlayerView: View {
             ZStack(alignment: .bottomTrailing) {
                 PlayerPicture(url: now.picture ?? player.picture)
                     .frame(width: wide, height: wide * 3 / 4)
+                    .background(FrameReporter(space: Self.space) { pictureFrame = $0 })
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
                 if now.captionsOn {
                     CaptionsCard()
@@ -181,16 +217,20 @@ struct PlayerView: View {
     /// padding (§519: it was 10, and SAVE sat on the sources pill).
     private var sideStack: some View {
         VStack(spacing: 24) {
-            SideButton(icon: Icons.menuShare, caption: "share", on: false, tint: FAMColor.copper) {
+            // Read aloud with the web's names (`aria-label` / `title`).
+            SideButton(icon: Icons.menuShare, caption: "share", on: false, tint: FAMColor.copper,
+                       spoken: "Share this episode") {
                 openSheet(.share)
             }
             SideButton(icon: Icons.reshare, caption: now.vibed ? "vibed" : "vibe",
-                       on: now.vibed, tint: FAMColor.copper) {
+                       on: now.vibed, tint: FAMColor.copper,
+                       spoken: now.vibed ? "Take the vibe back" : "VIBE! this to your friends") {
                 tapVibe()
             }
             .modifier(BurstModifier(trigger: now.vibedBurst, word: "VIBED"))
             SideButton(icon: Icons.bookmark, caption: now.saved ? "saved" : "save",
-                       on: now.saved, tint: FAMColor.sage) {
+                       on: now.saved, tint: FAMColor.sage,
+                       spoken: now.saved ? "Remove from Save for Later" : "Save for later") {
                 now.toggleSave()
             }
             .modifier(BurstModifier(trigger: now.savedBurst, word: "SAVED"))
@@ -344,6 +384,8 @@ struct PlayerView: View {
                 .frame(width: 32, height: 32)
                 .background(FAMColor.surface, in: Circle())
                 .overlay(Circle().stroke(FAMColor.borderStrong))
+                .background(FrameReporter(space: Self.space) { queueFrame = $0 })
+                .scaleEffect(queueBump)
                 .overlay(alignment: .topTrailing) { queueBadge }
                 .overlay(alignment: .top) {
                     // The caption hangs 34 pt below the circle's top.
@@ -430,7 +472,12 @@ struct PlayerView: View {
         }
         items.append(ActionItem(label: "Voice", group: true))
         let pitch = "Keep the voice's pitch" + (player.keepsPitch ? "  \u{2713}" : "")
-        items.append(ActionItem(label: pitch, action: { player.setKeepsPitch(!player.keepsPitch) }))
+        items.append(ActionItem(label: pitch, action: {
+            let on = !player.keepsPitch
+            player.setKeepsPitch(on)
+            // Said from every place it is set (`setPitchLock`).
+            now.say(on ? "Speed changes keep the voice's pitch" : "Speed changes will shift the voice's pitch")
+        }))
         return items
     }
 
@@ -450,14 +497,19 @@ struct PlayerView: View {
         return items
     }
 
-    /// `openLengthMenu` (a search only): a new length is a new episode.
+    /// `openLengthMenu` (a search only): the search page's Length, ticked
+    /// and moved (`selectedLengthMinutes`); a change made on the player is
+    /// a new episode at that length (`regenerateAtNewLength`).
     private var lengthItems: [ActionItem] {
         guard let ep = now.episode else { return [] }
         var items: [ActionItem] = []
+        let chosen = model.searchLength
         for m in [1, 1.5, 2, 3, 4, 5.0] {
-            let label = "\(FAMAPI.minutes(m)) min" + (m == ep.key.minutes ? "  \u{2713}" : "")
+            let label = "\(FAMAPI.minutes(m)) min" + (m == chosen ? "  \u{2713}" : "")
             items.append(ActionItem(label: label, action: {
-                guard m != ep.key.minutes else { return }
+                let changed = m != model.searchLength
+                model.searchLength = m
+                guard changed else { return }
                 now.say("Rebuilding at \(FAMAPI.minutes(m)) min")
                 var again = ep
                 again.key.minutes = m
@@ -562,6 +614,8 @@ struct SideButton: View {
     let caption: String
     let on: Bool
     let tint: Color
+    /// What VoiceOver says, when it is not the caption.
+    var spoken: String? = nil
     let action: () -> Void
 
     private static let glass = Color(red: 20 / 255, green: 18 / 255, blue: 28 / 255).opacity(0.62)
@@ -579,7 +633,7 @@ struct SideButton: View {
                 .overlay(alignment: .top) { chip.offset(y: 43) }
         }
         .buttonStyle(.press)
-        .accessibilityLabel(caption)
+        .accessibilityLabel(spoken ?? caption)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -609,7 +663,7 @@ struct SourcesStrip: View {
                 if !sources.items.isEmpty {
                     HStack(spacing: -6) {
                         ForEach(Array(sources.items.prefix(3).enumerated()), id: \.offset) { _, item in
-                            SourceMark(label: item.label, size: 20)
+                            SourceMark(label: item.label, url: item.url, size: 20)
                         }
                     }
                 }
@@ -636,24 +690,49 @@ struct SourcesStrip: View {
     }
 }
 
-/// A publisher's mark: its initials on a colour from its name, the site's
-/// icon over them when it loads.
+/// A publisher's mark (`srcMark`): its initials on a colour from its name
+/// (`srcHue`), and the site's icon over them when it loads - taken from the
+/// article URL's origin, and only when there is one.
 struct SourceMark: View {
     let label: String
+    /// The article's address: its origin's `/favicon.ico` is the logo.
+    var url: String? = nil
     var size: CGFloat = 20
 
     private static let palette: [UInt32] = [0xC9A876, 0x8FAE9A, 0xC3A8E0, 0xE2694F, 0x8FB4D9, 0xD9B38F]
 
+    /// `srcHue`: `sum = (sum * 31 + charCode) % 9973` over UTF-16 units.
+    static func hue(_ label: String) -> Int {
+        var sum = 0
+        for unit in label.utf16 { sum = (sum * 31 + Int(unit)) % 9973 }
+        return sum % palette.count
+    }
+
+    /// `srcInitials`: "www." off the front, the first dotted word, two letters.
+    static func initials(_ label: String) -> String {
+        let clean = label.hasPrefix("www.") ? String(label.dropFirst(4)) : label
+        let first = clean.split(separator: ".", omittingEmptySubsequences: false).first.map(String.init) ?? ""
+        let word = first.isEmpty ? clean : first
+        let two = String(word.prefix(2)).uppercased()
+        return two.isEmpty ? "?" : two
+    }
+
+    /// `originOf(item.url) + "/favicon.ico"`, for an http(s) address only.
+    static func logo(_ address: String?) -> URL? {
+        guard let address, let parts = URLComponents(string: address),
+              let scheme = parts.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let host = parts.host, !host.isEmpty else { return nil }
+        let port = parts.port.map { ":\($0)" } ?? ""
+        return URL(string: "\(scheme)://\(host)\(port)/favicon.ico")
+    }
+
     var body: some View {
-        let host = label.lowercased().replacingOccurrences(of: "www.", with: "")
-        let word = host.split(separator: ".").first.map(String.init) ?? host
-        let hash = label.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0x7fffffff }
         ZStack {
-            Circle().fill(Color(hex: Self.palette[hash % Self.palette.count]))
-            Text(String(word.prefix(2)).uppercased())
+            Circle().fill(Color(hex: Self.palette[Self.hue(label)]))
+            Text(Self.initials(label))
                 .font(FAMFont.body(size * 0.4, .bold))
                 .foregroundStyle(FAMColor.ink)
-            if host.contains("."), let url = URL(string: "https://\(host)/favicon.ico") {
+            if let url = Self.logo(self.url) {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFit().padding(size * 0.15)
                         .background(Circle().fill(FAMColor.paper))
@@ -673,6 +752,8 @@ struct ScrubberView: View {
     @EnvironmentObject private var now: NowPlayingModel
     @State private var dragging = false
     @State private var dragValue: Double = 0
+    /// "Nothing playing yet" was said for this touch.
+    @State private var refused = false
 
     var body: some View {
         let total = max(player.total, 0.1)
@@ -703,12 +784,22 @@ struct ScrubberView: View {
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        guard player.arrived > 0 else { return }
+                        // Nothing playing at all: said once, at the touch
+                        // (`makeScrubbable`'s pointerdown). Playing but
+                        // nothing arrived yet, the knob holds at the start.
+                        guard player.isLoaded, player.phase != .connecting, player.phase != .failed else {
+                            if !refused {
+                                refused = true
+                                now.say("Nothing playing yet")
+                            }
+                            return
+                        }
                         dragging = true
                         let wanted = total * min(max(value.location.x / width, 0), 1)
                         dragValue = min(wanted, player.seekLimit)
                     }
                     .onEnded { value in
+                        refused = false
                         guard dragging else { return }
                         let wanted = total * min(max(value.location.x / width, 0), 1)
                         player.seek(to: dragValue)
@@ -748,16 +839,57 @@ struct MiniPlayer: View {
     /// Something was queued: the picture bumps, as the web's queue target
     /// does when the queued episode lands on it (`Motion.toQueue`).
     @State private var bump = false
+    /// The copy flying here from the middle of the page while the player
+    /// is down (`toQueue` with no tile frame to start from).
+    @State private var flying: QueueFlight?
+    @State private var thumbFrame: CGRect = .zero
+    @State private var barFrame: CGRect = .zero
+
+    private static let space = "miniRoot"
 
     var body: some View {
+        bar
+            .overlay { flightLayer }
+            .coordinateSpace(name: Self.space)
+            .background(GeometryReader { geo in
+                let frame = geo.frame(in: .global)
+                Color.clear
+                    .onAppear { barFrame = frame }
+                    .onChange(of: frame) { _, now in barFrame = now }
+            })
+            .onChange(of: now.queueFlight) { _, flight in
+                guard let flight, !reduceMotion, !model.showPlayer, thumbFrame != .zero else { return }
+                flying = flight
+            }
+    }
+
+    /// The copy in flight, from the screen's middle to the picture.
+    @ViewBuilder private var flightLayer: some View {
+        if let flight = flying {
+            let screen = UIScreen.main.bounds
+            let start = CGPoint(x: screen.midX - barFrame.minX, y: screen.midY - barFrame.minY)
+            let end = CGPoint(x: thumbFrame.midX, y: thumbFrame.midY)
+            QueueGhost(picture: flight.picture, from: start, to: end) {
+                flying = nil
+            }
+            .id(flight.id)
+        }
+    }
+
+    private var bar: some View {
         HStack(spacing: 11) {
             thumb
+                .background(FrameReporter(space: Self.space) { thumbFrame = $0 })
                 .scaleEffect(bump ? 1.3 : 1)
                 .onChange(of: now.queue.count) { old, new in
                     guard new > old, !reduceMotion else { return }
-                    withAnimation(.easeOut(duration: 0.1)) { bump = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.easeOut(duration: 0.16)) { bump = false }
+                    // As the flight lands, when there is one (450 ms).
+                    let wait = model.showPlayer ? 0 : 0.45
+                    DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+                        withAnimation(.easeOut(duration: 0.1)) { bump = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.easeOut(duration: 0.16)) { bump = false }
+                        }
                     }
                 }
             VStack(alignment: .leading, spacing: 3) {
@@ -766,7 +898,7 @@ struct MiniPlayer: View {
                     WipeText(text: now.episode == nil ? player.title : now.title,
                              font: FAMFont.heading(12, .medium))
                 }
-                Text("\(clock(max(0, player.total - player.position))) left")
+                Text(metaLine)
                     .monoLabel(8, tracking: 0.56)
                     .lineLimit(1)
             }
@@ -798,6 +930,21 @@ struct MiniPlayer: View {
         .onTapGesture { model.showPlayer = true }
     }
 
+    /// The length the bar counts against: the minutes asked for
+    /// (`nowBarState.minutes * 60`), whatever the episode turns out to be.
+    private var asked: Double {
+        if let minutes = now.episode?.key.minutes, minutes > 0 { return minutes * 60 }
+        return max(player.total, 0.1)
+    }
+
+    /// "{source · }m:ss left" (`startNowBarTicker`). No play on the web
+    /// passes a source (`playOpts` has none), so the line is "m:ss left".
+    private var metaLine: String {
+        let source = ""
+        let left = clock(max(0, asked - player.position)) + " left"
+        return source.isEmpty ? left : source + " \u{00b7} " + left
+    }
+
     /// The player's picture at full height, sides cropped; headphones when
     /// there is none.
     private var thumb: some View {
@@ -822,7 +969,7 @@ struct MiniPlayer: View {
             ZStack(alignment: .leading) {
                 Rectangle().fill(FAMColor.borderStrong)
                 Rectangle().fill(FAMColor.copper)
-                    .frame(width: geo.size.width * min(player.position / max(player.total, 0.1), 1))
+                    .frame(width: geo.size.width * min(player.position / asked, 1))
                     .animation(.linear(duration: 0.2), value: player.position)
             }
         }
@@ -834,6 +981,24 @@ struct MiniPlayer: View {
 /// short copper rule over centred words, no box, on the page's own colour
 /// fading up into whatever is behind; an action (Undo, Open) in copper
 /// beside the words.
+/// The toast's 22 x 2 copper rule, growing from its middle as the line
+/// comes up (`.toast::before`: scaleX 0 to 1, .26 s after .06 s); whole
+/// with reduced motion.
+private struct ToastRule: View {
+    @State private var grown = UIAccessibility.isReduceMotionEnabled
+
+    var body: some View {
+        Capsule()
+            .fill(FAMColor.copper)
+            .frame(width: 22, height: 2)
+            .scaleEffect(x: grown ? 1 : 0, y: 1)
+            .onAppear {
+                guard !grown else { return }
+                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26).delay(0.06)) { grown = true }
+            }
+    }
+}
+
 struct ToastView: View {
     @EnvironmentObject private var now: NowPlayingModel
 
@@ -841,6 +1006,7 @@ struct ToastView: View {
         ZStack {
             if let toast = now.toast {
                 band(toast)
+                    .id(toast.id)
                     .transition(.opacity.combined(with: .offset(y: 6)))
             }
         }
@@ -849,9 +1015,7 @@ struct ToastView: View {
 
     private func band(_ toast: NowPlayingModel.Toast) -> some View {
         VStack(spacing: 7) {
-            Capsule()
-                .fill(FAMColor.copper)
-                .frame(width: 22, height: 2)
+            ToastRule()
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(toast.text)
                     .font(FAMFont.body(13.5, .medium))

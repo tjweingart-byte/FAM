@@ -1,25 +1,70 @@
 import SwiftUI
+import UIKit
 
 /// An episode's picture over the thumbnail ground (`.seed-thumb`); the FAM
-/// letters, faint, while there is none.
+/// letters, faint, while there is none. On a card (`blurUp`), a picture
+/// that lands after the tile was drawn blurs up (`.seed-img`, `BLUR_UP`:
+/// from clear, blur 8 and 1.12 to sharp over 320 ms); one already on the
+/// phone just shows.
 struct Picture: View {
     let url: URL?
+    /// Laid over something of its own - a card's drawing (`seedThumbOpen`)
+    /// - so no ground: while it loads, or if it fails, that shows through.
+    var clearGround = false
+    /// A card's picture (`.seed-img`): blurs up when it lands late.
+    var blurUp = false
+
+    @State private var drawnAt = Date()
 
     var body: some View {
         ZStack {
-            Rectangle().fill(FAMColor.thumb)
+            if !clearGround {
+                Rectangle().fill(FAMColor.thumb)
+            }
             if let url {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Color.clear
+                AsyncImage(url: url) { phase in
+                    pictureContent(phase)
                 }
-            } else {
+            } else if !clearGround {
                 FAMLetters(capHeight: 18, color: FAMColor.copper.opacity(0.35))
             }
         }
         .clipped()
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private func pictureContent(_ phase: AsyncImagePhase) -> some View {
+        if let image = phase.image {
+            // Within a tenth of a second of the tile being drawn it was
+            // already here: no motion (`data-drawn`, 100 ms).
+            let late = blurUp && Date().timeIntervalSince(drawnAt) >= 0.1
+            PictureBlurUp(image: image, animate: late)
+        } else {
+            Color.clear
+        }
+    }
+}
+
+/// `BLUR_UP` on a card's picture: held clear, blurred 8 and at 1.12, then
+/// brought sharp over 320 ms; still with reduced motion.
+private struct PictureBlurUp: View {
+    let image: Image
+    @State private var sharp: Bool
+
+    init(image: Image, animate: Bool) {
+        self.image = image
+        _sharp = State(initialValue: !animate || UIAccessibility.isReduceMotionEnabled)
+    }
+
+    var body: some View {
+        image.resizable().scaledToFill()
+            .opacity(sharp ? 1 : 0)
+            .blur(radius: sharp ? 0 : 8)
+            .scaleEffect(sharp ? 1 : 1.12)
+            .onAppear {
+                guard !sharp else { return }
+                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)) { sharp = true }
+            }
     }
 }
 

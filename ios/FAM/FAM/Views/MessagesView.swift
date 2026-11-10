@@ -179,8 +179,8 @@ struct InboxRow: View {
     private var name: String {
         let n = thread.name ?? ""
         if !n.isEmpty { return n }
-        let h = thread.handle ?? ""
-        return h.isEmpty ? "Someone" : "@" + h
+        // `renderThreadRows`: the name, else "@" and the handle.
+        return "@" + (thread.handle ?? "")
     }
 
     /// `renderThreadRows`: a group's lead ("You: " / "Rachel: "), an
@@ -213,17 +213,14 @@ struct InboxRow: View {
 /// New message (`#newChatOverlay`, shots 08-10): pick one or more friends
 /// (mutual follows only, §520) - one is a chat, two or more a group with an
 /// optional name -
-/// or find somebody by name or @handle and pick from what comes back (the
-/// web says "Name or phone number" and opens the first hit blindly;
-/// quirk 6).
+/// or type a name or handle in the web's "Name or phone number" box, and
+/// Start chat opens the first person `/api/people` finds (`confirmNewChat`).
 struct NewMessageCard: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var social: SocialModel
     @State private var picked: [String] = []
     @State private var groupName = ""
     @State private var typed = ""
-    @State private var found: [FollowPerson] = []
-    @State private var looked = false
     @State private var working = false
 
     private var people: [FollowPerson] { social.reachable }
@@ -252,9 +249,7 @@ struct NewMessageCard: View {
             Text("Or start a new conversation").monoLabel(9.5, tracking: 0.76)
                 .padding(.top, 16)
                 .padding(.bottom, 8)
-            ModalField(placeholder: "Name or @handle", text: $typed, plain: true)
-                .task(id: typed) { await lookUp() }
-            results
+            ModalField(placeholder: "Name or phone number", text: $typed, plain: true)
             HStack(spacing: 8) {
                 Spacer()
                 ModalButton(label: "Cancel") { dismiss() }
@@ -315,59 +310,8 @@ struct NewMessageCard: View {
         return "Group with " + names.joined(separator: ", ")
     }
 
-    /// Who a typed name or @handle finds, to pick from.
-    @ViewBuilder private var results: some View {
-        if !found.isEmpty {
-            VStack(spacing: 0) {
-                ForEach(found.prefix(5)) { p in
-                    Button { go(SocialModel.chat(with: p)) } label: {
-                        HStack(spacing: 10) {
-                            Face(name: p.name ?? "", handle: p.handle ?? "", avatar: p.avatar ?? "",
-                                 size: 30, initialsSize: 11)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text((p.name ?? "").isEmpty ? "@" + (p.handle ?? "") : (p.name ?? ""))
-                                    .font(FAMFont.body(12.5, .semibold))
-                                    .foregroundStyle(FAMColor.text)
-                                    .lineLimit(1)
-                                if let h = p.handle, !h.isEmpty {
-                                    Text("@" + h).font(FAMFont.mono(9)).foregroundStyle(FAMColor.textMuted)
-                                }
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.vertical, 7)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.press)
-                }
-            }
-            .padding(.top, 8)
-        } else if looked {
-            Text("Nobody with that handle")
-                .font(FAMFont.body(11))
-                .foregroundStyle(FAMColor.textMuted)
-                .padding(.top, 8)
-        }
-    }
-
     private func toggle(_ id: String) {
         if let at = picked.firstIndex(of: id) { picked.remove(at: at) } else { picked.append(id) }
-    }
-
-    /// 260 ms after the last letter, two letters at least (`@` stripped).
-    private func lookUp() async {
-        let q = Self.clean(typed)
-        guard q.count >= 2 else {
-            found = []
-            looked = false
-            return
-        }
-        try? await Task.sleep(nanoseconds: 260_000_000)
-        if Task.isCancelled { return }
-        let answer = (try? await model.api.people(q)) ?? []
-        if Task.isCancelled { return }
-        found = answer
-        looked = true
     }
 
     private static func clean(_ text: String) -> String {
@@ -378,7 +322,7 @@ struct NewMessageCard: View {
 
     /// `confirmNewChat`: two or more picked start a group; one opens that
     /// conversation (nothing is sent until the first message); none looks
-    /// the typed words up.
+    /// the typed words up and opens the first person found.
     private func confirm() {
         if picked.count >= 2 {
             working = true
@@ -409,14 +353,14 @@ struct NewMessageCard: View {
             model.nowPlaying.say("Type at least two letters of a handle")
             return
         }
-        if found.count == 1 { go(SocialModel.chat(with: found[0])); return }
         Task {
             do {
                 let answer = try await model.api.people(q)
-                found = answer
-                looked = true
-                if answer.count == 1 { go(SocialModel.chat(with: answer[0])) }
-                if answer.isEmpty { model.nowPlaying.say("Nobody with that handle") }
+                guard let first = answer.first else {
+                    model.nowPlaying.say("Nobody with that handle")
+                    return
+                }
+                go(SocialModel.chat(with: first))
             } catch {
                 model.nowPlaying.say("Could not look that up")
             }

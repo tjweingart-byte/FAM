@@ -339,13 +339,34 @@ struct ConsentLayer: View {
     var body: some View {
         ZStack {
             if let asking = consent.asking {
-                OverlayModal(close: { answer(false) }) {
-                    ConsentCard(notice: asking.notice) { allow in answer(allow) }
+                // The web's card has no backdrop close: a stray tap on the
+                // dim must never record a "Not now" (`aiConsentOverlay`).
+                OverlayModal(close: {}) {
+                    fitted(asking.notice)
                 }
                 .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.2), value: consent.asking)
+    }
+
+    /// The card as it is, or - when the server's words outgrow the screen
+    /// at the largest text sizes (`large-text`) - the same card scrolling,
+    /// so Not now and Allow are always reachable.
+    private func fitted(_ notice: ConsentNotice) -> some View {
+        ViewThatFits(in: .vertical) {
+            cardStack(notice)
+            ScrollView {
+                cardStack(notice)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    private func cardStack(_ notice: ConsentNotice) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ConsentCard(notice: notice) { allow in answer(allow) }
+        }
     }
 
     private func answer(_ allow: Bool) {
