@@ -53,6 +53,8 @@ log = logging.getLogger(__name__)
 #: (§286): a small writer matches a demonstrated length far more closely
 #: than a stated one.
 EXAMPLE_MINUTES: dict[str, int] = {}
+#: Each example's file name without `.txt`, by its query.
+EXAMPLE_STEMS: dict[str, str] = {}
 
 
 def load_style_examples() -> list[tuple[str, str]]:
@@ -70,6 +72,7 @@ def load_style_examples() -> list[tuple[str, str]]:
     directory = pathlib.Path(__file__).resolve().parent / "examples"
     found: list[tuple[str, str]] = []
     EXAMPLE_MINUTES.clear()
+    EXAMPLE_STEMS.clear()
     if not directory.is_dir():
         return found
 
@@ -81,6 +84,7 @@ def load_style_examples() -> list[tuple[str, str]]:
         query, script = head.strip(), body.strip()
         if query and script:
             found.append((query, script))
+            EXAMPLE_STEMS[query] = path.stem
             minutes = path.name.split("-", 1)[0]
             if minutes.isdigit():
                 EXAMPLE_MINUTES[query] = as_minutes(minutes)
@@ -113,6 +117,143 @@ def style_example_block() -> str:
         length = f' minutes="{minutes}"' if minutes else ""
         parts.append(f'<example query="{query}"{length} words="{words}">\n{script}\n</example>\n')
     return "\n".join(parts)
+
+#: At most this many before-and-after pairs are shown to the writer.
+MAX_TEACHING_PAIRS = 6
+
+
+def parse_pair(text: str) -> dict:
+    """A teaching pair's parts - query, before, after, why - or {} when the
+    text is not one (`examples/pairs/`, §522)."""
+    match = re.match(r"^(?P<query>[^\n]+)\n\nBEFORE:\n(?P<before>.+?)\n\nAFTER:\n"
+                     r"(?P<after>.+?)\n\nWHY: (?P<why>[^\n]+)\n?$", text or "", re.S)
+    return {k: v.strip() for k, v in match.groupdict().items()} if match else {}
+
+
+def load_teaching_pairs() -> list[dict]:
+    """`examples/pairs/*.txt`: the same episode written twice from the same
+    sources - a draft with the code's flaws, and the house voice - with one
+    line on what changed (§522). Made before launch by
+    `tools/teaching_pairs.py` and moved here by the owner; read once at
+    import. A file that is not a pair is skipped and logged."""
+    import pathlib
+
+    directory = pathlib.Path(__file__).resolve().parent / "examples" / "pairs"
+    found: list[dict] = []
+    for path in sorted(directory.glob("*.txt"))[:MAX_TEACHING_PAIRS]:
+        try:
+            pair = parse_pair(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if pair:
+            found.append(pair)
+        else:
+            log.warning("skipping teaching pair %s: expected a query, BEFORE:, AFTER:, WHY:",
+                        path.name)
+    return found
+
+
+TEACHING_PAIRS = load_teaching_pairs()
+
+
+def teaching_pair_block() -> str:
+    """The pairs, formatted for the system prompt - "" when off or none.
+    Fixed text, so the cached block stays the same from call to call."""
+    if not TEACHING_PAIRS or not getattr(settings, "teaching_pairs", True):
+        return ""
+    parts = ["\nBefore and after: the same episode written twice from the same "
+             "sources. The first is how a draft goes wrong; the second is the house "
+             "voice. Learn what changed - never borrow their facts or topics:\n"]
+    for pair in TEACHING_PAIRS:
+        parts.append(f'<pair query="{pair["query"]}">\n<before>\n{pair["before"]}\n'
+                     f'</before>\n<after>\n{pair["after"]}\n</after>\n'
+                     f'<why>{pair["why"]}</why>\n</pair>\n')
+    return "\n".join(parts)
+
+
+def load_example_facets() -> dict[str, str]:
+    """`examples/facets.json`: each example's facet, by file name (§521).
+    Empty when the file is missing or unreadable - then nothing is matched."""
+    import json
+    import pathlib
+
+    path = pathlib.Path(__file__).resolve().parent / "examples" / "facets.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: str(v) for k, v in data.items() if not k.startswith("_")}
+
+
+EXAMPLE_FACETS = load_example_facets()
+#: At most this many examples are named as the closest to an episode.
+MATCHED_EXAMPLES = 2
+
+
+def episode_facet(plan) -> str:
+    """The facet of the story in hand, in code (§521): the brief's place in
+    the category tree first (§311), then its category or subject resolved
+    against the tree, then the question's own words. "" when nothing says.
+    Never raises; never a call."""
+    try:
+        import stories
+        import topics
+
+        brief = getattr(plan, "brief", None)
+        path = list(getattr(brief, "category_path", None) or [])
+        if path and path[0] in topics.FACETS:
+            return path[0]
+        for text in (getattr(brief, "category", "") or "", getattr(brief, "subject", "") or ""):
+            node = stories.resolve_category(text) if text else ""
+            facet = stories.facet_for(node) if node else ""
+            if facet in topics.FACETS:
+                return facet
+        for facet in topics.facets_only(topics.tags_for_text(str(getattr(plan, "query", "")))):
+            if facet in topics.FACETS:
+                return facet
+    except Exception:  # noqa: BLE001 - a hint, never worth an episode
+        log.warning("could not place an episode's facet", exc_info=True)
+    return ""
+
+
+def matched_examples(facet: str, minutes: float = 0) -> list[str]:
+    """The stems of the examples of this facet, nearest the episode's length
+    first (how much an answer holds at its length is part of what an example
+    teaches), at most `MATCHED_EXAMPLES`."""
+    if not facet:
+        return []
+
+    def length(stem: str) -> float:
+        head = stem.split("-", 1)[0]
+        return abs(float(head) - float(minutes or 0)) if head.isdigit() else 99.0
+
+    stems = [stem for stem, f in EXAMPLE_FACETS.items() if f == facet]
+    return sorted(stems, key=lambda s: (length(s), s))[:MATCHED_EXAMPLES]
+
+
+def example_hint(plan) -> str:
+    """One line in the writer's request naming the house examples closest to
+    this kind of story (`EXAMPLE_MATCHING`, §521), or "". In the request,
+    never the system block, so the cached instructions stay byte for byte
+    the same ([writer-savings]). Never raises."""
+    try:
+        if not getattr(settings, "example_matching", True):
+            return ""
+        by_stem = {stem: query for query, stem in EXAMPLE_STEMS.items()}
+        queries = [by_stem[s] for s in matched_examples(episode_facet(plan),
+                                                         getattr(plan, "minutes", 0))
+                   if s in by_stem]
+        if not queries:
+            return ""
+        named = " and ".join(f'"{q}"' for q in queries)
+        return ("\nOf the house examples, the closest to this kind of story "
+                f"{'is' if len(queries) == 1 else 'are'} {named}. Tell this one the way "
+                f"{'it opens, moves and lands' if len(queries) == 1 else 'they open, move and land'}"
+                " - never with their facts.\n")
+    except Exception:  # noqa: BLE001
+        log.warning("could not name the matching examples", exc_info=True)
+        return ""
+
 
 # The last few openers spoken by this server. Fed back into the prompt so a
 # listener working through several episodes does not hear the same shape of
@@ -547,7 +688,7 @@ twelve words; nothing after it.
 
 def system_prompt() -> str:
     """The house rules, plus any examples of the voice they describe."""
-    return SYSTEM_PROMPT + style_example_block()
+    return SYSTEM_PROMPT + style_example_block() + teaching_pair_block()
 
 
 #: The writer's one rewrite of a sentence Mclovin failed (§435). Its own
@@ -1667,7 +1808,7 @@ never spoken.
 <request>{plan.query}</request>
 
 It is currently {now_line()}. Prefer the newest information you can establish.
-{attached}{local}{live}{evidence}{temporal}{brief_block}{follow_up}
+{attached}{local}{live}{evidence}{temporal}{brief_block}{follow_up}{example_hint(plan)}
 You have about {plan.minutes} minute{"s" if plan.minutes != 1 else ""} - roughly
 {budget} words. That is room for {plan.sections[0]}.
 
@@ -1887,7 +2028,32 @@ async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
         block = ""
     if trial:
         notes.editor_arm = "with" if block else "with_unplanned"
-    return dataclasses.replace(plan, editor_outline=block) if block else plan
+    if not block:
+        return plan
+    return dataclasses.replace(_with_shape(plan, notes), editor_outline=block)
+
+
+def _with_shape(plan: "EpisodePlan", notes) -> "EpisodePlan":
+    """The plan with the story shape Shakespeare chose from the packets, when
+    he changed it (§524) - a copy of the brief, which may be shared, with its
+    `structure` replaced, so the writer's shape note and the quality row's
+    `structure` both follow him. Ahead of the tap only: on searchFAM the
+    opening is written to the brief's shape before his plan exists. Never in
+    the cache key. Never raises."""
+    try:
+        editor = getattr(notes, "editor", None) or {}
+        shape = editor.get("shape") if isinstance(editor, dict) else ""
+        brief = plan.brief
+        if not shape or brief is None:
+            return plan
+        editor["shape_from"] = str(getattr(brief, "structure", "") or "general")
+        from agents import editor as editor_agent
+
+        editor_agent._count("shape_changed")
+        return dataclasses.replace(plan, brief=dataclasses.replace(brief, structure=shape))
+    except Exception:  # noqa: BLE001 - the editor never costs an episode
+        log.warning("could not apply Shakespeare's shape", exc_info=True)
+        return plan
 
 
 def editor_trial_arm(plan: "EpisodePlan") -> str:
@@ -2188,6 +2354,10 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
     (`ScriptNotes.edition`, set by Trending and DailyFAM) when
     `EDITION_WRITER_MODEL` / `EDITION_WRITER_EFFORT` are set - so a cheaper
     writer is tried where nobody is waiting, and nowhere else.
+
+    Wherever nobody waits (`nobody_waits`: editions, the write-ahead,
+    prefetch warms) the effort is `AHEAD_WRITER_EFFORT`, high (§522);
+    searchFAM keeps `EFFORT`.
     """
     writer = settings.writer_model or settings.model
     if writer in UNAVAILABLE_MODELS:
@@ -2197,8 +2367,23 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
         if model in UNAVAILABLE_MODELS:
             # The everyday writer, itself already `MODEL` if it is refused.
             model = writer
-        return model, settings.edition_writer_effort or settings.effort
+        return model, (settings.edition_writer_effort or ahead_writer_effort()
+                       or settings.effort)
+    if nobody_waits(notes):
+        return writer, ahead_writer_effort() or settings.effort
     return writer, settings.effort
+
+
+def nobody_waits(notes) -> bool:
+    """Whether this episode is written before anybody taps (§522): an
+    edition, an episode written ahead of the tap, or a prefetch warm."""
+    return notes is not None and any(getattr(notes, flag, False)
+                                     for flag in ("edition", "ahead", "prefetch"))
+
+
+def ahead_writer_effort() -> str:
+    """`AHEAD_WRITER_EFFORT` (high), the writer's effort where nobody waits."""
+    return str(getattr(settings, "ahead_writer_effort", "") or "")
 
 
 # -- how the writer has been doing, for /api/health and /admin (§270) ------

@@ -32487,3 +32487,748 @@ not friends with Ben. Everyone in this group can see what you send here." -
 which the web (`threadWarnHTML`, `.thread-warn`) and iOS (`ChatView`) draw
 at the top of the conversation. Test:
 `test_a_group_may_hold_strangers_and_tells_each_member_who`.
+
+## 521. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09)
+
+The owner (2026-11-09): "Do 1, 3 and 4" of seven proposals for training
+Shakespeare. §437 found his outline did not yet make the writing measurably
+better at 1.5 minutes (Opus mean 2.82 / 2.84 / 2.87, every interval across
+zero) and storytelling 1.5-1.9 of 5 in every arm, and left unmeasured
+whether the writer followed the plan at all. The proposals not taken: an
+outline with a named turn and a because / therefore / but link per beat (2),
+best of three plans ahead of the tap (5), planted failure cases and a
+nightly Opus review as Mclovin has (6), and listening-driven playbook
+revisions (7).
+
+**1. Whether the writer followed his plan** (`episode_quality.plan_following`,
+code, no model). His outline now leaves the sentences he chose on the
+episode's notes, in memory only (`agents.editor.plan_texts`,
+`notes.editor["plan"]`). Where the episode is cached, `note` measures four
+parts and keeps the numbers in the row's `measures` JSON as `plan` - never
+the sentences, which are provider text:
+
+- `opening`: an open-on sentence used in the first two sentences;
+- `beats`: the share of his parts with any sentence used anywhere;
+- `order`: of the parts used, the share of pairs told in his order;
+- `landing`: a land-on sentence used in the last two;
+- `score`, the mean of those that apply, and `surface` - "ahead", or
+  "tandem" on searchFAM, where the opening was written before his plan
+  existed (§456) and is not counted.
+
+A plan sentence is *used* by a script sentence sharing at least two of its
+content words and a quarter of them (`PLAN_SHARED_WORDS`,
+`PLAN_SHARED_SHARE`): the writer retells the sources, so names, numbers
+and nouns carry over where the phrasing does not. It is a crude reader,
+pinned by tests on a followed script, a reordered one and a near-miss -
+read it as a trend, not a verdict on one episode. `python
+tools/editor_trial.py` prints it first, ahead and tandem apart
+(`plan_following_report`); `tools/editor_eval.py` reports `plan:*` per arm.
+**Unmeasured until it runs with the key**: what the numbers are. If the
+writer does not follow the plan, `writer_block` is the next thing to fix,
+before anything about the plan itself.
+
+**3. Worked plans** (`agents/worked_plans.py`, `examples/plans/`). His
+`<teaching>` held the finished examples and never a plan. Eight worked
+plans now follow them - 1-blue-sky, 2-apollo-13, 2-autoimmune,
+2-fed-raises-rates, 2-house-music, 2-passkeys, 2-singapore-sprint,
+2-suez-canal: sports, money, tech, science, health, culture and world. Each
+is a packet numbered exactly as his packets are, his answer in his own
+shape (`EditorAnswer`), and one line on what it teaches; the episode it
+became is the example of the same name. **FAM's own words, never provider
+text** (§437 keeps the frozen packets outside the repository for that
+reason): the sentences are the example's own facts written as a source
+states them, plus a line or two each plan leaves out - a preview, a
+forecast, advice, something beside the point - so every plan shows
+choosing, not only ordering (a test fails if one keeps every sentence).
+Checked in code at load: every number resolves, no beat would be dropped,
+the example exists and has a facet; a plan that fails is left out and
+logged. His instructions gained one sentence saying what worked plans are.
+`python tools/editor_teaching.py --check` prints the checks; `--draft
+<example>` (with the key) has Opus 5.5 draft the plan for an example that
+has none - 2-flight-cancellations, 2-marathon-distance, 4-noise-cancelling
+and 5-financial-crisis today - written only if it passes, to be read
+before it is committed. Cost: about 15,000 characters more of his input,
+roughly 4,000 tokens a plan. `EDITOR_WORKED_PLANS=0` restores the examples
+alone. His signed rule book is unchanged: he still names sentences by
+number, and the worked plans are teaching, never evidence.
+
+**4. Examples matched to the story.** `examples/facets.json` gives every
+example its facet (`topics.FACETS`; a test fails on an example without
+one). `script_generator.episode_facet` reads the episode's facet in code -
+the brief's category path (§311), then its category or subject against the
+tree, then the question's words - and `example_hint` names the one or two
+examples of that facet, the nearest the episode's length first, in the
+writer's **request**, never the cached system block, which stays byte for
+byte the same ([writer-savings]). Shakespeare's worked plans name the ones
+of the same kind. `EXAMPLE_MATCHING=0` leaves the request exactly as it was.
+Business has one example and no worked plan, local news none.
+
+And new examples proposed from listening (`episode_quality.example_candidates`,
+`python tools/example_candidates.py`): per facet, the written episodes with
+20 or more listens (`CANDIDATE_MIN_LISTENS`), the most heard to 85% first,
+then the fewest left in 20 s, the facets with fewest examples first. `--write`
+puts them in `~/.fam/example_candidates/` in the examples' format, **never in
+`examples/`**: the owner reads, edits and moves the ones worth keeping
+([examples-lever]; no hand-scoring - choosing an example is not scoring an
+episode). None qualify here: this container's store has no listens.
+
+**Measuring it.** `tools/editor_eval.py` gained two arms on §437's frozen
+packets: `none_matched` (no editor, the writer matched) and `haiku_taught`
+(Haiku 5.5 high with worked plans, the writer matched). The original three
+now run with both switches off, so they stay §437's comparison, and their
+results already on disk are the baseline:
+
+    AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run --arms none_matched,haiku_taught
+
+About $7 for the two arms with grading (§437: $10.45 for three). No key
+here, so neither the plan-following numbers nor the comparison has been run.
+
+Settings (new): `EDITOR_WORKED_PLANS` (1), `EXAMPLE_MATCHING` (1), in
+`config.py`, `.env.example` and `tests/conftest.py`.
+
+Tests: `tests/test_plan_following_521.py` (a followed script scores one;
+each part on its own; a part never told; one shared word is not a use;
+tandem's opening not counted; numbers kept, never sentences; the report by
+surface; his outline leaves his sentences on the notes),
+`tests/test_worked_plans_521.py` (every plan passes his checks; the facets
+covered; each leaves something out; a broken plan left out and said why;
+numbered as his packets; off, none; in his teaching after the examples; the
+checker runs with no key), `tests/test_examples_matched_521.py` (every
+example has a facet; the facet from the brief first; nearest length first;
+named in the request, the system block unchanged; off, as it was;
+candidates by listening, fewest-example facets first, written in the
+examples' format, never a listener).
+
+## 522. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09)
+
+The owner (2026-11-09), on seven ways to train the writer as a
+professional script writer: "1. For when nobody waits, it's supposed to be
+haiku high. 2. Rewriting cost are something we want to avoid, that is why we
+want to train rather than draft/rewrite. 3. This is a great way to train the
+model early on, we absolutely can't use opus to rewrite episodes after
+launch. 4. Implement this. 5. ... what is the best way to do this. 6. Good
+7. Don't do." So: no rewrite pass on any episode (2), and no automated
+search over the writer's instructions (7). Story shapes (5) are answered,
+not built.
+
+**1. The writer at high effort where nobody waits** (`AHEAD_WRITER_EFFORT`,
+high). It was Haiku 5.5 at `EFFORT` (low) everywhere - `EDITION_WRITER_*`
+existed for the editions but was unset. `writer_for` now gives
+`AHEAD_WRITER_EFFORT` wherever `nobody_waits(notes)`: an edition
+(`notes.edition`), an episode written ahead of the tap (`notes.ahead`), or
+a prefetch script warm (`notes.prefetch`). searchFAM stays at `EFFORT`, so
+the first word is not moved; `EDITION_WRITER_EFFORT`, when set, still wins
+for an edition. `MAX_OUTPUT_TOKENS` is 16,000, the room §437 found Haiku
+high needs. `/api/health` reports `ahead_writer_effort` and its source, and
+`edition_writer.effort` now reads what is actually used. Not in the cache
+key. Cost unmeasured: high effort spends thinking tokens on every edition
+and warm (§455's editor call at high cost ~2.7x low).
+
+**6. The ear, checked in code** (`episode_quality.ear`, inside `measure`,
+so every quality row and `tools/editor_eval.py`, as `code:ear`, carry it).
+The journalism playbook's Part 2, the parts a pattern can see: `long`
+(over 40 words), `front_loaded` (a subordinate lead of 12+ words before the
+first comma - never a time or place phrase), `monotone` (4+ sentences within
+3 words of each other's length), `said_after` (the speaker named after the
+quote), `figures` (two or more figures in a sentence), `visual`, `brackets`,
+`long_list` (five or more short items). `score` is the share of sentences
+no check flagged. **Tuned on the house examples**, which the checks must
+pass: at a 30-word limit and with time phrases counted as leads they
+flagged a quarter of the owner's own sentences; as set, the twelve examples
+score 0.75-1.0 (mean ~0.92), and the one front-loaded lead still flagged
+genuinely is. Never one of the six graded metrics, never enforced.
+
+**4. Where listeners stop** (`episode_quality.drop_off`,
+`python tools/drop_off.py`). For every sentence, of the listeners who
+reached it, the share who stopped there and heard nothing after (a listen
+of `FINISHED_SHARE` stopped nowhere). Reported: the sentences with the
+highest exit rate that at least 10 listeners reached, with their ear flags;
+the opening, middle and landing; and per ear check, flagged against passed
+sentences - whether listeners act on each rule. Positions: `episode_audio`
+keeps each sentence's start (`starts`) but only for the audio's week, so
+`pipeline._keep_audio` now copies them to the quality row as shares of the
+episode (`note_starts`, a new `starts` column widened like `editor_arm`) -
+shares, not seconds, because another voice reads at another pace and a
+listen records only how far through it got. Without them, positions come
+from word counts. Numbers and FAM's own sentences only, never a listener.
+A stop is not always the sentence's fault; read rates over many listens.
+
+**3. Before-and-after pairs, before launch only** (`tools/teaching_pairs.py`,
+`examples/pairs/`, `TEACHING_PAIRS`). `--propose` reads the scripts
+`tools/editor_eval.py` wrote from its frozen packets - never a listener's
+episode, the cache or the quality store - and takes those the code flags
+most (weak opening, recap/tease/question ending, signposts, repeats, facts
+joined by "and", the ear checks). Opus 5.5 rewrites each from the same
+packet under the house rules, told the flaws. Kept only if the code finds
+fewer flaws with no story or ear score lower, and the grader marks it at
+least 0.3 higher (mean of six) with no more unsupported claims. Kept pairs
+land in `~/.fam/teaching_pairs/` with a reason line built in code from the
+flaws fixed; the owner moves the ones worth teaching into `examples/pairs/`,
+where the writer's cached instructions show up to six. **It refuses to run
+on a deployed service** (`RENDER` / `RENDER_SERVICE_ID`), nothing on the
+server imports it and no schedule runs it - the owner's line, as code. No
+pairs are committed yet, so the writer's instructions are byte for byte
+what they were.
+
+**5. Story shapes - the answer given, not built.** Recommended: a closed
+set of about six shapes (the result, the explainer, why now, state of play,
+the profile, the turn), each defined in the playbook by its skeleton in
+because / therefore / but terms, how it opens and how it lands - the
+playbook is signed, so the owner signs the list; **chosen in code from the
+brief** (outcome-dependent and finished → the result; in progress → state
+of play; "why/how" → explainer; a person → profile), so searchFAM gets one
+with no wait; Shakespeare may override it ahead of the tap with an enum
+field (no fact can be written into it); the writer reads the shape's name
+in its request and the skeletons in its cached block; one example per
+shape (the twelve cover three or four); measured by `drop_off` and the
+comparison per shape.
+
+Settings (new): `AHEAD_WRITER_EFFORT` (high), `TEACHING_PAIRS` (1), in
+`config.py`, `.env.example` and `tests/conftest.py`. CLAUDE.md's
+[small-calls-haiku] line and its topic file note the change.
+
+Tests: `tests/test_writer_training_522.py` (high only where nobody waits;
+an edition's own effort wins; copied and reported; each ear check named;
+a run of one length; a time phrase is not a lead; the house examples pass;
+every measure carries the ear; exit rates per sentence, by place and ear
+check; words without timings; starts kept once, as shares; the pipeline
+keeps them; a pair round-trips into the writer's block, off removes it; no
+pairs, no change; the reason from what was fixed; flaws named; refused on a
+deployed server; nothing on the server imports it).
+
+## 523. Story shapes, drafted for the owner (2026-11-09)
+
+The owner: "Draft the story shapes list" (proposal 5 of §522). The draft is
+`docs/story_shapes.md`: not signed, not wired - nothing reads it.
+
+**What it found first.** FAM already has shapes: `episode_intelligence.STRUCTURES`,
+nine of them, picked from a closed list by the brief inside its own call
+(no wait), with `in_progress` reached only from evidence (§88). §522's
+answer described choosing in code as if it were new; it is not. So the draft
+**revises that list rather than adding a second one**. It names five
+problems with today's shapes:
+- three endings invite a forecast or a summary (`breaking`'s "what happens
+  next", `business`'s "what it implies", `explainer`'s "the way to think about
+  it afterwards"), against [endings-do-not-tease] and [speak-from-inside];
+- no shape says how to open or land;
+- no shape says how its parts connect (because / therefore / but);
+- a person and a comparison have no shape;
+- no example is tied to a shape.
+
+**The draft:** ten shapes plus `general`. Each has six parts: chosen, opens
+on, moves, lands on, never, example. The keys are unchanged where a shape
+survives (`breaking`, `business`, `sports_recap`, `sports_preview`,
+`in_progress`, `explainer`, `historical`, `trend`); two are new (`profile`,
+`comparison`). Town news and the weather are left out, because §194's
+composed order already governs them. The twelve examples cover four shapes;
+six shapes have none, the news story among them, and the gaps are listed.
+
+**Once signed:** the shapes go into the playbook's Part 3, and the code
+follows the signed text. The brief keeps choosing, at no wait.
+Shakespeare may correct the shape ahead of the tap through an enum field.
+The writer's request carries the shape's opening, moves and landing, never
+the cached block. Each example names its shape. Measured per shape with
+`tools/editor_eval.py` and `tools/drop_off.py`. Four questions for the owner
+close the draft.
+
+## 524. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09)
+
+The owner, on `docs/story_shapes.md` (§523): "Add profile and comparison,
+let Shakespeare change the shape" - questions 2 and 3 of the draft. Question
+1 (the list's other changes) and 4 (the wording, to be signed into the
+playbook) are still open, so the other shapes' wording is unchanged.
+
+**Two shapes** in `episode_intelligence.STRUCTURES`, which the brief may
+pick (`PICKABLE_STRUCTURES`):
+- `profile`: why they are talked about now, who they are, the turns that got
+  them here, where they stand now from dated reporting, landing on the most
+  concrete current fact;
+- `comparison`: the difference that decides it, each side in its own terms,
+  where they differ and why, landing on the fact that separates them, never
+  which to choose.
+
+Intent `comparison` now defaults to `comparison` (it was `explainer`). The
+brief's instructions name when each applies. The quality row's `structure`
+carries them, so `drop_off` and the comparison can read them per shape.
+
+**Shakespeare changes the shape ahead of the tap.** His answer gains
+`shape`: an enum of every `STRUCTURES` key plus "" (keep the brief's). There
+is no field a fact could go into. `in_progress` is included: the brief may
+not pick it, because it has read nothing (§88), but he has read the packets
+and can see that nothing has finished. His `<evidence>` now opens with the
+brief's shape and every shape's parts. His instructions say to keep it, or
+to name a better fit, above all `in_progress` when no sentence reports a
+result. `script_generator._with_shape` applies a changed shape to a copy of
+the brief (a warmed brief is shared), so the writer's shape note
+(`build_structure_note`) and the quality row follow him. It records
+`shape_from` on his notes and counts `shape_changed`. Not in the cache key.
+**On searchFAM the brief's shape stands**, because in tandem the opening is
+written to it before his plan exists (`shape` is "" there).
+`tools/editor_eval.py` applies his shape as the editions do.
+
+His signed rule book is unchanged: choosing the shape is part of outlining
+the story ("always" 3), and he still states no fact.
+
+Tests: `tests/test_story_shapes_524.py` (both shapes pickable, comparison's
+default, `in_progress` still not; his list is exactly the brief's
+vocabulary; he is shown the brief's shape and every shape; ahead, his shape
+reaches the writer's prompt, the shared brief untouched, counted; an empty or
+the same shape keeps the brief's; on search the brief's stands; no brief, no
+change).
+
+## 525. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09)
+
+The owner: "Keep the list as drafted and sign the wording" - the last two
+questions of `docs/story_shapes.md` (§523).
+
+**The wording is in place where the writer reads it.** Each of the ten
+shapes in `episode_intelligence.STRUCTURES` is now the draft's, as one line:
+what it opens on, how its parts follow (because, therefore, but), what it
+lands on, and what it never does. The three endings §523 found against the
+rules are gone: `breaking`'s "what happens next", `business`'s "what it
+implies" and `explainer`'s "the way to think about it afterwards". The
+writer reads a shape through `build_structure_note`, unchanged, in its
+request rather than the cached block, and still with "drop any part you
+have nothing real for". Keys are unchanged, so nothing stored moves.
+
+**Signing is the owner's.** The key is held outside the repository, and no
+session makes, reads or asks for it (§348). The playbook is a signed book (the
+manifest covers it with `shakespeare.md`), and a session never edits a
+signed book. So the proposed playbook waits whole in
+`docs/agent_rule_proposals/journalism_playbook.md`: v2, with Part 3's new
+"Story shapes", which holds each shape's chosen, shape and example lines.
+`docs/journalism_playbook.md` is the signed v1, byte for byte, so
+`--verify` passes and every agent may run. This session first edited the
+signed playbook in place, which would have held Shakespeare and failed
+`test_the_repositorys_rule_books_are_signed_or_every_agent_is_held`. The
+proposals README's rule caught it, and the edit was moved.
+`docs/agent_rules/MANIFEST.pending.json` is version 7: only the playbook's
+fingerprint differs from version 6, and it is the proposal's.
+
+`tests/test_story_shapes_525.py` holds the code to the playbook as it will
+be signed - the proposal while it waits, the signed book after - word for
+word, with every key named in both, every shape opening, landing and saying
+what it never does, and the three old endings absent.
+
+**For the owner** (the proposals README, with one difference: the playbook
+lives in `docs/`, not `docs/agent_rules/`): download the proposal and the
+pending manifest (renamed `MANIFEST.json`), sign the manifest, then upload
+`journalism_playbook.md` to `docs/` and `MANIFEST.json` and
+`MANIFEST.json.sig` to `docs/agent_rules/`. Then the session verifies, deletes
+the proposal and the pending manifest, and the owner updates the held copy.
+
+## 526. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09)
+
+The owner signed `MANIFEST.pending.json` (version 7, §525) on a new
+computer, a MacBook Air that had no `conda` and only LibreSSL 3.3.6. LibreSSL
+cannot make an Ed25519 signature, as §470 found. Miniforge was installed in
+the home folder (no admin password); `conda create -n famsign -c conda-forge
+openssl` gave OpenSSL 4.1.0, and `conda activate famsign` works there from
+now on. The key was saved from TextEdit to the home folder, never the iCloud
+Desktop, and deleted with `rm -P` after signing. Both files' SHA-256 were
+checked before signing.
+
+A changed way of uploading: the owner uploaded only `MANIFEST.json` and
+`MANIFEST.json.sig`, to `docs/agent_rule_proposals/` (4300301, two files, no
+stray). The proposed playbook was already there byte for byte, so the
+owner had nothing to upload for it. The session then verified the signature
+with `owner.pub` before moving anything: `MANIFEST.json` is the pending
+manifest byte for byte (version 7; the commit message says 8). It then
+moved, in one commit, the playbook to `docs/`, and the manifest and
+signature to `docs/agent_rules/`, and deleted the pending manifest. A
+signature covers the files' contents, not where they sit, and the build was
+green throughout, since the signed books never changed before the
+signature arrived. `python tools/rulebook_manifest.py --verify`: manifest
+version 7, every agent may run.
+
+`tests/test_story_shapes_525.py` now reads the signed playbook (the proposal
+is gone), and the writer's shapes are its words. The owner updates the copy
+held outside Claude: the three files from the Desktop `famsign` folder go to
+`current/`, and version 6's set to `archive/`.
+
+## 527. The §521 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10)
+
+Run in this session with the environment's keys (`FAM_ANTHROPIC_KEY`, the
+search keys). §437's frozen packets were gone with their container (as
+§450 found before), so the 50 questions were researched again into
+`~/.fam/editor_eval_501/` (~$0.50). Every arm writes from those same
+packets, so arms pair by question. The writer is Haiku 5.5 at high effort
+(§522), with the signed shapes (§526), and Opus 5.5 grades blind. The owner
+chose Opus grading over cheaper options. One run stopped at this session's
+two-hour background limit and another at a container restart; both
+resumed where they stopped, because the tool skips what is written.
+
+**Run 1** (`--arms none,none_matched,haiku,haiku_taught`, 200 scripts, no
+grade failures, $6.16: writing $1.15, grading $5.01). Opus mean of six,
+paired by question, 95% bootstrap:
+
+| | difference | interval | better / worse |
+|---|---|---|---|
+| none_matched - none (matched examples) | +0.03 | [-0.12, +0.18] | 18 / 23 |
+| haiku_taught - haiku (worked plans) | +0.07 | [-0.06, +0.20] | 23 / 19 |
+| haiku - none (Shakespeare) | +0.07 | [-0.11, +0.24] | 23 / 21 |
+| haiku_taught - none | +0.14 | [-0.03, +0.31] | 27 / 18 |
+
+- **Matched examples cost repetition**: -0.37 [-0.71, -0.04], 20 worse and 13
+  better; nothing else clears zero. **Turned off** (`EXAMPLE_MATCHING=0`).
+- **Worked plans**: repetition +0.40 [0.00, +0.76] and hook +0.24
+  [-0.02, +0.50], both at the edge; nothing worse. Kept.
+- **Whether the writer follows his plan**, measured for the first time
+  (haiku / haiku_taught): opening 0.63 / 0.62, parts 0.79 / 0.80, order
+  0.82 / 0.82, **landing 0.35 / 0.40**, score 0.63 / 0.65. The landing is
+  where the plan is lost.
+- Every arm graded far above §437 (mean of six ~3.6 against 2.82;
+  storytelling 2.9-3.2 against 1.5-1.9; unsupported claims 0.4-0.6 against
+  3.6). Run 2 says that is not the writer's effort; new packets, the shapes
+  and the grader's own drift are not told apart here.
+
+**Run 2** (`~/.fam/editor_eval_507/`, the same packets; 100 scripts, $2.97):
+two changes and one new arm.
+- `none_low` (new arm in `tools/editor_eval.py`): no editor, the writer at
+  low effort as before §522. **High minus low, mean of six: +0.05 [-0.10,
+  +0.20]**, better 27, worse 20. It leans, without clearing zero, towards
+  storytelling (+0.24), repetition (+0.25) and fewer unsupported claims
+  (+0.22 [-0.02, +0.46]; 0.60 against 0.82 a script). It costs twice the
+  writing ($0.0035 against $0.0017 an episode) and 15 s more, ahead of the
+  tap where nobody waits. Kept: nothing is worse, and the claims lean the
+  right way.
+- **The landing as the last sentence** (`writer_block`: "What it lands on
+  is your last sentence: decide that sentence first, head for it, and stop
+  once it is said"; "Land on - your last sentence tells this, and the
+  episode ends there:"). **No effect**: landing 0.40 to 0.42, plan score
+  0.65 to 0.63, mean of six -0.08 [-0.21, +0.06], hook -0.26 [-0.54, +0.04]
+  (22 worse, 11 better), at the edge in the wrong direction. Wording does
+  not move the landing. Either the writer decides its last line by itself
+  whatever the plan says, or the measure misses landings told in other
+  words. The two are not told apart yet, because results keep the numbers,
+  never the plan's sentences (provider text).
+
+Tests: `tests/test_eval_findings_527.py` (matching off by default; the
+plan's landing worded as the last sentence; `none_low` at low effort, the
+other arms high, and the settings taken back after).
+
+## 528. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10)
+
+The owner: "Do 1 and 2" of §527's next steps.
+
+**1. The landing wording is back as it was.** "Land on:" again, with no
+"your last sentence" line: §527 measured no gain (landing 0.40 to 0.42) and
+a hook leaning worse (-0.26 [-0.54, +0.04]).
+
+**2. The measure, checked by reading.** Shakespeare (worked plans) wrote 10
+of the frozen questions again with no grading (~$0.08). His chosen sentences
+and each episode's last two sentences were kept in the session's scratchpad
+only, because they are provider text. The questions: Fed, Gaza talks, oil,
+jobs report, Eagles, F1, Nvidia, Apple, bird flu, Roman Empire. Read by hand,
+the writer **landed on his planned material in 6 of 10** (jobs, Nvidia,
+Eagles, Roman Empire, and, in the second-to-last sentence, Gaza and the
+Fed); oil partly (the same move, another source's figures); F1, Apple and
+bird flu not. **The measure said 0 of 10.** The writer follows the landing
+far more than §521-§527 reported, and their landing figures (0.35-0.42) are
+too low.
+
+Why it missed:
+- **numbers read out**: the writer says "seven point nine percent", the
+  source prints "7.9%", and the measure compared digits only;
+- **long source "sentences"**: a standings table or a press release's
+  header has dozens of words, and a quarter of them had to appear;
+- **broken sentences**: "10, but they continue almost daily." - the
+  packet's splitter (`editor._split`) cuts after a number.
+
+**The fix** (`episode_quality`): figures are read printed or spoken, through
+`figure_guard`'s own reader (`_plan_numbers`), and a shared figure counts
+as a use - twice when it is distinctive (a decimal, or above twelve). Number
+words count only as numbers. A long source sentence is judged against at
+most eight of its words (`PLAN_WORDS_CAP`). On the ten, the measure now
+agrees with the reading on **8 of 10** (it agreed on 4). The two
+disagreements: Gaza's planned landing is a broken half-sentence, and Apple
+ended on a different product at the same $299 - a shared distinctive figure
+taken as a landing, a borderline case.
+
+**Not redone:** §521-§527's plan-following figures stand as measured and
+are too low. The scripts' plan sentences were never kept (provider text),
+so they cannot be measured again; the next comparison measures with the
+fix.
+
+**Seen on the way, not fixed here:** Shakespeare's landings were sometimes
+page furniture - a press release's header, a markdown standings table, a
+sentence carrying a link. The numbered packet keeps whatever lines the
+source gave (`editor._split`). Cleaning the packet is Consuela's and
+Sonic's job, upstream of him.
+
+Tests: `tests/test_plan_landing_528.py` (a figure read out is the figure
+printed; a long table matched by its names and numbers; a distinctive figure
+counts twice and a small one once; an unrelated ending is no landing);
+`tests/test_eval_findings_527.py` (the wording back as it was).
+
+## 529. The packet Shakespeare numbers, cleaned (2026-11-10)
+
+The owner: "Start on 1" - §528's next step: clean the sources before
+Shakespeare reads them, because the writer mostly follows what he chooses
+(§528).
+
+**What he was choosing from**, measured on the 50 frozen packets
+(`~/.fam/editor_eval_501/`): 2,735 numbered sentences, as `editor._split`
+cut the sources' raw lines.
+- **17 of the 50 had a "live state" source made entirely of FAM's own
+  guidance to the writer.** `number_packets` numbered `live.as_prompt_block()`,
+  and a lookup with no facts renders only guidance: "This question turns on a
+  live markets state...", "**Not knowing is not the same as nothing having
+  happened.** You do not know...". 204 lines, numbered P1.1-P1.12 as if they
+  were a source he could plan from, with every real source numbered one
+  later.
+- 143 sentences carried markup: markdown links with their addresses,
+  `**bold**`, bare URLs.
+- Sentences glued with no space ("agreed to.The efforts..."), sentences cut
+  at "Oct." ("10, but they continue almost daily."), repeats, and
+  "Add NBC News to Google" lines.
+
+**Now** (`agents/editor.py`):
+- the live state gives him only what the provider found: its status
+  ("Status: final.") and each fact. A lookup with no facts gives him no
+  source; the writer still reads the whole block, as before;
+- each source is split by Consuela's own splitter
+  (`evidence_digest.split_sentences`, mended at abbreviations by
+  `housekeeper._whole`, §466), so a sentence is never cut at "Oct." or
+  "p.m." and a piece under 25 characters joins its neighbour;
+- markup comes off (links keep their words, addresses go, half-cut links
+  too, emphasis and list markers), and glued sentences are parted. **Never
+  a word changed**: what he points at, and what the writer is shown in
+  `writer_block`, are still the publisher's words;
+- left out, and counted in his health block (`packet_*`): invitations
+  ("click here", "add ... to Google", "skip to content"), fragments (under
+  four words and not ending like a sentence: "Inflation remains elevated."
+  stays, "The newest thing" goes), pages dumped whole (over 150 words: a full
+  league table, a transactions log) and repeats within a source.
+- **Tables stay.** A first version dropped every table row and every piece
+  over 60 words. That cut the standings a sports episode lands on (the
+  Eagles, §528) and real long sentences - a central bank's directive, a long
+  quote, the China tariff extension - so the rules were narrowed to the
+  above.
+
+On the 50 packets: 2,475 numbered sentences; no guidance lines, no markup;
+5 fragments, 11 repeats, 3 invitations and 4 whole-page dumps left out.
+Unmeasured: whether his plans, and the episodes written from them, are
+better for it - §528's next step 2, the combined comparison.
+
+Tests: `tests/test_packet_cleaning_529.py` (markup off, the words kept; a
+half link and a bare address; glued and cut sentences mended; tables kept,
+invitations, fragments and dumps out, a short true sentence kept; a repeat
+once; the live block gives facts and status, never guidance, and nothing
+when it found nothing). Three fixtures in §521/§524/§527's tests now use a
+longer second sentence: "Two members dissented." is joined to its
+neighbour by Consuela's splitter, so the fixtures' P1.2 no longer existed.
+
+## 530. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10)
+
+(Written as §511 on its branch, where §510 was taken by Main's 11.9 packet,
+later Main's §519; every section of the branch was renumbered after Main's
+§519 at the merge, §532.)
+
+The owner: "Run the combined comparison" (§529's next step). Both arms were
+written fresh into `~/.fam/editor_eval_509/` on the same 50 packets: `none`,
+and `haiku_taught` - Shakespeare as he stands, with worked plans, the cleaned
+packet (§529), the writer at high effort and the signed shapes. Opus graded
+blind; no grade failures. $3.07, paused once at the owner's word ("how much
+money has been spent... we gotta stop that") and resumed at it. **The branch's
+model spend in all: ~$13.40** (§521 $6.16, §527 $2.97, §530 $3.07, the 50
+questions researched again ~$0.50, §528's reading ~$0.10). From now on a paid
+run is asked for first, with its cost.
+
+**Shakespeare against no editor: no measurable difference, a third time.**
+Mean of six +0.03 [-0.11, +0.17], better on 24 questions and worse on 21
+(§437: +0.03; §521: +0.07). Nothing clears zero: repetition +0.20,
+storytelling +0.12, fewer unsupported claims +0.12 (0.48 against 0.60 a
+script), depth -0.10. He costs $0.004 more an episode and 20 s more, ahead
+of the tap.
+
+**The same arm twice** (`none` here against `none` in §521, the same packets
+and code): +0.07 [-0.08, +0.22], and **information +0.27 [+0.02, +0.54]
+clears zero** - pure chance, since nothing differs but the run. So with eight
+measures and several pairs read at 50 questions, one measure clearing zero
+is expected by chance. §521's two single-measure findings - matched examples
+costing repetition (-0.37), worked plans helping it (+0.40) - are no stronger
+than that. Matched examples stay off (they showed no gain either way), and
+worked plans stay on (no harm seen); neither is shown to matter.
+
+**The cleaned packet** (Shakespeare here against Shakespeare in §521): mean
+of six -0.04 [-0.15, +0.08], 21 better and 21 worse - no change in the
+episodes. Plan-following reads higher (score 0.65 to 0.76; opening 0.62 to
+0.80; parts 0.80 to 0.98; landing 0.40 to 0.46). But §521 was measured
+before §528's fix and this run after, so most of that rise is the measure's.
+Only the run-to-run part is the cleaning's, and it cannot be separated now.
+
+**What it says.** At 1.5 minutes, from these packets, Opus's grades cannot
+tell an episode Shakespeare planned from one the writer planned alone, in
+three comparisons. These comparisons detect a difference of about 0.15 at
+best, and a run's own chance spread is about that size. Spending more on them
+buys no more certainty. The test that can decide is listening: the editions
+trial (`EDITOR_TRIAL=1`, §454), read by `tools/editor_trial.py` and
+`tools/drop_off.py`, and free.
+
+## 531. The whole branch double-checked: what the review found, and what was fixed (2026-11-10)
+
+The owner: "We dont want the editor trial. I want the changes made here now...
+it is time to double check all changes made in this branch." The editor
+trial stays off. The branch (19 commits, 49 files against its merge-base with
+Main, e744c8a) was reviewed with the code-review skill at high effort:
+line by line, removed behaviour, callers, reuse, simplification,
+efficiency, altitude and CLAUDE.md conventions. Eight findings, all fixed,
+each with a test in `tests/test_branch_review_fixes.py`:
+
+1. **Years counted as shared figures** in the plan-following measure
+   (§528's `_plan_numbers` read "2026" through `_read_number`), so any two
+   stories from this year "matched": a landing on "The 2026 season begins
+   in March" scored as following "Shares... rose in 2026". Numbers are now
+   read after `figure_guard._without_scaffolding`, which removes years,
+   dates and clock times as it does for its own material.
+2. **The question's own words counted as use.** "The Federal Reserve... rate"
+   in a plan beat matched any sentence naming the Federal Reserve and rates,
+   which is every sentence of a Fed episode. That, not the writer, is the
+   likeliest reason §530's "parts followed" read 0.98. The question's words
+   are no longer counted (`plan_following(query=...)`, passed by `note` and
+   the comparison). Raising the cap from 8 to 12 was tried first: it did not
+   stop that false match, and it dropped agreement with §528's hand reading
+   from 8 of 10 to 5. The cap stays 8; agreement with the reading stays 8 of
+   10.
+3. **The worked plans and the shapes went into the searchFAM tandem call**,
+   whose plan must land inside the 7 s wait (§456), and they were never
+   timed there. The shape he names on search is not used either. Both are
+   now ahead of the tap only; on search he reads the examples alone, as
+   before §521.
+4. **Live facts lost their age.** §529 gave him the facts and the status
+   without the "observed ... ago" the writer's block carries. The status
+   line now says it: "Status: in progress, observed 40 minutes ago."
+5. **A rewrite kept the old text's sentence timings.** `record` now clears
+   `starts` when the same key and sourced stamp are written with different
+   sentences, as it already dropped the owner's labels.
+6. **A link cut inside its address left a "["** in the numbered sentence.
+   It is now cleaned in two passes.
+7. **The facet was looked up on every plan** for a line that matching (off)
+   alone reads. It is looked up only while `EXAMPLE_MATCHING` is on.
+8. **No test widened an existing store with `starts`**, as §454's test did
+   for `editor_arm`. Added; on SQLite and, in CI, Postgres.
+
+§530's plan-following figures were measured before 1 and 2. They read too
+high (beats especially) and stand as measured.
+
+The review found nothing against the rules in CLAUDE.md. The settings are
+copied (`.env.example` and `config.py` agree), no key is in source, and
+nothing new runs a paid call on its own.
+
+## 532. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10)
+
+The owner: "Double check all changes, then get this branch ready to merge
+into main. Do not complete the merge, but you can open a PR." The branch
+(`claude/awesome-dijkstra-smyqz7`) forked from Main at e744c8a, where Main
+had §500. Main has since reached §519, and seven commits came in: Nando's
+training, picture variety, the operations handbook, the 11.9 packet and
+more.
+
+**Renumbered.** The branch's sections were written as §501-§509, §511 and
+§512 and became §520-§530 at this merge, and **§521-§531** after Main's
+own §520 arrived (§535): 501→521, 502→522, 503→523, 504→524, 505→525,
+506→526, 507→527, 508→528, 509→529, 511→530, 512→531.
+Every reference the branch itself added (code, comments, docs, the
+examples' `_what`, tests) was renumbered with them, in its own lines only -
+Main's own §501-§519 references are untouched. Its test files were
+renamed to match: `test_worked_plans_521.py`,
+`test_examples_matched_521.py`, `test_plan_following_521.py`,
+`test_writer_training_522.py`, `test_story_shapes_524.py` and `_525.py`,
+`test_eval_findings_527.py`, `test_plan_landing_528.py`,
+`test_packet_cleaning_529.py`; `test_branch_review_fixes.py` keeps its name.
+The code merged without a conflict; the conflicts were the log, its index,
+the proposals README, the manifest's signature and the previews.
+
+**Two version 7s.** The owner signed the branch's playbook v2 as that
+branch's manifest version 7 (§526). Main had meanwhile signed its own version
+7 (`nando.md` rule 12, Main's §505), and neither signature covers both
+changes. So the merged branch keeps Main's signed version 7 and the v1
+playbook it covers: every agent runs, and `--verify` passes. The playbook v2
+waits whole in `docs/agent_rule_proposals/journalism_playbook.md`, with
+its version line now naming §525.
+`docs/agent_rules/MANIFEST.pending.json` is **version 8**: Main's version 7
+with only the playbook's fingerprint changed
+(`b3147196...` for v2). Until the owner signs it, the writer reads the
+shapes from `episode_intelligence.STRUCTURES` (unchanged, word for word the
+proposal; `test_story_shapes_525.py` reads the proposal while it waits) and
+Shakespeare reads v1. Signing is Main's way now (`tools/sign_rulebooks.py`,
+Main's §504, Python alone), and the signed files go to the proposals folder
+for the session to move, as §526 did.
+
+The previews are Main's until rebuilt after the merge.
+
+## 533. The second review, independent, before the pull request (2026-11-10)
+
+A fresh reviewer (a subagent given the code and the project's rules, never
+the first review's conclusions) read the whole branch read-only. It ran the
+new tests (129 passed) and reproduced each finding. **Nothing breaks the
+episode path, the cache key, the first word on searchFAM, or Postgres.** It
+checked in particular that `AHEAD_WRITER_EFFORT` reaches only editions,
+the write-ahead and prefetch warms, never a tap, the tandem or Mclovin's
+rewrite. It also checked that `_with_shape` never touches a shared brief, a
+late tandem plan is never measured, the `starts` widening is mapped on
+Postgres, and the settings agree with `.env.example`.
+
+Six low findings, all fixed in `tests/test_branch_review_fixes.py`:
+1. **`drop_off` under-counted finished listens.** A listener who heard 87%
+   never "reached" a landing starting at 93%, so landings rarely reported. A
+   finished listen now reaches every sentence and stops nowhere.
+2. **A listen with no sourced stamp went to the oldest version of a key** in
+   `drop_off`, but to the newest in `_listening`. Both now take the newest.
+3. **Clock times and ordinals still counted as figures** in the
+   plan-following measure ("2 p.m.", "4 pm", "the 3rd"). They are now
+   removed with the years and dates.
+4. **"Subscribe to the..." was taken for page clutter**, so a story about
+   households subscribing lost its key sentence from his packet. Only the
+   page's own voice ("subscribe to our", "sign up for our") is clutter now;
+   Consuela's own filter is unchanged.
+5. **The search call was told about shapes it never sees.** The shape
+   paragraph (`SHAPE_INSTRUCTIONS`) now goes ahead of the tap only, with
+   the shapes themselves (§531 already moved those).
+6. **His live status lost the market-closed and delayed-feed warnings.**
+   The status line now carries them beside the age: "Status: final,
+   observed 5 minutes ago, the market is closed, the feed runs 15 minutes
+   behind."
+
+## 534. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10)
+
+The owner signed `MANIFEST.pending.json` (version 8, §532) on the MacBook
+Air, as for §526: the `famsign` Miniforge environment (OpenSSL 4.1), the
+old set cleared from the Desktop folder first, and both files' SHA-256
+checked before signing. They uploaded `MANIFEST.json` and
+`MANIFEST.json.sig` to `docs/agent_rule_proposals/` (f0b30a4, exactly two
+files). The session verified the signature against `owner.pub` before
+moving anything; `MANIFEST.json` is the pending manifest byte for byte. It
+then moved, in one commit, the playbook v2 to `docs/` and the manifest and
+signature to `docs/agent_rules/`, and deleted the pending manifest.
+`python tools/rulebook_manifest.py --verify`: manifest version 8, every
+agent may run. Both changes are now signed together: `nando.md` rule 12
+(Main's §505) and the playbook's story shapes (§525).
+`test_story_shapes_525.py` now reads the signed playbook. The owner
+updates the copy held outside Claude.
+
+## 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10)
+
+The owner asked again for the branch to be double-checked and made ready
+to merge into Main, with a pull request but no merge (PR #240 was already
+open). Main had gained one commit since §532: "Messages only between
+friends", which took **§520**. That commit's code conflicts with nothing
+here; only the log and its index conflicted. So every section this branch
+wrote moves up by one, §520-§533 becoming **§521-§534**. Every reference
+the branch added was shifted with them, in its own lines only - Main's
+references are untouched - and its test files were renamed
+(`test_worked_plans_521.py` ... `test_packet_cleaning_529.py`).
+
+**The signed books are not touched.** `docs/journalism_playbook.md` v2,
+signed as manifest version 8 (§534), says in its version line that Part 3's
+shapes are "PROBLEMS.md §524": that section is now **§525**. Correcting it
+would change a signed book and need another signature for one number, so
+the signed text stands as signed, to be corrected at the next signing.
+`--verify`: manifest version 8, every agent may run.
+
+**Double-checked since the second review (§533):** the only changes are the
+signing (§534: the files verified against `owner.pub` and moved into place)
+and these two merges. The first review's 8 findings (§531) and the second's
+6 (§533) are fixed with tests, and neither found anything in Main's code
+that this branch changes.

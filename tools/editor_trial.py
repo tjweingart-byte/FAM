@@ -7,7 +7,9 @@ Reads the quality store (`episode_quality.editor_trial`): every episode
 written ahead of the tap while `EDITOR_TRIAL=1` carries its arm - with
 Shakespeare's plan, or left without it by a hash of its question. Compared
 on listening - left in the first 20 seconds, heard 85%, the mean share
-heard - and on the six code measures. No key, no network, no person's id.
+heard - and on the six code measures. First, for every episode he planned
+(trial or not), whether the writer followed his plan (§521): opening, parts,
+order, landing. No key, no network, no person's id.
 
 Read with the listens: a few hundred listens an arm tells little; a
 5-point gap in early exits needs on the order of a thousand an arm.
@@ -27,6 +29,12 @@ def main() -> int:
     args = ap.parse_args()
     import episode_quality
 
+    followed = episode_quality.plan_following_report(days=args.days)["surfaces"]
+    for surface, entry in followed.items():
+        # Whether the writer followed his plan (§521), every episode he planned.
+        parts = ", ".join(f"{p} {'-' if entry[p] is None else f'{entry[p]:.2f}'}"
+                          for p in episode_quality.PLAN_PARTS + ("score",))
+        print(f"plan followed, {surface} ({entry['episodes']} episodes): {parts}")
     result = episode_quality.editor_trial(days=args.days)
     arms = result["arms"]
     if not arms:

@@ -35,7 +35,7 @@ import pathlib
 import re
 import threading
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -76,15 +76,105 @@ class NumberedSource:
         return ("P" if self.packet == "plugin" else "A") + str(self.number)
 
 
-def _split(text: str) -> list:
-    out = []
+#: Page furniture in a source, cleaned before he numbers it (§529). The
+#: words kept are the publisher's: markup is taken off, never a word changed.
+_LINK = re.compile(r"\[([^\]]*)\]\((?:https?://|/)[^)]*\)")
+#: A link the source's excerpt cut in half: "that [it had opened an inquiry".
+_HALF_URL = re.compile(r"\]\([^)]*$")
+_HALF_OPEN = re.compile(r"\[(?=[^\]]*$)")
+_URL = re.compile(r"(?:https?://|www\.)\S+")
+_EMPHASIS = re.compile(r"\*\*|__|^\s*(?:#+|[-*•]|\d+\.)\s+", re.M)
+#: Two sentences scraped together with no space: "agreed to.The efforts".
+_GLUED = re.compile(r"(?<=[a-z0-9%][.!?])(?=[A-Z][a-z])")
+#: The page around an article, as Consuela screens it (§466) less her table
+#: rows - a standings table is evidence a sports episode lands on (§528) -
+#: and in the page's own voice only ("subscribe to our"): "households chose
+#: to subscribe to the ad tier" is a business story's evidence (the review).
+_INVITATION = re.compile(
+    r"click(?:ing)? here|preferred source|subscribe to our|"
+    r"sign up for our|all rights reserved|follow us on|"
+    r"add [\w .&'-]{1,30} to google|skip to (?:content|table|main)", re.I)
+#: A numbered "sentence" this short is a fragment; this long, a page dumped
+#: whole (a full league table, a transactions log). Long real sentences - a
+#: central bank's directive, a long quote - run to 60-120 words, so they stay.
+MIN_WORDS = 4
+MAX_WORDS = 150
+
+
+def _clean(text: str) -> str:
+    text = _LINK.sub(r"\1", text or "")
+    text = _HALF_URL.sub("", text)        # its address first, so its "[" has no "]"
+    text = _HALF_OPEN.sub("", text)
+    text = _URL.sub(" ", text)
+    text = _EMPHASIS.sub(" ", text)
+    text = _GLUED.sub(" ", text)
+    return " ".join(text.split())
+
+
+def _split(text: str, dropped: Optional[collections.Counter] = None) -> list:
+    """A source's text as he numbers it (§529): Consuela's own sentences
+    (`evidence_digest.split_sentences`, never cut at "Oct." or "p.m."), with
+    markup taken off, and invitations to click, fragments, whole-page dumps
+    and repeats left out - each counted in `dropped`."""
+    from agents import dedupe
+    from agents.housekeeper import _whole
+    import evidence_digest
+
+    out, seen = [], set()
+    dropped = dropped if dropped is not None else collections.Counter()
     for line in (text or "").splitlines():
-        line = line.strip()
+        line = _clean(line)
         if not line:
             continue
-        out.extend(s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"“'])", line)
-                   if len(s.strip()) > 2)
+        for piece in _whole(evidence_digest.split_sentences(line)):
+            words = len(re.findall(r"[\w.%$']+", piece))   # a table's cells count
+            if _INVITATION.search(piece):
+                dropped["clutter"] += 1
+            elif words < MIN_WORDS and not re.search(r"[.!?][\"'”’)]*$", piece):
+                # "Two members dissented." is a sentence; "The newest thing" is not.
+                dropped["fragment"] += 1
+            elif words > MAX_WORDS:
+                dropped["run_on"] += 1
+            elif dedupe.normalise(piece) in seen:
+                dropped["repeat"] += 1
+            else:
+                seen.add(dedupe.normalise(piece))
+                out.append(piece)
     return out
+
+
+def _live_sentences(live) -> list:
+    """The live state's facts, as he numbers them (§529): its status and
+    each fact the provider gave - never the guidance written around them for
+    the writer ("Not knowing is not the same as nothing having happened..."),
+    which he used to be handed as if it were a source. A lookup that found
+    no facts gives him nothing to number."""
+    import live_facts
+
+    found = live
+    if hasattr(live, "outcome"):                      # a LiveLookup
+        if live.outcome != live_facts.FACTS or live.facts is None:
+            return []
+        found = live.facts
+    lines = [" ".join(str(f).split()) for f in (getattr(found, "facts", None) or [])]
+    lines = [line for line in lines if line]
+    status = str(getattr(found, "status", "") or "")
+    if lines and status:
+        # With how old it is, as the writer's own block says it: a score
+        # observed forty minutes ago is not how the game stands now.
+        notes = []
+        try:
+            notes.append(f"observed {found.age_phrase()}")
+        except Exception:  # noqa: BLE001
+            pass
+        if getattr(found, "market_closed", False):
+            notes.append("the market is closed")
+        delayed = float(getattr(found, "delayed_seconds", 0) or 0)
+        if delayed >= 60:
+            notes.append(f"the feed runs {int(delayed // 60)} minutes behind")
+        lines.insert(0, f"Status: {status.replace('_', ' ')}"
+                        + (", " + ", ".join(notes) if notes else "") + ".")
+    return lines
 
 
 def number_packets(plan) -> list:
@@ -100,7 +190,7 @@ def number_packets(plan) -> list:
         live = getattr(plan, "live", None)
         if live is not None:
             try:
-                lines = _split(live.as_prompt_block())
+                lines = _live_sentences(live)
             except Exception:  # noqa: BLE001
                 lines = []
             if lines:
@@ -114,7 +204,10 @@ def number_packets(plan) -> list:
             title = (re.search(r"^Title:\s*(.*)$", chunk, re.M) or [None, ""])[1]
             day = (re.search(r"^Published:\s*(.*)$", chunk, re.M) or [None, ""])[1]
             body = chunk.split("Key evidence:", 1)[1] if "Key evidence:" in chunk else ""
-            sentences = _split(body)[:SENTENCES_PER_SOURCE]
+            dropped = collections.Counter()
+            sentences = _split(body, dropped)[:SENTENCES_PER_SOURCE]
+            for kind, n in dropped.items():
+                _count(f"packet_{kind}", n)
             if not sentences:
                 continue
             counts[packet] += 1
@@ -148,10 +241,21 @@ class _Beat(BaseModel):
     sentences: list[str]
 
 
+#: The shapes he may name (§524): every key of
+#: `episode_intelligence.STRUCTURES`, `in_progress` included - he reads the
+#: packets, so unlike the brief he can see that nothing has finished. ""
+#: keeps the brief's. A closed list, so no fact can be written into it.
+SHAPES = ("breaking", "business", "sports_recap", "sports_preview", "in_progress",
+          "explainer", "historical", "trend", "profile", "comparison", "general")
+Shape = Literal["", "breaking", "business", "sports_recap", "sports_preview",
+                "in_progress", "explainer", "historical", "trend", "profile",
+                "comparison", "general"]
+
+
 class EditorAnswer(BaseModel):
-    """What he may say: numbers, and a beat's purpose. No field for a fact.
-    Sizes are trimmed in code (`to_outline`), so a long answer is cut, never
-    thrown away."""
+    """What he may say: numbers, a beat's purpose, and a shape from a closed
+    list. No field for a fact. Sizes are trimmed in code (`to_outline`), so a
+    long answer is cut, never thrown away."""
 
     model_config = ConfigDict(extra="forbid")
     answers: str
@@ -161,13 +265,21 @@ class EditorAnswer(BaseModel):
     landing: list[str]
     thin: bool
     missing: list[str]
+    #: The story's shape, when the packets show a better fit than the
+    #: brief's (§524); "" keeps it.
+    shape: Shape = ""
 
 
 INSTRUCTIONS = """You are the editor of one audio episode. From the two packets below - what is happening now (`<evidence>`, numbered P), and what came before from FAM's archive (`<archive>`, numbered A) - choose what the writer needs and leave out what it does not, by sentence number only: write numbers like "P2.3", never the sentences themselves. Then outline the episode: what it answers (a few words), the beats in order, and the numbers that carry each beat. The archive is history - what was true on its date - never how things stand now. Where two sources disagree, the better grade wins, then the more recent; put only the winning sentence in the outline.
 
 Plan it the way a good journalist tells a story: open on something concrete that says who, what and when and opens a question; let each beat follow from the last because, therefore or but; end on the most concrete thing you have, never a question, a tease or what might happen next. If the question asks for a result and no sentence reports one as finished, plan around what has not finished. Do not plan a part you have nothing for: a beat needs at least one number behind it. Plan no advice: on a medical, legal or money question, plan the facts. Fit the beats to the episode's length. A beat's purpose says what the beat does ("why the vote mattered"), never a fact. Anything the listener asked about that no sentence covers goes in `missing`, a few words each, for the writer only; set `thin` when the packets hold too little for the length.
 
-The worked episodes in `<teaching>` show the house style the writer is held to: concrete openings, a story told because-therefore-but, a concrete last line. They are examples of writing, never evidence."""
+The worked episodes in `<teaching>` show the house style the writer is held to: concrete openings, a story told because-therefore-but, a concrete last line. They are examples of writing, never evidence. Where `<teaching>` also holds worked plans, each shows a packet and the plan an editor made from it - what was kept, what was left out, the order and the landing; plan this episode as well as they are planned, from this episode's own packets."""
+
+
+#: Ahead of the tap only, where his shape is used and the shapes are shown
+#: (§524); on searchFAM neither is (the review).
+SHAPE_INSTRUCTIONS = "\n\n" + """The brief chose a shape for this story before anything was searched (it is named, with the shapes it could be, at the top of `<evidence>`). Now that you have read the packets, keep it - leave `shape` empty - or name the one that fits what the packets actually hold: above all `in_progress` when the question wants a result and no sentence reports one as finished, `profile` for a person, `comparison` for one thing against another. Plan the beats to the shape you choose."""
 
 
 def _examples() -> str:
@@ -186,6 +298,24 @@ def _examples() -> str:
 
 
 _EXAMPLES: Optional[str] = None
+
+
+def _teaching(plan) -> str:
+    """His `<teaching>`: the house examples, then the worked plans (§521),
+    with the ones closest to this episode's kind of story named."""
+    from agents import worked_plans
+    from config import settings
+
+    facet = ""
+    if getattr(settings, "example_matching", False):   # its only use is matching's line
+        try:
+            import script_generator
+
+            facet = script_generator.episode_facet(plan)
+        except Exception:  # noqa: BLE001
+            facet = ""
+    worked = worked_plans.teaching(facet)
+    return _examples() + ("\n\n" + worked if worked else "")
 
 
 # ------------------------------------------------------------------ checked in code
@@ -248,6 +378,43 @@ def _text(ref: SentenceRef, sources: list) -> str:
         if source.packet == "archive" else source.sentences[ref.sentence]
 
 
+def shapes_text(plan) -> str:
+    """The brief's shape and the shapes he may name, each with its parts."""
+    try:
+        import episode_intelligence as ei
+
+        brief = getattr(plan, "brief", None)
+        chosen = str(getattr(brief, "structure", "") or "general")
+        lines = [f"The brief's shape: {chosen}. The shapes:"]
+        for key in SHAPES:
+            parts = ei.STRUCTURES.get(key, "")
+            lines.append(f"- {key}: {parts}" if parts else f"- {key}: no imposed shape")
+        return "\n".join(lines) + "\n"
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def shape_change(answer: "EditorAnswer", plan) -> str:
+    """The shape he chose, when it differs from the brief's, else ""."""
+    brief = getattr(plan, "brief", None)
+    shape = str(getattr(answer, "shape", "") or "")
+    if brief is None or shape not in SHAPES:
+        return ""
+    return shape if shape != (getattr(brief, "structure", "") or "general") else ""
+
+
+def plan_texts(outline: Outline, sources: list) -> dict:
+    """The sentences he chose, as text, for `episode_quality.plan_following`:
+    whether the writer opened, moved and landed where he planned. Held on the
+    episode's notes in memory only - the quality store keeps the numbers."""
+    def texts(refs) -> list:
+        return [sources[r.source].sentences[r.sentence] for r in refs]
+
+    return {"opening": texts(outline.opening),
+            "beats": [texts(b.refs) for b in outline.beats],
+            "landing": texts(outline.landing)}
+
+
 def writer_block(outline: Outline, answers: str, sources: list) -> str:
     """The editor's plan as the writer reads it, every line of evidence the
     sources' own sentence. "" when there is nothing to plan from."""
@@ -269,6 +436,10 @@ def writer_block(outline: Outline, answers: str, sources: list) -> str:
         lines.append(f"Part {i}{' (history)' if history else ''}: {beat.purpose}")
         lines += [f"- {_text(r, sources)}" for r in beat.refs]
     if outline.landing:
+        # The landing is where the writer leaves the plan most (§527: 35-40%
+        # of episodes ended where he planned, against ~80% of the parts).
+        # Worded as "your last sentence" it did not move (40% to 42%) and the
+        # hook leaned worse, so the wording is back as it was (§528).
         lines.append("Land on:")
         lines += [f"- {_text(r, sources)}" for r in outline.landing]
     if outline.missing:
@@ -298,14 +469,19 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
         plugin, archive = packets_text(sources)
         material = [("request", str(getattr(plan, "query", "") or "")),
                     ("evidence", f"Episode length: about {getattr(plan, 'minutes', 0):g} "
-                                 f"minutes, at most {getattr(plan, 'max_words', 0)} words.\n\n"
+                                 f"minutes, at most {getattr(plan, 'max_words', 0)} words.\n"
+                                 + (shapes_text(plan) if ahead else "") + "\n"
                                  + (plugin or "(nothing)")),
                     ("archive", archive or "(nothing)"),
-                    ("teaching", _examples())]
+                    # Worked plans and the shapes only ahead of the tap: on
+                    # searchFAM his plan must land inside the tandem's wait,
+                    # and the shape he names there is not used (§524).
+                    ("teaching", _teaching(plan) if ahead else _examples())]
         request = models.AgentRequest(
             agent="editor", task="outline", switch_setting="editor_agent",
             model_setting=model_setting or ("editor_model" if ahead else "editor_search_model"),
-            rule_book="shakespeare.md", schema=EditorAnswer, instructions=INSTRUCTIONS,
+            rule_book="shakespeare.md", schema=EditorAnswer,
+            instructions=INSTRUCTIONS + (SHAPE_INSTRUCTIONS if ahead else ""),
             material=tuple(material), carries_listener_words=True,
             timeout=float(settings.editor_ahead_timeout_seconds if ahead
                           else settings.editor_timeout_seconds),
@@ -324,7 +500,12 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
         if notes is not None:
             notes.editor = {"beats": len(built.beats), "thin": built.thin,
                             "missing": list(built.missing), "dropped": report,
-                            "model": getattr(result, "model", "")}
+                            "model": getattr(result, "model", ""),
+                            "plan": plan_texts(built, sources) if block else None,
+                            # A shape he changed (§524); applied by the
+                            # writer's side ahead of the tap.
+                            "shape": (shape_change(result.value, plan)
+                                      if block and ahead else "")}
         _count("planned" if block else "nothing_to_plan")
         return block
     except Exception:  # noqa: BLE001 - the editor never costs an episode
@@ -342,7 +523,20 @@ def report() -> dict:
         return {"since_boot": dict(SINCE_BOOT),
                 "trial": bool(getattr(settings, "editor_trial", False)),
                 # Beside the writer on searchFAM (§456).
-                "tandem": bool(getattr(settings, "editor_tandem", False))}
+                "tandem": bool(getattr(settings, "editor_tandem", False)),
+                # The worked plans in his teaching (§521): how many loaded,
+                # 0 when off.
+                "worked_plans": (len(_worked_plans_loaded())
+                                 if getattr(settings, "editor_worked_plans", True) else 0)}
+
+
+def _worked_plans_loaded() -> list:
+    try:
+        from agents import worked_plans
+
+        return worked_plans.plans()
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def reset() -> None:

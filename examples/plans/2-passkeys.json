@@ -1,0 +1,74 @@
+{
+ "example": "2-passkeys",
+ "teaches": "How a thing works: open on the one idea that makes it different; the mechanism in order; then what it removes; land on the reason that matters most, not on adoption numbers.",
+ "packet": [
+  {
+   "packet": "plugin",
+   "title": "How passkeys work",
+   "published": "reference",
+   "sentences": [
+    "A passkey replaces a password with a pair of cryptographic keys.",
+    "The public key is sent to the website, and the private key stays on the user's device.",
+    "The private key is protected by a fingerprint, face scan or screen PIN.",
+    "Something signed with the private key can be checked with the public key, but the public key cannot reveal the private one.",
+    "At login the website sends a random challenge, which the device signs and sends back.",
+    "A passkey is tied to the real website's address, so a lookalike site cannot get a signature."
+   ]
+  },
+  {
+   "packet": "plugin",
+   "title": "Why passkeys stop phishing",
+   "published": "reference",
+   "sentences": [
+    "A breach of a website's database exposes only public keys, which cannot be used to log in.",
+    "Most stolen accounts are taken by tricking people into typing their password on a fake page.",
+    "Several large technology companies now support passkeys."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "how a passkey logs you in without a password",
+  "summary": [
+   "P1.1",
+   "P1.2",
+   "P1.3",
+   "P1.4",
+   "P1.5",
+   "P1.6",
+   "P2.1",
+   "P2.2"
+  ],
+  "opening": [
+   "P1.1",
+   "P1.2"
+  ],
+  "beats": [
+   {
+    "purpose": "the two keys and where each lives",
+    "sentences": [
+     "P1.2",
+     "P1.3"
+    ]
+   },
+   {
+    "purpose": "therefore: how a login is proved",
+    "sentences": [
+     "P1.4",
+     "P1.5"
+    ]
+   },
+   {
+    "purpose": "what that takes away from an attacker",
+    "sentences": [
+     "P2.1",
+     "P1.6"
+    ]
+   }
+  ],
+  "landing": [
+   "P2.2"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}

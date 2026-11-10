@@ -1,0 +1,76 @@
+{
+ "example": "2-house-music",
+ "teaches": "A culture story: open on a scene with a person, a place and a year; the origin told as cause and effect; land on the turn that makes it matter now.",
+ "packet": [
+  {
+   "packet": "archive",
+   "title": "How house music got its name",
+   "published": "2015",
+   "sentences": [
+    "Around 1981 Frankie Knuckles saw a sign in a South Side Chicago bar window advertising \"house music\" and asked a friend what it meant.",
+    "The friend told him it was the music he played at his club, the Warehouse.",
+    "Knuckles had been the Warehouse's resident DJ since 1977, brought from New York by promoter Robert Williams.",
+    "The Warehouse's crowd was mostly Black and gay."
+   ]
+  },
+  {
+   "packet": "plugin",
+   "title": "From disco's collapse to a new sound",
+   "published": "reference",
+   "sentences": [
+    "After disco collapsed commercially around 1980, labels stopped releasing new disco records.",
+    "Knuckles re-edited soul, funk, gospel and jazz records on reel-to-reel tape.",
+    "Cheap drum machines in the early 1980s added a steady four-on-the-floor beat.",
+    "Jesse Saunders and Vince Lawrence's \"On and On\" in 1984 is widely called the first house record.",
+    "Farley \"Jackmaster\" Funk's \"Love Can't Turn Around\" reached the British top ten in 1986.",
+    "Chicago today hosts several house music festivals every summer."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "where house music began and how it spread",
+  "summary": [
+   "A1.1",
+   "A1.2",
+   "A1.3",
+   "A1.4",
+   "P1.1",
+   "P1.2",
+   "P1.3",
+   "P1.4",
+   "P1.5"
+  ],
+  "opening": [
+   "A1.1",
+   "A1.2"
+  ],
+  "beats": [
+   {
+    "purpose": "the club and the crowd it was for",
+    "sentences": [
+     "A1.3",
+     "A1.4"
+    ]
+   },
+   {
+    "purpose": "because disco died: the sound built from old records",
+    "sentences": [
+     "P1.1",
+     "P1.2",
+     "P1.3"
+    ]
+   },
+   {
+    "purpose": "the first record",
+    "sentences": [
+     "P1.4"
+    ]
+   }
+  ],
+  "landing": [
+   "P1.5"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}
