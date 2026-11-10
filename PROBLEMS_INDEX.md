@@ -512,3 +512,4 @@ and `limit` = Lines.
 | 32339 | 85 | 518. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
 | 32424 | 128 | 519. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
 | 32552 | 32 | 520. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
+| 32584 | 36 | 521. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
