@@ -10,6 +10,12 @@ tap plays), **Search** (1-5 minutes, the AI question asked first), the
 player (picture, draggable bar over what has arrived, ±15 s, lock screen),
 the mini player, and **You** (privacy and safety, sign out, delete account).
 
+**Finishing touches for TestFlight:** offline listening (`Offline.swift`:
+episodes whose whole stream arrived are kept on the phone, as the web's
+`OfflineShelf`, and DailyFAM's last page with them), the web's motion
+(`Motion.swift`: the button squeeze, the tab nudge, rails arriving), the
+largest text sizes, and the App Store checklist (PARITY.md's last table).
+
 **Everything else** is listed, row by row against the web app, in
 [`PARITY.md`](PARITY.md). Update it in the same change that moves a row.
 
@@ -27,3 +33,8 @@ Signing & Capabilities: Team **Apali, LLC**. Product > Run with the iPhone
 plugged in. The bundle id is `net.familiarize.fam`, the same as the spike,
 so it **replaces the spike** on the phone. Build number 2; raise
 `CURRENT_PROJECT_VERSION` before every TestFlight upload.
+
+Before each TestFlight upload: raise `CURRENT_PROJECT_VERSION`, run
+`xcodegen` again (new Swift files are picked up from `FAM/`), Product >
+Archive. The privacy manifest's collected data types must match the App
+Privacy answers in App Store Connect (APP_STORE.md Part C).
