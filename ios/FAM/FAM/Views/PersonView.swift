@@ -20,8 +20,13 @@ struct PersonView: View {
     @State private var blocking = false
     @State private var confirmUnfollow = false
     @State private var working = false
+    /// Follow tapped and not yet answered: "✓ Following" at once, put
+    /// back if the server says no (`Motion.follow`).
+    @State private var flipped = false
     @State private var followedHandles: Set<String> = []
     @State private var addedMixes: [String: Bool] = [:]
+    /// A mix of theirs already in your myFAM, asked about before it goes.
+    @State private var removingMix: PersonMix?
     @State private var story: StoryReel?
     @AppStorage("storiesSeen") private var seenJSON = "{}"
 
@@ -99,6 +104,16 @@ struct PersonView: View {
         .confirmationDialog("Unfollow \(name)?", isPresented: $confirmUnfollow, titleVisibility: .visible) {
             Button("Unfollow", role: .destructive) { unfollow() }
             Button("Cancel", role: .cancel) {}
+        }
+        // `confirmRemoveMix`: the copy may have been renamed since, so ask.
+        .confirmationDialog(removingMix.map { "Remove \($0.name ?? "this mix") from your myFAM?" } ?? "",
+                            isPresented: Binding(get: { removingMix != nil },
+                                                 set: { if !$0 { removingMix = nil } }),
+                            titleVisibility: .visible) {
+            if let m = removingMix {
+                Button("Yes, remove it", role: .destructive) { toggleMix(m, added: true) }
+                Button("Cancel", role: .cancel) {}
+            }
         }
         .fullScreenCover(item: $story) { reel in
             StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 })
@@ -282,12 +297,18 @@ struct PersonView: View {
                 Button {
                     if following { confirmUnfollow = true } else { follow() }
                 } label: {
-                    Text(following ? "Following" : "Follow")
-                        .font(FAMFont.body(12, .medium))
-                        .foregroundStyle(FAMColor.text)
-                        .padding(.horizontal, 14)
-                        .frame(height: 34)
-                        .overlay(Capsule().stroke(FAMColor.borderStrong))
+                    HStack(spacing: 5) {
+                        if flipped {
+                            WebIcon(path: Icons.check, size: 11, line: 3)
+                        }
+                        Text(following || flipped ? "Following" : "Follow")
+                            .font(FAMFont.body(12, .medium))
+                    }
+                    .foregroundStyle(FAMColor.text)
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .overlay(Capsule().stroke(FAMColor.borderStrong))
+                    .animation(.easeOut(duration: 0.26), value: flipped)
                 }
                 .buttonStyle(.plain)
                 .disabled(working)
@@ -405,7 +426,9 @@ struct PersonView: View {
         .buttonStyle(.plain)
         .overlay(alignment: .topTrailing) {
             if m.mine != true {
-                Button { toggleMix(m, added: added) } label: {
+                Button {
+                    if added { removingMix = m } else { toggleMix(m, added: false) }
+                } label: {
                     Group {
                         if added {
                             WebIcon(path: Icons.check, size: 12, line: 2.4).foregroundStyle(FAMColor.ink)
@@ -526,8 +549,10 @@ struct PersonView: View {
         working = true
         let id = userID
         let h = handle
+        if !id.isEmpty { flipped = true }
         Task {
             await social.follow(userID: id, handle: id.isEmpty ? h : "")
+            flipped = false
             working = false
         }
     }
@@ -568,21 +593,30 @@ struct PersonView: View {
         }
     }
 
+    /// `addMixFrom` / `removeMixCopy`: "Added to your myFAM as <name>"
+    /// with Open, or "Removed from your myFAM"; a refusal in the server's
+    /// words.
     private func toggleMix(_ m: PersonMix, added: Bool) {
         addedMixes[m.id] = !added
+        let app = model
+        let social = self.social
         Task {
             do {
                 if added {
                     try await model.api.removePublicMix(m.id)
                     model.nowPlaying.say("Removed from your myFAM")
                 } else {
-                    _ = try await model.api.addPublicMix(m.id)
-                    model.nowPlaying.say("Added to your myFAM")
+                    let copy = try await model.api.addPublicMix(m.id)
+                    let copyID = copy.id
+                    model.nowPlaying.say("Added to your myFAM as \(copy.name)", action: "Open") {
+                        social.closeCover { app.openMix(copyID) }
+                    }
                 }
                 await model.mixes.load()
             } catch {
                 addedMixes[m.id] = added
-                model.nowPlaying.say(SocialModel.sentence(error, else: "Could not change that"))
+                let fallback = added ? "Could not remove that mix" : "Could not add that mix"
+                model.nowPlaying.say(SocialModel.sentence(error, else: fallback))
             }
         }
     }

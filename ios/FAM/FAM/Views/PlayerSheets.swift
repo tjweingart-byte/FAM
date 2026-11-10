@@ -536,13 +536,29 @@ struct VibeComposer: View {
 /// "Share this FAM" (`openShareModal`, shots 45-48): send it inside FAM to
 /// a group or a person - with the id of the episode heard, so they hear
 /// that one (§288) - or ANYWHERE ELSE through the server's destinations
-/// (`POST /api/share`), with iOS's share sheet for the rest.
+/// (`POST /api/share`), with iOS's share sheet for the rest. Opened from a
+/// tile's or a story's ⋯ it shares that episode (`openShareModal(ep)`),
+/// else the one playing.
 struct ShareSheet: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var now: NowPlayingModel
     @Environment(\.dismiss) private var dismiss
     @State private var link: SharedLink?
     @State private var problem = ""
+    /// What a tile's or a story's ⋯ shares; nil for the episode playing.
+    let subject: ShareSubject?
+
+    init(subject: ShareSubject? = nil) {
+        self.subject = subject
+    }
+
+    /// The episode this sheet shares: the caller's, else the one playing
+    /// with the id of the one heard (`X-FAM-Episode`).
+    private var current: ShareSubject? {
+        if let subject { return subject }
+        guard let ep = now.episode else { return nil }
+        return ShareSubject(key: ep.key, title: now.title, episode: model.player.episodeID)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -582,28 +598,36 @@ struct ShareSheet: View {
     }
 
     private func makeLink() async {
-        guard let ep = now.episode else {
+        guard let ep = current else {
             problem = "Play something first"
             return
         }
         do {
-            link = try await model.api.share(ep.key, title: now.title)
+            link = try await model.api.share(ep.key, title: ep.title)
         } catch {
             problem = "Could not make a link"
         }
     }
 
-    /// The episode playing, by its question and length, and the id of the
-    /// one heard (`X-FAM-Episode`).
+    /// By its question and length, and - for the episode playing - the id
+    /// of the one heard.
     private func sendInside(to: String, label: String) async -> Bool {
-        guard let ep = now.episode else {
+        guard let ep = current else {
             model.nowPlaying.say("Play something first")
             return false
         }
         return await model.social.sendShare(to: to, label: label, query: ep.key.query,
-                                            minutes: ep.key.minutes, title: now.title,
-                                            episode: model.player.episodeID)
+                                            minutes: ep.key.minutes, title: ep.title,
+                                            episode: ep.episode)
     }
+}
+
+/// An episode a tile's or a story's ⋯ hands the share sheet.
+struct ShareSubject: Identifiable {
+    let id = UUID()
+    let key: EpisodeKey
+    let title: String
+    var episode: String = ""
 }
 
 struct ActivityView: UIViewControllerRepresentable {

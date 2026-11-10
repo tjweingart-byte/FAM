@@ -538,7 +538,7 @@ struct TileMenu: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let tile: Tile
-    @State private var shareItems: [Any]?
+    @State private var sharing: ShareSubject?
     @State private var queue = false
     @State private var addToMix = false
 
@@ -559,15 +559,11 @@ struct TileMenu: View {
             .padding(.horizontal, 22)
             .padding(.vertical, 16)
             Divider()
+            // "Share this FAM" for this tile's episode (`openShareModal`
+            // from `openTileMenu`): to a friend or a group inside FAM, or
+            // anywhere else.
             row("Share", Icons.menuShare) {
-                Task {
-                    let ep = model.episode(for: tile)
-                    if let link = try? await model.api.share(ep.key, title: tile.title) {
-                        shareItems = [link.targets?["copy"]?.text ?? link.url]
-                    } else {
-                        model.nowPlaying.say("Could not make a link")
-                    }
-                }
+                sharing = ShareSubject(key: model.episode(for: tile).key, title: tile.title)
             }
             row("Add to myFAM Playlist", Icons.circlePlus) {
                 if tile.query.isEmpty {
@@ -589,8 +585,10 @@ struct TileMenu: View {
         .background(FAMColor.surface)
         .presentationDetents([.medium])
         .presentationBackground(FAMColor.surface)
-        .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
-            ActivityView(items: shareItems ?? []) { shareItems = nil; dismiss() }
+        .sheet(item: $sharing, onDismiss: { dismiss() }) { subject in
+            ShareSheet(subject: subject)
+                .environmentObject(model)
+                .environmentObject(model.nowPlaying)
         }
         .sheet(isPresented: $queue) {
             QueueSheet()

@@ -419,7 +419,8 @@ final class SocialModel: ObservableObject {
         for p in page.follows where !raised.contains(p.userId) {
             raised.insert(p.userId)
             Task { await api.followerAnnounced(p.userId) }
-            let name = (p.name ?? "").isEmpty ? "@" + (p.handle ?? "") : (p.name ?? "")
+            // The web's words: their name, else "Someone" (`pollNotifications`).
+            let name = (p.name ?? "").isEmpty ? "Someone" : (p.name ?? "")
             let handle = p.handle ?? ""
             enqueue(SocialBanner(title: name + " started following you",
                                  text: handle.isEmpty ? "Tap to follow back" : "@" + handle,
@@ -437,10 +438,11 @@ final class SocialModel: ObservableObject {
         return ChatOpen(with: id, name: from.name ?? "", handle: from.handle ?? "", avatar: from.avatar ?? "")
     }
 
-    /// The text, else "Shared: <title|query|an episode>".
+    /// An episode - a share, or a reply to or a like on a vibe, which
+    /// carry one too - is "Shared: <title|query|an episode>"; anything
+    /// else is its words (`pollNotifications`).
     static func bannerText(_ m: ChatMessage) -> String {
-        let text = m.text ?? ""
-        if !text.isEmpty { return text }
+        guard m.kind == "episode" else { return m.text ?? "" }
         let title = m.title ?? ""
         let query = m.query ?? ""
         return "Shared: " + (!title.isEmpty ? title : (!query.isEmpty ? query : "an episode"))
@@ -699,6 +701,9 @@ final class ChatModel: ObservableObject {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         draft = ""
+        // The server ends the dots on a send; the next keystroke says it
+        // again at once (`typingSentAt = 0`).
+        lastTypingNote = .distantPast
         let row = Row(id: "d" + UUID().uuidString, message: ChatMessage(draftText: text), pending: true)
         rows.append(row)
         fresh = [row.id]

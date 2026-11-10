@@ -387,7 +387,8 @@ struct NewMessageCard: View {
                     working = false
                     if let g = made.group, let id = g.userId {
                         go(ChatOpen(with: id, name: g.name ?? "", avatar: g.avatar ?? "", group: true,
-                                    named: g.named ?? false, members: g.members ?? [], loaded: true))
+                                    named: g.named ?? false, members: g.members ?? [],
+                                    warning: g.warning ?? "", loaded: true))
                     }
                 } catch {
                     working = false

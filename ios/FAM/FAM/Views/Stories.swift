@@ -246,7 +246,7 @@ struct StoryViewer: View {
     @State private var addingTopic = false
     @State private var blocking = false
     @State private var resharing = false
-    @State private var shareItems: [Any]?
+    @State private var sharing: ShareSubject?
     @FocusState private var typing: Bool
 
     private static let seconds = 6.0
@@ -270,11 +270,12 @@ struct StoryViewer: View {
                 }
                 .ignoresSafeArea()
                 if isNote {
-                    NoteCanvas(story: story)
+                    // Only its @mentions take a tap (`storyOpenTag`); the
+                    // rest lets the story's own taps and holds through.
+                    NoteCanvas(story: story, openTag: { tag in openTag(tag) })
                         .padding(.horizontal, 12)
                         .padding(.top, 52)
                         .padding(.bottom, who.mine ? 40 : 76)
-                        .allowsHitTesting(false)
                 }
                 VStack(spacing: 0) {
                     VStack(spacing: 0) {
@@ -317,8 +318,10 @@ struct StoryViewer: View {
                     .environmentObject(model)
             }
         }
-        .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
-            ActivityView(items: shareItems ?? []) { shareItems = nil }
+        .sheet(item: $sharing) { subject in
+            ShareSheet(subject: subject)
+                .environmentObject(model)
+                .environmentObject(model.nowPlaying)
         }
         .blockConfirmation(isPresented: $blocking, name: ready ? who.name : "", handle: ready ? who.handle : "",
                            api: model.safety, onBlocked: {
@@ -405,6 +408,15 @@ struct StoryViewer: View {
             .accessibilityElement(children: .combine)
         }
         .contentShape(Rectangle())
+    }
+
+    /// A tag on a note opens that person's profile, once the story has
+    /// closed (`storyOpenTag`).
+    private func openTag(_ tag: StoryTag) {
+        guard !tag.handle.isEmpty else { return }
+        let route = SocialRoute.person(PersonOpen(handle: tag.handle, name: tag.name))
+        dismiss()
+        model.social.openAfterClose(route)
     }
 
     private func openProfile() {
@@ -571,7 +583,7 @@ struct StoryViewer: View {
 
     /// The story holds while its menu, or anything the menu opened, is up.
     private var paused: Bool {
-        held || typing || storyMenu || addingTopic || reporting || blocking || resharing || shareItems != nil
+        held || typing || storyMenu || addingTopic || reporting || blocking || resharing || sharing != nil
     }
 
     private var firstName: String {
@@ -627,17 +639,13 @@ struct StoryViewer: View {
         }
     }
 
+    /// "Share this FAM" for the vibe's episode (`openShareModal(ep)`): to a
+    /// friend or a group inside FAM, or anywhere else. The story holds
+    /// while the sheet is up.
     private func shareStory() {
         let key = storyKey()
         let title = story.title ?? key.query
-        Task {
-            if let link = try? await model.api.share(key, title: title) {
-                let words = link.targets?["copy"]?.text ?? link.url
-                later { shareItems = [words] }
-            } else {
-                model.nowPlaying.say("Could not make a link")
-            }
-        }
+        later { sharing = ShareSubject(key: key, title: title) }
     }
 
     private func queueStory() {
@@ -827,10 +835,11 @@ struct StoryViewer: View {
 /// by name, the words at their place and size in their face - dark on the
 /// light backgrounds - and the stickers. Positions are fractions of the
 /// canvas and sizes are in 360ths of its width, as on the web, so it reads
-/// the same on any phone. The @mentions are drawn, not tappable: a tag opens
-/// a profile on the web and there is no profile screen here yet.
+/// the same on any phone. An @mention opens that person's profile when the
+/// caller says how (`openTag`); nothing else on the canvas takes a tap.
 struct NoteCanvas: View {
     let story: Story
+    var openTag: ((StoryTag) -> Void)? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -844,6 +853,7 @@ struct NoteCanvas: View {
             let light = style?.bg == "cream" || style?.bg == "candy"
             ZStack(alignment: .topLeading) {
                 Self.background(style?.bg ?? "ink")
+                    .allowsHitTesting(false)
                 if let text = story.text, !text.isEmpty {
                     Text(text)
                         .font(Self.font(style?.font ?? "strong", size: CGFloat(style?.size ?? 24) * unit))
@@ -854,21 +864,17 @@ struct NoteCanvas: View {
                         .frame(maxWidth: w * CGFloat(room))
                         .fixedSize(horizontal: false, vertical: true)
                         .position(x: w * CGFloat(cx), y: h * CGFloat(cy))
+                        .allowsHitTesting(false)
                 }
                 ForEach(Array((style?.stickers ?? []).enumerated()), id: \.offset) { _, sticker in
                     stickerView(sticker, unit: unit)
                         .scaleEffect(CGFloat(sticker.s))
                         .rotationEffect(.degrees(sticker.r))
                         .position(x: w * CGFloat(sticker.x), y: h * CGFloat(sticker.y))
+                        .allowsHitTesting(false)
                 }
                 ForEach(Array((story.tags ?? []).enumerated()), id: \.offset) { _, tag in
-                    Text("@" + tag.handle)
-                        .font(FAMFont.body(14 * unit, .bold))
-                        .foregroundStyle(Color(hex: 0x1A1620))
-                        .padding(.horizontal, 10 * unit)
-                        .padding(.vertical, 5 * unit)
-                        .background(Color(hex: 0xF4EFE4).opacity(0.94), in: RoundedRectangle(cornerRadius: 7 * unit))
-                        .fixedSize()
+                    tagView(tag, unit: unit)
                         .position(x: w * CGFloat(tag.x), y: h * CGFloat(tag.y))
                 }
             }
@@ -877,6 +883,24 @@ struct NoteCanvas: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(story.text ?? "A story")
+    }
+
+    /// An @mention: a button when the caller can open a profile, else
+    /// drawn and passed through.
+    @ViewBuilder private func tagView(_ tag: StoryTag, unit: CGFloat) -> some View {
+        let label = Text("@" + tag.handle)
+            .font(FAMFont.body(14 * unit, .bold))
+            .foregroundStyle(Color(hex: 0x1A1620))
+            .padding(.horizontal, 10 * unit)
+            .padding(.vertical, 5 * unit)
+            .background(Color(hex: 0xF4EFE4).opacity(0.94), in: RoundedRectangle(cornerRadius: 7 * unit))
+            .fixedSize()
+        if let openTag, !tag.handle.isEmpty {
+            Button { openTag(tag) } label: { label }
+                .buttonStyle(.plain)
+        } else {
+            label.allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder private func stickerView(_ s: StorySticker, unit: CGFloat) -> some View {
