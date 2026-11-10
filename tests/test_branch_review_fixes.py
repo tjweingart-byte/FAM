@@ -126,3 +126,66 @@ def test_an_existing_store_gains_the_starts_column(tmp_path):
     q.QualityStore(path)                                   # a second open is a no-op
     assert store.set_starts("old", 1, json.dumps({"sentences": 1, "shares": [0]}))
     assert json.loads(store.episodes_since(0)[0]["starts"])["shares"] == [0]
+
+
+# ------------------------------------------------------------------ the second review
+def test_clock_times_and_ordinals_are_not_figures():
+    for text in ("The vote is at 2 p.m. Eastern.", "It closed at 4 pm on Friday.",
+                 "It is on the 3rd of November."):
+        assert q._plan_numbers(text) == set(), text
+    assert q._plan_numbers("Revenue rose 12 percent to 4.2 billion.") >= {12.0, 4.2}
+
+
+def test_a_business_story_about_subscribers_keeps_its_evidence():
+    kept = "Netflix said 9 million more households chose to subscribe to the ad tier this year."
+    assert editor._split(kept) == [kept]
+    assert editor._split("Subscribe to our newsletter for daily updates now.") == []
+
+
+def test_the_live_status_says_a_closed_market_and_a_delayed_feed():
+    import live_facts
+
+    facts = live_facts.LiveFacts(domain="markets", source="test",
+                                 as_of=datetime.now(timezone.utc) - timedelta(minutes=5),
+                                 facts=["Index 5,100."], status="final",
+                                 market_closed=True, delayed_seconds=900)
+    assert editor._live_sentences(facts)[0] == (
+        "Status: final, observed 5 minutes ago, the market is closed, "
+        "the feed runs 15 minutes behind.")
+
+
+def test_the_shape_instructions_are_only_for_ahead_of_the_tap(monkeypatch):
+    ask = _ask()
+    monkeypatch.setattr(models, "ask", ask)
+    plan = dataclasses.replace(plan_episode("what did the fed decide", 1.5), search=False,
+                               evidence=EVIDENCE)
+    asyncio.run(editor.outline(plan, ScriptNotes(), ahead=False))
+    assert "The brief chose a shape" not in ask.request.instructions
+    asyncio.run(editor.outline(plan, ScriptNotes(), ahead=True))
+    assert "The brief chose a shape" in ask.request.instructions
+
+
+def _listened(store, key, heard, sourced=100, listener="l"):
+    store.note_listen(key, sourced, listener, heard, 60, 1, now=1_000.0)
+
+
+def test_a_finished_listen_reaches_the_landing_and_stops_nowhere(tmp_path):
+    store = q.QualityStore(str(tmp_path / "q.db"))
+    store.record(_row(["The first sentence of it.", "The second sentence here.",
+                       "The landing sentence is last."]), now=1_000.0)
+    store.set_starts("k", 100, json.dumps({"sentences": 3, "shares": [0, 0.4, 0.93]}))
+    _listened(store, "k", 52.5)                      # 0.875 heard: finished
+    out = q.drop_off(days=1, min_reached=1, now=1_060.0, quality=store)
+    landing = next(s for s in out["worst"] if s["position"] == 2)
+    assert landing["reached"] == 1 and landing["stopped"] == 0
+
+
+def test_an_unstamped_listen_goes_to_the_newest_version(tmp_path):
+    store = q.QualityStore(str(tmp_path / "q.db"))
+    old, new = _row(["Old text one here.", "Old text two."]), _row(["New text one here.", "New."])
+    new["sourced"] = 200
+    store.record(old, now=1_000.0)
+    store.record(new, now=1_000.0)
+    _listened(store, "k", 5, sourced=0)
+    out = q.drop_off(days=1, min_reached=1, now=1_060.0, quality=store)
+    assert {s["sentence"] for s in out["worst"]} <= {"New text one here.", "New."}

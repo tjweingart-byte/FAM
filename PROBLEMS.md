@@ -33121,3 +33121,36 @@ Main's §504, Python alone), and the signed files go to the proposals folder
 for the session to move, as §525 did.
 
 The previews are Main's until rebuilt after the merge.
+
+## 532. The second review, independent, before the pull request (2026-11-10)
+
+A fresh reviewer (a subagent given the code and the project's rules, never
+the first review's conclusions) read the whole branch read-only. It ran the
+new tests (129 passed) and reproduced each finding. **Nothing breaks the
+episode path, the cache key, the first word on searchFAM, or Postgres.** It
+checked in particular that `AHEAD_WRITER_EFFORT` reaches only editions,
+the write-ahead and prefetch warms, never a tap, the tandem or Mclovin's
+rewrite. It also checked that `_with_shape` never touches a shared brief, a
+late tandem plan is never measured, the `starts` widening is mapped on
+Postgres, and the settings agree with `.env.example`.
+
+Six low findings, all fixed in `tests/test_branch_review_fixes.py`:
+1. **`drop_off` under-counted finished listens.** A listener who heard 87%
+   never "reached" a landing starting at 93%, so landings rarely reported. A
+   finished listen now reaches every sentence and stops nowhere.
+2. **A listen with no sourced stamp went to the oldest version of a key** in
+   `drop_off`, but to the newest in `_listening`. Both now take the newest.
+3. **Clock times and ordinals still counted as figures** in the
+   plan-following measure ("2 p.m.", "4 pm", "the 3rd"). They are now
+   removed with the years and dates.
+4. **"Subscribe to the..." was taken for page clutter**, so a story about
+   households subscribing lost its key sentence from his packet. Only the
+   page's own voice ("subscribe to our", "sign up for our") is clutter now;
+   Consuela's own filter is unchanged.
+5. **The search call was told about shapes it never sees.** The shape
+   paragraph (`SHAPE_INSTRUCTIONS`) now goes ahead of the tap only, with
+   the shapes themselves (§530 already moved those).
+6. **His live status lost the market-closed and delayed-feed warnings.**
+   The status line now carries them beside the age: "Status: final,
+   observed 5 minutes ago, the market is closed, the feed runs 15 minutes
+   behind."

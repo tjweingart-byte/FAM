@@ -1371,6 +1371,10 @@ def _plan_words(sentence: str) -> set:
             and not any(part in _NUMBER_WORDS for part in w.split("-"))}
 
 
+_CLOCK_OR_ORDINAL = re.compile(
+    r"\b\d{1,2}\s*(?:[ap]\.?\s?m\b\.?)|\b\d{1,2}(?:st|nd|rd|th)\b", re.I)
+
+
 def _plan_numbers(sentence: str) -> set:
     """Every number a sentence states, printed or spoken - "7.9%" and "seven
     point nine percent" are one figure (§527: the writer reads numbers out,
@@ -1381,6 +1385,8 @@ def _plan_numbers(sentence: str) -> set:
         # Years, dates and clock times out first, as figure_guard does for
         # its own material: every story this year shares "2026" (§527 review).
         text = figure_guard._without_scaffolding(sentence or "")
+        # And what scaffolding misses: "2 p.m.", "4 pm", "the 3rd" (the review).
+        text = _CLOCK_OR_ORDINAL.sub(" ", text)
         values = set(figure_guard.material_values(text))
         tokens = figure_guard._TOKEN.findall(text.replace("-", " "))
         i = 0
@@ -1660,10 +1666,15 @@ def drop_off(days: float = 30.0, min_reached: int = DROP_MIN_REACHED,
     for item in listens:
         candidates = by_key.get(item["key"]) or []
         sourced = int(item["sourced"] or 0)
-        near = min(candidates, key=lambda r: abs(int(r["sourced"]) - sourced)) \
-            if candidates else None
-        if near is None or (sourced and abs(int(near["sourced"]) - sourced) > 5):
+        if not candidates:
             continue
+        if sourced:
+            near = min(candidates, key=lambda r: abs(int(r["sourced"]) - sourced))
+            if abs(int(near["sourced"]) - sourced) > 5:
+                continue
+        else:
+            # No stamp: the newest row, as `_listening` matches it (the review).
+            near = max(candidates, key=lambda r: int(r["sourced"]))
         heard_by.setdefault((near["key"], int(near["sourced"])), []).append(item)
     sentences_seen: list = []
     places: dict = {"opening": [0, 0], "middle": [0, 0], "landing": [0, 0]}
@@ -1688,11 +1699,16 @@ def drop_off(days: float = 30.0, min_reached: int = DROP_MIN_REACHED,
             if length <= 0:
                 continue
             share = min(1.0, float(item["heard"] or 0) / length)
+            if share >= FINISHED_SHARE:
+                # Finished: heard it all and stopped nowhere - including a
+                # landing that starts after the 85% mark (the review).
+                for i in range(n):
+                    reached[i] += 1
+                continue
             last = max([i for i, s in enumerate(shares) if s <= share] or [0])
             for i in range(last + 1):
                 reached[i] += 1
-            if share < FINISHED_SHARE:
-                stopped[last] += 1
+            stopped[last] += 1
         if not any(reached):
             continue
         out["episodes"] += 1

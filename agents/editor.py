@@ -87,10 +87,12 @@ _EMPHASIS = re.compile(r"\*\*|__|^\s*(?:#+|[-*•]|\d+\.)\s+", re.M)
 #: Two sentences scraped together with no space: "agreed to.The efforts".
 _GLUED = re.compile(r"(?<=[a-z0-9%][.!?])(?=[A-Z][a-z])")
 #: The page around an article, as Consuela screens it (§466) less her table
-#: rows: a standings table is evidence a sports episode lands on (§527).
+#: rows - a standings table is evidence a sports episode lands on (§527) -
+#: and in the page's own voice only ("subscribe to our"): "households chose
+#: to subscribe to the ad tier" is a business story's evidence (the review).
 _INVITATION = re.compile(
-    r"click(?:ing)? here|preferred source|subscribe to (?:our|the)|"
-    r"sign up for (?:our|the)|all rights reserved|follow us on|"
+    r"click(?:ing)? here|preferred source|subscribe to our|"
+    r"sign up for our|all rights reserved|follow us on|"
     r"add [\w .&'-]{1,30} to google|skip to (?:content|table|main)", re.I)
 #: A numbered "sentence" this short is a fragment; this long, a page dumped
 #: whole (a full league table, a transactions log). Long real sentences - a
@@ -160,12 +162,18 @@ def _live_sentences(live) -> list:
     if lines and status:
         # With how old it is, as the writer's own block says it: a score
         # observed forty minutes ago is not how the game stands now.
-        age = ""
+        notes = []
         try:
-            age = f", observed {found.age_phrase()}"
+            notes.append(f"observed {found.age_phrase()}")
         except Exception:  # noqa: BLE001
             pass
-        lines.insert(0, f"Status: {status.replace('_', ' ')}{age}.")
+        if getattr(found, "market_closed", False):
+            notes.append("the market is closed")
+        delayed = float(getattr(found, "delayed_seconds", 0) or 0)
+        if delayed >= 60:
+            notes.append(f"the feed runs {int(delayed // 60)} minutes behind")
+        lines.insert(0, f"Status: {status.replace('_', ' ')}"
+                        + (", " + ", ".join(notes) if notes else "") + ".")
     return lines
 
 
@@ -264,11 +272,14 @@ class EditorAnswer(BaseModel):
 
 INSTRUCTIONS = """You are the editor of one audio episode. From the two packets below - what is happening now (`<evidence>`, numbered P), and what came before from FAM's archive (`<archive>`, numbered A) - choose what the writer needs and leave out what it does not, by sentence number only: write numbers like "P2.3", never the sentences themselves. Then outline the episode: what it answers (a few words), the beats in order, and the numbers that carry each beat. The archive is history - what was true on its date - never how things stand now. Where two sources disagree, the better grade wins, then the more recent; put only the winning sentence in the outline.
 
-The brief chose a shape for this story before anything was searched (it is named, with the shapes it could be, at the top of `<evidence>`). Now that you have read the packets, keep it - leave `shape` empty - or name the one that fits what the packets actually hold: above all `in_progress` when the question wants a result and no sentence reports one as finished, `profile` for a person, `comparison` for one thing against another. Plan the beats to the shape you choose.
-
 Plan it the way a good journalist tells a story: open on something concrete that says who, what and when and opens a question; let each beat follow from the last because, therefore or but; end on the most concrete thing you have, never a question, a tease or what might happen next. If the question asks for a result and no sentence reports one as finished, plan around what has not finished. Do not plan a part you have nothing for: a beat needs at least one number behind it. Plan no advice: on a medical, legal or money question, plan the facts. Fit the beats to the episode's length. A beat's purpose says what the beat does ("why the vote mattered"), never a fact. Anything the listener asked about that no sentence covers goes in `missing`, a few words each, for the writer only; set `thin` when the packets hold too little for the length.
 
 The worked episodes in `<teaching>` show the house style the writer is held to: concrete openings, a story told because-therefore-but, a concrete last line. They are examples of writing, never evidence. Where `<teaching>` also holds worked plans, each shows a packet and the plan an editor made from it - what was kept, what was left out, the order and the landing; plan this episode as well as they are planned, from this episode's own packets."""
+
+
+#: Ahead of the tap only, where his shape is used and the shapes are shown
+#: (§523); on searchFAM neither is (the review).
+SHAPE_INSTRUCTIONS = "\n\n" + """The brief chose a shape for this story before anything was searched (it is named, with the shapes it could be, at the top of `<evidence>`). Now that you have read the packets, keep it - leave `shape` empty - or name the one that fits what the packets actually hold: above all `in_progress` when the question wants a result and no sentence reports one as finished, `profile` for a person, `comparison` for one thing against another. Plan the beats to the shape you choose."""
 
 
 def _examples() -> str:
@@ -469,7 +480,8 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
         request = models.AgentRequest(
             agent="editor", task="outline", switch_setting="editor_agent",
             model_setting=model_setting or ("editor_model" if ahead else "editor_search_model"),
-            rule_book="shakespeare.md", schema=EditorAnswer, instructions=INSTRUCTIONS,
+            rule_book="shakespeare.md", schema=EditorAnswer,
+            instructions=INSTRUCTIONS + (SHAPE_INSTRUCTIONS if ahead else ""),
             material=tuple(material), carries_listener_words=True,
             timeout=float(settings.editor_ahead_timeout_seconds if ahead
                           else settings.editor_timeout_seconds),

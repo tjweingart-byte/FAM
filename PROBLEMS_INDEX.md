@@ -523,3 +523,4 @@ and `limit` = Lines.
 | 32987 | 47 | 529. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10) |
 | 33034 | 50 | 530. The whole branch double-checked: what the review found, and what was fixed (2026-11-10) |
 | 33084 | 41 | 531. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10) |
+| 33125 | 33 | 532. The second review, independent, before the pull request (2026-11-10) |
