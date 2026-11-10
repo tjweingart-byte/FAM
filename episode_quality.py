@@ -532,6 +532,9 @@ class QualityStore:
             if before is not None and before[0] != row.get("sentences"):
                 db.execute("DELETE FROM labels WHERE key = ? AND sourced = ?",
                            (row.get("key"), row.get("sourced")))
+                # The old text's sentence timings no longer describe it (§502).
+                db.execute("UPDATE episodes SET starts = '' WHERE key = ? AND sourced = ?",
+                           (row.get("key"), row.get("sourced")))
             db.execute(
                 f"INSERT INTO episodes ({', '.join(columns)}) VALUES "
                 f"({', '.join('?' for _ in columns)}) "
@@ -766,7 +769,7 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
         measures = measure(sentences, query, evidence, budget)
         # Whether the writer followed Shakespeare's plan, when he planned it
         # (the numbers only; his chosen sentences are never kept here).
-        followed = _plan_measure(notes, sentences)
+        followed = _plan_measure(notes, sentences, query)
         if followed is not None:
             measures["plan"] = followed
         store().record({
@@ -1341,7 +1344,9 @@ PLAN_SHARED_WORDS = 2
 PLAN_SHARED_SHARE = 0.25
 #: A long source "sentence" - a standings table, a press release's header -
 #: is judged against at most this many of its words (§508: with the whole
-#: length as the denominator no table could ever be matched).
+#: length as the denominator no table could ever be matched). The question's
+#: own words are not counted at all (`plan_following`'s `query`): a name the
+#: whole episode repeats is no sign a sentence was used (the branch review).
 PLAN_WORDS_CAP = 8
 #: The opening is "followed" when an open-on sentence is used in the first
 #: this many sentences of the script, the landing when a land-on sentence is
@@ -1373,8 +1378,11 @@ def _plan_numbers(sentence: str) -> set:
     try:
         import figure_guard
 
-        values = set(figure_guard.material_values(sentence or ""))
-        tokens = figure_guard._TOKEN.findall((sentence or "").replace("-", " "))
+        # Years, dates and clock times out first, as figure_guard does for
+        # its own material: every story this year shares "2026" (§508 review).
+        text = figure_guard._without_scaffolding(sentence or "")
+        values = set(figure_guard.material_values(text))
+        tokens = figure_guard._TOKEN.findall(text.replace("-", " "))
         i = 0
         while i < len(tokens):
             value, _d, j = figure_guard._read_number(tokens, i)
@@ -1409,9 +1417,9 @@ def _overlap(source: tuple, sentence: tuple) -> float:
     return share if share >= PLAN_SHARED_SHARE else 0.0
 
 
-def _used_at(source: str, script: list) -> Optional[int]:
+def _used_at(source: str, script: list, asked: frozenset = frozenset()) -> Optional[int]:
     """The script sentence that best carries this plan sentence, or None."""
-    wanted = (_plan_words(source), _plan_numbers(source))
+    wanted = (_plan_words(source) - asked, _plan_numbers(source))
     if not wanted[0] and not wanted[1]:
         return None
     best, at = 0.0, None
@@ -1423,7 +1431,7 @@ def _used_at(source: str, script: list) -> Optional[int]:
 
 
 def plan_following(plan: dict, sentences: Iterable[str],
-                   opening_counted: bool = True) -> Optional[dict]:
+                   opening_counted: bool = True, query: str = "") -> Optional[dict]:
     """How closely a script followed Shakespeare's plan, 0-1 per part.
 
     `plan` is `{"opening": [text], "beats": [[text], ...], "landing": [text]}`
@@ -1439,7 +1447,8 @@ def plan_following(plan: dict, sentences: Iterable[str],
     episode whose opening was written before his plan existed (searchFAM in
     tandem, §456). Numbers only - never the text. Never raises."""
     try:
-        script = [(_plan_words(s), _plan_numbers(s)) for s in sentences
+        asked = _plan_words(query)
+        script = [(_plan_words(s) - asked, _plan_numbers(s)) for s in sentences
                   if s and str(s).strip()]
         if not plan or not script:
             return None
@@ -1447,7 +1456,8 @@ def plan_following(plan: dict, sentences: Iterable[str],
         out: dict = {p: None for p in PLAN_PARTS}
 
         def used(texts) -> list:
-            return [i for i in (_used_at(t, script) for t in texts or []) if i is not None]
+            return [i for i in (_used_at(t, script, frozenset(asked)) for t in texts or [])
+                    if i is not None]
 
         if opening_counted and plan.get("opening"):
             out["opening"] = float(any(i < PLAN_EDGE_SENTENCES for i in used(plan["opening"])))
@@ -1717,14 +1727,14 @@ def drop_off(days: float = 30.0, min_reached: int = DROP_MIN_REACHED,
     return out
 
 
-def _plan_measure(notes, sentences: list) -> Optional[dict]:
+def _plan_measure(notes, sentences: list, query: str = "") -> Optional[dict]:
     """The plan-following numbers for an episode he planned, or None."""
     editor = getattr(notes, "editor", None)
     plan = editor.get("plan") if isinstance(editor, dict) else None
     if not plan:
         return None
     tandem = str(getattr(notes, "editor_tandem", "") or "") == "handed_over"
-    measured = plan_following(plan, sentences, opening_counted=not tandem)
+    measured = plan_following(plan, sentences, opening_counted=not tandem, query=query)
     if measured is not None:
         measured["surface"] = "tandem" if tandem else "ahead"
     return measured

@@ -80,7 +80,8 @@ class NumberedSource:
 #: words kept are the publisher's: markup is taken off, never a word changed.
 _LINK = re.compile(r"\[([^\]]*)\]\((?:https?://|/)[^)]*\)")
 #: A link the source's excerpt cut in half: "that [it had opened an inquiry".
-_HALF_LINK = re.compile(r"\]\([^)]*$|\[(?=[^\]]*$)")
+_HALF_URL = re.compile(r"\]\([^)]*$")
+_HALF_OPEN = re.compile(r"\[(?=[^\]]*$)")
 _URL = re.compile(r"(?:https?://|www\.)\S+")
 _EMPHASIS = re.compile(r"\*\*|__|^\s*(?:#+|[-*•]|\d+\.)\s+", re.M)
 #: Two sentences scraped together with no space: "agreed to.The efforts".
@@ -100,7 +101,8 @@ MAX_WORDS = 150
 
 def _clean(text: str) -> str:
     text = _LINK.sub(r"\1", text or "")
-    text = _HALF_LINK.sub("", text)
+    text = _HALF_URL.sub("", text)        # its address first, so its "[" has no "]"
+    text = _HALF_OPEN.sub("", text)
     text = _URL.sub(" ", text)
     text = _EMPHASIS.sub(" ", text)
     text = _GLUED.sub(" ", text)
@@ -156,7 +158,14 @@ def _live_sentences(live) -> list:
     lines = [line for line in lines if line]
     status = str(getattr(found, "status", "") or "")
     if lines and status:
-        lines.insert(0, f"Status: {status.replace('_', ' ')}.")
+        # With how old it is, as the writer's own block says it: a score
+        # observed forty minutes ago is not how the game stands now.
+        age = ""
+        try:
+            age = f", observed {found.age_phrase()}"
+        except Exception:  # noqa: BLE001
+            pass
+        lines.insert(0, f"Status: {status.replace('_', ' ')}{age}.")
     return lines
 
 
@@ -284,13 +293,16 @@ def _teaching(plan) -> str:
     """His `<teaching>`: the house examples, then the worked plans (§501),
     with the ones closest to this episode's kind of story named."""
     from agents import worked_plans
+    from config import settings
 
-    try:
-        import script_generator
+    facet = ""
+    if getattr(settings, "example_matching", False):   # its only use is matching's line
+        try:
+            import script_generator
 
-        facet = script_generator.episode_facet(plan)
-    except Exception:  # noqa: BLE001
-        facet = ""
+            facet = script_generator.episode_facet(plan)
+        except Exception:  # noqa: BLE001
+            facet = ""
     worked = worked_plans.teaching(facet)
     return _examples() + ("\n\n" + worked if worked else "")
 
@@ -447,10 +459,13 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
         material = [("request", str(getattr(plan, "query", "") or "")),
                     ("evidence", f"Episode length: about {getattr(plan, 'minutes', 0):g} "
                                  f"minutes, at most {getattr(plan, 'max_words', 0)} words.\n"
-                                 + shapes_text(plan) + "\n"
+                                 + (shapes_text(plan) if ahead else "") + "\n"
                                  + (plugin or "(nothing)")),
                     ("archive", archive or "(nothing)"),
-                    ("teaching", _teaching(plan))]
+                    # Worked plans and the shapes only ahead of the tap: on
+                    # searchFAM his plan must land inside the tandem's wait,
+                    # and the shape he names there is not used (§504).
+                    ("teaching", _teaching(plan) if ahead else _examples())]
         request = models.AgentRequest(
             agent="editor", task="outline", switch_setting="editor_agent",
             model_setting=model_setting or ("editor_model" if ahead else "editor_search_model"),

@@ -502,3 +502,4 @@ and `limit` = Lines.
 | 31919 | 54 | 508. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10) |
 | 31973 | 58 | 509. The packet Shakespeare numbers, cleaned (2026-11-10) |
 | 32031 | 45 | 511. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10) |
+| 32076 | 50 | 512. The whole branch double-checked: what the review found, and what was fixed (2026-11-10) |

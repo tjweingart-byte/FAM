@@ -240,7 +240,7 @@ async def write_arm(generator, frozen: dict, arm: str) -> dict:
     seconds = time.perf_counter() - started
     import episode_quality
 
-    followed = episode_quality._plan_measure(notes, sentences)
+    followed = episode_quality._plan_measure(notes, sentences, plan.query)
 
     measured = episode_quality.measure(sentences, plan.query, plan.evidence,
                                        getattr(plan, "word_budget", 0))

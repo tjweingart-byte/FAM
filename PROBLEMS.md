@@ -32072,3 +32072,53 @@ best, and a run's own chance spread is about that size. Spending more on them
 buys no more certainty. The test that can decide is listening: the editions
 trial (`EDITOR_TRIAL=1`, §454), read by `tools/editor_trial.py` and
 `tools/drop_off.py`, and free.
+
+## 512. The whole branch double-checked: what the review found, and what was fixed (2026-11-10)
+
+The owner: "We dont want the editor trial. I want the changes made here now...
+it is time to double check all changes made in this branch." The editor
+trial stays off. The branch (19 commits, 49 files against its merge-base with
+Main, e744c8a) was reviewed with the code-review skill at high effort:
+line by line, removed behaviour, callers, reuse, simplification,
+efficiency, altitude and CLAUDE.md conventions. Eight findings, all fixed,
+each with a test in `tests/test_branch_review_fixes.py`:
+
+1. **Years counted as shared figures** in the plan-following measure
+   (§508's `_plan_numbers` read "2026" through `_read_number`), so any two
+   stories from this year "matched": a landing on "The 2026 season begins
+   in March" scored as following "Shares... rose in 2026". Numbers are now
+   read after `figure_guard._without_scaffolding`, which removes years,
+   dates and clock times as it does for its own material.
+2. **The question's own words counted as use.** "The Federal Reserve... rate"
+   in a plan beat matched any sentence naming the Federal Reserve and rates,
+   which is every sentence of a Fed episode. That, not the writer, is the
+   likeliest reason §511's "parts followed" read 0.98. The question's words
+   are no longer counted (`plan_following(query=...)`, passed by `note` and
+   the comparison). Raising the cap from 8 to 12 was tried first: it did not
+   stop that false match, and it dropped agreement with §508's hand reading
+   from 8 of 10 to 5. The cap stays 8; agreement with the reading stays 8 of
+   10.
+3. **The worked plans and the shapes went into the searchFAM tandem call**,
+   whose plan must land inside the 7 s wait (§456), and they were never
+   timed there. The shape he names on search is not used either. Both are
+   now ahead of the tap only; on search he reads the examples alone, as
+   before §501.
+4. **Live facts lost their age.** §509 gave him the facts and the status
+   without the "observed ... ago" the writer's block carries. The status
+   line now says it: "Status: in progress, observed 40 minutes ago."
+5. **A rewrite kept the old text's sentence timings.** `record` now clears
+   `starts` when the same key and sourced stamp are written with different
+   sentences, as it already dropped the owner's labels.
+6. **A link cut inside its address left a "["** in the numbered sentence.
+   It is now cleaned in two passes.
+7. **The facet was looked up on every plan** for a line that matching (off)
+   alone reads. It is looked up only while `EXAMPLE_MATCHING` is on.
+8. **No test widened an existing store with `starts`**, as §454's test did
+   for `editor_arm`. Added; on SQLite and, in CI, Postgres.
+
+§511's plan-following figures were measured before 1 and 2. They read too
+high (beats especially) and stand as measured.
+
+The review found nothing against the rules in CLAUDE.md. The settings are
+copied (`.env.example` and `config.py` agree), no key is in source, and
+nothing new runs a paid call on its own.
