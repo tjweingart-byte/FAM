@@ -499,4 +499,5 @@ and `limit` = Lines.
 | 31794 | 20 | 505. The owner signed manifest version 7, from a borrowed computer (2026-11-09) |
 | 31814 | 95 | 506. The review before the pull request: the owner's review kept, rule 12 held, a batch's spend counted once (2026-11-09) |
 | 31909 | 93 | 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09) |
-| 32002 | 46 | 508. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09) |
+| 32002 | 144 | 508. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
+| 32146 | 46 | 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09) |

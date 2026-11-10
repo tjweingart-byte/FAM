@@ -1978,7 +1978,7 @@
     50%    { box-shadow:0 0 0 5px rgba(224,181,99,0); }
   }
 
-  /* The two browse waits (§508, the owner's pick from the loading-screen
+  /* The two browse waits (§509, the owner's pick from the loading-screen
      options page). A DailyFAM tile tapped shows the tuning dial; a myFAM
      mix's episode shows the mix gliding along to it. Neither lists the five
      steps - those are search's and Go Deeper's (§148) - and neither holds
@@ -3335,7 +3335,7 @@
              alive.) A brand animation that replaced it would be the same
              mistake in a nicer font. -->
         <div class="gen-text" id="famLoadingStatus">Writing your episode…</div>
-        <!-- DailyFAM's dial and a mix's glide (§508), painted by paintLoadingVariant. -->
+        <!-- DailyFAM's dial and a mix's glide (§509), painted by paintLoadingVariant. -->
         <div class="fam-ld-alt" id="famLoadingAlt"></div>
       </div>
 
@@ -6759,7 +6759,7 @@
     }
   }
 
-  // `free` (§508): DailyFAM's dial and a mix's glide. The server's marks are
+  // `free` (§509): DailyFAM's dial and a mix's glide. The server's marks are
   // still read - they are what moves the give-up time (§497) - but nothing
   // is drawn from them and the audio is never held for them.
   function startGenSteps(free){
@@ -6877,7 +6877,7 @@
     if(genTimeout){ clearTimeout(genTimeout); genTimeout = null; }
     var st = genSteps;
     if(!st){ begin(); return; }
-    // No steps on screen, so nothing to finish showing: start now (§508).
+    // No steps on screen, so nothing to finish showing: start now (§509).
     if(st.free){ stopGenSteps(); begin(); return; }
     if(info && info.cache === "hit"){
       paintGenSteps(GEN_STEP_COUNT, true);
@@ -6889,7 +6889,7 @@
     st.release = begin;
   }
 
-  // ---------------- DailyFAM's dial and a mix's glide (§508) ----------------
+  // ---------------- DailyFAM's dial and a mix's glide (§509) ----------------
   //
   // The owner's picks from the loading-screen options page: option 5 for a
   // DailyFAM tile, option 3 for a myFAM mix. Search and Go Deeper keep
@@ -7695,7 +7695,7 @@
 
     // A tap that writes an episode shows the five steps instead of the old
     // guessed stage line (§148) - except a DailyFAM tile and a mix's episode,
-    // which have their own screens and hold nothing (§508).
+    // which have their own screens and hold nothing (§509).
     var variant = TOPICS[key] ? TOPICS[key].loader || "" : "";
     startGenSteps(!!variant);
     if(variant) paintLoadingVariant(variant, TOPICS[key]);
@@ -9824,7 +9824,7 @@
       startGate: genStepsGate,
       onFirstAudio: function(){
         awaitingFirstAudio = "";
-        // The mix's glide (§508) marks this one Played only now: a skip
+        // The mix's glide (§509) marks this one Played only now: a skip
         // before a word, or a failure, is not something that played.
         if(mixPlay && mixPlay.key === currentPlayingTopicKey){
           (mixPlay.played = mixPlay.played || {})[mixPlay.pos] = true;
@@ -12642,7 +12642,7 @@
       // What makes the player treat this as a playlist entry: its end plays
       // the next one instead of offering What's next. See `populatePlayer`.
       fromMix: true,
-      // Its loading screen is the mix gliding along (§508).
+      // Its loading screen is the mix gliding along (§509).
       loader: "glide"
     };
     if(inQueue === false){
@@ -15007,7 +15007,7 @@
       bankTopicId: topicId,
       exploreMinutes: myfamLengthMinutes,
       titleOverridden: true,
-      // Its loading screen is the tuning dial (§508).
+      // Its loading screen is the tuning dial (§509).
       loader: "dial", loaderTopic: topicId
     };
     generate(key);

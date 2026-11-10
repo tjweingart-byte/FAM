@@ -277,7 +277,7 @@ gap.** The cold open tried to fill it and was removed. Prefetch on the browse
 surfaces; on search, keep the work small enough that there is no gap to fill.
 
 <!-- rule:browse-loaders -->
-**DailyFAM and a mix have their own loading screens** *(PROBLEMS.md §508, the
+**DailyFAM and a mix have their own loading screens** *(PROBLEMS.md §509, the
 owner's pick from a six-option page, 11.9).* A DailyFAM tile tapped shows a
 tuning dial: the needle sweeps the categories of the rail the tile came from,
 overshoots and settles on the tile's own, with the tile's title and "Getting

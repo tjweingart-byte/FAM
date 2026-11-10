@@ -3663,7 +3663,7 @@ def main() -> int:
         def the_browse_waits_have_their_own_screens():
             """A DailyFAM tile loads on the tuning dial, a mix's episode on the
             mix gliding along, and neither shows or waits for the five steps
-            (§508, the owner's picks). Search keeps them - checked above.
+            (§509, the owner's picks). Search keeps them - checked above.
             """
             watch = """() => {
                 var el = document.getElementById("famLoading");
