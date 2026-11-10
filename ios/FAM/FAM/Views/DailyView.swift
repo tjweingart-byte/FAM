@@ -248,8 +248,11 @@ struct TileCard: View {
             } else {
                 HStack(spacing: 4) {
                     HStack(spacing: -7) {
-                        ForEach(Array(faces.prefix(3).enumerated()), id: \.offset) { _, face in
+                        ForEach(Array(faces.prefix(3).enumerated()), id: \.offset) { i, face in
                             Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "", size: 22)
+                                // A ring in the pill's own colour, so each overlapped face reads whole.
+                                .overlay(Circle().stroke(Color(red: 42 / 255, green: 37 / 255, blue: 48 / 255), lineWidth: 1.5))
+                                .zIndex(Double(3 - i))
                         }
                     }
                     if tile.friendsListened > 3 {
@@ -329,12 +332,17 @@ struct Face: View {
             Text(initials.isEmpty ? "?" : initials.uppercased())
                 .font(FAMFont.body(size * 0.38, .bold))
                 .foregroundStyle(FAMColor.ink)
+                .minimumScaleFactor(0.5)
             if let url = model.api.picture(avatar) {
+                // Held to the circle's size before it is clipped: a photo
+                // scaled to fill is larger than its frame, and unclipped it
+                // spilled out of the friends pill.
                 AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: { Color.clear }
-                    .clipShape(Circle())
+                    .frame(width: size, height: size)
             }
         }
         .frame(width: size, height: size)
+        .clipShape(Circle())
         .accessibilityHidden(true)
     }
 }
