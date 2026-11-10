@@ -32219,9 +32219,9 @@ row is (the mix's name, "Queued").
 34px.
 
 **4. The transport row.** The ±15 and next were outlined circles at 38px with
-an 8px number, the next button hung off the side absolutely. Now five equal
-52px slots on a grid, play (66px) in the middle one, the first slot empty to
-balance next, every glyph bare (no circle), a redrawn ±15 arrow with the 15 at
+an 8px number, the next button hung off the side absolutely. Now five slots
+on a grid - four that shrink with the screen and a 74px middle one for play
+(66px) - the first slot empty to balance next, every glyph bare (no circle), a redrawn ±15 arrow with the 15 at
 10.5px bold, a solid next glyph. Scoped to `#screen-player`; play-all and the
 mini bar are unchanged.
 
@@ -32250,3 +32250,15 @@ Takes effect when this reaches `Main` and production redeploys.
 
 Pinned by `tests/test_packet_119_510.py` and the smoke check "Go Deeper keeps a
 playlist going; captions are a pill".
+
+**Found in the double-check before handing over.** Two things the 390px
+screenshots could not show. The first transport used five fixed 52px columns
+with 14px gaps - 316px - which is wider than the desktop preview's phone
+(312px across) and a 320px phone, so the next button was cut off at the right
+edge; the four outer columns now shrink (`minmax(0,1fr)`, 48px glyphs, the
+row at most 330px). And the player's bottom padding was 60px because the old
+captions strip lived there; with captions on the picture that was a blank band
+under the controls, now 22px. Checked, and fine: stopping the playlist's
+episode for a detour never fires its end (`FamAudio.stop` bumps the token,
+and `advanceMix` ignores a stale key), so the mix does not jump ahead when the
+follow-up starts.

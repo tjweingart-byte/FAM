@@ -1374,15 +1374,20 @@
   #screen-player .mini-title{ font-size:22px; line-height:1.2; margin:0;
     display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .mini-src[hidden]{ display:none; }
-  #screen-player .player-controls-2row{ padding:14px 20px 60px; gap:14px; }
+  /* The bottom padding held the captions strip until §510 moved captions
+     onto the picture; it is the controls' own breathing room now. */
+  #screen-player .player-controls-2row{ padding:14px 20px 22px; gap:14px; }
   /* The transport (11.9 packet, §510): five equal slots with play in the
      middle one, so it is centred whether or not the next button is drawn,
      and every glyph bare - the outlined circles round ±15 and next read as
      three more buttons the size of play's little brothers. */
-  #screen-player .pc-row1{ display:grid; grid-template-columns:repeat(5, 52px);
-    justify-content:center; justify-items:center; align-items:center; gap:14px; width:100%; }
-  #screen-player .pc-slot{ width:52px; height:52px; }
-  #screen-player .pc-row1 .mini-ctrl-btn{ width:52px; height:52px; background:none;
+  /* Columns that shrink with the screen: fixed 52px slots overflowed the
+     desktop preview's phone (and a 320px phone) and cut next off the edge. */
+  #screen-player .pc-row1{ display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) 74px minmax(0,1fr) minmax(0,1fr);
+    justify-items:center; align-items:center; gap:0; width:100%; max-width:330px; margin:0 auto; }
+  #screen-player .pc-slot{ width:48px; height:48px; }
+  #screen-player .pc-row1 .mini-ctrl-btn{ width:48px; height:48px; background:none;
     border:0; color:var(--text); border-radius:50%; }
   #screen-player .pc-row1 .mini-ctrl-btn:active{ background:rgba(var(--fg-rgb),0.08); }
   #screen-player .pc-row1 .skip-num{ top:calc(50% + 1px); font-family:'Geist', sans-serif;

@@ -501,4 +501,4 @@ and `limit` = Lines.
 | 31909 | 93 | 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09) |
 | 32002 | 144 | 508. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
 | 32146 | 46 | 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09) |
-| 32192 | 62 | 510. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |
+| 32192 | 74 | 510. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |

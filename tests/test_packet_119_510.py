@@ -64,7 +64,8 @@ def test_the_transport_is_five_slots_with_play_in_the_middle():
     order = re.findall(r'class="(pc-slot|mini-ctrl-btn seek|mini-play-btn|mini-ctrl-btn mix-skip)"', row)
     assert order == ["pc-slot", "mini-ctrl-btn seek", "mini-play-btn",
                      "mini-ctrl-btn seek", "mini-ctrl-btn mix-skip"]
-    assert "grid-template-columns:repeat(5, 52px)" in INDEX
+    # Columns that shrink: fixed slots overflowed a 312px-wide phone.
+    assert "grid-template-columns:minmax(0,1fr) minmax(0,1fr) 74px minmax(0,1fr) minmax(0,1fr)" in INDEX
     # Bare glyphs: no outlined circle behind the ±15 and next on the player.
     rule = re.search(r"#screen-player \.pc-row1 \.mini-ctrl-btn\{([^}]*)\}", INDEX).group(1)
     assert "background:none" in rule and "border:0" in rule
