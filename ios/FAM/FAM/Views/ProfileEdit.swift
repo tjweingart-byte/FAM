@@ -169,7 +169,7 @@ struct PhotoEditor: View {
                         .foregroundStyle(FAMColor.textMuted)
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Close")
             }
             .padding(.bottom, 12)
@@ -414,7 +414,7 @@ struct IdentityView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(avatar.isEmpty ? "Add a photo" : "Change your photo")
         .padding(.top, 4)
         .padding(.bottom, 20)
@@ -515,7 +515,7 @@ struct IdentityView: View {
                         .frame(width: 36, height: 36)
                         .background(FAMColor.paper, in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Add this topic")
             }
             .padding(.top, 10)
@@ -542,7 +542,7 @@ struct IdentityView: View {
             .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
             .opacity(dim ? 0.6 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -630,7 +630,7 @@ struct IdentityView: View {
                         .padding(.bottom, 2)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
             }
         }
     }
@@ -818,7 +818,7 @@ struct RequiredPopup: View {
                             .foregroundStyle(FAMColor.textMuted)
                             .frame(width: 36, height: 36)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .padding(8)
                     .accessibilityLabel("Close")
                 }
@@ -1085,7 +1085,7 @@ struct InterestsView: View {
                     .frame(minHeight: 30)
                     .background(FAMColor.copper, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Remove " + (labels[tag] ?? tag))
             }
         }
@@ -1129,7 +1129,7 @@ struct InterestsView: View {
                 .padding(.horizontal, 4)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
         }
         if !loaded {
             Text("Loading topics\u{2026}").font(FAMFont.body(11.5)).foregroundStyle(FAMColor.textFaint)
@@ -1179,7 +1179,7 @@ struct InterestsView: View {
             .padding(.horizontal, 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(s.label)
         .accessibilityValue(on ? "Added" : "")
     }
@@ -1217,7 +1217,7 @@ struct InterestsView: View {
                         .padding(.bottom, 2)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
             }
         }
     }

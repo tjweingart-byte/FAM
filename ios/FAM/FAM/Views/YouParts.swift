@@ -135,13 +135,16 @@ struct YouBackRow: View {
                     .frame(width: 28, height: 28, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Back")
+            // Wraps rather than being cut (`large-text`); nothing else
+            // shares its row but the 28 pt back chevron.
             Text(title)
                 .font(FAMFont.heading(19, .medium))
                 .foregroundStyle(FAMColor.text)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
         }
         .padding(.horizontal, 18)
         .padding(.top, 16)
@@ -176,11 +179,14 @@ struct SetRow: View {
     var danger = false
     var badge = 0
     var action: (() -> Void)?
+    /// At the accessibility sizes the value goes under the label, as
+    /// Apple's Settings does, so neither squeezes the other (`large-text`).
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         if let action {
             Button(action: action) { content(chevron: true) }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityElement(children: .combine)
         } else {
             content(chevron: false)
@@ -189,23 +195,44 @@ struct SetRow: View {
     }
 
     private func content(chevron: Bool) -> some View {
-        HStack(spacing: 10) {
-            Text(label)
-                .font(FAMFont.body(13, .semibold))
-                .foregroundStyle(danger ? FAMColor.coral : FAMColor.text)
+        let stacked = typeSize.isAccessibilitySize
+        return HStack(spacing: 10) {
+            if stacked {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(label)
+                        .font(FAMFont.body(13, .semibold))
+                        .foregroundStyle(danger ? FAMColor.coral : FAMColor.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !value.isEmpty {
+                        Text(value)
+                            .font(FAMFont.mono(9.5))
+                            .tracking(0.475)
+                            .foregroundStyle(FAMColor.textMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if badge > 0 {
-                TabBadge(count: badge)
-            }
-            if !value.isEmpty {
-                Text(value)
-                    .font(FAMFont.mono(9.5))
-                    .tracking(0.475)
-                    .foregroundStyle(FAMColor.textMuted)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 160, alignment: .trailing)
-                    .fixedSize(horizontal: false, vertical: true)
+                if badge > 0 {
+                    TabBadge(count: badge)
+                }
+            } else {
+                Text(label)
+                    .font(FAMFont.body(13, .semibold))
+                    .foregroundStyle(danger ? FAMColor.coral : FAMColor.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if badge > 0 {
+                    TabBadge(count: badge)
+                }
+                if !value.isEmpty {
+                    Text(value)
+                        .font(FAMFont.mono(9.5))
+                        .tracking(0.475)
+                        .foregroundStyle(FAMColor.textMuted)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 160, alignment: .trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             if chevron {
                 WebIcon(path: YouIcons.rowChevron, size: 13, line: 2.2)
@@ -254,7 +281,7 @@ struct CloseCircle: View {
                 .overlay(Circle().stroke(FAMColor.borderStrong))
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(label)
     }
 }
@@ -281,7 +308,7 @@ struct EntryButton: View {
             .background(FAMColor.copper, in: Capsule())
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .disabled(working)
     }
 }
@@ -383,6 +410,8 @@ struct YouSheet: View {
     let items: [YouSheetItem]
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var model: AppModel
+    /// The card grows with the phone's text size (`large-text`).
+    @ScaledMetric(relativeTo: .body) private var grow: CGFloat = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -404,7 +433,7 @@ struct YouSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.height(min(height, 640))])
+        .presentationDetents([.height(min(height * grow, 640))])
         .presentationBackground(FAMColor.surface)
         .presentationCornerRadius(20)
     }
@@ -467,7 +496,7 @@ struct YouSheet: View {
                         Text(item.label)
                             .font(FAMFont.body(13.5, .semibold))
                             .foregroundStyle(item.danger ? FAMColor.coral : FAMColor.text)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                         if item.checked {
                             WebIcon(path: Icons.check, size: 13, line: 2.6)
                                 .foregroundStyle(FAMColor.text)
@@ -477,7 +506,7 @@ struct YouSheet: View {
                         Text(item.sub)
                             .font(FAMFont.body(11.5))
                             .foregroundStyle(FAMColor.textMuted)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer(minLength: 0)
@@ -486,7 +515,7 @@ struct YouSheet: View {
             .padding(.horizontal, 22)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityAddTraits(item.checked ? .isSelected : [])
     }
 }
@@ -520,7 +549,7 @@ struct TextModal: View {
                         .foregroundStyle(FAMColor.textMuted)
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Close")
             }
             .padding(.bottom, 12)

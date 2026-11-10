@@ -135,12 +135,12 @@ struct MainTabs: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                DailyView(scrollToTop: $scrollToTop).opacity(tab == .daily ? 1 : 0).allowsHitTesting(tab == .daily)
-                MyFAMView(path: $model.mixPath).opacity(tab == .myfam ? 1 : 0).allowsHitTesting(tab == .myfam)
+                DailyView(scrollToTop: $scrollToTop).tabPage(.daily, current: tab)
+                MyFAMView(path: $model.mixPath).tabPage(.myfam, current: tab)
                 SearchView(tab: $tab, attach: model.attachments, voice: model.voiceSearch,
-                           loading: model.loading).opacity(tab == .search ? 1 : 0).allowsHitTesting(tab == .search)
-                MessagesView().opacity(tab == .messages ? 1 : 0).allowsHitTesting(tab == .messages)
-                YouView().opacity(tab == .you ? 1 : 0).allowsHitTesting(tab == .you)
+                           loading: model.loading).tabPage(.search, current: tab)
+                MessagesView().tabPage(.messages, current: tab)
+                YouView().tabPage(.you, current: tab)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // A social screen opened from another tab: over it, with a
@@ -284,6 +284,8 @@ struct TabBar: View {
 
     private var palette: SearchPalette { SearchPalette.of(dark) }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         // Five equal slots with the search in the middle, as the web's five
         // tabs sit.
@@ -329,16 +331,35 @@ struct TabBar: View {
                 .frame(width: 44, height: 28)
                 .background(on ? palette.copper.opacity(0.18) : Color.clear, in: Capsule())
                 .overlay(alignment: .topTrailing) {
-                    if badge > 0 { TabBadge(count: badge).offset(x: 7, y: -4) }
+                    // The unread count pops in and shrinks away
+                    // (`Motion.badge`).
+                    ZStack {
+                        if badge > 0 {
+                            TabBadge(count: badge)
+                                .transition(.scale(scale: 0.01).combined(with: .opacity))
+                        }
+                    }
+                    .offset(x: 7, y: -4)
+                    .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.55),
+                               value: badge > 0)
                 }
+                // The labels stop growing at the largest standard size, as
+                // Apple's own tab bar does - five slots cannot hold
+                // "Messages" at the accessibility sizes - and a long press
+                // shows the tab large instead (the Large Content Viewer).
                 Text(label)
                     .font(FAMFont.mono(8.5, bold: on))
                     .foregroundStyle(on ? palette.copper : palette.textMuted)
                     .lineLimit(1)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
+        .accessibilityShowsLargeContentViewer {
+            WebIcon(path: icon, size: 20)
+            Text(label)
+        }
         .accessibilityLabel(badge > 0 ? "\(label), \(badge) unread" : label)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -362,7 +383,7 @@ struct TabBar: View {
                 .offset(y: -14)
                 .padding(.bottom, -14)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .frame(maxWidth: .infinity)
         .accessibilityLabel("Search")
         .accessibilityAddTraits(on ? .isSelected : [])

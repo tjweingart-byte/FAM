@@ -50,7 +50,7 @@ struct MessagesView: View {
             Button { newChat = true } label: {
                 RoundIcon(gold: true) { WebIcon(path: Icons.plus, size: 17, line: 2.4) }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("New message")
         }
         .padding(.horizontal, 16)
@@ -100,7 +100,7 @@ struct MessagesView: View {
                     Button { social.open(.thread(SocialModel.chat(from: t))) } label: {
                         InboxRow(thread: t)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                 }
             }
         }
@@ -292,7 +292,7 @@ struct NewMessageCard: View {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(people) { p in
                         Button { toggle(p.userId) } label: { PickFace(person: p, on: picked.contains(p.userId)) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.press)
                     }
                 }
                 .padding(.vertical, 3)
@@ -342,7 +342,7 @@ struct NewMessageCard: View {
                         .padding(.vertical, 7)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                 }
             }
             .padding(.top, 8)

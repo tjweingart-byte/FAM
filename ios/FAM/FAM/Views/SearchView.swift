@@ -42,6 +42,9 @@ struct SearchView: View {
     /// The app went to the background since it was last in front.
     @State private var wasAway = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// At the accessibility sizes the three bubbles stack, each the full
+    /// width, so none of their words is cut (`large-text`).
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// The private blind: the switch's state being wiped away, how much of
     /// it is gone, and which wipe is the latest.
     @State private var veil: Bool?
@@ -251,7 +254,7 @@ struct SearchView: View {
                 .overlay(Circle().stroke(pal.borderStrong))
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel("The episode library")
         .padding(.top, 8)
         .padding(.leading, 38)
@@ -335,7 +338,7 @@ struct SearchView: View {
                         .background(pal.copper, in: Circle())
                         .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(2)
                 .accessibilityLabel("Search")
             }
@@ -350,7 +353,7 @@ struct SearchView: View {
                 .frame(width: 40, height: 40)
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(label)
     }
 
@@ -377,7 +380,9 @@ struct SearchView: View {
     // MARK: - The bubbles (`.fam-controls`)
 
     private func bubbles(_ pal: SearchPalette, privateOn: Bool) -> some View {
-        HStack(spacing: 10) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 8))
+                                                  : AnyLayout(HStackLayout(spacing: 10))
+        return layout {
             bubble("Length", icon: SearchIcons.length, iconSize: 14, pal: pal, on: false,
                    label: "Episode length") { sheet = .length }
             bubble("Voice", icon: SearchIcons.voice, iconSize: 14, pal: pal, on: false,
@@ -401,7 +406,7 @@ struct SearchView: View {
                 Text(title)
                     .font(FAMFont.body(14, .semibold))
                     .foregroundStyle(on ? ink : pal.text)
-                    .lineLimit(1)
+                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.8)
             }
             .padding(.horizontal, 6)
@@ -410,7 +415,7 @@ struct SearchView: View {
             .overlay(Capsule().stroke(on ? onColor : pal.border))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(label)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -450,7 +455,8 @@ struct SearchView: View {
                         Text(search.label)
                             .font(FAMFont.body(12, .medium))
                             .foregroundStyle(pal.text)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 14)
@@ -460,7 +466,7 @@ struct SearchView: View {
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(pal.border))
                     .contentShape(RoundedRectangle(cornerRadius: 16))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
             }
         }
     }

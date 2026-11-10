@@ -108,8 +108,20 @@ final class FAMAPI: @unchecked Sendable {
     /// The rails the app shows as "DailyFAM" (`names-swapped`), with the
     /// face book their cards' friends pills point into.
     func rails() async throws -> RailsPage {
-        try await get("api/v1/myfam", [URLQueryItem(name: "minutes", value: Self.minutes(Self.browseMinutes))],
-                      as: RailsPage.self)
+        try Self.decodeRails(try await railsData())
+    }
+
+    /// The same answer as it came, so the last page that drew can be kept
+    /// on the phone for an offline open (`rememberFeed`).
+    func railsData() async throws -> Data {
+        let items = [URLQueryItem(name: "minutes", value: Self.minutes(Self.browseMinutes))]
+        let (data, response) = try await URLSession.shared.data(for: request("GET", "api/v1/myfam", query: items))
+        try Self.check(response, data)
+        return data
+    }
+
+    static func decodeRails(_ data: Data) throws -> RailsPage {
+        do { return try decoder.decode(RailsPage.self, from: data) } catch { throw FAMError.unreadable }
     }
 
     /// One rail's View more: up to 16 at a time (§363), `seen` dealt past.

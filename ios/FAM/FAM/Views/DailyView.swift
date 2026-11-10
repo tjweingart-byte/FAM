@@ -20,6 +20,8 @@ struct DailyView: View {
                 Wordmark(lead: "daily", size: 28)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .padding(.top, 4)
+                // No connection: what still plays (`#offlineBar`).
+                if model.isOffline { OfflineBar() }
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
@@ -115,6 +117,24 @@ private struct Skeleton: View {
     }
 }
 
+/// `.offline-bar`: margin 0 16 10, padding 9 12, radius 12, the surface
+/// with its border, Geist 12 muted - the web's words.
+struct OfflineBar: View {
+    var body: some View {
+        Text("You\u{2019}re offline. Episodes you\u{2019}ve finished on this device still play.")
+            .font(FAMFont.body(12))
+            .foregroundStyle(FAMColor.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 9)
+            .padding(.horizontal, 12)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
+    }
+}
+
 // MARK: - A rail
 
 struct RailRow: View {
@@ -144,9 +164,12 @@ struct RailRow: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 11) {
-                        ForEach(rail.topics) { tile in
+                        // New tiles arrive one after another (§292); tiles
+                        // already drawn on this phone do not arrive again.
+                        ForEach(Array(rail.topics.enumerated()), id: \.element.id) { i, tile in
                             TileCard(tile: tile, railKey: rail.key, faces: model.friendFaces, width: 150)
                                 .frame(maxHeight: .infinity, alignment: .top)
+                                .arriving(tile.id, index: i, book: model.arrivals)
                         }
                         viewMore
                     }
@@ -186,7 +209,7 @@ struct RailRow: View {
                     .frame(minHeight: 30)
                     .background(FAMColor.copper, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(.top, 10)
                 .accessibilityHint("Opens Friends")
             }
@@ -221,7 +244,7 @@ struct RailRow: View {
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .background(GeometryReader { geo in
             Color.clear.preference(key: RailEndKey.self,
                                    value: geo.frame(in: .named("rail-" + rail.key)).maxX)
@@ -259,8 +282,13 @@ struct TileCard: View {
 
     var body: some View {
         // Not a Button: the save and ⋯ buttons inside it must get their own taps.
+        // Offline, a card whose episode is not on this phone is faded
+        // (`not-offline`): the picture to .35 and greyed, the words to .5.
+        let faded = model.isOffline && !model.isKept(tile)
         VStack(alignment: .leading, spacing: 0) {
             thumb
+                .opacity(faded ? 0.35 : 1)
+                .grayscale(faded ? 0.7 : 0)
             VStack(alignment: .leading, spacing: 0) {
                 Text(tile.title)
                     .font(FAMFont.heading(titleSize, .semibold))
@@ -273,6 +301,7 @@ struct TileCard: View {
             .padding(.horizontal, 11)
             .padding(.top, 10)
             .padding(.bottom, 12)
+            .opacity(faded ? 0.5 : 1)
             Spacer(minLength: 0)
         }
         .frame(width: width, alignment: .leading)
@@ -347,7 +376,9 @@ struct TileCard: View {
                     .padding(8)
             }
             // Save and ⋯, top right: the web's 13 pt outline bookmark (an
-            // outline on sage once saved) and its filled dots.
+            // outline on sage once saved) and its filled dots. Not drawn
+            // offline (`.is-offline .seed-acts`): neither can reach FAM.
+            if !model.isOffline {
             HStack(spacing: 5) {
                 let saved = model.isSaved(tile)
                 actButton(on: saved, label: saved ? "Take it off Save for Later" : "Save \(tile.title) for later") {
@@ -363,6 +394,7 @@ struct TileCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             .padding(6)
+            }
         }
         // The whole picture, at its own 4:3 - never the web's 96 pt strip,
         // which cropped the top and bottom off every one (the owner, on iOS).
@@ -397,7 +429,7 @@ struct TileCard: View {
                 .background(on ? FAMColor.sage : Color(red: 26 / 255, green: 22 / 255, blue: 34 / 255).opacity(0.62),
                             in: Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(label)
     }
 
@@ -440,7 +472,7 @@ struct TileCard: View {
                 .background(Self.pillInk.opacity(0.88), in: Capsule())
                 .overlay(Capsule().stroke(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.18)))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel(n == 1 ? "\(shown[0].name) listened" : "\(n) friends listened")
         }
     }
@@ -583,7 +615,8 @@ struct TileMenu: View {
                 .padding(.vertical, 16)
         }
         .background(FAMColor.surface)
-        .presentationDetents([.medium])
+        // Room to grow at the larger text sizes (`large-text`).
+        .presentationDetents([.medium, .large])
         .presentationBackground(FAMColor.surface)
         .sheet(item: $sharing, onDismiss: { dismiss() }) { subject in
             ShareSheet(subject: subject)
@@ -616,7 +649,7 @@ struct TileMenu: View {
             .padding(.vertical, 14)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 }
 
@@ -649,13 +682,13 @@ struct FriendsListened: View {
                             .frame(width: 30, height: 30)
                             .overlay(Circle().stroke(FAMColor.borderStrong))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityLabel("Close")
                 }
                 .padding(.bottom, 10)
                 ForEach(Array(faces.enumerated()), id: \.offset) { i, face in
                     Button { openProfile(face) } label: { listenedRow(i, face) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                         .disabled((face.handle ?? "").isEmpty)
                 }
             }
@@ -811,7 +844,7 @@ struct PickUpBlock: View {
                         .frame(width: 20, height: 20)
                         .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(5)
                 .accessibilityLabel("Don't offer this again")
             }

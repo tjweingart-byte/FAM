@@ -284,7 +284,7 @@ struct CaptionsPill: View {
             .background(on ? FAMColor.copper : FAMColor.surface, in: Capsule())
             .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel("Captions")
         .accessibilityValue(on ? "On" : "Off")
         .accessibilityAddTraits(on ? .isSelected : [])
@@ -364,7 +364,7 @@ struct CaptionsCard: View {
                 .background(Self.light.opacity(0.08), in: Circle())
                 .overlay(Circle().stroke(Self.light.opacity(0.25)))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(label)
     }
 
@@ -640,7 +640,7 @@ struct ActionSheetList: View {
                             .padding(.vertical, 14)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                 }
             }
             SheetCancelButton { dismiss() }

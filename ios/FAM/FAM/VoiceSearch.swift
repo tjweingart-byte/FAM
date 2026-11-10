@@ -590,7 +590,7 @@ struct VoiceSearchView: View {
                 .overlay(Circle().stroke(FAMColor.borderStrong))
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel("Close voice search, back to searchFAM")
     }
 
@@ -690,7 +690,7 @@ struct VoiceSearchView: View {
                 .frame(width: 104, height: 104)
                 .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel(voice.markLabel)
         }
         .frame(width: 250, height: 250)
@@ -711,7 +711,7 @@ struct VoiceSearchView: View {
                     .background(SearchNowFill(fill: voice.fill))
                     .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             if voice.counting {
                 Button { voice.cancelCount() } label: {
                     WebIcon(path: Icons.close, size: 14, line: 2.4)
@@ -720,7 +720,7 @@ struct VoiceSearchView: View {
                         .overlay(Circle().stroke(FAMColor.borderStrong))
                         .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Don't search automatically")
             }
         }

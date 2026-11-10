@@ -142,7 +142,7 @@ struct PersonView: View {
                 Button { menu = true } label: {
                     RoundIcon { WebFill(path: Icons.dots(1.8), size: 17) }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("More")
             }
         }
@@ -214,7 +214,7 @@ struct PersonView: View {
                 .padding(2)
             if let person = circlePerson {
                 Button { openStory(person) } label: { face }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityLabel("\(name)'s story")
             } else {
                 face
@@ -252,7 +252,7 @@ struct PersonView: View {
     private func stat(_ n: Int, _ word: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         if enabled {
             Button(action: action) { statLabel(n, word) }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityElement(children: .combine)
         } else {
             statLabel(n, word)
@@ -292,7 +292,7 @@ struct PersonView: View {
                     .frame(minHeight: 34)
                     .background(FAMColor.copper, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 }
                 Button {
                     if following { confirmUnfollow = true } else { follow() }
@@ -310,7 +310,7 @@ struct PersonView: View {
                     .overlay(Capsule().stroke(FAMColor.borderStrong))
                     .animation(.easeOut(duration: 0.26), value: flipped)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .disabled(working)
             } else if !handle.isEmpty && !missing {
                 Button { follow() } label: {
@@ -321,7 +321,7 @@ struct PersonView: View {
                         .frame(minHeight: 34)
                         .background(FAMColor.copper, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .disabled(working)
             }
         }
@@ -375,7 +375,7 @@ struct PersonView: View {
                 }
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -395,7 +395,7 @@ struct PersonView: View {
                             Button { play(v) } label: {
                                 PicTile(thumb: v.thumb ?? "", title: v.title ?? v.query)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.press)
                         }
                     }
                     .padding(.top, 3)
@@ -423,7 +423,7 @@ struct PersonView: View {
         return Button { openMix(m) } label: {
             PicTile(thumb: picture, title: m.name ?? "")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .overlay(alignment: .topTrailing) {
             if m.mine != true {
                 Button {
@@ -442,7 +442,7 @@ struct PersonView: View {
                     .background(added ? FAMColor.copper : Color(hex: 0x0F0E12).opacity(0.55), in: Circle())
                     .overlay(Circle().stroke(FAMColor.copper))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(6)
                 .accessibilityLabel(added ? "In your myFAM" : "Add to myFAM")
             }
@@ -470,7 +470,7 @@ struct PersonView: View {
                                 .frame(minHeight: 40)
                                 .overlay(Capsule().stroke(FAMColor.borderStrong))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                         .padding(.top, 4)
                     }
                 }
@@ -497,7 +497,7 @@ struct PersonView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             if isFollowing {
                 Text("Following").monoLabel(9.5, tracking: 0.38)
             } else {
@@ -509,7 +509,7 @@ struct PersonView: View {
                         .frame(minHeight: 28)
                         .background(FAMColor.copper, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
             }
         }
         .padding(.vertical, 8)

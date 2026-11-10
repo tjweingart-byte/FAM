@@ -85,6 +85,9 @@ extension View {
 struct Wordmark: View {
     var lead = ""
     var size: CGFloat = 27
+    /// The drawn letters grow with the word beside them, which follows the
+    /// phone's text size (`large-text`); one line always (`fixedSize`).
+    @ScaledMetric(relativeTo: .title) private var grow: CGFloat = 1
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
@@ -93,8 +96,8 @@ struct Wordmark: View {
                     .font(FAMFont.heading(size))
                     .foregroundStyle(FAMColor.text)
             }
-            FAMLetters(capHeight: size * 0.68)
-                .padding(.leading, lead.isEmpty ? 0 : size * 0.15)
+            FAMLetters(capHeight: size * 0.68 * (lead.isEmpty ? 1 : grow))
+                .padding(.leading, lead.isEmpty ? 0 : size * 0.15 * grow)
                 .alignmentGuide(.firstTextBaseline) { d in d[.bottom] }
         }
         .accessibilityElement(children: .ignore)

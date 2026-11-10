@@ -165,7 +165,7 @@ struct SocialBackButton: View {
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .padding(.leading, -8)
         .accessibilityLabel("Back")
     }
@@ -258,6 +258,9 @@ struct SheetSpec: Identifiable {
 struct FAMActionSheet: View {
     let spec: SheetSpec
     @Environment(\.dismiss) private var dismiss
+    /// The card grows with the phone's text size (its rows' 46 pt are
+    /// floors, `large-text`); past 640 pt the rows scroll.
+    @ScaledMetric(relativeTo: .body) private var grow: CGFloat = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -275,7 +278,7 @@ struct FAMActionSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.height(min(spec.height, 640))])
+        .presentationDetents([.height(min(spec.height * grow, 640))])
         .presentationBackground(FAMColor.surface)
         .presentationCornerRadius(20)
     }
@@ -293,12 +296,12 @@ struct FAMActionSheet: View {
             Text(action.label)
                 .font(FAMFont.body(13.5, .semibold))
                 .foregroundStyle(action.danger ? FAMColor.coral : FAMColor.text)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
                 .padding(.horizontal, 22)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 }
 
@@ -349,7 +352,7 @@ struct ModalButton: View {
                 .background(primary ? FAMColor.copper : Color.clear, in: Capsule())
                 .opacity(enabled ? 1 : 0.5)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .disabled(!enabled)
     }
 }
@@ -414,14 +417,14 @@ struct SocialBannerLayer: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityHint(b.chat == nil ? "Opens Friends" : "Opens the conversation")
             Button { social.dismissBanner() } label: {
                 WebIcon(path: Icons.close, size: 12, line: 2.6)
                     .foregroundStyle(FAMColor.textMuted)
                     .frame(width: 24, height: 24)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, 12)
@@ -502,7 +505,7 @@ struct FollowerPopup: View {
                         .foregroundStyle(FAMColor.textMuted)
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(13)
                 .accessibilityLabel("Ignore this")
             }
@@ -539,7 +542,7 @@ struct SocialLinkNote: View {
                     .stroke(FAMColor.borderStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .padding(.top, 12)
         .accessibilityHint("Opens \(link)")
     }
@@ -561,6 +564,7 @@ struct FAMReportSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var reasons: [ReportReason] = []
     @State private var sending = false
+    @ScaledMetric(relativeTo: .body) private var grow: CGFloat = 1
 
     /// `GET /api/report` once a session, as the web caches it (only ever
     /// touched from the sheet's own main-actor task).
@@ -597,7 +601,7 @@ struct FAMReportSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.height(min(height, 640))])
+        .presentationDetents([.height(min(height * grow, 640))])
         .presentationBackground(FAMColor.surface)
         .presentationCornerRadius(20)
         .task { await loadReasons() }
@@ -608,12 +612,12 @@ struct FAMReportSheet: View {
             Text(reason.label)
                 .font(FAMFont.body(13.5, .semibold))
                 .foregroundStyle(FAMColor.text)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
                 .padding(.horizontal, 22)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .disabled(sending)
     }
 

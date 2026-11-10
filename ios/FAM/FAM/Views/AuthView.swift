@@ -118,7 +118,7 @@ struct AuthView: View {
                     }
                     .font(FAMFont.body(14, .bold))
                     .foregroundStyle(FAMColor.copper)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 22)
                 }
@@ -175,7 +175,7 @@ struct AuthView: View {
                     .multilineTextAlignment(.leading)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityAddTraits(agreed ? .isSelected : [])
     }
 
@@ -264,7 +264,7 @@ struct WaitingView: View {
                             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 13))
                             .overlay(RoundedRectangle(cornerRadius: 13).stroke(FAMColor.border))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                         .padding(.bottom, 9)
                     }
                 }
@@ -378,7 +378,7 @@ struct ResetPasswordView: View {
                         Button("Send a new code") { Task { await send() } }
                             .font(FAMFont.body(14, .bold))
                             .foregroundStyle(FAMColor.copper)
-                            .buttonStyle(.plain)
+                            .buttonStyle(.press)
                             .frame(maxWidth: .infinity)
                             .padding(.top, 22)
                     }

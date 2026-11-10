@@ -140,7 +140,7 @@ struct CatalogView: View {
             .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
             .padding(.horizontal, 18)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     /// `.sv-empty`: centred, Geist 11, faint, 30 pt above and below; a
@@ -161,7 +161,7 @@ struct CatalogView: View {
                         .padding(.vertical, 6)
                         .background(FAMColor.copper, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
             }
         }
         .frame(maxWidth: .infinity)

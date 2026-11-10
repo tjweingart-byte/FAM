@@ -110,7 +110,7 @@ struct PlayerView: View {
                     .padding(.vertical, 8)
                     .background(FAMColor.deeper, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             Spacer(minLength: 0)
             Button { openSheet(.menu) } label: {
                 WebFill(path: Icons.dots(1.9), size: 22)
@@ -253,7 +253,7 @@ struct PlayerView: View {
                 .background(FAMColor.copper, in: Circle())
                 .shadow(color: .black.opacity(0.3), radius: 7, y: 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(player.playing ? "Pause" : "Play")
     }
 
@@ -305,7 +305,7 @@ struct PlayerView: View {
                     .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.borderStrong))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Playback: \(pillText)")
             Spacer(minLength: 0)
             CaptionsPill(on: now.captionsOn) { now.setCaptions(!now.captionsOn) }
@@ -330,7 +330,7 @@ struct PlayerView: View {
                         .offset(y: 34)
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(now.queue.isEmpty ? "The queue" : "The queue, \(now.queue.count)")
     }
 
@@ -536,7 +536,7 @@ struct SideButton: View {
                 .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
                 .overlay(alignment: .top) { chip.offset(y: 43) }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(caption)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -583,7 +583,7 @@ struct SourcesStrip: View {
             .background(FAMColor.surface, in: Capsule())
             .overlay(Capsule().stroke(FAMColor.border))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel("Show this episode's sources")
     }
 
@@ -722,7 +722,7 @@ struct MiniPlayer: View {
                     .frame(width: 36, height: 36)
                     .background(FAMColor.copper, in: Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel(player.playing ? "Pause" : "Play")
             Button { model.stopEpisode() } label: {
                 WebIcon(path: Icons.close, size: 16, line: 2.6)
@@ -730,7 +730,7 @@ struct MiniPlayer: View {
                     .frame(width: 26, height: 26)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Hide the player")
         }
         .padding(.horizontal, 10)
@@ -808,7 +808,7 @@ struct ToastView: View {
                     Button(action) { now.toastTapped() }
                         .font(FAMFont.body(13.5, .bold))
                         .foregroundStyle(FAMColor.copper)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                 }
             }
         }

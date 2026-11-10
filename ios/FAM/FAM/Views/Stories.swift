@@ -36,11 +36,11 @@ struct FacesRow: View {
                             face.accessibilityElement(children: .combine)
                         } else if person.stories.isEmpty {
                             Button { openFace(person) } label: { face }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.press)
                                 .accessibilityLabel(person.handle.isEmpty ? "Message \(label)" : "\(label)'s profile")
                         } else {
                             Button { open(circle: circle.circle, at: index) } label: { face }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.press)
                                 .accessibilityLabel("\(label)'s story")
                         }
                     }
@@ -55,7 +55,7 @@ struct FacesRow: View {
                         }
                         .frame(width: 72)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityLabel("Invite a friend")
                 }
                 .padding(.horizontal, 2)
@@ -86,7 +86,7 @@ struct FacesRow: View {
                                                          avatar: me.avatar ?? "", stories: mine, mine: true)],
                                     start: 0)
             } label: { face }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Your story")
         }
     }
@@ -382,19 +382,19 @@ struct StoryViewer: View {
                 headerWho
             } else {
                 Button { openProfile() } label: { headerWho }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityHint("Opens their profile")
             }
             Spacer()
             Button { storyMenu = true } label: {
                 WebFill(path: Icons.dots(1.9), size: 18).frame(width: 32, height: 32)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("More")
             Button { dismiss() } label: {
                 WebIcon(path: Icons.close, size: 14, line: 2.4).frame(width: 32, height: 32)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Close")
         }
     }
@@ -484,7 +484,7 @@ struct StoryViewer: View {
                     .frame(minHeight: 46)
                     .background(Self.gold, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(.top, 8)
             }
             if !who.mine && !who.id.isEmpty { replyRow }
@@ -506,7 +506,7 @@ struct StoryViewer: View {
                 Button(action: sendReply) {
                     WebIcon(path: Icons.send, size: 20, line: 1.9).frame(width: 40, height: 40)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(.trailing, 2)
                 .accessibilityLabel("Send")
             }
@@ -525,14 +525,14 @@ struct StoryViewer: View {
                 }
                 .frame(width: 42, height: 44)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Like")
             .accessibilityAddTraits(on ? .isSelected : [])
             if !isNote {
                 Button { resharing = true } label: {
                     WebIcon(path: Icons.reshare, size: 24, line: 1.9).frame(width: 42, height: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("VIBE! to your story")
             }
         }
@@ -904,7 +904,7 @@ struct NoteCanvas: View {
             .fixedSize()
         if let openTag, !tag.handle.isEmpty {
             Button { openTag(tag) } label: { label }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
         } else {
             label.allowsHitTesting(false)
         }
@@ -1005,7 +1005,7 @@ struct StoryVibeSheet: View {
         }
         .padding(20)
         .background(FAMColor.surface)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationBackground(FAMColor.surface)
     }
 

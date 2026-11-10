@@ -253,7 +253,7 @@ struct AttachChip: View {
                     .frame(minWidth: 16, minHeight: 16)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Remove " + slot.name)
         }
         .padding(.horizontal, 9)
@@ -287,7 +287,7 @@ struct LinkModal: View {
                         .foregroundStyle(FAMColor.textMuted)
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Close")
             }
             .padding(.bottom, 12)

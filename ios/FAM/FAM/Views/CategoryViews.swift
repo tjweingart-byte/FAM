@@ -37,7 +37,7 @@ struct CategoryChip: View {
             .overlay(Capsule().stroke(on ? FAMColor.text : FAMColor.borderStrong,
                                       style: StrokeStyle(lineWidth: 1, dash: dashed ? [3, 2] : [])))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
@@ -86,7 +86,7 @@ struct CategoryChipsRow: View {
                                 .frame(width: 34, height: 32)
                                 .overlay(Capsule().stroke(FAMColor.borderStrong))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                         .accessibilityLabel("All of myFAM")
                         if state.finding {
                             Text("Find a category")
@@ -134,6 +134,7 @@ struct CategoryPanel: View {
     @State private var page: CategoryEpisodes?
     @State private var failed = false
     @State private var following = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     static let tones: [String: Color] = [
         "sports": Color(hex: 0x56402F), "money": Color(hex: 0x2F4A3E), "business": Color(hex: 0x4A4632),
@@ -145,8 +146,14 @@ struct CategoryPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             if let page {
                 if page.episodes.isEmpty {
-                    HStack(spacing: 10) {
+                    // The heading and Follow side by side; at the
+                    // accessibility sizes Follow goes under it (`large-text`).
+                    let layout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                        : AnyLayout(HStackLayout(spacing: 10))
+                    layout {
                         Text(page.label).font(FAMFont.heading(19, .semibold)).foregroundStyle(FAMColor.text)
+                            .fixedSize(horizontal: false, vertical: true)
                         followButton
                     }
                     .padding(.top, 6)
@@ -221,7 +228,7 @@ struct CategoryPanel: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .contentShape(RoundedRectangle(cornerRadius: 16))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .padding(.top, 4)
         .padding(.bottom, 10)
     }
@@ -246,7 +253,11 @@ struct CategoryPanel: View {
 
     private func actions(_ page: CategoryEpisodes) -> some View {
         let total = max(1, Int(page.episodes.reduce(0) { $0 + ($1.minutes ?? FAMAPI.browseMinutes) }.rounded()))
-        return HStack(spacing: 8) {
+        // Follow under Play all at the accessibility sizes (`large-text`).
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        return layout {
             Button { model.playCategory(page.episodes, from: 0) } label: {
                 HStack(spacing: 7) {
                     PlayTriangle().fill(FAMColor.ink).frame(width: 13, height: 13)
@@ -257,7 +268,7 @@ struct CategoryPanel: View {
                 .frame(maxWidth: .infinity, minHeight: 38)
                 .background(FAMColor.copper, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             followButton
         }
         .padding(.bottom, 10)
@@ -279,7 +290,7 @@ struct CategoryPanel: View {
                 .background(on ? FAMColor.paper : Color.clear, in: Capsule())
                 .overlay(Capsule().stroke(on ? FAMColor.paper : FAMColor.borderStrong))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     private func row(_ e: CategoryEpisode, _ i: Int, _ page: CategoryEpisodes) -> some View {
@@ -314,7 +325,7 @@ struct CategoryPanel: View {
             .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     /// "SPORT · 1.5 MIN · 12 PLAYS" (`catRowMeta`).
@@ -374,7 +385,7 @@ struct CategoryFind: View {
                     .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
             }
         }
         .padding(.horizontal, 18)

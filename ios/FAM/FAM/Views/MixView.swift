@@ -47,7 +47,7 @@ struct MixView: View {
         VStack(spacing: 0) {
             MixHeader(title: mix?.name ?? "", back: { back() }) {
                 Button { menu = true } label: { HeadDots() }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityLabel("More options")
             }
             if let mix {
@@ -193,7 +193,7 @@ struct MixView: View {
                                 CoverBadge(size: 24, glyph: 11, ring: 2).offset(x: 5, y: 5)
                             }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityLabel(mix.cover.isEmpty ? "Add cover photo" : "Change cover photo")
                 } else {
                     MixArt(cover: mix.cover, size: 84, radius: 16)
@@ -212,7 +212,7 @@ struct MixView: View {
                             .frame(minHeight: 22)
                             .background(FAMColor.surface2, in: Capsule())
                             .overlay(Capsule().stroke(FAMColor.borderStrong))
-                            .buttonStyle(.plain)
+                            .buttonStyle(.press)
                             .accessibilityLabel("Rename this mix")
                     }
                 }
@@ -239,7 +239,7 @@ struct MixView: View {
     private func peopleRow(_ mix: Mix) -> some View {
         if !mix.people.isEmpty {
             Button { people = true } label: { peopleLine(mix.people) }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(.top, 7)
                 .accessibilityHint("Shows who is in this mix")
         } else if let me = mixes.ownFace(fallbackName: model.listener?.displayName) {
@@ -268,12 +268,12 @@ struct MixView: View {
                 Button { Task { await shareTapped() } } label: {
                     WebIcon(path: Icons.share, size: 19, line: 2).frame(width: 36, height: 36)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Share this mix")
                 Button { Task { await invite() } } label: {
                     WebIcon(path: Icons.invite, size: 20, line: 2).frame(width: 36, height: 36)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Invite collaborators")
                 Spacer()
             }
@@ -295,7 +295,7 @@ struct MixView: View {
             .frame(minHeight: 34)
             .background(FAMColor.text, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .frame(maxWidth: .infinity)
         .padding(.bottom, 16)
     }
@@ -391,7 +391,7 @@ struct MixView: View {
                     .frame(width: 30, height: 30)
                     .overlay(Circle().stroke(FAMColor.borderStrong))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Play this one")
         }
         .padding(.horizontal, 12)
@@ -457,7 +457,7 @@ struct MixView: View {
                         .frame(minHeight: 28)
                         .overlay(Capsule().stroke(FAMColor.borderStrong))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityLabel("Shuffle recommendations")
                 }
                 .padding(.bottom, 10)
@@ -521,7 +521,7 @@ struct MixView: View {
                 .padding(.vertical, 6)
                 .background(FAMColor.paper, in: RoundedRectangle(cornerRadius: 9))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .fixedSize()
             .accessibilityLabel("Listen time")
             .accessibilityValue(mix.listenAt.isEmpty ? "Not set" : MixesModel.timeLabel(mix.listenAt))
@@ -530,7 +530,7 @@ struct MixView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(FAMColor.textMuted)
                     .padding(4)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .fixedSize()
                     .accessibilityLabel("Remove listen time")
             }
@@ -602,7 +602,7 @@ struct MixView: View {
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .padding(.top, 10)
         .accessibilityLabel("Public")
         .accessibilityValue(mix.public ? "On" : "Off")
@@ -787,7 +787,7 @@ struct MixPlayButton: View {
             .frame(maxWidth: .infinity, minHeight: 43)
             .background(FAMColor.copper, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 }
 
@@ -819,7 +819,7 @@ struct ListenTimeSheet: View {
             Spacer(minLength: 0)
         }
         .background(FAMColor.surface)
-        .presentationDetents([.height(300)])
+        .presentationDetents([.height(300), .large])
         .presentationBackground(FAMColor.surface)
     }
 }
@@ -849,7 +849,7 @@ struct MixPeopleSheet: View {
                             } label: {
                                 row(p).contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.press)
                         }
                     }
                 }
@@ -1074,7 +1074,7 @@ struct SubjectRow: View {
                     .background(added ? FAMColor.copper : Color.clear, in: Circle())
                     .overlay(Circle().stroke(added ? FAMColor.copper : FAMColor.borderStrong))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel(label)
         }
         .padding(.horizontal, 12)

@@ -30,7 +30,7 @@ struct NewMixView: View {
                         .foregroundStyle(FAMColor.text)
                         .frame(width: 36, height: 36)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Cancel")
                 Text("New mix")
                     .monoLabel(9.5, tracking: 1.14)
@@ -41,7 +41,7 @@ struct NewMixView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     Button { if cover.isEmpty { picking = true } else { coverChoice = true } } label: { folder }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                         .accessibilityLabel("Choose a cover photo")
                         .padding(.top, 20)
                     Text(cover.isEmpty ? "Tap to add a cover photo" : "Tap to change the cover")
@@ -89,7 +89,7 @@ struct NewMixView: View {
                 .padding(.vertical, 15)
                 .background(FAMColor.copper, in: RoundedRectangle(cornerRadius: 14))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .disabled(trimmed.isEmpty || working)
             .opacity(trimmed.isEmpty ? 0.35 : 1)
             .padding(.horizontal, 18)
@@ -398,7 +398,7 @@ struct PublicMixView: View {
                     .frame(width: 30, height: 30)
                     .overlay(Circle().stroke(FAMColor.borderStrong))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Play this one")
         }
         .padding(.horizontal, 12)
@@ -421,7 +421,7 @@ struct PublicMixView: View {
             Button {
                 model.social.openPerson(handle: handle, name: owner.name ?? "")
             } label: { label }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(.top, 7)
                 .accessibilityHint("Opens their profile")
         }
@@ -461,10 +461,10 @@ struct AddToMixSheet: View {
                     VStack(spacing: 0) {
                         ForEach(mixes.mixes) { mix in
                             Button { Task { await add(to: mix, topic) } } label: { mixRow(mix) }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.press)
                         }
                         Button { newName = topic.label; naming = true } label: { createRow }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.press)
                     }
                 }
             } else if !problem.isEmpty {
@@ -605,7 +605,7 @@ struct SheetCancelButton: View {
                 .padding(12)
                 .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 14))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .padding(.horizontal, 16)
         .padding(.top, 8)
     }

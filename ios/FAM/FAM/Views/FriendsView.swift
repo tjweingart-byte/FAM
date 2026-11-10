@@ -43,7 +43,7 @@ struct FriendsView: View {
                 .frame(minHeight: 30)
                 .background(FAMColor.copper, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .padding(.horizontal, 18)
             .padding(.top, 10)
             ScrollView {
@@ -200,7 +200,7 @@ struct FriendsView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             followButton(p)
         }
         .padding(.vertical, 10)
@@ -236,7 +236,7 @@ struct FriendsView: View {
             .overlay(Capsule().stroke(FAMColor.borderStrong))
             .animation(.easeOut(duration: 0.26), value: on)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(on ? "Following \(displayName(p)), tap to unfollow" : "Follow \(displayName(p))")
     }
 

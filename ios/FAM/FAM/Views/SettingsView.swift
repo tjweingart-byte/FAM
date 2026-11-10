@@ -561,7 +561,7 @@ struct ActivationCard: View {
                 .background(on ? FAMColor.copper : FAMColor.background, in: Capsule())
                 .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -749,7 +749,7 @@ struct PlansSheet: View {
             .padding(.vertical, 12)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     /// `planLimits`: "5 episodes a day · Unlimited Explore episodes".
@@ -781,7 +781,7 @@ struct SheetCancelLabel: View {
                 .padding(12)
                 .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 14))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .padding(.horizontal, 16)
         .padding(.top, 8)
     }
@@ -850,7 +850,7 @@ struct SignInMethodsView: View {
                     Button("Unlink") { unlink(provider) }
                         .font(FAMFont.body(12, .semibold))
                         .foregroundStyle(FAMColor.coral)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                 }
             }
             .padding(.horizontal, 14)

@@ -44,7 +44,7 @@ struct MyFAMView: View {
                         .background(FAMColor.surface, in: Capsule())
                         .overlay(Capsule().stroke(FAMColor.borderStrong))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .padding(.bottom, 10)
                 }
                 ScrollViewReader { proxy in
@@ -112,7 +112,7 @@ struct MyFAMView: View {
             } else {
                 ForEach(mixes.mixes) { mix in
                     Button { path.append(.mix(mix.id)) } label: { MixCard(mix: mix, trailing: .chevron) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                 }
             }
         }
@@ -358,7 +358,7 @@ struct AddMixButton: View {
                     .overlay(Circle().stroke(FAMColor.copper, lineWidth: 1.5))
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .disabled(busy)
         .opacity(busy ? 0.4 : 1)
         .accessibilityLabel(isAdded ? "Remove \(mix.name) from your myFAM" : "Add \(mix.name) to your myFAM")
@@ -408,23 +408,50 @@ struct MixHeader<Trailing: View>: View {
     var backLabel = "Back"
     let back: () -> Void
     @ViewBuilder var trailing: () -> Trailing
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button(action: back) {
-                WebIcon(path: Icons.back, size: 20, line: 2.6).foregroundStyle(FAMColor.text)
-                    .frame(width: 36, height: 36)
+        // The heading wraps rather than being cut; at the accessibility
+        // sizes it takes a row of its own under Back and the controls, so
+        // nothing on its row can squeeze it (`large-text`).
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 10) {
+                    backButton
+                    Spacer(minLength: 0)
+                    trailing().frame(minWidth: 36)
+                }
+                heading
+                    .padding(.horizontal, 8)
             }
-            .accessibilityLabel(backLabel)
-            Text(title)
-                .font(FAMFont.heading(19, .medium))
-                .foregroundStyle(FAMColor.text)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            trailing().frame(minWidth: 36)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 48)
+        } else {
+            HStack(spacing: 10) {
+                backButton
+                heading
+                trailing().frame(minWidth: 36)
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 48)
         }
-        .padding(.horizontal, 10)
-        .frame(minHeight: 48)
+    }
+
+    private var backButton: some View {
+        Button(action: back) {
+            WebIcon(path: Icons.back, size: 20, line: 2.6).foregroundStyle(FAMColor.text)
+                .frame(width: 36, height: 36)
+        }
+        .accessibilityLabel(backLabel)
+    }
+
+    private var heading: some View {
+        Text(title)
+            .font(FAMFont.heading(19, .medium))
+            .foregroundStyle(FAMColor.text)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -484,7 +511,7 @@ struct MixDoneOverlay: View {
                         .padding(11)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .padding(.top, 14)
             }
             .padding(.horizontal, 20)

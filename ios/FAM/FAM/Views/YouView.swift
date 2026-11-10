@@ -87,7 +87,7 @@ struct YouView: View {
                 Button("Try again") { Task { await you.loadProfile() } }
                     .font(FAMFont.body(12, .bold))
                     .foregroundStyle(FAMColor.copper)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
             }
             .padding(.top, 2)
         }
@@ -103,7 +103,7 @@ struct YouView: View {
                 Button { model.youPath.append(.settings) } label: {
                     RoundIcon { WebIcon(path: YouIcons.gear, size: 17) }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("Settings")
             }
         }
@@ -117,15 +117,18 @@ struct YouView: View {
     private func hero(_ p: MyProfile) -> some View {
         VStack(spacing: 0) {
             photo(p)
+            // Both wrap, centred, rather than being cut (`large-text`).
             Text(nameLine(p))
                 .font(FAMFont.heading(24, .semibold))
                 .foregroundStyle(FAMColor.text)
-                .lineLimit(1)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
             Text(placeLine(p))
                 .font(FAMFont.body(12))
                 .foregroundStyle(FAMColor.textMuted)
-                .lineLimit(1)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 5)
         }
         .frame(maxWidth: .infinity)
@@ -165,7 +168,7 @@ struct YouView: View {
                 }
                 .frame(width: 94, height: 94)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Your story")
         }
     }
@@ -220,7 +223,7 @@ struct YouView: View {
             .padding(.vertical, 4)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityElement(children: .combine)
         .accessibilityHint(badge > 0 ? "\(badge) new" : "")
     }
@@ -239,7 +242,7 @@ struct YouView: View {
                     .overlay(Capsule().stroke(FAMColor.borderStrong))
                     .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             Button { model.youPath.append(.saved) } label: {
                 HStack(spacing: 7) {
                     WebIcon(path: YouIcons.bookmark, size: 14)
@@ -251,7 +254,7 @@ struct YouView: View {
                 .background(FAMColor.paper, in: Capsule())
                 .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 14)
@@ -278,7 +281,7 @@ struct YouView: View {
                         .overlay(Capsule().stroke(FAMColor.borderStrong))
                         .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
@@ -319,7 +322,7 @@ struct YouView: View {
                 }
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -357,7 +360,7 @@ struct YouView: View {
                             }
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                 }
             }
             .padding(.top, 3)
@@ -392,7 +395,7 @@ struct YouView: View {
                     Button { openMix(m) } label: {
                         PicTile(thumb: mixPicture(m), title: m.name ?? "", titleLines: nil)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                 }
             }
             .padding(.top, 3)

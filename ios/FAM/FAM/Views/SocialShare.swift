@@ -61,7 +61,7 @@ struct SendInsideFAM: View {
                         .overlay(Circle().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
                         .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel(prompt)
             }
             if search.wrappedValue != nil {
@@ -93,7 +93,7 @@ struct SendInsideFAM: View {
                     Button { toggle(pick) } label: {
                         PickFace(name: name, handle: "", avatar: g.avatar ?? "", on: picked == pick, label: name)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                 }
             }
         }
@@ -117,7 +117,7 @@ struct SendInsideFAM: View {
                     let pick = Pick(to: p.userId, label: first,
                                     button: "Share with " + (handle.isEmpty ? first : "@" + handle))
                     Button { toggle(pick) } label: { PickFace(person: p, on: picked == pick) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                 }
             }
         }
@@ -229,7 +229,7 @@ struct ShareTargetRows: View {
             .padding(.vertical, 13)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     /// `shareTo`.

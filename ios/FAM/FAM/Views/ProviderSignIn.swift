@@ -63,7 +63,7 @@ struct ProviderButtons: View {
                     .background(Color.white, in: Capsule())
                     .overlay(Capsule().stroke(Color(hex: 0x747775)))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .disabled(!enabled)
                 .opacity(enabled ? 1 : 0.45)
             }

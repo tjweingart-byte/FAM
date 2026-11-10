@@ -1,5 +1,6 @@
 import FAMSafety
 import Foundation
+import Network
 import SwiftUI
 
 /// What the app knows: who is listening, today's rails, and what is playing.
@@ -108,6 +109,24 @@ final class AppModel: ObservableObject {
     let attachments: AttachModel
     let voiceSearch = VoiceSearchModel()
 
+    // Offline listening (the web's `OfflineShelf`, §161).
+
+    /// No connection: the phone has no path, or a request never reached the
+    /// server (`isOffline`: a phone can report a network that reaches nothing).
+    @Published private(set) var isOffline = false
+    /// The keys of every episode kept on this phone (`OfflineShelf.keyOf`).
+    @Published private(set) var keptKeys: Set<String> = []
+    let shelf = OfflineShelf()
+    private let pathMonitor = NWPathMonitor()
+    private var pathDown = false
+    private var requestFailed = false
+    /// The stream to keep once it has all arrived, and the episode it is.
+    private var keepWatch: (token: Int, episode: Episode)?
+    /// The episode playing came off the shelf, not a stream.
+    private var playingFromDevice = false
+    /// The rail tiles already drawn, so only new ones arrive (`Motion.arriveRails`).
+    let arrivals = ArrivalBook()
+
     init(api: FAMAPI = FAMAPI()) {
         self.api = api
         let tokenSource = api
@@ -130,6 +149,9 @@ final class AppModel: ObservableObject {
         player.onFailed = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                // No connection, and this one is on the phone: play it from
+                // here (`onError` with `err.network` on the web).
+                if self.playFromShelfAfterNetworkFailure() { return }
                 // One episode of a playlist (or its detour) that would not
                 // play is that episode's failure, not the playlist's.
                 if self.mixPlay != nil && self.mixItemFailed() { return }
@@ -152,11 +174,29 @@ final class AppModel: ObservableObject {
                 self.pending = nil
                 self.showPlayer = true
                 self.seekWhenArrived()
+                // A stream arrived, so there is a connection whatever was
+                // said before.
+                if !self.playingFromDevice && self.requestFailed { self.setOffline(false) }
             }
         }
         player.onFinished = { [weak self] in
             MainActor.assumeIsolated { self?.nowPlaying.ended() }
         }
+        player.onArrived = { [weak self] in
+            MainActor.assumeIsolated { self?.keepIfWhole() }
+        }
+        keptKeys = shelf.keys
+        shelf.onChange = { [weak self] in
+            guard let self else { return }
+            self.keptKeys = self.shelf.keys
+        }
+        // The phone's own word for whether there is a network (the web's
+        // `online` / `offline` events).
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let down = path.status != .satisfied
+            Task { @MainActor [weak self] in self?.pathChanged(down: down) }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "net.familiarize.fam.path"))
         nowPlaying.playEpisode = { [weak self] ep in self?.play(ep) }
         nowPlaying.onEnded = { [weak self] ep in self?.mixItemEnded(ep) ?? false }
         nowPlaying.detourFor = { [weak self] base in self?.detour(for: base) ?? "" }
@@ -326,6 +366,13 @@ final class AppModel: ObservableObject {
         mixPath = []
         dailyPath = []
         inviteLink = nil
+        // The episodes and the page kept on this phone are this listener's
+        // (`forgetOfflineCopies`): the next person on it starts clean.
+        shelf.clear()
+        keptKeys = []
+        keepWatch = nil
+        requestFailed = false
+        isOffline = pathDown
         privateSearch = false
         darkChrome = false
         voices = nil
@@ -349,15 +396,31 @@ final class AppModel: ObservableObject {
         Task { await mixes.loadVocabulary() }
         if inviteLink == nil { Task { await loadInviteLink() } }
         do {
-            let page = try await api.rails()
+            let data = try await api.railsData()
+            let page = try FAMAPI.decodeRails(data)
             rails = page.sections
             tasteSource = page.tasteSource ?? "taste"
             friendFaces = page.friendFaces ?? []
             railsProblem = ""
+            if requestFailed { setOffline(false) }
+            // Remembered only once it has drawn, so a page that fails to
+            // draw is never the one an offline open falls back to.
+            shelf.rememberFeed(data)
         } catch FAMError.waitlisted {
             stage = .waiting
         } catch {
-            railsProblem = "Your feed could not load. Search still works — try again in a moment."
+            // No connection: the last page drawn, with what is on this
+            // phone at full brightness and the rest faded.
+            let network = error is URLError
+            if network || isOffline, let last = shelf.rememberedFeed() {
+                setOffline(true)
+                rails = last.sections
+                tasteSource = last.tasteSource ?? "taste"
+                friendFaces = last.friendFaces ?? []
+                railsProblem = ""
+            } else {
+                railsProblem = "Your feed could not load. Search still works — try again in a moment."
+            }
         }
         _ = await (faces, pick, saves)
     }
@@ -552,6 +615,10 @@ final class AppModel: ObservableObject {
     /// behind the tuning dial (§509, `startBankTopic`): no steps, audio
     /// never held. `railKey` is the rail the card was tapped on.
     func play(_ tile: Tile, railKey: String = "") {
+        if isOffline && !isKept(tile) {
+            nowPlaying.say("You\u{2019}re offline, and this one isn\u{2019}t on your device yet")
+            return
+        }
         let ep = Episode(key: EpisodeKey(query: tile.query, minutes: FAMAPI.browseMinutes),
                          title: tile.title, surface: "myfam", topicID: tile.id,
                          picture: api.picture(tile.thumb))
@@ -814,6 +881,13 @@ final class AppModel: ObservableObject {
             self.showPlayer = false
             self.pending = ep
             self.lastAsked = ep
+            // Offline, and this one is on the phone: no steps to check off,
+            // the kept samples played (`fromDevice` on the web).
+            if self.isOffline && ep.attach.isEmpty && self.shelf.has(ep.key) {
+                self.playFromShelf(ep, glide: glide, dial: dial)
+                return
+            }
+            self.playingFromDevice = false
             self.loading.start(ask: {
                 try? await api.progress(query: ep.key.query, minutes: ep.key.minutes,
                                         surface: ep.surface, topicID: ep.topicID,
@@ -821,6 +895,10 @@ final class AppModel: ObservableObject {
             }, glide: glide, dial: dial)
             self.player.play(title: ep.title, picture: ep.picture, request: request,
                              minutes: ep.key.minutes, holdStart: true)
+            // Kept on this phone once all of it has arrived, so it plays
+            // offline next time - never an attachment's (the listener's own
+            // document) nor a private search's.
+            self.keepWatch = ep.keepsRecord ? (token: self.player.playToken, episode: ep) : nil
         }
         lastPlay = go
         go()
@@ -1233,5 +1311,74 @@ extension AppModel {
         }
         nowPlaying.replaceCategoryQueue(rest)
         startPlaying(ep(list[index]), cachedOnly: true)
+    }
+}
+
+// MARK: - Offline listening (`OfflineShelf`, §161)
+
+extension AppModel {
+    /// A card's episode is on this phone (`on-device` on the web).
+    func isKept(_ tile: Tile) -> Bool {
+        keptKeys.contains(OfflineShelf.keyOf(query: tile.query, minutes: FAMAPI.browseMinutes, context: ""))
+    }
+
+    /// `setOffline`: what a failed (or a successful) request says about the
+    /// connection, beside the phone's own word.
+    func setOffline(_ off: Bool) {
+        requestFailed = off
+        let now = pathDown || requestFailed
+        if now != isOffline { isOffline = now }
+    }
+
+    /// The network came or went. Coming back clears what a failed request
+    /// said, as the web's `online` event does.
+    fileprivate func pathChanged(down: Bool) {
+        pathDown = down
+        if !down { requestFailed = false }
+        let now = pathDown || requestFailed
+        if now != isOffline { isOffline = now }
+    }
+
+    /// The stream the player was asked for has all arrived: kept, if the
+    /// server said it may be and the player has not moved on (`keepWhenWhole`).
+    fileprivate func keepIfWhole() {
+        guard let watch = keepWatch, watch.token == player.playToken else { return }
+        keepWatch = nil
+        guard let whole = player.wholeEpisode() else { return }
+        shelf.put(watch.episode.key, title: watch.episode.title, rate: whole.rate, samples: whole.samples)
+        keptKeys = shelf.keys
+    }
+
+    /// The kept samples, behind the same loading screen a replay has: all
+    /// five done, released after a moment (`playFromDevice`).
+    fileprivate func playFromShelf(_ ep: Episode, glide: LoadingModel.Glide?, dial: LoadingModel.Dial?) {
+        guard let row = shelf.entry(ep.key) else { return }
+        keepWatch = nil
+        playingFromDevice = true
+        loading.start(ask: { nil }, glide: glide, dial: dial)
+        Task {
+            let stored = await shelf.samples(for: row)
+            // Something else was asked for meanwhile, or the wait was cancelled.
+            guard pending == ep else { return }
+            guard let stored, !stored.isEmpty else {
+                loading.stop()
+                pending = nil
+                nowPlaying.say("That episode isn\u{2019}t on this device.")
+                return
+            }
+            player.playStored(title: ep.title, picture: ep.picture, rate: row.rate, stored: stored,
+                              holdStart: true)
+        }
+    }
+
+    /// A stream that never reached the server, for an episode on the shelf:
+    /// offline it is, and it plays from here. False when it was not that.
+    fileprivate func playFromShelfAfterNetworkFailure() -> Bool {
+        guard player.lastFailureWasNetwork, !playingFromDevice, let ep = lastAsked,
+              ep.attach.isEmpty, shelf.has(ep.key) else { return false }
+        setOffline(true)
+        pending = ep
+        playFromShelf(ep, glide: lastGlide, dial: lastDial)
+        return true
     }
 }

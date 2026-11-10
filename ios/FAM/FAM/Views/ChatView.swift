@@ -179,18 +179,18 @@ struct ChatScreen: View {
             HStack(spacing: 8) {
                 SocialBackButton { social.back() }
                 Button(action: whoTapped) { whoLabel }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                 if who.group {
                     Button { photoMenu() } label: {
                         RoundIcon { Image(systemName: "paperclip").font(.system(size: 15, weight: .medium)) }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityLabel(who.avatar.isEmpty ? "Add a group photo" : "Change the group photo")
                 }
                 Button { openMenu() } label: {
                     RoundIcon { WebFill(path: Icons.dots(1.7), size: 17) }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("More")
             }
             if !who.group && !chipLabels.isEmpty {
@@ -220,7 +220,8 @@ struct ChatScreen: View {
                     Text(displayName)
                         .font(FAMFont.heading(18, .medium))
                         .foregroundStyle(FAMColor.text)
-                        .lineLimit(1)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                     if who.explicit { ExplicitBadge() }
                 }
                 Text(subLine)
@@ -435,7 +436,7 @@ struct ChatScreen: View {
             Button { shareInto() } label: {
                 RoundIcon { WebIcon(path: Icons.plus, size: 17, line: 2.4) }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Share an episode")
             TextField("", text: $chat.draft, prompt: Text(placeholder).foregroundColor(FAMColor.textMuted),
                       axis: .vertical)
@@ -454,7 +455,7 @@ struct ChatScreen: View {
             Button { chat.sendText() } label: {
                 RoundIcon(gold: true) { WebIcon(path: Icons.arrow, size: 16, line: 2.4) }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Send")
         }
         .padding(.horizontal, 12)
@@ -961,7 +962,7 @@ struct SharedEpisodeCard: View {
                 .frame(minHeight: 30)
                 .background(FAMColor.copper, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             Button(action: goDeeper) {
                 Text("GO DEEPER")
                     .font(FAMFont.body(11, .medium))
@@ -970,7 +971,7 @@ struct SharedEpisodeCard: View {
                     .frame(minHeight: 30)
                     .overlay(Capsule().stroke(FAMColor.borderStrong))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             Button(action: save) {
                 ZStack {
                     if saved {
@@ -984,7 +985,7 @@ struct SharedEpisodeCard: View {
                 .frame(width: 30, height: 30)
                 .overlay(Circle().stroke(saved ? FAMColor.copper : FAMColor.borderStrong))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel(saved ? "Remove from Saved for Later" : "Save for later")
         }
     }
@@ -1094,13 +1095,13 @@ struct GroupMembersSheet: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .disabled(m.handle.isEmpty)
             if !m.handle.isEmpty {
                 Button { acting = m } label: {
                     RoundIcon(size: 30) { WebFill(path: Icons.dots(1.6), size: 15) }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press)
                 .accessibilityLabel("More about \(m.name.isEmpty ? m.handle : m.name)")
             }
         }

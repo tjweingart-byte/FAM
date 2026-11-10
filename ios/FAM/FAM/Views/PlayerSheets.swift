@@ -125,7 +125,7 @@ struct GoDeeperSheet: View {
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.copper))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     private var lengthRow: some View {
@@ -147,7 +147,7 @@ struct GoDeeperSheet: View {
                 .background(on ? FAMColor.copper : FAMColor.surface, in: Capsule())
                 .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel("\(FAMAPI.minutes(value)) minutes")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -213,7 +213,8 @@ struct PlayerMenu: View {
                 Text(now.episode == nil ? player.title : now.title)
                     .font(FAMFont.body(14, .semibold))
                     .foregroundStyle(FAMColor.text)
-                    .lineLimit(1)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !now.searcher.isEmpty {
                     Text(now.searcher)
                         .font(FAMFont.body(11.5))
@@ -270,7 +271,7 @@ struct PlayerMenu: View {
             .padding(.vertical, 14)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         if model.canRemoveFromPlayingMix {
             row("Remove from this playlist", PlayerIcons.circleMinus) {
                 dismiss()
@@ -313,7 +314,7 @@ struct PlayerMenu: View {
             .padding(.vertical, 14)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 }
 
@@ -360,7 +361,7 @@ struct SourcesSheet: View {
                     .frame(width: 30, height: 30)
                     .overlay(Circle().stroke(FAMColor.borderStrong))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Close")
         }
         .padding(.bottom, 8)
@@ -427,7 +428,7 @@ struct SourcesSheet: View {
             .padding(.vertical, 10)
             .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .disabled(item.url == nil)
     }
 
@@ -476,7 +477,7 @@ struct PlaybackSheet: View {
                     .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("\(label): \(value)")
         }
         .padding(.bottom, 14)
@@ -527,7 +528,7 @@ struct QueueSheet: View {
                     .padding(12)
                     .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 14))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .padding(.horizontal, 16)
             .padding(.top, 8)
         }
@@ -624,14 +625,14 @@ struct QueueSheet: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             Button { now.removeFromQueue(entry) } label: {
                 Text("\u{00D7}")
                     .font(.system(size: 20))
                     .foregroundStyle(FAMColor.textMuted)
                     .frame(width: 40, height: 40)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Take \(entry.episode.title) out of the queue")
         }
         .padding(.leading, 22)
@@ -664,7 +665,8 @@ struct QueueSheet: View {
             Text(title)
                 .font(FAMFont.body(14, .semibold))
                 .foregroundStyle(playing ? FAMColor.copper : FAMColor.text)
-                .lineLimit(1)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
             if !sub.isEmpty {
                 Text(sub)
                     .font(FAMFont.body(11.5))
@@ -904,7 +906,7 @@ struct NextUpOverlay: View {
                     .frame(maxWidth: .infinity)
                     .padding(11)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .padding(.top, 14)
         }
         .padding(18)
@@ -940,7 +942,7 @@ struct NextUpOverlay: View {
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(lead ? FAMColor.copper : FAMColor.border))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     /// The countdown, drawn rather than described: a 3 pt bar that empties
@@ -972,7 +974,7 @@ struct NextUpOverlay: View {
                     .foregroundStyle(FAMColor.copper)
                     .frame(width: 32, height: 32)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Search")
         }
         .padding(.leading, 12)

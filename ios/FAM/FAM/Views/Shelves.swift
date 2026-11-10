@@ -28,7 +28,7 @@ struct FolderChips: View {
                                                       style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
                             .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 2)
@@ -40,12 +40,12 @@ struct FolderChips: View {
                         .font(FAMFont.mono(10))
                         .tracking(0.6)
                         .foregroundStyle(FAMColor.copper)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                     Button("Delete folder", action: delete)
                         .font(FAMFont.mono(10))
                         .tracking(0.6)
                         .foregroundStyle(FAMColor.coral)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.press)
                 }
                 .padding(.horizontal, 18)
                 .padding(.bottom, 8)
@@ -72,7 +72,7 @@ struct FolderChips: View {
             .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
@@ -197,7 +197,7 @@ struct SavedView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             Button { filing = item } label: {
                 WebIcon(path: Icons.folder, size: 13)
                     .foregroundStyle(FAMColor.textFaint)
@@ -205,7 +205,7 @@ struct SavedView: View {
                     .frame(minWidth: 32, minHeight: 32)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Choose a folder for this episode")
             Button { remove(item) } label: {
                 WebIcon(path: Icons.close, size: 13, line: 2.2)
@@ -214,7 +214,7 @@ struct SavedView: View {
                     .frame(minWidth: 32, minHeight: 32)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             .accessibilityLabel("Remove from Saved for Later")
         }
         .padding(.horizontal, 18)
@@ -402,7 +402,7 @@ struct HistoryView: View {
                             .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
                             .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press)
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
@@ -449,7 +449,8 @@ struct HistoryView: View {
                     Text(title)
                         .font(FAMFont.heading(12.5, .medium))
                         .foregroundStyle(FAMColor.text)
-                        .lineLimit(1)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(meta)
                             .font(FAMFont.mono(8))
                             .tracking(0.32)
@@ -463,7 +464,7 @@ struct HistoryView: View {
             .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
     }
 
     /// A reply for a tab left mid-flight is dropped.
@@ -614,7 +615,7 @@ struct MyVibeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.press)
             roundButton(Icons.folder, line: 2, label: "Choose a folder for this vibe") { filing = v }
             roundButton(Icons.close, line: 2.4, label: "Take this vibe back") { remove(v) }
         }
@@ -634,7 +635,7 @@ struct MyVibeView: View {
                 .frame(minWidth: 32, minHeight: 32)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(label)
     }
 
