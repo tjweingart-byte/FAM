@@ -108,7 +108,7 @@ Learn these words before reading code. A `§` number is a section of
 |---|---|
 | **Listener** | A server-minted id held in a cookie or a bearer token. An **account** is credentials attached to that id. You can listen without one. |
 | **Tier / plan** | `free`, `plus` or `unlimited` (`entitlements.TIERS`). A tier is what you may *spend*, never what you may *reach*. Every tier has every feature. |
-| **Quota** | The per-tier episode and Explore counts (`quotas.py`). **Off everywhere for now** (`ENFORCE_QUOTAS=0` on `fam`, §510; it was on in production from §207). Admins are `unlimited`. There is no checkout yet. |
+| **Quota** | The per-tier episode and Explore counts (`quotas.py`). **Off everywhere for now** (`ENFORCE_QUOTAS=0` on `fam`, §519; it was on in production from §207). Admins are `unlimited`. There is no checkout yet. |
 | **Waitlist** | `WAITLIST=1` closes the app to every account that is not `active`. A `/waitlist` join is always waitlisted. Admins grant access. |
 | **Staging** | `fam-staging`, which follows the `staging` branch. **It spends nothing and cannot be configured to.** Episodes there are a sample script read in the tone. |
 | **Preview** | `static/index.html` built into a single HTML file that runs against fixtures (`fam-artifact.html`) or a live database (`fam-live-artifact.html`, the bookmarked artifact). It is good for layout and flow. It tells you nothing about writing quality or latency. |
@@ -510,7 +510,7 @@ its accounts.
 | `FAM_ENV` | `production` | `staging` (spend guard plus network guard) |
 | Storage | Render Postgres via `DATABASE_URL`; no disk since §339 | `fam-staging-data` disk at `/data` |
 | Keys | every paid key, set in the dashboard or `FAM_SECRETS` | none, and any that arrive are removed |
-| Quotas | `ENFORCE_QUOTAS=0` (§510; `1` from §207) | off (code default) |
+| Quotas | `ENFORCE_QUOTAS=0` (§519; `1` from §207) | off (code default) |
 | Voice | `VOICE_BACKEND=remote`, RunPod | placeholder tone |
 
 They share nothing: no disk, key, admin token or voice worker.

@@ -1455,7 +1455,7 @@
   `WAITLIST=0`.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
-  > **Current (§510, the 11.9 packet):** switched **off again in production**
+  > **Current (§519, the 11.9 packet):** switched **off again in production**
   > at the owner's direction - "until I change it, I want everyone to have
   > unlimited access." `render.yaml` sets `ENFORCE_QUOTAS=0` on `fam`
   > (explicitly, so turning it back on is one value); nobody sees the limit

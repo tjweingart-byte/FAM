@@ -761,7 +761,7 @@ def main() -> int:
             page.wait_for_timeout(400)
 
         def go_deeper_keeps_the_mix_and_captions_are_a_pill():
-            """The owner's 11.9 packet (§510): a Go Deeper on a myFAM
+            """The owner's 11.9 packet (§519): a Go Deeper on a myFAM
             playlist's episode used to end the playlist - the follow-up was
             "something else started", so `mixPlay` was dropped and the rest of
             the mix vanished from the queue. It is a detour now: the playlist

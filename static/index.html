@@ -1345,7 +1345,7 @@
   #screen-player .p-demo{ position:absolute; top:6px; left:50%; transform:translateX(-50%); }
   /* Share, vibe and save, one above another on the right, above the
      transport (10.2 packet). The captions hang under each circle. */
-  /* Lifted clear of the title row (11.9 packet, §510): at 10px the SAVE
+  /* Lifted clear of the title row (11.9 packet, §519): at 10px the SAVE
      caption sat on the sources pill below it. */
   .p-side{ position:absolute; right:16px; bottom:34px; display:flex; flex-direction:column;
     align-items:center; gap:24px; padding-bottom:12px; }
@@ -1374,10 +1374,10 @@
   #screen-player .mini-title{ font-size:22px; line-height:1.2; margin:0;
     display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .mini-src[hidden]{ display:none; }
-  /* The bottom padding held the captions strip until §510 moved captions
+  /* The bottom padding held the captions strip until §519 moved captions
      onto the picture; it is the controls' own breathing room now. */
   #screen-player .player-controls-2row{ padding:14px 20px 22px; gap:14px; }
-  /* The transport (11.9 packet, §510): five equal slots with play in the
+  /* The transport (11.9 packet, §519): five equal slots with play in the
      middle one, so it is centred whether or not the next button is drawn,
      and every glyph bare - the outlined circles round ±15 and next read as
      three more buttons the size of play's little brothers. */
@@ -1398,7 +1398,7 @@
   #screen-player .mini-play-btn svg{ width:22px; height:22px; }
   #screen-player .pc-row2{ width:100%; gap:12px; }
   .pc-gap{ flex:1; }
-  /* Closed captions (11.9 packet, §510). A labelled CC pill beside the queue
+  /* Closed captions (11.9 packet, §519). A labelled CC pill beside the queue
      turns them on; on, they are read over the picture, large and one sentence
      at a time, with the transport untouched below. Off, nothing is drawn. */
   .cc-pill{ flex:none; display:flex; align-items:center; gap:7px; height:36px; padding:0 14px 0 12px;
@@ -1446,7 +1446,7 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sheet-head-sub{ font-size:11.5px; color:var(--text-muted); margin-top:2px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  /* The queue (11.9 packet, §510): a heading, rows inset from the edge with
+  /* The queue (11.9 packet, §519): a heading, rows inset from the edge with
      a picture each, and a title over what the row is. */
   .q-sheet-head{ display:flex; align-items:center; padding:6px 22px 4px; flex:none; }
   .q-sheet-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600;
@@ -4286,7 +4286,7 @@
             <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
             <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
           </div>
-          <!-- Closed captions (11.9 packet, §510): turned on from the CC
+          <!-- Closed captions (11.9 packet, §519): turned on from the CC
                button beside the queue, and read where the picture is - large,
                one sentence at a time, the transport still in reach below.
                It used to be a strip of 8px capitals at the very bottom that
@@ -4321,7 +4321,7 @@
           <div class="time-row"><span id="curTime">1:24</span><span id="totalTime">3:00</span></div>
         </div>
         <div class="player-controls-2row">
-          <!-- The transport (11.9 packet, §510): five equal slots, play dead
+          <!-- The transport (11.9 packet, §519): five equal slots, play dead
                centre, the glyphs bare rather than in outlined circles, the
                15 inside its arrow at a size that reads. The empty first slot
                balances the next-episode button, which is only drawn when
@@ -9405,7 +9405,7 @@
     });
   }
 
-  // The captions card closes with a swipe down, as well as its X (§510).
+  // The captions card closes with a swipe down, as well as its X (§519).
   (function(){
     var panel = document.getElementById("ccPanel");
     if(!panel) return;
@@ -9514,7 +9514,7 @@
     playQueueNext();
   }
   // The sequence after this one: the playlist's rest, then the queue.
-  // Laid out as a list with room round it (11.9 packet, §510): it ran edge to
+  // Laid out as a list with room round it (11.9 packet, §519): it ran edge to
   // edge in 13px rows with nothing beside them, which on a phone read as the
   // sheet zoomed in. Each row now has its picture (or its place in line), a
   // title over what it is, and the sheet a heading of its own.
@@ -10145,7 +10145,7 @@
         advanceMix(key);
       };
     } else if(t.mixDetour && mixPlay && mixPlay.key === t.mixDetour){
-      // A Go Deeper off the playlist's episode (§510): the playlist waits
+      // A Go Deeper off the playlist's episode (§519): the playlist waits
       // behind it and carries on from the next episode when it ends.
       var detourOf = t.mixDetour;
       playOpts.nextUp = false;
@@ -10181,7 +10181,7 @@
     panel.dataset.key = key;
     document.getElementById("ccIcon").classList.remove("on");
     document.getElementById("ccIcon").setAttribute("aria-pressed", "false");
-    // Turned on again if that is how the listener left them (§510).
+    // Turned on again if that is how the listener left them (§519).
     if(captionsWanted()) setTimeout(function(){ if(!captionsOn()) toggleCC(); }, 0);
     // reset play state to "playing"
     setPlayState(true);
@@ -10263,7 +10263,7 @@
   })();
 
   // Captions stay as the listener left them, episode to episode and visit
-  // to visit (§510): somebody who reads along should not have to turn them
+  // to visit (§519): somebody who reads along should not have to turn them
   // on again for every episode. Per device, a convenience - nothing else.
   function rememberCaptions(on){
     try { localStorage.setItem("fam.captions", on ? "1" : "0"); } catch(e){}
@@ -11341,7 +11341,7 @@
       private: hush
     };
     // Going deeper on a myFAM playlist's episode is a detour, never the end
-    // of the playlist (11.9 packet, §510): the follow-up plays, and when it
+    // of the playlist (11.9 packet, §519): the follow-up plays, and when it
     // ends (or is skipped) the playlist carries on with its next episode. A
     // Go Deeper on that follow-up is the same detour.
     var detour = mixDetourFor(baseKey);
@@ -12653,7 +12653,7 @@
   var MIX_FAILURES_IN_A_ROW = 2;
   function mixItemFailed(message, err){
     if(!mixPlay || !mixPlay.key) return false;
-    // A Go Deeper detour that would not play (§510): said, and the playlist
+    // A Go Deeper detour that would not play (§519): said, and the playlist
     // carries on from its next episode rather than waiting behind it.
     // Read from what was being generated: a follow-up can fail before the
     // player is populated, while the playlist's episode is still "current".

@@ -181,7 +181,7 @@ sequenceDiagram
 | 4 | **Read limit** | `app.py:_read_limit` | `READ_LIMIT_PER_WINDOW` = 60 requests per 10 s per client (code, `config.py`). | 429 |
 | 5 | **Plan** | `app.py:_validated_plan` → `script_generator.plan_episode` | Surface from `_play_surface`. Browse surfaces are forced to `BROWSE_MINUTES` = 2 (code, `config.py`); a tier caps the minutes (`entitlements.max_minutes`, 10 on every tier, code). `episode=` (a history replay, §173) pins one exact episode. | 400/422 on a malformed request, before anything is reserved. |
 | 6 | **Pacing** | `app.py:_rate_limit` | A token bucket, `RATE_LIMIT_BURST` = 3, refilled one per `RATE_LIMIT_SECONDS` = 3 s (code). **Skipped** for anything that provably cannot call a model: `cached_only`, `episode=`, or a script already written (`_already_written`). | 429 |
-| 7 | **Quota reserve** | `app.py:_reserve` → `quotas.QuotaStore.reserve` | Counts **episodes, not requests** (`episode_key`), against `episode` or, for `cached_only`, the looser `explore` allowance. Enforced only when `ENFORCE_QUOTAS=1` (code default 0; **0 on production too for now**, §510 - it was 1 from §207). Free tier: 5 episodes and 25 Explore replays a day (code, `entitlements.py`, `FREE_EPISODES_PER_DAY`, `FREE_EXPLORE_PER_DAY`). Admin accounts are `unlimited` (`app._tier`). | 429 with `X-FAM-Quota` (the whole verdict) and a sentence naming what the listener was doing (`entitlements.service_label`). |
+| 7 | **Quota reserve** | `app.py:_reserve` → `quotas.QuotaStore.reserve` | Counts **episodes, not requests** (`episode_key`), against `episode` or, for `cached_only`, the looser `explore` allowance. Enforced only when `ENFORCE_QUOTAS=1` (code default 0; **0 on production too for now**, §519 - it was 1 from §207). Free tier: 5 episodes and 25 Explore replays a day (code, `entitlements.py`, `FREE_EPISODES_PER_DAY`, `FREE_EXPLORE_PER_DAY`). Admin accounts are `unlimited` (`app._tier`). | 429 with `X-FAM-Quota` (the whole verdict) and a sentence naming what the listener was doing (`entitlements.service_label`). |
 | 8 | **Voice and pipeline** | `app.py:_episode_voice`, `_make_pipeline` | Search uses the listener's chosen voice; every other surface draws one from the bank (`voice_bank.random_slug`) and keeps it with the episode. `pipeline.origin` records the surface (`search`, `myfam`, ...). | No speech engine at all → 503, refunded. |
 | 9 | **Guest gate** | `app.py:_guest_play_gated` | A guest's tap on a myFAM or sample-mix tile plays only **kept audio**. | 403 `X-FAM-Refused-By: account` → the sign-up screen; refunded. |
 | 10 | **Wake the GPU** | `app.py:_wake_remote_voice` → `RemoteChatterboxEngine.wake` | Fire-and-forget, so a serverless worker boots while Claude writes. Skipped when the audio is already kept. | Never raises; a miss costs only the cold start. |
@@ -756,7 +756,7 @@ at `/data`, sharing nothing (`STAGING.md`). Feature branches merge into
 |---|---|---|
 | Branch | `Main` | `staging` |
 | `FAM_ENV` | `production` | `staging` → **zero spend** |
-| Quotas | `ENFORCE_QUOTAS=0` (§510) | code default 0 |
+| Quotas | `ENFORCE_QUOTAS=0` (§519) | code default 0 |
 | Waitlist | `WAITLIST` set in the dashboard (`sync: false`) | off |
 | Voice | `VOICE_BACKEND=remote`, RunPod serverless | forced `chatterbox` → placeholder tone |
 | Research | Parallel + Perplexity + `GDELT=1` (export files, §211) | Search keys scrubbed; `GDELT=0` |

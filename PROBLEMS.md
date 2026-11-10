@@ -32189,7 +32189,7 @@ screen is up for `GEN_MIN_VISIBLE_MS` (450 ms) and the dial is cut off
 mid-sweep; that is the rule (§292), not a bug. Reduced motion shows each at
 rest: needle on the category, row on the episode.
 
-## 510. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10)
+## 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10)
 
 The owner's 11.9 "Implementations" PDF, seven items with screenshots from a phone.
 

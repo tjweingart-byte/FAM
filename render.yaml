@@ -92,7 +92,7 @@ services:
       # No DEMO_MODE here: nothing reads it. Demo mode is derived from whether
       # a Claude key is present (§208 removed a `DEMO_MODE=0` that did nothing).
       # Tier quotas: OFF in production too, at the owner's direction (11.9
-      # packet, §510) - everyone has unlimited access until the owner says
+      # packet, §519) - everyone has unlimited access until the owner says
       # otherwise. "1" turns the §207 ceiling back on (free tier 5 episodes a
       # day; admins unlimited; POST /api/admin/plan moves anyone else).
       # Spend per listener stays visible in metering, just not capped.
