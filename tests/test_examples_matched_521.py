@@ -1,4 +1,4 @@
-"""The house examples matched to the story, and new ones proposed (§520, item 4).
+"""The house examples matched to the story, and new ones proposed (§521, item 4).
 
 Every example has a facet (`examples/facets.json`); the writer's request -
 never the cached system block - names the one or two examples of the
@@ -47,7 +47,7 @@ def test_the_closest_by_length_first():
 
 
 def test_the_request_names_them_and_the_system_block_does_not_change(monkeypatch):
-    # On only by choice since §526.
+    # On only by choice since §527.
     monkeypatch.setattr(sg, "settings", dataclasses.replace(sg.settings, example_matching=True))
     system = sg.system_prompt()
     prompt = build_prompt(_plan("sports"))
@@ -74,7 +74,7 @@ def test_a_facet_with_no_example_names_none():
 
 def test_the_settings_are_copied_and_on():
     text = open(os.path.join(ROOT, ".env.example")).read()
-    # Matching off since §526 (no gain, more repetition); worked plans on.
+    # Matching off since §527 (no gain, more repetition); worked plans on.
     assert "\nEXAMPLE_MATCHING=0\n" in text and "\nEDITOR_WORKED_PLANS=1\n" in text
     assert not sg.settings.example_matching and sg.settings.editor_worked_plans
 

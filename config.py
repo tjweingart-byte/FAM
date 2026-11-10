@@ -388,7 +388,7 @@ class Settings:
     edition_writer_model: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_MODEL", ""))
     # **The writer's effort where nobody waits: high** (the owner,
-    # 2026-11-09, §521): the editions, the write-ahead and prefetch's script
+    # 2026-11-09, §522): the editions, the write-ahead and prefetch's script
     # warms are written before anybody taps, so the writer may think as hard
     # as Shakespeare does there (Haiku 5.5 high, §440). searchFAM keeps
     # `EFFORT` (low), so the first word is not moved. `EDITION_WRITER_EFFORT`,
@@ -2214,24 +2214,24 @@ class Settings:
     editor_tandem: bool = field(
         default_factory=lambda: os.environ.get("EDITOR_TANDEM", "0")
         not in ("0", "false", "False", ""))
-    # Shakespeare's worked plans (§520): beside the house examples in his
+    # Shakespeare's worked plans (§521): beside the house examples in his
     # `<teaching>`, a plan for several of them - the packet it was made
     # from, his answer, and the example it became (`examples/plans/`). Off:
     # he is shown the finished examples alone, as before.
     editor_worked_plans: bool = field(
         default_factory=lambda: os.environ.get("EDITOR_WORKED_PLANS", "1")
         not in ("0", "false", "False", ""))
-    # The house examples matched to the story (§520): the writer's request
+    # The house examples matched to the story (§521): the writer's request
     # names the one or two examples of the episode's facet
     # (`examples/facets.json`), and Shakespeare is told which worked plans
     # are closest. In the request, never the cached system block. **Off by
-    # default since §526**: on the 50 frozen questions it bought nothing
+    # default since §527**: on the 50 frozen questions it bought nothing
     # (+0.03 [-0.12, +0.18]) and cost repetition (-0.37 [-0.71, -0.04]).
     # Off: the request is byte for byte what it was.
     example_matching: bool = field(
         default_factory=lambda: os.environ.get("EXAMPLE_MATCHING", "0")
         not in ("0", "false", "False", ""))
-    # Before-and-after pairs in the writer's instructions (§521): each the
+    # Before-and-after pairs in the writer's instructions (§522): each the
     # same episode twice from the same sources, a flawed draft and the house
     # voice, made before launch (`tools/teaching_pairs.py`) and approved
     # into `examples/pairs/`. Fixed text in the cached system block. Off:

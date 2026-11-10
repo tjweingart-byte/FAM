@@ -1,4 +1,4 @@
-"""Whether the writer followed Shakespeare's plan (§520, item 1).
+"""Whether the writer followed Shakespeare's plan (§521, item 1).
 
 §437 left it unmeasured: if the writer does not follow his plan, nothing
 done to the plan can show in the episode. Measured in code, per part -

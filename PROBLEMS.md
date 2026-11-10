@@ -32453,7 +32453,42 @@ episode for a detour never fires its end (`FamAudio.stop` bumps the token,
 and `advanceMix` ignores a stale key), so the mix does not jump ahead when the
 follow-up starts.
 
-## 520. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09)
+## 520. Messages only between friends (2026-11-10)
+
+**The gap.** `POST /api/messages` checked blocks, suspension and the
+waitlist, but not the follow graph for a one-to-one message: any account
+that knew another listener's id could message them. The web never shows an
+id, so it took effort to exploit, but an id is not a permission, and App
+Review weighs unwanted contact.
+
+**The owner's rule:** one-to-one messages, and new group chats, only between
+people who follow each other (friends, `op-follow-graph`). `app._mutual`
+decides; a refused send answers 403 "You can message people who follow you
+back."; a group with a non-friend answers 400 "You can start a group with
+people who follow you back.". Existing groups keep their members. A reply
+or ❤️ to the story of someone you follow who does not follow you back is a
+message, so it is refused the same way.
+
+The web's New message picker, the share sheet's people row and story tags
+now offer friends only (they offered everyone you follow, and followers for
+tags), and the picker's empty sentence says how to become friends. Tests:
+`test_knowing_an_id_does_not_open_a_conversation`, and the one-way follow
+refused in `test_two_listeners_can_find_follow_and_message_each_other`.
+Tests about threads, groups, replies and notifications (not about who may
+message whom) use the `everyone_friends` fixture in `tests/conftest.py`.
+
+**Groups, refined the same day (the owner).** A group may hold people who
+are not friends with each other; whoever makes it must be friends with
+everyone in it (already so: `messages_new_group` checks each pick against
+the maker's friends), and groups gain no members after they are made. Each
+member who is not friends with everyone is told: `_group_view` marks every
+member `friend` (mutual with the viewer) and composes `warning` - "You’re
+not friends with Ben. Everyone in this group can see what you send here." -
+which the web (`threadWarnHTML`, `.thread-warn`) and iOS (`ChatView`) draw
+at the top of the conversation. Test:
+`test_a_group_may_hold_strangers_and_tells_each_member_who`.
+
+## 521. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09)
 
 The owner (2026-11-09): "Do 1, 3 and 4" of seven proposals for training
 Shakespeare. §437 found his outline did not yet make the writing measurably
@@ -32551,20 +32586,20 @@ here, so neither the plan-following numbers nor the comparison has been run.
 Settings (new): `EDITOR_WORKED_PLANS` (1), `EXAMPLE_MATCHING` (1), in
 `config.py`, `.env.example` and `tests/conftest.py`.
 
-Tests: `tests/test_plan_following_520.py` (a followed script scores one;
+Tests: `tests/test_plan_following_521.py` (a followed script scores one;
 each part on its own; a part never told; one shared word is not a use;
 tandem's opening not counted; numbers kept, never sentences; the report by
 surface; his outline leaves his sentences on the notes),
-`tests/test_worked_plans_520.py` (every plan passes his checks; the facets
+`tests/test_worked_plans_521.py` (every plan passes his checks; the facets
 covered; each leaves something out; a broken plan left out and said why;
 numbered as his packets; off, none; in his teaching after the examples; the
-checker runs with no key), `tests/test_examples_matched_520.py` (every
+checker runs with no key), `tests/test_examples_matched_521.py` (every
 example has a facet; the facet from the brief first; nearest length first;
 named in the request, the system block unchanged; off, as it was;
 candidates by listening, fewest-example facets first, written in the
 examples' format, never a listener).
 
-## 521. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09)
+## 522. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09)
 
 The owner (2026-11-09), on seven ways to train the writer as a
 professional script writer: "1. For when nobody waits, it's supposed to be
@@ -32652,7 +32687,7 @@ Settings (new): `AHEAD_WRITER_EFFORT` (high), `TEACHING_PAIRS` (1), in
 `config.py`, `.env.example` and `tests/conftest.py`. CLAUDE.md's
 [small-calls-haiku] line and its topic file note the change.
 
-Tests: `tests/test_writer_training_521.py` (high only where nobody waits;
+Tests: `tests/test_writer_training_522.py` (high only where nobody waits;
 an edition's own effort wins; copied and reported; each ear check named;
 a run of one length; a time phrase is not a lead; the house examples pass;
 every measure carries the ear; exit rates per sentence, by place and ear
@@ -32661,14 +32696,14 @@ keeps them; a pair round-trips into the writer's block, off removes it; no
 pairs, no change; the reason from what was fixed; flaws named; refused on a
 deployed server; nothing on the server imports it).
 
-## 522. Story shapes, drafted for the owner (2026-11-09)
+## 523. Story shapes, drafted for the owner (2026-11-09)
 
-The owner: "Draft the story shapes list" (proposal 5 of §521). The draft is
+The owner: "Draft the story shapes list" (proposal 5 of §522). The draft is
 `docs/story_shapes.md`: not signed, not wired - nothing reads it.
 
 **What it found first.** FAM already has shapes: `episode_intelligence.STRUCTURES`,
 nine of them, picked from a closed list by the brief inside its own call
-(no wait), with `in_progress` reached only from evidence (§88). §521's
+(no wait), with `in_progress` reached only from evidence (§88). §522's
 answer described choosing in code as if it were new; it is not. So the draft
 **revises that list rather than adding a second one**. It names five
 problems with today's shapes:
@@ -32696,9 +32731,9 @@ the cached block. Each example names its shape. Measured per shape with
 `tools/editor_eval.py` and `tools/drop_off.py`. Four questions for the owner
 close the draft.
 
-## 523. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09)
+## 524. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09)
 
-The owner, on `docs/story_shapes.md` (§522): "Add profile and comparison,
+The owner, on `docs/story_shapes.md` (§523): "Add profile and comparison,
 let Shakespeare change the shape" - questions 2 and 3 of the draft. Question
 1 (the list's other changes) and 4 (the wording, to be signed into the
 playbook) are still open, so the other shapes' wording is unchanged.
@@ -32734,22 +32769,22 @@ written to it before his plan exists (`shape` is "" there).
 His signed rule book is unchanged: choosing the shape is part of outlining
 the story ("always" 3), and he still states no fact.
 
-Tests: `tests/test_story_shapes_523.py` (both shapes pickable, comparison's
+Tests: `tests/test_story_shapes_524.py` (both shapes pickable, comparison's
 default, `in_progress` still not; his list is exactly the brief's
 vocabulary; he is shown the brief's shape and every shape; ahead, his shape
 reaches the writer's prompt, the shared brief untouched, counted; an empty or
 the same shape keeps the brief's; on search the brief's stands; no brief, no
 change).
 
-## 524. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09)
+## 525. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09)
 
 The owner: "Keep the list as drafted and sign the wording" - the last two
-questions of `docs/story_shapes.md` (§522).
+questions of `docs/story_shapes.md` (§523).
 
 **The wording is in place where the writer reads it.** Each of the ten
 shapes in `episode_intelligence.STRUCTURES` is now the draft's, as one line:
 what it opens on, how its parts follow (because, therefore, but), what it
-lands on, and what it never does. The three endings §522 found against the
+lands on, and what it never does. The three endings §523 found against the
 rules are gone: `breaking`'s "what happens next", `business`'s "what it
 implies" and `explainer`'s "the way to think about it afterwards". The
 writer reads a shape through `build_structure_note`, unchanged, in its
@@ -32770,7 +32805,7 @@ proposals README's rule caught it, and the edit was moved.
 `docs/agent_rules/MANIFEST.pending.json` is version 7: only the playbook's
 fingerprint differs from version 6, and it is the proposal's.
 
-`tests/test_story_shapes_524.py` holds the code to the playbook as it will
+`tests/test_story_shapes_525.py` holds the code to the playbook as it will
 be signed - the proposal while it waits, the signed book after - word for
 word, with every key named in both, every shape opening, landing and saying
 what it never does, and the three old endings absent.
@@ -32782,9 +32817,9 @@ pending manifest (renamed `MANIFEST.json`), sign the manifest, then upload
 `MANIFEST.json.sig` to `docs/agent_rules/`. Then the session verifies, deletes
 the proposal and the pending manifest, and the owner updates the held copy.
 
-## 525. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09)
+## 526. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09)
 
-The owner signed `MANIFEST.pending.json` (version 7, §524) on a new
+The owner signed `MANIFEST.pending.json` (version 7, §525) on a new
 computer, a MacBook Air that had no `conda` and only LibreSSL 3.3.6. LibreSSL
 cannot make an Ed25519 signature, as §470 found. Miniforge was installed in
 the home folder (no admin password); `conda create -n famsign -c conda-forge
@@ -32806,19 +32841,19 @@ green throughout, since the signed books never changed before the
 signature arrived. `python tools/rulebook_manifest.py --verify`: manifest
 version 7, every agent may run.
 
-`tests/test_story_shapes_524.py` now reads the signed playbook (the proposal
+`tests/test_story_shapes_525.py` now reads the signed playbook (the proposal
 is gone), and the writer's shapes are its words. The owner updates the copy
 held outside Claude: the three files from the Desktop `famsign` folder go to
 `current/`, and version 6's set to `archive/`.
 
-## 526. The §520 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10)
+## 527. The §521 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10)
 
 Run in this session with the environment's keys (`FAM_ANTHROPIC_KEY`, the
 search keys). §437's frozen packets were gone with their container (as
 §450 found before), so the 50 questions were researched again into
 `~/.fam/editor_eval_501/` (~$0.50). Every arm writes from those same
 packets, so arms pair by question. The writer is Haiku 5.5 at high effort
-(§521), with the signed shapes (§525), and Opus 5.5 grades blind. The owner
+(§522), with the signed shapes (§526), and Opus 5.5 grades blind. The owner
 chose Opus grading over cheaper options. One run stopped at this session's
 two-hour background limit and another at a container restart; both
 resumed where they stopped, because the tool skips what is written.
@@ -32850,7 +32885,7 @@ paired by question, 95% bootstrap:
 **Run 2** (`~/.fam/editor_eval_507/`, the same packets; 100 scripts, $2.97):
 two changes and one new arm.
 - `none_low` (new arm in `tools/editor_eval.py`): no editor, the writer at
-  low effort as before §521. **High minus low, mean of six: +0.05 [-0.10,
+  low effort as before §522. **High minus low, mean of six: +0.05 [-0.10,
   +0.20]**, better 27, worse 20. It leans, without clearing zero, towards
   storytelling (+0.24), repetition (+0.25) and fewer unsupported claims
   (+0.22 [-0.02, +0.46]; 0.60 against 0.82 a script). It costs twice the
@@ -32868,16 +32903,16 @@ two changes and one new arm.
   words. The two are not told apart yet, because results keep the numbers,
   never the plan's sentences (provider text).
 
-Tests: `tests/test_eval_findings_526.py` (matching off by default; the
+Tests: `tests/test_eval_findings_527.py` (matching off by default; the
 plan's landing worded as the last sentence; `none_low` at low effort, the
 other arms high, and the settings taken back after).
 
-## 527. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10)
+## 528. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10)
 
-The owner: "Do 1 and 2" of §526's next steps.
+The owner: "Do 1 and 2" of §527's next steps.
 
 **1. The landing wording is back as it was.** "Land on:" again, with no
-"your last sentence" line: §526 measured no gain (landing 0.40 to 0.42) and
+"your last sentence" line: §527 measured no gain (landing 0.40 to 0.42) and
 a hook leaning worse (-0.26 [-0.54, +0.04]).
 
 **2. The measure, checked by reading.** Shakespeare (worked plans) wrote 10
@@ -32889,7 +32924,7 @@ the writer **landed on his planned material in 6 of 10** (jobs, Nvidia,
 Eagles, Roman Empire, and, in the second-to-last sentence, Gaza and the
 Fed); oil partly (the same move, another source's figures); F1, Apple and
 bird flu not. **The measure said 0 of 10.** The writer follows the landing
-far more than §520-§526 reported, and their landing figures (0.35-0.42) are
+far more than §521-§527 reported, and their landing figures (0.35-0.42) are
 too low.
 
 Why it missed:
@@ -32910,7 +32945,7 @@ disagreements: Gaza's planned landing is a broken half-sentence, and Apple
 ended on a different product at the same $299 - a shared distinctive figure
 taken as a landing, a borderline case.
 
-**Not redone:** §520-§526's plan-following figures stand as measured and
+**Not redone:** §521-§527's plan-following figures stand as measured and
 are too low. The scripts' plan sentences were never kept (provider text),
 so they cannot be measured again; the next comparison measures with the
 fix.
@@ -32921,16 +32956,16 @@ sentence carrying a link. The numbered packet keeps whatever lines the
 source gave (`editor._split`). Cleaning the packet is Consuela's and
 Sonic's job, upstream of him.
 
-Tests: `tests/test_plan_landing_527.py` (a figure read out is the figure
+Tests: `tests/test_plan_landing_528.py` (a figure read out is the figure
 printed; a long table matched by its names and numbers; a distinctive figure
 counts twice and a small one once; an unrelated ending is no landing);
-`tests/test_eval_findings_526.py` (the wording back as it was).
+`tests/test_eval_findings_527.py` (the wording back as it was).
 
-## 528. The packet Shakespeare numbers, cleaned (2026-11-10)
+## 529. The packet Shakespeare numbers, cleaned (2026-11-10)
 
-The owner: "Start on 1" - §527's next step: clean the sources before
+The owner: "Start on 1" - §528's next step: clean the sources before
 Shakespeare reads them, because the writer mostly follows what he chooses
-(§527).
+(§528).
 
 **What he was choosing from**, measured on the 50 frozen packets
 (`~/.fam/editor_eval_501/`): 2,735 numbered sentences, as `editor._split`
@@ -32967,60 +33002,60 @@ cut the sources' raw lines.
   league table, a transactions log) and repeats within a source.
 - **Tables stay.** A first version dropped every table row and every piece
   over 60 words. That cut the standings a sports episode lands on (the
-  Eagles, §527) and real long sentences - a central bank's directive, a long
+  Eagles, §528) and real long sentences - a central bank's directive, a long
   quote, the China tariff extension - so the rules were narrowed to the
   above.
 
 On the 50 packets: 2,475 numbered sentences; no guidance lines, no markup;
 5 fragments, 11 repeats, 3 invitations and 4 whole-page dumps left out.
 Unmeasured: whether his plans, and the episodes written from them, are
-better for it - §527's next step 2, the combined comparison.
+better for it - §528's next step 2, the combined comparison.
 
-Tests: `tests/test_packet_cleaning_528.py` (markup off, the words kept; a
+Tests: `tests/test_packet_cleaning_529.py` (markup off, the words kept; a
 half link and a bare address; glued and cut sentences mended; tables kept,
 invitations, fragments and dumps out, a short true sentence kept; a repeat
 once; the live block gives facts and status, never guidance, and nothing
-when it found nothing). Three fixtures in §520/§523/§526's tests now use a
+when it found nothing). Three fixtures in §521/§524/§527's tests now use a
 longer second sentence: "Two members dissented." is joined to its
 neighbour by Consuela's splitter, so the fixtures' P1.2 no longer existed.
 
-## 529. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10)
+## 530. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10)
 
 (Written as §511 on its branch, where §510 was taken by Main's 11.9 packet,
 later Main's §519; every section of the branch was renumbered after Main's
-§519 at the merge, §531.)
+§519 at the merge, §532.)
 
-The owner: "Run the combined comparison" (§528's next step). Both arms were
+The owner: "Run the combined comparison" (§529's next step). Both arms were
 written fresh into `~/.fam/editor_eval_509/` on the same 50 packets: `none`,
 and `haiku_taught` - Shakespeare as he stands, with worked plans, the cleaned
-packet (§528), the writer at high effort and the signed shapes. Opus graded
+packet (§529), the writer at high effort and the signed shapes. Opus graded
 blind; no grade failures. $3.07, paused once at the owner's word ("how much
 money has been spent... we gotta stop that") and resumed at it. **The branch's
-model spend in all: ~$13.40** (§520 $6.16, §526 $2.97, §529 $3.07, the 50
-questions researched again ~$0.50, §527's reading ~$0.10). From now on a paid
+model spend in all: ~$13.40** (§521 $6.16, §527 $2.97, §530 $3.07, the 50
+questions researched again ~$0.50, §528's reading ~$0.10). From now on a paid
 run is asked for first, with its cost.
 
 **Shakespeare against no editor: no measurable difference, a third time.**
 Mean of six +0.03 [-0.11, +0.17], better on 24 questions and worse on 21
-(§437: +0.03; §520: +0.07). Nothing clears zero: repetition +0.20,
+(§437: +0.03; §521: +0.07). Nothing clears zero: repetition +0.20,
 storytelling +0.12, fewer unsupported claims +0.12 (0.48 against 0.60 a
 script), depth -0.10. He costs $0.004 more an episode and 20 s more, ahead
 of the tap.
 
-**The same arm twice** (`none` here against `none` in §520, the same packets
+**The same arm twice** (`none` here against `none` in §521, the same packets
 and code): +0.07 [-0.08, +0.22], and **information +0.27 [+0.02, +0.54]
 clears zero** - pure chance, since nothing differs but the run. So with eight
 measures and several pairs read at 50 questions, one measure clearing zero
-is expected by chance. §520's two single-measure findings - matched examples
+is expected by chance. §521's two single-measure findings - matched examples
 costing repetition (-0.37), worked plans helping it (+0.40) - are no stronger
 than that. Matched examples stay off (they showed no gain either way), and
 worked plans stay on (no harm seen); neither is shown to matter.
 
-**The cleaned packet** (Shakespeare here against Shakespeare in §520): mean
+**The cleaned packet** (Shakespeare here against Shakespeare in §521): mean
 of six -0.04 [-0.15, +0.08], 21 better and 21 worse - no change in the
 episodes. Plan-following reads higher (score 0.65 to 0.76; opening 0.62 to
-0.80; parts 0.80 to 0.98; landing 0.40 to 0.46). But §520 was measured
-before §527's fix and this run after, so most of that rise is the measure's.
+0.80; parts 0.80 to 0.98; landing 0.40 to 0.46). But §521 was measured
+before §528's fix and this run after, so most of that rise is the measure's.
 Only the run-to-run part is the cleaning's, and it cannot be separated now.
 
 **What it says.** At 1.5 minutes, from these packets, Opus's grades cannot
@@ -33031,7 +33066,7 @@ buys no more certainty. The test that can decide is listening: the editions
 trial (`EDITOR_TRIAL=1`, §454), read by `tools/editor_trial.py` and
 `tools/drop_off.py`, and free.
 
-## 530. The whole branch double-checked: what the review found, and what was fixed (2026-11-10)
+## 531. The whole branch double-checked: what the review found, and what was fixed (2026-11-10)
 
 The owner: "We dont want the editor trial. I want the changes made here now...
 it is time to double check all changes made in this branch." The editor
@@ -33042,7 +33077,7 @@ efficiency, altitude and CLAUDE.md conventions. Eight findings, all fixed,
 each with a test in `tests/test_branch_review_fixes.py`:
 
 1. **Years counted as shared figures** in the plan-following measure
-   (§527's `_plan_numbers` read "2026" through `_read_number`), so any two
+   (§528's `_plan_numbers` read "2026" through `_read_number`), so any two
    stories from this year "matched": a landing on "The 2026 season begins
    in March" scored as following "Shares... rose in 2026". Numbers are now
    read after `figure_guard._without_scaffolding`, which removes years,
@@ -33050,18 +33085,18 @@ each with a test in `tests/test_branch_review_fixes.py`:
 2. **The question's own words counted as use.** "The Federal Reserve... rate"
    in a plan beat matched any sentence naming the Federal Reserve and rates,
    which is every sentence of a Fed episode. That, not the writer, is the
-   likeliest reason §529's "parts followed" read 0.98. The question's words
+   likeliest reason §530's "parts followed" read 0.98. The question's words
    are no longer counted (`plan_following(query=...)`, passed by `note` and
    the comparison). Raising the cap from 8 to 12 was tried first: it did not
-   stop that false match, and it dropped agreement with §527's hand reading
+   stop that false match, and it dropped agreement with §528's hand reading
    from 8 of 10 to 5. The cap stays 8; agreement with the reading stays 8 of
    10.
 3. **The worked plans and the shapes went into the searchFAM tandem call**,
    whose plan must land inside the 7 s wait (§456), and they were never
    timed there. The shape he names on search is not used either. Both are
    now ahead of the tap only; on search he reads the examples alone, as
-   before §520.
-4. **Live facts lost their age.** §528 gave him the facts and the status
+   before §521.
+4. **Live facts lost their age.** §529 gave him the facts and the status
    without the "observed ... ago" the writer's block carries. The status
    line now says it: "Status: in progress, observed 40 minutes ago."
 5. **A rewrite kept the old text's sentence timings.** `record` now clears
@@ -33074,14 +33109,14 @@ each with a test in `tests/test_branch_review_fixes.py`:
 8. **No test widened an existing store with `starts`**, as §454's test did
    for `editor_arm`. Added; on SQLite and, in CI, Postgres.
 
-§529's plan-following figures were measured before 1 and 2. They read too
+§530's plan-following figures were measured before 1 and 2. They read too
 high (beats especially) and stand as measured.
 
 The review found nothing against the rules in CLAUDE.md. The settings are
 copied (`.env.example` and `config.py` agree), no key is in source, and
 nothing new runs a paid call on its own.
 
-## 531. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10)
+## 532. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10)
 
 The owner: "Double check all changes, then get this branch ready to merge
 into main. Do not complete the merge, but you can open a PR." The branch
@@ -33091,38 +33126,39 @@ training, picture variety, the operations handbook, the 11.9 packet and
 more.
 
 **Renumbered.** The branch's sections were written as §501-§509, §511 and
-§512 and are now **§520-§530**, in order: 501→520, 502→521, 503→522,
-504→523, 505→524, 506→525, 507→526, 508→527, 509→528, 511→529, 512→530.
+§512 and became §520-§530 at this merge, and **§521-§531** after Main's
+own §520 arrived (§535): 501→521, 502→522, 503→523, 504→524, 505→525,
+506→526, 507→527, 508→528, 509→529, 511→530, 512→531.
 Every reference the branch itself added (code, comments, docs, the
 examples' `_what`, tests) was renumbered with them, in its own lines only -
 Main's own §501-§519 references are untouched. Its test files were
-renamed to match: `test_worked_plans_520.py`,
-`test_examples_matched_520.py`, `test_plan_following_520.py`,
-`test_writer_training_521.py`, `test_story_shapes_523.py` and `_524.py`,
-`test_eval_findings_526.py`, `test_plan_landing_527.py`,
-`test_packet_cleaning_528.py`; `test_branch_review_fixes.py` keeps its name.
+renamed to match: `test_worked_plans_521.py`,
+`test_examples_matched_521.py`, `test_plan_following_521.py`,
+`test_writer_training_522.py`, `test_story_shapes_524.py` and `_525.py`,
+`test_eval_findings_527.py`, `test_plan_landing_528.py`,
+`test_packet_cleaning_529.py`; `test_branch_review_fixes.py` keeps its name.
 The code merged without a conflict; the conflicts were the log, its index,
 the proposals README, the manifest's signature and the previews.
 
 **Two version 7s.** The owner signed the branch's playbook v2 as that
-branch's manifest version 7 (§525). Main had meanwhile signed its own version
+branch's manifest version 7 (§526). Main had meanwhile signed its own version
 7 (`nando.md` rule 12, Main's §505), and neither signature covers both
 changes. So the merged branch keeps Main's signed version 7 and the v1
 playbook it covers: every agent runs, and `--verify` passes. The playbook v2
 waits whole in `docs/agent_rule_proposals/journalism_playbook.md`, with
-its version line now naming §524.
+its version line now naming §525.
 `docs/agent_rules/MANIFEST.pending.json` is **version 8**: Main's version 7
 with only the playbook's fingerprint changed
 (`b3147196...` for v2). Until the owner signs it, the writer reads the
 shapes from `episode_intelligence.STRUCTURES` (unchanged, word for word the
-proposal; `test_story_shapes_524.py` reads the proposal while it waits) and
+proposal; `test_story_shapes_525.py` reads the proposal while it waits) and
 Shakespeare reads v1. Signing is Main's way now (`tools/sign_rulebooks.py`,
 Main's §504, Python alone), and the signed files go to the proposals folder
-for the session to move, as §525 did.
+for the session to move, as §526 did.
 
 The previews are Main's until rebuilt after the merge.
 
-## 532. The second review, independent, before the pull request (2026-11-10)
+## 533. The second review, independent, before the pull request (2026-11-10)
 
 A fresh reviewer (a subagent given the code and the project's rules, never
 the first review's conclusions) read the whole branch read-only. It ran the
@@ -33149,16 +33185,16 @@ Six low findings, all fixed in `tests/test_branch_review_fixes.py`:
    Consuela's own filter is unchanged.
 5. **The search call was told about shapes it never sees.** The shape
    paragraph (`SHAPE_INSTRUCTIONS`) now goes ahead of the tap only, with
-   the shapes themselves (§530 already moved those).
+   the shapes themselves (§531 already moved those).
 6. **His live status lost the market-closed and delayed-feed warnings.**
    The status line now carries them beside the age: "Status: final,
    observed 5 minutes ago, the market is closed, the feed runs 15 minutes
    behind."
 
-## 533. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10)
+## 534. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10)
 
-The owner signed `MANIFEST.pending.json` (version 8, §531) on the MacBook
-Air, as for §525: the `famsign` Miniforge environment (OpenSSL 4.1), the
+The owner signed `MANIFEST.pending.json` (version 8, §532) on the MacBook
+Air, as for §526: the `famsign` Miniforge environment (OpenSSL 4.1), the
 old set cleared from the Desktop folder first, and both files' SHA-256
 checked before signing. They uploaded `MANIFEST.json` and
 `MANIFEST.json.sig` to `docs/agent_rule_proposals/` (f0b30a4, exactly two
@@ -33168,6 +33204,31 @@ then moved, in one commit, the playbook v2 to `docs/` and the manifest and
 signature to `docs/agent_rules/`, and deleted the pending manifest.
 `python tools/rulebook_manifest.py --verify`: manifest version 8, every
 agent may run. Both changes are now signed together: `nando.md` rule 12
-(Main's §505) and the playbook's story shapes (§524).
-`test_story_shapes_524.py` now reads the signed playbook. The owner
+(Main's §505) and the playbook's story shapes (§525).
+`test_story_shapes_525.py` now reads the signed playbook. The owner
 updates the copy held outside Claude.
+
+## 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10)
+
+The owner asked again for the branch to be double-checked and made ready
+to merge into Main, with a pull request but no merge (PR #240 was already
+open). Main had gained one commit since §532: "Messages only between
+friends", which took **§520**. That commit's code conflicts with nothing
+here; only the log and its index conflicted. So every section this branch
+wrote moves up by one, §520-§533 becoming **§521-§534**. Every reference
+the branch added was shifted with them, in its own lines only - Main's
+references are untouched - and its test files were renamed
+(`test_worked_plans_521.py` ... `test_packet_cleaning_529.py`).
+
+**The signed books are not touched.** `docs/journalism_playbook.md` v2,
+signed as manifest version 8 (§534), says in its version line that Part 3's
+shapes are "PROBLEMS.md §524": that section is now **§525**. Correcting it
+would change a signed book and need another signature for one number, so
+the signed text stands as signed, to be corrected at the next signing.
+`--verify`: manifest version 8, every agent may run.
+
+**Double-checked since the second review (§533):** the only changes are the
+signing (§534: the files verified against `owner.pub` and moved into place)
+and these two merges. The first review's 8 findings (§531) and the second's
+6 (§533) are fixed with tests, and neither found anything in Main's code
+that this branch changes.

@@ -8,7 +8,7 @@ break**.
 2026-10-30, PROBLEMS.md §352), except `mclovin.md`, version 3 (signed
 2026-11-04, §443), and the later signed changes to `nando.md` (§392) and
 `consuela.md` (§412), `nando.md` again (§505), and the journalism
-playbook's v2 (Part 3's story shapes, manifest version 8, §533). The owner
+playbook's v2 (Part 3's story shapes, manifest version 8, §534). The owner
 keeps the
 governing copies **outside Claude**, where no session and no agent can change
 them. When a held copy and anything in this repository disagree, the held

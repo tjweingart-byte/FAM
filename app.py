@@ -2241,7 +2241,7 @@ async def health(request: Request) -> dict:
             "own": bool(settings.edition_writer_model
                         or settings.edition_writer_effort),
         },
-        # The writer's effort wherever nobody waits (§521): the editions,
+        # The writer's effort wherever nobody waits (§522): the editions,
         # the write-ahead and prefetch warms. searchFAM is `writer_effort`.
         "ahead_writer_effort": writer_for(ScriptNotes(ahead=True))[1],
         "ahead_writer_effort_source": ("AHEAD_WRITER_EFFORT env var"
@@ -3124,6 +3124,12 @@ def _in_graph(me: str, other: str) -> bool:
                                   or SOCIAL.is_following(other, me)))
 
 
+def _mutual(me: str, other: str) -> bool:
+    """Friends: each follows the other (`op-follow-graph`)."""
+    return bool(me and other and me != other
+                and SOCIAL.is_following(me, other) and SOCIAL.is_following(other, me))
+
+
 def _reachable(me: str, other: str) -> bool:
     """Whether `me` may find or open `other` (WAITLIST.md §4).
 
@@ -3574,14 +3580,37 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
         members.append({"name": person.get("name") or "",
                         "handle": person.get("handle") or "",
                         "avatar": person.get("avatar") or "",
-                        "me": uid == me})
+                        "me": uid == me,
+                        # Whether this listener and that member follow each
+                        # other. Whoever made the group is friends with all
+                        # of it; the others may not be (§520).
+                        "friend": uid != me and _mutual(me, uid)})
     others = [m for m in members if not m["me"]]
     name = group.get("name") or ", ".join(
         _first_name(m) for m in others[:4]) + (" +%d" % (len(others) - 4)
                                                if len(others) > 4 else "")
     return {"user_id": gid, "group": True, "name": name or "Group",
             "named": bool(group.get("name")), "handle": "",
-            "avatar": group.get("avatar") or "", "members": members}
+            "avatar": group.get("avatar") or "", "members": members,
+            "warning": _group_warning([m for m in others if not m["friend"]])}
+
+
+def _group_warning(strangers: list[dict]) -> str:
+    """The sentence a member reads when the group holds people they are not
+    friends with (§520): who, and what that means. Composed here so every
+    client says the same thing; "" when they are friends with everyone."""
+    if not strangers:
+        return ""
+    names = [_first_name(m) or ("@" + m["handle"] if m.get("handle") else "someone")
+             for m in strangers]
+    if len(names) == 1:
+        who = names[0]
+    elif len(names) <= 3:
+        who = ", ".join(names[:-1]) + " and " + names[-1]
+    else:
+        who = ", ".join(names[:2]) + " and %d others" % (len(names) - 2)
+    return (f"You’re not friends with {who}. "
+            "Everyone in this group can see what you send here.")
 
 
 def _topic_label(query: str, title: str = "") -> str:
@@ -3899,6 +3928,12 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     if not messages_mod.is_group(req.to) and (
             MODERATION.is_apart(user, req.to) or MODERATION.is_suspended(req.to)):
         raise HTTPException(status_code=403, detail="You can't message this person.")
+    # A one-to-one message goes only between friends - two people who follow
+    # each other (the owner's rule, PROBLEMS.md §520). An id is not a
+    # permission: knowing somebody's id must not open a conversation.
+    if not messages_mod.is_group(req.to) and not _mutual(user, req.to):
+        raise HTTPException(status_code=403, detail=(
+            "You can message people who follow you back."))
     waiting = (WAITLIST.waitlisted_among([user] + recipients)
                if settings.waitlist else set())
     if waiting:
@@ -3955,12 +3990,13 @@ async def messages_new_group(req: GroupRequest, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     _require_can_post(user)
-    graph = {p["user_id"] for p in _without_apart(
-        user, SOCIAL.following(user) + SOCIAL.followers(user))}
+    # Friends only, as one-to-one (§520): a group is not a way round it.
+    graph = {p["user_id"] for p in _without_apart(user, SOCIAL.following(user))
+             if _mutual(user, p["user_id"])}
     picked = [u for u in dict.fromkeys(req.user_ids) if u in graph]
     if len(picked) != len(set(req.user_ids) - {user}):
         raise HTTPException(status_code=400, detail=(
-            "You can start a group with people you follow."))
+            "You can start a group with people who follow you back."))
     waiting = (WAITLIST.waitlisted_among([user] + picked)
                if settings.waitlist else set())
     if waiting:

@@ -59,6 +59,7 @@ def test_yourfam_has_no_faces_row():
 
 # --- a group's photo -----------------------------------------------------------
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_a_member_sets_and_removes_a_group_photo(client):
     signed_in(client, "gp1@b.com", "Gil", "gil1")
     others, ids = [], []
@@ -141,6 +142,7 @@ def test_the_tab_icons_are_toned_and_spring():
     assert INDEX.count('class="tone"') == 6 * INDEX.count('<div class="tabbar">')
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_a_reviewer_takes_a_reported_group_photo_down(client, monkeypatch):
     """A group's photo is content everybody in it sees, so "removed" on a
     reported group takes it down; a group with no photo is still not

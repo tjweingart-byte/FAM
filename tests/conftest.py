@@ -890,3 +890,15 @@ def _agent_writes_inline(monkeypatch):
 
     monkeypatch.setattr(agent_models, "RECORD_OFF_LOOP", False)
     monkeypatch.setattr(agent_netenyahu, "HOLD_OFF_LOOP", False)
+
+
+@pytest.fixture
+def everyone_friends(monkeypatch):
+    """For tests about conversations, groups, replies and notifications rather
+    than about who may message whom: everybody counts as friends. The rule
+    itself - one-to-one messages and new groups only between people who
+    follow each other (PROBLEMS.md §520) - has its own tests in
+    tests/test_friends_and_messages.py."""
+    import app as appmod
+
+    monkeypatch.setattr(appmod, "_mutual", lambda me, other: True)

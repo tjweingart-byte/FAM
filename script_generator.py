@@ -124,7 +124,7 @@ MAX_TEACHING_PAIRS = 6
 
 def parse_pair(text: str) -> dict:
     """A teaching pair's parts - query, before, after, why - or {} when the
-    text is not one (`examples/pairs/`, §521)."""
+    text is not one (`examples/pairs/`, §522)."""
     match = re.match(r"^(?P<query>[^\n]+)\n\nBEFORE:\n(?P<before>.+?)\n\nAFTER:\n"
                      r"(?P<after>.+?)\n\nWHY: (?P<why>[^\n]+)\n?$", text or "", re.S)
     return {k: v.strip() for k, v in match.groupdict().items()} if match else {}
@@ -133,7 +133,7 @@ def parse_pair(text: str) -> dict:
 def load_teaching_pairs() -> list[dict]:
     """`examples/pairs/*.txt`: the same episode written twice from the same
     sources - a draft with the code's flaws, and the house voice - with one
-    line on what changed (§521). Made before launch by
+    line on what changed (§522). Made before launch by
     `tools/teaching_pairs.py` and moved here by the owner; read once at
     import. A file that is not a pair is skipped and logged."""
     import pathlib
@@ -172,7 +172,7 @@ def teaching_pair_block() -> str:
 
 
 def load_example_facets() -> dict[str, str]:
-    """`examples/facets.json`: each example's facet, by file name (§520).
+    """`examples/facets.json`: each example's facet, by file name (§521).
     Empty when the file is missing or unreadable - then nothing is matched."""
     import json
     import pathlib
@@ -191,7 +191,7 @@ MATCHED_EXAMPLES = 2
 
 
 def episode_facet(plan) -> str:
-    """The facet of the story in hand, in code (§520): the brief's place in
+    """The facet of the story in hand, in code (§521): the brief's place in
     the category tree first (§311), then its category or subject resolved
     against the tree, then the question's own words. "" when nothing says.
     Never raises; never a call."""
@@ -233,7 +233,7 @@ def matched_examples(facet: str, minutes: float = 0) -> list[str]:
 
 def example_hint(plan) -> str:
     """One line in the writer's request naming the house examples closest to
-    this kind of story (`EXAMPLE_MATCHING`, §520), or "". In the request,
+    this kind of story (`EXAMPLE_MATCHING`, §521), or "". In the request,
     never the system block, so the cached instructions stay byte for byte
     the same ([writer-savings]). Never raises."""
     try:
@@ -2035,7 +2035,7 @@ async def _with_editor(plan: "EpisodePlan", notes) -> "EpisodePlan":
 
 def _with_shape(plan: "EpisodePlan", notes) -> "EpisodePlan":
     """The plan with the story shape Shakespeare chose from the packets, when
-    he changed it (§523) - a copy of the brief, which may be shared, with its
+    he changed it (§524) - a copy of the brief, which may be shared, with its
     `structure` replaced, so the writer's shape note and the quality row's
     `structure` both follow him. Ahead of the tap only: on searchFAM the
     opening is written to the brief's shape before his plan exists. Never in
@@ -2356,7 +2356,7 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
     writer is tried where nobody is waiting, and nowhere else.
 
     Wherever nobody waits (`nobody_waits`: editions, the write-ahead,
-    prefetch warms) the effort is `AHEAD_WRITER_EFFORT`, high (§521);
+    prefetch warms) the effort is `AHEAD_WRITER_EFFORT`, high (§522);
     searchFAM keeps `EFFORT`.
     """
     writer = settings.writer_model or settings.model
@@ -2375,7 +2375,7 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
 
 
 def nobody_waits(notes) -> bool:
-    """Whether this episode is written before anybody taps (§521): an
+    """Whether this episode is written before anybody taps (§522): an
     edition, an episode written ahead of the tap, or a prefetch warm."""
     return notes is not None and any(getattr(notes, flag, False)
                                      for flag in ("edition", "ahead", "prefetch"))

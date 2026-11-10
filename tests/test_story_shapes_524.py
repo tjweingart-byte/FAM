@@ -1,66 +1,110 @@
-"""The story shapes are the signed playbook's, word for word (§524).
+"""Two new story shapes, and Shakespeare may change the shape (§524).
 
-The owner (2026-11-09): "Keep the list as drafted and sign the wording".
-Each shape's text lives in the journalism playbook's Part 3, "Story
-shapes", which the owner signs (the rule-book manifest covers the playbook) -
-waiting in `docs/agent_rule_proposals/` until it is signed;
-`episode_intelligence.STRUCTURES` must hold the same words, so the writer
-reads exactly what was signed.
+The owner (2026-11-09), on docs/story_shapes.md: "Add profile and comparison,
+let Shakespeare change the shape". The brief may pick `profile` and
+`comparison`; a comparison question defaults to `comparison`. Ahead of the
+tap, Shakespeare names a shape from the same closed list - `in_progress`
+included, since he has read the packets - and the writer's shape note and
+the quality row follow him. On searchFAM the brief's shape stands.
 """
 from __future__ import annotations
 
-import os
-import re
+import asyncio
+import dataclasses
 
 import episode_intelligence as ei
+import script_generator as sg
+from agents import editor, models
+from agents.editor import EditorAnswer, _Beat
+from episode_intelligence import Brief
+from script_generator import ScriptNotes, plan_episode
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-def _playbook() -> str:
-    """The playbook as it will be signed: the proposal while it waits for
-    the owner's signature (docs/agent_rule_proposals/), else the signed one.
-    A session never edits the signed book itself."""
-    proposed = os.path.join(ROOT, "docs", "agent_rule_proposals", "journalism_playbook.md")
-    signed = os.path.join(ROOT, "docs", "journalism_playbook.md")
-    return open(proposed if os.path.exists(proposed) else signed, encoding="utf-8").read()
+EVIDENCE = ("SOURCE 1\nTitle: Fed holds\nPublished: 2026-11-02 (yesterday)\n"
+            "Source type: wire service, paper of record or primary source\n"
+            "Key evidence:\nThe Fed held rates at 4.25 percent. Two members of the committee dissented.\n")
 
 
-def _shapes_section() -> str:
-    text = _playbook()
-    start = text.index("### Story shapes")
-    return text[start:text.index("\n## Part 4", start)]
+def test_profile_and_comparison_are_shapes_the_brief_may_pick():
+    for shape in ("profile", "comparison"):
+        assert ei.STRUCTURES[shape] and shape in ei.PICKABLE_STRUCTURES
+    assert ei.INTENT_STRUCTURE["comparison"] == "comparison"
+    assert "never which one the listener should choose" in ei.STRUCTURES["comparison"]
+    assert "in_progress" not in ei.PICKABLE_STRUCTURES          # still downstream only
+    note = ei.build_structure_note(Brief(structure="profile"))
+    assert note.startswith("\nA profile story usually goes:")
 
 
-def test_every_shape_is_the_playbooks_word_for_word():
-    section = " ".join(_shapes_section().split())
-    for key, shape in ei.STRUCTURES.items():
-        assert f"(`{key}`)" in section, key
-        if shape:
-            assert f"*The shape:* {shape}." in section, key
+def test_his_shapes_are_exactly_the_briefs_vocabulary():
+    assert set(editor.SHAPES) == set(ei.STRUCTURES)
+    enum = EditorAnswer.model_json_schema()["properties"]["shape"]["enum"]
+    assert set(enum) == set(ei.STRUCTURES) | {""}
 
 
-def test_the_playbook_names_no_shape_the_code_lacks():
-    named = set(re.findall(r"\(`([a-z_]+)`\)", _shapes_section()))
-    assert named == set(ei.STRUCTURES)
+def _plan(structure="sports_recap"):
+    return dataclasses.replace(plan_episode("how did the eagles do", 1.5), search=False,
+                               evidence=EVIDENCE, brief=Brief(structure=structure))
 
 
-def test_each_shape_opens_and_lands_and_says_what_it_never_does():
-    for key, shape in ei.STRUCTURES.items():
-        if shape:
-            assert shape.startswith("open on "), key
-            assert "; land on " in shape and "; never " in shape, key
+def _answer(shape=""):
+    return EditorAnswer(answers="x", summary=["P1.1"], opening=["P1.1"],
+                        beats=[_Beat(purpose="the split", sentences=["P1.2"])],
+                        landing=["P1.2"], thin=False, missing=[], shape=shape)
 
 
-def test_no_shape_ends_on_a_forecast_or_a_summary_any_more():
-    """The three endings §522 found against the rules are gone."""
-    joined = " ".join(ei.STRUCTURES.values())
-    for old in ("then what happens next", "then what it implies",
-                "the way to think about it afterwards"):
-        assert old not in joined
+def _ask(answer):
+    async def ask(request, notes=None, client=None):
+        ask.request = request
+        return models.AgentResult(models.OK, "editor", "outline", value=answer, model="m")
+    return ask
 
 
-def test_the_writer_reads_the_signed_words():
-    note = ei.build_structure_note(ei.Brief(structure="sports_recap"))
-    assert ei.STRUCTURES["sports_recap"] in note
-    assert "Drop any part you have nothing real for" in note
+def test_he_is_shown_the_briefs_shape_and_every_shape(monkeypatch):
+    ask = _ask(_answer())
+    monkeypatch.setattr(models, "ask", ask)
+    asyncio.run(editor.outline(_plan(), ScriptNotes()))
+    evidence = dict(ask.request.material)["evidence"]
+    assert "The brief's shape: sports_recap." in evidence
+    assert f"- in_progress: {ei.STRUCTURES['in_progress']}" in evidence
+    assert "in_progress" in ask.request.instructions
+
+
+def _ahead(monkeypatch, answer, structure="sports_recap"):
+    from agents import netenyahu
+
+    monkeypatch.setattr(models, "ask", _ask(answer))
+    notes = ScriptNotes()
+    notes.ahead = True
+    notes.agents = netenyahu.EpisodeRun(("editor",), {})
+    plan = _plan(structure)
+    return asyncio.run(sg._with_editor(plan, notes)), notes, plan
+
+
+def test_ahead_of_the_tap_his_shape_reaches_the_writer(monkeypatch):
+    editor.reset()
+    out, notes, before = _ahead(monkeypatch, _answer("in_progress"))
+    assert out.brief.structure == "in_progress"
+    assert before.brief.structure == "sports_recap"             # the shared brief untouched
+    assert notes.editor["shape_from"] == "sports_recap"
+    assert ei.STRUCTURES["in_progress"] in sg.build_prompt(out)
+    assert editor.SINCE_BOOT["shape_changed"] == 1
+
+
+def test_an_empty_or_same_shape_keeps_the_briefs(monkeypatch):
+    for shape in ("", "sports_recap"):
+        out, notes, _ = _ahead(monkeypatch, _answer(shape))
+        assert out.brief.structure == "sports_recap"
+        assert "shape_from" not in notes.editor
+
+
+def test_on_search_the_briefs_shape_stands(monkeypatch):
+    monkeypatch.setattr(models, "ask", _ask(_answer("in_progress")))
+    notes = ScriptNotes()
+    assert asyncio.run(editor.outline(_plan(), notes, ahead=False))
+    assert notes.editor["shape"] == ""
+
+
+def test_no_brief_no_change():
+    notes = ScriptNotes()
+    notes.editor = {"shape": "profile"}
+    plan = dataclasses.replace(_plan(), brief=None)
+    assert sg._with_shape(plan, notes) is plan

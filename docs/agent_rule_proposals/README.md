@@ -11,7 +11,7 @@ Nothing. Manifest version 8 - `journalism_playbook.md` v2, Part 3's story
 shapes, on top of Main's version 7 - was signed on 2026-11-10 on the
 owner's MacBook Air (OpenSSL 4.1 in a Miniforge `famsign` environment) and
 uploaded to this folder; the session verified it and moved the files into
-place (PROBLEMS.md §533). Before that: version 7, `nando.md` rule 12
+place (PROBLEMS.md §534). Before that: version 7, `nando.md` rule 12
 amended (§502, §503), signed on a borrowed computer with
 `tools/sign_rulebooks.py` (§505); version 6, the merged books (§470);
 `mclovin.md` v3 (§443, version 5); v2 (§441, version 4); `consuela.md`

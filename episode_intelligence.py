@@ -98,7 +98,7 @@ INTENTS = (
 #: behind it is dropped rather than filled.
 STRUCTURES = {
     #: Each shape's text is the signed playbook's word for word (Part 3,
-    #: "Story shapes", §524): `tests/test_story_shapes_524.py` fails if the
+    #: "Story shapes", §525): `tests/test_story_shapes_525.py` fails if the
     #: two differ. Change it there, and the owner signs it.
     "breaking": (
         "open on the event itself - who did what, when - in particulars; then "

@@ -86,7 +86,7 @@ the recap's shape, not its facts.
 Anything in here is loaded automatically at startup — no code change needed. An
 empty folder simply means no examples, and the prompt is unchanged.
 
-## Facets and worked plans (§520)
+## Facets and worked plans (§521)
 
 - **Every example names its facet** in `facets.json` (one of
   `topics.FACETS`). The writer's request names the one or two examples of

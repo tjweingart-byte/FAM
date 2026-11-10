@@ -121,6 +121,7 @@ def client(monkeypatch):
         yield c
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_a_share_names_the_kept_episode_and_never_another_question(client):
     query = "why do bonds move when rates rise"
     key = cache_key(query, 3, None, "", True)

@@ -76,7 +76,7 @@ class NumberedSource:
         return ("P" if self.packet == "plugin" else "A") + str(self.number)
 
 
-#: Page furniture in a source, cleaned before he numbers it (§528). The
+#: Page furniture in a source, cleaned before he numbers it (§529). The
 #: words kept are the publisher's: markup is taken off, never a word changed.
 _LINK = re.compile(r"\[([^\]]*)\]\((?:https?://|/)[^)]*\)")
 #: A link the source's excerpt cut in half: "that [it had opened an inquiry".
@@ -87,7 +87,7 @@ _EMPHASIS = re.compile(r"\*\*|__|^\s*(?:#+|[-*•]|\d+\.)\s+", re.M)
 #: Two sentences scraped together with no space: "agreed to.The efforts".
 _GLUED = re.compile(r"(?<=[a-z0-9%][.!?])(?=[A-Z][a-z])")
 #: The page around an article, as Consuela screens it (§466) less her table
-#: rows - a standings table is evidence a sports episode lands on (§527) -
+#: rows - a standings table is evidence a sports episode lands on (§528) -
 #: and in the page's own voice only ("subscribe to our"): "households chose
 #: to subscribe to the ad tier" is a business story's evidence (the review).
 _INVITATION = re.compile(
@@ -112,7 +112,7 @@ def _clean(text: str) -> str:
 
 
 def _split(text: str, dropped: Optional[collections.Counter] = None) -> list:
-    """A source's text as he numbers it (§528): Consuela's own sentences
+    """A source's text as he numbers it (§529): Consuela's own sentences
     (`evidence_digest.split_sentences`, never cut at "Oct." or "p.m."), with
     markup taken off, and invitations to click, fragments, whole-page dumps
     and repeats left out - each counted in `dropped`."""
@@ -144,7 +144,7 @@ def _split(text: str, dropped: Optional[collections.Counter] = None) -> list:
 
 
 def _live_sentences(live) -> list:
-    """The live state's facts, as he numbers them (§528): its status and
+    """The live state's facts, as he numbers them (§529): its status and
     each fact the provider gave - never the guidance written around them for
     the writer ("Not knowing is not the same as nothing having happened..."),
     which he used to be handed as if it were a source. A lookup that found
@@ -241,7 +241,7 @@ class _Beat(BaseModel):
     sentences: list[str]
 
 
-#: The shapes he may name (§523): every key of
+#: The shapes he may name (§524): every key of
 #: `episode_intelligence.STRUCTURES`, `in_progress` included - he reads the
 #: packets, so unlike the brief he can see that nothing has finished. ""
 #: keeps the brief's. A closed list, so no fact can be written into it.
@@ -266,7 +266,7 @@ class EditorAnswer(BaseModel):
     thin: bool
     missing: list[str]
     #: The story's shape, when the packets show a better fit than the
-    #: brief's (§523); "" keeps it.
+    #: brief's (§524); "" keeps it.
     shape: Shape = ""
 
 
@@ -278,7 +278,7 @@ The worked episodes in `<teaching>` show the house style the writer is held to: 
 
 
 #: Ahead of the tap only, where his shape is used and the shapes are shown
-#: (§523); on searchFAM neither is (the review).
+#: (§524); on searchFAM neither is (the review).
 SHAPE_INSTRUCTIONS = "\n\n" + """The brief chose a shape for this story before anything was searched (it is named, with the shapes it could be, at the top of `<evidence>`). Now that you have read the packets, keep it - leave `shape` empty - or name the one that fits what the packets actually hold: above all `in_progress` when the question wants a result and no sentence reports one as finished, `profile` for a person, `comparison` for one thing against another. Plan the beats to the shape you choose."""
 
 
@@ -301,7 +301,7 @@ _EXAMPLES: Optional[str] = None
 
 
 def _teaching(plan) -> str:
-    """His `<teaching>`: the house examples, then the worked plans (§520),
+    """His `<teaching>`: the house examples, then the worked plans (§521),
     with the ones closest to this episode's kind of story named."""
     from agents import worked_plans
     from config import settings
@@ -436,10 +436,10 @@ def writer_block(outline: Outline, answers: str, sources: list) -> str:
         lines.append(f"Part {i}{' (history)' if history else ''}: {beat.purpose}")
         lines += [f"- {_text(r, sources)}" for r in beat.refs]
     if outline.landing:
-        # The landing is where the writer leaves the plan most (§526: 35-40%
+        # The landing is where the writer leaves the plan most (§527: 35-40%
         # of episodes ended where he planned, against ~80% of the parts).
         # Worded as "your last sentence" it did not move (40% to 42%) and the
-        # hook leaned worse, so the wording is back as it was (§527).
+        # hook leaned worse, so the wording is back as it was (§528).
         lines.append("Land on:")
         lines += [f"- {_text(r, sources)}" for r in outline.landing]
     if outline.missing:
@@ -475,7 +475,7 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
                     ("archive", archive or "(nothing)"),
                     # Worked plans and the shapes only ahead of the tap: on
                     # searchFAM his plan must land inside the tandem's wait,
-                    # and the shape he names there is not used (§523).
+                    # and the shape he names there is not used (§524).
                     ("teaching", _teaching(plan) if ahead else _examples())]
         request = models.AgentRequest(
             agent="editor", task="outline", switch_setting="editor_agent",
@@ -502,7 +502,7 @@ async def outline(plan, notes=None, *, ahead: bool = True, client=None,
                             "missing": list(built.missing), "dropped": report,
                             "model": getattr(result, "model", ""),
                             "plan": plan_texts(built, sources) if block else None,
-                            # A shape he changed (§523); applied by the
+                            # A shape he changed (§524); applied by the
                             # writer's side ahead of the tap.
                             "shape": (shape_change(result.value, plan)
                                       if block and ahead else "")}
@@ -524,7 +524,7 @@ def report() -> dict:
                 "trial": bool(getattr(settings, "editor_trial", False)),
                 # Beside the writer on searchFAM (§456).
                 "tandem": bool(getattr(settings, "editor_tandem", False)),
-                # The worked plans in his teaching (§520): how many loaded,
+                # The worked plans in his teaching (§521): how many loaded,
                 # 0 when off.
                 "worked_plans": (len(_worked_plans_loaded())
                                  if getattr(settings, "editor_worked_plans", True) else 0)}

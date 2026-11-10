@@ -1,4 +1,4 @@
-"""Shakespeare's worked plans: check them, and draft one for a new example (§520).
+"""Shakespeare's worked plans: check them, and draft one for a new example (§521).
 
     python tools/editor_teaching.py --check              # no key, no network
     python tools/editor_teaching.py --draft 2-house-music # needs ANTHROPIC_API_KEY

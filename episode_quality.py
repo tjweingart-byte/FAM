@@ -337,11 +337,11 @@ def _measure(sentences: list[str], query: str, evidence: str,
 
 
 # ------------------------------------------------------------------ for the ear
-#: Writing for the ear (§521): the journalism playbook's Part 2, the parts a
+#: Writing for the ear (§522): the journalism playbook's Part 2, the parts a
 #: pattern can see, checked on every episode - never one of the six metrics
 #: the grader marks, and never enforced. Each check names the sentences it
 #: flagged, by position, so `drop_off` can ask whether listeners leave there.
-#: Tuned on the house examples (§521), which the checks must pass: their
+#: Tuned on the house examples (§522), which the checks must pass: their
 #: longest sentences run to 40-odd words and still read clean aloud.
 EAR_LONG_WORDS = 40          # one idea per sentence (Part 2, 1)
 EAR_LEAD_WORDS = 12          # subject and verb early (2)
@@ -477,7 +477,7 @@ class QualityStore:
                            "TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
-            # Where each sentence starts, as a share of the episode (§521),
+            # Where each sentence starts, as a share of the episode (§522),
             # copied from the kept audio: it outlives the audio's week.
             try:
                 db.execute("ALTER TABLE episodes ADD COLUMN starts "
@@ -532,7 +532,7 @@ class QualityStore:
             if before is not None and before[0] != row.get("sentences"):
                 db.execute("DELETE FROM labels WHERE key = ? AND sourced = ?",
                            (row.get("key"), row.get("sourced")))
-                # The old text's sentence timings no longer describe it (§521).
+                # The old text's sentence timings no longer describe it (§522).
                 db.execute("UPDATE episodes SET starts = '' WHERE key = ? AND sourced = ?",
                            (row.get("key"), row.get("sourced")))
             db.execute(
@@ -808,7 +808,7 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
 def note_starts(key: str, sourced, sentences: list, starts: list,
                 seconds: float) -> None:
     """Where each spoken sentence began, as a share of the episode's length
-    (§521), kept on its quality row when its audio is kept - so `drop_off`
+    (§522), kept on its quality row when its audio is kept - so `drop_off`
     can say which sentence a listener stopped at long after the audio is
     gone. A share, not seconds: another voice reads at another pace, and
     listens record only how far through they got. Never raises."""
@@ -1343,7 +1343,7 @@ def editor_trial(days: float = 14.0, now: Optional[float] = None,
 PLAN_SHARED_WORDS = 2
 PLAN_SHARED_SHARE = 0.25
 #: A long source "sentence" - a standings table, a press release's header -
-#: is judged against at most this many of its words (§527: with the whole
+#: is judged against at most this many of its words (§528: with the whole
 #: length as the denominator no table could ever be matched). The question's
 #: own words are not counted at all (`plan_following`'s `query`): a name the
 #: whole episode repeats is no sign a sentence was used (the branch review).
@@ -1377,13 +1377,13 @@ _CLOCK_OR_ORDINAL = re.compile(
 
 def _plan_numbers(sentence: str) -> set:
     """Every number a sentence states, printed or spoken - "7.9%" and "seven
-    point nine percent" are one figure (§527: the writer reads numbers out,
+    point nine percent" are one figure (§528: the writer reads numbers out,
     the sources print them). Years, dates and clock times are left out."""
     try:
         import figure_guard
 
         # Years, dates and clock times out first, as figure_guard does for
-        # its own material: every story this year shares "2026" (§527 review).
+        # its own material: every story this year shares "2026" (§528 review).
         text = figure_guard._without_scaffolding(sentence or "")
         # And what scaffolding misses: "2 p.m.", "4 pm", "the 3rd" (the review).
         text = _CLOCK_OR_ORDINAL.sub(" ", text)
@@ -1533,7 +1533,7 @@ def example_candidates(days: float = 30.0, min_listens: int = CANDIDATE_MIN_LIST
                        quality: Optional[QualityStore] = None,
                        facet_of: Optional[Callable] = None) -> dict:
     """Written episodes listeners heard through, proposed as new `examples/`
-    (§520) - for the owner to read and approve, never added by code.
+    (§521) - for the owner to read and approve, never added by code.
 
     Per facet, the episodes with at least `min_listens` listens, the most
     heard to 85% first, then the fewest left in 20 s; each with its query,
@@ -1630,7 +1630,7 @@ def _positions(row: dict, sentences: list) -> tuple:
 def drop_off(days: float = 30.0, min_reached: int = DROP_MIN_REACHED,
              top: int = DROP_TOP, now: Optional[float] = None,
              quality: Optional[QualityStore] = None) -> dict:
-    """Which sentences listeners stop at (§521): for every sentence, of the
+    """Which sentences listeners stop at (§522): for every sentence, of the
     listeners who reached it, the share who stopped there and heard nothing
     after - its *exit rate*. A listener who heard `FINISHED_SHARE` finished
     and stopped nowhere.

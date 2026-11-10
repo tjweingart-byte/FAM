@@ -1,4 +1,4 @@
-# Before-and-after pairs (§521)
+# Before-and-after pairs (§522)
 
 Each `.txt` here is the same episode written twice from the same sources: a
 draft with the flaws FAM's code measures name, and the house voice. The

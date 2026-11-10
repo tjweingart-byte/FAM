@@ -1,8 +1,8 @@
-# Story shapes - draft for the owner (§522)
+# Story shapes - draft for the owner (§523)
 
-**Status: signed (§533).** The owner (2026-11-09): "Add profile and
-comparison, let Shakespeare change the shape" (§523), then "Keep the list as
-drafted and sign the wording" (§524). The wording is the signed playbook's
+**Status: signed (§534).** The owner (2026-11-09): "Add profile and
+comparison, let Shakespeare change the shape" (§524), then "Keep the list as
+drafted and sign the wording" (§525). The wording is the signed playbook's
 Part 3, "Story shapes" (`docs/journalism_playbook.md` v2, manifest version
 8), and word for word `episode_intelligence.STRUCTURES`, which the writer
 reads. This file stays as the reasoning behind it.
@@ -186,7 +186,7 @@ county), and a shape would compete with it.
    never the cached system block ([writer-savings]).
 5. **One example per shape.** `examples/facets.json` gains a shape per
    example, and the writer's request names the example of its shape as well
-   as its facet (§520). The gaps above are filled from listening
+   as its facet (§521). The gaps above are filled from listening
    (`tools/example_candidates.py`) or pairs made before launch
    (`tools/teaching_pairs.py`), approved by hand.
 6. **Measured per shape:** `tools/editor_eval.py` before and after on the
