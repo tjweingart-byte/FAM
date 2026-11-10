@@ -254,7 +254,7 @@ was playing: transcript ≤ 30,000 chars, ≤ 30 sources, §175), `resolved_at`,
 - `daily_editions`: the 05:00 Eastern edition's build ledger (claimed, built).
 
 **quotas.db**: `counters` and per-episode `charges` per window. Enforced in
-production since §207 (`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`).
+production from §207 until §510, which set `ENFORCE_QUOTAS=0` on `fam` (everyone unlimited for now).
 
 **metering.db**: `usage`, one row per episode: tokens (including
 `cache_read_tokens`/`cache_write_tokens`, §179), web searches (`web_searches`; renamed from the first vendor's name in §279), live calls,
@@ -584,7 +584,7 @@ is never accepted from the client (`listener-id-server`).
 | BALLDONTLIE | Per minute, from the plan (`BALLDONTLIE_TIER`: free 5, all-star 60, goat 600) | `balldontlie.PER_MINUTE` |
 | GDELT export copy | 24 hours kept, 1,500 articles per file, 8 files backfilled, polled every 900 s; stale after 1 h (§211; the breaker is deleted) | `config.py:820-831`, `gdelt.STALE_AFTER_SECONDS` |
 | Pace per listener | 1 generation per 3 s, burst 3; 60 reads per window | `config.py:1456-1466` |
-| Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **On in production** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |
+| Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **Off in production for now** (`ENFORCE_QUOTAS=0` in `render.yaml`, §510; on from §207), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |
 | Waitlist referrals | ≤ 20 credited per code per hour | `WAITLIST_REFERRALS_PER_HOUR` |
 | Admin SQL | Read-only SELECT, 500 rows, 4 s | `admin_tracker.py:62-64` |
 | Account visibility | A listener id is only ever taken from the server-minted session, never from a parameter | `app._listener` |

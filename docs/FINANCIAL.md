@@ -574,8 +574,8 @@ What the table shows:
 
 ### 4.3 The free-tier ("free" plan) exposure
 
-Quotas are built, off by default, and **enforced in production** since §207
-(`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`). No checkout exists: admin
+Quotas are built, off by default, and were enforced in production from §207;
+**off again since §510** (`ENFORCE_QUOTAS=0` on `fam` in `render.yaml`, everyone unlimited for now). No checkout exists: admin
 accounts are unlimited, and `POST /api/admin/plan` moves anybody else.
 
 The tiers exist in code (`entitlements.py:219-247`):

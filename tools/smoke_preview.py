@@ -760,6 +760,49 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
+        def go_deeper_keeps_the_mix_and_captions_are_a_pill():
+            """The owner's 11.9 packet (§510): a Go Deeper on a myFAM
+            playlist's episode used to end the playlist - the follow-up was
+            "something else started", so `mixPlay` was dropped and the rest of
+            the mix vanished from the queue. It is a detour now: the playlist
+            waits behind it and carries on after. And captions are a CC pill
+            beside the queue that opens them over the picture."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(300)
+            page.evaluate("document.querySelectorAll('.gd-card')[0].click()")
+            page.wait_for_timeout(1200)
+            page.evaluate(
+                "mixPlay = { name:'Morning', id:'', pos:0, key:currentPlayingTopicKey,"
+                " order:[{id:'a', title:'One'}, {id:'b', title:'NFL'}, {id:'c', title:'Pop'}] };"
+                " startFollowUp('what happens next', currentPlayingTopicKey, 2)")
+            page.wait_for_timeout(1200)
+            assert page.evaluate("!!mixPlay && mixPlay.order.length === 3 && mixPlay.pos === 0"), \
+                "the Go Deeper ended the playlist"
+            assert page.evaluate("TOPICS[currentPlayingTopicKey].mixDetour === mixPlay.key"), \
+                "the follow-up does not know which playlist episode it left"
+            assert not page.eval_on_selector("#mixSkipBtn", "e => e.hidden"), \
+                "the next button went with the playlist"
+            page.evaluate("openQueue()")
+            page.wait_for_timeout(300)
+            text = page.text_content("#sheetCard")
+            assert "Next from Morning" in text and "NFL" in text, \
+                f"the queue lost the playlist's rest: {text!r}"
+            page.evaluate("closeSheet(); mixPlay = null; drawMixSkip(false)")
+            # Captions: a labelled pill beside the queue, opening over the picture.
+            pill = page.query_selector("#screen-player .pc-row2 #ccIcon")
+            assert pill and "Captions" in pill.text_content(), "no CC pill on the player"
+            assert page.query_selector("#playerStage #ccPanel"), \
+                "the captions are not read over the picture"
+            pill.click()
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector("#ccPanel", "e => e.classList.contains('on')"), \
+                "the pill did not turn captions on"
+            assert page.eval_on_selector("#ccIcon", "e => e.getAttribute('aria-pressed')") == "true"
+            pill.click()
+            page.wait_for_timeout(300)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(300)
+
         def the_sources_cluster_shows_three_in_the_corner():
             """It was fetched when an episode *ended* and when Go Deeper
             opened, and nowhere else - so the one moment it is for, somebody
@@ -3038,7 +3081,7 @@ def main() -> int:
                 assert not page.query_selector("#screen-profile " + gone), \
                     f"{gone} is still on YourFAM"
             assert page.text_content(
-                "#screen-profile .tabbar .tab.active .lbl").strip() == "YourFAM", \
+                "#screen-profile .tabbar .tab.active .lbl").strip() == "yourFAM", \
                 "the last tab is not YourFAM"
 
         def location_is_collected_and_editable():
@@ -4366,6 +4409,8 @@ def main() -> int:
         check("Report and Block are in the menus", report_and_block_are_in_the_menus)
         check("Forgot password is two steps on the log-in screen",
               forgot_password_is_two_steps_on_the_log_in_screen)
+        check("Go Deeper keeps a playlist going; captions are a pill",
+              go_deeper_keeps_the_mix_and_captions_are_a_pill)
 
         if errors:
             failures.append(f"page errors: {errors}")

@@ -84,8 +84,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **The player is Spotify's layout** (§190): Home logo (§255), picture (4:3, §192;
   centred between GO DEEPER and the title; `pick_for_player` borrows (tiles
   §214), by category §247, named team first §282, never hashed, several per broad node §507; mini player cropped §193), sources by it, GO
-  DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
-  slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
+  DEEPER pill at the top, share/vibe/save on the right (§192), CC pill,
+  captions on the picture (§510), ⋯ menu; no "exclude from taste"; searcher
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
@@ -93,7 +93,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Categories are filter chips** (§229/§500): a row atop myFAM filters in
   place; today's cache; a tap plays. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
-  tile's ⋯; client state only; plays before the grid. [queue]
+  tile's ⋯; client state; plays before the grid; a mix survives Go Deeper
+  (§510). [queue]
 
 - **exploreFAM is out of the app** (§499): no reel, pill or swipe; a
   category plays in the player; `/api/explore`, comments kept for old
@@ -108,7 +109,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and docs keep the
-  old names. [names-swapped]
+  old names; tabs dailyFAM/myFAM/yourFAM (§510). [names-swapped]
 
 ## What an episode is (`product.md`)
 
@@ -425,8 +426,8 @@ Accounts, tiers, sharing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
-- **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207);
-  admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]
+- **Tiers built, off for now** (`ENFORCE_QUOTAS=0`, §510; `1`
+  restores §207); admins `unlimited`; no checkout. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every
