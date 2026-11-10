@@ -306,16 +306,6 @@ struct MixPlaylist: Equatable {
     /// where it was once the detour is over (the owner's call, differing
     /// from the web's §519, which moves on to the next episode).
     var interrupted: InterruptedItem?
-}
-
-/// The playlist's episode as a detour left it: the episode, the id of the
-/// audio heard (`X-FAM-Episode`, so the same audio replays, never rewritten)
-/// and the position to seek back to.
-struct InterruptedItem: Equatable {
-    var episode: Episode
-    var episodeID: String
-    var position: Double
-
     /// Nil while `pos` is -1: the item playing was taken out of the
     /// playlist and the next one is still to come.
     var current: MixItem? { pos >= 0 && pos < order.count ? items[order[pos]] : nil }
@@ -336,4 +326,13 @@ struct InterruptedItem: Equatable {
         }
         return (item.query, false)
     }
+}
+
+/// The playlist's episode as a detour left it: the episode, the id of the
+/// audio heard (`X-FAM-Episode`, so the same audio replays, never rewritten)
+/// and the position to seek back to.
+struct InterruptedItem: Equatable {
+    var episode: Episode
+    var episodeID: String
+    var position: Double
 }
