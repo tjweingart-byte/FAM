@@ -24,6 +24,10 @@ public final class ConsentModel: ObservableObject {
 
     private let api: SafetyAPI
     private var waiting: CheckedContinuation<Bool, Never>?
+    /// Called when the answer could not be read, so the tap that asked is
+    /// not silent: the web says "Couldn't reach FAM. Try again."
+    /// (`withAiConsent`). The app sets it to its toast.
+    public var unreachable: () -> Void = {}
 
     public init(api: SafetyAPI) { self.api = api }
 
@@ -39,7 +43,10 @@ public final class ConsentModel: ObservableObject {
     public func ensure() async -> Bool {
         if current?.given == true { return true }
         if current == nil { current = try? await api.consent() }
-        guard let consent = current else { return false }
+        guard let consent = current else {
+            unreachable()
+            return false
+        }
         if consent.given { return true }
         return await withCheckedContinuation { continuation in
             waiting?.resume(returning: false)
@@ -98,7 +105,18 @@ public struct ConsentSheet: View {
 public extension View {
     /// Presents `ConsentSheet` whenever `model.ensure()` is waiting on an answer.
     func aiConsentSheet(_ model: ConsentModel) -> some View {
-        sheet(item: Binding(
+        modifier(AIConsentSheet(model: model))
+    }
+}
+
+/// Observes the model, so the sheet appears when `asking` changes. Read
+/// through a plain parameter (as this first did), nothing redraws when
+/// `ensure()` starts asking, and the question is never shown (§538).
+struct AIConsentSheet: ViewModifier {
+    @ObservedObject var model: ConsentModel
+
+    func body(content: Content) -> some View {
+        content.sheet(item: Binding(
             get: { model.asking.map(IdentifiedConsent.init) },
             set: { if $0 == nil, model.asking != nil { Task { await model.answer(false) } } }
         )) { item in
