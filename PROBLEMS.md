@@ -32280,3 +32280,12 @@ claim ("record high"); "world record" is a subject and is exempted by
 name, the ban otherwise unchanged. §512's tests used both phrases as
 examples of grown phrases the check hides; they now use "record label"
 and "power bill". `test_power_grid_and_world_record_are_seeded`.
+
+## 516. "nfl trade rumors" seeded (2026-11-10)
+
+The owner: "add nfl trade rumors to the seed". It holds "trade", a
+`NEVER_ALONE` word, so only the seed can hold it (§512). It sits under
+`nfl`, beside `nfl draft`, so it is deeper than the league and wins the
+picture. Matching is the phrase in order (§209): "NFL trade rumors"
+matches; "Steelers trade rumors" does not (that is the team's node).
+`test_nfl_trade_rumors_is_seeded`.

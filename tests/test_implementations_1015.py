@@ -549,3 +549,15 @@ def test_power_grid_and_world_record_are_seeded(betting_tree):
     assert betting_tree.get("world record").parent_id == "sports"
     assert "power grid" in betting_tree.match("strain on the Texas power grid")
     assert "world record" in betting_tree.match("a new marathon world record")
+
+
+def test_nfl_trade_rumors_is_seeded(betting_tree):
+    """§516: under the league, beside the draft; it holds "trade", a
+    `NEVER_ALONE` word, so only the seed holds it (§512)."""
+    assert betting_tree.get("nfl trade rumors").parent_id == "nfl"
+    assert "nfl trade rumors" in betting_tree.match(
+        "The latest NFL trade rumors before the deadline")
+    _paint("nfl trade rumors")
+    _paint("nfl")
+    got = th.pick_for_player("The latest NFL trade rumors")
+    assert got["node"] == "nfl trade rumors"

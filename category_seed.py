@@ -242,7 +242,9 @@ SEED: dict[str, dict] = {
                               "quarterback play": {},
                               # §513: under the league, so the draft
                               # outranks "nfl" for its own episodes.
-                              "nfl": {**NFL_TEAMS, "nfl draft": {}}},
+                              "nfl": {**NFL_TEAMS, "nfl draft": {},
+                                      # §516: "trade" is never alone.
+                                      "nfl trade rumors": {}}},
         "basketball": {"playoff basketball": {}, "draft prospects": {},
                        "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
