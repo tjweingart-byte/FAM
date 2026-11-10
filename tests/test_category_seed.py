@@ -114,7 +114,13 @@ def test_no_seed_node_claims_anything_about_the_world(seeded):
     rates" would be a claim."""
     banned = {"wins", "won", "beat", "beats", "cuts", "cut", "rises", "rose",
               "falls", "fell", "record", "crisis", "dead", "dies", "wins"}
+    # §515, the owner: "world record" is a subject (the records of every
+    # sport), not a claim; "record" stays banned everywhere else ("record
+    # high", "record profits").
+    subjects = {"world record"}
     for node in seeded.nodes().values():
+        if node.id in subjects:
+            continue
         assert not (set(node.id.split()) & banned), node.id
         assert not any(c.isdigit() for c in node.id), node.id
 

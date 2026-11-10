@@ -451,14 +451,14 @@ def test_the_report_lists_grown_one_word_nodes(betting_tree):
 
     betting_tree.mint("irons", parent_id="materials science", listeners=4)
     _grown(betting_tree, "lead", "materials science", 2)
-    _grown(betting_tree, "world record", "sports", 1)
+    _grown(betting_tree, "record label", "culture", 1)
     betting_tree.reload()
     rows = {r["node"]: r for r in categories_report.alone_rows(betting_tree)}
     assert rows["irons"]["branch"].endswith("materials science > irons")
     assert not rows["irons"]["silenced"]
     assert rows["lead"]["silenced"]
-    assert rows["world record"]["silenced"]
-    assert rows["world record"]["branch"] == "sports > world record"
+    assert rows["record label"]["silenced"]
+    assert rows["record label"]["branch"] == "culture > record label"
     assert "golf" not in rows          # the seed is not a candidate
 
 
@@ -476,19 +476,19 @@ def test_a_grown_phrase_holding_an_everyday_word_is_not_a_category(betting_tree)
     important categories to have." A grown phrase holding a `NEVER_ALONE`
     word is refused at mint and, already on disk, left out of the tree as
     read: no match, no `get`, not in `nodes()`; listed by `silenced()`."""
-    for phrase in ("world record", "power grid", "lead poisoning"):
+    for phrase in ("record label", "power bill", "lead poisoning"):
         assert betting_tree.mint(phrase, parent_id="science") is None, phrase
         _grown(betting_tree, phrase, "science", 1)
     # A child of a silenced node keeps its place, without it.
-    _grown(betting_tree, "usain bolt", "world record", 2)
+    _grown(betting_tree, "usain bolt", "record label", 2)
     betting_tree.reload()
-    for phrase in ("world record", "power grid", "lead poisoning"):
+    for phrase in ("record label", "power bill", "lead poisoning"):
         assert betting_tree.get(phrase) is None
         assert phrase not in betting_tree.nodes()
         assert phrase not in betting_tree.match(f"the {phrase} story")
         assert phrase in betting_tree.silenced()
     found = betting_tree.match("Usain Bolt")
-    assert "usain bolt" in found and "world record" not in found
+    assert "usain bolt" in found and "record label" not in found
     # A phrase without a listed word grows as before.
     assert betting_tree.mint("wildfire", parent_id="science")
 
@@ -540,3 +540,12 @@ def test_world_cup_qualifiers_and_power_outage_are_seeded(betting_tree):
     _paint("world cup")
     got = th.pick_for_player("Where Italy stands in the World Cup qualifiers")
     assert got["node"] == "world cup qualifiers"
+
+
+
+def test_power_grid_and_world_record_are_seeded(betting_tree):
+    """§515: both hold `NEVER_ALONE` words, so only the seed holds them."""
+    assert betting_tree.get("power grid").parent_id == "energy security"
+    assert betting_tree.get("world record").parent_id == "sports"
+    assert "power grid" in betting_tree.match("strain on the Texas power grid")
+    assert "world record" in betting_tree.match("a new marathon world record")

@@ -233,6 +233,8 @@ SEED: dict[str, dict] = {
         # Seeded because each holds a `NEVER_ALONE` word and the tree would
         # otherwise never grow it (§512).
         "trade deadline": {}, "salary cap": {},
+        # §515: every sport's.
+        "world record": {},
         # §187: the leagues, so a question about one files it as a subject
         # (depth two) rather than as the whole of a sport. §202: and their
         # teams, a level below.
@@ -363,7 +365,9 @@ SEED: dict[str, dict] = {
                                    "national elections": {}},
         "trade policy": {"tariffs": {}, "sanctions": {}},
         "immigration": {},
-        "energy security": {"oil supply": {}},
+        "energy security": {"oil supply": {},
+                            # §515: seeded, as "power" is never alone.
+                            "power grid": {}},
         "urban policy": {"urban housing": {}, "public transport": {}},
         "food supply": {},
         # §235: what one town is talking about - its council, its schools,

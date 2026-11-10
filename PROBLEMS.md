@@ -32268,3 +32268,15 @@ is nearly always a town's question, so the writer is offered it first when
 the brief names a town (`stories.writer_vocabulary`) and the scene writer
 paints it as an ordinary town (`thumbnails.WRITER_SYSTEM`).
 `test_world_cup_qualifiers_and_power_outage_are_seeded`.
+
+## 515. "power grid" and "world record" seeded (2026-11-10)
+
+The owner: "add power grid and world record to the seed". Both hold
+`NEVER_ALONE` words, so only the seed can hold them (§512). `power grid`
+sits under `energy security` beside `oil supply`; `world record` belongs
+to every sport and sits directly under `sports`. `test_category_seed`
+bans "record" from seed names because a category names a subject, never a
+claim ("record high"); "world record" is a subject and is exempted by
+name, the ban otherwise unchanged. §512's tests used both phrases as
+examples of grown phrases the check hides; they now use "record label"
+and "power bill". `test_power_grid_and_world_record_are_seeded`.
