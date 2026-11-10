@@ -375,11 +375,11 @@ def test_a_reply_to_a_vibe_is_not_a_share(world):
 
 
 def test_a_word_on_another_facet_never_outranks_the_category(betting_tree):
-    """The owner 11.9 ("Rock Lead Theory", §509): a grown `lead` node under
+    """The owner 11.9 ("Rock Lead Theory", §510): a grown `lead` node under
     science - the metal - was two levels deep, and "Scheffler takes a
     two-stroke lead" put a golf episode on its picture. A named subject
     outranks the category only on the category's own facet (§282). `lead`
-    itself is never alone now (§510), so another word stands in for it."""
+    itself is never alone now (§511), so another word stands in for it."""
     betting_tree.mint("irons", parent_id="materials science")
     betting_tree.reload()
     _paint("irons", facet="science")
@@ -392,7 +392,7 @@ def test_a_word_on_another_facet_never_outranks_the_category(betting_tree):
 
 
 def test_lead_is_never_a_category_on_its_own(betting_tree):
-    """§510: "lead" is never minted alone, and a `lead` node grown before
+    """§511: "lead" is never minted alone, and a `lead` node grown before
     the rule reads as nothing, so the deployed tree needs no migration."""
     import category_seed
 
@@ -409,12 +409,12 @@ def test_lead_is_never_a_category_on_its_own(betting_tree):
     assert "lead" not in betting_tree.match(words)
     got = th.pick_for_player(words)
     assert not got or got["node"] != "lead"
-    # §512: nor does a phrase holding it.
+    # §513: nor does a phrase holding it.
     assert betting_tree.mint("lead poisoning", parent_id="materials science") is None
 
 
 def test_no_everyday_word_is_a_category_on_its_own(betting_tree):
-    """§511: every word in `NEVER_ALONE` is refused alone and matches
+    """§512: every word in `NEVER_ALONE` is refused alone and matches
     nothing when an older tree already holds it; none is a seed node or an
     alias, which the list would otherwise silence."""
     import category_seed
@@ -443,7 +443,7 @@ def test_no_everyday_word_is_a_category_on_its_own(betting_tree):
 
 
 def test_the_report_lists_grown_one_word_nodes(betting_tree):
-    """§511: `categories_report.py --alone` is how the next everyday word
+    """§512: `categories_report.py --alone` is how the next everyday word
     is found on a deployment: grown one-word nodes, marked when silenced."""
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__))), "tools"))
@@ -472,7 +472,7 @@ def _grown(tree, phrase, parent, depth):
 
 
 def test_a_grown_phrase_holding_an_everyday_word_is_not_a_category(betting_tree):
-    """§512, the owner: "longer phrases can't be categories. These are not
+    """§513, the owner: "longer phrases can't be categories. These are not
     important categories to have." A grown phrase holding a `NEVER_ALONE`
     word is refused at mint and, already on disk, left out of the tree as
     read: no match, no `get`, not in `nodes()`; listed by `silenced()`."""
@@ -494,7 +494,7 @@ def test_a_grown_phrase_holding_an_everyday_word_is_not_a_category(betting_tree)
 
 
 def test_the_seeds_own_phrases_are_never_silenced(betting_tree):
-    """§512: "super bowl", "stock market", "supreme court" are the owner's
+    """§513: "super bowl", "stock market", "supreme court" are the owner's
     and stay - seeded, refreshed by a sweep, or first grown before the seed
     named them (a grown source)."""
     for phrase in ("super bowl", "world cup", "stanley cup", "stock market",
@@ -511,8 +511,8 @@ def test_the_seeds_own_phrases_are_never_silenced(betting_tree):
 
 
 def test_the_owners_phrases_with_everyday_words_are_seeded(betting_tree):
-    """§513: "nfl draft", "trade deadline" and "salary cap" hold
-    `NEVER_ALONE` words, so only the seed can hold them (§512)."""
+    """§514: "nfl draft", "trade deadline" and "salary cap" hold
+    `NEVER_ALONE` words, so only the seed can hold them (§513)."""
     assert betting_tree.ancestors("nfl draft")[:2] == ["nfl", "american football"]
     assert betting_tree.get("trade deadline").parent_id == "sports"
     assert betting_tree.get("salary cap").parent_id == "sports"
@@ -526,8 +526,8 @@ def test_the_owners_phrases_with_everyday_words_are_seeded(betting_tree):
 
 
 def test_world_cup_qualifiers_and_power_outage_are_seeded(betting_tree):
-    """§514: both hold `NEVER_ALONE` words ("cup", "power"), so only the
-    seed can hold them (§512)."""
+    """§515: both hold `NEVER_ALONE` words ("cup", "power"), so only the
+    seed can hold them (§513)."""
     import category_seed
 
     assert betting_tree.get("world cup qualifiers").parent_id == "world cup"
@@ -544,7 +544,7 @@ def test_world_cup_qualifiers_and_power_outage_are_seeded(betting_tree):
 
 
 def test_power_grid_and_world_record_are_seeded(betting_tree):
-    """§515: both hold `NEVER_ALONE` words, so only the seed holds them."""
+    """§516: both hold `NEVER_ALONE` words, so only the seed holds them."""
     assert betting_tree.get("power grid").parent_id == "energy security"
     assert betting_tree.get("world record").parent_id == "sports"
     assert "power grid" in betting_tree.match("strain on the Texas power grid")
@@ -552,8 +552,8 @@ def test_power_grid_and_world_record_are_seeded(betting_tree):
 
 
 def test_nfl_trade_rumors_is_seeded(betting_tree):
-    """§516: under the league, beside the draft; it holds "trade", a
-    `NEVER_ALONE` word, so only the seed holds it (§512)."""
+    """§517: under the league, beside the draft; it holds "trade", a
+    `NEVER_ALONE` word, so only the seed holds it (§513)."""
     assert betting_tree.get("nfl trade rumors").parent_id == "nfl"
     assert "nfl trade rumors" in betting_tree.match(
         "The latest NFL trade rumors before the deadline")

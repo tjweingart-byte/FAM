@@ -1144,7 +1144,7 @@ def _named_subject(tree, words_nodes, category: str, facets) -> str:
     category. A category above or below that subject (the NFL for a
     Seahawks question, or the reverse) keeps the category's picture.
 
-    **Only within the category's own facet** (the owner 11.9, "Rock Lead
+    **Only within the category's own facet** (§510, the owner 11.9, "Rock Lead
     Theory"). A grown `lead` node under science (the metal) sat two levels
     deep, so "Scheffler takes a two-stroke lead" outranked a golf episode's
     own category and the PGA Tour played over a lump of metal. §282's case

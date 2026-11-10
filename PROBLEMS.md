@@ -32143,7 +32143,53 @@ signing decision's option 2 is no longer Mac-only. #232's `/admin`
 (§503) are added to the owner-only list in 01. The agents' names, roles and
 switches are unchanged (`agents/names.py` gained only a model setting).
 
-## 509. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09)
+## 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09)
+
+The owner sent a photo of FAMiliarizing with its five steps - "I like this
+loading screen for when someone searches. But when it's on myFAM mix or a
+DailyFAM episode, I think I want to create a different one" - and asked for
+six options, easy to compare, with the animations visible, leaving search and
+Go Deeper as they are. A comparison page put six animated phones on one clock
+(Cover Rise, Warm-up Wave, Rail Glide, Spinning Record, Tuning Dial, Chevron
+Meter), each switchable between a DailyFAM tap and a mix's next episode, three
+wait lengths and slow motion. The owner chose **option 5 (Tuning Dial) for
+DailyFAM and option 3 (Rail Glide) for mixes.**
+
+**What changed.** `generate` reads `loader` off the topic: `startBankTopic`
+(every DailyFAM tile, the rails and their View more) sets `dial`;
+`playMixItem` sets `glide`. With a loader the loading screen takes the class
+`alt`, hides the wordmark, chevrons, word, dots and steps, and
+`paintLoadingVariant` draws the screen into `#famLoadingAlt`:
+
+- *Dial:* the categories of the rail the tile came from (`seedTagText`, at
+  most four besides the tile's own, which sits fourth), the needle sweeping
+  across, overshooting and settling on the tile's; the rail's heading in the
+  kicker. The dial keeps the short tag, in capitals; the line under it names
+  the category in full, capitalised (`dialWord`, owner's direction): a broad
+  category's own name ("Tuning in to Technology"), else the tree's label,
+  else the tag with each word capitalised.
+- *Glide:* the mix's episodes in `mixPlay.order`, earlier ones marked Played
+  (only once their first audio arrived, `mixPlay.played`) or Skipped - a
+  failure or a skip before a word is not something that played -
+  the row sliding one card along (measured, since the screen is a phone frame
+  on a desktop and the whole width on a phone); "Morning Eagles · 2 of 5";
+  dots up to twelve episodes.
+
+Both show the episode's title and "Getting your episode ready" (or "the next
+episode") - true whether the script was written ahead or is being written now.
+A server that cannot write (`genStatusNote`) says so there instead.
+
+**What did not change, deliberately.** The five steps hold the audio until the
+fifth is shown (§148); that is search's honest wait and stays search's and Go
+Deeper's. These two screens hold nothing: `startGenSteps(free)` still polls
+`/api/progress`, because the server's marks are what move the give-up time
+(§497) - without the poll a cold voice would be abandoned at a flat 45 s again
+- but `genStepsGate` starts the audio the moment it arrives. On a cache hit the
+screen is up for `GEN_MIN_VISIBLE_MS` (450 ms) and the dial is cut off
+mid-sweep; that is the rule (§292), not a bug. Reduced motion shows each at
+rest: needle on the category, row on the episode.
+
+## 510. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09)
 
 The owner's note (11.9): a PGA Tour episode played over the `lead` node's
 picture - a lump of grey metal in a workshop - and the theory was that a
@@ -32174,9 +32220,9 @@ a node), not a ranking one, and is left open: `lead`, like the team names
 in `LEFT_TO_GROW`, should probably not match as a bare word.
 `tests/test_implementations_1015.py::test_a_word_on_another_facet_never_outranks_the_category`.
 
-## 510. "lead" is never a category on its own (2026-11-09)
+## 511. "lead" is never a category on its own (2026-11-09)
 
-§509 left one case open: an episode with no category yet whose words say
+§510 left one case open: an episode with no category yet whose words say
 "lead" still matched the grown `lead` node (the metal, under science) and
 wore its picture. At the owner's word ("stop 'lead' from matching on its
 own too"), `category_seed.NEVER_ALONE` lists words that are a subject only
@@ -32184,19 +32230,19 @@ inside a longer phrase - for now only `lead`. `CategoryStore.mint` refuses
 one alone, and `CategoryStore.match` drops a one-word node named there
 from its candidates, so the `lead` row already on the deployment reads as
 nothing without a migration or a wipe (its picture stays in the store,
-unreached). "lead poisoning" still grows and matches. The §509 test now
+unreached). "lead poisoning" still grows and matches. The §510 test now
 uses another cross-facet word (`irons`); `test_lead_is_never_a_category_on_its_own`
 pins this. Add a word to the list rather than a stopword: a stopword would
 also stop "lead poisoning" from ever growing (`phrases_in` breaks runs on
 stopwords).
 
-## 511. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09)
+## 512. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09)
 
 The owner: "add any other everyday words that show the wrong picture".
 **The deployed tree is not readable from a development container**, so the
 words that have actually grown there could not be listed; the thumbnail
 review page (`/admin`) and the new report can. What was added is chosen by
-§510's rule, not from sightings: a word a headline uses every day as a verb
+§511's rule, not from sightings: a word a headline uses every day as a verb
 or a plain noun, whose subject senses sit on different facets - `record`,
 `draft`, `strike`, `pitch`, `court`, `match`, `race`, `trade`, `bond`,
 `stock`, `charge`, `shot`, `drive`, `iron`, `fire`, `plant`, `star`, `club`,
@@ -32214,9 +32260,9 @@ every one-word node the tree grew, most listeners first, with its branch
 and whether the list already silences it - run it on the deployment to
 find the next word; adding one is a line in `NEVER_ALONE`.
 
-## 512. No grown phrase holding an everyday word is a category (2026-11-09)
+## 513. No grown phrase holding an everyday word is a category (2026-11-09)
 
-The owner, on §511's "its phrases ('wildfire', 'power grid', 'world
+The owner, on §512's "its phrases ('wildfire', 'power grid', 'world
 record') still do": "There should be a way that the categories tree is
 checked so that longer phrases can't be categories. These are not
 important categories to have."
@@ -32246,9 +32292,9 @@ or "power outage" is now never a node - such an episode is placed by its
 other words (the league, the team) or the facet. A phrase worth keeping is
 added to the seed, where the check does not reach.
 
-## 513. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10)
+## 514. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10)
 
-The owner, after §512 named them as its cost: "add nfl draft, trade
+The owner, after §513 named them as its cost: "add nfl draft, trade
 deadline and salary cap to the seed". Each holds a `NEVER_ALONE` word, so
 the seed is the only place they can live. `nfl draft` sits under `nfl`
 (beside the teams) so it is deeper than the league and wins the picture
@@ -32257,11 +32303,11 @@ league and sit directly under `sports`, beside the sports. They are
 painted by the next thumbnail sweep like any new node.
 `test_the_owners_phrases_with_everyday_words_are_seeded`.
 
-## 514. "world cup qualifiers" and "power outage" seeded (2026-11-10)
+## 515. "world cup qualifiers" and "power outage" seeded (2026-11-10)
 
 The owner: "add world cup qualifiers and power outage to the seed". Both
 hold `NEVER_ALONE` words ("cup", "power"), so only the seed can hold them
-(§512). `world cup qualifiers` sits under `world cup`, so a qualifying
+(§513). `world cup qualifiers` sits under `world cup`, so a qualifying
 episode is deeper than the tournament and wins the picture.
 `power outage` sits under `local news` and joins `LOCAL_NODES`: an outage
 is nearly always a town's question, so the writer is offered it first when
@@ -32269,22 +32315,22 @@ the brief names a town (`stories.writer_vocabulary`) and the scene writer
 paints it as an ordinary town (`thumbnails.WRITER_SYSTEM`).
 `test_world_cup_qualifiers_and_power_outage_are_seeded`.
 
-## 515. "power grid" and "world record" seeded (2026-11-10)
+## 516. "power grid" and "world record" seeded (2026-11-10)
 
 The owner: "add power grid and world record to the seed". Both hold
-`NEVER_ALONE` words, so only the seed can hold them (§512). `power grid`
+`NEVER_ALONE` words, so only the seed can hold them (§513). `power grid`
 sits under `energy security` beside `oil supply`; `world record` belongs
 to every sport and sits directly under `sports`. `test_category_seed`
 bans "record" from seed names because a category names a subject, never a
 claim ("record high"); "world record" is a subject and is exempted by
-name, the ban otherwise unchanged. §512's tests used both phrases as
+name, the ban otherwise unchanged. §513's tests used both phrases as
 examples of grown phrases the check hides; they now use "record label"
 and "power bill". `test_power_grid_and_world_record_are_seeded`.
 
-## 516. "nfl trade rumors" seeded (2026-11-10)
+## 517. "nfl trade rumors" seeded (2026-11-10)
 
 The owner: "add nfl trade rumors to the seed". It holds "trade", a
-`NEVER_ALONE` word, so only the seed can hold it (§512). It sits under
+`NEVER_ALONE` word, so only the seed can hold it (§513). It sits under
 `nfl`, beside `nfl draft`, so it is deeper than the league and wins the
 picture. Matching is the phrase in order (§209): "NFL trade rumors"
 matches; "Steelers trade rumors" does not (that is the team's node).

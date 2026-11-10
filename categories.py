@@ -276,7 +276,7 @@ def _seed_phrases() -> frozenset[str]:
 
 
 def _silenced(phrase: str, source: str) -> bool:
-    """Whether a node is left out of the tree (§510, §512): holding a
+    """Whether a node is left out of the tree (§511, §513): holding a
     `NEVER_ALONE` word anywhere in its phrase, and not the seed's own -
     by source or by name, since a phrase grown before the seed named it
     keeps its grown source."""
@@ -525,7 +525,7 @@ class CategoryStore:
         nodes = {r[0]: Node(r[0], r[1], r[2], int(r[3]), r[4], float(r[5]),
                             float(r[6]), int(r[7]), int(r[8]), bool(r[9]))
                  for r in rows}
-        # **The check (§512).** A grown node holding a `NEVER_ALONE` word -
+        # **The check (§513).** A grown node holding a `NEVER_ALONE` word -
         # "lead", or "world record", "power grid" - is not a category: it is
         # left out of the tree as read, so it never matches, `get` never
         # finds it (an episode's stored category falls back) and
@@ -610,7 +610,7 @@ class CategoryStore:
         return dict(self._nodes)
 
     def silenced(self) -> dict[str, Node]:
-        """Grown nodes the check leaves out of the tree (§512): each holds a
+        """Grown nodes the check leaves out of the tree (§513): each holds a
         `category_seed.NEVER_ALONE` word. For the report, never a reader."""
         return dict(getattr(self, "_silenced", {}))
 
@@ -725,7 +725,7 @@ class CategoryStore:
             return None
         if _silenced(phrase, source) and phrase not in self._nodes:
             # An everyday word (`category_seed.NEVER_ALONE`), alone or in a
-            # phrase (§512): "lead" is who is winning as often as the metal,
+            # phrase (§513): "lead" is who is winning as often as the metal,
             # and "world record" is not a subject worth a node. The seed's
             # own phrases are minted as written.
             return None

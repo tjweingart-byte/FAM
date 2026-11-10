@@ -3660,6 +3660,64 @@ def main() -> int:
                 "the episode started before the fifth step was checked")
             page.evaluate("stopSpeech(); clearGenOverlay()")
 
+        def the_browse_waits_have_their_own_screens():
+            """A DailyFAM tile loads on the tuning dial, a mix's episode on the
+            mix gliding along, and neither shows or waits for the five steps
+            (§509, the owner's picks). Search keeps them - checked above.
+            """
+            watch = """() => {
+                var el = document.getElementById("famLoading");
+                var seen = window.__alt = { dial: false, glide: "", stepped: false, played: 0 };
+                if (window.__altWatch) window.__altWatch.disconnect();
+                window.__altWatch = new MutationObserver(function () {
+                    if (!el.classList.contains("active")) return;
+                    if (el.classList.contains("stepped")) seen.stepped = true;
+                    if (!el.classList.contains("alt")) return;
+                    if (el.querySelector(".fam-dial .fam-dial-labels .on")) seen.dial = true;
+                    var on = el.querySelector(".fam-glide-card.on");
+                    if (on) {
+                        seen.glide = el.querySelector(".fam-ld-kick").textContent;
+                        seen.played = el.querySelectorAll(".fam-glide-card.played").length;
+                    }
+                });
+                window.__altWatch.observe(el, { attributes: true, childList: true, subtree: true });
+            }"""
+            page.evaluate("stopSpeech(); clearGenOverlay()")
+            # A guest's tap on an episode not yet made goes to the sign-up
+            # gate, not the player (the live preview starts as a guest).
+            ensure_account()
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector("#myfamFeed .seed-card[data-topic]", timeout=10000)
+            page.evaluate(watch)
+            page.evaluate("startBankTopic(Object.keys(myFamTopics)[0])")
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            seen = page.evaluate("() => window.__alt")
+            assert seen["dial"], "a DailyFAM tile did not load on the tuning dial"
+            assert not seen["stepped"], "a DailyFAM tile showed search's five steps"
+            page.evaluate("stopSpeech(); clearGenOverlay()")
+
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.evaluate("() => openMix(mixes[0].id)")
+            page.wait_for_timeout(400)
+            count = page.evaluate("() => mixById(currentMixId).items.length")
+            page.evaluate(watch)
+            page.evaluate("playMix()")
+            page.wait_for_function("() => window.__alt.glide", timeout=10000)
+            seen = page.evaluate("() => window.__alt")
+            assert f"1 of {count}" in seen["glide"], \
+                f"the mix's first episode did not say where it was: {seen['glide']!r}"
+            assert not seen["stepped"], "a mix's episode showed search's five steps"
+            page.wait_for_timeout(1500)
+            page.evaluate(watch)
+            page.evaluate("skipMixItem()")
+            page.wait_for_function("() => window.__alt.glide", timeout=10000)
+            seen = page.evaluate("() => window.__alt")
+            assert f"2 of {count}" in seen["glide"] and seen["played"] == 1, (
+                "the mix did not glide on to its second episode with the first "
+                f"marked played: {seen!r}")
+            page.evaluate("window.__altWatch.disconnect(); endMixQueue(); stopSpeech(); clearGenOverlay()")
+
         def one_tap_is_one_request():
             """One episode, one /api/audio - however many times it is tapped.
 
@@ -4173,6 +4231,7 @@ def main() -> int:
         check("Go Deeper waits for a new listener", go_deeper_waits_for_a_new_listener)
         check("myFAM's header stays put while the rails scroll", myfam_header_stays_put)
         check("The loading screen can be cancelled", the_loading_screen_can_be_cancelled)
+        check("DailyFAM loads on a dial, a mix glides along", the_browse_waits_have_their_own_screens)
         check("Messages show faces and typing", messages_show_faces_and_typing)
         check("A file can be attached to a search", attachments)
         check("Searching shows the loading screen", loading_screen_on_a_search)

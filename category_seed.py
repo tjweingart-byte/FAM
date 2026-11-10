@@ -136,14 +136,14 @@ LEFT_TO_GROW = (
 )
 
 #: Words that are a subject only inside a longer phrase (the owner 11.9,
-#: "Rock Lead Theory", PROBLEMS.md §510). "lead" is the metal, and it is
+#: "Rock Lead Theory", PROBLEMS.md §511). "lead" is the metal, and it is
 #: also who is winning: grown alone and filed under science, every golf
 #: leader wore a lump of grey metal. Never minted as a one-word node, and a
 #: one-word node already grown under one of them never matches text
 #: (`categories.CategoryStore.match`); "lead poisoning" still grows and
 #: matches. The same rule as `LEFT_TO_GROW`, for words rather than teams.
 #:
-#: The rest (§511): words a headline uses every day as a verb or a plain
+#: The rest (§512): words a headline uses every day as a verb or a plain
 #: noun, whose subject senses sit on different facets - so grown alone and
 #: placed under one, they paint the other's episodes. Not on the list: a
 #: word whose one sense is the subject ("golf", "inflation"), a company or
@@ -229,26 +229,26 @@ NHL_TEAMS = _teams(
 
 SEED: dict[str, dict] = {
     "sports": {
-        # §513: every league's, so beside the sports rather than under one.
+        # §514: every league's, so beside the sports rather than under one.
         # Seeded because each holds a `NEVER_ALONE` word and the tree would
-        # otherwise never grow it (§512).
+        # otherwise never grow it (§513).
         "trade deadline": {}, "salary cap": {},
-        # §515: every sport's.
+        # §516: every sport's.
         "world record": {},
         # §187: the leagues, so a question about one files it as a subject
         # (depth two) rather than as the whole of a sport. §202: and their
         # teams, a level below.
         "american football": {"college football": {}, "super bowl": {},
                               "quarterback play": {},
-                              # §513: under the league, so the draft
+                              # §514: under the league, so the draft
                               # outranks "nfl" for its own episodes.
                               "nfl": {**NFL_TEAMS, "nfl draft": {},
-                                      # §516: "trade" is never alone.
+                                      # §517: "trade" is never alone.
                                       "nfl trade rumors": {}}},
         "basketball": {"playoff basketball": {}, "draft prospects": {},
                        "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
-                     # §514: seeded, as "cup" is never alone (§512).
+                     # §515: seeded, as "cup" is never alone (§513).
                      "world cup": {"world cup qualifiers": {}},
                      "premier league": {},
                      "bundesliga": {}, "major league soccer": {},
@@ -368,7 +368,7 @@ SEED: dict[str, dict] = {
         "trade policy": {"tariffs": {}, "sanctions": {}},
         "immigration": {},
         "energy security": {"oil supply": {},
-                            # §515: seeded, as "power" is never alone.
+                            # §516: seeded, as "power" is never alone.
                             "power grid": {}},
         "urban policy": {"urban housing": {}, "public transport": {}},
         "food supply": {},
@@ -377,8 +377,8 @@ SEED: dict[str, dict] = {
         "local news": {"town council": {}, "local schools": {},
                        "school board": {}, "local elections": {},
                        "zoning": {},
-                       # §514: a town's question, and "power" is never
-                       # alone (§512).
+                       # §515: a town's question, and "power" is never
+                       # alone (§513).
                        "power outage": {}},
         "international law": {},
         "global development": {},

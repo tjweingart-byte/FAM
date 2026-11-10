@@ -174,7 +174,7 @@ def audit(days: int, as_json: bool) -> int:
 
 
 def alone_rows(store) -> list[dict]:
-    """The everyday-word candidates (§511, §512), most listeners first:
+    """The everyday-word candidates (§512, §513), most listeners first:
     every one-word node the tree grew (not the seed), and every grown node
     the check leaves out because it holds a `NEVER_ALONE` word, marked
     `silenced`, each with its branch."""
@@ -209,8 +209,8 @@ def alone(store, as_json: bool = False) -> int:
         print("  No one-word node has grown.")
         return 0
     print("  One-word nodes the tree grew, then the grown phrases left out")
-    print("  because they hold a category_seed.NEVER_ALONE word (§512). An")
-    print("  everyday word in the first list belongs in NEVER_ALONE (§511).")
+    print("  because they hold a category_seed.NEVER_ALONE word (§513). An")
+    print("  everyday word in the first list belongs in NEVER_ALONE (§512).")
     print()
     for row in rows:
         mark = "  silenced" if row["silenced"] else ""
@@ -235,7 +235,7 @@ def main() -> int:
                              " keyword map agree (§209)")
     parser.add_argument("--alone", action="store_true",
                         help="one-word nodes this tree has grown, and the phrases"
-                             " NEVER_ALONE leaves out (§511, §512)")
+                             " NEVER_ALONE leaves out (§512, §513)")
     args = parser.parse_args()
 
     if args.audit:
