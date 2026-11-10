@@ -31,8 +31,8 @@ settings:
     # net.familiarize.fam, and the same id reversed (its URL scheme). Until
     # they are set the Google button is not drawn (`no-dead-controls`).
     # The client id also belongs in the server's GOOGLE_CLIENT_IDS.
-    GOOGLE_IOS_CLIENT_ID: ""
-    GOOGLE_REVERSED_CLIENT_ID: com.googleusercontent.apps.unset
+    GOOGLE_IOS_CLIENT_ID: 1051916637197-u6bh2tjrdt38p8t3d5f2tmq3o3rii5co.apps.googleusercontent.com
+    GOOGLE_REVERSED_CLIENT_ID: com.googleusercontent.apps.1051916637197-u6bh2tjrdt38p8t3d5f2tmq3o3rii5co
 targets:
   FAM:
     type: application
