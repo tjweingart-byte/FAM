@@ -172,23 +172,22 @@ struct AddTopicsView: View {
     var body: some View {
         VStack(spacing: 0) {
             MixHeader(title: "Add topics to mix", backLabel: "Back to the mix", back: { dismiss() }) { EmptyView() }
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(FAMColor.textMuted)
-                TextField("", text: $words,
-                          prompt: Text("Search topics, or type anything").foregroundColor(FAMColor.textFaint))
-                    .font(FAMFont.body(14))
-                    .textInputAutocapitalization(.sentences)
-                    .submitLabel(.done)
-                    .onSubmit { Task { await addTyped() } }
-                    .accessibilityLabel("Search topics, or type anything")
-            }
-            .padding(.horizontal, 12)
-            .frame(height: 40)
-            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.borderStrong))
-            .padding(.horizontal, 18)
-            .padding(.bottom, 12)
+            // A white field with no magnifier, unlike the cream search
+            // fields elsewhere (`.at-search .modal-input`).
+            TextField("", text: $words,
+                      prompt: Text("Search topics, or type anything").foregroundColor(FAMColor.textFaint))
+                .font(FAMFont.body(13))
+                .foregroundStyle(FAMColor.text)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .onSubmit { Task { await addTyped() } }
+                .accessibilityLabel("Search topics, or type anything")
+                .padding(.horizontal, 12)
+                .frame(height: 41)
+                .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
+                .padding(.horizontal, 18)
+                .padding(.bottom, 16)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if typed.isEmpty { suggestions } else { matches }
@@ -212,7 +211,7 @@ struct AddTopicsView: View {
             EmptyNote(text: "Topics could not load. Type one above to add it.")
         } else {
             Text(mixes.recommended?.personalised == true ? "Recommended for you" : "Topics to follow")
-                .monoLabel(9).padding(.bottom, 10)
+                .monoLabel(9).padding(.top, 14).padding(.bottom, 8)
             ForEach(mixes.recommendations(for: nil, excludingMix: false).prefix(15)) { s in
                 row(s, id: "f:" + s.id, title: s.label, sub: mixes.subjectSub(s), label: s.label)
             }
@@ -233,7 +232,7 @@ struct AddTopicsView: View {
                 (s.focusPicks ?? []).filter { $0.lowercased().contains(lower) }.map { (s, $0) }
             }.prefix(5)
             if !picks.isEmpty {
-                Text("Teams, companies & more").monoLabel(9).padding(.top, 12).padding(.bottom, 10)
+                Text("Teams, companies & more").monoLabel(9).padding(.top, 14).padding(.bottom, 8)
                 ForEach(Array(picks.enumerated()), id: \.offset) { _, hit in
                     row(hit.0, id: "f:\(hit.0.id)~\(Self.encode(hit.1))", title: "\(hit.0.label) · \(hit.1)",
                         sub: hit.0.label, label: hit.1)
@@ -242,7 +241,7 @@ struct AddTopicsView: View {
         }
         let subjects = mixes.subjects.filter { $0.label.lowercased().contains(lower) }.prefix(12)
         if !subjects.isEmpty {
-            Text("Topics").monoLabel(9).padding(.top, 12).padding(.bottom, 10)
+            Text("Topics").monoLabel(9).padding(.top, 14).padding(.bottom, 8)
             ForEach(Array(subjects)) { s in
                 row(s, id: "f:" + s.id, title: s.label, sub: mixes.facetLabel(s) ?? "Topic", label: s.label)
             }

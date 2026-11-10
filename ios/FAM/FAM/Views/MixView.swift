@@ -161,6 +161,7 @@ struct MixView: View {
                 if mix.isOwner {
                     Button { tapCover(mix) } label: {
                         MixArt(cover: mix.cover, size: 84, radius: 16)
+                            .shadow(color: .black.opacity(0.35), radius: 13, y: 12)
                             .overlay(alignment: .bottomTrailing) {
                                 Image(systemName: "camera.fill")
                                     .font(.system(size: 10, weight: .bold))
@@ -189,6 +190,7 @@ struct MixView: View {
                             .padding(.horizontal, 9)
                             .frame(height: 22)
                             .background(FAMColor.surface2, in: Capsule())
+                            .overlay(Capsule().stroke(FAMColor.borderStrong))
                             .buttonStyle(.plain)
                             .accessibilityLabel("Rename this mix")
                     }
@@ -262,18 +264,22 @@ struct MixView: View {
     private func playButton(_ mix: Mix) -> some View {
         Button { model.playMix(mix) } label: {
             HStack(spacing: 8) {
-                Image(systemName: "play.fill").font(.system(size: 12))
+                PlayTriangle().fill(FAMColor.ink).frame(width: 13, height: 13)
                 Text(mix.items.count == 1 ? "Play today’s 1 episode" : "Play today’s \(mix.items.count) episodes")
             }
+            .font(FAMFont.body(12.5, .bold))
+            .foregroundStyle(FAMColor.ink)
+            .frame(maxWidth: .infinity, minHeight: 43)
+            .background(FAMColor.copper, in: Capsule())
         }
-        .buttonStyle(CopperButtonStyle())
+        .buttonStyle(.plain)
         .padding(.top, 18)
     }
 
     // MARK: - Topics, in order
 
     private func topicList(_ mix: Mix) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 9) {
             ForEach(Array(mix.items.enumerated()), id: \.element.id) { index, item in
                 topicRow(mix, item, index)
                     .offset(y: offset(for: index))
@@ -302,9 +308,8 @@ struct MixView: View {
     private func topicRow(_ mix: Mix, _ item: MixItem, _ index: Int) -> some View {
         let adder = item.addedBy.flatMap { mix.joint && $0 < mix.people.count ? mix.people[$0] : nil }
         return HStack(spacing: 11) {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(FAMColor.textFaint)
+            DragDots()
+                .foregroundStyle(dragging == index ? FAMColor.copper : FAMColor.textFaint)
                 .frame(width: 22, height: 34)
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 2, coordinateSpace: .global)
@@ -328,9 +333,7 @@ struct MixView: View {
             }
             Spacer(minLength: 4)
             Button { model.playMix(mix, from: item.id) } label: {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(FAMColor.text)
+                PlayTriangle().fill(FAMColor.text).frame(width: 11, height: 11)
                     .frame(width: 30, height: 30)
                     .overlay(Circle().stroke(FAMColor.borderStrong))
             }
@@ -342,9 +345,9 @@ struct MixView: View {
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12)
             .stroke(dragging == index ? FAMColor.copper : FAMColor.border))
-        .shadow(color: .black.opacity(dragging == index ? 0.25 : 0), radius: 11, y: 8)
+        .shadow(color: .black.opacity(dragging == index ? 0.35 : 0), radius: 11, y: 8)
         .background(GeometryReader { g in
-            Color.clear.onAppear { if index == 0 { rowPitch = g.size.height + 8 } }
+            Color.clear.onAppear { if index == 0 { rowPitch = g.size.height + 9 } }
         })
     }
 
@@ -388,7 +391,7 @@ struct MixView: View {
                             Image(systemName: "shuffle").font(.system(size: 10, weight: .bold))
                             Text("Shuffle")
                         }
-                        .font(FAMFont.body(11, .bold))
+                        .font(FAMFont.body(10.5, .semibold))
                         .foregroundStyle(FAMColor.text)
                         .padding(.horizontal, 11)
                         .frame(height: 28)
@@ -432,8 +435,8 @@ struct MixView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "bell").font(.system(size: 15)).foregroundStyle(FAMColor.copper)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Listen time").font(FAMFont.body(13, .semibold)).foregroundStyle(FAMColor.text)
-                Text(listenNote(mix)).font(FAMFont.body(10.5)).foregroundStyle(FAMColor.textMuted)
+                Text("Listen time").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
+                Text(listenNote(mix)).font(FAMFont.body(10)).foregroundStyle(FAMColor.textMuted)
                 HStack {
                     DatePicker("", selection: $listenTime, displayedComponents: .hourAndMinute)
                         .labelsHidden()
@@ -485,17 +488,18 @@ struct MixView: View {
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(mix.public ? "Public" : "Private").font(FAMFont.body(13, .semibold)).foregroundStyle(FAMColor.text)
+                    Text(mix.public ? "Public" : "Private").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
                     Text(mix.public ? "Public will be displayed on your profile" : "Only you can see this mix")
-                        .font(FAMFont.body(10.5)).foregroundStyle(FAMColor.textMuted)
+                        .font(FAMFont.body(10)).foregroundStyle(FAMColor.textMuted)
                 }
                 Spacer()
                 ZStack(alignment: mix.public ? .trailing : .leading) {
                     Capsule().fill(mix.public ? FAMColor.copper : FAMColor.borderStrong).frame(width: 44, height: 24)
                     Circle().fill(mix.public ? FAMColor.ink : FAMColor.textMuted)
                         .frame(width: 18, height: 18)
-                        .overlay(Image(systemName: mix.public ? "lock.open.fill" : "lock.fill")
-                            .font(.system(size: 8)).foregroundStyle(FAMColor.background))
+                        .overlay(Image(systemName: mix.public ? "lock.open" : "lock")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(mix.public ? FAMColor.copper : FAMColor.surface))
                         .padding(3)
                 }
                 .animation(.easeOut(duration: 0.16), value: mix.public)
@@ -662,11 +666,14 @@ struct PersonFace: View {
     }
 }
 
-/// A subject offered to a mix: icon tile, name, "{Facet} · new briefing
-/// every day", and (+) or ✓.
+/// A subject offered to a mix (`addTopicsRow`, also Recommended topics):
+/// the subject's own icon in a cream tile, name, "{Facet} · new briefing
+/// every day", and a round button with "+" - or, once in the mix, a copper
+/// border and "✓".
 struct SubjectRow: View {
     let subject: Subject?
     var title: String? = nil
+    var icon: String? = nil
     let sub: String
     let added: Bool
     let label: String
@@ -674,21 +681,22 @@ struct SubjectRow: View {
 
     var body: some View {
         HStack(spacing: 11) {
-            Image(systemName: "dot.radiowaves.left.and.right")
-                .font(.system(size: 13))
+            SubjectIcon(name: icon ?? subject?.icon ?? "news", size: 17)
                 .foregroundStyle(FAMColor.copper)
                 .frame(width: 32, height: 32)
-                .background(FAMColor.surface2, in: RoundedRectangle(cornerRadius: 9))
+                .background(added ? Color(red: 224 / 255, green: 181 / 255, blue: 99 / 255).opacity(0.16)
+                            : FAMColor.surface2, in: RoundedRectangle(cornerRadius: 9))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title ?? subject?.label ?? "")
-                    .font(FAMFont.heading(13, .semibold))
+                    .font(FAMFont.heading(12.5, .semibold))
                     .foregroundStyle(FAMColor.text)
-                Text(sub).font(FAMFont.body(10)).foregroundStyle(FAMColor.textMuted)
+                    .lineSpacing(2)
+                Text(sub).font(FAMFont.body(9.5)).foregroundStyle(FAMColor.textMuted)
             }
             Spacer(minLength: 4)
             Button(action: action) {
-                Image(systemName: added ? "checkmark" : "plus")
-                    .font(.system(size: 12, weight: .bold))
+                Text(added ? "✓" : "+")
+                    .font(.system(size: 15))
                     .foregroundStyle(added ? FAMColor.ink : FAMColor.text)
                     .frame(width: 30, height: 30)
                     .background(added ? FAMColor.copper : Color.clear, in: Circle())
@@ -698,9 +706,35 @@ struct SubjectRow: View {
             .accessibilityLabel(label)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(added ? FAMColor.copper : FAMColor.border))
-        .padding(.bottom, 8)
+        .padding(.bottom, 9)
+    }
+}
+
+/// Six dots: the drag handle (`.mix-drag`).
+struct DragDots: View {
+    var body: some View {
+        Canvas { ctx, size in
+            let sx = size.width / 12, sy = size.height / 16
+            for (x, y) in [(3.0, 3.0), (9, 3), (3, 8), (9, 8), (3, 13), (9, 13)] {
+                ctx.fill(Path(ellipseIn: CGRect(x: (x - 1.4) * sx, y: (y - 1.4) * sy, width: 2.8 * sx, height: 2.8 * sy)),
+                         with: .foreground)
+            }
+        }
+        .frame(width: 12, height: 16)
+    }
+}
+
+/// The filled play triangle the web draws (`M8 5v14l11-7z`).
+struct PlayTriangle: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX + r.width * 8 / 24, y: r.minY + r.height * 5 / 24))
+        p.addLine(to: CGPoint(x: r.minX + r.width * 8 / 24, y: r.minY + r.height * 19 / 24))
+        p.addLine(to: CGPoint(x: r.minX + r.width * 19 / 24, y: r.minY + r.height * 12 / 24))
+        p.closeSubpath()
+        return p
     }
 }

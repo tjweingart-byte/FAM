@@ -426,6 +426,17 @@ final class NowPlayingModel: ObservableObject {
         say("Added to Queue")
     }
 
+    /// What a category tap queued: replaced by the next category tap,
+    /// leaving what the listener queued alone (`playCategoryList`).
+    private var categoryQueued: Set<UUID> = []
+
+    func replaceCategoryQueue(_ episodes: [Episode]) {
+        queue.removeAll { categoryQueued.contains($0.id) }
+        let fresh = episodes.map { QueueEntry(episode: $0) }
+        categoryQueued = Set(fresh.map(\.id))
+        queue.append(contentsOf: fresh)
+    }
+
     func removeFromQueue(_ entry: QueueEntry) {
         guard let i = queue.firstIndex(of: entry) else { return }
         queue.remove(at: i)

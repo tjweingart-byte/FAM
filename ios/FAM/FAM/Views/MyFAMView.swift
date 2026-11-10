@@ -11,8 +11,8 @@ enum MixRoute: Hashable {
 }
 
 /// The myFAM tab (`screen-playfam`): the wordmark, Create new mix, the
-/// public-mix search, and your mixes. Category chips (§500) are not here
-/// yet - PARITY.md.
+/// category chips (§500), the public-mix search, and your mixes. Drawn to
+/// the web's measurements (PARITY.md).
 struct MyFAMView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var mixes: MixesModel
@@ -33,7 +33,7 @@ struct MyFAMView: View {
                     .padding(.top, 4)
                 if mixes.state == .ready {
                     Button { path.append(.new) } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 7) {
                             Image(systemName: "plus").font(.system(size: 11, weight: .bold))
                             Text("Create new mix")
                         }
@@ -45,11 +45,22 @@ struct MyFAMView: View {
                         .overlay(Capsule().stroke(FAMColor.borderStrong))
                     }
                     .buttonStyle(.plain)
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 10)
                 }
+                ScrollViewReader { proxy in
                 ScrollView {
+                  VStack(alignment: .leading, spacing: 0) {
+                    Color.clear.frame(height: 0).id("top")
+                    CategoryChipsRow(state: $mixes.categoryState, subs: mixes.categorySubs)
+                        .padding(.top, 4)
+                    if mixes.categoryState.finding {
+                        CategoryFind(state: $mixes.categoryState)
+                    } else if let node = mixes.categoryState.node {
+                        CategoryPanel(node: node, subs: $mixes.categorySubs)
+                            .id(node)
+                    } else {
                     VStack(alignment: .leading, spacing: 0) {
-                        searchBar.padding(.top, 14)
+                        searchBar.padding(.top, mixes.categories == nil ? 14 : 8)
                         if searching {
                             searchResults
                         } else {
@@ -63,8 +74,15 @@ struct MyFAMView: View {
                     }
                     .padding(.horizontal, 18)
                     .padding(.bottom, 24)
+                    }
+                  }
                 }
                 .refreshable { await mixes.load() }
+                .onChange(of: mixes.categoryState) { old, new in
+                    if old.root != new.root { mixes.categorySubs = [] }
+                    proxy.scrollTo("top")
+                }
+                }
             }
             .background(FAMColor.background)
             .toolbar(.hidden, for: .navigationBar)
@@ -109,8 +127,8 @@ struct MyFAMView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(FAMColor.textMuted)
                 TextField("", text: $words,
-                          prompt: Text("Search mixes, topics or people").foregroundColor(FAMColor.textFaint))
-                    .font(FAMFont.body(14))
+                          prompt: Text("Search mixes, topics or people").foregroundColor(FAMColor.textMuted))
+                    .font(FAMFont.body(13))
                     .foregroundStyle(FAMColor.text)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()

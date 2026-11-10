@@ -22,6 +22,11 @@ final class MixesModel: ObservableObject {
     @Published private(set) var tagLabels: [String: String] = [:]
     @Published private(set) var recommended: RecommendedTopics?
     @Published private(set) var push: PushStatus?
+    /// The category chips' tree and what you follow (§500).
+    @Published private(set) var categories: CategoriesPage?
+    /// Which chip is on; every arrival on the tab opens on All.
+    @Published var categoryState = CategoryState()
+    @Published var categorySubs: [CategorySub] = []
 
     let api: FAMAPI
     var say: (String, String?, (() -> Void)?) -> Void = { _, _, _ in }
@@ -34,11 +39,38 @@ final class MixesModel: ObservableObject {
 
     /// Arriving on the tab (`loadMixes`).
     func load() async {
+        Task { await loadCategories() }
         do {
             mixes = try await api.mixes()
             state = .ready
         } catch {
             if mixes.isEmpty { state = .failed }
+        }
+    }
+
+    /// Asked with every arrival on the tab; a failure keeps the last answer.
+    func loadCategories() async {
+        if let page = try? await api.categories() { categories = page }
+    }
+
+    func follows(_ id: String) -> Bool {
+        categories?.mine.contains { $0.id == id } ?? false
+    }
+
+    /// Follow or unfollow one node: the whole list sent, then read back.
+    func toggleFollow(_ id: String) async -> Bool {
+        guard let page = categories else { return false }
+        var ids = page.mine.map(\.id)
+        let adding = !ids.contains(id)
+        if adding { ids.append(id) } else { ids.removeAll { $0 == id } }
+        do {
+            try await api.followCategories(ids)
+            await loadCategories()
+            say(adding ? "Added to your categories" : "Removed from your categories", nil, nil)
+            return true
+        } catch {
+            say(Self.sentence(error, else: "Could not save that"), nil, nil)
+            return false
         }
     }
 

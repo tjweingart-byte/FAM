@@ -584,4 +584,19 @@ extension AppModel {
         guard let list = mixPlay, list.mine, let item = list.current else { return false }
         return mixes.mix(list.mixID)?.items.contains(where: { $0.id == item.id }) == true
     }
+
+    /// A category's episode: replay only, never written anew, with the rest
+    /// of the list queued after it (`playCategoryList`).
+    func playCategory(_ list: [CategoryEpisode], from index: Int) {
+        guard index < list.count else {
+            nowPlaying.say("Nothing has been made in this category today yet")
+            return
+        }
+        func ep(_ e: CategoryEpisode) -> Episode {
+            Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
+                    title: e.title, surface: "dailyfam", picture: api.picture(e.thumb ?? ""))
+        }
+        nowPlaying.replaceCategoryQueue(list.enumerated().filter { $0.offset != index }.map { ep($0.element) })
+        startPlaying(ep(list[index]), cachedOnly: true)
+    }
 }

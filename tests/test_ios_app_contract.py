@@ -305,3 +305,12 @@ def test_a_mix_plays_as_the_web_plays_it():
     server = "\n".join(p.read_text() for p in ROOT.glob("*.py"))
     for name in ("listen_at", "listen_tz", "people", "role", "joint", "source_id"):
         assert f'"{name}"' in server, name
+
+
+def test_the_subject_icons_are_the_webs():
+    """`SubjectIcons.swift` is generated from the web's `CAT_ICONS`; a change
+    to either without the other fails here."""
+    import subprocess
+    run = subprocess.run([sys.executable, str(ROOT / "tools" / "ios_icons.py"), "--check"],
+                         capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr

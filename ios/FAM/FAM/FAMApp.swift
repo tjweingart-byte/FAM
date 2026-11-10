@@ -97,6 +97,7 @@ struct MainTabs: View {
                 // Every arrival opens on the list and asks for it afresh
                 // (`openPlayFAM`).
                 model.mixPath = []
+                model.mixes.categoryState = CategoryState()
                 Task { await model.mixes.load() }
             })
         }

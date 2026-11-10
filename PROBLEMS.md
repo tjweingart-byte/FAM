@@ -32655,3 +32655,13 @@ notifications on iPhone come later.
 Written without a compiler (§520); `tests/test_ios_app_contract.py` now
 checks interpolated paths (`/api/mixes/{id}/open`) against the routes with
 their methods, every mix field against the server, and how a mix plays.
+
+**Second pass, the same day.** The owner found the first port bland: the
+category chips missing, the topic rows wrong. It had ported what each
+control does, not how it looks. The second pass started from phone-size
+screenshots of every web screen and measured sizes, colours and icons
+(`getComputedStyle`), and from now on every ported screen starts that way.
+It added the category chips, panel and Find a category; the web's 48 subject
+icons, generated from `CAT_ICONS` by `tools/ios_icons.py` (a contract test
+runs `--check`, so the two cannot drift); and the measured rows, handles,
+buttons and fields.

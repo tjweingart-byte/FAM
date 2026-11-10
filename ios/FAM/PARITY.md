@@ -118,7 +118,8 @@ Checked against a specification written from `static/index.html` (the web's
 
 ## myFAM (mixes)
 
-Checked against a specification written from `static/index.html`
+Checked against phone-size screenshots of the web and measured sizes, colours
+and icons (2026-11-10), and a specification written from `static/index.html`
 (`screen-playfam`, `screen-newmix`, `screen-mixdetail`, `screen-addtopics`,
 `screen-publicmix`), item by item.
 
@@ -126,7 +127,7 @@ Checked against a specification written from `static/index.html`
 |---|---|---|
 | The myFAM tab: wordmark, Create new mix (shown once `/api/mixes` answers), subtitle, your mixes (cover, meta with public/private, from, joint; preview), empty and error sentences | Done | every arrival opens on the list and asks afresh |
 | Public-mix search: Cancel, 180 ms debounce, out-of-order answers dropped, the four sentences, result cards with (+) | Done | |
-| Category filter chips on the myFAM tab (§500) | Not yet | today's cached episodes by category; unrelated to mixes - next build |
+| Category filter chips on the myFAM tab (§500): All, followed (starred), facets, More; inside a category the X, root and sub chips; the 16:9 hero in the facet's colour, Play all · N min, Follow/Following, episode rows; Find a category | Done | plays replay-only, the rest queued; the web's oversized row picture (a bug the shots found) is not copied |
 | New mix: cover, live name preview, 40-character name, the client's duplicate check, Create opens the empty mix | Done | cover is cut square from the middle; the web's position-and-zoom editor not yet |
 | A mix's page: hero, Change, people line and Who's in it, Share and Invite, Add topics, Play today's N, Today's edition date, topics with the adder's face | Done | updates in place (the web pushes the page again) |
 | Drag to reorder (one whole-list write) | Done | |
@@ -137,7 +138,7 @@ Checked against a specification written from `static/index.html`
 | Joint mixes: invite link, make it yours alone, leave, member permissions | Partial | joining from a `/j/` link needs universal links (not yet); invites are sent from the app |
 | Covers: choose, change, remove, the AI-check note | Done | |
 | Sharing a mix (make public first; the share text) | Done | iOS share sheet; story cards not yet |
-| Add topics: recommended, typed topic first (short-named by the server), teams and companies, topics, (+)/✓ as operations | Done | |
+| Add topics: recommended, typed topic first (short-named by the server), teams and companies, topics, (+)/✓ as operations; the web's 48 subject icons | Done | icons generated from `CAT_ICONS` by `tools/ios_icons.py`; a test fails if they drift |
 | Somebody else's public mix: owner, Add to myFAM / In your myFAM, play, remove a copy | Done | the owner's profile link waits for the profile screen |
 | Playing a mix: the playlist, today's edition prompts, the glide loading screen, skip, failures, Next from {mix} in the Queue, the finished overlay | Done | |
 | Guest sample mix | n/a | the iOS app requires an account |
