@@ -229,11 +229,18 @@ NHL_TEAMS = _teams(
 
 SEED: dict[str, dict] = {
     "sports": {
+        # §513: every league's, so beside the sports rather than under one.
+        # Seeded because each holds a `NEVER_ALONE` word and the tree would
+        # otherwise never grow it (§512).
+        "trade deadline": {}, "salary cap": {},
         # §187: the leagues, so a question about one files it as a subject
         # (depth two) rather than as the whole of a sport. §202: and their
         # teams, a level below.
         "american football": {"college football": {}, "super bowl": {},
-                              "quarterback play": {}, "nfl": NFL_TEAMS},
+                              "quarterback play": {},
+                              # §513: under the league, so the draft
+                              # outranks "nfl" for its own episodes.
+                              "nfl": {**NFL_TEAMS, "nfl draft": {}}},
         "basketball": {"playoff basketball": {}, "draft prospects": {},
                        "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},

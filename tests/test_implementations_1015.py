@@ -508,3 +508,18 @@ def test_the_seeds_own_phrases_are_never_silenced(betting_tree):
     assert betting_tree.get("world cup") is not None
     # An alias the seed wrote still answers as its node.
     assert "golf" in betting_tree.match("the Ryder Cup this week")
+
+
+def test_the_owners_phrases_with_everyday_words_are_seeded(betting_tree):
+    """§513: "nfl draft", "trade deadline" and "salary cap" hold
+    `NEVER_ALONE` words, so only the seed can hold them (§512)."""
+    assert betting_tree.ancestors("nfl draft")[:2] == ["nfl", "american football"]
+    assert betting_tree.get("trade deadline").parent_id == "sports"
+    assert betting_tree.get("salary cap").parent_id == "sports"
+    assert "nfl draft" in betting_tree.match("Who the Bears take in the NFL Draft")
+    assert "trade deadline" in betting_tree.match("moves before the trade deadline")
+    assert "salary cap" in betting_tree.match("the salary cap next season")
+    _paint("nfl draft")
+    _paint("nfl")
+    got = th.pick_for_player("Who the Bears take in the NFL Draft")
+    assert got["node"] == "nfl draft"

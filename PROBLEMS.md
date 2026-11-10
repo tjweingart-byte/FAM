@@ -32245,3 +32245,14 @@ The cost, said plainly: a grown "nfl draft", "trade deadline", "salary cap"
 or "power outage" is now never a node - such an episode is placed by its
 other words (the league, the team) or the facet. A phrase worth keeping is
 added to the seed, where the check does not reach.
+
+## 513. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10)
+
+The owner, after §512 named them as its cost: "add nfl draft, trade
+deadline and salary cap to the seed". Each holds a `NEVER_ALONE` word, so
+the seed is the only place they can live. `nfl draft` sits under `nfl`
+(beside the teams) so it is deeper than the league and wins the picture
+for a draft episode; `trade deadline` and `salary cap` belong to every
+league and sit directly under `sports`, beside the sports. They are
+painted by the next thumbnail sweep like any new node.
+`test_the_owners_phrases_with_everyday_words_are_seeded`.
