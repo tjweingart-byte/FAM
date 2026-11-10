@@ -511,3 +511,4 @@ and `limit` = Lines.
 | 32330 | 9 | 517. "nfl trade rumors" seeded (2026-11-10) |
 | 32339 | 43 | 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
 | 32382 | 74 | 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |
+| 32456 | 35 | 520. Messages only between friends (2026-11-10) |

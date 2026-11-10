@@ -517,6 +517,7 @@ def test_anyone_can_listen_to_a_shared_episode(world, monkeypatch):
         assert r.status_code == 403 and r.headers["X-FAM-Waitlist"] == "/waitlist"
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_launch_lifts_the_waitlist_rules(world, monkeypatch):
     """WAITLIST=0 is launch: anyone still marked waitlisted is findable and
     can message, rather than hidden for good by a row nobody updated."""
