@@ -69,9 +69,9 @@ struct DailyView: View {
                 SectionView(key: key)
             }
         }
-        .task {
-            if model.rails.isEmpty { await model.loadRails() }
-        }
+        // The launch's first feed, asked once who-you-are has answered
+        // (this tab is built only then), never a second time.
+        .task { await model.firstFeed() }
     }
 
     /// The DailyFAM tab tapped while showing: from View more back to the
@@ -289,10 +289,38 @@ struct TileCard: View {
     private static let pillInk = Color(red: 42 / 255, green: 37 / 255, blue: 48 / 255)
 
     var body: some View {
-        // Not a Button: the save and ⋯ buttons inside it must get their own taps.
+        // The card is one Button (the press squeeze is `CardPress`); the
+        // save, the ⋯ and the friends pill sit over its picture as an
+        // overlay of their own, so each gets its own tap and no Button is
+        // ever inside another. A press that turns into a scroll lets go at
+        // once, as every Button in a ScrollView does.
         // Offline, a card whose episode is not on this phone is faded
         // (`not-offline`): the picture to .35 and greyed, the words to .5.
         let faded = model.isOffline && !model.isKept(tile)
+        Button {
+            model.play(tile, railKey: railKey)
+        } label: {
+            card(faded: faded)
+        }
+        .buttonStyle(CardPress(pressed: $pressed))
+        .accessibilityHint("Plays the episode")
+        .overlay(alignment: .top) {
+            thumbControls
+                .opacity(faded ? 0.35 : 1)
+                .grayscale(faded ? 0.7 : 0)
+        }
+        .animation(pressed ? .easeOut(duration: 0.09) : .spring(response: 0.22, dampingFraction: 0.55)) { content in
+            content.scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
+        }
+        .accessibilityElement(children: .contain)
+        .sheet(isPresented: $menu) { TileMenu(tile: tile) }
+        .fullScreenCover(isPresented: $friends) {
+            FriendsListened(count: tile.friendsListened, faces: shownFaces(limit: nil))
+        }
+    }
+
+    /// The card as drawn: the picture, the title, the line, the hook.
+    private func card(faded: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             thumb
                 .opacity(faded ? 0.35 : 1)
@@ -303,6 +331,7 @@ struct TileCard: View {
                     .foregroundStyle(FAMColor.text)
                     .lineSpacing(titleSpacing)
                     .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
                 if !tile.liveLine.isEmpty { liveLine.padding(.top, 5) }
                 hook.padding(.top, 6)
             }
@@ -318,22 +347,39 @@ struct TileCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 13))
         .overlay(RoundedRectangle(cornerRadius: 13).stroke(FAMColor.border))
         .contentShape(Rectangle())
-        .animation(pressed ? .easeOut(duration: 0.09) : .spring(response: 0.22, dampingFraction: 0.55)) { card in
-            card.scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
-        }
-        .onTapGesture { model.play(tile, railKey: railKey) }
-        // Never completes (30 s): only its pressing state is used, and a
-        // move of 8 pt - a scroll - lets go at once.
-        .onLongPressGesture(minimumDuration: 30, maximumDistance: 8, perform: {}, onPressingChanged: { down in
-            pressed = down
-        })
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { model.play(tile, railKey: railKey) }
-        .accessibilityHint("Plays the episode")
-        .sheet(isPresented: $menu) { TileMenu(tile: tile) }
-        .fullScreenCover(isPresented: $friends) {
-            FriendsListened(count: tile.friendsListened, faces: shownFaces(limit: nil))
+    }
+
+    /// The picture's own controls, laid exactly over it (4:3 at the card's
+    /// width, from the top): save and ⋯ top right, the friends pill bottom
+    /// right. Everything else here is clear and lets the tap through.
+    private var thumbControls: some View {
+        let onPicture = !tile.thumb.isEmpty && model.api.picture(tile.thumb) != nil
+        return Color.clear
+            .aspectRatio(4 / 3, contentMode: .fit)
+            .overlay { bottomRow(onPicture: onPicture, controls: true) }
+            .overlay(alignment: .topTrailing) {
+                // Save and ⋯, top right: the web's 13 pt outline bookmark (an
+                // outline on sage once saved) and its filled dots. Not drawn
+                // offline (`.is-offline .seed-acts`): neither can reach FAM.
+                if !model.isOffline {
+                    acts.padding(6)
+                }
+            }
+    }
+
+    private var acts: some View {
+        let saved = model.isSaved(tile)
+        return HStack(spacing: 5) {
+            actButton(on: saved, label: saved ? "Take it off Save for Later" : "Save \(tile.title) for later") {
+                WebIcon(path: Icons.bookmark, size: 13, line: 2.2)
+            } action: {
+                model.toggleSave(tile)
+            }
+            actButton(on: false, label: "More for \(tile.title)") {
+                WebFill(path: Icons.dots(2.2), size: 13)
+            } action: {
+                menu = true
+            }
         }
     }
 
@@ -367,20 +413,8 @@ struct TileCard: View {
             // The subject chip bottom left and the friends who listened
             // bottom right, on one line and centred on each other (the
             // owner's call for iOS: the web lifts the faces above the chip).
-            if !tile.tagText.isEmpty || tile.friendsListened > 0 {
-                HStack(alignment: .center, spacing: 6) {
-                    if !tile.tagText.isEmpty {
-                        chip(onPicture: url != nil)
-                    }
-                    Spacer(minLength: 0)
-                    if tile.friendsListened > 0 {
-                        friendsPill.fixedSize()
-                    }
-                }
-                .padding(.horizontal, url != nil ? 8 : 11)
-                .padding(.bottom, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            }
+            // A tappable pill is drawn by `thumbControls` over this one.
+            bottomRow(onPicture: url != nil, controls: false)
             // "ready": written already, plays at once.
             if tile.cached {
                 Text("ready")
@@ -390,26 +424,6 @@ struct TileCard: View {
                     .background(FAMColor.copper, in: Capsule())
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(8)
-            }
-            // Save and ⋯, top right: the web's 13 pt outline bookmark (an
-            // outline on sage once saved) and its filled dots. Not drawn
-            // offline (`.is-offline .seed-acts`): neither can reach FAM.
-            if !model.isOffline {
-            HStack(spacing: 5) {
-                let saved = model.isSaved(tile)
-                actButton(on: saved, label: saved ? "Take it off Save for Later" : "Save \(tile.title) for later") {
-                    WebIcon(path: Icons.bookmark, size: 13, line: 2.2)
-                } action: {
-                    model.toggleSave(tile)
-                }
-                actButton(on: false, label: "More for \(tile.title)") {
-                    WebFill(path: Icons.dots(2.2), size: 13)
-                } action: {
-                    menu = true
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .padding(6)
             }
         }
         // The whole picture, at its own 4:3 - never the web's 96 pt strip,
@@ -449,11 +463,53 @@ struct TileCard: View {
         .accessibilityLabel(label)
     }
 
+    /// The chip bottom left and the friends who listened bottom right
+    /// (`seedFriendsHtml`), drawn twice in one layout: in the picture
+    /// (`controls: false`) everything that is not a button, and over it
+    /// (`controls: true`) only the tappable pill - each place keeps the
+    /// other's room with a hidden copy, so both rows line up exactly.
+    @ViewBuilder private func bottomRow(onPicture: Bool, controls: Bool) -> some View {
+        if !tile.tagText.isEmpty || tile.friendsListened > 0 {
+            let shown = shownFaces(limit: 3)
+            let tappable = !shown.isEmpty
+            HStack(alignment: .center, spacing: 6) {
+                if !tile.tagText.isEmpty {
+                    if controls {
+                        chip(onPicture: onPicture).hidden()
+                    } else {
+                        chip(onPicture: onPicture)
+                    }
+                }
+                Spacer(minLength: 0)
+                if tile.friendsListened > 0 {
+                    if controls && tappable {
+                        friendsButton(shown)
+                    } else if !controls && !tappable {
+                        friendsLook(shown).fixedSize()
+                    } else {
+                        friendsLook(shown).fixedSize().hidden()
+                    }
+                }
+            }
+            .padding(.horizontal, onPicture ? 8 : 11)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+    }
+
     /// Up to three overlapped faces and a copper "+N" (the rest); a tap
     /// lists who listened and never plays the card. With no faces in the
     /// answer, the words alone, which do nothing (`seedFriendsHtml`).
-    @ViewBuilder private var friendsPill: some View {
-        let shown = shownFaces(limit: 3)
+    private func friendsButton(_ shown: [FriendFace]) -> some View {
+        let n = tile.friendsListened
+        let label = n == 1 && !shown.isEmpty ? "\(shown[0].name) listened" : "\(n) friends listened"
+        return Button { friends = true } label: { friendsLook(shown) }
+            .buttonStyle(.press)
+            .fixedSize()
+            .accessibilityLabel(label)
+    }
+
+    @ViewBuilder private func friendsLook(_ shown: [FriendFace]) -> some View {
         let n = tile.friendsListened
         if shown.isEmpty {
             Text("\(n) friend\(n == 1 ? "" : "s") listened")
@@ -464,32 +520,28 @@ struct TileCard: View {
                 .background(FAMColor.copper, in: RoundedRectangle(cornerRadius: 4))
         } else {
             let more = n - shown.count
-            Button { friends = true } label: {
-                HStack(spacing: 5) {
-                    HStack(spacing: -6) {
-                        ForEach(Array(shown.enumerated()), id: \.offset) { i, face in
-                            Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
-                                 size: 22, initialsSize: 9)
-                                // A ring in the pill's own colour, so each overlapped face reads whole.
-                                .overlay(Circle().stroke(Self.pillInk.opacity(0.88), lineWidth: 1.5))
-                                .zIndex(Double(3 - i))
-                        }
-                    }
-                    if more > 0 {
-                        Text("+\(more)")
-                            .font(FAMFont.mono(10, bold: true))
-                            .foregroundStyle(FAMColor.copper)
+            HStack(spacing: 5) {
+                HStack(spacing: -6) {
+                    ForEach(Array(shown.enumerated()), id: \.offset) { i, face in
+                        Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
+                             size: 22, initialsSize: 9)
+                            // A ring in the pill's own colour, so each overlapped face reads whole.
+                            .overlay(Circle().stroke(Self.pillInk.opacity(0.88), lineWidth: 1.5))
+                            .zIndex(Double(3 - i))
                     }
                 }
-                .padding(.leading, 3)
-                .padding(.trailing, more > 0 ? 7 : 3)
-                .padding(.vertical, 3)
-                .frame(minHeight: 30)
-                .background(Self.pillInk.opacity(0.88), in: Capsule())
-                .overlay(Capsule().stroke(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.18)))
+                if more > 0 {
+                    Text("+\(more)")
+                        .font(FAMFont.mono(10, bold: true))
+                        .foregroundStyle(FAMColor.copper)
+                }
             }
-            .buttonStyle(.press)
-            .accessibilityLabel(n == 1 ? "\(shown[0].name) listened" : "\(n) friends listened")
+            .padding(.leading, 3)
+            .padding(.trailing, more > 0 ? 7 : 3)
+            .padding(.vertical, 3)
+            .frame(minHeight: 30)
+            .background(Self.pillInk.opacity(0.88), in: Capsule())
+            .overlay(Capsule().stroke(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.18)))
         }
     }
 
@@ -577,6 +629,20 @@ struct Face: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
         .accessibilityHidden(true)
+    }
+}
+
+/// The card's press (`Motion`'s `.seed-card`): draws the card exactly as
+/// it is and reports whether a finger is on it, so the card and the
+/// controls laid over its picture squeeze together.
+private struct CardPress: ButtonStyle {
+    @Binding var pressed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, down in
+                pressed = down
+            }
     }
 }
 

@@ -24,6 +24,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var rails: [Rail] = []
     @Published private(set) var railsProblem = ""
     @Published private(set) var loadingRails = false
+    /// This launch's (or sign-in's) first DailyFAM feed has been asked and
+    /// answered: the rails are on screen, so the notifications poll may
+    /// start and myFAM may be warmed behind it (a faster start).
+    @Published private(set) var feedDrawn = false
     @Published var showPlayer = false
     /// "taste", or "startup"/"sample": rail 1 is headed "Start here".
     @Published private(set) var tasteSource = "taste"
@@ -127,6 +131,14 @@ final class AppModel: ObservableObject {
     /// The rail tiles already drawn, so only new ones arrive (`Motion.arriveRails`).
     let arrivals = ArrivalBook()
 
+    // A faster start: one tab at a time.
+
+    /// The first feed of this launch (after `/api/auth/me`); a second look
+    /// waits on this one rather than asking again.
+    private var feedTask: Task<Void, Never>?
+    /// What is warmed behind the feed, one request at a time.
+    private var warmTask: Task<Void, Never>?
+
     init(api: FAMAPI = FAMAPI()) {
         self.api = api
         let tokenSource = api
@@ -192,11 +204,13 @@ final class AppModel: ObservableObject {
         }
         // The phone's own word for whether there is a network (the web's
         // `online` / `offline` events).
+        // Delivered on the main queue, so the handler is on the main actor
+        // as every other callback here is (`MainActor.assumeIsolated`).
         pathMonitor.pathUpdateHandler = { [weak self] path in
             let down = path.status != .satisfied
-            Task { @MainActor [weak self] in self?.pathChanged(down: down) }
+            MainActor.assumeIsolated { self?.pathChanged(down: down) }
         }
-        pathMonitor.start(queue: DispatchQueue(label: "net.familiarize.fam.path"))
+        pathMonitor.start(queue: .main)
         nowPlaying.playEpisode = { [weak self] ep in self?.play(ep) }
         nowPlaying.onEnded = { [weak self] ep in self?.mixItemEnded(ep) ?? false }
         nowPlaying.detourFor = { [weak self] base in self?.detour(for: base) ?? "" }
@@ -252,11 +266,18 @@ final class AppModel: ObservableObject {
             stage = .signedOut
             return
         }
+        // The last page drawn on this phone, at once, so the tab opens on
+        // cards rather than LOADING; the fresh page replaces it on arrival.
+        showRememberedFeed()
+        // Who this is first; the feed after it, asked by the DailyFAM tab as
+        // it opens (the owner's call: never the two together). Nothing else
+        // is asked until the feed is on screen.
         do {
             let who = try await api.me()
             arrive(who)
         } catch FAMError.signedOut {
             api.token = nil
+            dropFirstFeed()
             stage = .signedOut
         } catch {
             // Offline or the server is away: keep the account, show what
@@ -345,6 +366,10 @@ final class AppModel: ObservableObject {
         }
         listener = who
         stage = who.waitlisted ? .waiting : .ready
+        // At launch the AI question's answer and the search settings are
+        // asked behind the feed (`warmBehindFeed`); once the app is running
+        // (a link, a new password) they are asked again at once, as before.
+        guard feedDrawn else { return }
         Task { await consent.load() }
         // Painted from the stored preference, so private search is on from
         // the first search after a launch (`loadPreferences`).
@@ -366,6 +391,7 @@ final class AppModel: ObservableObject {
         mixPath = []
         dailyPath = []
         inviteLink = nil
+        dropFirstFeed()
         // The episodes and the page kept on this phone are this listener's
         // (`forgetOfflineCopies`): the next person on it starts clean.
         shelf.clear()
@@ -389,14 +415,11 @@ final class AppModel: ObservableObject {
     func loadRails() async {
         loadingRails = true
         defer { loadingRails = false }
-        async let faces: Void = loadCircle()
-        async let pick: Void = loadPickUp()
-        async let saves: Void = loadSavedTiles()
-        // The facets' names, for the tuning dial's "Tuning in to …".
-        Task { await mixes.loadVocabulary() }
-        if inviteLink == nil { Task { await loadInviteLink() } }
+        // The rails first, then the faces row, Pick up and the bookmarks
+        // (a faster start: the cards are what the listener came for).
         do {
             let data = try await api.railsData()
+            if Task.isCancelled { return }
             let page = try FAMAPI.decodeRails(data)
             rails = page.sections
             tasteSource = page.tasteSource ?? "taste"
@@ -409,6 +432,8 @@ final class AppModel: ObservableObject {
         } catch FAMError.waitlisted {
             stage = .waiting
         } catch {
+            // Dropped (signed out meanwhile): nothing to say about it.
+            if Task.isCancelled { return }
             // No connection: the last page drawn, with what is on this
             // phone at full brightness and the rest faded.
             let network = error is URLError
@@ -422,7 +447,91 @@ final class AppModel: ObservableObject {
                 railsProblem = "Your feed could not load. Search still works — try again in a moment."
             }
         }
+        async let faces: Void = loadCircle()
+        async let pick: Void = loadPickUp()
+        async let saves: Void = loadSavedTiles()
         _ = await (faces, pick, saves)
+    }
+
+    // MARK: - A faster start
+
+    /// The last DailyFAM page this phone drew (`famLastFeed`), shown at
+    /// launch while the fresh one is asked - only into an empty page.
+    private func showRememberedFeed() {
+        guard rails.isEmpty, let last = shelf.rememberedFeed() else { return }
+        rails = last.sections
+        tasteSource = last.tasteSource ?? "taste"
+        friendFaces = last.friendFaces ?? []
+    }
+
+    /// This launch's first feed, asked once, after `/api/auth/me` has
+    /// answered: the DailyFAM tab starts it, and anything else that asks
+    /// for the first feed waits on the same one.
+    @discardableResult
+    func startFirstFeed() -> Task<Void, Never> {
+        if let feedTask { return feedTask }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.loadRails()
+            if Task.isCancelled { return }
+            self.feedArrived()
+        }
+        feedTask = task
+        return task
+    }
+
+    /// The DailyFAM tab's first look: the feed already asked, or asked now
+    /// (after a sign-in, which has no launch feed).
+    func firstFeed() async {
+        if rails.isEmpty { showRememberedFeed() }
+        await startFirstFeed().value
+    }
+
+    /// Signed out (or the account turned out to be gone): the next listener
+    /// starts with a feed of their own.
+    private func dropFirstFeed() {
+        feedTask?.cancel()
+        feedTask = nil
+        warmTask?.cancel()
+        warmTask = nil
+        feedDrawn = false
+    }
+
+    /// The feed is on screen: the poll may start (MainTabs watches
+    /// `feedDrawn`), and a few seconds later what the other tabs and the
+    /// first search need is warmed, one request at a time.
+    private func feedArrived() {
+        guard !feedDrawn else { return }
+        feedDrawn = true
+        warmTask?.cancel()
+        warmTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if Task.isCancelled { return }
+            await self?.warmBehindFeed()
+        }
+    }
+
+    /// One after another, never together, so the read allowance (60 in
+    /// 10 s) is never spent by the warming: the AI question's answer and
+    /// the search settings (so private search is on from the first search
+    /// or Go Deeper), the facets' names (the tuning dial's "Tuning in to
+    /// …"), the invite link (a share sheet must open inside the tap), then
+    /// myFAM's mixes and categories, so that tab draws at once.
+    private func warmBehindFeed() async {
+        guard listener != nil, stage == .ready else { return }
+        if consent.current == nil { await consent.load() }
+        if Task.isCancelled { return }
+        if listener?.waitlisted != true {
+            if you.prefs == nil { await you.loadPrefs() }
+            if Task.isCancelled { return }
+            if voices == nil, let page = try? await api.voices() { voices = page }
+            if Task.isCancelled { return }
+        }
+        await mixes.loadVocabulary()
+        if Task.isCancelled { return }
+        if inviteLink == nil { await loadInviteLink() }
+        if Task.isCancelled { return }
+        await mixes.warm()
     }
 
     func loadCircle() async {

@@ -42,6 +42,10 @@ struct YouView: View {
             await you.loadProfile()
             await social.loadGraph()
             social.checkNewFollowers()
+            // A mix on this page opens its own page when it is yours: the
+            // mixes are no longer asked at launch, so if myFAM has not been
+            // warmed or shown yet, they are asked now (a faster start).
+            if model.mixes.state != .ready { await model.mixes.load() }
         }
     }
 

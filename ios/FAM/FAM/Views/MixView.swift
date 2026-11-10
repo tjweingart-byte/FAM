@@ -17,7 +17,6 @@ struct MixView: View {
     @State private var people = false
     @State private var renaming = false
     @State private var newName = ""
-    @State private var confirmDelete = false
     @State private var confirmAlone = false
     @State private var confirmLeave = false
     @State private var confirmPublicShare = false
@@ -95,15 +94,13 @@ struct MixView: View {
                     .environmentObject(model)
             }
         }
+        // The field starts empty with the current name as its placeholder,
+        // as the web's (`renameMix`: `placeholder: m.name`).
         .alert("Rename mix", isPresented: $renaming) {
             TextField(mix?.name ?? "", text: $newName)
             Button("Cancel", role: .cancel) {}
             Button("Save") { Task { await rename() } }
         }
-        .confirmationDialog("Delete “\(mix?.name ?? "")”?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete mix", role: .destructive) { Task { await delete() } }
-            Button("Cancel", role: .cancel) {}
-        } message: { Text("Its topics and listen time go with it. This can’t be undone.") }
         .confirmationDialog("Make “\(mix?.name ?? "")” yours alone? The invite link stops working and everyone else is taken off. The topics they added stay.",
                             isPresented: $confirmAlone, titleVisibility: .visible) {
             Button("Yes, make it mine alone", role: .destructive) { Task { await makeAlone() } }
@@ -630,7 +627,8 @@ struct MixView: View {
                 Button("Invite collaborators") { later { Task { await invite() } } }
                 if mix.joint { Button("Make it yours alone") { later { confirmAlone = true } } }
                 Button("Share mix") { later { Task { await shareTapped() } } }
-                Button("Delete mix", role: .destructive) { later { confirmDelete = true } }
+                // One tap, as on the web (`deleteMix`): no second question.
+                Button("Delete mix", role: .destructive) { Task { await delete() } }
             } else {
                 Button("Add topics to mix") { path.append(.add(id)) }
                 if !mix.people.isEmpty { Button("Who’s in this mix") { later { people = true } } }
@@ -645,7 +643,7 @@ struct MixView: View {
     }
 
     private func startRename(_ mix: Mix) {
-        newName = mix.name
+        newName = ""
         renaming = true
     }
 

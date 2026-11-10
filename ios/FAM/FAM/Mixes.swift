@@ -8,9 +8,9 @@ import SwiftUI
 /// After the web's `screen-playfam`, `screen-mixdetail`, `screen-addtopics`
 /// and `screen-publicmix` (PARITY.md). Where the web has a quirk the native
 /// app does not copy, it says so: the page updates in place rather than
-/// being pushed again, Delete asks first, Rename starts from the current
-/// name, and "Remove from this playlist" sends a `remove` operation rather
-/// than the whole list (§498).
+/// being pushed again, and "Remove from this playlist" sends a `remove`
+/// operation rather than the whole list (§498). Delete is one tap and
+/// Rename's field starts empty under the current name, as on the web.
 @MainActor
 final class MixesModel: ObservableObject {
     enum State: Equatable { case loading, ready, failed }
@@ -59,6 +59,19 @@ final class MixesModel: ObservableObject {
         } catch {
             if mixes.isEmpty { state = .failed }
         }
+    }
+
+    /// Warmed a few seconds after DailyFAM's feed is on screen, before the
+    /// tab is ever shown (a faster start): the mixes, then the categories,
+    /// one request after the other - never beside anything else. The tab's
+    /// arrival still asks for both afresh; this only means it draws at once.
+    func warm() async {
+        if let found = try? await api.mixes() {
+            mixes = found
+            state = .ready
+        }
+        if Task.isCancelled { return }
+        await loadCategories()
     }
 
     /// Asked with every arrival on the tab; a failure keeps the last answer.

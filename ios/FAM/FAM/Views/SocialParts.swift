@@ -350,8 +350,8 @@ struct ModalButton: View {
                 .frame(maxWidth: wide ? .infinity : nil)
                 .frame(minHeight: 34)
                 .background(primary ? FAMColor.copper : Color.clear, in: Capsule())
-                .opacity(enabled ? 1 : 0.5)
         }
+        // Disabled reads at half strength - `.press` draws that dim itself.
         .buttonStyle(.press)
         .disabled(!enabled)
     }

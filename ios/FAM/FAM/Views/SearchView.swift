@@ -100,8 +100,13 @@ struct SearchView: View {
             LinkModal { url in attach.addLink(url) }
         }
         .background(pickers)
+        // Built the first time searchFAM is shown (a faster start), so this
+        // is that first look: words left for it by Search DailyFAM before it
+        // existed, then the trending questions and the search settings, one
+        // after the other.
         .task {
             wireVoice()
+            takePrefill(model.searchPrefill)
             await loadTrending(force: true)
             if model.voices == nil { await model.loadSearchSettings() }
         }
@@ -138,11 +143,15 @@ struct SearchView: View {
         // Search DailyFAM's "Search FAM for it": the words in the box,
         // ready to send (`searchFromMyFam`).
         .onChange(of: model.searchPrefill) { _, prefill in
-            guard let prefill else { return }
-            model.searchPrefill = nil
-            if !prefill.isEmpty { setWords(prefill) }
-            tab = .search
+            takePrefill(prefill)
         }
+    }
+
+    private func takePrefill(_ prefill: String?) {
+        guard let prefill else { return }
+        model.searchPrefill = nil
+        if !prefill.isEmpty { setWords(prefill) }
+        tab = .search
     }
 
     /// The photo library and Files, each on a view of its own so neither

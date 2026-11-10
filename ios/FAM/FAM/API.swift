@@ -115,7 +115,7 @@ final class FAMAPI: @unchecked Sendable {
     /// on the phone for an offline open (`rememberFeed`).
     func railsData() async throws -> Data {
         let items = [URLQueryItem(name: "minutes", value: Self.minutes(Self.browseMinutes))]
-        let (data, response) = try await URLSession.shared.data(for: request("GET", "api/v1/myfam", query: items))
+        let (data, response) = try await readPaced(request("GET", "api/v1/myfam", query: items))
         try Self.check(response, data)
         return data
     }
@@ -428,9 +428,44 @@ final class FAMAPI: @unchecked Sendable {
 
     private func sendQuery<T: Decodable>(_ method: String, _ path: String, _ items: [URLQueryItem],
                                          as type: T.Type) async throws -> T {
-        let (data, response) = try await URLSession.shared.data(for: request(method, path, query: items))
+        let req = request(method, path, query: items)
+        let (data, response) = try await exchange(req)
         try Self.check(response, data)
         do { return try Self.decoder.decode(T.self, from: data) } catch { throw FAMError.unreadable }
+    }
+
+    /// One request: a read through `readPaced` (its pace retry), anything
+    /// else sent once - a POST is never repeated.
+    func exchange(_ req: URLRequest) async throws -> (Data, URLResponse) {
+        if req.httpMethod == "GET" {
+            return try await readPaced(req)
+        }
+        return try await URLSession.shared.data(for: req)
+    }
+
+    /// A read (a GET), with one patient retry when the server's pace says
+    /// "Slow down a moment" (429, `X-FAM-Refused-By: pace`): its
+    /// `Retry-After`, five seconds at most, then once more - so a tab's
+    /// first load (the feed above all) is not an error sentence because
+    /// the 60-in-10-s read allowance was briefly full. A second refusal is
+    /// answered as it was before.
+    func readPaced(_ req: URLRequest) async throws -> (Data, URLResponse) {
+        let first = try await URLSession.shared.data(for: req)
+        guard let wait = Self.paceWait(first.1, first.0) else { return first }
+        try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+        if Task.isCancelled { return first }
+        return try await URLSession.shared.data(for: req)
+    }
+
+    /// Seconds to wait before asking again, when the answer is the pace's
+    /// 429; nil for anything else (the allowance's 429 included).
+    static func paceWait(_ response: URLResponse, _ data: Data) -> Double? {
+        guard let http = response as? HTTPURLResponse, http.statusCode == 429 else { return nil }
+        let by = http.value(forHTTPHeaderField: "X-FAM-Refused-By") ?? ""
+        let slow = message(in: data).hasPrefix("Slow down")
+        guard by == "pace" || (by.isEmpty && slow) else { return nil }
+        let asked = Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 1
+        return min(5, max(0.5, asked))
     }
 
     /// A sample replayed on the waiting screen: exactly the request the
@@ -479,7 +514,7 @@ final class FAMAPI: @unchecked Sendable {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await exchange(req)
         try Self.check(response, data)
         do {
             return try Self.decoder.decode(T.self, from: data)

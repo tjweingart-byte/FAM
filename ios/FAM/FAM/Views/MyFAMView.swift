@@ -360,7 +360,9 @@ struct AddMixButton: View {
         }
         .buttonStyle(.press)
         .disabled(busy)
-        .opacity(busy ? 0.4 : 1)
+        // The web's 0.4 while busy (`.mix-add:disabled`): `.press` already
+        // halves a disabled button, so 0.8 of that.
+        .opacity(busy ? 0.8 : 1)
         .accessibilityLabel(isAdded ? "Remove \(mix.name) from your myFAM" : "Add \(mix.name) to your myFAM")
         .confirmationDialog("Remove \(mix.name) from your myFAM?", isPresented: $confirmRemove,
                             titleVisibility: .visible) {

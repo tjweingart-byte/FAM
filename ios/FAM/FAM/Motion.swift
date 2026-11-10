@@ -15,8 +15,8 @@ import SwiftUI
 /// in 90 ms, held while pressed, sprung back with a small overshoot. A
 /// press that turns into a scroll lets go at once (SwiftUI's own). Areas
 /// over about a third of the screen (a story's tap zones, a dim behind a
-/// card) do not squeeze, as on the web. Otherwise draws exactly what
-/// `.plain` drew: the label, unstyled.
+/// card) do not squeeze, as on the web. Otherwise draws what `.plain`
+/// drew: the label, unstyled, dimmed while disabled.
 struct PressButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         PressedLabel(label: configuration.label, pressed: configuration.isPressed)
@@ -61,6 +61,9 @@ private struct PressedLabel: View {
             .animation(curve) { content in
                 content.scaleEffect(target)
             }
+            // `.plain` dimmed a disabled button; a custom style draws no
+            // disabled look of its own, so this keeps that one.
+            .opacity(isEnabled ? 1 : 0.5)
     }
 }
 

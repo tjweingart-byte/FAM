@@ -6,6 +6,16 @@ import SwiftUI
 struct FAMApp: App {
     @StateObject private var model = AppModel()
 
+    init() {
+        // A proper picture cache (a faster start): the cards' pictures
+        // (`/api/thumb/…`, `immutable` for a year) come off the disk on
+        // the next launch instead of the network. Set before any request,
+        // so `URLSession.shared` - AsyncImage's - uses it.
+        URLCache.shared = URLCache(memoryCapacity: 50 * 1024 * 1024,
+                                   diskCapacity: 300 * 1024 * 1024,
+                                   directory: nil)
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -112,6 +122,30 @@ struct MainTabs: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .daily
     @State private var scrollToTop = 0
+    /// The tabs drawn so far (a faster start): at launch only DailyFAM is
+    /// built, so only its data is asked for; every other tab is built - and
+    /// asks for its own - the first time it is shown, and stays alive after.
+    @State private var built: Set<Tab> = [.daily]
+    /// YourFAM has been shown once: its own first look reads the graph.
+    @State private var youShown = false
+
+    /// The tab bar's binding: a tab never shown before is built first and
+    /// shown on the next frame, so it still nudges in from its side.
+    private var tabSelection: Binding<Tab> {
+        Binding(get: { tab }, set: { show($0) })
+    }
+
+    private func show(_ wanted: Tab) {
+        if built.contains(wanted) {
+            tab = wanted
+            return
+        }
+        built.insert(wanted)
+        Task { @MainActor in
+            await Task.yield()
+            tab = wanted
+        }
+    }
 
     /// A rail's View more, and every screen pushed from Messages (a
     /// conversation, a profile, Friends), have no tab bar or mini player.
@@ -136,11 +170,19 @@ struct MainTabs: View {
         VStack(spacing: 0) {
             ZStack {
                 DailyView(scrollToTop: $scrollToTop).tabPage(.daily, current: tab)
-                MyFAMView(path: $model.mixPath).tabPage(.myfam, current: tab)
-                SearchView(tab: $tab, attach: model.attachments, voice: model.voiceSearch,
-                           loading: model.loading).tabPage(.search, current: tab)
-                MessagesView().tabPage(.messages, current: tab)
-                YouView().tabPage(.you, current: tab)
+                if built.contains(.myfam) {
+                    MyFAMView(path: $model.mixPath).tabPage(.myfam, current: tab)
+                }
+                if built.contains(.search) {
+                    SearchView(tab: tabSelection, attach: model.attachments, voice: model.voiceSearch,
+                               loading: model.loading).tabPage(.search, current: tab)
+                }
+                if built.contains(.messages) {
+                    MessagesView().tabPage(.messages, current: tab)
+                }
+                if built.contains(.you) {
+                    YouView().tabPage(.you, current: tab)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // A social screen opened from another tab: over it, with a
@@ -164,7 +206,7 @@ struct MainTabs: View {
                         .padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                TabBar(tab: $tab, unread: social.unread, onDaily: {
+                TabBar(tab: tabSelection, unread: social.unread, onDaily: {
                     // DailyFAM again while on it: back to the rails from View
                     // more, to the top when scrolled, else the page afresh;
                     // arriving from another tab fetches it too (`openMyFamTab`).
@@ -181,13 +223,15 @@ struct MainTabs: View {
                     model.mixes.categoryState = CategoryState()
                     Task { await model.mixes.load() }
                 }, onMessages: {
-                    // Every arrival opens on the list, read afresh (`openMessages`).
+                    // Every arrival opens on the list, read afresh (`openMessages`);
+                    // the first arrival's read is the list's own, as it is built.
                     social.messagesPath = []
-                    Task { await social.loadInbox() }
+                    if built.contains(.messages) { Task { await social.loadInbox() } }
                 }, onYou: {
-                    // `openProfile`: the stack reset to the hub, read afresh.
+                    // `openProfile`: the stack reset to the hub, read afresh;
+                    // the first arrival's read is the page's own, as it is built.
                     model.youPath = []
-                    Task { await model.you.loadProfile() }
+                    if built.contains(.you) { Task { await model.you.loadProfile() } }
                 }, dark: tab == .search && model.privateSearch)
                 // The bar is the foot of the search screen's blind: the
                 // charcoal reaches it last as it falls, and leaves it first
@@ -212,19 +256,30 @@ struct MainTabs: View {
         }
         .animation(.easeOut(duration: 0.2), value: social.follower)
         .onChange(of: tab) { _, now in
+            built.insert(now)
             social.onMessagesTab = now == .messages
             // YourFAM showing is one of the web's two moments to raise a
-            // new follower (`checkNewFollowers`).
+            // new follower (`checkNewFollowers`); its first showing does it
+            // in the page's own first look.
             if now == .you {
-                Task {
-                    await social.loadGraph()
-                    social.checkNewFollowers()
+                if youShown {
+                    Task {
+                        await social.loadGraph()
+                        social.checkNewFollowers()
+                    }
                 }
+                youShown = true
             }
         }
-        // The poll: while the app is in front only; back in front, at once.
-        .task(id: scenePhase == .active) {
-            guard scenePhase == .active else { return }
+        // Search DailyFAM's "Search FAM for it" before searchFAM was ever
+        // shown: built now, and it takes the words as it starts.
+        .onChange(of: model.searchPrefill) { _, prefill in
+            if prefill != nil && !built.contains(.search) { show(.search) }
+        }
+        // The poll: while the app is in front only; back in front, at once -
+        // and only once DailyFAM's feed is on screen (a faster start).
+        .task(id: scenePhase == .active && model.feedDrawn) {
+            guard scenePhase == .active, model.feedDrawn else { return }
             await social.runNotifications()
         }
         .overlay(alignment: .bottom) {
@@ -236,7 +291,7 @@ struct MainTabs: View {
             if let name = model.mixDone {
                 MixDoneOverlay(name: name) {
                     model.mixDone = nil
-                    tab = .myfam
+                    show(.myfam)
                     model.mixPath = []
                     Task { await model.mixes.load() }
                 }
@@ -244,11 +299,12 @@ struct MainTabs: View {
         }
         .onChange(of: model.tabRequest) { _, wanted in
             guard let wanted else { return }
-            tab = wanted
+            show(wanted)
             model.tabRequest = nil
             if wanted == .myfam { Task { await model.mixes.load() } }
         }
-        .task { await model.mixes.load() }
+        // myFAM's mixes are no longer asked at launch: `AppModel` warms
+        // them a few seconds after the feed, and the tab asks on arrival.
         .background(FAMColor.background.ignoresSafeArea())
         // Full screen, as the web's player is a screen of its own; the Home
         // mark minimises it and the episode carries on in the mini player.
