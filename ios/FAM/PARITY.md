@@ -25,7 +25,8 @@ the app.
 
 | Web | iOS | Note |
 |---|---|---|
-| Bottom bar: DailyFAM, myFAM, search (centre), Messages, YourFAM | Partial | DailyFAM, myFAM, search, YourFAM in five equal slots, Messages' left empty until it is built (`no-dead-controls`), so the search is centred as on the web; each icon has the web's tone fill (.16, .45 when on) |
+| Bottom bar: DailyFAM, myFAM, search (centre), Messages, YourFAM | Done | five equal slots; each icon has the web's tone fill (.16, .45 when on); Messages carries the coral unread badge ("9+" above nine) from the notifications poll; tapping Messages opens its list read afresh |
+| No tab bar or mini player on a conversation, a profile or Friends | Done | the web's pushed screens have none; opened from another tab they come up over it with a stack of their own |
 | No tab bar or mini player on a rail's View more (`screen-section`) | Done | |
 | Mini player above the bar, X stops (`transport`) | Done | |
 | Leaving the player never stops it | Done | |
@@ -83,16 +84,16 @@ Checked against a specification written from `static/index.html` (the web's
 |---|---|---|
 | Header: the centred dailyFAM wordmark, nothing else (the bookshelf moved to search) | Done | |
 | Tap DailyFAM again: from View more back to the rails and reloaded; scrolled down, back to the top only; at the top, refetched; arriving from another tab refetches | Done | |
-| Friends' stories row: your story with its (+) badge, friends with fresh (gold) / seen (grey) rings, 60 pt faces in a 72 pt ring, Invite (dashed) | Partial | seen state per device. Your face with no story, its (+) and a friend with no story do nothing: on the web they open the note composer and the friend's profile, neither built yet (`no-dead-controls`). Invite shares the referral link from `/api/waitlist/me` while the waitlist runs, else the app's address |
-| Story viewer: 6 s a story, bars, opens on the first unseen (also on a swipe to another friend), tap back/on (back past the first goes to the previous friend's last), hold (hides the chrome), swipe between friends, the title and Play episode open the episode (or the player, when it is the one loaded), reply with the send inside the box, heart (the first like also sends a ❤️ message; on notes too), VIBE! to your story; the ⋯ list (Save for later, Share, Add to Queue, Add topic to playlist, Report, Block; on your own, Delete vibe / Remove from your story) | Partial | VIBE! posts the episode with a caption (`/api/vibe`) - the web opens its full story editor, not ported. The header opens no profile (none built). A note is drawn from its layout (background, words, stickers, @mentions, not tappable); a vibe laid out in the web's editor is drawn as the plain title page, not its canvas |
+| Friends' stories row: your story with its (+) badge, friends with fresh (gold) / seen (grey) rings, 60 pt faces in a 72 pt ring, Invite (dashed) | Partial | seen state per device. A friend with no story opens their profile (no handle: the conversation, for a friend only); your face with no story and its (+) do nothing - the note composer is not built (`no-dead-controls`). Invite shares the referral link from `/api/waitlist/me` while the waitlist runs, else the app's address |
+| Story viewer: 6 s a story, bars, opens on the first unseen (also on a swipe to another friend), tap back/on (back past the first goes to the previous friend's last), hold (hides the chrome), swipe between friends, the title and Play episode open the episode (or the player, when it is the one loaded), reply with the send inside the box, heart (the first like also sends a ❤️ message; on notes too), VIBE! to your story; the ⋯ list (Save for later, Share, Add to Queue, Add topic to playlist, Report, Block; on your own, Delete vibe / Remove from your story) | Partial | VIBE! posts the episode with a caption (`/api/vibe`) - the web opens its full story editor, not ported. The header opens the friend's profile once the story closes; a report the server hides closes the story; Block surfaces the server's sentence. A note is drawn from its layout (background, words, stickers, @mentions, not tappable); a vibe laid out in the web's editor is drawn as the plain title page, not its canvas |
 | Pick up where you left off: resume (time left, bar) and thread cards, X dismisses for good | Done | resumes seek once the audio has arrived. **Server bug found:** progress keeps `minutes` as an integer, so a 1.5-minute resume is asked as 1 minute (a different episode) - on the web too |
 | Five rails in the server's order, "Made for you, {Day} {part}" / "Start here", the others' headings | Done | |
 | Each rail's empty sentence from the server; friends rail silent with nobody followed | Done | |
 | Card: picture (with none, the web's `seedThumbSVG` drawing by `icon`), subject chip (`thumb_facet`, else the first tag), ready badge, the web's save bookmark (an outline, on sage once saved) and ⋯, friends pill (three 22 pt faces from the page's own face book, "+N" in copper; a tap lists who listened) or the words alone (not tappable), title size steps (>48, >72), live line (copper and dotted only while in progress and under 20 min old) with its age, hook with each rail's fallback | Done, differs on purpose | the owner's call for iOS: the picture at its full 4:3 (the web crops rail pictures to a 96 pt strip), the whole hook (the web clamps it to two lines), and the friends' faces on the subject chip's line, centred on it (the web lifts them above the chip) |
 | Card ⋯ in the web's order with its icons: Share, Add to myFAM Playlist, Add to Queue, Go to Queue, Not interested (the frown); Not interested takes the card off every rail and any open View more | Done | |
-| "N friends listened": a centred card, bordered round close, a row a friend | Partial | the web's rows open each profile; none built, so the rows carry no chevron and do nothing |
+| "N friends listened": a centred card, bordered round close, a row a friend | Done | a row with a handle opens that profile once the card has closed |
 | A rail ends in a faint chevron until scrolled to its end, then VIEW MORE → View more: 16 at a time, Refresh (back to the top each page), the reason line, wrap notes (never "The last of this rail" on Made for you, whose first page is the rail's own tiles and never caught up), caught up, Trending by continent, faces from the page's own `friend_faces` | Done | |
-| Find new friends pill after the friends rail (alone when you follow nobody) | Partial | the web opens the Friends screen; that is not built, so the pill opens the invite share sheet (the Invite face's) |
+| Find new friends pill after the friends rail (alone when you follow nobody) | Done | opens Friends |
 | Guest sample note | n/a | the iOS app requires an account |
 | Offline: the bar, dimmed cards, the remembered page | Not yet | |
 | Loading skeleton; the error sentence | Done | |
@@ -108,7 +109,7 @@ Checked against a specification written from `static/index.html` (the web's
 | Full-screen player: Home mark, picture (4:3, faded), title with the explicit E and the writer's title swap, scrubber (requested length until complete, arrived drawn, clamped 2 s short), ±15, copper play | Done | the picture's blur-up and the title's wipe are simple fades |
 | Lock screen: title, play/pause, ±15, scrub | Done | |
 | GO DEEPER pill and sheet (`next-is-prediction`, §170) | Done | thread from `/api/next`, typed = own, 1-5 lengths |
-| Share / VIBE! / save on the right (§192) | Partial | save and share done (iOS share sheet for the web's targets); VIBE! posts with a caption - the web's full story editor and "send inside FAM" not yet; the burst animation not yet |
+| Share / VIBE! / save on the right (§192) | Partial | save and share done - "Share this FAM" sends inside FAM to a group or a friend (with the heard episode's id, which the web's sheet drops) and lists the server's destinations; VIBE! posts with a caption - the web's full story editor not yet; the burst animation not yet |
 | Sources by the title, and the Sources sheet | Done | favicons over initials |
 | Live captions sheet (`live-captions`) | Done, differs on purpose | the owner's call for iOS: the whole script, scrollable, the current sentence highlighted and followed (the web shows the current sentence alone); tap a sentence to jump there |
 | ⋯ menu in the web's order: Share, VIBE!, Save, Captions, Add to myFAM Playlist ("myFAM" drawn as the wordmark), Remove from this playlist, Add to/Go to Queue, Report (1.2) | Done | "Remove from this playlist" only for your own mix, as a `remove` operation (the web sends the whole list, §498); the playing order is spliced as the web does so the next item still follows; the rows' other icons are SF Symbols, not the web's `MENU_ICONS` |
@@ -117,7 +118,7 @@ Checked against a specification written from `static/index.html` (the web's
 | After an episode: four recommendations, first starts in 15 s (`post-episode-grid`) | Done | `/api/nextup`; album tile n/a |
 | The searcher shown if `searches_public` | Done | in the ⋯ menu header |
 | Opus stream (stage 3) and signed replay links (§252) | Not yet | PCM today |
-| Kept episodes replay by `X-FAM-Episode` (§173) | Not yet | |
+| Kept episodes replay by `X-FAM-Episode` (§173) | Partial | a message's Listen replays the sender's exact episode (`episode=`), asking the question when it is gone (409); the listening history's replay is not built |
 
 ## myFAM (mixes)
 
@@ -132,7 +133,7 @@ and icons (2026-11-10), and a specification written from `static/index.html`
 | Public-mix search: Cancel, 180 ms debounce, out-of-order answers dropped, the four sentences, result cards with (+) | Done | the (+) reads the loaded list once it has loaded; a tap on it never opens the mix |
 | Category filter chips on the myFAM tab (§500): All, followed (starred), facets, More; inside a category the X, root and sub chips; the 16:9 hero in the facet's colour (surface-2 for an unknown facet, the E badge on an explicit title), Play all · N min, Follow/Following, episode rows; Find a category | Done | plays replay-only with no surface, and only the episodes after the one tapped are queued, each still replay-only; the web's oversized row picture (a bug the shots found) is not copied |
 | New mix: X, the step label, cover, live name preview, 40-character name, the client's duplicate check, Create opens the empty mix | Done | |
-| A mix's page: hero, Change, people line (your own face and name on a mix that is yours alone, from `/api/profile`) and Who's in it (a sheet; rows open nothing until the profile screen exists), Share and Invite, Add topics, Play today's N, Today's edition date, topics with the adder's face | Done | updates in place (the web pushes the page again); Back asks for the list afresh |
+| A mix's page: hero, Change, people line (your own face and name on a mix that is yours alone, from `/api/profile`) and Who's in it (a sheet; a row with a handle opens the profile), Share and Invite, Add topics, Play today's N, Today's edition date, topics with the adder's face | Done | updates in place (the web pushes the page again); Back asks for the list afresh |
 | Drag to reorder (one whole-list write) | Done | the new order is drawn at once and kept until the server answers; a refusal says the server's sentence and puts the old order back |
 | Recommended topics: five, Shuffle, personalised order or local ranking (your profile's `interests_shown`, else every facet, then the mix's facets), (+) adds | Done | |
 | Listen time: the time pill ("--:--" when none), picker, Clear, the toasts | Partial | the picker is a wheel in a small sheet and writes once, on Done; saved for the server; the "ready" notification is Web Push only - APNs is not built on the server, and the row says so |
@@ -140,9 +141,9 @@ and icons (2026-11-10), and a specification written from `static/index.html`
 | ⋯ menu, owner and member, each action and sentence | Done, differs on purpose | Delete asks first (the web deletes in one tap); Rename starts from the current name |
 | Joint mixes: invite link, make it yours alone, leave, member permissions | Partial | joining from a `/j/` link needs universal links (not yet); invites go to iOS's share sheet (no title on it) |
 | Covers: choose, change, remove, the AI-check note before a photo is used (new mix and mix page) | Partial | cut square from the middle; the web's position-and-zoom editor not ported |
-| Sharing a mix (make public first): "Share this mix" with the server's destinations (copy, iMessage, Email, WhatsApp, X, Facebook, LinkedIn) and the no-public-address note | Partial | sending to a person or group inside FAM (`/api/messages`) waits for Messages - the episode share has none either; the Instagram/Snapchat story cards not ported |
+| Sharing a mix (make public first): "Share this mix" with the server's destinations (copy, iMessage, Email, WhatsApp, X, Facebook, LinkedIn) and the no-public-address note | Partial | sends inside FAM to a group or a friend (the link's words as a message); destinations are rows, not the web's grid; the Instagram/Snapchat story cards not ported |
 | Add topics: recommended, typed topic first (short-named by the server), teams and companies, topics, (+)/✓ as operations; the web's 48 subject icons | Done | icons generated from `CAT_ICONS` by `tools/ios_icons.py`; a test fails if they drift |
-| Somebody else's public mix: owner, Add to myFAM / In your myFAM, play, remove a copy | Done | the owner's profile link waits for the profile screen |
+| Somebody else's public mix: owner, Add to myFAM / In your myFAM, play, remove a copy | Done | the owner line opens their profile |
 | Add to myFAM Playlist sheet (player, card and story ⋯) | Done | with nothing playing it says "Play something first" and opens nothing |
 | Playing a mix: the playlist, today's edition prompts, the glide loading screen, skip (which starts the failure count again), failures (two in a row, or no connection, stop it), an allowance refusal ends it in the server's words, Next from {mix} in the Queue, the finished overlay | Partial | the glide's status line never carries the server's "cannot write" note: the app does not read `/api/health`, where the web gets it |
 | Guest sample mix | n/a | the iOS app requires an account |
@@ -151,11 +152,16 @@ and icons (2026-11-10), and a specification written from `static/index.html`
 
 | Web | iOS | Note |
 |---|---|---|
-| Messages tab, threads, group chats (§213) | Not yet | `/api/messages` |
-| Friends: follow, friends' vibes first, find friends | Not yet | |
-| A friend's profile screen (`screen-person`) | Not yet | `/api/person` |
+| Messages tab: list (1:1 and group, unread dot, previews as the web words them), Search messages in memory, Loading / error / empty / no-match notes, re-read on every return | Done | no guest gate (the app needs an account) |
+| New message: pick friends (one = chat, two or more = group with an optional name), or find by name/@handle | Done, differs on purpose | friends only (§523, the server refuses anyone else); typed lookups show the results to pick from (the web opens the first hit and says "Name or phone number", quirk 6) |
+| A conversation: header (View profile / N people · See who's here, interest chips, N in common), day separators (every row, quirk 4), bubbles, episode cards (Listen replays the sender's episode, GO DEEPER on it, save), story replies and the big ❤️, "You finished it" receipts, group system lines and sender names (once, quirk 5), typing dots, pop-in of new rows, 2 s poll on `head` (row id) deduped by id, pending at 55%, a refused send put back with the server's sentence, composer to 112 pt where Return is a new line, the (+) with playing / saved / vibed episodes, typing notes every 2.5 s | Done | FAM's own `/api/spell` autocorrect behind the keyboard is not ported; chips do not open the Topic screen (none on iOS) |
+| Thread ⋯: View profile, Delete chat, Report, Block; group: See who's here, Name the group, group photo (library, camera, file, remove), Leave, Delete, Report this chat | Done | confirmations are dialogs with normal-case messages (quirk 3); rename is an alert with a field |
+| Report a single message (held down) and Report / Block a group member | Done, iOS only | the server takes both; the web has no control for either (quirks 1, 2) |
+| Notifications: bootstrap then a 3 s poll while in front, banners (message, group episode, follow) one at a time 3 s apart 0.42 s, swipe up / X / hold, the follower popup with Follow back, `announced` once ever | Done | no APNs (none on the server) |
+| Friends: search by handle, Invite new users + (referral link), counts, Friends / Following / Follows you, Follow / Following, opening clears new followers | Done, differs on purpose | Unfollow asks first (quirk 7); faces are initials on the person's colour everywhere (quirk 8b); reached from YourFAM's Friends row (with the new-followers count), Find new friends, a follow banner, Messages' empty note and a profile's ⋯ |
+| A friend's profile (`screen-person`): hero (story ring under 48 h opens their story), place · @handle, standing, friends / vibes / mixes counts, Message (friends only, §523) + Follow/Following (by handle when there is no id), interests with N in common, Vibes / Mixes tabs (a vibe plays; a mix opens its public page, (+)/✓ adds it), their friends (only when mutual) with View more, the privacy note, ⋯ Unfollow / Your friends / Report / Block | Done | interest chips do not open the Topic screen (none on iOS) |
 | VIBE! story editor, your story, replies (§213, §282) | Partial | your story plays, replies / likes / VIBE! with a caption work from DailyFAM's story viewer; the editor and the note composer are not built |
-| Report and Block on comments, chats, profiles, stories (1.2) | Not yet | **required for App Store**; FAMSafety has the screens |
+| Report and Block on chats, messages, group members, profiles, stories, the player (1.2) | Done | FAMSafety's sheets; a block refusal shows the server's sentence; comments are gone from the web |
 | Push notifications (a mix's "ready", §448) | Not yet | APNs not built on the server either |
 
 ## YourFAM (profile) and Settings
@@ -167,7 +173,7 @@ and icons (2026-11-10), and a specification written from `static/index.html`
 | Saved for later, folders (`save-pointer`) | Not yet | |
 | Listening history | Not yet | |
 | Edit profile, interests, place, time zone | Not yet | |
-| Blocked people | Done | FAMSafety |
+| Blocked people | Done | FAMSafety; the row shows the count or "None"; unblocking says "Unblocked @handle" |
 | Feedback report | Not yet | |
 
 ## Sharing
