@@ -30,7 +30,7 @@ enum PlayerIcons {
     /// −15's ring (`M10.6 4.6A8.4 8.4 0 1 1 4.3 9.6`).
     static let backRing: Path = {
         var p = Path()
-        arc(&p, cx: 12.0346, cy: 12.8766, r: 8.4, from: -99.8335, to: 202.9589)
+        PlayerIcons.arc(&p, cx: 12.0346, cy: 12.8766, r: 8.4, from: -99.8335, to: 202.9589)
         return p
     }()
 
@@ -45,7 +45,7 @@ enum PlayerIcons {
     /// +15's ring, the mirror (`M13.4 4.6A8.4 8.4 0 1 0 19.7 9.6`).
     static let forwardRing: Path = {
         var p = Path()
-        arc(&p, cx: 11.9654, cy: 12.8766, r: 8.4, from: -80.1665, to: -382.9589)
+        PlayerIcons.arc(&p, cx: 11.9654, cy: 12.8766, r: 8.4, from: -80.1665, to: -382.9589)
         return p
     }()
 
@@ -81,8 +81,8 @@ enum PlayerIcons {
     static let captionsPill: Path = {
         var p = Path()
         p.addRoundedRect(in: CGRect(x: 1.1, y: 1.1, width: 21.8, height: 15.8), cornerSize: CGSize(width: 4, height: 4))
-        arc(&p, cx: 8.3029, cy: 9, r: 2.7, from: -51.0576, to: -308.9424)
-        arc(&p, cx: 15.7029, cy: 9, r: 2.7, from: -51.0576, to: -308.9424)
+        PlayerIcons.arc(&p, cx: 8.3029, cy: 9, r: 2.7, from: -51.0576, to: -308.9424)
+        PlayerIcons.arc(&p, cx: 15.7029, cy: 9, r: 2.7, from: -51.0576, to: -308.9424)
         return p
     }()
 
@@ -90,8 +90,8 @@ enum PlayerIcons {
     static let captionsMenu: Path = {
         var p = Path()
         p.addRoundedRect(in: CGRect(x: 2.5, y: 5, width: 19, height: 14), cornerSize: CGSize(width: 3, height: 3))
-        arc(&p, cx: 8.5682, cy: 12, r: 2.3, from: -51.5, to: -308.5)
-        arc(&p, cx: 15.1682, cy: 12, r: 2.3, from: -51.5, to: -308.5)
+        PlayerIcons.arc(&p, cx: 8.5682, cy: 12, r: 2.3, from: -51.5, to: -308.5)
+        PlayerIcons.arc(&p, cx: 15.1682, cy: 12, r: 2.3, from: -51.5, to: -308.5)
         return p
     }()
 

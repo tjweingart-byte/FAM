@@ -213,7 +213,8 @@ final class NowPlayingModel: ObservableObject {
         stopNextUp()
 
         if signedIn() {
-            Task { await api.noteListen(ep.key, surface: ep.surface, title: ep.title,
+            let heard = title
+            Task { await api.noteListen(ep.key, surface: ep.surface, title: heard,
                                         episode: player.episodeID) }
             Task { if let s = try? await api.isSaved(ep.key), mine == run { saved = s } }
         }
