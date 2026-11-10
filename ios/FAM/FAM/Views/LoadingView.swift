@@ -38,6 +38,23 @@ final class LoadingModel: ObservableObject {
     /// five steps. It holds nothing - audio starts the moment it arrives,
     /// after the 0.45 s minimum.
     @Published private(set) var glide: Glide?
+    /// A DailyFAM tile: the tuning dial (§509, `paintLoadingVariant("dial")`)
+    /// instead of the five steps. Like the glide it holds nothing.
+    @Published private(set) var dial: Dial?
+
+    struct Dial: Hashable {
+        /// The rail's heading, one line ("" when the tile is on no rail).
+        var heading: String
+        /// Up to four neighbouring tags and the tile's own, at `at`.
+        var labels: [String]
+        var at: Int
+        /// "Money & markets": the tile's facet in full (`dialWord`).
+        var tune: String
+        var title: String
+    }
+
+    /// The dial and the glide have no steps and hold no audio.
+    private var free: Bool { glide != nil || dial != nil }
 
     struct Glide: Equatable {
         var mixName: String
@@ -61,10 +78,11 @@ final class LoadingModel: ObservableObject {
     private var run = 0
     private var ask: (() async -> Progress?)?
 
-    func start(ask: @escaping () async -> Progress?, glide: Glide? = nil) {
+    func start(ask: @escaping () async -> Progress?, glide: Glide? = nil, dial: Dial? = nil) {
         run += 1
         let mine = run
         self.glide = glide
+        self.dial = glide == nil ? dial : nil
         self.ask = ask
         server = [false, false, false, false]
         audioReady = false
@@ -81,7 +99,7 @@ final class LoadingModel: ObservableObject {
     func ready(cacheHit: Bool) {
         guard visible else { onRelease?(); return }
         audioReady = true
-        if cacheHit || glide != nil {
+        if cacheHit || free {
             // A replay: all five done, held only long enough to be seen.
             shown = Self.labels.count
             let wait = max(0, Self.minVisible - Date().timeIntervalSince(shownAt))
@@ -95,7 +113,7 @@ final class LoadingModel: ObservableObject {
     }
 
     private func tick(_ mine: Int) async {
-        while mine == run && visible && glide == nil {
+        while mine == run && visible && !free {
             advance()
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
@@ -132,7 +150,7 @@ final class LoadingModel: ObservableObject {
     }
 
     private func pollLoop(_ mine: Int) async {
-        while mine == run && visible && !audioReady && glide == nil {
+        while mine == run && visible && !audioReady && !free {
             if let answer = await ask?() {
                 for (i, done) in answer.steps.marks.enumerated() where done {
                     server[i] = true
@@ -157,6 +175,10 @@ struct LoadingView: View {
             background
             if let glide = loading.glide {
                 GlideView(glide: glide, still: reduceMotion)
+            } else if let dial = loading.dial {
+                DialView(dial: dial, still: reduceMotion)
+                    .padding(.horizontal, 32)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
             VStack(spacing: 22) {
                 FAMLetters(capHeight: 22)
@@ -445,5 +467,202 @@ private struct PulsingDot: View {
                 withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { bright = true }
             }
             .accessibilityHidden(true)
+    }
+}
+
+/// The tuning dial (§509, option 5, `paintLoadingVariant("dial")` and CSS
+/// `.fam-dial*`): "DAILYFAM · {rail}", a 280 x 88 dial whose needle sweeps
+/// the rail's tags, overshoots and settles on the tile's own, which locks
+/// copper at 1.05 s while the static under it quietens; then "Tuning in to
+/// {facet}", the title and "Getting your episode ready". The screen goes
+/// the moment audio arrives, wherever the needle has got to.
+struct DialView: View {
+    let dial: LoadingModel.Dial
+    let still: Bool
+
+    @State private var shownAt = Date()
+
+    private static let width: CGFloat = 280
+    private static let height: CGFloat = 88
+
+    var body: some View {
+        VStack(spacing: 14) {
+            kicker
+            TimelineView(.animation(paused: still)) { context in
+                let t = still ? 10 : context.date.timeIntervalSince(shownAt)
+                face(t)
+            }
+            .frame(maxWidth: Self.width)
+            .frame(height: Self.height)
+            Text("Tuning in to " + dial.tune)
+                .font(FAMFont.mono(11))
+                .foregroundStyle(FAMColor.textMuted)
+                .multilineTextAlignment(.center)
+            Text(dial.title)
+                .font(FAMFont.heading(19, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .frame(maxWidth: 300)
+            HStack(spacing: 8) {
+                PulsingDot(still: still)
+                Text("Getting your episode ready")
+                    .font(FAMFont.mono(11.5))
+                    .tracking(0.345)
+                    .foregroundStyle(FAMColor.textMuted)
+            }
+        }
+        .onAppear { shownAt = Date() }
+        .id(dial)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Tuning in to \(dial.tune). \(dial.title). Getting your episode ready")
+    }
+
+    /// "DAILYFAM · {heading}", the heading in copper (`.fam-ld-kick`).
+    private var kicker: some View {
+        var line = Text("DailyFAM")
+        if !dial.heading.isEmpty {
+            line = line + Text(" \u{00B7} ") + Text(dial.heading).foregroundColor(FAMColor.copper)
+        }
+        return line
+            .font(FAMFont.mono(10.5))
+            .tracking(1.05)
+            .foregroundStyle(FAMColor.textMuted)
+            .textCase(.uppercase)
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+
+    private func face(_ t: Double) -> some View {
+        let count = max(1, dial.labels.count)
+        let stop = (Double(dial.at) + 0.5) / Double(count)
+        let needle = Self.needle(t, stop: stop)
+        let locked = t >= 1.05
+        let quiet = Self.quiet(t)
+        return GeometryReader { geo in
+            let w = geo.size.width
+            ZStack(alignment: .topLeading) {
+                ticks
+                    .frame(width: w - 24, height: 24)
+                    .offset(x: 12, y: 14)
+                labels(locked: locked)
+                    .frame(width: w - 12)
+                    .offset(x: 6, y: 46)
+                noise(t)
+                    .frame(width: w - 24, height: 12)
+                    .opacity(quiet)
+                    .offset(x: 12, y: Self.height - 9 - 12)
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(FAMColor.deeper)
+                    .frame(width: 2, height: Self.height - 14)
+                    .shadow(color: FAMColor.deeper, radius: 5)
+                    .offset(x: w * needle - 1, y: 7)
+            }
+            .frame(width: w, height: Self.height, alignment: .topLeading)
+        }
+        .background(FAMColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.borderStrong))
+    }
+
+    /// Minor ticks every 8 pt (11 tall, faint), majors every 40 (24 tall),
+    /// standing on one line, at 70%.
+    private var ticks: some View {
+        Canvas { context, size in
+            var minor = Path()
+            var x: CGFloat = 0
+            while x < size.width {
+                minor.addRect(CGRect(x: x, y: size.height - 11, width: 1, height: 11))
+                x += 8
+            }
+            var major = Path()
+            x = 0
+            while x < size.width {
+                major.addRect(CGRect(x: x, y: 0, width: 1, height: size.height))
+                x += 40
+            }
+            context.fill(minor, with: .color(FAMColor.textFaint))
+            context.fill(major, with: .color(FAMColor.textMuted))
+        }
+        .opacity(0.7)
+    }
+
+    private func labels(locked: Bool) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(dial.labels.enumerated()), id: \.offset) { i, word in
+                let on = i == dial.at
+                Text(word)
+                    .font(FAMFont.mono(8.5, bold: on))
+                    .tracking(0.425)
+                    .textCase(.uppercase)
+                    .foregroundStyle(on && locked ? FAMColor.copper : FAMColor.textFaint)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 2)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    /// Thirty-six bars of static, each flickering on its own beat.
+    private func noise(_ t: Double) -> some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(0..<36, id: \.self) { i in
+                let h = Double(30 + (i * 37) % 70) / 100
+                let delay = Double(i) * 0.137
+                let phase = Int(((t + delay) / 0.09).rounded(.down)) % 2
+                let k = still ? 1.0 : (phase == 0 ? 0.3 : 1.0)
+                Rectangle()
+                    .fill(FAMColor.textMuted.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 12 * h * k)
+            }
+        }
+        .frame(maxHeight: .infinity, alignment: .bottom)
+    }
+
+    /// The static fades to .12 from 1.0 s to 1.4 s (`famDialQuiet`).
+    static func quiet(_ t: Double) -> Double {
+        if t <= 1.0 { return 1 }
+        if t >= 1.4 { return 0.12 }
+        return 1 - (t - 1.0) / 0.4 * 0.88
+    }
+
+    /// Where the needle is, as a fraction of the dial (`famDialSweep`: 6%,
+    /// 90% at 55%, the overshoot back at 78%, the stop at 1.1 s, each leg
+    /// eased by cubic-bezier(.5,0,.3,1); then `famDialHold`'s 1 pt sway).
+    static func needle(_ t: Double, stop: Double) -> CGFloat {
+        let stop2 = max(0.03, stop - 0.06)
+        let f = t / 1.1
+        if f >= 1 {
+            let sway = (1 - cos((t - 1.15) / 1.6 * 2 * .pi)) / 2
+            return CGFloat(stop) + CGFloat(t > 1.15 ? sway : 0) / width
+        }
+        let keys: [(Double, Double)] = [(0, 0.06), (0.55, 0.90), (0.78, stop2), (1, stop)]
+        var i = 0
+        while i < keys.count - 2 && f > keys[i + 1].0 { i += 1 }
+        let a = keys[i]
+        let b = keys[i + 1]
+        let local = (f - a.0) / (b.0 - a.0)
+        let eased = bezier(local, 0.5, 0, 0.3, 1)
+        return CGFloat(a.1 + (b.1 - a.1) * eased)
+    }
+
+    /// CSS cubic-bezier(x1, y1, x2, y2) at progress `x`.
+    static func bezier(_ x: Double, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) -> Double {
+        if x <= 0 { return 0 }
+        if x >= 1 { return 1 }
+        func curve(_ s: Double, _ p1: Double, _ p2: Double) -> Double {
+            let u = 1 - s
+            return 3 * u * u * s * p1 + 3 * u * s * s * p2 + s * s * s
+        }
+        var lo = 0.0
+        var hi = 1.0
+        var s = x
+        for _ in 0..<24 {
+            s = (lo + hi) / 2
+            if curve(s, x1, x2) < x { lo = s } else { hi = s }
+        }
+        return curve(s, y1, y2)
     }
 }

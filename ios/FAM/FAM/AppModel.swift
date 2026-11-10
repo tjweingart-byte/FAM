@@ -396,9 +396,10 @@ final class AppModel: ObservableObject {
     func dial(for tile: Tile, railKey: String) -> LoadingModel.Dial {
         let tag = tile.tagText.isEmpty ? "DailyFAM" : tile.tagText
         var key = ""
-        if !railKey.isEmpty, rails.contains(where: { $0.key == railKey && $0.topics.contains { $0.id == tile.id } }) {
+        let holds: (Rail) -> Bool = { rail in rail.topics.contains(where: { other in other.id == tile.id }) }
+        if !railKey.isEmpty, let tapped = rails.first(where: { rail in rail.key == railKey }), holds(tapped) {
             key = railKey
-        } else if let found = rails.first(where: { rail in rail.topics.contains { $0.id == tile.id } }) {
+        } else if let found = rails.first(where: holds) {
             key = found.key
         }
         let heading = key == "from_history" ? madeForTitle(multiline: false) : Self.sectionTitle(key)

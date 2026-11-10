@@ -75,6 +75,8 @@ struct MainTabs: View {
     @State private var tab: Tab = .daily
     @State private var scrollToTop = 0
 
+    private var sectionOpen: Bool { tab == .daily && !model.dailyPath.isEmpty }
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
@@ -84,22 +86,32 @@ struct MainTabs: View {
                 YouView().opacity(tab == .you ? 1 : 0).allowsHitTesting(tab == .you)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            if player.isLoaded {
-                MiniPlayer()
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 8)
+            // A rail's View more is a screen of its own on the web, with
+            // neither the tab bar nor the mini player.
+            if !sectionOpen {
+                if player.isLoaded {
+                    MiniPlayer()
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 8)
+                }
+                TabBar(tab: $tab, onDaily: {
+                    // DailyFAM again while on it: back to the rails from View
+                    // more, to the top when scrolled, else the page afresh;
+                    // arriving from another tab fetches it too (`openMyFamTab`).
+                    if tab == .daily {
+                        scrollToTop += 1
+                    } else {
+                        model.dailyPath = []
+                        Task { await model.loadRails() }
+                    }
+                }, onMyFAM: {
+                    // Every arrival opens on the list and asks for it afresh
+                    // (`openPlayFAM`).
+                    model.mixPath = []
+                    model.mixes.categoryState = CategoryState()
+                    Task { await model.mixes.load() }
+                })
             }
-            TabBar(tab: $tab, onDaily: {
-                // DailyFAM again while on it scrolls to the top; arriving
-                // from another tab fetches the page afresh (`openMyFamTab`).
-                if tab == .daily { scrollToTop += 1 } else { Task { await model.loadRails() } }
-            }, onMyFAM: {
-                // Every arrival opens on the list and asks for it afresh
-                // (`openPlayFAM`).
-                model.mixPath = []
-                model.mixes.categoryState = CategoryState()
-                Task { await model.mixes.load() }
-            })
         }
         .overlay(alignment: .bottom) {
             ToastView().padding(.bottom, 96)
@@ -140,11 +152,18 @@ struct TabBar: View {
     var onMyFAM: () -> Void = {}
 
     var body: some View {
+        // Five equal slots with the search in the middle, as the web's five
+        // tabs sit: Messages' slot stays empty until it is built
+        // (`no-dead-controls`), so the search is still centred.
         HStack(alignment: .bottom, spacing: 0) {
-            item(.daily, "DailyFAM", Icons.daily)
+            item(.daily, "DailyFAM", Icons.daily, tone: Icons.dailyTone)
             item(.myfam, "myFAM", Icons.myfam, tone: Icons.myfamTone)
             centre
-            item(.you, "YourFAM", Icons.you)
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 1)
+                .accessibilityHidden(true)
+            item(.you, "YourFAM", Icons.you, tone: Icons.youTone)
         }
         .padding(.horizontal, 8)
         .padding(.top, 10)
@@ -190,9 +209,15 @@ struct TabBar: View {
     /// The round search button, raised out of the bar; copper when it is on.
     private var centre: some View {
         let on = tab == .search
+        let color = on ? FAMColor.ink : FAMColor.text
         return Button { tab = .search } label: {
-            WebIcon(path: Icons.search, size: 22, line: 2.2)
-                .foregroundStyle(on ? FAMColor.ink : FAMColor.text)
+            ZStack {
+                Glyph(path: Icons.searchTone, box: CGRect(x: 0, y: 0, width: 24, height: 24))
+                    .fill(color.opacity(on ? 0.45 : 0.16))
+                    .frame(width: 22, height: 22)
+                WebIcon(path: Icons.search, size: 22, line: 2.2)
+                    .foregroundStyle(color)
+            }
                 .frame(width: 50, height: 50)
                 .background(on ? FAMColor.copper : FAMColor.surface, in: Circle())
                 .overlay(Circle().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
@@ -201,7 +226,7 @@ struct TabBar: View {
                 .padding(.bottom, -14)
         }
         .buttonStyle(.plain)
-        .frame(width: 90)
+        .frame(maxWidth: .infinity)
         .accessibilityLabel("Search")
         .accessibilityAddTraits(on ? .isSelected : [])
     }

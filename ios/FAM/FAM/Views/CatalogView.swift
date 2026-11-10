@@ -58,10 +58,11 @@ struct CatalogView: View {
 
     @ViewBuilder private var catalogue: some View {
         if failed {
-            note("Could not load the episodes right now.")
-            Button("Try again") { Task { await loadAll() } }
-                .buttonStyle(OutlineButtonStyle())
-                .padding(.horizontal, 18)
+            note("Could not load the episodes right now.", button: "Try again") {
+                failed = false
+                all = nil
+                Task { await loadAll() }
+            }
         } else if let all {
             if all.isEmpty {
                 note("Nobody else has made an episode yet. The ones they make come up here, A to Z, ready to play.")
@@ -78,6 +79,7 @@ struct CatalogView: View {
                         .padding(.top, 14)
                         .padding(.bottom, 6)
                         .background(FAMColor.background)
+                        .padding(.horizontal, 18)
                 }
             }
         } else {
@@ -92,7 +94,12 @@ struct CatalogView: View {
             note("Could not search right now. Try again in a moment.")
         } else if let found {
             if found.isEmpty {
-                note("Nobody has made an episode like that yet.")
+                // The typed words go to searchFAM's box, which writes one
+                // (`searchFromMyFam`): put there, not sent.
+                note("Nobody has made an episode like that yet.", button: "Search FAM for it") {
+                    model.searchPrefill = words.trimmingCharacters(in: .whitespacesAndNewlines)
+                    dismiss()
+                }
             }
             ForEach(found, id: \.self) { row($0) }
         }
@@ -103,48 +110,70 @@ struct CatalogView: View {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10).fill(FAMColor.surface2)
-                    Image(systemName: "play.fill").foregroundStyle(FAMColor.copper)
+                    WebFill(path: Icons.rowPlay, size: 14).foregroundStyle(FAMColor.copper)
                     if let url = model.api.picture(ep.thumb ?? "") {
                         AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
                 .frame(width: 56, height: 42)
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
                         if ep.explicit == true {
-                            Text("E")
-                                .font(FAMFont.mono(8, bold: true))
-                                .foregroundStyle(FAMColor.ink)
-                                .frame(width: 14, height: 14)
-                                .background(FAMColor.textMuted, in: RoundedRectangle(cornerRadius: 3))
+                            ExplicitBadge()
                         }
-                        Text(ep.title)
+                        Text(ep.title.isEmpty ? ep.query : ep.title)
                             .font(FAMFont.heading(12.5, .medium))
                             .foregroundStyle(FAMColor.text)
+                            .lineSpacing(3)
                             .multilineTextAlignment(.leading)
                     }
-                    Text(meta(ep)).monoLabel(8, color: FAMColor.textFaint)
+                    Text(meta(ep)).monoLabel(8, color: FAMColor.textFaint, tracking: 0.32)
                 }
                 Spacer(minLength: 0)
             }
+            // Inset twice, as the web's row sits in its padded list: the
+            // picture at 36 pt, the divider under the row only.
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
+            .contentShape(Rectangle())
             .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+            .padding(.horizontal, 18)
         }
         .buttonStyle(.plain)
     }
 
-    private func note(_ text: String) -> some View {
-        Text(text)
-            .font(FAMFont.body(12.5))
-            .foregroundStyle(FAMColor.textMuted)
-            .padding(18)
+    /// `.sv-empty`: centred, Geist 11, faint, 30 pt above and below; a
+    /// copper pill after the words when there is something to do.
+    private func note(_ text: String, button: String? = nil, action: @escaping () -> Void = {}) -> some View {
+        VStack(spacing: 8) {
+            Text(text)
+                .font(FAMFont.body(11))
+                .foregroundStyle(FAMColor.textFaint)
+                .lineSpacing(6)
+                .multilineTextAlignment(.center)
+            if let button {
+                Button(action: action) {
+                    Text(button)
+                        .font(FAMFont.body(12, .bold))
+                        .foregroundStyle(FAMColor.ink)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(FAMColor.copper, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 36)
+        .padding(.vertical, 30)
     }
 
+    /// "1.5 MIN · 3 PLAYS · TODAY", the plays left out at none (`myFamSearchRow`).
     private func meta(_ ep: CatalogEpisode) -> String {
         let plays = ep.plays ?? 0
-        var parts = ["\(FAMAPI.minutes(ep.minutes)) min", "\(plays) play\(plays == 1 ? "" : "s")"]
+        var parts = ["\(FAMAPI.minutes(ep.minutes)) min"]
+        if plays > 0 { parts.append("\(plays) play\(plays == 1 ? "" : "s")") }
         if let age = ep.sourcedAgeSeconds { parts.append(dayLabel(age)) }
         return parts.joined(separator: " · ")
     }

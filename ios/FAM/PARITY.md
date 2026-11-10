@@ -25,7 +25,8 @@ the app.
 
 | Web | iOS | Note |
 |---|---|---|
-| Bottom bar: DailyFAM, myFAM, search (centre), Messages, YourFAM | Partial | DailyFAM, myFAM, search, YourFAM; Messages when built (`no-dead-controls`) |
+| Bottom bar: DailyFAM, myFAM, search (centre), Messages, YourFAM | Partial | DailyFAM, myFAM, search, YourFAM in five equal slots, Messages' left empty until it is built (`no-dead-controls`), so the search is centred as on the web; each icon has the web's tone fill (.16, .45 when on) |
+| No tab bar or mini player on a rail's View more (`screen-section`) | Done | |
 | Mini player above the bar, X stops (`transport`) | Done | |
 | Leaving the player never stops it | Done | |
 
@@ -50,7 +51,8 @@ the app.
 
 | Web | iOS | Note |
 |---|---|---|
-| Five steps checked off from `/api/progress`, each ≥2 s (first ≥0.5 s), audio held to the fifth (§148, §263) | Done | timings pinned to the web's by a test |
+| Five steps checked off from `/api/progress`, each ≥2 s (first ≥0.5 s), audio held to the fifth (§148, §263) | Done | timings pinned to the web's by a test. Search, Go Deeper, Pick up and Search DailyFAM rows use them, as on the web |
+| A DailyFAM tile's tuning dial (§509, `browse-loaders`): DAILYFAM · {rail}, the rail's neighbouring tags with the tile's own, the needle's sweep, overshoot and settle, the label locking copper, "Tuning in to {facet}", the title, "Getting your episode ready"; no steps, audio never held | Done | rails and View more; `LoadingModel.Dial` beside the glide, released like it (0.45 s minimum). The facet's full name comes from `/api/preferences`' `tag_labels`, else the category tree, else the tag capitalised (`dialWord`) |
 | A replay shows all five done and starts after 0.45 s | Done | |
 | Rising chevrons, FAMiliarizing…, X cancels (§127) | Done | |
 | "No API key" / "key rejected" notes from `/api/health` | Not yet | |
@@ -70,7 +72,7 @@ the app.
 | Attach a file or photo | Not yet | `/api/attach` |
 | Autocorrect at send (§247) | Server | |
 | A name with two meanings asks which (300, §426) | Not yet | `ask_reading` |
-| The bookshelf: A-Z catalogue of others' episodes (`/api/myfam/catalog`) | Not yet | |
+| The bookshelf (top left, the web's own bookshelf icon): Search DailyFAM, the A-Z catalogue of others' episodes (`/api/myfam/catalog`) | Done | see the DailyFAM table's Library row |
 
 ## DailyFAM (the rails)
 
@@ -80,20 +82,22 @@ Checked against a specification written from `static/index.html` (the web's
 | Web | iOS | Note |
 |---|---|---|
 | Header: the centred dailyFAM wordmark, nothing else (the bookshelf moved to search) | Done | |
-| Tap DailyFAM again: scroll to top; arriving from another tab refetches | Done | |
-| Friends' stories row: your story, friends with fresh/seen rings, Invite | Done | seen state per device |
-| Story viewer: 6 s a story, bars, tap back/on, hold, swipe between friends, play the episode, reply, heart; the ⋯ list (Save for later, Share, Add to Queue, Add topic to playlist, Report, Block) | Partial | the story holds while its ⋯ is open; the note composer, reshare, "Delete vibe" / "Remove from your story" and a friend's profile wait for those screens |
+| Tap DailyFAM again: from View more back to the rails and reloaded; scrolled down, back to the top only; at the top, refetched; arriving from another tab refetches | Done | |
+| Friends' stories row: your story with its (+) badge, friends with fresh (gold) / seen (grey) rings, 60 pt faces in a 72 pt ring, Invite (dashed) | Partial | seen state per device. Your face with no story, its (+) and a friend with no story do nothing: on the web they open the note composer and the friend's profile, neither built yet (`no-dead-controls`). Invite shares the referral link from `/api/waitlist/me` while the waitlist runs, else the app's address |
+| Story viewer: 6 s a story, bars, opens on the first unseen (also on a swipe to another friend), tap back/on (back past the first goes to the previous friend's last), hold (hides the chrome), swipe between friends, the title and Play episode open the episode (or the player, when it is the one loaded), reply with the send inside the box, heart (the first like also sends a ❤️ message; on notes too), VIBE! to your story; the ⋯ list (Save for later, Share, Add to Queue, Add topic to playlist, Report, Block; on your own, Delete vibe / Remove from your story) | Partial | VIBE! posts the episode with a caption (`/api/vibe`) - the web opens its full story editor, not ported. The header opens no profile (none built). A note is drawn from its layout (background, words, stickers, @mentions, not tappable); a vibe laid out in the web's editor is drawn as the plain title page, not its canvas |
 | Pick up where you left off: resume (time left, bar) and thread cards, X dismisses for good | Done | resumes seek once the audio has arrived. **Server bug found:** progress keeps `minutes` as an integer, so a 1.5-minute resume is asked as 1 minute (a different episode) - on the web too |
 | Five rails in the server's order, "Made for you, {Day} {part}" / "Start here", the others' headings | Done | |
 | Each rail's empty sentence from the server; friends rail silent with nobody followed | Done | |
-| Card: picture, subject chip, ready badge, save bookmark, ⋯, friends pill and "N friends listened", title size steps (>48, >72), live line with its age, hook with each rail's fallback | Done, differs on purpose | the owner's call for iOS: the picture at its full 4:3 (the web crops rail pictures to a 96 pt strip), the whole hook (the web clamps it to two lines), and the friends' faces on the subject chip's line, centred on it (the web lifts them above the chip) |
-| Card ⋯ in the web's order: Share, Add to myFAM Playlist, Add to Queue, Go to Queue, Not interested | Done | |
-| VIEW MORE at a rail's end → View more: 16 at a time, Refresh, the reason line, wrap notes, caught up, Trending by continent | Done | VIEW MORE always shows (the web shows an arrow until the rail is scrolled to its end) |
-| Find new friends pill after the friends rail | Not yet | waits for the Friends screen |
+| Card: picture (with none, the web's `seedThumbSVG` drawing by `icon`), subject chip (`thumb_facet`, else the first tag), ready badge, the web's save bookmark (an outline, on sage once saved) and ⋯, friends pill (three 22 pt faces from the page's own face book, "+N" in copper; a tap lists who listened) or the words alone (not tappable), title size steps (>48, >72), live line (copper and dotted only while in progress and under 20 min old) with its age, hook with each rail's fallback | Done, differs on purpose | the owner's call for iOS: the picture at its full 4:3 (the web crops rail pictures to a 96 pt strip), the whole hook (the web clamps it to two lines), and the friends' faces on the subject chip's line, centred on it (the web lifts them above the chip) |
+| Card ⋯ in the web's order with its icons: Share, Add to myFAM Playlist, Add to Queue, Go to Queue, Not interested (the frown); Not interested takes the card off every rail and any open View more | Done | |
+| "N friends listened": a centred card, bordered round close, a row a friend | Partial | the web's rows open each profile; none built, so the rows carry no chevron and do nothing |
+| A rail ends in a faint chevron until scrolled to its end, then VIEW MORE → View more: 16 at a time, Refresh (back to the top each page), the reason line, wrap notes (never "The last of this rail" on Made for you, whose first page is the rail's own tiles and never caught up), caught up, Trending by continent, faces from the page's own `friend_faces` | Done | |
+| Find new friends pill after the friends rail (alone when you follow nobody) | Partial | the web opens the Friends screen; that is not built, so the pill opens the invite share sheet (the Invite face's) |
 | Guest sample note | n/a | the iOS app requires an account |
 | Offline: the bar, dimmed cards, the remembered page | Not yet | |
 | Loading skeleton; the error sentence | Done | |
-| Library (bookshelf on search): A-Z with sticky letters, day labels, search as you type | Done | "Search FAM for it" on no results not yet |
+| Library (bookshelf on search): A-Z with sticky letters, rows inset 36 pt, day labels, plays left out at none, search as you type, the web's sentences (centred, faint), "Search FAM for it" puts the words in searchFAM's box | Done | |
+| Saved toast's "Open" | Not yet | opens Save for Later on the web; no such screen here, so the toast has no action |
 | Arrival animation of rails | Not yet | |
 | Pull to refresh | iOS only | the web has none; kept as iOS convention |
 
@@ -150,7 +154,7 @@ and icons (2026-11-10), and a specification written from `static/index.html`
 | Messages tab, threads, group chats (§213) | Not yet | `/api/messages` |
 | Friends: follow, friends' vibes first, find friends | Not yet | |
 | A friend's profile screen (`screen-person`) | Not yet | `/api/person` |
-| VIBE! story editor, your story, replies (§213, §282) | Not yet | |
+| VIBE! story editor, your story, replies (§213, §282) | Partial | your story plays, replies / likes / VIBE! with a caption work from DailyFAM's story viewer; the editor and the note composer are not built |
 | Report and Block on comments, chats, profiles, stories (1.2) | Not yet | **required for App Store**; FAMSafety has the screens |
 | Push notifications (a mix's "ready", §448) | Not yet | APNs not built on the server either |
 

@@ -8,37 +8,56 @@ import SwiftUI
 /// ending in VIEW MORE.
 struct DailyView: View {
     @EnvironmentObject private var model: AppModel
+    /// Bumped by every tap on the DailyFAM tab while it is showing.
     @Binding var scrollToTop: Int
+    /// Whether the page is at its top: a tap there refetches, a tap
+    /// further down only scrolls back up (`openMyFamTab`).
+    @State private var atTop = true
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $model.dailyPath) {
             VStack(spacing: 0) {
                 Wordmark(lead: "daily", size: 28)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .padding(.top, 4)
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            Color.clear.frame(height: 0).id("top")
-                            FacesRow()
-                            PickUpBlock()
-                            if model.rails.isEmpty {
-                                if model.loadingRails || model.railsProblem.isEmpty {
-                                    Skeleton()
-                                } else {
-                                    EmptyNote(text: model.railsProblem).padding(.top, 20)
+                        VStack(spacing: 0) {
+                            // Outside the lazy stack, so it is never unloaded
+                            // and always says where the top is.
+                            Color.clear
+                                .frame(height: 0)
+                                .id("top")
+                                .background(GeometryReader { geo in
+                                    Color.clear.preference(key: DailyTopKey.self,
+                                                           value: geo.frame(in: .named("dailyScroll")).minY)
+                                })
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                FacesRow()
+                                PickUpBlock()
+                                if model.rails.isEmpty {
+                                    if model.loadingRails || model.railsProblem.isEmpty {
+                                        Skeleton()
+                                    } else {
+                                        EmptyNote(text: model.railsProblem).padding(.top, 20)
+                                    }
+                                }
+                                ForEach(model.rails) { rail in
+                                    RailRow(rail: rail)
                                 }
                             }
-                            ForEach(model.rails) { rail in
-                                RailRow(rail: rail)
-                            }
+                            .padding(.horizontal, 18)
+                            .padding(.bottom, 24)
                         }
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 24)
+                    }
+                    .coordinateSpace(name: "dailyScroll")
+                    .onPreferenceChange(DailyTopKey.self) { y in
+                        let top = y >= -2
+                        if top != atTop { atTop = top }
                     }
                     .refreshable { await model.loadRails() }
                     .onChange(of: scrollToTop) { _, _ in
-                        withAnimation { proxy.scrollTo("top", anchor: .top) }
+                        tabTapped(proxy)
                     }
                 }
             }
@@ -51,6 +70,30 @@ struct DailyView: View {
         .task {
             if model.rails.isEmpty { await model.loadRails() }
         }
+    }
+
+    /// The DailyFAM tab tapped while showing: from View more back to the
+    /// rails, reloaded; scrolled down, back to the top and nothing else; at
+    /// the top, the page asked for afresh (`openMyFamTab`).
+    private func tabTapped(_ proxy: ScrollViewProxy) {
+        if !model.dailyPath.isEmpty {
+            model.dailyPath = []
+            Task { await model.loadRails() }
+            return
+        }
+        if !atTop {
+            withAnimation { proxy.scrollTo("top", anchor: .top) }
+            return
+        }
+        Task { await model.loadRails() }
+    }
+}
+
+/// Where the top of DailyFAM's page is, in its scroll view.
+private struct DailyTopKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
@@ -77,6 +120,12 @@ private struct Skeleton: View {
 struct RailRow: View {
     @EnvironmentObject private var model: AppModel
     let rail: Rail
+    /// Scrolled to its end (or never needed scrolling): the chevron gives
+    /// way to VIEW MORE (`watchRailEnds`).
+    @State private var atEnd = false
+    @State private var viewport: CGFloat = 0
+    @State private var endX: CGFloat = 0
+    @State private var invite = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -97,104 +146,197 @@ struct RailRow: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 11) {
                         ForEach(rail.topics) { tile in
-                            TileCard(tile: tile, railKey: rail.key, width: 150)
+                            TileCard(tile: tile, railKey: rail.key, faces: model.friendFaces, width: 150)
                                 .frame(maxHeight: .infinity, alignment: .top)
                         }
-                        NavigationLink(value: rail.key) {
-                            Text("View\nmore")
-                                .monoLabel(8.5, color: FAMColor.copper)
-                                .multilineTextAlignment(.center)
-                                .frame(width: 52)
-                                .frame(maxHeight: .infinity)
-                        }
-                        .accessibilityLabel("View more of \(model.heading(for: rail))")
+                        viewMore
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.trailing, 14)
                     .padding(.vertical, 2)
                 }
+                .coordinateSpace(name: "rail-" + rail.key)
+                .background(GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            viewport = geo.size.width
+                            markEnd(width: geo.size.width, x: endX)
+                        }
+                        .onChange(of: geo.size.width) { _, width in
+                            viewport = width
+                            markEnd(width: width, x: endX)
+                        }
+                })
+                .onPreferenceChange(RailEndKey.self) { maxX in
+                    endX = maxX
+                    markEnd(width: viewport, x: maxX)
+                }
                 .padding(.trailing, -18)
             }
+            // The friends rail always ends in the way to find some (10.1 #2):
+            // here the invite, since the Friends screen is not built yet.
+            if rail.key == "followers" {
+                Button { invite = true } label: {
+                    HStack(spacing: 5) {
+                        WebIcon(path: Icons.plus, size: 12)
+                        Text("Find new friends").font(FAMFont.body(12, .bold))
+                    }
+                    .foregroundStyle(FAMColor.ink)
+                    .padding(.leading, 10)
+                    .padding(.trailing, 13)
+                    .frame(height: 30)
+                    .background(FAMColor.copper, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 10)
+                .accessibilityHint("Invites a friend to FAM")
+                .sheet(isPresented: $invite) {
+                    ActivityView(items: [model.inviteText(handle: model.circle?.me?.handle ?? "")]) { invite = false }
+                }
+            }
         }
+    }
+
+    /// Within 8 pt of the end, counting the rail's 14 pt of trailing room,
+    /// as the web measures it - so a rail that never needed scrolling says
+    /// VIEW MORE at once.
+    private func markEnd(width: CGFloat, x: CGFloat) {
+        let end = width > 0 && x > 0 && x + 14 <= width + 8
+        if end != atEnd { atEnd = end }
+    }
+
+    /// `.feed-more`: a faint chevron while there is more to scroll, VIEW
+    /// MORE once there is not; either way it opens the whole section.
+    private var viewMore: some View {
+        NavigationLink(value: rail.key) {
+            ZStack {
+                if atEnd {
+                    Text("View\nmore")
+                        .monoLabel(8.5, color: FAMColor.copper, tracking: 0.51)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(1.5)
+                } else {
+                    WebIcon(path: Icons.chevron, size: 14, line: 2.2)
+                        .foregroundStyle(FAMColor.textMuted)
+                        .opacity(0.5)
+                }
+            }
+            .frame(width: 52)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: RailEndKey.self,
+                                   value: geo.frame(in: .named("rail-" + rail.key)).maxX)
+        })
+        .accessibilityLabel("View more of \(model.heading(for: rail))")
+    }
+}
+
+/// Where a rail's end sits in its scroll view.
+private struct RailEndKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
 // MARK: - A card
 
-/// `.seed-card`: picture with its subject chip, the save bookmark and ⋯ top
-/// right, "ready" top left, the friends pill bottom right; then the whole
-/// title (stepped down when long), the live line and the hook.
+/// `.seed-card`: picture (or, with none, the web's drawing) with its
+/// subject chip, the save bookmark and ⋯ top right, "ready" top left, the
+/// friends pill bottom right; then the whole title (stepped down when
+/// long), the live line and the hook. `faces` is the face book of the page
+/// the card came from - the rails' or this View more's (`friend_faces`).
 struct TileCard: View {
     @EnvironmentObject private var model: AppModel
     let tile: Tile
     let railKey: String
+    var faces: [FriendFace] = []
     var width: CGFloat? = 150
 
     @State private var menu = false
     @State private var friends = false
 
+    private static let pillInk = Color(red: 42 / 255, green: 37 / 255, blue: 48 / 255)
+
     var body: some View {
         // Not a Button: the save and ⋯ buttons inside it must get their own taps.
         VStack(alignment: .leading, spacing: 0) {
-                thumb
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(tile.title)
-                        .font(FAMFont.heading(titleSize, .semibold))
-                        .foregroundStyle(FAMColor.text)
-                        .lineSpacing(1)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if !tile.liveLine.isEmpty { liveLine.padding(.top, 2) }
-                    hook.padding(.top, 6)
-                }
-                .padding(.horizontal, 11)
-                .padding(.top, 10)
-                .padding(.bottom, 12)
-                Spacer(minLength: 0)
+            thumb
+            VStack(alignment: .leading, spacing: 0) {
+                Text(tile.title)
+                    .font(FAMFont.heading(titleSize, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .lineSpacing(titleSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !tile.liveLine.isEmpty { liveLine.padding(.top, 5) }
+                hook.padding(.top, 6)
             }
-            .frame(width: width, alignment: .leading)
-            .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
-            .background(FAMColor.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 13))
-            .overlay(RoundedRectangle(cornerRadius: 13).stroke(FAMColor.border))
-            .contentShape(Rectangle())
-            .onTapGesture { model.play(tile) }
-            .accessibilityElement(children: .contain)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { model.play(tile) }
-            .accessibilityHint("Plays the episode")
+            .padding(.horizontal, 11)
+            .padding(.top, 10)
+            .padding(.bottom, 12)
+            Spacer(minLength: 0)
+        }
+        .frame(width: width, alignment: .leading)
+        .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
+        .background(FAMColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 13))
+        .overlay(RoundedRectangle(cornerRadius: 13).stroke(FAMColor.border))
+        .contentShape(Rectangle())
+        .onTapGesture { model.play(tile, railKey: railKey) }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { model.play(tile, railKey: railKey) }
+        .accessibilityHint("Plays the episode")
         .sheet(isPresented: $menu) { TileMenu(tile: tile) }
-        .sheet(isPresented: $friends) { FriendsListened(tile: tile) }
+        .fullScreenCover(isPresented: $friends) {
+            FriendsListened(count: tile.friendsListened, faces: shownFaces(limit: nil))
+        }
     }
 
     private var titleSize: CGFloat {
         tile.title.count > 72 ? 10.5 : tile.title.count > 48 ? 11.5 : 12.5
     }
 
+    /// Line heights 1.28, 1.25, 1.24 over the face's own (about 1.2).
+    private var titleSpacing: CGFloat {
+        tile.title.count > 72 ? titleSize * 0.04 : tile.title.count > 48 ? titleSize * 0.05 : titleSize * 0.08
+    }
+
+    /// The tile's friends, resolved against this page's face book.
+    private func shownFaces(limit: Int?) -> [FriendFace] {
+        var out: [FriendFace] = []
+        for i in tile.friendsFaces where faces.indices.contains(i) {
+            out.append(faces[i])
+            if let limit, out.count >= limit { break }
+        }
+        return out
+    }
+
     private var thumb: some View {
-        ZStack {
-            Picture(url: model.api.picture(tile.thumb))
+        let url = tile.thumb.isEmpty ? nil : model.api.picture(tile.thumb)
+        return ZStack {
+            if let url {
+                Picture(url: url)
+            } else {
+                SeedThumb(icon: tile.icon)
+            }
             // The subject chip bottom left and the friends who listened
             // bottom right, on one line and centred on each other (the
             // owner's call for iOS: the web lifts the faces above the chip).
-            if !tile.thumbFacet.isEmpty || tile.friendsListened > 0 {
+            if !tile.tagText.isEmpty || tile.friendsListened > 0 {
                 HStack(alignment: .center, spacing: 6) {
-                    if !tile.thumbFacet.isEmpty {
-                        Text(tile.thumbFacet)
-                            .monoLabel(8, color: Color(hex: 0x2A2530))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .padding(.horizontal, 6)
-                            .padding(.top, 3)
-                            .padding(.bottom, 2)
-                            .background(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.92),
-                                        in: RoundedRectangle(cornerRadius: 4))
+                    if !tile.tagText.isEmpty {
+                        chip(onPicture: url != nil)
                     }
                     Spacer(minLength: 0)
                     if tile.friendsListened > 0 {
                         friendsPill.fixedSize()
                     }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, url != nil ? 8 : 11)
                 .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
@@ -208,13 +350,20 @@ struct TileCard: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(8)
             }
-            // Save and ⋯, top right.
+            // Save and ⋯, top right: the web's 13 pt outline bookmark (an
+            // outline on sage once saved) and its filled dots.
             HStack(spacing: 5) {
-                actButton(model.isSaved(tile) ? "bookmark.fill" : "bookmark", on: model.isSaved(tile),
-                          label: model.isSaved(tile) ? "Take it off Save for Later" : "Save \(tile.title) for later") {
+                let saved = model.isSaved(tile)
+                actButton(on: saved, label: saved ? "Take it off Save for Later" : "Save \(tile.title) for later") {
+                    WebIcon(path: Icons.bookmark, size: 13, line: 2.2)
+                } action: {
                     model.toggleSave(tile)
                 }
-                actButton("ellipsis", on: false, label: "More for \(tile.title)") { menu = true }
+                actButton(on: false, label: "More for \(tile.title)") {
+                    WebFill(path: Icons.dots(2.2), size: 13)
+                } action: {
+                    menu = true
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             .padding(6)
@@ -225,10 +374,28 @@ struct TileCard: View {
         .clipped()
     }
 
-    private func actButton(_ icon: String, on: Bool, label: String, action: @escaping () -> Void) -> some View {
+    /// `.seed-tag`: plain words on the drawing; on a picture, a cream chip.
+    @ViewBuilder private func chip(onPicture: Bool) -> some View {
+        if onPicture {
+            Text(tile.tagText)
+                .monoLabel(8, color: Color(hex: 0x2A2530), tracking: 0.8)
+                .lineLimit(2)
+                .padding(.horizontal, 6)
+                .padding(.top, 3)
+                .padding(.bottom, 2)
+                .background(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.92),
+                            in: RoundedRectangle(cornerRadius: 4))
+        } else {
+            Text(tile.tagText)
+                .monoLabel(8, color: Color(hex: 0x5A5347), tracking: 0.8)
+                .lineLimit(2)
+        }
+    }
+
+    private func actButton<Icon: View>(on: Bool, label: String, @ViewBuilder icon: () -> Icon,
+                                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
+            icon()
                 .foregroundStyle(on ? FAMColor.ink : Color(hex: 0xF4EFE4))
                 .frame(width: 24, height: 24)
                 .background(on ? FAMColor.sage : Color(red: 26 / 255, green: 22 / 255, blue: 34 / 255).opacity(0.62),
@@ -238,60 +405,72 @@ struct TileCard: View {
         .accessibilityLabel(label)
     }
 
-    private var friendsPill: some View {
-        let faces = tile.friendsFaces.compactMap { i in
-            model.friendFaces.indices.contains(i) ? model.friendFaces[i] : nil
-        }
-        return Button { friends = true } label: {
-            if faces.isEmpty {
-                Text("\(tile.friendsListened) friend\(tile.friendsListened == 1 ? "" : "s") listened")
-                    .font(FAMFont.body(9, .semibold))
-                    .foregroundStyle(FAMColor.ink)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(FAMColor.copper, in: RoundedRectangle(cornerRadius: 4))
-            } else {
-                HStack(spacing: 4) {
+    /// Up to three overlapped faces and a copper "+N" (the rest); a tap
+    /// lists who listened and never plays the card. With no faces in the
+    /// answer, the words alone, which do nothing (`seedFriendsHtml`).
+    @ViewBuilder private var friendsPill: some View {
+        let shown = shownFaces(limit: 3)
+        let n = tile.friendsListened
+        if shown.isEmpty {
+            Text("\(n) friend\(n == 1 ? "" : "s") listened")
+                .font(FAMFont.body(9, .semibold))
+                .foregroundStyle(FAMColor.ink)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(FAMColor.copper, in: RoundedRectangle(cornerRadius: 4))
+        } else {
+            let more = n - shown.count
+            Button { friends = true } label: {
+                HStack(spacing: 5) {
                     HStack(spacing: -6) {
-                        ForEach(Array(faces.prefix(3).enumerated()), id: \.offset) { i, face in
-                            Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "", size: 18)
+                        ForEach(Array(shown.enumerated()), id: \.offset) { i, face in
+                            Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
+                                 size: 22, initialsSize: 9)
                                 // A ring in the pill's own colour, so each overlapped face reads whole.
-                                .overlay(Circle().stroke(Color(red: 42 / 255, green: 37 / 255, blue: 48 / 255), lineWidth: 1.5))
+                                .overlay(Circle().stroke(Self.pillInk.opacity(0.88), lineWidth: 1.5))
                                 .zIndex(Double(3 - i))
                         }
                     }
-                    if tile.friendsListened > 3 {
-                        Text("+\(tile.friendsListened - 3)")
+                    if more > 0 {
+                        Text("+\(more)")
                             .font(FAMFont.mono(10, bold: true))
-                            .foregroundStyle(Color(hex: 0xE0B563))
+                            .foregroundStyle(FAMColor.copper)
                     }
                 }
-                .padding(.leading, 2)
-                .padding(.trailing, faces.count > 0 && tile.friendsListened > 3 ? 6 : 2)
-                .padding(.vertical, 2)
-                .background(Color(red: 42 / 255, green: 37 / 255, blue: 48 / 255).opacity(0.88), in: Capsule())
+                .padding(.leading, 3)
+                .padding(.trailing, more > 0 ? 7 : 3)
+                .padding(.vertical, 3)
+                .frame(height: 30)
+                .background(Self.pillInk.opacity(0.88), in: Capsule())
                 .overlay(Capsule().stroke(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.18)))
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(n == 1 ? "\(shown[0].name) listened" : "\(n) friends listened")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(tile.friendsListened == 1 && faces.count == 1
-                            ? "\(faces[0].name) listened" : "\(tile.friendsListened) friends listened")
     }
 
-    /// A game's line, with how old it is; copper and dotted while live.
+    /// A game's line, with how old it is; copper and dotted only while live
+    /// and fresh (`seedLiveHtml`: in progress, and no time or under 20 min).
     private var liveLine: some View {
         let age = Date().timeIntervalSince1970 - tile.liveAsOf
-        let live = tile.liveStatus == "in_progress" && age < 20 * 60
+        let fresh = tile.liveAsOf == 0 || age < 20 * 60
+        let live = tile.liveStatus == "in_progress" && fresh
         var text = tile.liveLine
-        if tile.liveAsOf > 0 && age >= 20 * 60 {
-            text += age < 90 * 60 ? " · \(Int(age / 60)) min ago" : " · \(Int(age / 3600)) h ago"
+        if tile.liveAsOf > 0 {
+            let mins = Int((age / 60).rounded())
+            if mins >= 20 {
+                text += mins < 90 ? " \u{00B7} \(mins) min ago"
+                                  : " \u{00B7} \(Int((Double(mins) / 60).rounded())) h ago"
+            }
         }
-        return HStack(spacing: 4) {
+        return HStack(spacing: 5) {
             if live { Circle().fill(FAMColor.copper).frame(width: 6, height: 6) }
             Text(text)
                 .font(FAMFont.mono(8.5, bold: live))
+                .tracking(0.17)
                 .foregroundStyle(live ? FAMColor.copper : FAMColor.textMuted)
                 .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 
@@ -305,6 +484,7 @@ struct TileCard: View {
             switch railKey {
             case "missed": text = Text("Went past you").bold().foregroundColor(FAMColor.copper) + Text(" this week")
             case "followers": text = Text("Your friends").bold().foregroundColor(FAMColor.copper) + Text(" played this")
+            case "might_like": text = Text("Next to").bold().foregroundColor(FAMColor.copper) + Text(" your taste, not more of it")
             case "from_history": text = Text("Because of what you have played")
             default: text = Text("Playing across FAM now")
             }
@@ -318,25 +498,29 @@ struct TileCard: View {
     }
 }
 
-/// A person's face: their picture, else initials on a colour from their name.
+/// A person's face: their picture, else initials on their colour - the
+/// web's `personAvHTML`, coloured by `personHue(handle || name)` and
+/// lettered by `deriveInitials(name || handle)`, as `PersonFace` is.
 struct Face: View {
     let name: String
     let handle: String
     let avatar: String
     var size: CGFloat = 22
+    /// The initials' size where the web gives one (else 40% of the face).
+    var initialsSize: CGFloat? = nil
 
     @EnvironmentObject private var model: AppModel
-    private static let hues: [UInt32] = [0xC9A876, 0x8FAE9A, 0xC3A8E0, 0xE2694F, 0x8FB4D9, 0xD9B38F]
 
     var body: some View {
         let key = handle.isEmpty ? name : handle
-        let hash = key.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0x7fffffff }
-        let initials = name.split(separator: " ").prefix(2).compactMap { $0.first }.map(String.init).joined()
+        let source = name.isEmpty ? (handle.isEmpty ? "?" : handle) : name
+        let letters = PersonFace.initials(source)
         ZStack {
-            Circle().fill(Color(hex: Self.hues[hash % Self.hues.count]))
-            Text(initials.isEmpty ? "?" : initials.uppercased())
-                .font(FAMFont.body(size * 0.38, .bold))
+            Circle().fill(PersonFace.hue(key))
+            Text(letters.isEmpty ? "?" : letters)
+                .font(FAMFont.body(initialsSize ?? size * 0.4, .bold))
                 .foregroundStyle(FAMColor.ink)
+                .lineLimit(1)
                 .minimumScaleFactor(0.5)
             if let url = model.api.picture(avatar) {
                 // Held to the circle's size before it is clipped: a photo
@@ -365,9 +549,12 @@ struct TileMenu: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                Picture(url: model.api.picture(tile.thumb))
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                // The picture only when the tile has one (`openTileMenu`).
+                if let url = model.api.picture(tile.thumb) {
+                    Picture(url: url)
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
                 Text(tile.title)
                     .font(FAMFont.body(14, .semibold))
                     .foregroundStyle(FAMColor.text)
@@ -376,7 +563,7 @@ struct TileMenu: View {
             .padding(.horizontal, 22)
             .padding(.vertical, 16)
             Divider()
-            row("Share", "square.and.arrow.up") {
+            row("Share", Icons.menuShare) {
                 Task {
                     let ep = model.episode(for: tile)
                     if let link = try? await model.api.share(ep.key, title: tile.title) {
@@ -386,7 +573,7 @@ struct TileMenu: View {
                     }
                 }
             }
-            row("Add to myFAM Playlist", "plus.circle") {
+            row("Add to myFAM Playlist", Icons.circlePlus) {
                 if tile.query.isEmpty {
                     dismiss()
                     model.nowPlaying.say("Play something first")
@@ -394,9 +581,9 @@ struct TileMenu: View {
                     addToMix = true
                 }
             }
-            row("Add to Queue", "text.badge.plus") { dismiss(); model.addToQueue(tile) }
-            row("Go to Queue", "list.bullet") { queue = true }
-            row("Not interested", "hand.thumbsdown") { dismiss(); model.notInterested(tile) }
+            row("Add to Queue", Icons.addQueue) { dismiss(); model.addToQueue(tile) }
+            row("Go to Queue", Icons.queue) { queue = true }
+            row("Not interested", Icons.frown) { dismiss(); model.notInterested(tile) }
             Button("Cancel") { dismiss() }
                 .font(FAMFont.body(14, .semibold))
                 .foregroundStyle(FAMColor.textMuted)
@@ -422,13 +609,12 @@ struct TileMenu: View {
         }
     }
 
-    private func row(_ label: String, _ icon: String, action: @escaping () -> Void) -> some View {
+    /// A row with the web's `MENU_ICONS` glyph, 18 pt at stroke 1.8.
+    private func row(_ label: String, _ icon: Path, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
+                WebIcon(path: icon, size: 18, line: 1.8)
                     .foregroundStyle(FAMColor.textMuted)
-                    .frame(width: 22)
                 Text(label).font(FAMFont.body(13.5, .semibold)).foregroundStyle(FAMColor.text)
                 Spacer()
             }
@@ -440,42 +626,70 @@ struct TileMenu: View {
     }
 }
 
-/// "N friends listened": who.
+/// "N friends listened" (`#friendsListenedOverlay`, §394): a centred
+/// card, not a sheet - the title, a bordered round close, and a row a
+/// friend with their face, name and @handle. The web's rows open each
+/// profile; there is no profile screen here yet, so the rows are words
+/// only and carry no chevron (`no-dead-controls`).
 struct FriendsListened: View {
-    @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    let tile: Tile
+    let count: Int
+    let faces: [FriendFace]
 
     var body: some View {
-        let faces = tile.friendsFaces.compactMap { i in
-            model.friendFaces.indices.contains(i) ? model.friendFaces[i] : nil
-        }
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(tile.friendsListened == 1 ? "1 friend listened" : "\(tile.friendsListened) friends listened")
-                    .font(FAMFont.heading(16, .medium))
-                    .foregroundStyle(FAMColor.text)
-                Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark").foregroundStyle(FAMColor.textMuted) }
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .ignoresSafeArea()
+                .onTapGesture { dismiss() }
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center) {
+                    Text(count == 1 ? "1 friend listened" : "\(count) friends listened")
+                        .font(FAMFont.heading(16, .medium))
+                        .foregroundStyle(FAMColor.text)
+                    Spacer()
+                    Button { dismiss() } label: {
+                        WebIcon(path: Icons.close, size: 14, line: 2.4)
+                            .foregroundStyle(FAMColor.text)
+                            .frame(width: 30, height: 30)
+                            .overlay(Circle().stroke(FAMColor.borderStrong))
+                    }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Close")
-            }
-            ForEach(Array(faces.enumerated()), id: \.offset) { _, face in
-                HStack(spacing: 12) {
-                    Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "", size: 30)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(face.name).font(FAMFont.body(13, .semibold)).foregroundStyle(FAMColor.text)
-                        if let h = face.handle, !h.isEmpty {
-                            Text("@" + h).font(FAMFont.mono(10)).foregroundStyle(FAMColor.textMuted)
+                }
+                .padding(.bottom, 10)
+                ForEach(Array(faces.enumerated()), id: \.offset) { i, face in
+                    HStack(spacing: 11) {
+                        Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
+                             size: 30, initialsSize: 12)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(face.name.isEmpty ? "@" + (face.handle ?? "") : face.name)
+                                .font(FAMFont.body(12, .semibold))
+                                .foregroundStyle(FAMColor.text)
+                                .lineLimit(1)
+                            if let h = face.handle, !h.isEmpty {
+                                Text("@" + h).monoLabel(8, color: FAMColor.textFaint, tracking: 0.48)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 10)
+                    .overlay(alignment: .bottom) {
+                        if i < faces.count - 1 {
+                            Rectangle().fill(FAMColor.border).frame(height: 1)
                         }
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
-            Spacer(minLength: 0)
+            .padding(20)
+            .frame(width: 312)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
+            .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
         }
-        .padding(22)
-        .background(FAMColor.surface)
-        .presentationDetents([.medium])
-        .presentationBackground(FAMColor.surface)
+        .presentationBackground(Color(hex: 0x0A090F).opacity(0.62))
     }
 }
 
@@ -541,8 +755,9 @@ struct PickUpBlock: View {
 
     private func cardBody(title: String, summary: String, meta: String, copperMeta: Bool,
                       progress: Double?, dismissKey: String, play: @escaping () -> Void) -> some View {
-        Button(action: play) {
-            VStack(alignment: .leading, spacing: 4) {
+        // A tap on the card, not a Button around it: the X inside is its own
+        // button and must never also play the card.
+        VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(FAMFont.heading(10.5, .medium))
                     .foregroundStyle(FAMColor.text)
@@ -576,18 +791,22 @@ struct PickUpBlock: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: play)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(.default, play)
             .overlay(alignment: .topTrailing) {
                 Button { model.dismissPickUp(query: dismissKey) } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .semibold))
+                    WebIcon(path: Icons.close, size: 9, line: 3)
                         .foregroundStyle(FAMColor.textMuted)
                         .frame(width: 20, height: 20)
+                        .contentShape(Circle())
                 }
-                .padding(4)
+                .buttonStyle(.plain)
+                .padding(5)
                 .accessibilityLabel("Don't offer this again")
             }
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -606,6 +825,11 @@ struct SectionView: View {
     @State private var loading = false
     @State private var failed = false
     @State private var wrappedNote = ""
+    /// Counts the pages dealt, so each one scrolls back to the top.
+    @State private var dealt = 0
+
+    /// Made for you cycles through what is written (`SECTION_CYCLES`).
+    private var cycles: Bool { key == "from_history" }
 
     private static let pageSize = 16
 
@@ -622,10 +846,12 @@ struct SectionView: View {
                     .lineLimit(2)
                 Spacer()
                 if canRefresh {
-                    Button { Task { await load() } } label: {
+                    Button {
+                        guard !loading else { return }
+                        Task { await load() }
+                    } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 12, weight: .semibold))
+                            WebIcon(path: Icons.refresh, size: 13, line: 2.4)
                                 .rotationEffect(.degrees(loading ? 360 : 0))
                                 .animation(loading ? .linear(duration: 0.6).repeatForever(autoreverses: false) : .default,
                                            value: loading)
@@ -642,8 +868,10 @@ struct SectionView: View {
             .padding(.horizontal, 18)
             .padding(.top, 16)
             .padding(.bottom, 10)
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 11) {
+                    Color.clear.frame(height: 0).id("sectionTop")
                     Text(reason)
                         .font(FAMFont.body(12.5))
                         .foregroundStyle(FAMColor.textMuted)
@@ -668,6 +896,11 @@ struct SectionView: View {
                 .padding(.horizontal, 18)
                 .padding(.bottom, 20)
             }
+            // Every page opens at its top (`loadSectionPage`).
+            .onChange(of: dealt) { _, _ in
+                proxy.scrollTo("sectionTop", anchor: .top)
+            }
+            }
         }
         .background(FAMColor.background)
         .toolbar(.hidden, for: .navigationBar)
@@ -676,27 +909,36 @@ struct SectionView: View {
 
     private var title: String {
         if key == "from_history" { return model.madeForTitle(multiline: false) }
-        return model.rails.first(where: { $0.key == key }).map { model.heading(for: $0) } ?? "More"
+        let known = AppModel.sectionTitle(key)
+        return known.isEmpty ? "More" : known
     }
 
+    /// Offered when a refresh can show something new; a cycling rail until
+    /// it is caught up (`renderSection`).
     private var canRefresh: Bool {
-        guard let page, page.caughtUp != true else { return false }
-        return (page.total ?? 0) > page.topics.count || key == "from_history"
+        guard let page else { return false }
+        if cycles { return page.caughtUp != true }
+        return (page.total ?? 0) > page.topics.count
     }
 
     private var reason: String {
         if failed { return "Could not load this section. Everything else still works, and this fills in when the server is back." }
         guard let page else { return "Loading…" }
+        if cycles && page.caughtUp == true { return "" }
         if page.topics.isEmpty && page.caughtUp != true { return page.emptyReason ?? "Nothing in this section yet." }
         let ready = page.ready ?? 0
         let line = ready == 0 ? "" : ready == 1 ? "1 of these plays instantly." : "\(ready) of these play instantly."
         return [wrappedNote, line].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
+    /// Two across; "Not interested" takes a card off here as well as off
+    /// the rails. Faces resolve against this page's own `friend_faces`.
     private func grid(_ tiles: [Tile]) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 11), GridItem(.flexible())], spacing: 11) {
-            ForEach(tiles) { tile in
-                TileCard(tile: tile, railKey: key, width: nil)
+        let shown = tiles.filter { !model.notInterestedIDs.contains($0.id) }
+        let faces = page?.friendFaces ?? []
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 11), GridItem(.flexible())], spacing: 11) {
+            ForEach(shown) { tile in
+                TileCard(tile: tile, railKey: key, faces: faces, width: nil)
             }
         }
     }
@@ -710,6 +952,7 @@ struct SectionView: View {
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 12)
             Button("Start again from the top") {
+                guard !loading else { return }
                 seen = []
                 Task { await load() }
             }
@@ -723,29 +966,34 @@ struct SectionView: View {
     private func load() async {
         loading = true
         defer { loading = false }
-        // Made for you's first page starts with the rail's own four.
-        let head = (key == "from_history" && seen.isEmpty)
+        // Made for you's first page starts with the rail's own tiles, so
+        // it is never "caught up" before they are shown (`loadSectionPage`).
+        let head = (cycles && seen.isEmpty)
             ? (model.rails.first(where: { $0.key == key })?.topics ?? []) : []
         do {
             var next = try await model.api.section(key, seen: seen + head.map(\.id),
-                                                   pageSize: Self.pageSize - head.count)
+                                                   pageSize: max(1, Self.pageSize - head.count))
             failed = false
             if !head.isEmpty {
-                next = SectionPage(key: next.key, topics: head + next.topics, emptyReason: next.emptyReason,
-                                   ready: (next.ready ?? 0) + head.filter(\.cached).count, total: next.total,
-                                   more: next.more, wrapped: next.wrapped, caughtUp: next.caughtUp,
+                let topics = head + next.topics
+                next = SectionPage(key: next.key, topics: topics, emptyReason: next.emptyReason,
+                                   ready: topics.filter(\.cached).count, total: next.total,
+                                   more: next.more, wrapped: next.wrapped, caughtUp: false,
                                    friendFaces: next.friendFaces, groups: next.groups)
             }
+            let before = seen.count
+            if next.wrapped == true { seen = [] }
+            for tile in next.topics where !seen.contains(tile.id) { seen.append(tile.id) }
             if next.wrapped == true {
                 wrappedNote = "That was all \(next.total ?? next.topics.count) for this rail, so these are the first again."
-                seen = []
-            } else if next.more == false && !seen.isEmpty {
+            } else if next.more == false && !cycles && before > 0 {
+                // Never on Made for you, which ends "all caught up" instead.
                 wrappedNote = "The last of this rail. Refresh starts again from the top."
             } else {
                 wrappedNote = ""
             }
-            seen += next.topics.map(\.id)
             page = next
+            dealt += 1
         } catch {
             failed = true
         }

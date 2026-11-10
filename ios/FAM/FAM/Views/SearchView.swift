@@ -26,12 +26,13 @@ struct SearchView: View {
                 // (10.12 packet #3, top left of searchFAM).
                 HStack {
                     Button { library = true } label: {
-                        Image(systemName: "books.vertical")
-                            .font(.system(size: 16))
+                        // The web's own bookshelf (index.html:3927), 19 pt at 1.8.
+                        WebIcon(path: Icons.bookshelf, size: 19, line: 1.8)
                             .foregroundStyle(FAMColor.text)
                             .frame(width: 34, height: 34)
                             .overlay(Circle().stroke(FAMColor.borderStrong))
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("The episode library")
                     Spacer()
                 }
@@ -63,6 +64,14 @@ struct SearchView: View {
         }
         .onChange(of: tab) { _, now in
             if now == .search { Task { await loadTrending() } }
+        }
+        // Search DailyFAM's "Search FAM for it": the words in the box,
+        // ready to send (`searchFromMyFam`).
+        .onChange(of: model.searchPrefill) { _, words in
+            guard let words else { return }
+            model.searchPrefill = nil
+            if !words.isEmpty { self.words = words }
+            tab = .search
         }
     }
 
