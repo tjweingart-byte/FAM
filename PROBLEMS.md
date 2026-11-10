@@ -33233,6 +33233,27 @@ and these two merges. The first review's 8 findings (§531) and the second's
 6 (§533) are fixed with tests, and neither found anything in Main's code
 that this branch changes.
 
+## 536. Go Deeper in a mix resumes the interrupted episode (2026-11-10)
+
+**The owner's rule.** A myFAM playlist is a queue that Go Deeper only
+interrupts. §519 made a Go Deeper a detour rather than the end of the
+playlist, but when the follow-up ended the playlist went on to its *next*
+episode, so the rest of the episode that was interrupted was never heard.
+Now the interrupted episode comes back where it was left - the same audio,
+replayed by its episode id (`heard-is-kept`), sought to the position once
+that much has arrived (`pendingResumeSeek`, as Pick up does) - and when it
+ends the playlist carries on. Nothing in a playlist is skipped by a detour.
+
+`noteMixInterrupted` keeps the position and episode id when a Go Deeper
+leaves the playlist's own episode (nothing when it had already played
+through); `resumeMix` replaces `advanceMix` wherever a detour ends - its
+end, its failure ("That follow-up couldn’t play — back to your playlist.")
+and a skip on the follow-up - and falls back to the next episode when there
+is nothing to resume. A Go Deeper on the follow-up stays on the same detour
+and keeps the first resume point. The iOS app does the same. Smoke check:
+the §519 detour check now also skips the follow-up and expects the
+interrupted episode back.
+
 ## 537. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09)
 
 **What was asked.** The owner walked App Store Connect with Claude for the

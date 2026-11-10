@@ -35,7 +35,9 @@ def test_the_playlist_waits_behind_the_detour_and_carries_on():
     body = _fn("populatePlayer")
     branch = body[body.index("t.mixDetour && mixPlay && mixPlay.key === t.mixDetour"):]
     branch = branch[:branch.index("} else if(!t.fromMix)")]
-    assert "advanceMix(detourOf)" in branch and "playOpts.nextUp = false" in branch
+    # §536: when the detour ends the interrupted episode resumes (resumeMix),
+    # rather than the playlist jumping to its next episode.
+    assert "resumeMix(detourOf)" in branch and "playOpts.nextUp = false" in branch
     # The order matters: the detour is tested before "anything else ends it".
     assert body.index("t.mixDetour && mixPlay") < body.index("} else if(!t.fromMix){\n      mixPlay = null;")
 
@@ -43,7 +45,22 @@ def test_the_playlist_waits_behind_the_detour_and_carries_on():
 def test_a_detour_that_fails_goes_back_to_the_playlist():
     body = _fn("mixItemFailed")
     assert "off.mixDetour === mixPlay.key" in body
-    assert "advanceMix(mixPlay.key)" in body
+    assert "resumeMix(mixPlay.key)" in body  # back to the interrupted episode (§536)
+
+
+def test_the_interrupted_episode_resumes_where_it_was():
+    """§536, the owner's rule: Go Deeper only interrupts a playlist. The
+    episode it left comes back at its position, as the same audio, and a
+    skip on the follow-up ends the detour the same way."""
+    follow = _fn("startFollowUp")
+    assert "noteMixInterrupted()" in follow
+    note = _fn("noteMixInterrupted")
+    assert "FamAudio.position()" in note and "FamAudio.episode()" in note
+    resume = _fn("resumeMix")
+    assert "t.episode = r.episode" in resume and "pendingResumeSeek" in resume
+    assert "advanceMix(fromKey)" in resume  # nothing to resume: the next one
+    skip = _fn("skipMixItem")
+    assert "on.mixDetour === from" in skip and "resumeMix(from)" in skip
 
 
 def test_the_queue_sheet_has_room():

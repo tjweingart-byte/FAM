@@ -787,7 +787,23 @@ def main() -> int:
             text = page.text_content("#sheetCard")
             assert "Next from Morning" in text and "NFL" in text, \
                 f"the queue lost the playlist's rest: {text!r}"
-            page.evaluate("closeSheet(); mixPlay = null; drawMixSkip(false)")
+            page.evaluate("closeSheet()")
+            # The owner's rule (§536): the detour over, the interrupted
+            # episode comes back - the same playlist position, not the next.
+            # The stand-in playlist episode is a DailyFAM tile; a real one is
+            # a mix item, which is what keeps the playlist when it plays again.
+            page.evaluate(
+                "TOPICS[mixPlay.key].fromMix = true;"
+                " mixPlay.resume = { key: mixPlay.key, at: 0, episode: '',"
+                " query: nowBarState && nowBarState.query, minutes: nowBarState && nowBarState.minutes };"
+                " skipMixItem()")
+            page.wait_for_timeout(1200)
+            assert page.evaluate("!!mixPlay && mixPlay.pos === 0"), \
+                "skipping the follow-up moved the playlist past the interrupted episode"
+            assert page.evaluate("currentPlayingTopicKey === mixPlay.key || (lastGenerate && lastGenerate.key === mixPlay.key)"), \
+                "skipping the follow-up did not go back to the interrupted episode"
+            assert page.evaluate("!mixPlay.resume"), "the resume point was not used up"
+            page.evaluate("mixPlay = null; drawMixSkip(false)")
             # Captions: a labelled pill beside the queue, opening over the picture.
             pill = page.query_selector("#screen-player .pc-row2 #ccIcon")
             assert pill and "Captions" in pill.text_content(), "no CC pill on the player"
