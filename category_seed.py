@@ -138,10 +138,14 @@ LEFT_TO_GROW = (
 #: Words that are a subject only inside a longer phrase (the owner 11.9,
 #: "Rock Lead Theory", PROBLEMS.md §511). "lead" is the metal, and it is
 #: also who is winning: grown alone and filed under science, every golf
-#: leader wore a lump of grey metal. Never minted as a one-word node, and a
-#: one-word node already grown under one of them never matches text
-#: (`categories.CategoryStore.match`); "lead poisoning" still grows and
-#: matches. The same rule as `LEFT_TO_GROW`, for words rather than teams.
+#: leader wore a lump of grey metal. The same rule as `LEFT_TO_GROW`, for
+#: words rather than teams.
+#:
+#: **Nor any grown phrase holding one** (§513): "lead poisoning", "world
+#: record" and "power grid" are refused at mint, and a grown node already on
+#: disk is left out of the tree as read (`categories.CategoryStore.reload`).
+#: The seed's own phrases are exempt: a phrase worth keeping is seeded here
+#: ("super bowl", "nfl draft", "power grid").
 #:
 #: The rest (§512): words a headline uses every day as a verb or a plain
 #: noun, whose subject senses sit on different facets - so grown alone and

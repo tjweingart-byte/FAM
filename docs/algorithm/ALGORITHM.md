@@ -102,6 +102,7 @@ Sport  0.41
             Bengals  1.00
     Sports Business  0.26
     Sports Drama  0.24
+    Trade Deadline  0.24
 Health & mind  0.05
     Medicine  0.08
         Vaccines  0.14
@@ -112,7 +113,7 @@ How six tiles score (affinity, before the multipliers):
 | Tile | Tags it carries | Affinity |
 |---|---|---:|
 | Bengals injury report before Sunday | american football, bengals, nfl, sports | 4.559 |
-| NFL trade deadline: who won | american football, nfl, sports | 2.17 |
+| NFL trade deadline: who won | american football, nfl, sports, trade deadline | 2.086 |
 | Inside the Oscars race | culture | 2 |
 | College football playoff picture | american football, college football, football, sports | 0.401 |
 | Premier League title race | football, premier league, sports | 0.152 |
