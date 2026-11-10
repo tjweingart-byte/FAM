@@ -81,6 +81,17 @@ final class FAMAPI: @unchecked Sendable {
         return who
     }
 
+    /// The account's sign-in methods (`/api/account` `identities`).
+    func account() async throws -> AccountInfo {
+        try await get("api/v1/account", [], as: AccountInfo.self)
+    }
+
+    /// Take a provider off the account; the server refuses the last way in.
+    func unlink(provider: String) async throws {
+        _ = try await sendQuery("DELETE", "api/v1/account/identity",
+                                [URLQueryItem(name: "provider", value: provider)], as: Ignored.self)
+    }
+
     func signOut() async {
         _ = try? await send("POST", "api/v1/auth/logout", body: [:], as: OK.self)
         token = nil
@@ -653,6 +664,17 @@ struct ProgressSteps: Decodable {
 }
 
 struct OK: Decodable { let ok: Bool }
+
+/// `/api/account`: how this account signs in.
+struct AccountInfo: Decodable {
+    let identities: [Identity]
+    let hasPassword: Bool
+}
+
+struct Identity: Decodable, Hashable {
+    let provider: String
+    let email: String?
+}
 
 // MARK: - The player's side channels
 

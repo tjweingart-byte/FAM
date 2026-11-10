@@ -37,6 +37,8 @@ the app.
 | Log in | Done | |
 | Phone number on sign-up | Not yet | deliberately off for iOS 1.0 (APP_STORE.md gap 12) |
 | Sign in with Apple / Google (`op-identity`, 4.8) | Done (iOS only) | the web has neither on purpose. Apple: nonce hashed to Apple, raw to the server, the one-time code sent so deletion revokes. Google: GoogleSignIn, drawn only once `GOOGLE_IOS_CLIENT_ID` is set in `project.yml`. Both wait for the terms box on sign-up |
+| Linking Apple / Google to an account (YourFAM → Sign-in methods) | Done (iOS only) | the server never joins accounts by email, so a provider used while signed out makes its own account; linking is a provider sign-in while signed in. Unlink when another way in remains |
+| Delete the account from the waiting screen (5.1.1(v)) | Done | `/api/account` is open past the waitlist |
 | Password reset (`/reset`, §297) | Not yet | |
 | Identity step after sign-up (name, handle, photo) | Not yet | |
 | Activation step (§411) | Not yet | `activation_needed` on `/api/auth/me` |

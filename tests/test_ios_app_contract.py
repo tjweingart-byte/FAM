@@ -236,3 +236,25 @@ def test_provider_sign_in_sends_what_the_server_reads():
     # Apple is sent the hash of the nonce; the server gets the raw value.
     assert "request.nonce = Self.sha256(appleNonce)" in swift
     assert 'send(provider: "apple", token: token, nonce: appleNonce' in swift
+
+
+def test_sign_in_methods_decode_what_the_account_sends(monkeypatch):
+    """YourFAM's Sign-in methods read `/api/account`; linking is a provider
+    sign-in while signed in, and unlinking is DELETE /api/account/identity."""
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    c = TestClient(appmod.app)
+    headers = {"X-FAM-Client": "ios/1.0.0+2"}
+    token = c.post("/api/v1/auth/signup", headers=headers, json={
+        "email": "ios-methods@example.com", "password": "password12",
+        "accept_terms": True, "want_token": True}).json()["session_token"]
+    page = c.get("/api/v1/account", headers={**headers, "Authorization": "Bearer " + token}).json()
+    assert _fields("AccountInfo") <= set(page), sorted(_fields("AccountInfo") - set(page))
+    assert page["has_password"] is True
+    assert [i["provider"] for i in page["identities"]] == ["email"]
+    server = "\n".join(p.read_text() for p in ROOT.glob("*.py"))
+    for field in _fields("Identity"):
+        assert f'"{field}"' in server, field
+    assert ("DELETE", "api/v1/account/identity") in _calls()
+    model = (SWIFT / "AppModel.swift").read_text()
+    assert "func link(provider:" in model and "acceptTerms: false" in model

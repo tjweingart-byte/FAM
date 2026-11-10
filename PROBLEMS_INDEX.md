@@ -494,3 +494,4 @@ and `limit` = Lines.
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
 | 31500 | 85 | 501. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
 | 31585 | 128 | 502. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 31713 | 32 | 503. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |

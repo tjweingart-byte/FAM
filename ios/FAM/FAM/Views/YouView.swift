@@ -9,6 +9,9 @@ struct YouView: View {
 
     @State private var confirmDelete = false
     @State private var problem = ""
+    @State private var info: AccountInfo?
+    @State private var linkProblem = ""
+    @State private var linking = false
 
     var body: some View {
         NavigationStack {
@@ -41,6 +44,9 @@ struct YouView: View {
                         .listRowBackground(FAMColor.background)
                     }
 
+                    signInMethods
+                        .listRowBackground(FAMColor.surface)
+
                     PrivacyAndSafetySection(consent: model.consent, api: model.safety,
                                             base: model.api.base, signedIn: true)
                         .listRowBackground(FAMColor.surface)
@@ -68,6 +74,7 @@ struct YouView: View {
             }
             .background(FAMColor.background)
             .toolbar(.hidden, for: .navigationBar)
+            .task(id: model.listener?.userId) { info = try? await model.api.account() }
             .confirmationDialog("Delete your account?", isPresented: $confirmDelete,
                                 titleVisibility: .visible) {
                 Button("Delete my account", role: .destructive) {
@@ -79,6 +86,73 @@ struct YouView: View {
             } message: {
                 Text("This can't be undone.")
             }
+        }
+    }
+
+    /// How this account signs in, and linking Apple or Google to it, so a
+    /// later "Sign in with Apple" lands here rather than making a new
+    /// account (the server never joins accounts by email).
+    private var signInMethods: some View {
+        Section {
+            if info?.hasPassword == true {
+                methodRow("Email and password", linked: true, provider: nil)
+            }
+            methodRow("Apple", linked: isLinked("apple"), provider: "apple")
+            if ProviderButtons.googleConfigured {
+                methodRow("Google", linked: isLinked("google"), provider: "google")
+            }
+            if !linkProblem.isEmpty {
+                Text(linkProblem).font(FAMFont.body(12)).foregroundStyle(FAMColor.coral)
+            }
+        } header: {
+            Text("Sign-in methods").monoLabel(9, color: FAMColor.copper, bold: true)
+        } footer: {
+            Text("Link Apple or Google here and they sign you in to this account.")
+                .font(FAMFont.body(11))
+                .foregroundStyle(FAMColor.textFaint)
+        }
+    }
+
+    private func isLinked(_ provider: String) -> Bool {
+        info?.identities.contains(where: { $0.provider == provider }) ?? false
+    }
+
+    @ViewBuilder
+    private func methodRow(_ name: String, linked: Bool, provider: String?) -> some View {
+        if linked {
+            HStack {
+                Text(name).font(FAMFont.body(14, .semibold)).foregroundStyle(FAMColor.text)
+                Spacer()
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(FAMColor.sage)
+                    .accessibilityLabel("Linked")
+                // The server's rule (`unlink_identity`): another way in must remain.
+                if let provider, info?.hasPassword == true
+                    || (info?.identities.contains(where: { $0.provider != provider }) ?? false) {
+                    Button("Unlink") {
+                        Task {
+                            do {
+                                try await model.api.unlink(provider: provider)
+                                info = try? await model.api.account()
+                            } catch {
+                                linkProblem = error.localizedDescription
+                            }
+                        }
+                    }
+                    .font(FAMFont.body(12, .semibold))
+                    .foregroundStyle(FAMColor.coral)
+                    .buttonStyle(.borderless)
+                }
+            }
+        } else if let provider {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Link \(name)").font(FAMFont.body(14, .semibold)).foregroundStyle(FAMColor.text)
+                ProviderButtons(making: false, agreed: true, problem: $linkProblem, working: $linking,
+                                linking: true, showApple: provider == "apple", showGoogle: provider == "google")
+                    .onChange(of: linking) { _, busy in
+                        if !busy { Task { info = try? await model.api.account() } }
+                    }
+            }
+            .padding(.vertical, 4)
         }
     }
 

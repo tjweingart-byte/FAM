@@ -121,6 +121,23 @@ final class AppModel: ObservableObject {
                                     authorizationCode: authorizationCode, acceptTerms: acceptTerms))
     }
 
+    /// Link Apple or Google to the account signed in now (`sign_in_with`
+    /// case 2). If that Apple ID or Google account already has a FAM account
+    /// of its own, the server signs in to that one instead - said plainly.
+    func link(provider: String, idToken: String, nonce: String,
+              authorizationCode: String = "") async throws {
+        let before = listener?.userId
+        let who = try await api.signIn(provider: provider, idToken: idToken, nonce: nonce,
+                                       authorizationCode: authorizationCode, acceptTerms: false)
+        arrive(who)
+        let name = provider == "apple" ? "Apple ID" : "Google account"
+        if who.userId != before {
+            nowPlaying.say("That \(name) already had its own FAM account, so you're signed in to it now.")
+        } else {
+            nowPlaying.say(provider == "apple" ? "Apple is linked to your account" : "Google is linked to your account")
+        }
+    }
+
     func signOut() async {
         player.stop()
         await api.signOut()

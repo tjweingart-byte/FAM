@@ -15,6 +15,11 @@ struct ProviderButtons: View {
     let agreed: Bool
     @Binding var problem: String
     @Binding var working: Bool
+    /// Set to link to the account signed in now instead of signing in.
+    var linking = false
+    /// Which buttons to draw (the link list draws one at a time).
+    var showApple = true
+    var showGoogle = true
 
     @State private var appleNonce = ""
 
@@ -28,7 +33,8 @@ struct ProviderButtons: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            SignInWithAppleButton(making ? .signUp : .signIn) { request in
+            if showApple {
+            SignInWithAppleButton(linking ? .continue : making ? .signUp : .signIn) { request in
                 appleNonce = Self.randomNonce()
                 request.requestedScopes = [.fullName, .email]
                 request.nonce = Self.sha256(appleNonce)
@@ -40,12 +46,16 @@ struct ProviderButtons: View {
             .clipShape(Capsule())
             .disabled(!enabled)
             .opacity(enabled ? 1 : 0.45)
+            // Apple's button sets its words once; a new id makes it redraw
+            // when Log in and Sign up switch.
+            .id("apple-\(making)-\(linking)")
+            }
 
-            if Self.googleConfigured {
+            if showGoogle && Self.googleConfigured {
                 Button { Task { await google() } } label: {
                     HStack(spacing: 10) {
                         GoogleMark().frame(width: 18, height: 18)
-                        Text(making ? "Sign up with Google" : "Sign in with Google")
+                        Text(linking ? "Continue with Google" : making ? "Sign up with Google" : "Sign in with Google")
                             .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(Color.black.opacity(0.85))
                     }
@@ -122,8 +132,13 @@ struct ProviderButtons: View {
         defer { working = false }
         problem = ""
         do {
-            try await model.signIn(provider: provider, idToken: token, nonce: nonce,
-                                   authorizationCode: code, acceptTerms: making && agreed)
+            if linking {
+                try await model.link(provider: provider, idToken: token, nonce: nonce,
+                                     authorizationCode: code)
+            } else {
+                try await model.signIn(provider: provider, idToken: token, nonce: nonce,
+                                       authorizationCode: code, acceptTerms: making && agreed)
+            }
         } catch {
             problem = error.localizedDescription
         }

@@ -190,6 +190,8 @@ struct WaitingView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @State private var samples: [Tile] = []
+    @State private var confirmDelete = false
+    @State private var problem = ""
 
     var body: some View {
         ScrollView {
@@ -246,11 +248,34 @@ struct WaitingView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 26)
+
+                // Every account can be deleted from inside the app, a
+                // waiting one included (5.1.1(v); `/api/account` is open
+                // past the waitlist).
+                Button("Delete this account") { confirmDelete = true }
+                    .font(FAMFont.body(13, .semibold))
+                    .foregroundStyle(FAMColor.coral)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 18)
+                if !problem.isEmpty {
+                    Text(problem).font(FAMFont.body(12)).foregroundStyle(FAMColor.coral)
+                        .frame(maxWidth: .infinity)
+                }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 30)
         }
         .background(FAMColor.background.ignoresSafeArea())
+        .confirmationDialog("Delete this account?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete this account", role: .destructive) {
+                Task {
+                    do { try await model.deleteAccount() } catch { problem = error.localizedDescription }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the account and its place on the waitlist, and unlinks its Apple ID. It can't be undone.")
+        }
         .task { samples = (try? await model.api.samples()) ?? [] }
     }
 }

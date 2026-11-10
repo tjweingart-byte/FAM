@@ -31709,3 +31709,35 @@ OAuth client for that bundle id in Google Cloud, its id put in `project.yml`
 to the server's `GOOGLE_CLIENT_IDS`. Until the client id is set the Google
 button is not drawn (`no-dead-controls`). `/api/health` > `oauth` says which
 provider the server can verify.
+
+## 503. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10)
+
+**What happened.** On the phone, signed out, the owner tapped Sign in with
+Apple. The button still read "Sign up with Apple" (Apple's button sets its
+words once; switching Log in / Sign up did not redraw it), and the server
+made a new, waitlisted account for that Apple ID - although an account with
+the same email already existed.
+
+**Why, and why it stays.** `ACCOUNTS.sign_in_with` never joins accounts by
+email, on purpose: a provider's email is not proof of owning a FAM account
+(Apple's private relay addresses differ anyway, and an email someone typed
+at sign-up was never verified). A new provider identity reaches an existing
+account in one way only - by signing in with it while already signed in to
+that account (the "link" case).
+
+**What changed (iOS only).**
+- Apple's button takes `.id("apple-<making>-<linking>")`, so its words follow
+  Log in / Sign up.
+- YourFAM has **Sign-in methods**: email and password, Apple, Google (when
+  configured), each linked or with its button ("Continue with Apple") to
+  link. `AppModel.link` sends the provider sign-in with the session's token;
+  if the identity already had its own account the app says so, since the
+  server signs in to that one. Unlink appears when another way in remains
+  (the server's `unlink_identity` rule).
+- The waiting screen has **Delete this account** - `/api/account` is open
+  past the waitlist, and 5.1.1(v) wants every account deletable in the app.
+  Deleting revokes the Apple token kept at sign-in.
+
+Recovery for the owner's case: delete the Apple-made account on the waiting
+screen, log in with email and password, YourFAM → Sign-in methods → Continue
+with Apple. Contract test: `test_sign_in_methods_decode_what_the_account_sends`.
