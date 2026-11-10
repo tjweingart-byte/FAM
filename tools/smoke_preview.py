@@ -3683,6 +3683,9 @@ def main() -> int:
                 window.__altWatch.observe(el, { attributes: true, childList: true, subtree: true });
             }"""
             page.evaluate("stopSpeech(); clearGenOverlay()")
+            # A guest's tap on an episode not yet made goes to the sign-up
+            # gate, not the player (the live preview starts as a guest).
+            ensure_account()
             page.evaluate("openMyFamTab()")
             page.wait_for_selector("#myfamFeed .seed-card[data-topic]", timeout=10000)
             page.evaluate(watch)
