@@ -227,7 +227,10 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    "CatalogPage", "CatalogEpisode", "FriendFace", "RailsPage",
                    # myFAM: mixes, the catalogue, sharing, push, the episode's topic.
                    "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",
-                   "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic"):
+                   "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic",
+                   # The category chips and panel on the myFAM tab (§500).
+                   "CategoriesPage", "CategoryFacet", "CategoryNode", "CategoryEpisodes",
+                   "CategorySub", "CategoryEpisode"):
         body = re.search(r"struct %s:[^{]*\{(.*?)\n\}" % struct, _api(), re.S)
         assert body, struct
         for field in {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}:

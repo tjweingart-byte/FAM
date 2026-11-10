@@ -1064,3 +1064,70 @@ struct EpisodeTopic: Decodable {
     let title: String
     let query: String?
 }
+
+// MARK: - Categories on the myFAM tab (§229, §500, `your-categories`)
+
+extension FAMAPI {
+    /// The tree's facets, every node, and the ones you follow.
+    func categories() async throws -> CategoriesPage {
+        try await get("api/v1/categories", [], as: CategoriesPage.self)
+    }
+
+    /// Follow or unfollow: the whole followed list, in order.
+    func followCategories(_ ids: [String]) async throws {
+        _ = try await send("POST", "api/v1/categories/mine", body: ["categories": ids], as: Ignored.self)
+    }
+
+    /// Today's cached episodes filed under a node, most played first.
+    func categoryEpisodes(_ id: String) async throws -> CategoryEpisodes {
+        try await get("api/v1/categories/episodes", [URLQueryItem(name: "id", value: id),
+                                                     URLQueryItem(name: "sort", value: "popular")],
+                      as: CategoryEpisodes.self)
+    }
+}
+
+struct CategoriesPage: Decodable {
+    let facets: [CategoryFacet]
+    let all: [CategoryNode]
+    let mine: [CategoryNode]
+    /// Signed in: following is kept.
+    let saved: Bool
+}
+
+struct CategoryFacet: Decodable, Identifiable, Hashable {
+    let id: String
+    let label: String
+}
+
+struct CategoryNode: Decodable, Identifiable, Hashable {
+    let id: String
+    let label: String
+    let facet: String?
+    let path: [String]?
+}
+
+struct CategoryEpisodes: Decodable {
+    let id: String
+    let label: String
+    let facet: String?
+    let subcategories: [CategorySub]
+    let episodes: [CategoryEpisode]
+}
+
+struct CategorySub: Decodable, Identifiable, Hashable {
+    let id: String
+    let label: String
+    let count: Int
+}
+
+struct CategoryEpisode: Decodable, Identifiable, Hashable {
+    let query: String
+    let title: String
+    let minutes: Double?
+    let plays: Int?
+    let thumb: String?
+    let explicit: Bool?
+    let nodeLabel: String?
+
+    var id: String { query + "|" + String(minutes ?? 0) }
+}
