@@ -645,6 +645,9 @@ struct PicTile: View {
     @EnvironmentObject private var model: AppModel
     let thumb: String
     let title: String
+    /// A friend's grid cuts a title at four lines; your own never does
+    /// (`.yf-pic-t`, spec §3.1).
+    var titleLines: Int? = 4
 
     var body: some View {
         Color.clear
@@ -668,7 +671,7 @@ struct PicTile: View {
                     .font(FAMFont.body(10.5, .semibold))
                     .foregroundStyle(Color(hex: 0xF4EFE4))
                     .lineSpacing(2)
-                    .lineLimit(4)
+                    .lineLimit(titleLines)
                     .multilineTextAlignment(.leading)
                     .padding(7)
             }

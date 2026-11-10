@@ -50,7 +50,13 @@ final class AppModel: ObservableObject {
     /// This member's referral link while the waitlist runs, fetched ahead
     /// because a share sheet must open inside the tap (`loadInviteLink`).
     @Published private(set) var inviteLink: String?
+    /// The YourFAM tab's stack (Settings, the shelves), and the first-run
+    /// step after an account is made or signed in (`afterAccount`).
+    @Published var youPath: [YouRoute] = []
+    @Published var entry: EntryStep?
     let mixes: MixesModel
+    /// YourFAM: the profile, Settings and the shelves.
+    let you: YouModel
     /// Messages, Friends and profiles, and the notifications poll.
     let social: SocialModel
     /// Where a resumed episode should jump to once enough has arrived.
@@ -90,6 +96,7 @@ final class AppModel: ObservableObject {
         nowPlaying = NowPlayingModel(api: api, player: player)
         mixes = MixesModel(api: api)
         social = SocialModel(api: api)
+        you = YouModel(api: api, safety: safety)
         // The player calls back on the main queue (its delegate queue).
         player.onRefused = { [weak self] error in
             MainActor.assumeIsolated { self?.refused(error) ?? false }
@@ -136,6 +143,24 @@ final class AppModel: ObservableObject {
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
         nowPlaying.playerShowing = { [weak self] in self?.showPlayer ?? false }
         social.say = { [weak self] text in self?.nowPlaying.say(text) }
+        you.say = { [weak self] text, action, perform in
+            self?.nowPlaying.say(text, action: action, perform: perform)
+        }
+        you.vibeDeleted = { [weak self] in
+            guard let self else { return }
+            Task {
+                await self.loadCircle()
+                await self.social.loadMe()
+            }
+        }
+        you.meChanged = { [weak self] in
+            guard let self else { return }
+            Task {
+                await self.loadCircle()
+                await self.social.loadMe()
+            }
+        }
+        nowPlaying.openSaved = { [weak self] in self?.openSaved() }
         social.requestTab = { [weak self] tab in self?.tabRequest = tab }
         social.leavePlayer = { [weak self] in
             guard let self, self.showPlayer else { return false }
@@ -167,16 +192,35 @@ final class AppModel: ObservableObject {
 
     func signIn(email: String, password: String) async throws {
         arrive(try await api.signIn(email: email, password: password))
+        await beginEntry()
     }
 
     func signUp(email: String, password: String) async throws {
         arrive(try await api.signUp(email: email, password: password))
+        await beginEntry()
+    }
+
+    /// "Forgot password?" finished (§244): the code and the new password
+    /// sign this phone in, like a log-in.
+    func finishReset(email: String, code: String, password: String) async throws {
+        arrive(try await api.resetFinish(email: email, code: code, new: password))
+        await beginEntry()
+    }
+
+    /// The password changed in Settings: the server signed every device
+    /// out, this one too, so this one signs in again with the new password.
+    func changePassword(current: String, new: String) async throws {
+        try await api.changePassword(current: current, new: new)
+        let email = listener?.email ?? ""
+        guard !email.isEmpty else { return }
+        arrive(try await api.signIn(email: email, password: new))
     }
 
     func signIn(provider: String, idToken: String, nonce: String,
                 authorizationCode: String = "", acceptTerms: Bool) async throws {
         arrive(try await api.signIn(provider: provider, idToken: idToken, nonce: nonce,
                                     authorizationCode: authorizationCode, acceptTerms: acceptTerms))
+        await beginEntry()
     }
 
     /// Link Apple or Google to the account signed in now (`sign_in_with`
@@ -199,13 +243,13 @@ final class AppModel: ObservableObject {
     func signOut() async {
         player.stop()
         await api.signOut()
-        forget()
+        forgetEverything()
     }
 
     func deleteAccount() async throws {
         player.stop()
         try await api.deleteAccount()
-        forget()
+        forgetEverything()
     }
 
     private func arrive(_ who: Listener) {
@@ -219,8 +263,14 @@ final class AppModel: ObservableObject {
         Task { await consent.load() }
     }
 
-    private func forget() {
+    func forgetEverything() {
         listener = nil
+        you.reset()
+        youPath = []
+        entry = nil
+        showPlayer = false
+        nowPlaying.stopped()
+        consent.forget()
         rails = []
         mixes.reset()
         social.reset()
@@ -340,7 +390,7 @@ final class AppModel: ObservableObject {
             Task {
                 do {
                     try await api.saveTile(query: tile.query, title: tile.title, source: "myfam")
-                    nowPlaying.say("Saved for Later")
+                    nowPlaying.say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
                     await api.event("save", topicID: tile.id, text: tile.query)
                 } catch {
                     savedTiles.remove(key)
@@ -368,7 +418,7 @@ final class AppModel: ObservableObject {
                     nowPlaying.say("Removed from Saved for Later")
                 } else {
                     try await api.saveShared(query: query, minutes: minutes, title: title)
-                    nowPlaying.say("Saved for Later")
+                    nowPlaying.say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
                 }
             } catch {
                 if on { savedTiles.insert(key) } else { savedTiles.remove(key) }
@@ -646,7 +696,7 @@ final class AppModel: ObservableObject {
         case .signedOut:
             loading.stop()
             api.token = nil
-            forget()
+            forgetEverything()
             showPlayer = false
             return true
         case let .refused(status, _) where status == 409 && !(pending?.episodeID.isEmpty ?? true):

@@ -440,7 +440,9 @@ final class FAMAPI: @unchecked Sendable {
         var req = URLRequest(url: parts.url!)
         req.httpMethod = method
         req.setValue(Self.client, forHTTPHeaderField: "X-FAM-Client")
-        req.setValue(TimeZone.current.identifier, forHTTPHeaderField: "X-FAM-TZ")
+        // The listener's clock (`listener-clock`): the zone pinned in
+        // Settings on this device, else the device's own.
+        req.setValue(Self.listenerZone, forHTTPHeaderField: "X-FAM-TZ")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
         return req
@@ -567,6 +569,11 @@ struct SavedItem: Decodable {
     let query: String
     let minutes: Double
     let title: String?
+    /// The shelf's own row id, its folder ("" unfiled) and where it was
+    /// saved from (`saved.SavedItem.as_dict`); a pointer, never an episode id.
+    let id: String?
+    let folderId: String?
+    let source: String?
 }
 
 /// `/api/circle?notes=1`.
@@ -809,6 +816,14 @@ struct OK: Decodable { let ok: Bool }
 struct AccountInfo: Decodable {
     let identities: [Identity]
     let hasPassword: Bool
+    /// Settings' rows: "Signed in as", the first run's name, and the
+    /// activation answers (§411) - theirs, shown to them only.
+    let email: String?
+    let phone: String?
+    let displayName: String?
+    let birthDate: String?
+    let gender: String?
+    let counted: Bool?
 }
 
 struct Identity: Decodable, Hashable {
@@ -1697,4 +1712,393 @@ struct ProfileEcho: Decodable, Hashable {
     let query: String
     let title: String?
     let minutes: Double?
+}
+
+// MARK: - YourFAM: your profile, Settings and the shelves (`op-profile-hub`)
+//
+// The listener's own profile, what Settings edits, Saved for Later
+// (`save-pointer`: a question and a length, never an episode id), the
+// listening history (`heard-is-kept`: each row replays its episode id) and
+// My Vibe. Every write goes to the server; only the time zone pin, speed and
+// pitch live on the device (Q11).
+
+extension FAMAPI {
+    /// The UserDefaults key of the pinned time zone ("" or absent: automatic).
+    static let zoneKey = "fam.prefs.time_zone"
+
+    /// The zone every request names (`X-FAM-TZ`): the pin, else the device's.
+    static var listenerZone: String {
+        if let pinned = UserDefaults.standard.string(forKey: zoneKey), !pinned.isEmpty,
+           TimeZone(identifier: pinned) != nil {
+            return pinned
+        }
+        return TimeZone.current.identifier
+    }
+
+    /// Your own profile hub (`/api/profile?notes=1`, `renderProfile`).
+    func myProfile() async throws -> MyProfile {
+        try await get("api/v1/profile", [URLQueryItem(name: "notes", value: "1")], as: MyProfile.self)
+    }
+
+    /// `/api/me` writes the name, handle and picture together: `avatar` nil
+    /// leaves the picture alone, "" takes it off (`set_me`).
+    func setMe(name: String, handle: String, avatar: String?) async throws {
+        var body: [String: Any] = ["name": name, "handle": handle]
+        if let avatar { body["avatar"] = avatar }
+        _ = try await send("POST", "api/v1/me", body: body, as: Ignored.self)
+    }
+
+    /// What is on offer and what this listener chose (`/api/preferences`).
+    func preferences() async throws -> MyPreferences {
+        try await get("api/v1/preferences", [], as: MyPreferences.self)
+    }
+
+    /// Any of: city, region, country, profile_interests, topics, interests,
+    /// searches_public, private_search, intro_done.
+    @discardableResult
+    func savePreferences(_ body: [String: Any]) async throws -> MyPreferences {
+        try await send("POST", "api/v1/preferences", body: body, as: MyPreferences.self)
+    }
+
+    /// The account's own details (`POST /api/account`): the first run's name.
+    func updateAccount(_ body: [String: Any]) async throws {
+        _ = try await send("POST", "api/v1/account", body: body, as: Ignored.self)
+    }
+
+    /// Change the password. The server ends every session, this one too, so
+    /// the caller signs in again with the new one.
+    func changePassword(current: String, new: String) async throws {
+        _ = try await send("POST", "api/v1/auth/password", body: ["current": current, "new": new], as: OK.self)
+    }
+
+    /// A first password, for an account made with Apple or Google.
+    func setPassword(_ new: String) async throws {
+        _ = try await send("POST", "api/v1/auth/password/set", body: ["new": new], as: OK.self)
+    }
+
+    /// Whether this server can email a reset code (`/api/auth/reset`, §244).
+    func resetStatus() async throws -> ResetStatus {
+        try await get("api/v1/auth/reset", [], as: ResetStatus.self)
+    }
+
+    /// Email a code to the account at this address; the same answer whether
+    /// or not it has one.
+    func resetStart(email: String) async throws -> ResetStarted {
+        try await send("POST", "api/v1/auth/reset/start", body: ["email": email], as: ResetStarted.self)
+    }
+
+    /// The code and the new password: signs this phone in.
+    func resetFinish(email: String, code: String, new: String) async throws -> Listener {
+        let who = try await send("POST", "api/v1/auth/reset/finish",
+                                 body: ["email": email, "code": code, "new": new, "want_token": true],
+                                 as: Listener.self)
+        if let fresh = who.sessionToken { token = fresh }
+        return who
+    }
+
+    /// The activation answers and the words their editor draws (§411).
+    func activation() async throws -> Activation {
+        try await get("api/v1/activation", [], as: Activation.self)
+    }
+
+    /// Save the date of birth, gender and place. A 409 asks to confirm an
+    /// under-13 date (`confirm`); `deleted` means the account is gone.
+    func saveActivation(_ body: [String: Any]) async throws -> ActivationAnswer {
+        var req = request("POST", "api/v1/activation")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        if let http = response as? HTTPURLResponse, http.statusCode == 409,
+           let answer = try? Self.decoder.decode(ActivationAnswer.self, from: data) {
+            return answer
+        }
+        try Self.check(response, data)
+        return (try? Self.decoder.decode(ActivationAnswer.self, from: data))
+            ?? ActivationAnswer(confirm: nil, deleted: nil, message: nil)
+    }
+
+    /// "Count me in FAM's totals" (§411 decision 2).
+    func setCounted(_ allow: Bool, version: Int?) async throws {
+        var body: [String: Any] = ["scope": "demographics", "allow": allow]
+        if let version { body["version"] = version }
+        _ = try await send("POST", "api/v1/consent", body: body, as: Ignored.self)
+    }
+
+    /// Every tier and the one this listener is on (`/api/plans`); no prices.
+    func plans() async throws -> PlansPage {
+        try await get("api/v1/plans", [], as: PlansPage.self)
+    }
+
+    /// The voice bank and the voice searches are spoken in (§147).
+    func voices() async throws -> VoicesPage {
+        try await get("api/v1/voices", [], as: VoicesPage.self)
+    }
+
+    func chooseVoice(_ id: String) async throws {
+        _ = try await send("POST", "api/v1/voices/choice", body: ["voice": id], as: Ignored.self)
+    }
+
+    /// The whole shelf with its folders (`/api/saved`); filtered here.
+    func shelf() async throws -> SavedShelf {
+        try await get("api/v1/saved", [], as: SavedShelf.self)
+    }
+
+    func removeSaved(_ id: String) async throws {
+        _ = try await send("DELETE", "api/v1/saved/\(id)", as: Ignored.self)
+    }
+
+    /// Fire and forget: the shelf orders itself by what is come back to.
+    func playedSaved(_ id: String) async {
+        _ = try? await send("POST", "api/v1/saved/\(id)/played", body: [:], as: Ignored.self)
+    }
+
+    /// File a saved episode; "" takes it out of any folder.
+    func moveSaved(_ id: String, folderID: String) async throws {
+        _ = try await send("POST", "api/v1/saved/\(id)/move", body: ["folder_id": folderID], as: Ignored.self)
+    }
+
+    /// A folder of the listener's own: `kind` "saved" or "vibe".
+    func createFolder(name: String, kind: String) async throws -> SavedFolder {
+        try await send("POST", "api/v1/saved/folders", body: ["name": name, "kind": kind],
+                       as: FolderAnswer.self).folder
+    }
+
+    func renameFolder(_ id: String, name: String) async throws {
+        _ = try await send("POST", "api/v1/saved/folders/\(id)", body: ["name": name], as: FolderAnswer.self)
+    }
+
+    /// Its episodes are unfiled, never deleted.
+    func deleteFolder(_ id: String) async throws {
+        _ = try await send("DELETE", "api/v1/saved/folders/\(id)", as: Ignored.self)
+    }
+
+    /// Two weeks of listening, newest first; one surface or all.
+    func history(surface: String) async throws -> HistoryPage {
+        let items = surface.isEmpty ? [] : [URLQueryItem(name: "surface", value: surface)]
+        return try await get("api/v1/history", items, as: HistoryPage.self)
+    }
+
+    /// Everything you have vibed, with your vibe folders (`/api/vibes`).
+    func myVibes() async throws -> VibesPage {
+        try await get("api/v1/vibes", [URLQueryItem(name: "limit", value: "200")], as: VibesPage.self)
+    }
+
+    func fileVibe(query: String, minutes: Double, folderID: String) async throws {
+        _ = try await send("POST", "api/v1/vibes/file",
+                           body: ["query": query, "minutes": minutes, "folder_id": folderID],
+                           as: Ignored.self)
+    }
+
+    /// Delete a vibe whole: the grid, the story, My Vibe and its folder.
+    func deleteVibe(query: String, minutes: Double) async throws {
+        let answer = try await sendQuery("DELETE", "api/v1/vibe", [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
+        ], as: OK.self)
+        if !answer.ok { throw FAMError.refused(status: 400, message: "") }
+    }
+}
+
+/// `GET /api/profile?notes=1`: the hub. Lenient - every field optional.
+struct MyProfile: Decodable {
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    /// The place as they wrote it ("Austin, TX, USA").
+    let location: String?
+    let follows: FollowCounts?
+    let echoCount: Int?
+    /// The newest twelve vibes, each with its picture.
+    let echoes: [MyVibe]?
+    /// Public mixes only, each with its picture.
+    let mixes: [ProfileMix]?
+    let interestsShown: [ProfileInterest]?
+    let interestsRanked: [ProfileInterest]?
+    let interestsPinned: [String]?
+    let interestsMax: Int?
+    /// Your own story: your vibes and notes of the last 24 hours.
+    let stories: [Story]?
+}
+
+/// One vibe on the hub's grid (`Echo.as_dict` plus `thumb`).
+struct MyVibe: Decodable, Hashable, Identifiable {
+    let id: Int
+    let query: String
+    let title: String?
+    let minutes: Double?
+    let at: Double?
+    let thumb: String?
+}
+
+/// One public mix on the hub (`public_dict` plus `thumb`).
+struct ProfileMix: Decodable, Hashable, Identifiable {
+    let id: String
+    let name: String?
+    let cover: String?
+    let thumb: String?
+}
+
+/// `GET/POST /api/preferences`: the parts YourFAM reads.
+struct MyPreferences: Decodable {
+    let location: PlaceInfo?
+    let interests: [String]?
+    let topics: [String]?
+    let profileInterests: [String]?
+    let interestsAll: [FacetLabel]?
+    let topicsChosen: [FacetLabel]?
+    let catalogue: [Subject]?
+    let searchesPublic: Bool?
+    let privateSearch: Bool?
+    let introDone: Bool?
+}
+
+struct PlaceInfo: Decodable, Equatable {
+    let city: String?
+    let region: String?
+    let country: String?
+    let label: String?
+}
+
+/// An id and its name: a facet (`interests_all`) or a chosen subject.
+struct FacetLabel: Decodable, Hashable {
+    let id: String
+    let label: String?
+}
+
+/// `GET /api/auth/reset`.
+struct ResetStatus: Decodable {
+    let available: Bool
+    let reason: String?
+}
+
+/// `POST /api/auth/reset/start`: the server's sentence.
+struct ResetStarted: Decodable {
+    let ok: Bool?
+    let message: String?
+}
+
+/// `GET /api/activation` (`activation.state`).
+struct Activation: Decodable {
+    let needed: Bool?
+    let title: String?
+    let birthDate: String?
+    let gender: String?
+    let location: PlaceInfo?
+    let genders: [ActivationGender]?
+    let help: ActivationHelp?
+    let minAge: Int?
+    let counting: ActivationCounting?
+}
+
+struct ActivationGender: Decodable, Hashable {
+    let id: String
+    let label: String
+}
+
+struct ActivationHelp: Decodable {
+    let birthDate: String?
+    let location: String?
+    let gender: String?
+}
+
+/// Being counted (`describe_demographics`).
+struct ActivationCounting: Decodable {
+    let version: Int?
+    let notice: CountingNotice?
+    let asked: Bool?
+    let counted: Bool?
+}
+
+struct CountingNotice: Decodable {
+    let body: String?
+    let privacyUrl: String?
+}
+
+/// `POST /api/activation`: saved, a question to confirm, or deleted.
+struct ActivationAnswer: Decodable {
+    let confirm: String?
+    let deleted: Bool?
+    let message: String?
+}
+
+/// `GET /api/plans`.
+struct PlansPage: Decodable {
+    let tiers: [PlanTier]
+    let current: String?
+    let enforced: Bool?
+    let checkout: Bool?
+}
+
+struct PlanTier: Decodable, Hashable {
+    let name: String
+    let label: String?
+    let blurb: String?
+    let limits: [PlanLimit]?
+}
+
+struct PlanLimit: Decodable, Hashable {
+    let resource: String
+    let window: String?
+    let count: Int?
+    let unlimited: Bool?
+}
+
+/// `GET /api/voices`.
+struct VoicesPage: Decodable {
+    let selected: String?
+    let voices: [VoiceOption]
+}
+
+struct VoiceOption: Decodable, Hashable {
+    let id: String
+    let label: String
+}
+
+/// `GET /api/saved`: the folders, then every item.
+struct SavedShelf: Decodable {
+    let folders: [SavedFolder]
+    let items: [SavedItem]
+}
+
+struct SavedFolder: Decodable, Hashable, Identifiable {
+    let id: String
+    let name: String
+    let items: Int?
+}
+
+struct FolderAnswer: Decodable {
+    let folder: SavedFolder
+}
+
+/// `GET /api/history`.
+struct HistoryPage: Decodable {
+    let items: [HistoryItem]
+    let days: Int?
+}
+
+/// One heard episode: its question, length, surface and kept episode id.
+struct HistoryItem: Decodable, Hashable {
+    let query: String
+    let minutes: Double
+    let surface: String?
+    let title: String?
+    let context: String?
+    let at: Double
+    let episode: String?
+}
+
+/// `GET /api/vibes`.
+struct VibesPage: Decodable {
+    let vibes: [VibeRow]
+    let folders: [SavedFolder]?
+    let count: Int?
+}
+
+struct VibeRow: Decodable, Hashable, Identifiable {
+    let id: Int
+    let query: String
+    let title: String?
+    let minutes: Double?
+    let at: Double?
+    let folderId: String?
 }

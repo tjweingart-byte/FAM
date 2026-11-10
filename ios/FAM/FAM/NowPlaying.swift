@@ -109,6 +109,8 @@ final class NowPlayingModel: ObservableObject {
     private let player: StreamPlayer
     /// Who to ask to play an episode (the app model, which owns the loading screen).
     var playEpisode: ((Episode) -> Void)?
+    /// "Saved for Later · Open": the shelf (`openSaved`).
+    var openSaved: () -> Void = {}
     var signedIn: () -> Bool = { false }
     /// Whether the full player is on screen: What's next is offered there
     /// only, never under the mini bar (`post-episode-grid`).
@@ -389,6 +391,13 @@ final class NowPlayingModel: ObservableObject {
 
     // MARK: - Save and VIBE!
 
+    /// Taken off the shelf on Save for Later: if it is the episode on the
+    /// player, its save goes off too (`removeSaved`).
+    func savedRemoved(query: String, minutes: Double) {
+        guard let ep = episode, ep.key.query == query, ep.key.minutes == minutes else { return }
+        saved = false
+    }
+
     func toggleSave() {
         guard let ep = episode else { say("Play something first"); return }
         guard signedIn() else { say("Could not save that"); return }
@@ -414,7 +423,7 @@ final class NowPlayingModel: ObservableObject {
             Task {
                 do {
                     try await api.save(ep.key, title: title)
-                    say("Saved for Later")
+                    say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
                 } catch {
                     saved = false
                     say("Could not save that")

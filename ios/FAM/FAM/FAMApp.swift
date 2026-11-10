@@ -14,6 +14,7 @@ struct FAMApp: App {
                 .environmentObject(model.nowPlaying)
                 .environmentObject(model.mixes)
                 .environmentObject(model.social)
+                .environmentObject(model.you)
                 .aiConsentSheet(model.consent)
                 .tint(FAMColor.copper)
                 .preferredColorScheme(.light)
@@ -40,7 +41,19 @@ struct RootView: View {
             case .waiting:
                 WaitingView()
             case .ready:
-                MainTabs()
+                // The first run's steps after an account (`afterAccount`):
+                // who you are, then your interests - then the app.
+                switch model.entry {
+                case .checking:
+                    Wordmark(size: 30)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .identity:
+                    IdentityView(mode: .firstRun)
+                case .interests:
+                    InterestsView(mode: .firstRun)
+                case nil:
+                    MainTabs()
+                }
             }
         }
         .background(FAMColor.background.ignoresSafeArea())
@@ -120,6 +133,7 @@ struct MainTabs: View {
                     .environmentObject(model.nowPlaying)
                     .environmentObject(model.mixes)
                     .environmentObject(social)
+                    .environmentObject(model.you)
             }
             // A rail's View more is a screen of its own on the web, with
             // neither the tab bar nor the mini player.
@@ -150,6 +164,10 @@ struct MainTabs: View {
                     // Every arrival opens on the list, read afresh (`openMessages`).
                     social.messagesPath = []
                     Task { await social.loadInbox() }
+                }, onYou: {
+                    // `openProfile`: the stack reset to the hub, read afresh.
+                    model.youPath = []
+                    Task { await model.you.loadProfile() }
                 })
             }
         }
@@ -213,6 +231,7 @@ struct MainTabs: View {
                 .environmentObject(model.nowPlaying)
                 .environmentObject(model.mixes)
                 .environmentObject(social)
+                .environmentObject(model.you)
                 // A message that lands while the player is up still drops
                 // down over it (the web's banner sits over every screen);
                 // its tap takes the player down first (`leavePlayer`).
@@ -228,6 +247,7 @@ struct TabBar: View {
     var onDaily: () -> Void = {}
     var onMyFAM: () -> Void = {}
     var onMessages: () -> Void = {}
+    var onYou: () -> Void = {}
 
     var body: some View {
         // Five equal slots with the search in the middle, as the web's five
@@ -256,6 +276,7 @@ struct TabBar: View {
             if which == .daily { onDaily() }
             if which == .myfam { onMyFAM() }
             if which == .messages { onMessages() }
+            if which == .you { onYou() }
             tab = which
         } label: {
             VStack(spacing: 3) {

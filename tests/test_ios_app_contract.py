@@ -245,7 +245,15 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    "NoticeGroup", "ChatPage", "ChatWith", "SentMessage", "GroupAnswer",
                    "UnreadAnswer", "NoticePage", "FollowPerson", "FriendsPage", "FollowCounts",
                    "FollowAnswer", "PeoplePage", "PersonPage", "PersonMix", "PersonVibe",
-                   "PersonFriend", "ProfileEcho"):
+                   "PersonFriend", "ProfileEcho",
+                   # YourFAM: the hub, Settings, Edit profile, Saved for Later,
+                   # the listening history and My Vibe (`op-profile-hub`).
+                   "AccountInfo", "MyProfile", "MyVibe", "ProfileMix", "MyPreferences",
+                   "PlaceInfo", "FacetLabel", "ResetStatus", "ResetStarted", "Activation",
+                   "ActivationGender", "ActivationHelp", "ActivationCounting", "CountingNotice",
+                   "ActivationAnswer", "PlansPage", "PlanTier", "PlanLimit", "VoicesPage",
+                   "VoiceOption", "SavedShelf", "SavedFolder", "FolderAnswer", "HistoryPage",
+                   "HistoryItem", "VibesPage", "VibeRow"):
         body = re.search(r"struct %s:[^{]*\{(.*?)\n\}" % struct, _api(), re.S)
         assert body, struct
         for field in {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}:
