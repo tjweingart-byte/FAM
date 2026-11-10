@@ -509,3 +509,4 @@ and `limit` = Lines.
 | 32306 | 12 | 515. "world cup qualifiers" and "power outage" seeded (2026-11-10) |
 | 32318 | 12 | 516. "power grid" and "world record" seeded (2026-11-10) |
 | 32330 | 9 | 517. "nfl trade rumors" seeded (2026-11-10) |
+| 32339 | 43 | 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |

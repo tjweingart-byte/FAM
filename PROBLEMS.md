@@ -32335,3 +32335,46 @@ The owner: "add nfl trade rumors to the seed". It holds "trade", a
 picture. Matching is the phrase in order (§209): "NFL trade rumors"
 matches; "Steelers trade rumors" does not (that is the team's node).
 `test_nfl_trade_rumors_is_seeded`.
+
+## 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10)
+
+**What happened.** A production deploy, then a restart, failed at startup:
+`AttachmentStore()` timed out waiting for a lock (`canceling statement due to
+lock timeout`, `attachments.py` line 260, its `CREATE TABLE IF NOT EXISTS`).
+Render kept the running server, so the site stayed up, but nothing newer
+could replace it - the Google client id added to the environment included.
+
+**Why.** `db.py` keeps SQLite's writing rules on Postgres: every write to a
+store holds that store's advisory lock until it commits. `AttachmentStore`
+was the one store opened with sqlite3's implicit transactions (no
+`isolation_level=None`), and its `forget` - part of account deletion,
+5.1.1(v) - wrote with `self._conn().execute(...)` outside `with conn:`, so
+nothing ever committed. The owner deleted an account from the iOS app's
+waiting screen shortly before the first failed deploy; the running server
+has held the attachments lock since, on a thread-local connection that is
+never reused for a commit. A new server's first write to the store waits
+10 s (`LOCK_TIMEOUT`) and the import fails. On SQLite the same miss held a
+write transaction on the file until the thread's connection closed.
+
+**What changed.** `AttachmentStore` opens autocommit like every other
+account store, and `forget` writes inside `with conn:` as well. A test
+deletes an account and checks no transaction is left open
+(`test_deleting_an_account_leaves_no_transaction_open`; it fails on the old
+code). `tools/db_sessions.py` lists the database's sessions, their
+transaction age and the store locks they hold, and `--end` ends idle ones
+holding a lock - the way to release a held lock without taking the site
+down.
+
+**How production was brought back.** A restart, and a suspend and resume,
+failed the same way: the abandoned session outlived its server. Production
+now sets `ATTACHMENTS_PATH=/app/attachments_v2.db`, a new schema and so a
+new lock; attachments live six hours, so nothing was lost. The old schema's
+session can be ended with `tools/db_sessions.py --end` and the variable left
+as it is.
+
+**Still open.** Other stores open with implicit transactions (`weather`,
+`places`, `story_store`, `local_news`, `push`, `gdelt`, `history_archive`,
+`wikimedia`, `demographic_totals`, the agents' stores). None is touched by
+account deletion; each should be read for a write outside `with conn:`. A
+store's startup DDL waiting on a lock a running server can hold is itself a
+deploy hazard worth a guard.
