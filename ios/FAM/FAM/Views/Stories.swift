@@ -13,6 +13,8 @@ import SwiftUI
 /// here, so it does nothing (`no-dead-controls`).
 struct FacesRow: View {
     @EnvironmentObject private var model: AppModel
+    /// Observed so a face turns into a button once the graph says friend.
+    @EnvironmentObject private var social: SocialModel
     @State private var viewing: StoryReel?
     @State private var invite = false
     @AppStorage("storiesSeen") private var seenJSON = "{}"
@@ -30,7 +32,7 @@ struct FacesRow: View {
                         let label = firstName(person.name, handle: person.handle)
                         let face = faceItem(name: person.name, handle: person.handle, avatar: person.avatar,
                                             label: label, ring: state, plus: false)
-                        if person.stories.isEmpty && person.handle.isEmpty && !model.social.isFriend(person.userId) {
+                        if person.stories.isEmpty && person.handle.isEmpty && !social.isFriend(person.userId) {
                             face.accessibilityElement(children: .combine)
                         } else if person.stories.isEmpty {
                             Button { openFace(person) } label: { face }
@@ -329,8 +331,9 @@ struct StoryViewer: View {
                            }, onError: { model.nowPlaying.say($0) })
         .sheet(isPresented: $reporting) {
             if ready {
-                ReportSheet(api: model.safety,
-                            subject: isNote ? .note(id: story.id) : .vibe(id: story.id)) { receipt in
+                FAMReportSheet(api: model.safety,
+                               subject: isNote ? .note(id: story.id) : .vibe(id: story.id),
+                               say: { model.nowPlaying.say($0) }) { receipt in
                     // Taken off this listener's screen at once: the story closes.
                     if receipt?.hidden == true {
                         Task { @MainActor in

@@ -80,6 +80,10 @@ final class SocialModel: ObservableObject {
     var say: (String) -> Void = { _ in }
     /// Ask the tab bar to show a tab.
     var requestTab: (Tab) -> Void = { _ in }
+    /// Close the full-screen player if it is up; true when it was. A
+    /// banner is drawn over the player too, and its tap must not open a
+    /// conversation underneath it.
+    var leavePlayer: () -> Bool = { false }
 
     // The inbox (`inboxThreads`) and the Messages badge.
     @Published private(set) var threads: [InboxThread] = []
@@ -104,8 +108,10 @@ final class SocialModel: ObservableObject {
     @Published private(set) var banner: SocialBanner?
     @Published var follower: FollowPerson?
 
-    /// Set by the tab bar: whether Messages is the tab on screen.
-    var onMessagesTab = false
+    /// Set by the tab bar: whether Messages is the tab on screen. Published:
+    /// a conversation left open under another tab stops polling (and stops
+    /// marking itself read, and swallowing its banners) until it is back.
+    @Published var onMessagesTab = false
     /// The conversation on screen, whose messages raise no banner.
     var chatOnScreen: String?
 
@@ -290,8 +296,10 @@ final class SocialModel: ObservableObject {
         !userID.isEmpty && (graph?.friends.contains { $0.userId == userID } ?? false)
     }
 
-    /// The picker's and the share sheet's empty sentence.
+    /// New message's empty sentence (`paintNewChatContacts`, §523).
     static let nobodyToMessage = "Nobody to message yet. When someone you follow follows you back, you can message them."
+    /// The share sheet's (`loadShareContacts`).
+    static let nobodyToSend = "Nobody to send to yet \u{2014} find people under Friends"
 
     func person(handle: String) -> FollowPerson? {
         guard let g = graph, !handle.isEmpty else { return nil }
@@ -486,6 +494,18 @@ final class SocialModel: ObservableObject {
     /// Friends (the web goes to YourFAM first, then pushes Friends).
     func openBanner(_ b: SocialBanner) {
         dismissBanner()
+        if leavePlayer() {
+            // The player is going down: open once it has.
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                self?.route(b)
+            }
+            return
+        }
+        route(b)
+    }
+
+    private func route(_ b: SocialBanner) {
         if let chat = b.chat {
             if cover != nil {
                 coverPath.append(.thread(chat))
@@ -555,7 +575,8 @@ final class SocialModel: ObservableObject {
         do {
             _ = try await api.sendMessage(to: to, text: text, query: query, minutes: minutes,
                                           title: title, episode: episode)
-            say("Sent to \(label) \u{2713}")
+            // The web's snack drops the tick its toast text carries.
+            say("Sent to \(label)")
             return true
         } catch {
             say(SocialModel.sentence(error, else: "Could not send that"))
@@ -604,12 +625,18 @@ final class ChatModel: ObservableObject {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * 1_000_000_000))
             if Task.isCancelled { break }
-            await poll()
+            // An open that failed is tried again on the poll's beat, quietly:
+            // "Could not open that conversation." stays until one works.
+            if state == .failed {
+                await load(quiet: true)
+            } else {
+                await poll()
+            }
         }
     }
 
-    func load() async {
-        if rows.isEmpty { state = .loading }
+    func load(quiet: Bool = false) async {
+        if rows.isEmpty && !quiet { state = .loading }
         do {
             let page = try await api.chat(with: who.with)
             take(page.with)

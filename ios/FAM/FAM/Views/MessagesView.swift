@@ -106,17 +106,12 @@ struct MessagesView: View {
         }
     }
 
-    /// The empty inbox, with the inline **Friends** that opens Friends.
+    /// The empty inbox, with the inline bold **Friends** that opens Friends
+    /// (shot 04: one sentence, the word in it, no second line).
     private var emptyInbox: some View {
-        SocialNote(text: "No conversations yet. Share an episode with someone from any player, or find them under Friends.") {
-            Button { social.open(.friends) } label: {
-                Text("Friends")
-                    .font(FAMFont.body(11, .bold))
-                    .foregroundStyle(FAMColor.text)
-                    .underline()
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens Friends")
+        SocialLinkNote(before: "No conversations yet. Share an episode with someone from any player, or find them under ",
+                       link: "Friends", after: ".") {
+            social.open(.friends)
         }
     }
 
@@ -272,7 +267,9 @@ struct NewMessageCard: View {
             }
             .padding(.top, 16)
         }
-        .task { if social.graph == nil { await social.loadGraph() } }
+        // Asked afresh on every open (`openNewChatModal`): somebody who has
+        // just followed back is a friend now. What was drawn stays meanwhile.
+        .task { await social.loadGraph() }
     }
 
     /// `.share-contacts`: 56 wide, a 40 pt face, the first name; picked
@@ -424,8 +421,9 @@ struct NewMessageCard: View {
 
     private func go(_ chat: ChatOpen) {
         // One-to-one only with a friend (§523): the server's own sentence,
-        // before a conversation that could not send opens.
-        if !chat.group && !social.isFriend(chat.with) {
+        // before a conversation that could not send opens. With no graph to
+        // ask, the conversation opens and the server decides on the send.
+        if !chat.group && social.graph != nil && !social.isFriend(chat.with) {
             model.nowPlaying.say("You can message people who follow you back.")
             return
         }

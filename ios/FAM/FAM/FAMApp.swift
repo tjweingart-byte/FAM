@@ -143,7 +143,17 @@ struct MainTabs: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: social.follower)
-        .onChange(of: tab) { _, now in social.onMessagesTab = now == .messages }
+        .onChange(of: tab) { _, now in
+            social.onMessagesTab = now == .messages
+            // YourFAM showing is one of the web's two moments to raise a
+            // new follower (`checkNewFollowers`).
+            if now == .you {
+                Task {
+                    await social.loadGraph()
+                    social.checkNewFollowers()
+                }
+            }
+        }
         // The poll: while the app is in front only; back in front, at once.
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
@@ -178,6 +188,11 @@ struct MainTabs: View {
                 .environmentObject(player)
                 .environmentObject(model.nowPlaying)
                 .environmentObject(model.mixes)
+                .environmentObject(social)
+                // A message that lands while the player is up still drops
+                // down over it (the web's banner sits over every screen);
+                // its tap takes the player down first (`leavePlayer`).
+                .overlay(alignment: .top) { SocialBannerLayer().environmentObject(social) }
         }
     }
 }

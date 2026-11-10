@@ -35,9 +35,11 @@ struct SendInsideFAM: View {
             friendFaces
             if picked != nil { confirmBar }
         }
+        // Both asked afresh on every open (`loadShareContacts`); what was
+        // drawn last time stays while they answer.
         .task {
-            if social.graph == nil { await social.loadGraph() }
-            if social.threads.isEmpty { await social.loadInbox() }
+            await social.loadGraph()
+            await social.loadInbox()
         }
     }
 
@@ -45,16 +47,19 @@ struct SendInsideFAM: View {
     private func section(_ title: String, search: Binding<String?>, prompt: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(title).monoLabel(9.5, tracking: 1.14)
+                // `.gc-label`: Geist Mono 9.5, tracking .76, muted.
+                Text(title).monoLabel(9.5, tracking: 0.76)
                 Spacer()
+                let on = search.wrappedValue != nil
                 Button {
-                    search.wrappedValue = search.wrappedValue == nil ? "" : nil
+                    search.wrappedValue = on ? nil : ""
                 } label: {
+                    // `.share-find`: muted on a hairline; `.on` copper (shot 47).
                     WebIcon(path: Icons.magnifier, size: 15)
-                        .foregroundStyle(FAMColor.text)
+                        .foregroundStyle(on ? FAMColor.copper : FAMColor.textMuted)
                         .frame(width: 30, height: 30)
-                        .background(search.wrappedValue != nil ? FAMColor.surface2 : Color.clear, in: Circle())
-                        .overlay(Circle().stroke(FAMColor.borderStrong))
+                        .overlay(Circle().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(prompt)
@@ -68,8 +73,10 @@ struct SendInsideFAM: View {
         .padding(.bottom, 10)
     }
 
+    /// By name or handle, a leading "@" ignored (`filterShareSection`).
     private func matches(_ words: String?, _ parts: [String]) -> Bool {
-        let q = (words ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        var q = (words ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        if q.hasPrefix("@") { q = String(q.dropFirst()) }
         guard !q.isEmpty else { return true }
         return parts.joined(separator: " ").lowercased().contains(q)
     }
@@ -98,7 +105,7 @@ struct SendInsideFAM: View {
             switch social.graphState {
             case .idle, .loading: line("Loading\u{2026}")
             case .failed: line("Could not load your people")
-            case .loaded: line(SocialModel.nobodyToMessage)
+            case .loaded: line(SocialModel.nobodyToSend)
             }
         } else if people.isEmpty {
             line("Nobody matches that")
@@ -124,11 +131,14 @@ struct SendInsideFAM: View {
         .padding(.horizontal, -3)
     }
 
+    /// `.sh-name.share-none`: Geist Mono 7.5, faint (shot 47).
     private func line(_ text: String) -> some View {
         Text(text)
-            .font(FAMFont.body(11))
-            .foregroundStyle(FAMColor.textMuted)
-            .padding(.vertical, 6)
+            .font(FAMFont.mono(7.5))
+            .tracking(0.15)
+            .foregroundStyle(FAMColor.textFaint)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.vertical, 4)
     }
 
     private func toggle(_ pick: Pick) {

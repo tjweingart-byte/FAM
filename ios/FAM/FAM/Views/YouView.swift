@@ -99,9 +99,6 @@ struct YouView: View {
         }
     }
 
-    /// How this account signs in, and linking Apple or Google to it, so a
-    /// later "Sign in with Apple" lands here rather than making a new
-    /// account (the server never joins accounts by email).
     /// Friends (the web's friends number on YourFAM): the counts, and how
     /// many followed since Friends was last opened - cleared by opening
     /// it, never by the popup (quirk 18).
@@ -136,6 +133,9 @@ struct YouView: View {
         return "\(friends) \(friends == 1 ? "friend" : "friends") \u{00B7} \(following) following"
     }
 
+    /// How this account signs in, and linking Apple or Google to it, so a
+    /// later "Sign in with Apple" lands here rather than making a new
+    /// account (the server never joins accounts by email).
     private var signInMethods: some View {
         Section {
             if info?.hasPassword == true {

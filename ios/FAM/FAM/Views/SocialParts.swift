@@ -1,3 +1,4 @@
+import FAMSafety
 import SwiftUI
 
 // The pieces Messages, a conversation, Friends and a profile share, each
@@ -478,12 +479,12 @@ struct FollowerPopup: View {
                         .padding(.top, 5)
                 }
                 if person.followsBack == true {
+                    // `#nfAlready`: Geist Mono 8.5, uppercase, sage (shot 34).
                     Text("You already follow them \u{2014} you are friends.")
-                        .font(FAMFont.mono(8.5))
-                        .foregroundStyle(FAMColor.textMuted)
+                        .monoLabel(8.5, color: FAMColor.sage, tracking: 0.425)
                         .multilineTextAlignment(.center)
-                        .padding(.top, 14)
-                        .padding(.bottom, 8)
+                        .padding(.top, 18)
+                        .padding(.bottom, 10)
                 } else {
                     ModalButton(label: "Follow back", primary: true, wide: true) { social.followBack(person) }
                         .padding(.top, 14)
@@ -511,6 +512,159 @@ struct FollowerPopup: View {
     }
 }
 
+// MARK: - A notice with one bold word that opens something (shot 04)
+
+/// `.pf-empty` whose sentence carries a bold, tappable word inline - the
+/// empty inbox's "…find them under **Friends**." The whole card is the
+/// button, as the word is the only thing on it to tap.
+struct SocialLinkNote: View {
+    let before: String
+    let link: String
+    let after: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            (Text(before)
+             + Text(link).font(FAMFont.body(11, .bold)).foregroundColor(FAMColor.textMuted)
+             + Text(after))
+                .font(FAMFont.body(11))
+                .foregroundStyle(FAMColor.textMuted)
+                .lineSpacing(5.5)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(15)
+                .overlay(RoundedRectangle(cornerRadius: 12)
+                    .stroke(FAMColor.borderStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 12)
+        .accessibilityHint("Opens \(link)")
+    }
+}
+
+// MARK: - Report, as the web's action sheet (`reportContent`, shots 18-19)
+
+/// The server's reasons under "WHY ARE YOU REPORTING THIS?", one 46 pt row
+/// each, and Cancel - the shared action sheet's look, not a system list.
+/// A tap sends; the sheet closes and the server's receipt ("Thanks for
+/// telling us…") is the toast, as on the web. `done` gets the receipt so
+/// the caller can take a hidden thing off the screen.
+struct FAMReportSheet: View {
+    let api: SafetyAPI
+    let subject: ReportSubject
+    let say: (String) -> Void
+    let done: (ReportReceipt?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var reasons: [ReportReason] = []
+    @State private var sending = false
+
+    /// `GET /api/report` once a session, as the web caches it (only ever
+    /// touched from the sheet's own main-actor task).
+    private static var cached: [ReportReason] = []
+
+    private var height: CGFloat {
+        let rows = max(reasons.count, 1)
+        return 10 + 33 + CGFloat(rows) * 46 + 8 + 41 + 22 + 12
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SheetGroupLabel(text: "Why are you reporting this?")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if reasons.isEmpty {
+                        Text("Loading\u{2026}")
+                            .font(FAMFont.body(13.5, .semibold))
+                            .foregroundStyle(FAMColor.textMuted)
+                            .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                            .padding(.horizontal, 22)
+                    }
+                    ForEach(reasons) { reason in
+                        row(reason)
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            SheetCancelButton {
+                done(nil)
+                dismiss()
+            }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(FAMColor.surface)
+        .presentationDetents([.height(min(height, 640))])
+        .presentationBackground(FAMColor.surface)
+        .presentationCornerRadius(20)
+        .task { await loadReasons() }
+    }
+
+    private func row(_ reason: ReportReason) -> some View {
+        Button { send(reason) } label: {
+            Text(reason.label)
+                .font(FAMFont.body(13.5, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                .padding(.horizontal, 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(sending)
+    }
+
+    private func loadReasons() async {
+        guard reasons.isEmpty else { return }
+        if !FAMReportSheet.cached.isEmpty {
+            reasons = FAMReportSheet.cached
+            return
+        }
+        do {
+            let options = try await api.reportOptions()
+            FAMReportSheet.cached = options.reasons
+            reasons = options.reasons
+        } catch {
+            say("Couldn\u{2019}t reach FAM. Try again.")
+            done(nil)
+            dismiss()
+        }
+    }
+
+    private func send(_ reason: ReportReason) {
+        guard !sending else { return }
+        sending = true
+        let api = self.api
+        let subject = self.subject
+        Task { @MainActor in
+            do {
+                let receipt = try await api.report(subject, reason: reason.id)
+                dismiss()
+                say(receipt.message)
+                done(receipt)
+            } catch SafetyError.http(_, let detail) where !detail.isEmpty {
+                sending = false
+                dismiss()
+                say(detail)
+                done(nil)
+            } catch SafetyError.accountRequired(let detail) where !detail.isEmpty {
+                sending = false
+                dismiss()
+                say(detail)
+                done(nil)
+            } catch {
+                sending = false
+                dismiss()
+                say("Couldn\u{2019}t send that report")
+                done(nil)
+            }
+        }
+    }
+}
+
 // MARK: - The screens, wherever they are shown
 
 /// One social route as its screen.
@@ -530,6 +684,20 @@ struct SocialScreen: View {
     }
 }
 
+/// Whether a social screen is inside a cover (always on screen while the
+/// cover is up) rather than on the Messages tab's stack (on screen only
+/// while that tab is).
+private struct InSocialCoverKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var inSocialCover: Bool {
+        get { self[InSocialCoverKey.self] }
+        set { self[InSocialCoverKey.self] = newValue }
+    }
+}
+
 /// A social screen opened from another tab: its own stack, the banners
 /// and the toast over it, no tab bar (the web's pushed screens have none).
 struct SocialCoverView: View {
@@ -543,6 +711,7 @@ struct SocialCoverView: View {
                     SocialScreen(route: route)
                 }
         }
+        .environment(\.inSocialCover, true)
         .overlay(alignment: .top) { SocialBannerLayer() }
         .overlay(alignment: .bottom) { ToastView().padding(.bottom, 80) }
     }

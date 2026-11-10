@@ -120,6 +120,11 @@ final class AppModel: ObservableObject {
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
         social.say = { [weak self] text in self?.nowPlaying.say(text) }
         social.requestTab = { [weak self] tab in self?.tabRequest = tab }
+        social.leavePlayer = { [weak self] in
+            guard let self, self.showPlayer else { return false }
+            self.showPlayer = false
+            return true
+        }
     }
 
     // MARK: - Opening and accounts

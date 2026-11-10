@@ -252,8 +252,9 @@ struct PlayerView: View {
         case .addToMix: AddToMixSheet(query: now.episode?.key.query ?? "", title: now.title)
         case .report:
             if let ep = now.episode {
-                ReportSheet(api: model.safety,
-                            subject: .episode(query: ep.key.query, minutes: ep.key.minutes)) { _ in }
+                FAMReportSheet(api: model.safety,
+                               subject: .episode(query: ep.key.query, minutes: ep.key.minutes),
+                               say: { now.say($0) }) { _ in }
             }
         }
     }

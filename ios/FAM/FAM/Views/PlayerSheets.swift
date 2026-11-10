@@ -556,7 +556,7 @@ struct ShareSheet: View {
                 VStack(alignment: .leading, spacing: 0) {
                     SendInsideFAM(send: { to, label in await sendInside(to: to, label: label) },
                                   sent: { dismiss() })
-                    Text("Anywhere else").monoLabel(9.5, tracking: 1.14)
+                    Text("Anywhere else").monoLabel(9.5, tracking: 0.76)
                         .padding(.top, 20)
                         .padding(.bottom, 4)
                     if let link {

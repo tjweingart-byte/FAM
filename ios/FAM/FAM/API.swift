@@ -1454,6 +1454,27 @@ struct InboxThread: Decodable, Identifiable {
     let last: ChatMessage?
 
     var id: String { with }
+
+    /// Lenient about `last`: a group whose last line came from somebody
+    /// blocked is sent with that line blanked, and one malformed preview
+    /// must not cost the listener the whole list.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        with = try c.decode(String.self, forKey: .with)
+        group = try c.decodeIfPresent(Bool.self, forKey: .group)
+        name = try c.decodeIfPresent(String.self, forKey: .name)
+        handle = try c.decodeIfPresent(String.self, forKey: .handle)
+        avatar = try c.decodeIfPresent(String.self, forKey: .avatar)
+        explicit = try c.decodeIfPresent(Bool.self, forKey: .explicit)
+        members = try? c.decodeIfPresent([ChatMember].self, forKey: .members)
+        unread = try c.decodeIfPresent(Int.self, forKey: .unread)
+        // `try?` flattens (Swift 5): nil whether absent or unreadable.
+        last = try? c.decodeIfPresent(ChatMessage.self, forKey: .last)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case with, group, name, handle, avatar, explicit, members, unread, last
+    }
 }
 
 /// Somebody in a group (`_group_view`): no listener id, by design.
@@ -1462,6 +1483,9 @@ struct ChatMember: Decodable, Hashable {
     let handle: String
     let avatar: String
     let me: Bool
+    /// Whether this listener and that member follow each other (§523): a
+    /// group may hold people who are not friends with each other.
+    let friend: Bool?
 }
 
 /// A message (`Message.as_dict`), as a conversation, the inbox's last

@@ -83,7 +83,8 @@ struct PersonView: View {
         content
         .sheet(isPresented: $menu) { menuSheet }
         .sheet(isPresented: $reporting) {
-            ReportSheet(api: model.safety, subject: .person(handle: handle)) { _ in }
+            FAMReportSheet(api: model.safety, subject: .person(handle: handle),
+                           say: { model.nowPlaying.say($0) }) { _ in }
         }
         .blockConfirmation(isPresented: $blocking, name: name, handle: handle, api: model.safety,
                            onBlocked: {
@@ -230,23 +231,32 @@ struct PersonView: View {
         .padding(.top, 16)
     }
 
+    /// A number and its word. Friends is a button only when their list is
+    /// yours to see (§285); otherwise a plain number, never a greyed button.
+    @ViewBuilder
     private func stat(_ n: Int, _ word: String, enabled: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 2) {
-                Text("\(n)")
-                    .font(FAMFont.heading(21, .semibold))
-                    .foregroundStyle(FAMColor.text)
-                Text(word)
-                    .font(FAMFont.body(12))
-                    .foregroundStyle(FAMColor.textMuted)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
+        if enabled {
+            Button(action: action) { statLabel(n, word) }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+        } else {
+            statLabel(n, word)
+                .accessibilityElement(children: .combine)
         }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .accessibilityElement(children: .combine)
+    }
+
+    private func statLabel(_ n: Int, _ word: String) -> some View {
+        VStack(spacing: 2) {
+            Text("\(n)")
+                .font(FAMFont.heading(21, .semibold))
+                .foregroundStyle(FAMColor.text)
+            Text(word)
+                .font(FAMFont.body(12))
+                .foregroundStyle(FAMColor.textMuted)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 
     /// Message (gold, friends only - §523) + Following / Follow; with no id - somebody reached
@@ -403,12 +413,14 @@ struct PersonView: View {
                             WebIcon(path: Icons.plus, size: 12, line: 2.4).foregroundStyle(FAMColor.copper)
                         }
                     }
-                    .frame(width: 24, height: 24)
-                    .background(added ? FAMColor.copper : Color.black.opacity(0.35), in: Circle())
+                    // `.mix-add`: 28 pt, a dark glass behind the copper (+),
+                    // copper with an ink ✓ once added (shot 39).
+                    .frame(width: 28, height: 28)
+                    .background(added ? FAMColor.copper : Color(hex: 0x0F0E12).opacity(0.55), in: Circle())
                     .overlay(Circle().stroke(FAMColor.copper))
                 }
                 .buttonStyle(.plain)
-                .padding(7)
+                .padding(6)
                 .accessibilityLabel(added ? "In your myFAM" : "Add to myFAM")
             }
         }

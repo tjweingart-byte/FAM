@@ -27,7 +27,7 @@ struct FriendsView: View {
                 Spacer()
             }
             .padding(.horizontal, 18)
-            .padding(.top, 10)
+            .padding(.top, 16)
             .padding(.bottom, 10)
             ModalField(placeholder: "Find someone by handle", text: $search, plain: true)
                 .padding(.horizontal, 18)
@@ -65,12 +65,14 @@ struct FriendsView: View {
         .task {
             if model.inviteLink == nil { await model.loadInviteLink() }
         }
+        // Your handle, for the invite's "I'm @handle".
+        .task { if social.me == nil { await social.loadMe() } }
         .task { await social.friendsOpened() }
         .confirmationDialog(unfollowing.map { "Unfollow \(displayName($0))?" } ?? "",
                             isPresented: Binding(get: { unfollowing != nil }, set: { if !$0 { unfollowing = nil } }),
                             titleVisibility: .visible) {
             if let p = unfollowing {
-                Button("Unfollow", role: .destructive) { Task { await social.unfollow(p.userId) } }
+                Button("Unfollow", role: .destructive) { unfollow(p) }
                 Button("Cancel", role: .cancel) {}
             }
         }
@@ -252,6 +254,18 @@ struct FriendsView: View {
         }
     }
 
+    /// `unfollowPerson`: then the search clears and the graph is re-read,
+    /// as after a follow - a result still saying "Following" would be wrong.
+    private func unfollow(_ p: FollowPerson) {
+        Task {
+            let ok = await social.unfollow(p.userId)
+            if ok {
+                search = ""
+                found = nil
+            }
+        }
+    }
+
     private func displayName(_ p: FollowPerson) -> String {
         let n = p.name ?? ""
         return n.isEmpty ? "@" + (p.handle ?? "") : n
@@ -260,6 +274,7 @@ struct FriendsView: View {
     /// `inviteFriends`: "Come listen with me on FAM — I'm @handle." and the
     /// referral link (while the waitlist runs) or the app's address.
     private func inviteNewUsers() {
-        invite = [model.inviteText(handle: social.myHandle)]
+        let handle = social.myHandle.isEmpty ? (model.circle?.me?.handle ?? "") : social.myHandle
+        invite = [model.inviteText(handle: handle)]
     }
 }

@@ -31,6 +31,7 @@ struct SharedEpisode: Equatable, Identifiable {
 struct ChatScreen: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var social: SocialModel
+    @Environment(\.inSocialCover) private var inCover
     @StateObject private var chat: ChatModel
 
     @State private var person: PersonPage?
@@ -58,6 +59,9 @@ struct ChatScreen: View {
     }
 
     private var who: ChatOpen { chat.who }
+    /// On screen: in a cover, or on the Messages tab while it is the tab
+    /// shown (the tabs stay alive underneath each other).
+    private var live: Bool { inCover || social.onMessagesTab }
     private var first: String { socialFirstName(who.name, handle: who.handle) }
 
     var body: some View {
@@ -72,8 +76,20 @@ struct ChatScreen: View {
         .background(FAMColor.background)
         .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         .toolbar(.hidden, for: .navigationBar)
-        .task { await start() }
-        .onAppear { social.chatOnScreen = who.with }
+        // Polls only while on screen (`THREAD_POLL_MS`): leaving the tab
+        // stops it, coming back starts it again.
+        .task(id: live) {
+            guard live else { return }
+            await start()
+        }
+        .onAppear { if live { social.chatOnScreen = who.with } }
+        .onChange(of: live) { _, on in
+            if on {
+                social.chatOnScreen = who.with
+            } else if social.chatOnScreen == who.with {
+                social.chatOnScreen = nil
+            }
+        }
         .onDisappear { if social.chatOnScreen == who.with { social.chatOnScreen = nil } }
     }
 
@@ -120,7 +136,9 @@ struct ChatScreen: View {
     }
 
     private func reportSheet(_ target: ReportTarget) -> some View {
-        ReportSheet(api: model.safety, subject: target.subject) { receipt in
+        let app = model
+        return FAMReportSheet(api: model.safety, subject: target.subject,
+                              say: { app.nowPlaying.say($0) }) { receipt in
             // A reported message leaves this listener's thread at once.
             if let id = target.messageID, receipt?.hidden == true { chat.remove(messageID: id) }
         }
@@ -733,7 +751,7 @@ struct ChatLineView: View {
         } else if m.kind == "episode" {
             episode
         } else {
-            side { reportable(TextBubble(text: text, mine: mine)) }
+            side { reportable(TextBubble(text: text, mine: mine, selectable: mine || m.id <= 0)) }
                 .padding(.bottom, 10)
         }
     }
@@ -804,10 +822,19 @@ struct ChatLineView: View {
         }
     }
 
-    /// Held down, somebody else's message can be reported (quirk 1).
+    /// Held down, somebody else's message can be copied or reported
+    /// (quirk 1). Their words are not text-selectable as well: selection's
+    /// own long-press menu would take the gesture and hide Report.
     @ViewBuilder private func reportable<Inner: View>(_ inner: Inner) -> some View {
         if !mine && m.id > 0 {
             inner.contextMenu {
+                if !text.isEmpty && text != FAMAPI.storyLike {
+                    Button {
+                        UIPasteboard.general.string = text
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                    }
+                }
                 Button(role: .destructive, action: report) {
                     Label("Report", systemImage: "flag")
                 }
@@ -823,8 +850,17 @@ struct ChatLineView: View {
 struct TextBubble: View {
     let text: String
     let mine: Bool
+    var selectable = true
 
     var body: some View {
+        if selectable {
+            bubble.textSelection(.enabled)
+        } else {
+            bubble
+        }
+    }
+
+    private var bubble: some View {
         Text(text)
             .font(FAMFont.body(12.5, mine ? .medium : .regular))
             .foregroundStyle(mine ? FAMColor.ink : FAMColor.text)
@@ -832,7 +868,6 @@ struct TextBubble: View {
             .padding(.horizontal, 13)
             .padding(.vertical, 9)
             .background(mine ? FAMColor.copper : FAMColor.surface2, in: ChatShape.bubble(mine: mine))
-            .textSelection(.enabled)
     }
 }
 
@@ -1028,6 +1063,12 @@ struct GroupMembersSheet: View {
                             Text("@" + m.handle)
                                 .font(FAMFont.body(11))
                                 .foregroundStyle(FAMColor.textMuted)
+                        }
+                        // §523: a group may hold people you are not friends
+                        // with; the server says which (`friend`).
+                        if m.friend == false {
+                            Text("Not your friend").monoLabel(8.5, color: FAMColor.copper, tracking: 0.6)
+                                .padding(.top, 1)
                         }
                     }
                     Spacer(minLength: 0)
