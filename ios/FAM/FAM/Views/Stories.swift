@@ -294,6 +294,13 @@ struct StoryViewer: View {
             }
         }
         .foregroundStyle(Self.paper)
+        // The app's toast over the story: "Sent to Beth" after a reply or a
+        // share, a block's refusal - the tab bar's own toast is under it.
+        .overlay(alignment: .bottom) {
+            ToastView()
+                .environmentObject(model.nowPlaying)
+                .padding(.bottom, 96)
+        }
         .onAppear {
             let start = min(reel.start, max(0, reel.people.count - 1))
             people = reel.people
