@@ -159,12 +159,44 @@ final class FAMAPI: @unchecked Sendable {
         try await get("api/v1/circle", [URLQueryItem(name: "notes", value: "1")], as: CirclePage.self)
     }
 
-    /// A reply to a friend's story is a message carrying the episode (`story-reply`).
+    /// The heart a story's like sends as a message (`STORY_LIKE`).
+    static let storyLike = "\u{2764}\u{FE0F}"
+
+    /// A reply to a friend's story is a message carrying the episode
+    /// (`story-reply`, `postStoryMessage`). A note has no episode: the
+    /// message quotes the words it answers instead, and a like reads
+    /// "❤️ your story".
     func reply(to userID: String, text: String, story: Story) async throws {
-        _ = try await send("POST", "api/v1/messages", body: [
-            "to": userID, "text": text, "query": story.query ?? "",
-            "minutes": story.minutes ?? Self.browseMinutes, "title": story.title ?? "", "reply": true,
-        ], as: Ignored.self)
+        var body: [String: Any] = ["to": userID, "reply": true]
+        if story.kind == "note" {
+            var words = text == Self.storyLike ? Self.storyLike + " your story" : text
+            let quoted = story.text ?? ""
+            if !quoted.isEmpty {
+                let cut = String(quoted.prefix(80))
+                let more = quoted.count > 80 ? "\u{2026}" : ""
+                words += " \u{2014} re: \u{201C}" + cut + more + "\u{201D}"
+            }
+            body["text"] = words
+        } else {
+            body["text"] = text
+            body["query"] = story.query ?? ""
+            body["minutes"] = story.minutes ?? Self.browseMinutes
+            body["title"] = story.title ?? ""
+        }
+        _ = try await send("POST", "api/v1/messages", body: body, as: Ignored.self)
+    }
+
+    /// Take a note off your story; a note is only a story, so it is gone
+    /// (`removeFromMyStory`). A vibe is deleted with `unvibe` instead.
+    func removeNote(_ noteID: Int) async throws {
+        let id = String(noteID)
+        _ = try await send("DELETE", "api/v1/story/note/" + id, as: OK.self)
+    }
+
+    /// While the waitlist runs, an invite is this member's own referral
+    /// link (`loadInviteLink`).
+    func waitlistMe() async throws -> WaitlistMe {
+        try await get("api/v1/waitlist/me", [], as: WaitlistMe.self)
     }
 
     /// The heart on a friend's story.
@@ -546,6 +578,8 @@ struct CircleMe: Decodable {
 }
 
 /// A vibe on someone's story, or a note (`kind: "note"`, no episode).
+/// `style` is the editor's layout (a note's background, the text's face,
+/// size and place, stickers); `tags` the people @mentioned on it.
 struct Story: Decodable, Identifiable, Hashable {
     let id: Int
     let kind: String?
@@ -555,6 +589,86 @@ struct Story: Decodable, Identifiable, Hashable {
     let caption: String?
     let text: String?
     let at: Double
+    let style: StoryStyle?
+    let tags: [StoryTag]?
+    /// Posted to Close Friends only.
+    let close: Bool?
+}
+
+/// A story's layout (`social.clean_style` / `clean_note_style`). Every
+/// field optional and read leniently: a layout the app cannot read draws
+/// the plain page rather than dropping the faces row.
+struct StoryStyle: Decodable, Hashable {
+    var bg: String?
+    var font: String?
+    var size: Double?
+    var cx: Double?
+    var cy: Double?
+    var thumb: String?
+    var stickers: [StorySticker]
+
+    enum CodingKeys: String, CodingKey { case bg, font, size, cx, cy, thumb, stickers }
+
+    init(from decoder: Decoder) throws {
+        stickers = []
+        guard let c = try? decoder.container(keyedBy: CodingKeys.self) else { return }
+        bg = try? c.decodeIfPresent(String.self, forKey: .bg)
+        font = try? c.decodeIfPresent(String.self, forKey: .font)
+        size = try? c.decodeIfPresent(Double.self, forKey: .size)
+        cx = try? c.decodeIfPresent(Double.self, forKey: .cx)
+        cy = try? c.decodeIfPresent(Double.self, forKey: .cy)
+        thumb = try? c.decodeIfPresent(String.self, forKey: .thumb)
+        stickers = (try? c.decodeIfPresent([StorySticker].self, forKey: .stickers)) ?? []
+    }
+
+    /// Whether the editor laid this out at all (`storyHasLayout`).
+    var isEmpty: Bool {
+        bg == nil && font == nil && size == nil && cx == nil && cy == nil && thumb == nil && stickers.isEmpty
+    }
+}
+
+/// A sticker on a story: an emoji or a word, where it sits, its scale and turn.
+struct StorySticker: Decodable, Hashable {
+    var k: String
+    var x: Double
+    var y: Double
+    var s: Double
+    var r: Double
+
+    enum CodingKeys: String, CodingKey { case k, x, y, s, r }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        k = (try? c.decodeIfPresent(String.self, forKey: .k)) ?? ""
+        x = (try? c.decodeIfPresent(Double.self, forKey: .x)) ?? 0.5
+        y = (try? c.decodeIfPresent(Double.self, forKey: .y)) ?? 0.5
+        s = (try? c.decodeIfPresent(Double.self, forKey: .s)) ?? 1
+        r = (try? c.decodeIfPresent(Double.self, forKey: .r)) ?? 0
+    }
+}
+
+/// Somebody @mentioned on a story, and where the tag sits.
+struct StoryTag: Decodable, Hashable {
+    var handle: String
+    var name: String
+    var x: Double
+    var y: Double
+
+    enum CodingKeys: String, CodingKey { case handle, name, x, y }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        handle = (try? c.decodeIfPresent(String.self, forKey: .handle)) ?? ""
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        x = (try? c.decodeIfPresent(Double.self, forKey: .x)) ?? 0.5
+        y = (try? c.decodeIfPresent(Double.self, forKey: .y)) ?? 0.3
+    }
+}
+
+/// `/api/waitlist/me`, the two fields an invite needs.
+struct WaitlistMe: Decodable {
+    let waitlist: Bool?
+    let referralLink: String?
 }
 
 /// `/api/myfam/catalog` and `/api/myfam/search`.
@@ -602,6 +716,10 @@ struct Tile: Decodable, Identifiable, Hashable {
     let friendsListened: Int
     /// Indexes into the page's `friend_faces`.
     let friendsFaces: [Int]
+    /// The subject tags; the first labels a card with no `thumb_facet`.
+    let tags: [String]
+    /// The drawing a card with no picture shows (`seedThumbSVG`).
+    let icon: String
 
     /// The card's one line under the title: the angle, else the subtitle
     /// (`seedHook` on the web).
@@ -609,7 +727,7 @@ struct Tile: Decodable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, subtitle, angle, query, thumb, thumbFacet, cached
-        case liveLine, liveStatus, liveAsOf, friendsListened, friendsFaces
+        case liveLine, liveStatus, liveAsOf, friendsListened, friendsFaces, tags, icon
     }
 
     /// Lenient: a tile from any rail decodes even if a field is missing,
@@ -629,7 +747,13 @@ struct Tile: Decodable, Identifiable, Hashable {
         liveAsOf = try c.decodeIfPresent(Double.self, forKey: .liveAsOf) ?? 0
         friendsListened = try c.decodeIfPresent(Int.self, forKey: .friendsListened) ?? 0
         friendsFaces = try c.decodeIfPresent([Int].self, forKey: .friendsFaces) ?? []
+        tags = (try? c.decodeIfPresent([String].self, forKey: .tags)) ?? []
+        icon = (try? c.decodeIfPresent(String.self, forKey: .icon)) ?? ""
     }
+
+    /// The word on the picture (`seedTagText`): the picture's own facet,
+    /// else the first tag.
+    var tagText: String { thumbFacet.isEmpty ? (tags.first ?? "") : thumbFacet }
 }
 
 /// `/api/searches/trending`: the five most searched questions of the last

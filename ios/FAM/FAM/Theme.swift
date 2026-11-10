@@ -197,6 +197,19 @@ struct WebIcon: View {
     }
 }
 
+/// A 24-point icon filled rather than stroked (the web's `fill="currentColor"`).
+struct WebFill: View {
+    let path: Path
+    var size: CGFloat = 20
+
+    var body: some View {
+        Glyph(path: path, box: CGRect(x: 0, y: 0, width: 24, height: 24))
+            .fill()
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
 /// The web's icons (the tab bar's and the player's), path for path.
 enum Icons {
     /// DailyFAM: the house with the mark in it.
@@ -381,6 +394,179 @@ enum Icons {
         var p = Path()
         p.addEllipse(in: CGRect(x: 3.5, y: 3.5, width: 17, height: 17))
         p.move(to: CGPoint(x: 12, y: 7.5)); p.addLine(to: CGPoint(x: 12, y: 12)); p.addLine(to: CGPoint(x: 15, y: 14))
+        return p
+    }()
+
+    /// The tone (filled at .16, .45 when on) under DailyFAM's house.
+    static let dailyTone: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 4, y: 10)); p.addLine(to: CGPoint(x: 12, y: 3))
+        p.addLine(to: CGPoint(x: 20, y: 10)); p.addLine(to: CGPoint(x: 20, y: 21))
+        p.addLine(to: CGPoint(x: 4, y: 21)); p.closeSubpath()
+        return p
+    }()
+
+    /// The tone inside search's lens (`circle cx=11 cy=11 r=7`).
+    static let searchTone: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 4, y: 4, width: 14, height: 14))
+        return p
+    }()
+
+    /// The tone inside YourFAM's front person: the head and the body.
+    static let youTone: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 5.5, y: 4.5, width: 7, height: 7))
+        p.move(to: CGPoint(x: 3, y: 20))
+        p.addCurve(to: CGPoint(x: 9, y: 14), control1: CGPoint(x: 3, y: 16.7), control2: CGPoint(x: 5.7, y: 14))
+        p.addCurve(to: CGPoint(x: 15, y: 20), control1: CGPoint(x: 12.3, y: 14), control2: CGPoint(x: 15, y: 16.7))
+        p.closeSubpath()
+        return p
+    }()
+
+    /// The library on searchFAM (index.html:3927): a shelf, two books
+    /// standing and one leaning.
+    static let bookshelf: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 2.5, y: 21)); p.addLine(to: CGPoint(x: 21.5, y: 21))
+        p.addRoundedRect(in: CGRect(x: 4, y: 5, width: 3.6, height: 16), cornerSize: CGSize(width: 0.7, height: 0.7))
+        p.addRoundedRect(in: CGRect(x: 8.6, y: 7.5, width: 3.6, height: 13.5), cornerSize: CGSize(width: 0.7, height: 0.7))
+        p.move(to: CGPoint(x: 8.6, y: 10.5)); p.addLine(to: CGPoint(x: 12.2, y: 10.5))
+        p.move(to: CGPoint(x: 14.3, y: 8.6)); p.addLine(to: CGPoint(x: 17.7, y: 7.7))
+        p.addLine(to: CGPoint(x: 21.2, y: 20.3)); p.addLine(to: CGPoint(x: 17.8, y: 21.2))
+        p.closeSubpath()
+        return p
+    }()
+
+    /// The card's save (`M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z`),
+    /// an outline saved or not.
+    static let bookmark: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 6, y: 4)); p.addLine(to: CGPoint(x: 18, y: 4))
+        p.addQuadCurve(to: CGPoint(x: 19, y: 5), control: CGPoint(x: 19, y: 4))
+        p.addLine(to: CGPoint(x: 19, y: 20)); p.addLine(to: CGPoint(x: 12, y: 16))
+        p.addLine(to: CGPoint(x: 5, y: 20)); p.addLine(to: CGPoint(x: 5, y: 5))
+        p.addQuadCurve(to: CGPoint(x: 6, y: 4), control: CGPoint(x: 5, y: 4))
+        p.closeSubpath()
+        return p
+    }()
+
+    /// Three dots, filled (the card's ⋯ at r 2.2, the story's at r 1.9).
+    static func dots(_ r: CGFloat) -> Path {
+        var p = Path()
+        for x in [CGFloat(5), 12, 19] {
+            p.addEllipse(in: CGRect(x: x - r, y: 12 - r, width: r * 2, height: r * 2))
+        }
+        return p
+    }
+
+    /// The menu's share (`MENU_ICONS.share`).
+    static let menuShare: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 4, y: 12)); p.addLine(to: CGPoint(x: 4, y: 19))
+        p.addQuadCurve(to: CGPoint(x: 6, y: 21), control: CGPoint(x: 4, y: 21))
+        p.addLine(to: CGPoint(x: 18, y: 21))
+        p.addQuadCurve(to: CGPoint(x: 20, y: 19), control: CGPoint(x: 20, y: 21))
+        p.addLine(to: CGPoint(x: 20, y: 12))
+        p.move(to: CGPoint(x: 16, y: 6)); p.addLine(to: CGPoint(x: 12, y: 2)); p.addLine(to: CGPoint(x: 8, y: 6))
+        p.move(to: CGPoint(x: 12, y: 2)); p.addLine(to: CGPoint(x: 12, y: 15))
+        return p
+    }()
+
+    /// Add to Queue (`MENU_ICONS.addq`).
+    static let addQueue: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 4, y: 6)); p.addLine(to: CGPoint(x: 14, y: 6))
+        p.move(to: CGPoint(x: 4, y: 11)); p.addLine(to: CGPoint(x: 14, y: 11))
+        p.move(to: CGPoint(x: 4, y: 16)); p.addLine(to: CGPoint(x: 10, y: 16))
+        p.move(to: CGPoint(x: 18, y: 13)); p.addLine(to: CGPoint(x: 18, y: 19))
+        p.move(to: CGPoint(x: 15, y: 16)); p.addLine(to: CGPoint(x: 21, y: 16))
+        return p
+    }()
+
+    /// Go to Queue (`MENU_ICONS.queue`).
+    static let queue: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 4, y: 6)); p.addLine(to: CGPoint(x: 20, y: 6))
+        p.move(to: CGPoint(x: 4, y: 11)); p.addLine(to: CGPoint(x: 20, y: 11))
+        p.move(to: CGPoint(x: 4, y: 16)); p.addLine(to: CGPoint(x: 14, y: 16))
+        return p
+    }()
+
+    /// Not interested: the frown (`MENU_ICONS.notint`).
+    static let frown: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 3, y: 3, width: 18, height: 18))
+        p.move(to: CGPoint(x: 8.5, y: 15.5))
+        p.addCurve(to: CGPoint(x: 12, y: 13.7), control1: CGPoint(x: 9.5, y: 14.3), control2: CGPoint(x: 10.7, y: 13.7))
+        p.addCurve(to: CGPoint(x: 15.5, y: 15.5), control1: CGPoint(x: 13.3, y: 13.7), control2: CGPoint(x: 14.5, y: 14.3))
+        p.move(to: CGPoint(x: 9, y: 9.5)); p.addLine(to: CGPoint(x: 9.01, y: 9.5))
+        p.move(to: CGPoint(x: 15, y: 9.5)); p.addLine(to: CGPoint(x: 15.01, y: 9.5))
+        return p
+    }()
+
+    /// The story's send, inside the reply box (index.html:4748).
+    static let send: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 21.5, y: 3)); p.addLine(to: CGPoint(x: 10.2, y: 14.3))
+        p.move(to: CGPoint(x: 21.5, y: 3)); p.addLine(to: CGPoint(x: 14.6, y: 21))
+        p.addLine(to: CGPoint(x: 10.2, y: 14.3)); p.addLine(to: CGPoint(x: 3.5, y: 10))
+        p.closeSubpath()
+        return p
+    }()
+
+    /// The story's heart (index.html:4750); filled when liked.
+    static let heart: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 12, y: 20.5))
+        p.addCurve(to: CGPoint(x: 2.8, y: 11.2), control1: CGPoint(x: 12, y: 20.5), control2: CGPoint(x: 4.5, y: 15.9))
+        p.addCurve(to: CGPoint(x: 7.3, y: 4.5), control1: CGPoint(x: 1.6, y: 7.8), control2: CGPoint(x: 3.9, y: 4.5))
+        p.addCurve(to: CGPoint(x: 12, y: 7.3), control1: CGPoint(x: 9.3, y: 4.5), control2: CGPoint(x: 10.9, y: 5.6))
+        p.addCurve(to: CGPoint(x: 16.7, y: 4.5), control1: CGPoint(x: 13.1, y: 5.6), control2: CGPoint(x: 14.7, y: 4.5))
+        p.addCurve(to: CGPoint(x: 21.2, y: 11.2), control1: CGPoint(x: 20.1, y: 4.5), control2: CGPoint(x: 22.4, y: 7.8))
+        p.addCurve(to: CGPoint(x: 12, y: 20.5), control1: CGPoint(x: 19.5, y: 15.9), control2: CGPoint(x: 12, y: 20.5))
+        p.closeSubpath()
+        return p
+    }()
+
+    /// VIBE! to your story: the two turning arrows (index.html:4751).
+    static let reshare: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 4, y: 10.4))
+        p.addArc(center: CGPoint(x: 8.4, y: 10.4), radius: 4.4, startAngle: .degrees(180),
+                 endAngle: .degrees(270), clockwise: false)
+        p.addLine(to: CGPoint(x: 18, y: 6))
+        p.move(to: CGPoint(x: 15, y: 3)); p.addLine(to: CGPoint(x: 18, y: 6)); p.addLine(to: CGPoint(x: 15, y: 9))
+        p.move(to: CGPoint(x: 20, y: 13.6))
+        p.addArc(center: CGPoint(x: 15.6, y: 13.6), radius: 4.4, startAngle: .degrees(0),
+                 endAngle: .degrees(90), clockwise: false)
+        p.addLine(to: CGPoint(x: 6, y: 18))
+        p.move(to: CGPoint(x: 9, y: 21)); p.addLine(to: CGPoint(x: 6, y: 18)); p.addLine(to: CGPoint(x: 9, y: 15))
+        return p
+    }()
+
+    /// The story's play (`M8.2 4.9v14.2L18.6 12z`), filled.
+    static let play: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 8.2, y: 4.9)); p.addLine(to: CGPoint(x: 8.2, y: 19.1))
+        p.addLine(to: CGPoint(x: 18.6, y: 12)); p.closeSubpath()
+        return p
+    }()
+
+    /// The catalogue row's play (`M7 4.5v15l12.5-7.5z`), filled.
+    static let rowPlay: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 7, y: 4.5)); p.addLine(to: CGPoint(x: 7, y: 19.5))
+        p.addLine(to: CGPoint(x: 19.5, y: 12)); p.closeSubpath()
+        return p
+    }()
+
+    /// The refresh arrow (index.html:3829).
+    static let refresh: Path = {
+        var p = Path()
+        p.addArc(center: CGPoint(x: 12, y: 11), radius: 8, startAngle: .degrees(0), endAngle: .degrees(45),
+                 clockwise: true)
+        p.move(to: CGPoint(x: 20, y: 4)); p.addLine(to: CGPoint(x: 20, y: 11)); p.addLine(to: CGPoint(x: 13, y: 11))
         return p
     }()
 

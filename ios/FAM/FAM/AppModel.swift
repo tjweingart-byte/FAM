@@ -38,6 +38,18 @@ final class AppModel: ObservableObject {
     /// The myFAM tab's stack, and a request to show a tab.
     @Published var mixPath: [MixRoute] = []
     @Published var tabRequest: Tab?
+    /// DailyFAM's stack: a rail's View more (`screen-section`), which has
+    /// no tab bar and no mini player, as on the web.
+    @Published var dailyPath: [String] = []
+    /// Words for searchFAM's box, from Search DailyFAM's "Search FAM for
+    /// it" (`searchFromMyFam`): put in the box, not sent.
+    @Published var searchPrefill: String?
+    /// Tiles marked "Not interested" since the page was drawn, so an open
+    /// View more drops them too.
+    @Published private(set) var notInterestedIDs: Set<String> = []
+    /// This member's referral link while the waitlist runs, fetched ahead
+    /// because a share sheet must open inside the tap (`loadInviteLink`).
+    @Published private(set) var inviteLink: String?
     let mixes: MixesModel
     /// Where a resumed episode should jump to once enough has arrived.
     private var resumeAt: Double = 0
@@ -186,6 +198,8 @@ final class AppModel: ObservableObject {
         mixes.reset()
         mixPlay = nil
         mixPath = []
+        dailyPath = []
+        inviteLink = nil
         stage = .signedOut
     }
 
@@ -199,6 +213,9 @@ final class AppModel: ObservableObject {
         async let faces: Void = loadCircle()
         async let pick: Void = loadPickUp()
         async let saves: Void = loadSavedTiles()
+        // The facets' names, for the tuning dial's "Tuning in to …".
+        Task { await mixes.loadVocabulary() }
+        if inviteLink == nil { Task { await loadInviteLink() } }
         do {
             let page = try await api.rails()
             rails = page.sections
@@ -217,6 +234,21 @@ final class AppModel: ObservableObject {
         if let found = try? await api.circle() { circle = found }
     }
 
+    /// While the waitlist runs an invite is this member's referral link;
+    /// otherwise the app's own address is used (`inviteFriends`).
+    func loadInviteLink() async {
+        guard let me = try? await api.waitlistMe() else { return }
+        if me.waitlist == true, let link = me.referralLink, !link.isEmpty { inviteLink = link }
+    }
+
+    /// The words an invite sends, with the link: "Come listen with me on
+    /// FAM — I'm @handle." and the referral link or the app's address.
+    func inviteText(handle: String) -> String {
+        let url = inviteLink ?? (FAMAPI.production.absoluteString + "/")
+        let who = handle.isEmpty ? "" : " \u{2014} I'm @" + handle
+        return "Come listen with me on FAM" + who + ". " + url
+    }
+
     func loadPickUp() async {
         pickUp = (try? await api.pickUp()) ?? PickUpPage(threads: [], resume: [])
     }
@@ -230,20 +262,30 @@ final class AppModel: ObservableObject {
         let now = Date()
         let hour = Calendar.current.component(.hour, from: now)
         let part = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening"
-        let day = now.formatted(.dateTime.weekday(.wide))
+        // Always the English day name, as the web's own list (`madeForTitle`).
+        let weekday = Calendar.current.component(.weekday, from: now)
+        let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        let day = names[(weekday - 1 + 7) % 7]
         let lead = (tasteSource == "startup" || tasteSource == "sample") ? "Start here," : "Made for you,"
         return lead + (multiline ? "\n" : " ") + day + " " + part
     }
 
     /// A rail's heading, as the web draws it (`SECTION_TITLE`).
     func heading(for rail: Rail) -> String {
-        switch rail.key {
-        case "from_history": return madeForTitle()
+        if rail.key == "from_history" { return madeForTitle() }
+        let known = Self.sectionTitle(rail.key)
+        return known.isEmpty ? rail.title : known
+    }
+
+    /// `SECTION_TITLE`: "" for a key the web does not name.
+    static func sectionTitle(_ key: String) -> String {
+        switch key {
         case "world_trending": return "Trending"
         case "missed": return "What you missed last week"
         case "most_played": return "Most played episodes today"
         case "followers": return "What your friends are listening to"
-        default: return rail.title
+        case "might_like": return "Explore New"
+        default: return ""
         }
     }
 
@@ -285,6 +327,7 @@ final class AppModel: ObservableObject {
         Task { await api.event("not_interested", topicID: tile.id,
                                text: tile.query.isEmpty ? tile.title : tile.query) }
         for i in rails.indices { rails[i].topics.removeAll { $0.id == tile.id } }
+        notInterestedIDs.insert(tile.id)
         nowPlaying.say("Got it — you’ll see less like this")
     }
 
@@ -314,9 +357,11 @@ final class AppModel: ObservableObject {
 
     /// The X on a Pick up card: gone for good, on every device.
     func dismissPickUp(query: String) {
+        // Compared as the web does, without case (`dismissGoDeeper`).
+        let q = query.lowercased()
         if var page = pickUp {
-            page = PickUpPage(threads: page.threads.filter { $0.thread != query },
-                              resume: page.resume.filter { $0.query != query })
+            page = PickUpPage(threads: page.threads.filter { $0.thread.lowercased() != q },
+                              resume: page.resume.filter { $0.query.lowercased() != q })
             pickUp = page
         }
         Task {
@@ -334,11 +379,70 @@ final class AppModel: ObservableObject {
 
     // MARK: - Playing
 
-    /// A DailyFAM tile: written ahead, at the browse length (`op-taste-scoring`).
-    func play(_ tile: Tile) {
-        play(Episode(key: EpisodeKey(query: tile.query, minutes: FAMAPI.browseMinutes),
-                     title: tile.title, surface: "myfam", topicID: tile.id,
-                     picture: api.picture(tile.thumb)))
+    /// A DailyFAM tile: written ahead, at the browse length (`op-taste-scoring`),
+    /// behind the tuning dial (§509, `startBankTopic`): no steps, audio
+    /// never held. `railKey` is the rail the card was tapped on.
+    func play(_ tile: Tile, railKey: String = "") {
+        let ep = Episode(key: EpisodeKey(query: tile.query, minutes: FAMAPI.browseMinutes),
+                         title: tile.title, surface: "myfam", topicID: tile.id,
+                         picture: api.picture(tile.thumb))
+        startPlaying(ep, dial: dial(for: tile, railKey: railKey))
+    }
+
+    /// What the dial shows (`paintLoadingVariant("dial")`): the heading of
+    /// the rail the tile is on, up to four neighbouring tags from that rail
+    /// (every rail when it is on none) with the tile's own at most fourth,
+    /// its facet named in full, and its title.
+    func dial(for tile: Tile, railKey: String) -> LoadingModel.Dial {
+        let tag = tile.tagText.isEmpty ? "DailyFAM" : tile.tagText
+        var key = ""
+        if !railKey.isEmpty, rails.contains(where: { $0.key == railKey && $0.topics.contains { $0.id == tile.id } }) {
+            key = railKey
+        } else if let found = rails.first(where: { rail in rail.topics.contains { $0.id == tile.id } }) {
+            key = found.key
+        }
+        let heading = key == "from_history" ? madeForTitle(multiline: false) : Self.sectionTitle(key)
+        var pool: [Tile] = []
+        if key.isEmpty {
+            for rail in rails { pool.append(contentsOf: rail.topics) }
+        } else if let rail = rails.first(where: { $0.key == key }) {
+            pool = rail.topics
+        }
+        var seen: Set<String> = [tag.lowercased()]
+        var others: [String] = []
+        for other in pool {
+            let word = other.tagText
+            if word.isEmpty || seen.contains(word.lowercased()) || others.count >= 4 { continue }
+            seen.insert(word.lowercased())
+            others.append(word)
+        }
+        let at = min(3, others.count)
+        var labels = Array(others.prefix(at))
+        labels.append(tag)
+        labels.append(contentsOf: others.dropFirst(at))
+        var title = tile.title
+        if title.hasSuffix(" \u{00B7} today") { title = String(title.dropLast(" \u{00B7} today".count)) }
+        return LoadingModel.Dial(heading: heading, labels: labels, at: at,
+                                 tune: dialWord(tag), title: title)
+    }
+
+    /// A tag as words a person reads (`dialWord`): a facet's own name
+    /// ("Money & markets"), then the category tree's label, else the tag
+    /// with each word capitalised (left alone if it has capitals already).
+    func dialWord(_ tag: String) -> String {
+        if let named = mixes.tagLabels[tag.lowercased()] { return named }
+        if let page = mixes.categories {
+            if let facet = page.facets.first(where: { $0.id == tag }), facet.label != tag { return facet.label }
+            if let node = page.all.first(where: { $0.id == tag }), node.label != tag { return node.label }
+        }
+        if tag.contains(where: { $0.isUppercase }) { return tag }
+        var out = ""
+        var start = true
+        for ch in tag {
+            out += start ? String(ch).uppercased() : String(ch)
+            start = ch == " " || ch == "-" || ch == "/"
+        }
+        return out
     }
 
     /// A sample on the waiting screen: a replay, nothing written.
@@ -400,7 +504,7 @@ final class AppModel: ObservableObject {
     }
 
     private func startPlaying(_ ep: Episode, resumeAt: Double = 0, cachedOnly: Bool = false,
-                              glide: LoadingModel.Glide? = nil) {
+                              glide: LoadingModel.Glide? = nil, dial: LoadingModel.Dial? = nil) {
         // Anything else started ends a mix's playlist.
         if glide == nil { mixPlay = nil }
         self.resumeAt = resumeAt
@@ -417,7 +521,7 @@ final class AppModel: ObservableObject {
                 try? await api.progress(query: ep.key.query, minutes: ep.key.minutes,
                                         surface: ep.surface, topicID: ep.topicID,
                                         context: ep.key.context)
-            }, glide: glide)
+            }, glide: glide, dial: dial)
             self.player.play(title: ep.title, picture: ep.picture, request: request,
                              minutes: ep.key.minutes, holdStart: true)
         }

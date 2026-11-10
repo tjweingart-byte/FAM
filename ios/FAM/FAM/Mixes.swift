@@ -87,14 +87,20 @@ final class MixesModel: ObservableObject {
         }
     }
 
+    /// The subject catalogue and the facets' names (`/api/preferences`,
+    /// once): the mix pages read it, and DailyFAM's tuning dial names a
+    /// tile's facet from it ("Money & markets", `dialWord`).
+    func loadVocabulary() async {
+        guard subjects.isEmpty, let page = try? await api.catalogue() else { return }
+        subjects = page.catalogue
+        tagParent = page.tagParent ?? [:]
+        tagLabels = page.tagLabels ?? [:]
+    }
+
     /// The catalogue, the recommended order and whether this server can
     /// push - asked once a mix page opens (`openMix`).
     func loadForPage() async {
-        if subjects.isEmpty, let page = try? await api.catalogue() {
-            subjects = page.catalogue
-            tagParent = page.tagParent ?? [:]
-            tagLabels = page.tagLabels ?? [:]
-        }
+        await loadVocabulary()
         if let rec = try? await api.recommendedTopics() { recommended = rec }
         if push == nil { push = try? await api.pushStatus() }
         if me == nil, let found = try? await api.profile() { me = found }
