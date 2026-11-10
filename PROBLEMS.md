@@ -31854,3 +31854,64 @@ version 7, every agent may run.
 is gone), and the writer's shapes are its words. The owner updates the copy
 held outside Claude: the three files from the Desktop `famsign` folder go to
 `current/`, and version 6's set to `archive/`.
+
+## 507. The §501 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10)
+
+Run in this session with the environment's keys (`FAM_ANTHROPIC_KEY`, the
+search keys). §437's frozen packets were gone with their container (as
+§450 found before), so the 50 questions were researched again into
+`~/.fam/editor_eval_501/` (~$0.50). Every arm writes from those same
+packets, so arms pair by question. The writer is Haiku 5.5 at high effort
+(§502), with the signed shapes (§506), and Opus 5.5 grades blind. The owner
+chose Opus grading over cheaper options. One run stopped at this session's
+two-hour background limit and another at a container restart; both
+resumed where they stopped, because the tool skips what is written.
+
+**Run 1** (`--arms none,none_matched,haiku,haiku_taught`, 200 scripts, no
+grade failures, $6.16: writing $1.15, grading $5.01). Opus mean of six,
+paired by question, 95% bootstrap:
+
+| | difference | interval | better / worse |
+|---|---|---|---|
+| none_matched - none (matched examples) | +0.03 | [-0.12, +0.18] | 18 / 23 |
+| haiku_taught - haiku (worked plans) | +0.07 | [-0.06, +0.20] | 23 / 19 |
+| haiku - none (Shakespeare) | +0.07 | [-0.11, +0.24] | 23 / 21 |
+| haiku_taught - none | +0.14 | [-0.03, +0.31] | 27 / 18 |
+
+- **Matched examples cost repetition**: -0.37 [-0.71, -0.04], 20 worse and 13
+  better; nothing else clears zero. **Turned off** (`EXAMPLE_MATCHING=0`).
+- **Worked plans**: repetition +0.40 [0.00, +0.76] and hook +0.24
+  [-0.02, +0.50], both at the edge; nothing worse. Kept.
+- **Whether the writer follows his plan**, measured for the first time
+  (haiku / haiku_taught): opening 0.63 / 0.62, parts 0.79 / 0.80, order
+  0.82 / 0.82, **landing 0.35 / 0.40**, score 0.63 / 0.65. The landing is
+  where the plan is lost.
+- Every arm graded far above §437 (mean of six ~3.6 against 2.82;
+  storytelling 2.9-3.2 against 1.5-1.9; unsupported claims 0.4-0.6 against
+  3.6). Run 2 says that is not the writer's effort; new packets, the shapes
+  and the grader's own drift are not told apart here.
+
+**Run 2** (`~/.fam/editor_eval_507/`, the same packets; 100 scripts, $2.97):
+two changes and one new arm.
+- `none_low` (new arm in `tools/editor_eval.py`): no editor, the writer at
+  low effort as before §502. **High minus low, mean of six: +0.05 [-0.10,
+  +0.20]**, better 27, worse 20. It leans, without clearing zero, towards
+  storytelling (+0.24), repetition (+0.25) and fewer unsupported claims
+  (+0.22 [-0.02, +0.46]; 0.60 against 0.82 a script). It costs twice the
+  writing ($0.0035 against $0.0017 an episode) and 15 s more, ahead of the
+  tap where nobody waits. Kept: nothing is worse, and the claims lean the
+  right way.
+- **The landing as the last sentence** (`writer_block`: "What it lands on
+  is your last sentence: decide that sentence first, head for it, and stop
+  once it is said"; "Land on - your last sentence tells this, and the
+  episode ends there:"). **No effect**: landing 0.40 to 0.42, plan score
+  0.65 to 0.63, mean of six -0.08 [-0.21, +0.06], hook -0.26 [-0.54, +0.04]
+  (22 worse, 11 better), at the edge in the wrong direction. Wording does
+  not move the landing. Either the writer decides its last line by itself
+  whatever the plan says, or the measure misses landings told in other
+  words. The two are not told apart yet, because results keep the numbers,
+  never the plan's sentences (provider text).
+
+Tests: `tests/test_eval_findings_507.py` (matching off by default; the
+plan's landing worded as the last sentence; `none_low` at low effort, the
+other arms high, and the settings taken back after).
