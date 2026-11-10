@@ -32378,3 +32378,77 @@ as it is.
 account deletion; each should be read for a write outside `with conn:`. A
 store's startup DDL waiting on a lock a running server can hold is itself a
 deploy hazard worth a guard.
+
+## 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10)
+
+The owner's 11.9 "Implementations" PDF, seven items with screenshots from a phone.
+
+**1. Go Deeper on a myFAM episode erased the rest of the mix.** The cause was
+one line doing its job against the wrong case. `populatePlayer` ends a
+playlist whenever something that is not the playlist's episode starts (§134:
+"the listener went and chose something"), and a Go Deeper follow-up is not
+`fromMix`, so `mixPlay` was dropped and the queue sheet's "Next from Morning"
+disappeared with the next button. But a Go Deeper is not choosing something
+else - it is staying with this episode a little longer. Now `startFollowUp`
+marks the follow-up `mixDetour` (the playlist episode it left, via
+`mixDetourFor`, which also carries the mark through a Go Deeper on the
+follow-up), `populatePlayer` keeps `mixPlay` for a detour with `nextUp` off,
+and its end - played through, skipped (the next button still advances the
+playlist) or failed (`mixItemFailed`, read from `lastGenerate` because a
+follow-up can fail before the player is populated) - calls
+`advanceMix(<the playlist episode>)`. The queue sheet's Now playing row says
+"Going deeper · Morning carries on after".
+
+**2. The queue sheet "looks too zoomed in".** Its rows had 2px of horizontal
+padding inside a sheet with none, 13px titles and nothing beside them, so on a
+phone the text ran to both edges. Now: a "Queue" heading, rows inset 22px, a
+42px picture (the episode's, else its place in line), a title over what the
+row is (the mix's name, "Queued").
+
+**3. Share, vibe and save sat on the sources pill.** `.p-side` bottom 10px →
+34px.
+
+**4. The transport row.** The ±15 and next were outlined circles at 38px with
+an 8px number, the next button hung off the side absolutely. Now five slots
+on a grid - four that shrink with the screen and a 74px middle one for play
+(66px) - the first slot empty to balance next, every glyph bare (no circle), a redrawn ±15 arrow with the 15 at
+10.5px bold, a solid next glyph. Scoped to `#screen-player`; play-all and the
+mini bar are unchanged.
+
+**5. Tab labels spelled as the wordmarks:** dailyFAM, myFAM, yourFAM. Only
+the tab bar; the swapped meanings (§185) are unchanged.
+
+**6. Captions "more prominent and easy", and a better display.** They were a
+strip of 8.5px capitals at the very bottom of the player that had to be slid
+up, and open they covered the transport. Now a labelled **CC Captions** pill
+sits beside the queue; on, the captions are read over the picture on a dark
+card - the sentence being spoken in 24px Bricolage (still one sentence at a
+time, §127), a copy button and an X in the corner, a swipe down closes it -
+with the title, scrubber and transport untouched below, and share/vibe/save
+above it. The choice is remembered on the device (`fam.captions`), so somebody
+who reads along does not turn them on again for every episode; it used to
+reset to off on each one.
+
+**7. The daily limit screen: removed for now.** "Until I change it, I want
+everyone to have unlimited access." `render.yaml` sets `ENFORCE_QUOTAS=0` on
+`fam` - explicitly, so turning the §207 ceiling back on is one value. Nothing
+else changed: the limit screen, quotas, admin `unlimited` and
+`/api/admin/plan` all stay built and tested, and the plans sheet already words
+itself from `/api/plans` `enforced` ("Everything is free for now."). Spend per
+listener stays visible in metering, not capped - the trade §81 named.
+Takes effect when this reaches `Main` and production redeploys.
+
+Pinned by `tests/test_packet_119_510.py` and the smoke check "Go Deeper keeps a
+playlist going; captions are a pill".
+
+**Found in the double-check before handing over.** Two things the 390px
+screenshots could not show. The first transport used five fixed 52px columns
+with 14px gaps - 316px - which is wider than the desktop preview's phone
+(312px across) and a 320px phone, so the next button was cut off at the right
+edge; the four outer columns now shrink (`minmax(0,1fr)`, 48px glyphs, the
+row at most 330px). And the player's bottom padding was 60px because the old
+captions strip lived there; with captions on the picture that was a blank band
+under the controls, now 22px. Checked, and fine: stopping the playlist's
+episode for a detour never fires its end (`FamAudio.stop` bumps the token,
+and `advanceMix` ignores a stale key), so the mix does not jump ahead when the
+follow-up starts.
