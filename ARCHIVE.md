@@ -99,8 +99,11 @@ look at `archive`. It should say `"enabled": true, "backend": "atlas"`.
 After a few episodes, `intake_articles` and `episodes_linked` should be
 climbing, with `errors` at 0.
 
-If `enabled` is false, `reason` says why, in one sentence. Most often it's a
-missing `MONGODB_URI`, or an address Atlas refused (step 3).
+If `enabled` is false, `reason` says why, in one sentence: a setting is
+missing or wrong, most often `MONGODB_URI`. `enabled` checks the settings and
+sends nothing, so an address Atlas refused (step 3) or a wrong password shows
+differently: `enabled` stays true while `errors` climbs, `last_error` names
+the failure, and `backing_off` is true.
 
 ### 7. A second, read-only user for Sonic (§403)
 

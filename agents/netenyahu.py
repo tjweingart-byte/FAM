@@ -381,7 +381,10 @@ HOURLY: tuple = (("it", "usage", "it_agent"),)
 #: switch, the setting naming its period in seconds). One task per period,
 #: keyed by the period's UTC start - as hourly work is by its hour. Keith's
 #: incidents round reads what FAM already records; it calls nothing outside.
-FREQUENT: tuple = (("it", "watch", "it_agent", "it_watch_seconds"),)
+FREQUENT: tuple = (("it", "watch", "it_agent", "it_watch_seconds"),
+                   # The answer key's batch, collected once it has ended (§501).
+                   ("categorizer", "collect", "categorizer",
+                    "nando_judge_collect_seconds"))
 
 
 def _period_key(seconds: float, now: Optional[datetime.datetime] = None) -> str:

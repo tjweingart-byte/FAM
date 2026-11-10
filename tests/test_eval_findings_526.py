@@ -1,4 +1,4 @@
-"""What the §501 comparison changed (§507).
+"""What the §520 comparison changed (§526).
 
 Matched examples are off by default (no gain, more repetition); the plan
 tells the writer that its landing is the episode's last sentence (the
@@ -32,8 +32,8 @@ def test_matched_examples_are_off_by_default():
 
 
 def test_the_landing_wording_is_back_as_it_was():
-    """Worded as the last sentence, the landing did not move (§507); the
-    plain wording is back (§508)."""
+    """Worded as the last sentence, the landing did not move (§526); the
+    plain wording is back (§527)."""
     plan = dataclasses.replace(plan_episode("what did the fed do", 1.5), search=False,
                                evidence=EVIDENCE)
     sources = editor.number_packets(plan)

@@ -1,4 +1,4 @@
-"""Before-and-after pairs for the writer, made before launch only (§502).
+"""Before-and-after pairs for the writer, made before launch only (§521).
 
     python tools/teaching_pairs.py --propose            # needs ANTHROPIC_API_KEY
     python tools/teaching_pairs.py --propose --limit 6 --dir ~/.fam/editor_eval
@@ -9,7 +9,7 @@ scripts `tools/editor_eval.py` wrote from its frozen packets - never a
 listener's episode, never the cache or the quality store - and picks the
 ones the code measures flag most: a weak opening, an ending that recaps,
 teases or asks, signposts, repetition, facts joined by "and", and the ear
-checks (§502). Opus 5.5 rewrites each from the **same packet** under the
+checks (§521). Opus 5.5 rewrites each from the **same packet** under the
 house rules, told what the code found. A rewrite is kept only if:
 
 * the code finds fewer flaws, and no ear or story score falls;

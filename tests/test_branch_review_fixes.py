@@ -1,4 +1,4 @@
-"""What the branch's review found, each fixed (§512). Made-up text, never a
+"""What the branch's review found, each fixed (§530). Made-up text, never a
 source's."""
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ def test_a_rewrite_forgets_the_old_texts_timings(tmp_path):
 
 
 def test_an_existing_store_gains_the_starts_column(tmp_path):
-    """A quality store from before §502 is widened, as §454's was."""
+    """A quality store from before §521 is widened, as §454's was."""
     path = str(tmp_path / "old.db")
     with closing(store_db.connect(path, isolation_level=None)) as db:
         db.execute("""CREATE TABLE episodes (

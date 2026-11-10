@@ -38,9 +38,23 @@ picture is never on a tile until you approve it. `THUMBNAILS_ATTEMPTS=2` or
 more brings back automatic repaints, for a logo, text, a real person or a
 real product only.
 
+**A broad node holds several pictures, and nothing placed holds none**
+(PROBLEMS.md §507, the owner 11.9: "this rock is everywhere"). Each facet and
+each node directly under one (football, elections and politics, ...) gets
+`THUMBNAILS_BROAD_PICTURES` pictures, stored as rows of their own -
+`football#2`, `football#3` - beside the node's row, so they are approved,
+rejected, repainted and exported exactly like any picture. The sweep paints
+them only after every node has its first, and the scene writer is told what
+the node's other pictures already show. An episode on the node wears one of
+them chosen by a hash of its words: random across episodes, the same on one
+episode's tile, player, vibe and card. Borrowing (below) stops at the facets
+the episode's category and words fall under, strongest first; the old last
+step, one facet picture chosen by a hash, is gone, so an episode nothing
+places shows no picture rather than an unrelated one.
+
 **Every tile has a picture** (PROBLEMS.md §214, reversing the paragraph
 below for rails): a tile on an unpainted node borrows one - nearest painted
-ancestor, its facet, else a stable choice by its words - marked
+ancestor, then its facet (§507: no longer a stable choice by its words) - marked
 `thumb_borrowed`, until its own is painted. The waitlist's samples take only
 a tile's own picture.
 
@@ -191,6 +205,7 @@ These are list prices, not bills. Spend is recorded per image in
 | `THUMBNAILS_MODEL` | `MODEL` (§249) | Scene writer and checker; `THUMBNAILS_CLAUDE_INPUT_PER_MTOK` / `_OUTPUT_PER_MTOK` (2.0 / 10.0) are its prices |
 | `THUMBNAILS_ATTEMPTS` | `1` | Paid paintings per node. 1 holds a failing picture for review; more repaints on a logo, text, a real person or product |
 | `THUMBNAILS_DAILY_IMAGES` | `60` | Images per rolling 24h, whole deployment |
+| `THUMBNAILS_BROAD_PICTURES` | `4` | Pictures each facet and each node directly under one holds (§507); `1` turns extras off |
 | `THUMBNAILS_PER_SWEEP` | `20` | Nodes one background sweep paints |
 | `THUMBNAILS_REVIEW` | `flagged` | `flagged` / `all` / `none` - which clean pictures wait for a person |
 | `THUMBNAILS_DB` | project root | `/data/thumbnails.db` in the Dockerfile |

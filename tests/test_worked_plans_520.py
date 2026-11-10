@@ -1,4 +1,4 @@
-"""Shakespeare's worked plans (§501, item 3).
+"""Shakespeare's worked plans (§520, item 3).
 
 `examples/` showed him finished episodes and never a plan. Each file in
 `examples/plans/` is the packet and plan behind one example, in FAM's own

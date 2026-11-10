@@ -1,4 +1,4 @@
-"""New house examples, proposed from what listeners heard through (§501).
+"""New house examples, proposed from what listeners heard through (§520).
 
     python tools/example_candidates.py                  # the last 30 days
     python tools/example_candidates.py --days 60 --min-listens 30

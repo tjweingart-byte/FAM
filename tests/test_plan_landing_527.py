@@ -1,4 +1,4 @@
-"""The plan-following measure, read against real endings (§508).
+"""The plan-following measure, read against real endings (§527).
 
 Read by hand on 10 episodes, the writer landed where Shakespeare planned in
 about six; the measure said none. It missed numbers read out ("seven point

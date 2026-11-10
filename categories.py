@@ -258,6 +258,33 @@ def _reserved_slugs() -> frozenset[str]:
     return frozenset(normalise(tag) for tag in topics.TAG_WORDS)
 
 
+def _never_alone() -> frozenset[str]:
+    """`category_seed.NEVER_ALONE`: words never a node on their own."""
+    import category_seed
+    return category_seed.NEVER_ALONE
+
+
+_SEED_PHRASES: frozenset[str] = frozenset()
+
+
+def _seed_phrases() -> frozenset[str]:
+    """Every phrase the seed writes, normalised; read once."""
+    global _SEED_PHRASES
+    if not _SEED_PHRASES:
+        _SEED_PHRASES = frozenset(normalise(row[0]) for row in _seed_rows())
+    return _SEED_PHRASES
+
+
+def _silenced(phrase: str, source: str) -> bool:
+    """Whether a node is left out of the tree (§511, §513): holding a
+    `NEVER_ALONE` word anywhere in its phrase, and not the seed's own -
+    by source or by name, since a phrase grown before the seed named it
+    keeps its grown source."""
+    if not frozenset(phrase.split()) & _never_alone():
+        return False
+    return source != SOURCE_SEED and phrase not in _seed_phrases()
+
+
 def normalise(phrase: str) -> str:
     """One phrase, as the tree stores it: lower case, words only, collapsed.
 
@@ -409,6 +436,7 @@ class CategoryStore:
         self._nodes: dict[str, Node] = {}
         self._words: dict[str, frozenset[str]] = {}
         self._ancestry: dict[str, tuple[str, ...]] = {}
+        self._aliases: dict[str, str] = {}
         self._loaded_at = 0.0
         with self._conn() as conn:
             conn.execute(
@@ -454,8 +482,12 @@ class CategoryStore:
             # that means two things and was left undecided.
             # §381: the episode's cache key, so the answer key can read the
             # script it grades.
+            # §501: the tap filing Nando started from and who supplied it (a
+            # tile, a bank topic, a DailyFAM subject, an edition), so the
+            # answer key grades each solid source as well as Nando.
             for column in ("nando_request", "nando_request_how", "nando", "nando_how",
-                           "nando_confidence", "nando_ambiguous", "key"):
+                           "nando_confidence", "nando_ambiguous", "key",
+                           "nando_prior", "nando_prior_source"):
                 try:
                     conn.execute(f"ALTER TABLE category_audit ADD COLUMN {column}"
                                  " TEXT NOT NULL DEFAULT ''")
@@ -493,6 +525,17 @@ class CategoryStore:
         nodes = {r[0]: Node(r[0], r[1], r[2], int(r[3]), r[4], float(r[5]),
                             float(r[6]), int(r[7]), int(r[8]), bool(r[9]))
                  for r in rows}
+        # **The check (§513).** A grown node holding a `NEVER_ALONE` word -
+        # "lead", or "world record", "power grid" - is not a category: it is
+        # left out of the tree as read, so it never matches, `get` never
+        # finds it (an episode's stored category falls back) and
+        # `category_near` never offers it. The row stays on disk, so taking
+        # a word off the list brings its phrases back. The seed's own
+        # phrases ("super bowl", "stock market") are the owner's and stay.
+        silenced = {node_id: node for node_id, node in nodes.items()
+                    if _silenced(node_id, node.source)}
+        nodes = {node_id: node for node_id, node in nodes.items()
+                 if node_id not in silenced}
         index: dict[str, set[str]] = {}
         # **Both of these are precomputed here because `match` is a read
         # path.** `taste` calls it once per event - up to four hundred - on
@@ -526,10 +569,30 @@ class CategoryStore:
                     log.warning("cycle in the category tree at %r",
                                 current.parent_id)
                     break
+                if current.parent_id in silenced:
+                    # Under a silenced node: its ancestry skips it.
+                    seen.add(current.parent_id)
+                    current = silenced[current.parent_id]
+                    continue
                 chain.append(current.parent_id)
                 seen.add(current.parent_id)
                 current = nodes.get(current.parent_id)
             ancestry[node_id] = tuple(chain)
+        # Other names for a node (11.9, `category_seed.ALIASES`): indexed
+        # like a node's phrase, matched by the same in-order rule, and
+        # answered as the node they name with its ancestry. Never a node
+        # themselves, so nothing else in the tree ever sees one.
+        aliases: dict[str, str] = {}
+        for phrase, target in _seed_aliases().items():
+            phrase, target = normalise(phrase), normalise(target)
+            alias_words = frozenset(phrase.split())
+            if (not phrase or phrase in nodes or target not in nodes
+                    or alias_words != words_of(phrase)):
+                continue
+            aliases[phrase] = target
+            words[phrase] = alias_words
+            index.setdefault(min(alias_words), set()).add(phrase)
+            ancestry[phrase] = (target,) + ancestry.get(target, ())
 
         # **One assignment, four structures.** They are read from request
         # threads while the background sweep rebuilds them, and `match`
@@ -537,13 +600,19 @@ class CategoryStore:
         # so a reader landing between two assignment statements would see a
         # node in one structure and not in the next and raise `KeyError` on a
         # browse page. A single tuple assignment cannot be observed half done.
-        self._nodes, self._index, self._words, self._ancestry = (
-            nodes, index, words, ancestry)
+        self._nodes, self._index, self._words, self._ancestry, self._aliases = (
+            nodes, index, words, ancestry, aliases)
+        self._silenced = silenced
         self._loaded_at = time.time()
         return len(nodes)
 
     def nodes(self) -> dict[str, Node]:
         return dict(self._nodes)
+
+    def silenced(self) -> dict[str, Node]:
+        """Grown nodes the check leaves out of the tree (§513): each holds a
+        `category_seed.NEVER_ALONE` word. For the report, never a reader."""
+        return dict(getattr(self, "_silenced", {}))
 
     def get(self, node_id: str) -> Optional[Node]:
         return self._nodes.get(node_id)
@@ -602,7 +671,8 @@ class CategoryStore:
         # and taking `self._index` here and `self._words` three lines later
         # would be reading two different trees - the assignment in `reload` is
         # atomic, but two reads of it are not one read.
-        index, words, ancestry = self._index, self._words, self._ancestry
+        index, words, ancestry, aliases = (self._index, self._words,
+                                           self._ancestry, self._aliases)
         candidates: set[str] = set()
         for word in text_words:
             candidates |= index.get(word, set())
@@ -619,7 +689,8 @@ class CategoryStore:
                     sequences = _sequences(text)
                 if not any(_runs_in(phrase, seq) for seq in sequences):
                     continue
-            hit.add(node_id)
+            if node_id not in aliases:
+                hit.add(node_id)
             hit.update(ancestry.get(node_id, ()))
         return tuple(sorted(hit))
 
@@ -651,6 +722,12 @@ class CategoryStore:
         # slug is a name `tags_for_text` already scores - see
         # `_reserved_slugs` for what minting either would do to `taste`.
         if phrase in _reserved_slugs():
+            return None
+        if _silenced(phrase, source) and phrase not in self._nodes:
+            # An everyday word (`category_seed.NEVER_ALONE`), alone or in a
+            # phrase (§513): "lead" is who is winning as often as the metal,
+            # and "world record" is not a subject worth a node. The seed's
+            # own phrases are minted as written.
             return None
         if any(len(w) < MIN_WORD or w.isdigit() for w in phrase.split()):
             # A phrase that is partly a number is nearly always a fragment of
@@ -823,8 +900,9 @@ class CategoryStore:
                 "INSERT INTO category_audit (at, origin, query, words, writer,"
                 " writer_facet, composer, composer_facet, keywords,"
                 " nando_request, nando_request_how, nando, nando_how,"
-                " nando_confidence, nando_ambiguous, key)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " nando_confidence, nando_ambiguous, key, nando_prior,"
+                " nando_prior_source)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (now, str(row.get("origin", ""))[:16],
                  str(row.get("query", ""))[:200], str(row.get("words", ""))[:60],
                  str(row.get("writer", ""))[:80],
@@ -838,7 +916,9 @@ class CategoryStore:
                  str(row.get("nando_how", ""))[:16],
                  str(row.get("nando_confidence", ""))[:8],
                  str(row.get("nando_ambiguous", ""))[:80],
-                 str(row.get("key", ""))[:80]))
+                 str(row.get("key", ""))[:80],
+                 str(row.get("nando_prior", ""))[:80],
+                 str(row.get("nando_prior_source", ""))[:16]))
             conn.execute("DELETE FROM category_audit WHERE at < ?",
                          (now - AUDIT_DAYS * 86400,))
             return True
@@ -853,7 +933,8 @@ class CategoryStore:
                 "SELECT at, origin, query, words, writer, writer_facet,"
                 " composer, composer_facet, keywords, nando_request,"
                 " nando_request_how, nando, nando_how, nando_confidence,"
-                " nando_ambiguous, key FROM category_audit"
+                " nando_ambiguous, key, nando_prior, nando_prior_source"
+                " FROM category_audit"
                 " WHERE at >= ? ORDER BY at DESC LIMIT ?",
                 (since, int(limit))).fetchall()
         except Exception:
@@ -862,7 +943,7 @@ class CategoryStore:
         names = ("at", "origin", "query", "words", "writer", "writer_facet",
                  "composer", "composer_facet", "keywords", "nando_request",
                  "nando_request_how", "nando", "nando_how", "nando_confidence",
-                 "nando_ambiguous", "key")
+                 "nando_ambiguous", "key", "nando_prior", "nando_prior_source")
         return [dict(zip(names, r)) for r in rows]
 
     def report(self) -> dict:
@@ -886,6 +967,17 @@ class CategoryStore:
 # --------------------------------------------------------------------------
 # The seed
 # --------------------------------------------------------------------------
+
+
+def _seed_aliases() -> dict[str, str]:
+    """`category_seed.ALIASES`, or {} if it cannot be read."""
+    try:
+        import category_seed
+
+        return dict(getattr(category_seed, "ALIASES", {}) or {})
+    except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
+        log.exception("could not read the category aliases")
+        return {}
 
 
 def apply_seed(store: "CategoryStore", at: float = 0.0) -> int:

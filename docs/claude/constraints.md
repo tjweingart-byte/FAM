@@ -1321,7 +1321,7 @@
   >
   > **Current:** where nobody waits - the editions, the write-ahead and
   > prefetch's script warms - the writer is Haiku 5.5 at **high**
-  > (`AHEAD_WRITER_EFFORT`, PROBLEMS.md §502, at the owner's direction:
+  > (`AHEAD_WRITER_EFFORT`, PROBLEMS.md §521, at the owner's direction:
   > "for when nobody waits, it's supposed to be haiku high"), as Shakespeare
   > is there (§440). searchFAM stays at `EFFORT` (low), so the first word is
   > not moved; `EDITION_WRITER_EFFORT`, when set, still wins for an edition.
@@ -1462,6 +1462,12 @@
   `WAITLIST=0`.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
+  > **Current (§519, the 11.9 packet):** switched **off again in production**
+  > at the owner's direction - "until I change it, I want everyone to have
+  > unlimited access." `render.yaml` sets `ENFORCE_QUOTAS=0` on `fam`
+  > (explicitly, so turning it back on is one value); nobody sees the limit
+  > screen. Everything §207 built - admin `unlimited`, `/api/admin/plan`, the
+  > plans sheet worded from `/api/plans` `enforced` - stays.
   > **Current:** switched **on in production** at the owner's direction
   > (§207): `render.yaml` sets `ENFORCE_QUOTAS=1` on `fam`, so the worst
   > listener is bounded (5 episodes a day on free, ~$0.50) rather than ~$2 a

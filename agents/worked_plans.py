@@ -1,4 +1,4 @@
-"""Shakespeare's worked plans (§501): how an editor plans an episode, shown.
+"""Shakespeare's worked plans (§520): how an editor plans an episode, shown.
 
 `examples/` shows him the finished episodes FAM wants; it never showed him a
 plan. Each file in `examples/plans/` is one worked plan for one of those
@@ -15,7 +15,7 @@ evidence; his instructions say so.
 
 **Checked in code, every time they load**: every number resolves, no beat is
 dropped, the example exists and has a facet. A plan that fails is left out
-and logged, never shown half-right; `tests/test_worked_plans_501.py` fails
+and logged, never shown half-right; `tests/test_worked_plans_520.py` fails
 on it first. `python tools/editor_teaching.py --check` prints the same.
 
 Off with `EDITOR_WORKED_PLANS=0`: he is shown the examples alone, as before.

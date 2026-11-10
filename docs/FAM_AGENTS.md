@@ -309,7 +309,7 @@ prices) cost more than Haiku 5.5.
 |---|---|
 | Netenyahu | No planner model; the rules in code |
 | C3P0 | Haiku 5.5 folded into the brief's call: at the brief's effort (medium) on the tap, at high effort ahead of the tap (`EI_AHEAD_EFFORT`) |
-| Nando | Code first, folded into the brief's call, Haiku 5.5 whenever nothing solid files the request (§379); always the closest node it is truly about. His answer key: Opus 5.5, in the background (§381) |
+| Nando | Code first, folded into the brief's call, Haiku 5.5 whenever nothing solid files the request (§379); always the closest node it is truly about. His answer key: Sonnet 5.5 (Opus until §503), in the background (§381) |
 | Sonic | An embedding router chooses the lookup; the code mapping is its fallback |
 | Shakespeare | Haiku 5.5 on searchFAM, in tandem with the writer; ahead of the tap **Haiku 5.5 at high effort** (the owner, 2026-11-03, on the comparison of §437: no editor / Haiku 5.5 high / Sonnet 5.5); Opus 5.5 for the playbook and the eval |
 | Mclovin | Haiku 5.5 on unsure sentences and unsettled pages; **the grounding checker not decided** (its own analysis) |
@@ -393,20 +393,28 @@ The models are the ones decided (Models decided, and §440, §455, §456).
 |---|---|---|---|---|
 | **Netenyahu** | Nothing - orchestration is code | - | $0 | $0 |
 | **C3P0** | ~1,000 more tokens in and ~200 out inside EI's existing call (disambiguation, plugins, Sonic's request, the title); public-figure check from the reference look | Haiku 5.5, inside EI's call | ~$1.50 *(est.)* | ~$0.0002 |
-| **Nando** | Code; a Haiku call on the ~1 in 5 requests where candidates tie; confirmation after the writer in code | Haiku 5.5 | ~$0.50 *(est.)* | <$0.0001 |
+| **Nando** | Code; his own Haiku call where nothing solid files the request and C3P0 is not choosing - on a search beside the brief, ahead of the tap where the brief is built (§379, §501); ~1,700 tokens of rule books (cached) and ~4,200 of request, since the whole tree is on his list: **~$0.0005 a call** *(measured size, §502)*; confirmation after the writer in code | Haiku 5.5 | ~$1-5 *(est.)* | ~$0.0001-0.0005 |
 | **Sonic** | Code lookups in the archive | - | $0 | $0 |
 | **Shakespeare, ahead of the tap** | One outline per edition, write-ahead or rail episode | Haiku 5.5, high effort | **~$20** *(measured: $0.004 a plan, §437)* | $0.004 |
 | **Shakespeare, on the tap** (`EDITOR_TANDEM`) | One outline beside the writer, and the writer's second call that writes the rest from it | Haiku 5.5, low effort | **~$15-18** *(measured parts: $0.0015 a plan, §455; a writer call ~$0.002, §450; the tandem itself unmeasured)* | ~$0.003-0.0035 |
 | **Mclovin** | Code: source screen, quotes, figures, dates, websites, advice, superlatives, mixed stories; the writer's one rewrite of a failed sentence (none in 20 measured episodes, §438); Haiku on pages the screen cannot settle, ahead of the tap only. **Support is off** (§452-§453): no grounding checker and no second look | Haiku 5.5 (screen); the writer (rewrites) | **~$1** *(est.)* | ~$0.0001 |
 | **Consuela** | ~5 new articles digested; dedupe pairs and periodic combs (code first, Haiku on unsure pairs, Sonnet on the few still unsure); demographic totals in code | Haiku 5.5, batched; Sonnet 5.5 review | **~$5-6** *(est.)* | ~$0.0006 |
 | **Keith** | Code watching; a write-up per incident (not per episode); usage APIs free; email through `mail.py` | Haiku 5.5; Sonnet 5.5 summaries | **<$1** *(est.)* | ~$0 |
-| **All eight** | | | **~$45** | **~0.45¢** |
+| **All eight** | | | **~$45-50** | **~0.45-0.5¢** |
 
 **Nightly, whatever the volume** (a month): Mclovin's review - 40 of his
 verdicts each night on Opus 5.5 (`SUPERVISOR_REVIEW_PER_RUN`), ~$0.011 a
-verdict *(measured, §451)*: **~$13**; Nando's answer key - up to 50 grades a
-night on Opus 5.5 (`NANDO_JUDGE_PER_RUN`): **~$15-20** *(est.)*. About
-**$30 a month** together, only while each agent is on.
+verdict *(measured, §451)*: **~$13**; Nando's answer key - **10 grades a
+night on Sonnet 5.5**, only where Nando, the writer and the composer
+disagree (`NANDO_JUDGE_PER_RUN`, `NANDO_JUDGE_DISAGREEMENTS_ONLY`, the
+owner's choice in §503; 50 on Opus before), through the Message Batches
+API at half price (`NANDO_JUDGE_BATCH`, §502): **~$0.80** if the batch
+reads the cached tree, up to ~$3 if it never does *(est. from the measured
+prompt: ~5,850 tokens of rule books and tree, ~1,100 of episode, ~200
+out)*. The owner's own reviews on /admin (Categories) cost nothing; the
+one-time comparison against Opus, once only, about **$1.50** in all. About
+**$14 a month** together, only while each agent is on. Neither grows with
+listeners: each is capped per night.
 
 **Fixed machines**: **none needed now.** The grounding checker was measured
 and is not installed: HHEM-2.1-Open rejected ~9-12% of good sentences and
@@ -438,7 +446,8 @@ arm measurably better; the owner chose Haiku, §440). Everything else together i
 **Levers not to pull**, because they cost quality: skipping fact-checks on
 search; Opus anywhere per episode. *(The owner's exceptions, both in the
 background and never per episode: Nando's answer key reads each finished
-episode once on Opus - §381, nando.md rule 12 - and Mclovin's nightly review
+episode once (on Sonnet since §503; Opus only in the owner's one-time
+comparison) - §381, nando.md rule 12 - and Mclovin's nightly review
 reads a sample of his verdicts on Opus - mclovin.md "always" 9, §443.)*
 GPT-5 nano is withdrawn for Consuela (decided item 35).
 
@@ -964,7 +973,7 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 - **"Training" means:** the playbook, `examples/`, and automatic
   measures - the quality checker's code (§309), Mclovin's verdicts, and
   listening (who leaves in the first twenty seconds, who hears 85%) - not
-  a fine-tuned model and not hand-scoring. Since §501 also: **worked
+  a fine-tuned model and not hand-scoring. Since §520 also: **worked
   plans** in his teaching (a packet in FAM's own words and the plan made
   from it, per example; `tools/editor_teaching.py`); the examples **matched
   to the story's facet** for the writer and for him; **new examples
@@ -985,9 +994,9 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | `EDITOR_RERANKER` | Empty, or the reranker |
 | `EDITOR_PLAYBOOK` | The journalism playbook's file |
 | `EDITOR_TANDEM`, `EDITOR_TANDEM_OPENING_WORDS`, `EDITOR_TANDEM_WAIT_SECONDS` | `0` (off), 30, 7: on searchFAM he plans beside the writer at low effort - never in front of the first word; once 30 words are spoken the writer waits for his plan until 7 s from its start, then a second writer call writes the rest from it; late or empty, the writer carries on as today (§456) |
-| *(no setting)* the story's shape | Ahead of the tap he may change the brief's shape (`EditorAnswer.shape`, a closed list of `episode_intelligence.STRUCTURES`, `in_progress` included); the writer's shape note and the quality row follow him. On searchFAM the brief's shape stands (the owner, 2026-11-09, §504) |
-| `EDITOR_WORKED_PLANS` | `1` (on): his `<teaching>` holds, after the examples, worked plans for several of them - the packet, numbered as his are, and the plan made from it (`examples/plans/`, `agents/worked_plans.py`, checked in code at load; §501). `0`: the examples alone |
-| `EXAMPLE_MATCHING` | `1` (on): the writer's request names the house examples of the episode's facet (`examples/facets.json`), never the cached system block; his worked plans name the ones of the same kind (§501). `0`: the request as it was |
+| *(no setting)* the story's shape | Ahead of the tap he may change the brief's shape (`EditorAnswer.shape`, a closed list of `episode_intelligence.STRUCTURES`, `in_progress` included); the writer's shape note and the quality row follow him. On searchFAM the brief's shape stands (the owner, 2026-11-09, §523) |
+| `EDITOR_WORKED_PLANS` | `1` (on): his `<teaching>` holds, after the examples, worked plans for several of them - the packet, numbered as his are, and the plan made from it (`examples/plans/`, `agents/worked_plans.py`, checked in code at load; §520). `0`: the examples alone |
+| `EXAMPLE_MATCHING` | `1` (on): the writer's request names the house examples of the episode's facet (`examples/facets.json`), never the cached system block; his worked plans name the ones of the same kind (§520). `0`: the request as it was |
 | `EDITOR_TRIAL` | `0` / `1` (off): decided item 37's two weeks - half the episodes written ahead of the tap, by a hash of the question and length, are written without him, each records its arm, and `python tools/editor_trial.py` compares them on listening (left in 20 s, heard 85%) and the code measures (§454) |
 
 **The journalism playbook - decided: A, B and C combined** (the owner,
@@ -2074,7 +2083,7 @@ awaited ahead of the tap. With no answer the writer's category stands, read
 live and never stored as his (§391). A provider's filing is only ever
 narrowed after the writer, never re-filed (§391). Training him continuously
 is pieces N2-N7 (§380-§387): worked examples and code's hints as
-`<teaching>`, an Opus answer key, a memory of graded answers, his mistakes
+`<teaching>`, an answer key (Opus, Sonnet since §503), a memory of graded answers, his mistakes
 as examples, a small trained model, and a nightly look at the tree.
 **Starting from the tap (§372):** `prior_for` reads what the tap already
 says - a tile's story, a bank topic, a DailyFAM subject from the catalogue,
@@ -2102,9 +2111,12 @@ nodes share is a tie, filed under what they share.
 |---|---|
 | `CATEGORIZER` | `0` / `1` (proposed): off = today's code |
 | `CATEGORIZER_MODEL` | `anthropic:claude-haiku-5-5` (decided 2026-10-30), asked whenever nothing solid files the request and C3P0 is not choosing (§379) |
-| `CATEGORIZER_JUDGE_MODEL` | `anthropic:claude-opus-5-5`: the answer key, nightly, each finished episode once (§381) |
+| `CATEGORIZER_JUDGE_MODEL` | `anthropic:claude-sonnet-5-5` (Opus until §503, the owner's change for cost): the answer key, nightly, each finished episode once (§381) |
+| `CATEGORIZER_CALIBRATION_MODEL`, `NANDO_CALIBRATION_EPISODES` | `anthropic:claude-opus-5-5`, 100: the owner's one-time comparison from /admin, once only, after rule 12's amendment is signed (§503) |
+| `NANDO_JUDGE_DISAGREEMENTS_ONLY` | 1: the key grades only episodes where Nando, the writer and the composer are not all on one branch (§503) |
 | `CATEGORIZER_JUDGE_TIMEOUT_SECONDS`, `CATEGORIZER_JUDGE_MAX_TOKENS` | 60, 400: the answer key's one call (§381) |
-| `NANDO_JUDGE_PER_RUN` | 50: episodes a nightly run grades at most (§381) |
+| `NANDO_JUDGE_PER_RUN` | 10 (50 until §503): episodes a nightly run grades at most (§381), chosen by `training.choose` - every write path in turn, what teaches first (§502) |
+| `NANDO_JUDGE_BATCH`, `NANDO_JUDGE_COLLECT_SECONDS` | 1, 300: grade through the Message Batches API at half price, sent at 03:00 and collected every five minutes once it ends, read with the model it was sent to; a create that fails is not followed by a live read; 0 grades live (§502, §506) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
 Decided (2026-10-28): the category tag is the same everywhere for the

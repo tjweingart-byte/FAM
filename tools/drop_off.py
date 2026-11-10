@@ -1,4 +1,4 @@
-"""Which sentences listeners stop at (§502).
+"""Which sentences listeners stop at (§521).
 
     python tools/drop_off.py                 # the last 30 days
     python tools/drop_off.py --days 60 --min-reached 20 --top 40

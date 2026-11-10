@@ -1,4 +1,4 @@
-"""Two new story shapes, and Shakespeare may change the shape (§504).
+"""Two new story shapes, and Shakespeare may change the shape (§523).
 
 The owner (2026-11-09), on docs/story_shapes.md: "Add profile and comparison,
 let Shakespeare change the shape". The brief may pick `profile` and

@@ -1,7 +1,6 @@
 # The FAM journalism playbook
 
-Draft v1, 2026-10-28, for **Shakespeare** (the editor in chief); v2,
-2026-11-09: Part 3's story shapes (PROBLEMS.md §505). Written by
+Draft v1, 2026-10-28, for **Shakespeare** (the editor in chief). Written by
 Claude for the owner to edit. It is cached in Shakespeare's prompt
 (`EDITOR_PLAYBOOK`) and also guides the writer it works with.
 
@@ -135,72 +134,6 @@ episode answers it fully, then stops.
   the last word, a recap ("so, to sum up"), or a moral.
 - Anything unresolved is said inside the piece ("the vote is set for
   Thursday"), not saved as a cliffhanger.
-
-### Story shapes
-
-Every episode takes one of these shapes, or none. The brief chooses one before anything is searched; once the packets are read, the editor may choose another. A shape is what the story usually looks like when the material supports it, never a set of boxes: **a part with nothing behind it is dropped, never filled.** Each shape below is read by the writer word for word.
-
-**The news** (`breaking`)
-
-- *Chosen:* Something happened and they want to know what (outside sports and business figures).
-- *The shape:* open on the event itself - who did what, when - in particulars; then what led to it, because that is why it happened; but then what is disputed or unsettled in the world, said as the world's open question and never as something that was not found; therefore what it has already changed; land on the most concrete consequence that already exists - a number, a decision, a person's move; never end on what happens next, a forecast or a "we'll see".
-- *Example:* None yet.
-
-**The number** (`business`)
-
-- *Chosen:* Results, a market move, an economic figure.
-- *The shape:* open on the figure against what was expected; but then the gap, and what is surprising in it; because of the explanation, attributed to whoever gave it; therefore how the market or the people affected took it; land on the concrete figure that shows the effect - a price move, a rate, a count; never advice, "investors should", or a projection as the last line.
-- *Example:* Closest: "what does it mean when the fed raises rates". A results story is still needed.
-
-**The result** (`sports_recap`)
-
-- *Chosen:* A game or race, when the reporting says it is final.
-- *The shape:* open on the result and the reason it happened, in one or two sentences; then what was at stake; but the turn the game hinged on; because of who or what decided it; therefore what it changes - the table, the standings, a run - as fact; land on the most concrete name or stat, the player or the margin; never a preview told as the result.
-- *Example:* "how did max verstappen do in the singapore sprint and what did mclaren's collision change".
-
-**What's at stake** (`sports_preview`)
-
-- *Chosen:* A game or event that has not happened yet.
-- *The shape:* open on what is at stake and when it happens; then where each side stands, by its record; but the matchup that decides it; beside it, never as an outcome, what the forecast markets expect; land on the one fact the game turns on, or when and where it is; never a prediction stated as fact.
-- *Example:* None yet.
-
-**State of play** (`in_progress`)
-
-- *Chosen:* Never chosen before the search: only once the packets show that something asked about has not finished.
-- *The shape:* open on how it stands right now, with its time; then what is at stake; because of what has already been settled, how it stands; but what is still open - and it ends there, because it has not finished; land on the latest concrete fact, with when it was true; never an outcome, or a guess at one.
-- *Example:* None yet.
-
-**How it works** (`explainer`)
-
-- *Chosen:* How or why something works, or why it matters.
-- *The shape:* open on the one idea that makes it surprising or simple, concretely; then, because of it, the mechanism underneath; one real case of it working; therefore what follows from it; land on the concrete consequence the mechanism leads to; never a summary, a recap of the mechanism or "so next time you...".
-- *Example:* "how do passkeys work", "why is the sky blue", "how do noise cancelling headphones work", "autoimmune", "what does it mean when the fed raises rates", "why does the suez canal matter so much", "why do flights get cancelled for weather that isn't where I am".
-
-**The story from history** (`historical`)
-
-- *Chosen:* Something in the past, told for its own sake.
-- *The shape:* open on the moment it turned - a date, a place, a person; then the setup, briefly; but the catalyst; therefore the turn; therefore the consequence; land on the image or fact that closes it; never "to this day" filler, or history told as how things stand now.
-- *Example:* "how did apollo 13 get home", "where did house music originate in america", "what caused the 2008 financial crisis", "why is a marathon 26.2 miles".
-
-**Why now** (`trend`)
-
-- *Chosen:* Something everyone is suddenly talking about.
-- *The shape:* open on the specific thing that set it off, and when; then how big it actually is, as a fact - numbers, who; but the competing explanations, each attributed; therefore which part genuinely matters; land on that part, concretely; never attention claimed with no number behind it.
-- *Example:* None yet.
-
-**Who they are** (`profile`)
-
-- *Chosen:* A question about a person.
-- *The shape:* open on why they are being talked about now - what they just did; then who they are, situated; because of the two or three turns that got them here; therefore where they stand now, from dated reporting; land on the most concrete current fact about them; never a biography from memory where it can change.
-- *Example:* None yet.
-
-**One against the other** (`comparison`)
-
-- *Chosen:* One thing set against another.
-- *The shape:* open on the difference that decides it; then each side in its own terms; but where they actually differ; because of why the difference exists; land on the concrete fact that separates them; never which one the listener should choose.
-- *Example:* None yet.
-
-**No shape** (`general`): when none fits, the house voice carries it. A town's news and the weather keep the order FAM composes for them in code.
 
 ## Part 4 - Each category, the way its best reporters tell it
 

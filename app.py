@@ -2241,7 +2241,7 @@ async def health(request: Request) -> dict:
             "own": bool(settings.edition_writer_model
                         or settings.edition_writer_effort),
         },
-        # The writer's effort wherever nobody waits (§502): the editions,
+        # The writer's effort wherever nobody waits (§521): the editions,
         # the write-ahead and prefetch warms. searchFAM is `writer_effort`.
         "ahead_writer_effort": writer_for(ScriptNotes(ahead=True))[1],
         "ahead_writer_effort_source": ("AHEAD_WRITER_EFFORT env var"
@@ -11631,6 +11631,105 @@ def _agents_panel(now: float = 0.0) -> dict:
             "adapters": health["adapters"], "consent_covers": health["consent_covers"],
             "overlord": health["overlord"], "tasks": health.get("tasks"),
             "agents": rows, "recent": METER.agent_calls(limit=25)}
+
+
+# --------------------------------------------------------------- categories (§503)
+def _script_for_review(key: str) -> list:
+    # `script` reads without counting a hit: reviewing is not a replay (§391).
+    return getattr(SCRIPT_CACHE, "script", lambda _k: [])(key) or []
+
+
+def _categories_panel() -> dict:
+    import topics
+    from agents import training as agent_training
+
+    tree = topics.category_tree()
+    allowed, why = agent_training.calibration_allowed()
+    composer_ok, composer_why = agent_training.composer_allowed()
+
+    def safely(read, empty):
+        # One store that fails is one empty panel, never the page (§503).
+        try:
+            return read()
+        except Exception:  # noqa: BLE001
+            log.exception("the categories panel could not read %s", getattr(read, "__name__", read))
+            return empty
+
+    return {
+        "settings": {"judge_model": settings.categorizer_judge_model,
+                     "per_run": int(settings.nando_judge_per_run),
+                     "batch": bool(settings.nando_judge_batch),
+                     "disagreements_only": bool(settings.nando_judge_disagreements_only),
+                     "calibration_model": settings.categorizer_calibration_model,
+                     "calibration_episodes": min(int(settings.nando_calibration_episodes),
+                                                 agent_training.CALIBRATION_MAX),
+                     "on": bool(settings.agents and settings.categorizer)},
+        "key": safely(agent_training.report, {}) if agent_training.exists() else {},
+        "owner": safely(agent_training.owner_agreement, {}),
+        "calibration": dict(safely(agent_training.calibration_report, {"ran": False}),
+                            allowed=allowed, why_not=why),
+        "composer": {"allowed": composer_ok, "why_not": composer_why},
+        "nodes": sorted(set(tree.nodes()) | set(topics.FACETS)),
+    }
+
+
+@app.get("/api/admin/categories")
+async def admin_categories(request: Request) -> dict:
+    """Nando's training on one page (§503): the answer key's settings and
+    agreement, the owner's own agreement with it, and the one-time
+    comparison. Read-only."""
+    _require_admin(request)
+    return await asyncio.to_thread(_categories_panel)
+
+
+@app.get("/api/admin/categories/queue")
+async def admin_categories_queue(request: Request, limit: int = 20) -> dict:
+    """Episodes for the owner to file by hand (§503), disagreements first,
+    every write path in turn. Costs nothing: no model is asked."""
+    _require_admin(request)
+    from agents import training as agent_training
+
+    rows = await asyncio.to_thread(agent_training.review_queue, _script_for_review,
+                                   max(1, min(int(limit or 20), 50)))
+    return {"episodes": rows}
+
+
+class CategoryLabel(BaseModel):
+    key: str = Field(..., min_length=1, max_length=120)
+    #: A node of the category tree, or "" when no node fits.
+    node: str = Field("", max_length=120)
+
+
+@app.post("/api/admin/categories/label")
+async def admin_categories_label(req: CategoryLabel, request: Request) -> dict:
+    """The owner's filing of one episode (§503): kept as their review and as
+    the episode's grade, ahead of any model's. Teaches Nando; never re-files
+    the episode."""
+    _require_admin(request)
+    from agents import training as agent_training
+
+    try:
+        return await asyncio.to_thread(agent_training.owner_label, req.key, req.node)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/admin/categories/calibrate")
+async def admin_categories_calibrate(request: Request) -> dict:
+    """Queue the owner's one-time comparison of the answer key against a
+    second (§503). Refused once it has run, while the amendment to nando.md
+    rule 12 is unsigned, or while Nando is off; queued under one key, so it
+    is never queued twice."""
+    _require_admin(request)
+    from agents import training as agent_training
+
+    allowed, why = await asyncio.to_thread(agent_training.calibration_allowed)
+    if not allowed:
+        raise HTTPException(status_code=409, detail=why)
+    if not (settings.agents and settings.categorizer):
+        raise HTTPException(status_code=409, detail="Nando is off (AGENTS, CATEGORIZER)")
+    queued = await asyncio.to_thread(agent_training.queue_calibration)
+    return {"ok": True, "queued": queued}
 
 
 @app.get("/api/admin/schema")

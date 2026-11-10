@@ -1,5 +1,5 @@
 {
-  "_what": "Each example's facet (topics.FACETS), so the writer and Shakespeare are pointed at the examples closest to the story in hand (§501). A new example names its facet here; tests/test_examples_matched_501.py fails if one does not.",
+  "_what": "Each example's facet (topics.FACETS), so the writer and Shakespeare are pointed at the examples closest to the story in hand (§520). A new example names its facet here; tests/test_examples_matched_520.py fails if one does not.",
   "1-blue-sky": "science",
   "2-apollo-13": "science",
   "2-autoimmune": "health",

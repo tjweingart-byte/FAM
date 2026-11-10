@@ -7,13 +7,40 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-Nothing. Manifest version 7 - `journalism_playbook.md` v2, Part 3's story
-shapes - was signed on 2026-11-09 (PROBLEMS.md §506), on a new computer
-with OpenSSL 4.1 from a Miniforge `famsign` environment, and uploaded to
-this folder; the session moved the files into place. Before it: version 6,
-the merged books (§470); `mclovin.md` v3 (§443, version 5); v2 (§441,
-version 4); `consuela.md` with Perplexity (§412, version 3); `nando.md`
-rule 12 (§392).
+**`journalism_playbook.md` v2** - Part 3 gains "Story shapes", the ten
+shapes and `general` the owner approved (PROBLEMS.md §523-§525, "Keep the
+list as drafted and sign the wording"). The owner signed it on the branch as
+that branch's manifest version 7 (§525), but Main had meanwhile signed its
+own version 7 (`nando.md` rule 12, §505), so neither signature covers both
+(§531). `docs/agent_rules/MANIFEST.pending.json` is **version 8**: Main's
+version 7 with only the playbook's fingerprint changed. Until it is signed,
+`docs/journalism_playbook.md` stays the signed v1, so every agent runs; the
+writer reads the shapes' wording from `episode_intelligence.STRUCTURES`
+meanwhile, which a test holds to this proposal word for word.
+
+**The playbook is not in `docs/agent_rules/`**: it is
+`docs/journalism_playbook.md`. To keep the build green, upload the signed
+`MANIFEST.json` and `MANIFEST.json.sig` to **this folder**
+(`docs/agent_rule_proposals/`); the session verifies them against
+`owner.pub` and moves all three files into place in one commit (§525 did
+the same).
+
+Before it: manifest version 7, `nando.md` rule 12 amended (§502, §503),
+signed on 2026-11-09 on a borrowed computer with `tools/sign_rulebooks.py`
+(PROBLEMS.md §505); version 6, the merged books (§470); `mclovin.md` v3
+(§443, version 5); v2 (§441, version 4); `consuela.md` with Perplexity
+(§412, version 3); `nando.md` rule 12 (§392).
+
+## Signing on a computer without OpenSSL 3 (§504)
+
+`tools/sign_rulebooks.py` makes the same signature with Python alone (a
+test holds it byte for byte equal to OpenSSL's). Put it in one folder with
+`MANIFEST.pending.json` and the changed book, install the one package
+(`python3 -m pip install --user cryptography`), and run
+`python3 sign_rulebooks.py` there. It waits while the key is copied from
+the password manager, reads it from the clipboard, empties the clipboard,
+refuses any key but the one in `owner.pub`, and writes `MANIFEST.json` and
+`MANIFEST.json.sig`. Nothing is pasted and the key is never saved.
 
 ## Signing it (on the owner's Mac, with the owner's key)
 

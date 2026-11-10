@@ -1,4 +1,4 @@
-"""Training the writer (§502): high effort where nobody waits, the ear
+"""Training the writer (§521): high effort where nobody waits, the ear
 checks, where listeners stop, and before-and-after pairs made before launch.
 """
 from __future__ import annotations

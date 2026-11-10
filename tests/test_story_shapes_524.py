@@ -1,4 +1,4 @@
-"""The story shapes are the signed playbook's, word for word (§505).
+"""The story shapes are the signed playbook's, word for word (§524).
 
 The owner (2026-11-09): "Keep the list as drafted and sign the wording".
 Each shape's text lives in the journalism playbook's Part 3, "Story
@@ -53,7 +53,7 @@ def test_each_shape_opens_and_lands_and_says_what_it_never_does():
 
 
 def test_no_shape_ends_on_a_forecast_or_a_summary_any_more():
-    """The three endings §503 found against the rules are gone."""
+    """The three endings §522 found against the rules are gone."""
     joined = " ".join(ei.STRUCTURES.values())
     for old in ("then what happens next", "then what it implies",
                 "the way to think about it afterwards"):

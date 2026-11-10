@@ -8,7 +8,7 @@ written ahead of the tap while `EDITOR_TRIAL=1` carries its arm - with
 Shakespeare's plan, or left without it by a hash of its question. Compared
 on listening - left in the first 20 seconds, heard 85%, the mean share
 heard - and on the six code measures. First, for every episode he planned
-(trial or not), whether the writer followed his plan (§501): opening, parts,
+(trial or not), whether the writer followed his plan (§520): opening, parts,
 order, landing. No key, no network, no person's id.
 
 Read with the listens: a few hundred listens an arm tells little; a
@@ -31,7 +31,7 @@ def main() -> int:
 
     followed = episode_quality.plan_following_report(days=args.days)["surfaces"]
     for surface, entry in followed.items():
-        # Whether the writer followed his plan (§501), every episode he planned.
+        # Whether the writer followed his plan (§520), every episode he planned.
         parts = ", ".join(f"{p} {'-' if entry[p] is None else f'{entry[p]:.2f}'}"
                           for p in episode_quality.PLAN_PARTS + ("score",))
         print(f"plan followed, {surface} ({entry['episodes']} episodes): {parts}")

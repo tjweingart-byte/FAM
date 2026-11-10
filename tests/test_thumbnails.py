@@ -179,25 +179,31 @@ def test_a_tile_on_an_unpainted_branch_borrows_a_picture(tree):
     assert "college football" in th.asked_for()
 
 
-def test_a_tile_the_tree_cannot_place_still_has_a_picture(tree):
+def test_a_tile_the_tree_cannot_place_wears_no_other_facets_picture(tree):
+    """11.9: the hashed facet picture is gone. A culture tile nothing places
+    wears culture's picture or none - never tech's."""
     _put("tech", facet="tech")
     topic = T.Topic(id="x", title="Unplaceable", subtitle="",
                     query="a question the tree knows nothing about",
                     tags=("culture",), icon="news")
-    d = topic.as_dict()
-    assert d["thumb"].startswith("/api/thumb/tech")
-    assert d["thumb_borrowed"] is True
+    assert topic.as_dict()["thumb"] == ""
+    _put("culture", facet="culture")
+    th._MEMO.clear()
+    th._bump_generation()
+    assert topic.as_dict()["thumb"].startswith("/api/thumb/culture")
 
 
 def test_a_borrowed_picture_is_labelled_with_the_tiles_own_facet(tree):
-    """The last borrowing step can hand a sports tile a money picture; the
+    """A tile under an unpainted node borrows its branch's picture, and the
     word on the card still names the episode."""
-    _put("business", facet="money")
-    topic = T.Topic(id="x", title="Unplaceable", subtitle="",
-                    query="a question the tree knows nothing about",
-                    tags=("sports",), icon="sports")
+    _put("sports", facet="sports")
+    topic = T.Topic(id="x", title="College money", subtitle="",
+                    query="how college football money changed",
+                    tags=("sports",), icon="sports",
+                    category="college football")
     d = topic.as_dict()
-    assert d["thumb"] and d["thumb_borrowed"] is True
+    assert d["thumb"].startswith("/api/thumb/sports")
+    assert d["thumb_borrowed"] is True
     assert d["thumb_facet"] == "sports"
 
 

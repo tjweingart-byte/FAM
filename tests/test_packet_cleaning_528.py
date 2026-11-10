@@ -1,11 +1,11 @@
-"""The packet Shakespeare numbers is cleaned first (§509).
+"""The packet Shakespeare numbers is cleaned first (§528).
 
 What he chose from was the sources' raw lines: markup, glued sentences,
 sentences cut at "Oct.", repeats, "add us to Google" lines - and, as source
 P1, the guidance written around the live block for the writer ("Not knowing
 is not the same as nothing having happened..."), numbered as if it were a
 fact. Markup is taken off, never a word changed; tables stay (a standings
-table is what a sports episode lands on, §508). Made-up text here, never a
+table is what a sports episode lands on, §527). Made-up text here, never a
 source's.
 """
 from __future__ import annotations

@@ -388,7 +388,7 @@ class Settings:
     edition_writer_model: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_MODEL", ""))
     # **The writer's effort where nobody waits: high** (the owner,
-    # 2026-11-09, §502): the editions, the write-ahead and prefetch's script
+    # 2026-11-09, §521): the editions, the write-ahead and prefetch's script
     # warms are written before anybody taps, so the writer may think as hard
     # as Shakespeare does there (Haiku 5.5 high, §440). searchFAM keeps
     # `EFFORT` (low), so the first word is not moved. `EDITION_WRITER_EFFORT`,
@@ -999,6 +999,11 @@ class Settings:
     # The ceiling on images requested per rolling day, across the deployment.
     # A new node waits for tomorrow rather than a runaway spending tonight.
     thumbnails_daily_images: int = _env_int("THUMBNAILS_DAILY_IMAGES", 60)
+    # How many pictures a broad node holds (the owner 11.9): each facet and
+    # each node directly under one (football, elections and politics, ...)
+    # gets this many, painted after every node has its first, so one picture
+    # is not on every episode that lands on a broad subject. 1 turns it off.
+    thumbnails_broad_pictures: int = _env_int("THUMBNAILS_BROAD_PICTURES", 4)
     # How many nodes one background sweep paints.
     thumbnails_per_sweep: int = _env_int("THUMBNAILS_PER_SWEEP", 20)
     # Nodes per scene-writing call.
@@ -2094,10 +2099,18 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "CATEGORIZER_MODEL", "anthropic:claude-haiku-5-5").strip())
     # Nando's answer key (§381): the stronger model that grades his filings
-    # in the background, nightly. Opus, the owner's choice.
+    # in the background, nightly. Opus until §503, when the owner moved it to
+    # Sonnet for cost - still stronger than Nando's Haiku, as nando.md rule
+    # 12 asks.
     categorizer_judge_model: str = field(
         default_factory=lambda: os.environ.get(
-            "CATEGORIZER_JUDGE_MODEL", "anthropic:claude-opus-5-5").strip())
+            "CATEGORIZER_JUDGE_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    # The second answer key of the owner's one-time comparison (§503): Opus
+    # re-grades at most `NANDO_CALIBRATION_EPISODES` episodes once, so the
+    # owner can see how often Sonnet agrees with it. Never nightly.
+    categorizer_calibration_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CATEGORIZER_CALIBRATION_MODEL", "anthropic:claude-opus-5-5").strip())
     retriever_model: str = field(
         default_factory=lambda: os.environ.get("RETRIEVER_MODEL", "").strip())
     editor_model: str = field(
@@ -2158,7 +2171,23 @@ class Settings:
         "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", 60.0)
     categorizer_judge_max_tokens: int = _env_int("CATEGORIZER_JUDGE_MAX_TOKENS", 400)
     # How many written episodes one nightly run grades at most (§381).
-    nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 50)
+    # 10 since §503 (the owner, for cost; 50 before).
+    nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 10)
+    # Grade only episodes where Nando, the writer and the composer do not all
+    # agree (§503): three filers agreeing is taken as right without a call.
+    nando_judge_disagreements_only: bool = field(
+        default_factory=lambda: os.environ.get("NANDO_JUDGE_DISAGREEMENTS_ONLY", "1")
+        not in ("0", "false", "False", ""))
+    # How many episodes the one-time comparison reads (§503).
+    nando_calibration_episodes: int = _env_int("NANDO_CALIBRATION_EPISODES", 100)
+    # The answer key through the Message Batches API (§501): every token at
+    # half price, answered within the day; nobody waits at 03:00. Sent by
+    # the nightly run, collected every `NANDO_JUDGE_COLLECT_SECONDS`. 0 asks
+    # each grade live, one at a time, as before.
+    nando_judge_batch: bool = field(
+        default_factory=lambda: os.environ.get("NANDO_JUDGE_BATCH", "1")
+        not in ("0", "false", "False", ""))
+    nando_judge_collect_seconds: float = _env_float("NANDO_JUDGE_COLLECT_SECONDS", 300.0)
     editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
     editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
     # Measured (§437): at high effort Haiku 5.5 spent 4,000 tokens thinking
@@ -2185,24 +2214,24 @@ class Settings:
     editor_tandem: bool = field(
         default_factory=lambda: os.environ.get("EDITOR_TANDEM", "0")
         not in ("0", "false", "False", ""))
-    # Shakespeare's worked plans (§501): beside the house examples in his
+    # Shakespeare's worked plans (§520): beside the house examples in his
     # `<teaching>`, a plan for several of them - the packet it was made
     # from, his answer, and the example it became (`examples/plans/`). Off:
     # he is shown the finished examples alone, as before.
     editor_worked_plans: bool = field(
         default_factory=lambda: os.environ.get("EDITOR_WORKED_PLANS", "1")
         not in ("0", "false", "False", ""))
-    # The house examples matched to the story (§501): the writer's request
+    # The house examples matched to the story (§520): the writer's request
     # names the one or two examples of the episode's facet
     # (`examples/facets.json`), and Shakespeare is told which worked plans
     # are closest. In the request, never the cached system block. **Off by
-    # default since §507**: on the 50 frozen questions it bought nothing
+    # default since §526**: on the 50 frozen questions it bought nothing
     # (+0.03 [-0.12, +0.18]) and cost repetition (-0.37 [-0.71, -0.04]).
     # Off: the request is byte for byte what it was.
     example_matching: bool = field(
         default_factory=lambda: os.environ.get("EXAMPLE_MATCHING", "0")
         not in ("0", "false", "False", ""))
-    # Before-and-after pairs in the writer's instructions (§502): each the
+    # Before-and-after pairs in the writer's instructions (§521): each the
     # same episode twice from the same sources, a flawed draft and the house
     # voice, made before launch (`tools/teaching_pairs.py`) and approved
     # into `examples/pairs/`. Fixed text in the cached system block. Off:

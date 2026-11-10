@@ -492,14 +492,34 @@ and `limit` = Lines.
 | 31221 | 108 | 498. The 11.7 myFAM packet: a mix is made by naming it, Spotify's playlist page, short names for long topics, joint mixes (2026-11-08) |
 | 31329 | 109 | 499. The 11.3 packet: exploreFAM out, "Not interested" in, the catalogue dated, a vibe deleted whole, larger text (2026-11-08) |
 | 31438 | 62 | 500. Categories as filter chips: option 2 of the deck (2026-11-08) |
-| 31500 | 111 | 501. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09) |
-| 31611 | 97 | 502. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09) |
-| 31708 | 35 | 503. Story shapes, drafted for the owner (2026-11-09) |
-| 31743 | 45 | 504. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09) |
-| 31788 | 41 | 505. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09) |
-| 31829 | 29 | 506. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09) |
-| 31858 | 61 | 507. The §501 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10) |
-| 31919 | 54 | 508. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10) |
-| 31973 | 58 | 509. The packet Shakespeare numbers, cleaned (2026-11-10) |
-| 32031 | 45 | 511. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10) |
-| 32076 | 50 | 512. The whole branch double-checked: what the review found, and what was fixed (2026-11-10) |
+| 31500 | 85 | 501. Nando on the background paths: a warmed brief carries his decision, and each path is counted (2026-11-09) |
+| 31585 | 110 | 502. Training Nando: grade what teaches, through the Batch API, and grade every source that files (2026-11-09) |
+| 31695 | 73 | 503. The answer key on Sonnet, ten a night where the filers disagree; the owner's review queue; the one-time check against Opus (2026-11-09) |
+| 31768 | 26 | 504. Signing the rule books on a borrowed computer (2026-11-09) |
+| 31794 | 20 | 505. The owner signed manifest version 7, from a borrowed computer (2026-11-09) |
+| 31814 | 95 | 506. The review before the pull request: the owner's review kept, rule 12 held, a batch's spend counted once (2026-11-09) |
+| 31909 | 93 | 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09) |
+| 32002 | 144 | 508. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
+| 32146 | 46 | 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09) |
+| 32192 | 31 | 510. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09) |
+| 32223 | 16 | 511. "lead" is never a category on its own (2026-11-09) |
+| 32239 | 24 | 512. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09) |
+| 32263 | 32 | 513. No grown phrase holding an everyday word is a category (2026-11-09) |
+| 32295 | 11 | 514. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10) |
+| 32306 | 12 | 515. "world cup qualifiers" and "power outage" seeded (2026-11-10) |
+| 32318 | 12 | 516. "power grid" and "world record" seeded (2026-11-10) |
+| 32330 | 9 | 517. "nfl trade rumors" seeded (2026-11-10) |
+| 32339 | 43 | 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
+| 32382 | 74 | 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |
+| 32456 | 111 | 520. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09) |
+| 32567 | 97 | 521. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09) |
+| 32664 | 35 | 522. Story shapes, drafted for the owner (2026-11-09) |
+| 32699 | 45 | 523. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09) |
+| 32744 | 41 | 524. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09) |
+| 32785 | 29 | 525. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09) |
+| 32814 | 61 | 526. The §520 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10) |
+| 32875 | 54 | 527. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10) |
+| 32929 | 58 | 528. The packet Shakespeare numbers, cleaned (2026-11-10) |
+| 32987 | 47 | 529. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10) |
+| 33034 | 50 | 530. The whole branch double-checked: what the review found, and what was fixed (2026-11-10) |
+| 33084 | 41 | 531. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10) |

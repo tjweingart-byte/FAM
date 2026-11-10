@@ -1342,7 +1342,7 @@ class PodcastPipeline:
                      stats.audio_key[:12], self._audio_voice())
             return
         try:
-            # Where each sentence began (§502), for `episode_quality.drop_off`.
+            # Where each sentence began (§521), for `episode_quality.drop_off`.
             import episode_quality
 
             await asyncio.to_thread(

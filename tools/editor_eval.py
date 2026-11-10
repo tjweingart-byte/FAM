@@ -4,7 +4,7 @@
     AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run      # write and score
     python tools/editor_eval.py --report                           # the table again
 
-    # §501: the taught arms, on the same frozen packets
+    # §520: the taught arms, on the same frozen packets
     AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run --arms none_matched,haiku_taught
 
 The owner decides Shakespeare's model ahead of the tap on this comparison
@@ -17,14 +17,14 @@ frozen**, then written three ways with the same writer:
 * `sonnet` - Shakespeare on Sonnet 5.5 at high effort (pinned here: since
   §440 `EDITOR_MODEL` is Haiku).
 
-Two more arms (§501), so the teaching is measured against §437's own results:
+Two more arms (§520), so the teaching is measured against §437's own results:
 
 * `none_matched` - no editor; the writer's request names the house examples
   of the episode's facet (`EXAMPLE_MATCHING`);
 * `haiku_taught` - Shakespeare on Haiku 5.5 high with his worked plans
   (`EDITOR_WORKED_PLANS`), the writer matched as in `none_matched`.
 
-And `none_low` (§507): no editor, the writer at low effort as before §502,
+And `none_low` (§526): no editor, the writer at low effort as before §521,
 to measure what `AHEAD_WRITER_EFFORT=high` buys against `none`.
 
 The first three arms run with both switched off, so they stay §437's
@@ -122,7 +122,7 @@ ARMS = ("none", "haiku", "sonnet", "none_matched", "haiku_taught", "none_low")
 DEFAULT_ARMS = ("none", "haiku", "sonnet")
 #: The editor each arm runs, or none.
 ARM_EDITOR = {"haiku": "haiku", "sonnet": "sonnet", "haiku_taught": "haiku"}
-#: The arms taught as §501 teaches: the writer's examples matched to the
+#: The arms taught as §520 teaches: the writer's examples matched to the
 #: story and Shakespeare's worked plans. Every other arm has both off.
 TAUGHT_ARMS = frozenset({"none_matched", "haiku_taught"})
 #: Each editor's model setting for Shakespeare (always at high effort, ahead).
@@ -135,7 +135,7 @@ ARM_MODEL = {"haiku": "anthropic:claude-haiku-5-5", "sonnet": "anthropic:claude-
 
 class _Settings:
     """The arm's settings, put in place for one script and taken back after:
-    the switches §501 added, and the editor's pinned model."""
+    the switches §520 added, and the editor's pinned model."""
 
     def __init__(self, arm: str) -> None:
         import config
@@ -143,8 +143,8 @@ class _Settings:
         changes = {"editor_worked_plans": arm in TAUGHT_ARMS,
                    "example_matching": arm in TAUGHT_ARMS}
         if arm == "none_low":
-            # The writer as it was before §502: low effort ahead of the tap,
-            # to measure what high effort buys (§507).
+            # The writer as it was before §521: low effort ahead of the tap,
+            # to measure what high effort buys (§526).
             changes.update(ahead_writer_effort="low", edition_writer_effort="")
         editor = ARM_EDITOR.get(arm)
         if editor:
@@ -229,7 +229,7 @@ async def write_arm(generator, frozen: dict, arm: str) -> dict:
                                          model_setting=ARM_SETTING[ARM_EDITOR[arm]])
             editor_seconds = time.perf_counter() - t
             if block:
-                # His shape, as the editions apply it (§504).
+                # His shape, as the editions apply it (§523).
                 import script_generator
 
                 plan = script_generator._with_shape(plan, notes)

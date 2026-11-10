@@ -19,8 +19,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   budget - history goes in the topic files and `PROBLEMS.md`, never here.
 - **History:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section and line
   (`tools/problems_index.py`; a test fails if stale). Read by offset.
-- "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`; numbered
-  open problems are in `open-problems.md`.
+- "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`.
 
 | Topic file | Holds |
 |---|---|
@@ -64,15 +63,16 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - The from-knowledge cover half on search is deleted (§108); search's wait is
   in front of the first word and honest - five loading steps from the
   server's marks, each ≥2s (first ≥0.5s, §263), audio held to the fifth; a replay skips them (§148). [search-no-cover]
+- DailyFAM tiles load on a dial, mixes glide (§509): no steps, audio never held. [browse-loaders]
 - **The spec: type a question, and within about a second audio starts giving
   the answer.** Seconds in front of the first word are wrong. [one-sentence-spec]
 - **Amended for search only**, at the owner's direction (§82, §108, §129): EI
   runs before search; nothing is written before retrieval finishes; the writer
-  reasons first (`EFFORT=low`). myFAM, DailyFAM and Explore pay none of it -
+  reasons first (`EFFORT=low`). myFAM and DailyFAM pay none of it -
   their briefs/scripts are built before the tap. `EPISODE_INTELLIGENCE=0`
   restores old latency. No preamble to disguise a wait; no text before its
   material. [spec-amended-for-search]
-- A slow answer is a scheduling choice (18.30s → 0.12s). [slow-is-scheduling]
+- A slow answer is a scheduling choice. [slow-is-scheduling]
 - Prefetch-on-typing-pause was removed at the user's request; never re-add. [no-typing-prefetch]
 - **Rails written whole** 05:00/17:00 ET (§359): every held story, sports
   kept to the next; draws warm briefs. [myfam-warms-briefs] [rails-edition]
@@ -82,10 +82,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   the episode's topic to a mix. [interface-181]
 
 - **The player is Spotify's layout** (§190): Home logo (§255), picture (4:3, §192;
-  centred between GO DEEPER and the title, never missing - `pick_for_player`
-  borrows, as do tiles, §214, by category §247, a named team first §282 - and on the mini player, sides cropped, §193), sources by it, GO
-  DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
-  slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
+  centred between GO DEEPER and the title; `pick_for_player` borrows (tiles
+  §214), by category §247, named team first §282, never hashed, several per broad node §507; mini player cropped §193), sources by it, GO
+  DEEPER pill at the top, share/vibe/save on the right (§192), CC pill,
+  captions on the picture (§519), ⋯ menu; no "exclude from taste"; searcher
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
@@ -93,7 +93,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Categories are filter chips** (§229/§500): a row atop myFAM filters in
   place; today's cache; a tap plays. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
-  tile's ⋯; client state only; plays before the grid. [queue]
+  tile's ⋯; client state; plays before the grid; a mix survives Go Deeper
+  (§519). [queue]
 
 - **exploreFAM is out of the app** (§499): no reel, pill or swipe; a
   category plays in the player; `/api/explore`, comments kept for old
@@ -108,7 +109,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and docs keep the
-  old names. [names-swapped]
+  old names; tabs dailyFAM/myFAM/yourFAM (§519). [names-swapped]
 
 ## What an episode is (`product.md`)
 
@@ -127,7 +128,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   a written live-story tile takes the episode's title, summary, category (§189). [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
-  gestures at it. Every Go Deeper (Explore included) shows a suggestion - that
+  gestures at it. Every Go Deeper shows a suggestion - that
   line, else one built from the title - a box, and a 1-5 minute length (§170);
   opening it never stops the episode, and one ending under it starts nothing (§186). [next-is-prediction]
 - After an episode: four recommendations, first auto-starts in **15s**; the lead
@@ -370,7 +371,7 @@ Caching and prefetch
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
 - **Brief: Haiku 5.5, medium** (§261), three calls, 8 s when one
-  waits (§268); **writer: Haiku, low; high ahead** (§272, §502);
+  waits (§268); **writer: Haiku, low; high ahead** (§272, §521);
   composer, placer, thumbnails `MODEL`; priced per model. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its
   instructions are one cacheable block (`PROMPT_CACHE`); the Trending and
@@ -425,8 +426,8 @@ Accounts, tiers, sharing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
-- **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207);
-  admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]
+- **Tiers built, off for now** (`ENFORCE_QUOTAS=0`, §519; `1`
+  restores §207); admins `unlimited`; no checkout. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every

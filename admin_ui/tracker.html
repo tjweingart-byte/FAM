@@ -303,6 +303,7 @@
     <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
     <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
     <a href="#quality" data-nav="quality">Episode quality</a>
+    <a href="#categories" data-nav="categories">Categories (Nando)</a>
     <div class="group">Running costs</div>
     <a href="#services" data-nav="services">Outside service requests</a>
     <div class="group">Voice</div>
@@ -397,6 +398,38 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="inboxList"></div>
     </section>
 
+    </div>
+
+    <div class="page" data-page="categories" data-title="Categories (Nando)" hidden>
+    <section class="card section">
+      <h2>How Nando is graded</h2>
+      <p class="sub">The answer key grades a few of Nando's filings each night, only where Nando, the writer and the
+        composer disagree (PROBLEMS.md §503). Your own reviews below cost nothing, count ahead of any model's grade,
+        and say how far the key can be trusted.</p>
+      <div class="kpis" id="catKpis"></div>
+    </section>
+
+    <section class="card section">
+      <h2>Review these <small id="catQueueCount"></small></h2>
+      <p class="sub">Recent episodes, disagreements first and every write path in turn. Read the question and the
+        opening, then confirm a filing or type the right node. "none" when no category fits. A review teaches Nando;
+        it never re-files the episode.</p>
+      <datalist id="catNodes"></datalist>
+      <div class="tbl"><table id="catQueue"></table></div>
+    </section>
+
+    <section class="card section">
+      <h2>One-time check against a second key</h2>
+      <p class="sub" id="catCalibNote"></p>
+      <p><button class="go" type="button" id="catCalibrate" style="padding:8px 16px" hidden>Run the one-time check</button>
+        <span class="sub" id="catCalibMsg"></span></p>
+      <div class="tbl"><table id="catCalib"></table></div>
+    </section>
+
+    <section class="card section">
+      <h2>Where the key and you disagreed</h2>
+      <div class="tbl"><table id="catOwner"></table></div>
+    </section>
     </div>
 
     <div class="page" data-page="quality" data-title="Episode quality" hidden>
@@ -1397,6 +1430,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     // The chart measures itself, and a hidden page has no width.
     if (name === "overview") drawChart(series);
     if (name === "quality" && !$("main").hidden) loadQuality();
+    if (name === "categories" && !$("main").hidden) loadCategories();
     window.scrollTo(0, 0);
   }
   function menu(open) {
@@ -1682,6 +1716,94 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (tr && qData) { var nd = tr.getAttribute("data-qnode"); qOpen = qOpen === nd ? "" : nd; drawQuality(); }
   });
   $("qDays").addEventListener("change", loadQuality);
+
+  // Categories (Nando, §503): the answer key, the owner's reviews, and the
+  // one-time comparison.
+  var catCalibEpisodes = 100;
+  function catPct(x) { return x == null ? "-" : Math.round(x * 100) + "%"; }
+  // "anthropic:claude-sonnet-5-5" -> "Sonnet 5.5": the tile is narrow.
+  function catModel(m) {
+    var bare = String(m || "").replace(/^[^:]*:/, "").replace(/^claude-/, "");
+    var parts = bare.split("-");
+    if (!parts[0]) return "-";
+    return parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + (parts.length > 1 ? " " + parts.slice(1).join(".") : "");
+  }
+  function loadCategories() {
+    return Promise.all([api("/api/admin/categories"), api("/api/admin/categories/queue?limit=20")])
+      .then(function (got) { drawCategories(got[0]); drawCatQueue(got[1].episodes || []); })
+      .catch(function (e) { $("catKpis").innerHTML = '<p class="sub">Could not load: ' + esc(e.message) + '</p>'; });
+  }
+  function drawCategories(d) {
+    var st = d.settings || {}, k = d.key || {}, o = d.owner || {}, c = d.calibration || {};
+    $("catNodes").innerHTML = '<option value="none">' + (d.nodes || []).map(function (n) {
+      return '<option value="' + esc(n) + '">'; }).join("");
+    $("catKpis").innerHTML = qKpi("Answer key", catModel(st.judge_model), st.on ? "on" : "Nando is off")
+      + qKpi("Each night", st.per_run, (st.disagreements_only ? "disagreements only" : "any episode")
+          + (st.batch ? ", batched" : ", live"))
+      + qKpi("Key: right", catPct(k.exact_rate), (k.compared || 0) + " compared, 30 days")
+      + qKpi("Key: wrong", catPct(k.wrong_rate), "of Nando's filings it graded")
+      + qKpi("Key agrees with you", catPct(o.agree_rate), (o.compared || 0) + " of your reviews")
+      + qKpi("Composer taught", d.composer && d.composer.allowed ? "yes" : "no",
+             d.composer && d.composer.allowed ? "its corrected categories" : "waits on your signature");
+    var note = "Grades up to " + st.calibration_episodes + " recent episodes once with " + catModel(st.calibration_model)
+      + " beside the nightly key, to see how often they agree. It runs once, never nightly (about $1.50).";
+    if (c.ran) note = c.finished
+      ? "Ran once (" + (c.outcome || "") + "): " + c.compared + " compared"
+        + (c.first_model ? ", " + catModel(c.first_model) + " against " + catModel(c.second_model) : "") + "."
+      : "Running now - the result shows here when it ends.";
+    else if (!c.allowed) note += " Not available: " + (c.why_not || "");
+    catCalibEpisodes = st.calibration_episodes;
+    $("catCalibNote").textContent = note;
+    $("catCalibrate").hidden = !c.allowed;
+    $("catCalib").parentNode.hidden = !c.ran;
+    $("catCalib").innerHTML = c.ran
+      ? '<tr><th>Agree</th><th>Exactly</th><th>Disagree</th></tr><tr><td class="n">' + catPct(c.agree_rate)
+        + '</td><td class="n">' + catPct(c.exact_rate) + '</td><td class="n">' + c.wrong + '</td></tr>'
+        + (c.disagreements || []).map(function (x) {
+            return '<tr><td colspan="3">' + esc(x.query) + ' - nightly: <b>' + esc(x.first) + '</b>, second: <b>'
+              + esc(x.second) + '</b></td></tr>'; }).join("")
+      : "";
+    $("catOwner").innerHTML = (o.disagreements || []).length
+      ? '<tr><th>Question</th><th>Key</th><th>You</th></tr>' + o.disagreements.map(function (x) {
+          return '<tr><td>' + esc(x.query) + '</td><td>' + esc(x.key) + '</td><td>' + esc(x.owner) + '</td></tr>';
+        }).join("")
+      : '<tr><td>None yet.</td></tr>';
+  }
+  function drawCatQueue(rows) {
+    $("catQueueCount").textContent = rows.length ? "· " + rows.length : "";
+    $("catQueue").innerHTML = '<tr><th>Question and opening</th><th>Filed</th><th>Your filing</th></tr>'
+      + (rows.length ? rows.map(function (r) {
+          var said = 'Nando <b>' + esc(r.nando || "nothing") + '</b> (' + esc(r.filed_by) + ')<br>writer <b>'
+            + esc(r.writer || r.writer_words || "-") + '</b>' + (r.composer ? '<br>composer <b>' + esc(r.composer) + '</b>' : '')
+            + (r.key_grade != null ? '<br>key <b>' + esc(r.key_grade || "none") + '</b>' : '')
+            + (r.agreed ? '' : ' <span class="q-tag q-warn">disagree</span>');
+          var guess = r.key_grade != null ? (r.key_grade || "none") : (r.nando || r.writer || "");
+          return '<tr><td><b>' + esc(r.query) + '</b> <span class="q-tag">' + esc(r.origin || "tap") + '</span><br>'
+            + '<span class="sub small">' + esc(r.opening) + '</span></td><td>' + said + '</td><td>'
+            + '<input list="catNodes" data-catkey="' + esc(r.key) + '" value="' + esc(guess) + '" aria-label="Node" style="width:12em"> '
+            + '<button class="chip" type="button" data-catsave="' + esc(r.key) + '">Save</button></td></tr>';
+        }).join("") : '<tr><td colspan="3">Nothing to review in the last week.</td></tr>');
+  }
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-catsave]");
+    if (b) {
+      var key = b.getAttribute("data-catsave");
+      var input = document.querySelector('input[data-catkey="' + CSS.escape(key) + '"]');
+      var node = (input.value || "").trim();
+      api("/api/admin/categories/label", { key: key, node: node === "none" ? "" : node })
+        .then(function () { b.textContent = "Saved"; b.disabled = true; })
+        .catch(function (e) { alert(e.message); });
+      return;
+    }
+    if (ev.target.id === "catCalibrate") {
+      if (!confirm("Run the one-time check? It grades up to " + catCalibEpisodes
+          + " episodes with the second key once (about $1.50 for 100). It can never run again.")) return;
+      api("/api/admin/categories/calibrate", {}).then(function (r) {
+        $("catCalibMsg").textContent = r.queued ? "Queued: it runs in the background, and the result shows here." : "Already queued - it runs shortly.";
+        $("catCalibrate").hidden = true;
+      }).catch(function (e) { $("catCalibMsg").textContent = e.message; });
+    }
+  });
   $("qScoreOrigin").addEventListener("change", loadQuality);
   $("qThin").addEventListener("change", function () { if (qData) drawQuality(); });
 
