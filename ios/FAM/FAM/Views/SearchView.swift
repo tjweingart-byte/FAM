@@ -41,6 +41,12 @@ struct SearchView: View {
     @State private var pauseTask: Task<Void, Never>?
     /// The app went to the background since it was last in front.
     @State private var wasAway = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The private blind: the switch's state being wiped away, how much of
+    /// it is gone, and which wipe is the latest.
+    @State private var veil: Bool?
+    @State private var veilHidden: CGFloat = 0
+    @State private var veilToken = 0
 
     /// `DEFAULT_LENGTH_MINUTES`.
     static let defaultMinutes = 1.5
@@ -51,7 +57,6 @@ struct SearchView: View {
 
     static let privateNote = "Private search is on until you turn it off. Your searches and Go Deeper episodes won\u{2019}t appear in the episode library, on your friends\u{2019} DailyFAM, in your listening history, or teach your feed."
 
-    private var palette: SearchPalette { SearchPalette.of(model.privateSearch) }
     private var blank: Bool { words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var goShown: Bool { !blank || !attach.isEmpty }
     private var trendingShown: Bool { blank && attach.isEmpty && !trending.isEmpty }
@@ -59,22 +64,28 @@ struct SearchView: View {
     /// The system's chrome (the status bar, the keyboard) goes dark with the
     /// charcoal (`color-scheme: dark`) only while this screen is what shows.
     private var chromeDark: Bool {
-        model.privateSearch && tab == .search && !library && !linkOpen
-            && !model.showPlayer && !voice.isOpen && !loading.visible
+        model.privateSearch && tab == .search && !library && !linkOpen && !photoPicking
+            && !filePicking && !model.showPlayer && !voice.isOpen && !loading.visible
     }
 
     var body: some View {
-        let pal = palette
-        return GeometryReader { geo in
-            ScrollView {
-                content(pal, height: geo.size.height, width: geo.size.width)
+        GeometryReader { geo in
+            ZStack {
+                page(model.privateSearch, live: true, geo: geo)
+                // `Motion.dimDown` (§298): the page as it was lies over the
+                // new one and is wiped away - from the top when the charcoal
+                // falls (320 ms), from the bottom when it lifts (260 ms).
+                if let was = veil {
+                    page(was, live: false, geo: geo)
+                        .clipShape(BlindClip(hidden: veilHidden, fromTop: !was))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
             }
-            .scrollDismissesKeyboard(.interactively)
-            .overlay(alignment: .topLeading) { bookshelf(pal) }
         }
-        .background(pal.background.ignoresSafeArea())
-        // The charcoal comes and goes with `transition: background .25s`.
-        .animation(.easeInOut(duration: 0.25), value: model.privateSearch)
+        // Without the blind (reduced motion), `transition: background .25s`.
+        .animation(reduceMotion ? Animation.easeInOut(duration: 0.25) : nil, value: model.privateSearch)
+        .onChange(of: model.privateSearch) { old, now in dropBlind(from: old, turningOn: now) }
         .fullScreenCover(isPresented: $library) {
             CatalogView()
                 .environmentObject(model)
@@ -150,7 +161,49 @@ struct SearchView: View {
 
     // MARK: - The page
 
-    private func content(_ pal: SearchPalette, height: CGFloat, width: CGFloat) -> some View {
+    /// The whole screen in one state of the switch: `live` is the one in
+    /// use; the other is the blind's still copy of the page as it was.
+    private func page(_ privateOn: Bool, live: Bool, geo: GeometryProxy) -> some View {
+        let pal = SearchPalette.of(privateOn)
+        return ScrollView {
+            content(pal, privateOn: privateOn, live: live, height: geo.size.height, width: geo.size.width)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .scrollDisabled(!live)
+        .overlay(alignment: .topLeading) { bookshelf(pal) }
+        .background(pal.background.ignoresSafeArea())
+    }
+
+    /// The blind runs only where it is seen: on this screen, in front, with
+    /// motion allowed; anywhere else the switch is painted as it is.
+    private func dropBlind(from old: Bool, turningOn: Bool) {
+        veilToken += 1
+        let mine = veilToken
+        guard old != turningOn, tab == .search, !reduceMotion, scenePhase == .active,
+              !library, !model.showPlayer, !loading.visible, !voice.isOpen else {
+            veil = nil
+            return
+        }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            veil = old
+            veilHidden = 0
+        }
+        Task { @MainActor in
+            // A frame with the old page drawn over the new, then the wipe.
+            try? await Task.sleep(nanoseconds: 16_000_000)
+            guard mine == veilToken else { return }
+            withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: turningOn ? 0.32 : 0.26)) {
+                veilHidden = 1
+            } completion: {
+                if mine == veilToken { veil = nil }
+            }
+        }
+    }
+
+    private func content(_ pal: SearchPalette, privateOn: Bool, live: Bool,
+                         height: CGFloat, width: CGFloat) -> some View {
         VStack(spacing: 0) {
             // The web's spacer (`flex: 0 0 25%`): the mark and the bar sit a
             // quarter of the way down the screen.
@@ -161,7 +214,7 @@ struct SearchView: View {
                 .padding(.bottom, 22)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("FAM")
-            bar(pal, width: width - 36)
+            bar(pal, live: live, width: width - 36)
             if !attach.isEmpty {
                 ChipFlow(spacing: 6) {
                     ForEach(attach.items) { slot in
@@ -171,9 +224,9 @@ struct SearchView: View {
                 .padding(.top, 9)
                 .padding(.horizontal, 2)
             }
-            bubbles(pal)
+            bubbles(pal, privateOn: privateOn)
                 .padding(.top, 12)
-            if model.privateSearch {
+            if privateOn {
                 privateNote(pal)
                     .padding(.top, 12)
                     .padding(.horizontal, 4)
@@ -210,14 +263,14 @@ struct SearchView: View {
     /// in that shape; then the words take the bar's width and the three
     /// buttons drop to a row of their own, on the right (`.tall`). One
     /// layout either way, so the field keeps its focus as it changes.
-    private func bar(_ pal: SearchPalette, width: CGFloat) -> some View {
+    private func bar(_ pal: SearchPalette, live: Bool, width: CGFloat) -> some View {
         let tall = isTall(barWidth: width)
         let layout = tall
             ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 0))
             : AnyLayout(HStackLayout(alignment: .bottom, spacing: 6))
         let radius: CGFloat = tall ? 22 : 26
         return layout {
-            field(pal)
+            boxText(pal, live: live)
                 .padding(.trailing, tall ? 12 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
             buttons(pal)
@@ -229,6 +282,21 @@ struct SearchView: View {
         .frame(minHeight: 52)
         .background(pal.surface, in: RoundedRectangle(cornerRadius: radius))
         .overlay(RoundedRectangle(cornerRadius: radius).stroke(pal.border))
+    }
+
+    /// The box itself, or - in the blind's still copy - its words as text.
+    @ViewBuilder
+    private func boxText(_ pal: SearchPalette, live: Bool) -> some View {
+        if live {
+            field(pal)
+        } else {
+            Text(words.isEmpty ? "FAMiliarize me about\u{2026}" : words)
+                .font(FAMFont.body(15))
+                .foregroundStyle(words.isEmpty ? pal.textMuted.opacity(0.8) : pal.text)
+                .lineSpacing(3)
+                .lineLimit(1...5)
+                .padding(.vertical, 9)
+        }
     }
 
     private func field(_ pal: SearchPalette) -> some View {
@@ -308,13 +376,13 @@ struct SearchView: View {
 
     // MARK: - The bubbles (`.fam-controls`)
 
-    private func bubbles(_ pal: SearchPalette) -> some View {
+    private func bubbles(_ pal: SearchPalette, privateOn: Bool) -> some View {
         HStack(spacing: 10) {
             bubble("Length", icon: SearchIcons.length, iconSize: 14, pal: pal, on: false,
                    label: "Episode length") { sheet = .length }
             bubble("Voice", icon: SearchIcons.voice, iconSize: 14, pal: pal, on: false,
                    label: "Voice for your searches") { openVoiceMenu() }
-            bubble("Private", icon: SearchIcons.incognito, iconSize: 15, pal: pal, on: model.privateSearch,
+            bubble("Private", icon: SearchIcons.incognito, iconSize: 15, pal: pal, on: privateOn,
                    label: "Private search") { model.setPrivateSearch(!model.privateSearch) }
         }
     }
@@ -374,7 +442,7 @@ struct SearchView: View {
             ForEach(trending.prefix(Self.trendShown), id: \.self) { search in
                 Button {
                     typing = false
-                    model.playTrending(search)
+                    model.playTrending(search, minutes: minutes)
                 } label: {
                     HStack(spacing: 8) {
                         WebIcon(path: Icons.trend, size: 13)
@@ -455,10 +523,11 @@ struct SearchView: View {
     /// listener's words), then Photo / File / Link.
     private func openAttach() {
         typing = false
+        let asked = model.consent.current?.given != true
         Task {
             guard await model.consent.ensure() else { return }
-            // After the consent card has gone (a second presentation waits).
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            // After the consent card has gone, when there was one.
+            if asked { try? await Task.sleep(nanoseconds: 300_000_000) }
             sheet = .attach
         }
     }

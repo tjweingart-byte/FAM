@@ -36,6 +36,32 @@ struct SearchPalette: Equatable {
     static func of(_ privateOn: Bool) -> SearchPalette { privateOn ? charcoal : light }
 }
 
+// MARK: - The private blind (`Motion.dimDown`)
+
+/// What is left of the page as it was while the new one is revealed: the
+/// web's `clip-path: inset(h 0 0 0)` (the charcoal falling, `fromTop`) or
+/// `inset(0 0 h 0)` (lifting). It reaches up past the view so the status
+/// bar's strip, drawn by the page's background, goes with it.
+struct BlindClip: Shape {
+    var hidden: CGFloat
+    let fromTop: Bool
+
+    var animatableData: CGFloat {
+        get { hidden }
+        set { hidden = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let full = CGRect(x: rect.minX - 50, y: rect.minY - 100,
+                          width: rect.width + 100, height: rect.height + 100)
+        let gone = full.height * min(max(hidden, 0), 1)
+        let kept = fromTop
+            ? CGRect(x: full.minX, y: full.minY + gone, width: full.width, height: full.height - gone)
+            : CGRect(x: full.minX, y: full.minY, width: full.width, height: full.height - gone)
+        return Path(kept)
+    }
+}
+
 // MARK: - The bar's and the bubbles' icons, path for path (spec 1.7)
 
 enum SearchIcons {
@@ -306,6 +332,8 @@ struct LinkModal: View {
 /// under a full-screen cover.
 struct ConsentLayer: View {
     @ObservedObject var consent: ConsentModel
+    /// The app's toast, for an Allow the server did not keep.
+    var say: (String) -> Void = { _ in }
 
     var body: some View {
         ZStack {
@@ -321,7 +349,13 @@ struct ConsentLayer: View {
 
     private func answer(_ allow: Bool) {
         let model = consent
-        Task { await model.answer(allow) }
+        let say = self.say
+        Task {
+            await model.answer(allow)
+            // FAMSafety keeps the old answer when the save fails; the web
+            // says so ("Couldn’t save that. Try again.").
+            if allow && model.current?.given != true { say("Couldn\u{2019}t save that. Try again.") }
+        }
     }
 }
 

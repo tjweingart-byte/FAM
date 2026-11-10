@@ -63,7 +63,7 @@ struct RootView: View {
         .overlay { RefusalLayer() }
         // The AI question as the web's centred card (`aiConsentOverlay`),
         // over everything here; the player and the social covers draw it too.
-        .overlay { ConsentLayer(consent: model.consent) }
+        .overlay { ConsentLayer(consent: model.consent, say: { model.nowPlaying.say($0) }) }
     }
 }
 
@@ -153,7 +153,7 @@ struct MainTabs: View {
                     .environmentObject(model.mixes)
                     .environmentObject(social)
                     .environmentObject(model.you)
-                    .overlay { ConsentLayer(consent: model.consent) }
+                    .overlay { ConsentLayer(consent: model.consent, say: { model.nowPlaying.say($0) }) }
             }
             // A rail's View more is a screen of its own on the web, with
             // neither the tab bar nor the mini player.
@@ -189,9 +189,12 @@ struct MainTabs: View {
                     model.youPath = []
                     Task { await model.you.loadProfile() }
                 }, dark: tab == .search && model.privateSearch)
-                // The charcoal comes and goes with the screen (`transition:
-                // background .25s`).
-                .animation(.easeInOut(duration: 0.25), value: model.privateSearch)
+                // The bar is the foot of the search screen's blind: the
+                // charcoal reaches it last as it falls, and leaves it first
+                // as it lifts (`Motion.dimDown`, 320 / 260 ms).
+                .animation(model.privateSearch ? Animation.linear(duration: 0.05).delay(0.27)
+                                               : Animation.linear(duration: 0.05),
+                           value: model.privateSearch)
             }
         }
         // The bar rises from behind the tabs (260 ms) and drops (200 ms).
@@ -262,7 +265,7 @@ struct MainTabs: View {
                 // its tap takes the player down first (`leavePlayer`).
                 .overlay(alignment: .top) { SocialBannerLayer().environmentObject(social) }
                 // A typed Go Deeper asks the AI question over the player.
-                .overlay { ConsentLayer(consent: model.consent) }
+                .overlay { ConsentLayer(consent: model.consent, say: { model.nowPlaying.say($0) }) }
         }
     }
 }

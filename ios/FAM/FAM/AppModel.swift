@@ -188,6 +188,7 @@ final class AppModel: ObservableObject {
         nowPlaying.privateOn = { [weak self] in self?.privateSearch ?? false }
         attachments.say = { [weak self] text in self?.nowPlaying.say(text) }
         you.prefsLoaded = { [weak self] prefs in self?.privateSearch = prefs.privateSearch ?? false }
+        voiceSearch.keepsPlayback = { [weak self] in self?.player.isLoaded ?? false }
         voiceSearch.onCancel = { [weak self] in
             guard let self, self.resumeAfterVoice else { return }
             self.resumeAfterVoice = false
@@ -701,7 +702,8 @@ final class AppModel: ObservableObject {
         ep.isPrivate = privateSearch
         // What someone searches is the clearest statement of interest they
         // make - unless it is private.
-        if !privateSearch { Task { await api.event("search", text: question) } }
+        let asked = question
+        if !privateSearch { Task { await api.event("search", text: asked) } }
         // The attachment belonged to that question.
         attachments.clear()
         play(ep)
@@ -711,8 +713,10 @@ final class AppModel: ObservableObject {
     /// A trending search is a search (`runTrendSearch`): the same question
     /// at the length its episode was written for, so it lands on the
     /// episode already written; private when private search is on.
-    func playTrending(_ t: TrendingSearch) {
-        var ep = Episode(key: EpisodeKey(query: t.query, minutes: t.minutes > 0 ? t.minutes : 1.5),
+    func playTrending(_ t: TrendingSearch, minutes chosen: Double) {
+        // `exploreMinutes: t.minutes || 0`: with none of its own, the length
+        // the search page has chosen.
+        var ep = Episode(key: EpisodeKey(query: t.query, minutes: t.minutes > 0 ? t.minutes : chosen),
                          title: t.label, surface: "search",
                          picture: nil, titleOverridden: !t.title.isEmpty)
         ep.isPrivate = privateSearch

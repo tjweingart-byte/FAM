@@ -60,6 +60,10 @@ final class VoiceSearchModel: ObservableObject {
     var onSend: (String) -> Void = { _ in }
     /// Closed without searching.
     var onCancel: () -> Void = {}
+    /// An episode is loaded on the player (paused for the mic, or done):
+    /// the session goes straight back to playback and stays FAM's, so the
+    /// lock screen keeps its controls and the episode resumes as before.
+    var keepsPlayback: () -> Bool = { false }
 
     private var recognizer: SFSpeechRecognizer?
     private var engine: AVAudioEngine?
@@ -428,8 +432,15 @@ final class VoiceSearchModel: ObservableObject {
         guard holdsSession else { return }
         holdsSession = false
         let session = AVAudioSession.sharedInstance()
-        try? session.setActive(false, options: .notifyOthersOnDeactivation)
-        try? session.setCategory(.playback, mode: .spokenAudio)
+        if keepsPlayback() {
+            try? session.setCategory(.playback, mode: .spokenAudio)
+            try? session.setActive(true)
+        } else {
+            // Nothing of FAM's to hear: what the listener had playing
+            // elsewhere carries on.
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            try? session.setCategory(.playback, mode: .spokenAudio)
+        }
     }
 
     // MARK: - Search now
@@ -719,14 +730,15 @@ struct VoiceSearchView: View {
     }
 }
 
-/// The button's ground: the gold at .32, and the gold filling from the left.
+/// The button's ground: the web's own rgba(224,181,99,.32) - the pale gold
+/// in the screenshots - and the copper filling from the left.
 struct SearchNowFill: View {
     let fill: Double
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Rectangle().fill(FAMColor.copper.opacity(0.32))
+                Rectangle().fill(Color(hex: 0xE0B563).opacity(0.32))
                 Rectangle()
                     .fill(FAMColor.copper)
                     .frame(width: geo.size.width * CGFloat(min(max(fill, 0), 1)))

@@ -155,7 +155,10 @@ final class AttachModel: ObservableObject {
                 }
             } catch {
                 var sentence = "That could not be attached"
-                if case let FAMError.refused(_, message) = error, !message.isEmpty { sentence = message }
+                if let refusal = error as? FAMError, case let .refused(_, message) = refusal,
+                   !message.isEmpty {
+                    sentence = message
+                }
                 update(local) { s in
                     s.pending = false
                     s.error = sentence
