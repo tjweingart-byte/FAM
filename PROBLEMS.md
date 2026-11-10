@@ -32256,3 +32256,15 @@ for a draft episode; `trade deadline` and `salary cap` belong to every
 league and sit directly under `sports`, beside the sports. They are
 painted by the next thumbnail sweep like any new node.
 `test_the_owners_phrases_with_everyday_words_are_seeded`.
+
+## 514. "world cup qualifiers" and "power outage" seeded (2026-11-10)
+
+The owner: "add world cup qualifiers and power outage to the seed". Both
+hold `NEVER_ALONE` words ("cup", "power"), so only the seed can hold them
+(§512). `world cup qualifiers` sits under `world cup`, so a qualifying
+episode is deeper than the tournament and wins the picture.
+`power outage` sits under `local news` and joins `LOCAL_NODES`: an outage
+is nearly always a town's question, so the writer is offered it first when
+the brief names a town (`stories.writer_vocabulary`) and the scene writer
+paints it as an ordinary town (`thumbnails.WRITER_SYSTEM`).
+`test_world_cup_qualifiers_and_power_outage_are_seeded`.

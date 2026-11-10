@@ -244,7 +244,9 @@ SEED: dict[str, dict] = {
         "basketball": {"playoff basketball": {}, "draft prospects": {},
                        "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
-                     "world cup": {}, "premier league": {},
+                     # §514: seeded, as "cup" is never alone (§512).
+                     "world cup": {"world cup qualifiers": {}},
+                     "premier league": {},
                      "bundesliga": {}, "major league soccer": {},
                      # 11.9: so an episode is filed below "football"
                      # rather than wearing its one picture.
@@ -368,7 +370,10 @@ SEED: dict[str, dict] = {
         # what is being built - under the heading it is, never the globe.
         "local news": {"town council": {}, "local schools": {},
                        "school board": {}, "local elections": {},
-                       "zoning": {}},
+                       "zoning": {},
+                       # §514: a town's question, and "power" is never
+                       # alone (§512).
+                       "power outage": {}},
         "international law": {},
         "global development": {},
     },
@@ -383,7 +388,7 @@ SEED: dict[str, dict] = {
 LOCAL_NODES = ("local news", "town council", "local schools",
                "school board", "local elections", "zoning", "food scene",
                "local restaurants", "local events", "local business",
-               "high school sports")
+               "high school sports", "power outage")
 
 
 #: Other names for a node, matched as the node (11.9, `categories.match`):

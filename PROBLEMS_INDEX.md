@@ -505,3 +505,4 @@ and `limit` = Lines.
 | 32193 | 24 | 511. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09) |
 | 32217 | 32 | 512. No grown phrase holding an everyday word is a category (2026-11-09) |
 | 32249 | 11 | 513. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10) |
+| 32260 | 12 | 514. "world cup qualifiers" and "power outage" seeded (2026-11-10) |

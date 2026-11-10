@@ -523,3 +523,20 @@ def test_the_owners_phrases_with_everyday_words_are_seeded(betting_tree):
     _paint("nfl")
     got = th.pick_for_player("Who the Bears take in the NFL Draft")
     assert got["node"] == "nfl draft"
+
+
+def test_world_cup_qualifiers_and_power_outage_are_seeded(betting_tree):
+    """§514: both hold `NEVER_ALONE` words ("cup", "power"), so only the
+    seed can hold them (§512)."""
+    import category_seed
+
+    assert betting_tree.get("world cup qualifiers").parent_id == "world cup"
+    assert betting_tree.get("power outage").parent_id == "local news"
+    assert "power outage" in category_seed.LOCAL_NODES
+    assert "world cup qualifiers" in betting_tree.match(
+        "USA's World Cup qualifiers this week")
+    assert "power outage" in betting_tree.match("the power outage in Austin")
+    _paint("world cup qualifiers")
+    _paint("world cup")
+    got = th.pick_for_player("Where Italy stands in the World Cup qualifiers")
+    assert got["node"] == "world cup qualifiers"
