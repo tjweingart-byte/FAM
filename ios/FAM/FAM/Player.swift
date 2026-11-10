@@ -4,7 +4,7 @@ import UIKit
 
 /// Plays one episode from `GET /api/v1/audio?fmt=pcm` while it arrives, and
 /// keeps playing with the phone locked. Grown from the lock-screen spike
-/// (`ios/FAMSpike`, PROBLEMS.md §521), which passed ten minutes locked, calls,
+/// (`ios/FAMSpike`, PROBLEMS.md §537), which passed ten minutes locked, calls,
 /// AirPods and route changes on a real phone; that behaviour is kept as it
 /// was. Added for the app: seeking (the draggable bar, clamped to what has
 /// arrived) and ±15 s (`transport`), the episode's picture, and refusals
@@ -20,7 +20,7 @@ import UIKit
 /// **Every sample is kept, and the player node only ever holds a copy.** iOS
 /// throws away whatever is queued on an `AVAudioPlayerNode` when the audio
 /// route changes or a call takes the session (the first phone test, PROBLEMS.md
-/// §521: a call mid-episode read as the episode ending, and the last 17
+/// §537: a call mid-episode read as the episode ending, and the last 17
 /// seconds were skipped). So the position is the truth, and after any pause,
 /// interruption or route change the node is refilled from that position.
 /// A buffer's completion only counts if it belongs to the current filling

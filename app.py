@@ -2236,11 +2236,17 @@ async def health(request: Request) -> dict:
             # What an edition's episode is actually written on now - an
             # unavailable model has already fallen back (review, §269).
             "model": writer_for(ScriptNotes(edition=True))[0],
-            "effort": settings.edition_writer_effort or settings.effort,
+            "effort": writer_for(ScriptNotes(edition=True))[1],
             "configured": settings.edition_writer_model or "",
             "own": bool(settings.edition_writer_model
                         or settings.edition_writer_effort),
         },
+        # The writer's effort wherever nobody waits (§522): the editions,
+        # the write-ahead and prefetch warms. searchFAM is `writer_effort`.
+        "ahead_writer_effort": writer_for(ScriptNotes(ahead=True))[1],
+        "ahead_writer_effort_source": ("AHEAD_WRITER_EFFORT env var"
+                                       if os.environ.get("AHEAD_WRITER_EFFORT", "").strip()
+                                       else "config.py default"),
         # The two writer savings (§179), with where each came from: either
         # left at 0 in a dashboard would quietly undo it on every push.
         "writer_savings": {

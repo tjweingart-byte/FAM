@@ -512,7 +512,22 @@ and `limit` = Lines.
 | 32339 | 43 | 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
 | 32382 | 74 | 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |
 | 32456 | 35 | 520. Messages only between friends (2026-11-10) |
-| 32491 | 85 | 521. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
-| 32576 | 128 | 522. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
-| 32704 | 32 | 523. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
-| 32736 | 42 | 524. The iOS app, stage 2: myFAM (2026-11-10) |
+| 32491 | 111 | 521. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09) |
+| 32602 | 97 | 522. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09) |
+| 32699 | 35 | 523. Story shapes, drafted for the owner (2026-11-09) |
+| 32734 | 45 | 524. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09) |
+| 32779 | 41 | 525. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09) |
+| 32820 | 29 | 526. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09) |
+| 32849 | 61 | 527. The §521 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10) |
+| 32910 | 54 | 528. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10) |
+| 32964 | 58 | 529. The packet Shakespeare numbers, cleaned (2026-11-10) |
+| 33022 | 47 | 530. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10) |
+| 33069 | 50 | 531. The whole branch double-checked: what the review found, and what was fixed (2026-11-10) |
+| 33119 | 42 | 532. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10) |
+| 33161 | 33 | 533. The second review, independent, before the pull request (2026-11-10) |
+| 33194 | 17 | 534. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10) |
+| 33211 | 25 | 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10) |
+| 33236 | 85 | 537. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
+| 33321 | 128 | 538. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 33449 | 32 | 539. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
+| 33481 | 42 | 540. The iOS app, stage 2: myFAM (2026-11-10) |

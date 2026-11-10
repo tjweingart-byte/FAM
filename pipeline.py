@@ -1342,6 +1342,16 @@ class PodcastPipeline:
                      stats.audio_key[:12], self._audio_voice())
             return
         try:
+            # Where each sentence began (§522), for `episode_quality.drop_off`.
+            import episode_quality
+
+            await asyncio.to_thread(
+                episode_quality.note_starts, stats.episode_key or stats.audio_key,
+                stats.sourced_stamp, list(stats.script), list(stats.starts),
+                pcm_duration(len(pcm), self.engine.sample_rate))
+        except Exception:  # noqa: BLE001
+            log.exception("could not keep the sentence starts; continuing")
+        try:
             kept = await asyncio.to_thread(
                 self.cache.put_audio, stats.audio_key, self._audio_voice(),
                 self.engine.sample_rate, pcm, list(stats.script),
