@@ -1050,12 +1050,6 @@ struct MixShare: Decodable {
     let targets: [String: ShareTarget]?
 }
 
-struct ShareTarget: Decodable {
-    let label: String
-    let text: String?
-    let url: String?
-}
-
 struct PushStatus: Decodable {
     let available: Bool
     let reason: String?
