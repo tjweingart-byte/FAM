@@ -31915,3 +31915,57 @@ two changes and one new arm.
 Tests: `tests/test_eval_findings_507.py` (matching off by default; the
 plan's landing worded as the last sentence; `none_low` at low effort, the
 other arms high, and the settings taken back after).
+
+## 508. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10)
+
+The owner: "Do 1 and 2" of §507's next steps.
+
+**1. The landing wording is back as it was.** "Land on:" again, with no
+"your last sentence" line: §507 measured no gain (landing 0.40 to 0.42) and
+a hook leaning worse (-0.26 [-0.54, +0.04]).
+
+**2. The measure, checked by reading.** Shakespeare (worked plans) wrote 10
+of the frozen questions again with no grading (~$0.08). His chosen sentences
+and each episode's last two sentences were kept in the session's scratchpad
+only, because they are provider text. The questions: Fed, Gaza talks, oil,
+jobs report, Eagles, F1, Nvidia, Apple, bird flu, Roman Empire. Read by hand,
+the writer **landed on his planned material in 6 of 10** (jobs, Nvidia,
+Eagles, Roman Empire, and, in the second-to-last sentence, Gaza and the
+Fed); oil partly (the same move, another source's figures); F1, Apple and
+bird flu not. **The measure said 0 of 10.** The writer follows the landing
+far more than §501-§507 reported, and their landing figures (0.35-0.42) are
+too low.
+
+Why it missed:
+- **numbers read out**: the writer says "seven point nine percent", the
+  source prints "7.9%", and the measure compared digits only;
+- **long source "sentences"**: a standings table or a press release's
+  header has dozens of words, and a quarter of them had to appear;
+- **broken sentences**: "10, but they continue almost daily." - the
+  packet's splitter (`editor._split`) cuts after a number.
+
+**The fix** (`episode_quality`): figures are read printed or spoken, through
+`figure_guard`'s own reader (`_plan_numbers`), and a shared figure counts
+as a use - twice when it is distinctive (a decimal, or above twelve). Number
+words count only as numbers. A long source sentence is judged against at
+most eight of its words (`PLAN_WORDS_CAP`). On the ten, the measure now
+agrees with the reading on **8 of 10** (it agreed on 4). The two
+disagreements: Gaza's planned landing is a broken half-sentence, and Apple
+ended on a different product at the same $299 - a shared distinctive figure
+taken as a landing, a borderline case.
+
+**Not redone:** §501-§507's plan-following figures stand as measured and
+are too low. The scripts' plan sentences were never kept (provider text),
+so they cannot be measured again; the next comparison measures with the
+fix.
+
+**Seen on the way, not fixed here:** Shakespeare's landings were sometimes
+page furniture - a press release's header, a markdown standings table, a
+sentence carrying a link. The numbered packet keeps whatever lines the
+source gave (`editor._split`). Cleaning the packet is Consuela's and
+Sonic's job, upstream of him.
+
+Tests: `tests/test_plan_landing_508.py` (a figure read out is the figure
+printed; a long table matched by its names and numbers; a distinctive figure
+counts twice and a small one once; an unrelated ending is no landing);
+`tests/test_eval_findings_507.py` (the wording back as it was).

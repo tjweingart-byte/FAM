@@ -1339,6 +1339,10 @@ def editor_trial(days: float = 14.0, now: Optional[float] = None,
 #: carry over where the phrasing does not.
 PLAN_SHARED_WORDS = 2
 PLAN_SHARED_SHARE = 0.25
+#: A long source "sentence" - a standings table, a press release's header -
+#: is judged against at most this many of its words (§508: with the whole
+#: length as the denominator no table could ever be matched).
+PLAN_WORDS_CAP = 8
 #: The opening is "followed" when an open-on sentence is used in the first
 #: this many sentences of the script, the landing when a land-on sentence is
 #: used in the last this many.
@@ -1356,23 +1360,64 @@ def _stem(word: str) -> str:
 
 
 def _plan_words(sentence: str) -> set:
-    words = {_stem(w) for w in _content(sentence)}
-    words |= set(re.findall(r"\d+(?:\.\d+)?", sentence or ""))
-    return {w for w in words if w}
+    """Content-word stems; numbers are read separately (`_plan_numbers`)."""
+    return {w for w in (_stem(t) for t in _content(sentence))
+            if w and not w[:1].isdigit() and w not in _NUMBER_WORDS
+            and not any(part in _NUMBER_WORDS for part in w.split("-"))}
+
+
+def _plan_numbers(sentence: str) -> set:
+    """Every number a sentence states, printed or spoken - "7.9%" and "seven
+    point nine percent" are one figure (§508: the writer reads numbers out,
+    the sources print them). Years, dates and clock times are left out."""
+    try:
+        import figure_guard
+
+        values = set(figure_guard.material_values(sentence or ""))
+        tokens = figure_guard._TOKEN.findall((sentence or "").replace("-", " "))
+        i = 0
+        while i < len(tokens):
+            value, _d, j = figure_guard._read_number(tokens, i)
+            if value is None:
+                i += 1
+                continue
+            values.add(value)
+            i = max(j, i + 1)
+        return {round(float(v), 4) for v in values}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _distinctive(value: float) -> bool:
+    """A figure only one story is likely to share: not a small whole number."""
+    return value != int(value) or value > 12
+
+
+def _overlap(source: tuple, sentence: tuple) -> float:
+    """How much of a plan sentence a script sentence carries: shared words,
+    and shared figures - a distinctive one counts twice. 0 below
+    `PLAN_SHARED_WORDS`."""
+    words, numbers = source
+    got_words, got_numbers = sentence
+    shared = len(words & got_words)
+    for value in numbers & got_numbers:
+        shared += 2 if _distinctive(value) else 1
+    if shared < PLAN_SHARED_WORDS:
+        return 0.0
+    size = min(len(words) + len(numbers), PLAN_WORDS_CAP) or 1
+    share = shared / size
+    return share if share >= PLAN_SHARED_SHARE else 0.0
 
 
 def _used_at(source: str, script: list) -> Optional[int]:
-    """The first script sentence that carries this plan sentence, or None."""
-    wanted = _plan_words(source)
-    if not wanted:
+    """The script sentence that best carries this plan sentence, or None."""
+    wanted = (_plan_words(source), _plan_numbers(source))
+    if not wanted[0] and not wanted[1]:
         return None
     best, at = 0.0, None
-    for i, words in enumerate(script):
-        shared = len(wanted & words)
-        if shared < PLAN_SHARED_WORDS:
-            continue
-        share = shared / len(wanted)
-        if share >= PLAN_SHARED_SHARE and share > best:
+    for i, got in enumerate(script):
+        share = _overlap(wanted, got)
+        if share > best:
             best, at = share, i
     return at
 
@@ -1394,7 +1439,8 @@ def plan_following(plan: dict, sentences: Iterable[str],
     episode whose opening was written before his plan existed (searchFAM in
     tandem, §456). Numbers only - never the text. Never raises."""
     try:
-        script = [_plan_words(s) for s in sentences if s and str(s).strip()]
+        script = [(_plan_words(s), _plan_numbers(s)) for s in sentences
+                  if s and str(s).strip()]
         if not plan or not script:
             return None
         n = len(script)
