@@ -145,9 +145,11 @@ struct ChatScreen: View {
     }
 
     private func deeperSheet(_ base: SharedEpisode) -> some View {
-        GoDeeperSheet(base: base) { words, minutes, typed in
+        // Labelled: a trailing closure here would be matched against the
+        // later `close` parameter by Swift 5's backward scan.
+        GoDeeperSheet(base: base, onGo: { words, minutes, typed in
             followUp(base, words: words, minutes: minutes, typed: typed)
-        }
+        })
         .environmentObject(model)
         .environmentObject(model.nowPlaying)
     }
