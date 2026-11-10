@@ -306,8 +306,10 @@ final class NowPlayingModel: ObservableObject {
             Task {
                 do {
                     try await api.unsave(ep.key)
-                    say("Removed from Saved for Later", action: "Undo") { [weak self] in
-                        guard let self, self.episode == ep else { return }
+                    // Inside a Task that already holds the model; the undo
+                    // only re-saves if the same episode is still playing.
+                    say("Removed from Saved for Later", action: "Undo") {
+                        guard self.episode == ep else { return }
                         self.toggleSave()
                     }
                 } catch {
