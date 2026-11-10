@@ -146,9 +146,8 @@ final class NowPlayingModel: ObservableObject {
         player.$phase
             .removeDuplicates()
             .sink { [weak self] phase in
-                guard let self else { return }
                 MainActor.assumeIsolated {
-                    if phase == .paused { self.sendResume() }
+                    if phase == .paused { self?.sendResume() }
                 }
             }
             .store(in: &cancellables)

@@ -276,13 +276,14 @@ final class VoiceSearchModel: ObservableObject {
     }
 
     nonisolated private static func microphoneAllowed() async -> Bool {
-        let session = AVAudioSession.sharedInstance()
-        switch session.recordPermission {
+        // iOS 17's way of asking (AVAudioApplication); the AVAudioSession
+        // calls it replaces are deprecated.
+        switch AVAudioApplication.shared.recordPermission {
         case .granted: return true
         case .denied: return false
         default:
             return await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-                session.requestRecordPermission { granted in c.resume(returning: granted) }
+                AVAudioApplication.requestRecordPermission { granted in c.resume(returning: granted) }
             }
         }
     }

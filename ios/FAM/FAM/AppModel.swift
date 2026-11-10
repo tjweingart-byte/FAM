@@ -170,17 +170,19 @@ final class AppModel: ObservableObject {
             self?.nowPlaying.say(text, action: action, perform: perform)
         }
         you.vibeDeleted = { [weak self] in
-            guard let self else { return }
-            Task {
-                await self.loadCircle()
-                await self.social.loadMe()
+            // Weak in the task too: a strong capture inside a weak one is
+            // what the compiler warned about.
+            Task { [weak self] in
+                await self?.loadCircle()
+                await self?.social.loadMe()
             }
         }
         you.meChanged = { [weak self] in
-            guard let self else { return }
-            Task {
-                await self.loadCircle()
-                await self.social.loadMe()
+            // Weak in the task too: a strong capture inside a weak one is
+            // what the compiler warned about.
+            Task { [weak self] in
+                await self?.loadCircle()
+                await self?.social.loadMe()
             }
         }
         nowPlaying.openSaved = { [weak self] in self?.openSaved() }
