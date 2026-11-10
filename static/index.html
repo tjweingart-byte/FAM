@@ -8853,7 +8853,9 @@
     return fetch("/api/friends").then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         var seen = {}, out = [];
-        (d.friends || []).concat(d.following || [], d.followers || []).forEach(function(p){
+        // Friends only: a tag sends the episode as a message, and messages
+        // go only between people who follow each other (§523).
+        (d.friends || []).forEach(function(p){
           if(!p.handle || seen[p.handle]) return;
           seen[p.handle] = true;
           out.push(p);
@@ -19291,7 +19293,9 @@
     fetch("/api/friends")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
-        var people = (d.friends || []).concat(d.following || []);
+        // Friends only - messages go only between people who follow each
+        // other (§523).
+        var people = (d.friends || []);
         var seen = {}, unique = [];
         people.forEach(function(person){
           if(seen[person.user_id]) return;
@@ -19315,7 +19319,7 @@
     var el = document.getElementById("newChatContacts");
     if(!newChatPeople.length){
       el.innerHTML = '<div class="pf-empty" style="margin:0;">Nobody to '
-        + 'message yet. Find someone under Friends first.</div>';
+        + 'message yet. When someone you follow follows you back, you can message them.</div>';
       return;
     }
     el.innerHTML = newChatPeople.map(function(person, i){
@@ -20050,7 +20054,8 @@
         if(seq !== shareSheetSeq) return;
         var seen = {};
         var people = [];
-        (d.friends || []).concat(d.following || []).forEach(function(person){
+        // Friends only (§523).
+        (d.friends || []).forEach(function(person){
           if(seen[person.user_id]) return;
           seen[person.user_id] = true;
           people.push(person);

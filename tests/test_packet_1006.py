@@ -273,6 +273,7 @@ def test_leaving_a_group_stops_its_messages(mail):
     assert [m.text for m in mail.thread("b", gid)][-2:] == ["left the group", "after"]
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_groups_over_the_api(client):
     me = signed_in(client, "gc1@b.com", "Zed", "zed1")
     others, ids = [], []
@@ -306,6 +307,7 @@ def test_groups_over_the_api(client):
     assert me
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_the_share_sheet_can_share_an_episode_into_a_group(client):
     """The share sheet's Groups row (§236): it reads the group threads off
     the inbox and sends an episode to the group's id, and every member gets

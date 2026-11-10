@@ -3118,6 +3118,12 @@ def _in_graph(me: str, other: str) -> bool:
                                   or SOCIAL.is_following(other, me)))
 
 
+def _mutual(me: str, other: str) -> bool:
+    """Friends: each follows the other (`op-follow-graph`)."""
+    return bool(me and other and me != other
+                and SOCIAL.is_following(me, other) and SOCIAL.is_following(other, me))
+
+
 def _reachable(me: str, other: str) -> bool:
     """Whether `me` may find or open `other` (WAITLIST.md §4).
 
@@ -3893,6 +3899,12 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     if not messages_mod.is_group(req.to) and (
             MODERATION.is_apart(user, req.to) or MODERATION.is_suspended(req.to)):
         raise HTTPException(status_code=403, detail="You can't message this person.")
+    # A one-to-one message goes only between friends - two people who follow
+    # each other (the owner's rule, PROBLEMS.md §523). An id is not a
+    # permission: knowing somebody's id must not open a conversation.
+    if not messages_mod.is_group(req.to) and not _mutual(user, req.to):
+        raise HTTPException(status_code=403, detail=(
+            "You can message people who follow you back."))
     waiting = (WAITLIST.waitlisted_among([user] + recipients)
                if settings.waitlist else set())
     if waiting:
@@ -3949,12 +3961,13 @@ async def messages_new_group(req: GroupRequest, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     _require_can_post(user)
-    graph = {p["user_id"] for p in _without_apart(
-        user, SOCIAL.following(user) + SOCIAL.followers(user))}
+    # Friends only, as one-to-one (§523): a group is not a way round it.
+    graph = {p["user_id"] for p in _without_apart(user, SOCIAL.following(user))
+             if _mutual(user, p["user_id"])}
     picked = [u for u in dict.fromkeys(req.user_ids) if u in graph]
     if len(picked) != len(set(req.user_ids) - {user}):
         raise HTTPException(status_code=400, detail=(
-            "You can start a group with people you follow."))
+            "You can start a group with people who follow you back."))
     waiting = (WAITLIST.waitlisted_among([user] + picked)
                if settings.waitlist else set())
     if waiting:

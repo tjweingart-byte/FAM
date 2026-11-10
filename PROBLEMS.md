@@ -32665,3 +32665,27 @@ It added the category chips, panel and Find a category; the web's 48 subject
 icons, generated from `CAT_ICONS` by `tools/ios_icons.py` (a contract test
 runs `--check`, so the two cannot drift); and the measured rows, handles,
 buttons and fields.
+
+## 523. Messages only between friends (2026-11-10)
+
+**The gap.** `POST /api/messages` checked blocks, suspension and the
+waitlist, but not the follow graph for a one-to-one message: any account
+that knew another listener's id could message them. The web never shows an
+id, so it took effort to exploit, but an id is not a permission, and App
+Review weighs unwanted contact.
+
+**The owner's rule:** one-to-one messages, and new group chats, only between
+people who follow each other (friends, `op-follow-graph`). `app._mutual`
+decides; a refused send answers 403 "You can message people who follow you
+back."; a group with a non-friend answers 400 "You can start a group with
+people who follow you back.". Existing groups keep their members. A reply
+or ❤️ to the story of someone you follow who does not follow you back is a
+message, so it is refused the same way.
+
+The web's New message picker, the share sheet's people row and story tags
+now offer friends only (they offered everyone you follow, and followers for
+tags), and the picker's empty sentence says how to become friends. Tests:
+`test_knowing_an_id_does_not_open_a_conversation`, and the one-way follow
+refused in `test_two_listeners_can_find_follow_and_message_each_other`.
+Tests about threads, groups, replies and notifications (not about who may
+message whom) use the `everyone_friends` fixture in `tests/conftest.py`.

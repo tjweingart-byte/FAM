@@ -230,6 +230,16 @@ def test_two_listeners_can_find_follow_and_message_each_other(client):
 
     assert client.post("/api/friends/follow",
                        json={"handle": "ana"}).json()["counts"]["following"] == 1
+    # Following is not enough: a message goes only between friends (§523).
+    one_way = client.post("/api/messages", json={"to": ana, "text": "hi"})
+    assert one_way.status_code == 403
+    assert one_way.json()["error"] == "You can message people who follow you back."
+
+    client.post("/api/auth/logout")
+    client.post("/api/auth/login", json={"email": "ana@b.com", "password": "password12"})
+    client.post("/api/friends/follow", json={"handle": "ben"})
+    client.post("/api/auth/logout")
+    client.post("/api/auth/login", json={"email": "ben@b.com", "password": "password12"})
     sent = client.post("/api/messages", json={
         "to": ana, "query": "why bonds move", "minutes": 3, "title": "Bonds"})
     assert sent.status_code == 200, sent.text
@@ -431,6 +441,7 @@ def test_the_starting_cursor_is_the_newest_message_already_there(store):
     assert store.latest_id("a") == theirs.id
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_the_thread_endpoint_returns_only_what_is_new(client):
     ana = signed_in(client, "ana@b.com", "Ana", "ana")
     client.post("/api/auth/logout")
@@ -452,6 +463,7 @@ def test_the_thread_endpoint_returns_only_what_is_new(client):
         "an empty poll must still hand back a cursor, or the client has none"
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_notifications_report_a_message_and_a_follow_together(client):
     """One poll for both, because the interface asks both questions from the
     same timer and two endpoints is two things to keep in step."""
@@ -478,6 +490,7 @@ def test_notifications_report_a_message_and_a_follow_together(client):
                       params={"since": news["head"]}).json()["messages"] == []
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_bootstrapping_never_announces_what_was_already_there(client):
     me = signed_in(client, "ian@b.com", "Ian", "ian")
     nadia = TestClient(appmod.app)
@@ -493,6 +506,7 @@ def test_bootstrapping_never_announces_what_was_already_there(client):
                       params={"since": start["head"]}).json()["messages"] == []
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_reading_one_conversation_does_not_silence_another(client):
     """Read state is about a thread somebody opened; announced state is about a
     banner this client raised. Deriving one from the other means opening a chat
@@ -518,3 +532,13 @@ def test_an_anonymous_listener_polls_quietly(client):
     that looks broken in the console for no reason."""
     body = client.get("/api/notifications").json()
     assert body == {"messages": [], "follows": [], "head": 0, "unread": 0}
+
+
+def test_knowing_an_id_does_not_open_a_conversation(client):
+    """A stranger who has another listener's id cannot message them, nor put
+    them in a group (§523)."""
+    ana = signed_in(client, "ana@b.com", "Ana", "ana")
+    client.post("/api/auth/logout")
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    assert client.post("/api/messages", json={"to": ana, "text": "hi"}).status_code == 403
+    assert client.post("/api/messages/groups", json={"user_ids": [ana]}).status_code == 400

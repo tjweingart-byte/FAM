@@ -514,3 +514,4 @@ and `limit` = Lines.
 | 32467 | 128 | 520. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
 | 32595 | 32 | 521. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
 | 32627 | 42 | 522. The iOS app, stage 2: myFAM (2026-11-10) |
+| 32669 | 24 | 523. Messages only between friends (2026-11-10) |
