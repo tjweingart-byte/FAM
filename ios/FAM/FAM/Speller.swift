@@ -206,3 +206,103 @@ enum SpellWords {
     }
 
 }
+
+/// The word-by-word pass (`acInstall`) for a box other than searchFAM's -
+/// the message box (`#threadInput` carries `data-autocorrect`). The same
+/// rules as searchFAM's own: a word just finished at the end (a space, a
+/// new line or punctuation typed after it) is asked about and fixed in
+/// place, only if it is still there untouched; a whole word only (not part
+/// of a handle, a hashtag, a path or an address); a sentence's first word
+/// asked as one; one backspace straight after a fix puts the typed word
+/// back, and that word is never corrected again. No send-time pass: the web
+/// sends a message as it stands.
+@MainActor
+final class LiveCorrector {
+    private let speller: Speller
+    private var lastFix: WordFix?
+    /// The text this corrector wrote itself, so its own change is not taken
+    /// for typing.
+    private var ownChange: String?
+
+    init(speller: Speller) { self.speller = speller }
+
+    /// The box was cleared or sent (`acLast = null`).
+    func reset() {
+        lastFix = nil
+        ownChange = nil
+    }
+
+    private static let boundary = CharacterSet(charactersIn: " \t\n.,!?;:)")
+    private static let lastWord = try? NSRegularExpression(pattern: "([A-Za-z]+(?:'[A-Za-z]+)?)$")
+    private static let partOfWord = try? NSRegularExpression(pattern: "[\\p{L}\\p{N}@#/._-]")
+
+    private static func isBoundary(_ text: String) -> Bool {
+        guard let scalar = text.unicodeScalars.first else { return false }
+        return boundary.contains(scalar)
+    }
+
+    /// Every change to the box. `read` is what the box holds now (the fix
+    /// lands only if the word is still where it was); `write` puts text in.
+    func changed(from old: String, to now: String,
+                 read: @escaping () -> String, write: @escaping (String) -> Void) {
+        if let mine = ownChange, mine == now {
+            ownChange = nil
+            return
+        }
+        ownChange = nil
+        let oldNS = old as NSString
+        let nowNS = now as NSString
+        if let fix = lastFix, revert(fix, oldNS, nowNS, write: write) { return }
+        lastFix = nil
+        guard nowNS.length == oldNS.length + 1, now.hasPrefix(old) else { return }
+        let typedChar = nowNS.substring(from: nowNS.length - 1)
+        guard Self.isBoundary(typedChar) else { return }
+        let before = nowNS.substring(to: nowNS.length - 1)
+        let beforeNS = before as NSString
+        guard let re = Self.lastWord,
+              let m = re.firstMatch(in: before, range: NSRange(location: 0, length: beforeNS.length)) else { return }
+        let word = beforeNS.substring(with: m.range)
+        let start = m.range.location
+        if speller.isReverted(word) { return }
+        if start > 0 {
+            let prev = beforeNS.substring(with: NSRange(location: start - 1, length: 1))
+            if let part = Self.partOfWord,
+               part.firstMatch(in: prev, range: NSRange(location: 0, length: (prev as NSString).length)) != nil {
+                return
+            }
+        }
+        let first = SpellWords.startsSentence(beforeNS.substring(to: start))
+        let speller = self.speller
+        Task { @MainActor [weak self] in
+            guard let fix = await speller.ask(word, first: first), fix != word, let self else { return }
+            let current = read() as NSString
+            let length = (word as NSString).length
+            // Only if the word is still there, untouched, where it was.
+            guard current.length > start + length,
+                  current.substring(with: NSRange(location: start, length: length)) == word,
+                  Self.isBoundary(current.substring(with: NSRange(location: start + length, length: 1)))
+            else { return }
+            let fixed = current.replacingCharacters(in: NSRange(location: start, length: length), with: fix)
+            self.ownChange = fixed
+            self.lastFix = WordFix(start: start, from: word, to: fix)
+            write(fixed)
+        }
+    }
+
+    /// The backspace straight after a fix: the fix and the character after
+    /// it were the end of the box, and that character went.
+    private func revert(_ fix: WordFix, _ old: NSString, _ now: NSString,
+                        write: (String) -> Void) -> Bool {
+        let toLength = (fix.to as NSString).length
+        guard old.length == fix.start + toLength + 1, now.length == old.length - 1,
+              old.hasPrefix(now as String),
+              old.substring(with: NSRange(location: fix.start, length: toLength)) == fix.to else { return false }
+        let kept = old.substring(from: old.length - 1)
+        let put = old.substring(to: fix.start) + fix.from + kept
+        speller.noteReverted(fix.from)
+        lastFix = nil
+        ownChange = put
+        write(put)
+        return true
+    }
+}
