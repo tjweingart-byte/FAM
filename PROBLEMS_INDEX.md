@@ -501,3 +501,4 @@ and `limit` = Lines.
 | 31858 | 61 | 507. The §501 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10) |
 | 31919 | 54 | 508. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10) |
 | 31973 | 58 | 509. The packet Shakespeare numbers, cleaned (2026-11-10) |
+| 32031 | 45 | 511. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10) |

@@ -32027,3 +32027,48 @@ once; the live block gives facts and status, never guidance, and nothing
 when it found nothing). Three fixtures in §501/§504/§507's tests now use a
 longer second sentence: "Two members dissented." is joined to its
 neighbour by Consuela's splitter, so the fixtures' P1.2 no longer existed.
+
+## 511. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10)
+
+(§510 is taken by the 11.9 packet on another branch, so this is §511.)
+
+The owner: "Run the combined comparison" (§509's next step). Both arms were
+written fresh into `~/.fam/editor_eval_509/` on the same 50 packets: `none`,
+and `haiku_taught` - Shakespeare as he stands, with worked plans, the cleaned
+packet (§509), the writer at high effort and the signed shapes. Opus graded
+blind; no grade failures. $3.07, paused once at the owner's word ("how much
+money has been spent... we gotta stop that") and resumed at it. **The branch's
+model spend in all: ~$13.40** (§501 $6.16, §507 $2.97, §511 $3.07, the 50
+questions researched again ~$0.50, §508's reading ~$0.10). From now on a paid
+run is asked for first, with its cost.
+
+**Shakespeare against no editor: no measurable difference, a third time.**
+Mean of six +0.03 [-0.11, +0.17], better on 24 questions and worse on 21
+(§437: +0.03; §501: +0.07). Nothing clears zero: repetition +0.20,
+storytelling +0.12, fewer unsupported claims +0.12 (0.48 against 0.60 a
+script), depth -0.10. He costs $0.004 more an episode and 20 s more, ahead
+of the tap.
+
+**The same arm twice** (`none` here against `none` in §501, the same packets
+and code): +0.07 [-0.08, +0.22], and **information +0.27 [+0.02, +0.54]
+clears zero** - pure chance, since nothing differs but the run. So with eight
+measures and several pairs read at 50 questions, one measure clearing zero
+is expected by chance. §501's two single-measure findings - matched examples
+costing repetition (-0.37), worked plans helping it (+0.40) - are no stronger
+than that. Matched examples stay off (they showed no gain either way), and
+worked plans stay on (no harm seen); neither is shown to matter.
+
+**The cleaned packet** (Shakespeare here against Shakespeare in §501): mean
+of six -0.04 [-0.15, +0.08], 21 better and 21 worse - no change in the
+episodes. Plan-following reads higher (score 0.65 to 0.76; opening 0.62 to
+0.80; parts 0.80 to 0.98; landing 0.40 to 0.46). But §501 was measured
+before §508's fix and this run after, so most of that rise is the measure's.
+Only the run-to-run part is the cleaning's, and it cannot be separated now.
+
+**What it says.** At 1.5 minutes, from these packets, Opus's grades cannot
+tell an episode Shakespeare planned from one the writer planned alone, in
+three comparisons. These comparisons detect a difference of about 0.15 at
+best, and a run's own chance spread is about that size. Spending more on them
+buys no more certainty. The test that can decide is listening: the editions
+trial (`EDITOR_TRIAL=1`, §454), read by `tools/editor_trial.py` and
+`tools/drop_off.py`, and free.
