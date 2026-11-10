@@ -262,8 +262,14 @@ struct StoryCanvas: View {
             .modifier(StoryPinch(editor: editor))
         }
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .accessibilityElement(children: editor == nil ? .ignore : .contain)
+        .accessibilityElement(children: childBehaviour)
         .accessibilityLabel(accessibleWords)
+    }
+
+    /// The viewer reads the story as one element, unless a tag is a button.
+    private var childBehaviour: AccessibilityChildBehavior {
+        if editor == nil && (openTag == nil || draft.tags.isEmpty) { return .ignore }
+        return .contain
     }
 
     private var accessibleWords: String {
@@ -670,6 +676,8 @@ final class StoryEditorModel: ObservableObject {
     @Published private(set) var tool = ""
     /// Asks the view to put the cursor in the box (Text was tapped).
     @Published private(set) var focusAsk = 0
+    /// Asks the view to put the keyboard away (the canvas was touched).
+    @Published private(set) var blurAsk = 0
     @Published private(set) var people: [FollowPerson]?
     @Published private(set) var peopleFailed = false
     @Published var term = ""
@@ -898,6 +906,7 @@ final class StoryEditorModel: ObservableObject {
 
     /// Touching the canvas closes any tool but Text.
     func touchedCanvas() {
+        blurAsk += 1
         if !tool.isEmpty && tool != "text" { setTool("") }
     }
 
@@ -1057,6 +1066,7 @@ struct StoryEditor: View {
     @FocusState private var boxFocused: Bool
     @FocusState private var searchFocused: Bool
     @State private var stage: CGSize = .zero
+    @State private var panelHeight: CGFloat = 0
     private let openMine: (() -> Void)?
 
     init(subject: StoryEditorSubject, openMine: (() -> Void)? = nil) {
@@ -1097,6 +1107,10 @@ struct StoryEditor: View {
         .onAppear { ed.attach(model) }
         .onDisappear { ed.stopDictation() }
         .onChange(of: ed.focusAsk) { _, _ in boxFocused = true }
+        .onChange(of: ed.blurAsk) { _, _ in
+            boxFocused = false
+            searchFocused = false
+        }
         .onChange(of: boxFocused) { _, on in
             if on { ed.setTool("text", keep: true) }
         }
@@ -1146,7 +1160,7 @@ struct StoryEditor: View {
     private var tools: some View {
         VStack(alignment: .trailing, spacing: 9) {
             toolButton("text", "Text") {
-                Text("Aa").font(.custom("Geist-Bold", fixedSize: 14))
+                Text("Aa").font(FAMFont.body(14, .bold))
             }
             toolButton("stickers", "Stickers") {
                 WebIcon(path: StoryIcons.sticker, size: 17, line: 1.9)
@@ -1163,7 +1177,7 @@ struct StoryEditor: View {
                 }
             } else {
                 toolButton("mention", "Mention") {
-                    Text("@").font(.custom("Geist-Bold", fixedSize: 14))
+                    Text("@").font(FAMFont.body(14, .bold))
                 }
                 toolButton("picture", "Picture") {
                     WebIcon(path: StoryIcons.sliders, size: 17, line: 1.9)
@@ -1197,7 +1211,7 @@ struct StoryEditor: View {
         let tint: Color = listening ? Color.white : (on ? StoryPalette.dark : StoryPalette.paper)
         return HStack(spacing: 8) {
             Text(label)
-                .font(.custom("Geist-SemiBold", fixedSize: 11))
+                .font(FAMFont.body(11, .semibold))
                 .foregroundStyle(StoryPalette.paper)
                 .shadow(color: .black.opacity(0.6), radius: 3, x: 0, y: 1)
             icon
@@ -1259,7 +1273,7 @@ struct StoryEditor: View {
         let words = Binding<String>(get: { ed.words }, set: { ed.setWords($0) })
         let hint = ed.note ? "Say what you think\u{2026}" : "Add a caption\u{2026}"
         return TextField("", text: words, prompt: Text(hint).foregroundColor(StoryPalette.paper.opacity(0.7)))
-            .font(.custom("Geist-Medium", fixedSize: 13))
+            .font(FAMFont.body(13, .medium))
             .foregroundStyle(StoryPalette.paper)
             .focused($boxFocused)
             .submitLabel(.done)
@@ -1279,13 +1293,22 @@ struct StoryEditor: View {
         }
     }
 
+    /// As tall as what it holds, up to 62% of the stage, then it scrolls.
+    /// One ScrollView always, so the search box keeps its keyboard while
+    /// the list under it changes.
     private var panel: some View {
         let most = max(160, stage.height * 0.62)
-        return ViewThatFits(in: .vertical) {
+        let tall = min(max(panelHeight, 1), most)
+        return ScrollView {
             panelBody
-            ScrollView { panelBody }
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { panelHeight = g.size.height }
+                        .onChange(of: g.size.height) { _, height in panelHeight = height }
+                })
         }
-        .frame(maxHeight: most)
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: tall)
         .background(StoryPalette.panel, in: RoundedRectangle(cornerRadius: 18))
     }
 
@@ -1293,12 +1316,12 @@ struct StoryEditor: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(panelTitle)
-                    .font(StoryFonts.mono(10))
+                    .font(FAMFont.mono(10))
                     .tracking(1.2)
                     .foregroundStyle(StoryPalette.paper.opacity(0.7))
                 Spacer()
                 Button("Done") { ed.setTool("") }
-                    .font(.custom("Geist-Bold", fixedSize: 12))
+                    .font(FAMFont.body(12, .bold))
                     .foregroundStyle(StoryPalette.gold)
                     .buttonStyle(.press)
             }
@@ -1316,7 +1339,7 @@ struct StoryEditor: View {
 
     private func hint(_ words: String) -> some View {
         Text(words)
-            .font(.custom("Geist-Regular", fixedSize: 11))
+            .font(FAMFont.body(11, .regular))
             .foregroundStyle(StoryPalette.paper.opacity(0.6))
             .padding(.top, 10)
             .fixedSize(horizontal: false, vertical: true)
@@ -1344,7 +1367,7 @@ struct StoryEditor: View {
                 ForEach(words, id: \.offset) { item in
                     Button { ed.addSticker(item.offset) } label: {
                         Text(item.element)
-                            .font(StoryFonts.mono(11, bold: true))
+                            .font(FAMFont.mono(11, bold: true))
                             .tracking(0.66)
                             .foregroundStyle(StoryPalette.ink)
                             .frame(maxWidth: .infinity)
@@ -1367,7 +1390,7 @@ struct StoryEditor: View {
             VStack(alignment: .leading, spacing: 0) {
                 TextField("", text: $ed.term,
                           prompt: Text("Search people you follow").foregroundColor(FAMColor.textFaint))
-                    .font(.custom("Geist-Regular", fixedSize: 13))
+                    .font(FAMFont.body(13, .regular))
                     .foregroundStyle(FAMColor.text)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -1396,11 +1419,11 @@ struct StoryEditor: View {
                 Face(name: name, handle: handle, avatar: p.avatar ?? "", size: 32, initialsSize: 12)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(name.isEmpty ? "@" + handle : name)
-                        .font(.custom("Geist-Regular", fixedSize: 13))
+                        .font(FAMFont.body(13, .regular))
                         .foregroundStyle(StoryPalette.paper)
                         .lineLimit(1)
                     Text("@" + handle)
-                        .font(.custom("Geist-Regular", fixedSize: 11))
+                        .font(FAMFont.body(11, .regular))
                         .foregroundStyle(StoryPalette.paper.opacity(0.6))
                         .lineLimit(1)
                 }
@@ -1425,7 +1448,7 @@ struct StoryEditor: View {
     private func optionButton(_ label: String, on: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.custom("Geist-SemiBold", fixedSize: 12))
+                .font(FAMFont.body(12, .semibold))
                 .foregroundStyle(on ? StoryPalette.dark : StoryPalette.paper)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
@@ -1491,7 +1514,7 @@ struct StoryEditor: View {
                 HStack(spacing: 8) {
                     Face(name: name, handle: handle, avatar: avatar, size: 26, initialsSize: 10)
                     Text("Your story")
-                        .font(.custom("Geist-SemiBold", fixedSize: 12.5))
+                        .font(FAMFont.body(12.5, .semibold))
                         .foregroundStyle(StoryPalette.paper)
                     Spacer(minLength: 0)
                 }
