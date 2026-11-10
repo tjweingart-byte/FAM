@@ -71,7 +71,7 @@ struct MessagesView: View {
                 .submitLabel(.search)
         }
         .padding(.horizontal, 12)
-        .frame(height: 40)
+        .frame(minHeight: 40)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 13))
         .overlay(RoundedRectangle(cornerRadius: 13).stroke(FAMColor.border))
         .padding(.horizontal, 16)

@@ -40,7 +40,7 @@ struct FriendsView: View {
                 .foregroundStyle(FAMColor.ink)
                 .padding(.leading, 13)
                 .padding(.trailing, 12)
-                .frame(height: 30)
+                .frame(minHeight: 30)
                 .background(FAMColor.copper, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -232,7 +232,7 @@ struct FriendsView: View {
             }
             .foregroundStyle(FAMColor.text)
             .padding(.horizontal, 16)
-            .frame(height: 34)
+            .frame(minHeight: 34)
             .overlay(Capsule().stroke(FAMColor.borderStrong))
             .animation(.easeOut(duration: 0.26), value: on)
         }

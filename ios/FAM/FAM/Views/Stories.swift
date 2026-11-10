@@ -481,7 +481,7 @@ struct StoryViewer: View {
                     }
                     .foregroundStyle(FAMColor.ink)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 46)
+                    .frame(minHeight: 46)
                     .background(Self.gold, in: Capsule())
                 }
                 .buttonStyle(.plain)
@@ -510,7 +510,7 @@ struct StoryViewer: View {
                 .padding(.trailing, 2)
                 .accessibilityLabel("Send")
             }
-            .frame(height: 44)
+            .frame(minHeight: 44)
             .background(Color.black.opacity(0.18), in: Capsule())
             .overlay(Capsule().stroke(typing ? Self.paper : Self.paper.opacity(0.55)))
             Button { like() } label: {

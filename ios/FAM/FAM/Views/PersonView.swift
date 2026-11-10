@@ -289,7 +289,7 @@ struct PersonView: View {
                     }
                     .foregroundStyle(FAMColor.ink)
                     .padding(.horizontal, 14)
-                    .frame(height: 34)
+                    .frame(minHeight: 34)
                     .background(FAMColor.copper, in: Capsule())
                 }
                 .buttonStyle(.plain)
@@ -306,7 +306,7 @@ struct PersonView: View {
                     }
                     .foregroundStyle(FAMColor.text)
                     .padding(.horizontal, 14)
-                    .frame(height: 34)
+                    .frame(minHeight: 34)
                     .overlay(Capsule().stroke(FAMColor.borderStrong))
                     .animation(.easeOut(duration: 0.26), value: flipped)
                 }
@@ -318,7 +318,7 @@ struct PersonView: View {
                         .font(FAMFont.body(12, .bold))
                         .foregroundStyle(FAMColor.ink)
                         .padding(.horizontal, 14)
-                        .frame(height: 34)
+                        .frame(minHeight: 34)
                         .background(FAMColor.copper, in: Capsule())
                 }
                 .buttonStyle(.plain)
@@ -369,7 +369,7 @@ struct PersonView: View {
             Text(title)
                 .monoLabel(10.5, color: on ? FAMColor.text : FAMColor.textFaint, tracking: 1.89)
                 .frame(maxWidth: .infinity)
-                .frame(height: 34)
+                .frame(minHeight: 34)
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(on ? FAMColor.copper : Color.clear).frame(height: 2)
                 }
@@ -467,7 +467,7 @@ struct PersonView: View {
                                 .font(FAMFont.body(12.5))
                                 .foregroundStyle(FAMColor.text)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 40)
+                                .frame(minHeight: 40)
                                 .overlay(Capsule().stroke(FAMColor.borderStrong))
                         }
                         .buttonStyle(.plain)
@@ -506,7 +506,7 @@ struct PersonView: View {
                         .font(FAMFont.body(11, .bold))
                         .foregroundStyle(FAMColor.ink)
                         .padding(.horizontal, 12)
-                        .frame(height: 28)
+                        .frame(minHeight: 28)
                         .background(FAMColor.copper, in: Capsule())
                 }
                 .buttonStyle(.plain)

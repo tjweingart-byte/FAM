@@ -18,7 +18,7 @@ the app.
 | Bricolage Grotesque / Geist / Geist Mono (`typefaces`) | Done | bundled, static instances |
 | Drawn wordmark (daily/my/yourFAM, the chevron A) | Done | from the web's SVG paths |
 | Dark mode (Settings) | Not yet | web default is light (§250) |
-| Larger phone text never breaks a screen (`large-text`) | Partial | sizes scale; not yet checked at the largest sizes |
+| Larger phone text never breaks a screen (`large-text`, §499): a fixed height on anything holding words is a floor; a heading never squeezed by a control on its row; the wordmark on one line | Partial | every size scales (`relativeTo`); every fixed height round words - pills, buttons, search fields, the Pick up cards, the friends pill, the story's reply box, the profile's tabs - is a floor (`frame(minHeight:)`), identical at the default size; the wordmarks never wrap (`fixedSize`); a View more heading wraps rather than being cut to two lines by Refresh. Not yet looked at on a phone at the accessibility sizes. Left as on the web: the mix glide's 96 pt cards (the web's are fixed too) |
 | Motion (§292: screen pushes, the burst on save/vibe) | Partial | the player's save / VIBE! burst (squeeze, ring, six sparks, the SAVED / VIBED lozenge, VIBED 300 ms after the composer), the title wipe, the picture's blur-up, the What's next rise, the modals' fade and lift and the mini bar's rise are drawn with SwiftUI animations at the web's timings; screen pushes are iOS's own |
 
 ## Navigation
@@ -30,6 +30,7 @@ the app.
 | No tab bar or mini player on a rail's View more (`screen-section`) | Done | |
 | Mini player above the bar, X stops (`transport`) | Done | 58 tall, inset 12, the strong border; a 38 pt crop of the picture (headphones when none), the title with its E, "m:ss left", the copper play and a bare X ("Hide the player"), the 2 pt progress along the bottom; shown from the first word until the episode ends, fails or is stopped, as the web's `showNowBar` / `hideNowBar`; rises and drops with the web's timing. Its title is the full player's title - the web's bar takes the writer's title even over a tile's own (`titleOverridden`); the owner chose the player's for both |
 | Leaving the player never stops it | Done | |
+| No exploreFAM (§499): no reel, no pill on search or beside Made for you, no swipe from search; a category plays in the player | Done | the iOS app never had the reel; nothing reaches `/api/explore` or the comment endpoints. "Explore New" (`might_like`) is a different screen and keeps its name, as on the web |
 
 ## Accounts and the waitlist
 
@@ -89,15 +90,15 @@ Checked against a specification written from `static/index.html` (the web's
 | Pick up where you left off: resume (time left, bar) and thread cards, X dismisses for good | Done | resumes seek once the audio has arrived. **Server bug found:** progress keeps `minutes` as an integer, so a 1.5-minute resume is asked as 1 minute (a different episode) - on the web too |
 | Five rails in the server's order, "Made for you, {Day} {part}" / "Start here", the others' headings | Done | |
 | Each rail's empty sentence from the server; friends rail silent with nobody followed | Done | |
-| Card: picture (with none, the web's `seedThumbSVG` drawing by `icon`), subject chip (`thumb_facet`, else the first tag), ready badge, the web's save bookmark (an outline, on sage once saved) and ⋯, friends pill (three 22 pt faces from the page's own face book, "+N" in copper; a tap lists who listened) or the words alone (not tappable), title size steps (>48, >72), live line (copper and dotted only while in progress and under 20 min old) with its age, hook with each rail's fallback | Done, differs on purpose | the owner's call for iOS: the picture at its full 4:3 (the web crops rail pictures to a 96 pt strip), the whole hook (the web clamps it to two lines), and the friends' faces on the subject chip's line, centred on it (the web lifts them above the chip) |
-| Card ⋯ in the web's order with its icons: Share, Add to myFAM Playlist, Add to Queue, Go to Queue, Not interested (the frown); Not interested takes the card off every rail and any open View more | Done | Share opens "Share this FAM" for that card's episode (`openShareModal(ep)`): its friends and groups rows, then the destinations |
+| Card: picture (with none - since §507 an episode nothing places has none, never a hashed one - the web's `seedThumbSVG` drawing by `icon`), subject chip (`thumb_facet`, else the first tag), ready badge, the web's save bookmark (an outline, on sage once saved) and ⋯, friends pill (three 22 pt faces from the page's own face book, "+N" in copper; a tap lists who listened) or the words alone (not tappable), title size steps (>48, >72), live line (copper and dotted only while in progress and under 20 min old) with its age, hook with each rail's fallback | Done, differs on purpose | the owner's call for iOS: the picture at its full 4:3 (the web crops rail pictures to a 96 pt strip), the whole hook (the web clamps it to two lines), and the friends' faces on the subject chip's line, centred on it (the web lifts them above the chip) |
+| Card ⋯ in the web's order with its icons: Share, Add to myFAM Playlist, Add to Queue, Go to Queue, Not interested (the frown); Not interested takes the card off every rail and any open View more, records `not_interested` and says "Got it — you’ll see less like this" (§499; the server keeps it off every rail, Trending and What's next from then on); no button on the card | Done | Share opens "Share this FAM" for that card's episode (`openShareModal(ep)`): its friends and groups rows, then the destinations |
 | "N friends listened": a centred card, bordered round close, a row a friend | Done | a row with a handle opens that profile once the card has closed |
 | A rail ends in a faint chevron until scrolled to its end, then VIEW MORE → View more: 16 at a time, Refresh (back to the top each page), the reason line, wrap notes (never "The last of this rail" on Made for you, whose first page is the rail's own tiles and never caught up), caught up, Trending by continent, faces from the page's own `friend_faces` | Done | |
 | Find new friends pill after the friends rail (alone when you follow nobody) | Done | opens Friends |
 | Guest sample note | n/a | the iOS app requires an account |
 | Offline: the bar, dimmed cards, the remembered page | Not yet | |
 | Loading skeleton; the error sentence | Done | |
-| Library (bookshelf on search): A-Z with sticky letters, rows inset 36 pt, day labels, plays left out at none, search as you type, the web's sentences (centred, faint), "Search FAM for it" puts the words in searchFAM's box | Done | |
+| Library (bookshelf on search): A-Z with sticky letters, rows inset 36 pt, the day each was made (§499: TODAY, YESTERDAY, N DAYS AGO to six, then OCT 28 - ", 2025" once not this year - counted in calendar days on the phone, the month in English as the web's `MONTHS_SHORT`), plays left out at none, search as you type, the web's sentences (centred, faint), "Search FAM for it" puts the words in searchFAM's box | Done | |
 | Saved toast's "Open" | Not yet | opens Save for Later on the web; no such screen here, so the toast has no action |
 | Arrival animation of rails | Not yet | |
 | Pull to refresh | iOS only | the web has none; kept as iOS convention |
@@ -132,7 +133,7 @@ measured sizes (`player-layout`, `transport`, `queue`, `post-episode-grid`,
 | "not your episode" badge over the picture (`.p-demo`, a server with no model key) | Not yet | a development server's mark; production always has a key |
 | Album swipe and "scroll up for next in {album}" (`#nextHint`) | n/a | no albums (Play-all) on iOS |
 | "Which one do you mean?" (§426): `ask_reading` on any tap that may write; the server's readings (up to four), the choice joining the question | Done | |
-| Limit screen (`showLimitReached`) | Partial | the server's title and sentence, the meter, "Resets … in your time", Not now; no "See plans" (no plans screen or checkout on iOS); unreachable while `ENFORCE_QUOTAS=0` |
+| Limit screen (`showLimitReached`) | Partial | the server's title and sentence, the meter, "Resets … in your time", Not now; no "See plans" (no plans screen or checkout on iOS). Drawn only on the server's 429 quota refusal, which production no longer sends: everyone is unlimited (`ENFORCE_QUOTAS=0` in `render.yaml`, §519); the app shows no meter, plan or allowance anywhere else |
 | Toasts and snacks: the plain line with the copper rule (§299), 2.2 s / 3.5 s with an action | Done | "Saved for Later · Open" and "Vibed to your story · View" have no action on iOS (no Saved screen; the story view is not opened from here) |
 | Offline: play an episode kept on the device, the offline bar | Not yet | no OfflineShelf on iOS |
 | Lock screen: title, play/pause, ±15, scrub | iOS only | the web has no Media Session; kept |
@@ -189,6 +190,7 @@ and icons (2026-11-10), and a specification written from `static/index.html`
 |---|---|---|
 | Account details, privacy and safety, sign out, delete account (5.1.1(v)) | Done | |
 | Profile hero, picture, interests line, Vibes/Mixes tiles (§341) | Not yet | |
+| Hold a vibe on your own grid: "Remove vibe from profile" (§499, `DELETE /api/vibe`) | Not yet | needs the grid above; a vibe is deleted whole from your story's ⋯ ("Delete vibe") and the player's VIBE! |
 | Saved for later, folders (`save-pointer`) | Not yet | |
 | Listening history | Not yet | |
 | Edit profile, interests, place, time zone | Not yet | |

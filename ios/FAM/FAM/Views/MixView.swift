@@ -209,7 +209,7 @@ struct MixView: View {
                             .font(FAMFont.body(10, .bold))
                             .foregroundStyle(FAMColor.text)
                             .padding(.horizontal, 10)
-                            .frame(height: 22)
+                            .frame(minHeight: 22)
                             .background(FAMColor.surface2, in: Capsule())
                             .overlay(Capsule().stroke(FAMColor.borderStrong))
                             .buttonStyle(.plain)
@@ -292,7 +292,7 @@ struct MixView: View {
             .font(FAMFont.body(12, .bold))
             .foregroundStyle(FAMColor.background)
             .padding(.horizontal, 18)
-            .frame(height: 34)
+            .frame(minHeight: 34)
             .background(FAMColor.text, in: Capsule())
         }
         .buttonStyle(.plain)
@@ -454,7 +454,7 @@ struct MixView: View {
                         .font(FAMFont.body(10.5, .semibold))
                         .foregroundStyle(FAMColor.text)
                         .padding(.horizontal, 11)
-                        .frame(height: 28)
+                        .frame(minHeight: 28)
                         .overlay(Capsule().stroke(FAMColor.borderStrong))
                     }
                     .buttonStyle(.plain)

@@ -74,7 +74,7 @@ struct GoDeeperSheet: View {
                 .foregroundStyle(FAMColor.text)
                 .focused($typing)
                 .padding(.horizontal, 12)
-                .frame(height: 41)
+                .frame(minHeight: 41)
                 .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
                 .submitLabel(.go)
@@ -472,7 +472,7 @@ struct PlaybackSheet: View {
                     .foregroundStyle(FAMColor.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12)
-                    .frame(height: 39)
+                    .frame(minHeight: 39)
                     .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
             }

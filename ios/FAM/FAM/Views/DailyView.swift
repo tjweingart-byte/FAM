@@ -183,7 +183,7 @@ struct RailRow: View {
                     .foregroundStyle(FAMColor.ink)
                     .padding(.leading, 10)
                     .padding(.trailing, 13)
-                    .frame(height: 30)
+                    .frame(minHeight: 30)
                     .background(FAMColor.copper, in: Capsule())
                 }
                 .buttonStyle(.plain)
@@ -436,7 +436,7 @@ struct TileCard: View {
                 .padding(.leading, 3)
                 .padding(.trailing, more > 0 ? 7 : 3)
                 .padding(.vertical, 3)
-                .frame(height: 30)
+                .frame(minHeight: 30)
                 .background(Self.pillInk.opacity(0.88), in: Capsule())
                 .overlay(Capsule().stroke(Color(red: 237 / 255, green: 230 / 255, blue: 214 / 255).opacity(0.18)))
             }
@@ -851,7 +851,9 @@ struct SectionView: View {
                 Text(title)
                     .font(FAMFont.heading(19, .medium))
                     .foregroundStyle(FAMColor.text)
-                    .lineLimit(2)
+                    // Wraps rather than clips at a larger text size
+                    // (`large-text`, §499): never cut to two lines by Refresh.
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 if canRefresh {
                     Button {
@@ -864,10 +866,11 @@ struct SectionView: View {
                                 .animation(loading ? .linear(duration: 0.6).repeatForever(autoreverses: false) : .default,
                                            value: loading)
                             Text("Refresh").font(FAMFont.body(12.5, .semibold))
+                                .fixedSize()
                         }
                         .foregroundStyle(FAMColor.text)
                         .padding(.horizontal, 13)
-                        .frame(height: 32)
+                        .frame(minHeight: 32)
                         .overlay(Capsule().stroke(FAMColor.borderStrong))
                     }
                     .accessibilityLabel("Show different episodes")

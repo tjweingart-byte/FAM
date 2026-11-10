@@ -345,7 +345,7 @@ struct CategoryFind: View {
                     .accessibilityLabel("Find a category")
             }
             .padding(.horizontal, 12)
-            .frame(height: 38)
+            .frame(minHeight: 38)
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(focused ? FAMColor.copper : FAMColor.borderStrong))
             .padding(.top, 4)

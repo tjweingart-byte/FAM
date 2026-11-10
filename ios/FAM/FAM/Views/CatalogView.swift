@@ -37,7 +37,7 @@ struct CatalogView: View {
                     .onChange(of: words) { _, text in search(text) }
             }
             .padding(.horizontal, 12)
-            .frame(height: 40)
+            .frame(minHeight: 40)
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 13))
             .overlay(RoundedRectangle(cornerRadius: 13).stroke(FAMColor.border))
             .padding(.horizontal, 18)
@@ -188,9 +188,16 @@ struct CatalogView: View {
         case 1: return "Yesterday"
         case 2...6: return "\(days) days ago"
         default:
-            let sameYear = cal.component(.year, from: made) == cal.component(.year, from: Date())
-            return made.formatted(sameYear ? .dateTime.month(.abbreviated).day()
-                                            : .dateTime.month(.abbreviated).day().year())
+            // The web's English month names whatever the phone's language
+            // (`MONTHS_SHORT`): "Oct 28", then ", 2025" once not this year.
+            let gregorian = Calendar(identifier: .gregorian)
+            let sameYear = gregorian.component(.year, from: made) == gregorian.component(.year, from: Date())
+            let format = DateFormatter()
+            format.locale = Locale(identifier: "en_US_POSIX")
+            format.calendar = gregorian
+            format.timeZone = TimeZone.current
+            format.dateFormat = sameYear ? "MMM d" : "MMM d, yyyy"
+            return format.string(from: made)
         }
     }
 

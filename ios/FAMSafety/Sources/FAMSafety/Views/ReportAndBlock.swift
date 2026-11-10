@@ -2,12 +2,13 @@
 import SwiftUI
 
 /// Report something (1.2, `moderation.py`). Put it behind a "Report" row in
-/// the ⋯ of a comment, a chat, a profile, a story vibe, the player and the
-/// Explore reel - the same places the web has one:
+/// the ⋯ of a chat, a message, a profile, a story vibe and the player - the
+/// places the web has one (exploreFAM and its comments left the app in
+/// §499; `.comment` stays for the server's old clients):
 ///
 ///     .sheet(isPresented: $reporting) {
-///         ReportSheet(api: api, subject: .comment(id: comment.id)) { receipt in
-///             if receipt?.hidden == true { comments.removeAll { $0.id == comment.id } }
+///         ReportSheet(api: api, subject: .message(id: message.id)) { receipt in
+///             if receipt?.hidden == true { messages.removeAll { $0.id == message.id } }
 ///         }
 ///     }
 ///

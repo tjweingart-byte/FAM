@@ -280,7 +280,7 @@ struct CaptionsPill: View {
             .foregroundStyle(on ? FAMColor.ink : FAMColor.text)
             .padding(.leading, 12)
             .padding(.trailing, 14)
-            .frame(height: 36)
+            .frame(minHeight: 36)
             .background(on ? FAMColor.copper : FAMColor.surface, in: Capsule())
             .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
         }

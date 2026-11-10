@@ -212,7 +212,7 @@ struct AddTopicsView: View {
                 .onSubmit { Task { await addTyped() } }
                 .accessibilityLabel("Search topics, or type anything")
                 .padding(.horizontal, 12)
-                .frame(height: 41)
+                .frame(minHeight: 41)
                 .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
                 .padding(.horizontal, 18)

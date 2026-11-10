@@ -40,7 +40,7 @@ struct MyFAMView: View {
                         .font(FAMFont.body(12, .bold))
                         .foregroundStyle(FAMColor.text)
                         .padding(.horizontal, 16)
-                        .frame(height: 32)
+                        .frame(minHeight: 32)
                         .background(FAMColor.surface, in: Capsule())
                         .overlay(Capsule().stroke(FAMColor.borderStrong))
                     }
@@ -137,7 +137,7 @@ struct MyFAMView: View {
                     .accessibilityLabel("Search public mixes")
             }
             .padding(.horizontal, 12)
-            .frame(height: 38)
+            .frame(minHeight: 38)
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12)
                 .stroke(searchFocused ? FAMColor.copper : FAMColor.borderStrong))

@@ -941,7 +941,7 @@ struct SharedEpisodeCard: View {
                 }
                 .foregroundStyle(FAMColor.ink)
                 .padding(.horizontal, 11)
-                .frame(height: 30)
+                .frame(minHeight: 30)
                 .background(FAMColor.copper, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -950,7 +950,7 @@ struct SharedEpisodeCard: View {
                     .font(FAMFont.body(11, .medium))
                     .foregroundStyle(FAMColor.text)
                     .padding(.horizontal, 11)
-                    .frame(height: 30)
+                    .frame(minHeight: 30)
                     .overlay(Capsule().stroke(FAMColor.borderStrong))
             }
             .buttonStyle(.plain)

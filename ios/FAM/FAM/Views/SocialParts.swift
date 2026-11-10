@@ -345,7 +345,7 @@ struct ModalButton: View {
                 .foregroundStyle(primary ? FAMColor.ink : FAMColor.textMuted)
                 .padding(.horizontal, 16)
                 .frame(maxWidth: wide ? .infinity : nil)
-                .frame(height: 34)
+                .frame(minHeight: 34)
                 .background(primary ? FAMColor.copper : Color.clear, in: Capsule())
                 .opacity(enabled ? 1 : 0.5)
         }
@@ -367,7 +367,7 @@ struct ModalField: View {
             .textInputAutocapitalization(plain ? .never : .sentences)
             .autocorrectionDisabled(plain)
             .padding(.horizontal, 12)
-            .frame(height: 41)
+            .frame(minHeight: 41)
             .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
     }
