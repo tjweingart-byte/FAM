@@ -53,8 +53,6 @@ public struct ReportSheet: View {
                             }
                         } header: {
                             Text("Why are you reporting this?")
-                        } footer: {
-                            Text("A person reviews every report within \(options.reviewHours) hours. You won't see this again.")
                         }
                     }
                 } else if let failure {
@@ -84,8 +82,10 @@ public struct ReportSheet: View {
                 receipt = try await api.report(subject, reason: reason.id)
             } catch SafetyError.http(_, let detail) where !detail.isEmpty {
                 failure = detail
+            } catch SafetyError.accountRequired(let detail) where !detail.isEmpty {
+                failure = detail
             } catch {
-                failure = "Couldn't send that report."
+                failure = "Couldn't send that report"
             }
             sending = false
         }
@@ -101,24 +101,33 @@ public extension View {
     /// "Block <name>?" with the consequence spelled out, then the call. Put
     /// "Block" in the ⋯ of a profile, a chat and a story. Blocking needs an
     /// account: `onAccountRequired` shows the sign-up gate.
+    ///
+    /// A refusal is never swallowed: `onError` gets the server's sentence
+    /// (`detail`), else "Couldn't block them" (`blockPerson`).
     func blockConfirmation(isPresented: Binding<Bool>, name: String, handle: String,
                            api: SafetyAPI,
                            onBlocked: @escaping () -> Void,
-                           onAccountRequired: @escaping () -> Void = {}) -> some View {
+                           onAccountRequired: @escaping () -> Void = {},
+                           onError: @escaping (String) -> Void = { _ in }) -> some View {
         confirmationDialog("Block \(name.isEmpty ? "@" + handle : name)?",
                            isPresented: isPresented, titleVisibility: .visible) {
             Button("Block", role: .destructive) {
-                Task {
+                Task { @MainActor in
                     do {
                         try await api.block(handle: handle)
                         onBlocked()
                     } catch SafetyError.accountRequired {
                         onAccountRequired()
-                    } catch {}
+                    } catch SafetyError.http(_, let detail) where !detail.isEmpty {
+                        onError(detail)
+                    } catch {
+                        onError("Couldn't block them")
+                    }
                 }
             }
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Neither of you will see the other's comments, messages, vibes or profile, and they can't message you. They won't be told.")
+            Text("Neither of you will see the other\u{2019}s comments, messages, vibes or profile, and they can\u{2019}t message you. They won\u{2019}t be told.")
         }
     }
 }
@@ -128,11 +137,18 @@ public struct BlockedPeopleView: View {
     let api: SafetyAPI
     @State private var people: [BlockedPerson] = []
     @State private var loaded = false
+    /// "Unblocked @handle" / "Couldn't unblock them" (`openBlocked`).
+    @State private var status = ""
 
     public init(api: SafetyAPI) { self.api = api }
 
     public var body: some View {
         List {
+            if !status.isEmpty {
+                Text(status)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
             if loaded && people.isEmpty {
                 Text("You haven't blocked anyone.")
                     .foregroundStyle(.secondary)
@@ -162,7 +178,12 @@ public struct BlockedPeopleView: View {
 
     private func unblock(_ person: BlockedPerson) {
         Task {
-            try? await api.unblock(handle: person.handle)
+            do {
+                try await api.unblock(handle: person.handle)
+                status = "Unblocked @" + person.handle
+            } catch {
+                status = "Couldn't unblock them"
+            }
             await reload()
         }
     }
@@ -175,6 +196,7 @@ public struct PrivacyAndSafetySection: View {
     let api: SafetyAPI
     let base: URL
     let signedIn: Bool
+    @State private var blockedCount: Int? = nil
 
     public init(consent: ConsentModel, api: SafetyAPI, base: URL, signedIn: Bool) {
         self.consent = consent
@@ -193,7 +215,19 @@ public struct PrivacyAndSafetySection: View {
                     }
                 }))
             if signedIn {
-                NavigationLink("Blocked people") { BlockedPeopleView(api: api) }
+                NavigationLink {
+                    BlockedPeopleView(api: api)
+                } label: {
+                    HStack {
+                        Text("Blocked people")
+                        Spacer()
+                        // The count, or "None" (the web's Settings row).
+                        if let blockedCount {
+                            Text(blockedCount == 0 ? "None" : String(blockedCount))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             Link("Terms and conditions", destination: base.appendingPathComponent("terms"))
             Link("Privacy policy", destination: base.appendingPathComponent("privacy"))
@@ -203,7 +237,10 @@ public struct PrivacyAndSafetySection: View {
         } footer: {
             Text("FAM writes episodes for what you ask with Anthropic's Claude, and searches for sources with Parallel and Perplexity. Turn this off and you can still listen to everything FAM writes ahead.")
         }
-        .task { if consent.current == nil { await consent.load() } }
+        .task {
+            if consent.current == nil { await consent.load() }
+            if signedIn { blockedCount = (try? await api.blocked())?.count }
+        }
     }
 }
 #endif

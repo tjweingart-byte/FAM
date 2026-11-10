@@ -211,7 +211,9 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
     # `fmt` is how to send it and `own` whose words they are; neither is the key.
     # `fmt` is how to send it, `own` whose words, `cached_only` a replay;
     # none of them changes which episode it is.
-    assert names("audio") - {"fmt", "own", "cached_only"} == names("progress"), (names("audio"), names("progress"))
+    # `episode` names a kept episode to replay exactly (§173, §288): it
+    # never writes, so the loading screen has nothing to ask about it.
+    assert names("audio") - {"fmt", "own", "cached_only", "episode"} == names("progress"), (names("audio"), names("progress"))
 
 
 def test_the_players_side_channels_decode_what_the_server_sends():
@@ -231,7 +233,13 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    "ProfileSummary", "ProfileInterest",
                    # The category chips and panel on the myFAM tab (§500).
                    "CategoriesPage", "CategoryFacet", "CategoryNode", "CategoryEpisodes",
-                   "CategorySub", "CategoryEpisode"):
+                   "CategorySub", "CategoryEpisode",
+                   # Messages, friends and a friend's profile (§213, §282, §285).
+                   "InboxPage", "InboxThread", "ChatMember", "ChatMessage", "ChatSender",
+                   "NoticeGroup", "ChatPage", "ChatWith", "SentMessage", "GroupAnswer",
+                   "UnreadAnswer", "NoticePage", "FollowPerson", "FriendsPage", "FollowCounts",
+                   "FollowAnswer", "PeoplePage", "PersonPage", "PersonMix", "PersonVibe",
+                   "PersonFriend", "ProfileEcho"):
         body = re.search(r"struct %s:[^{]*\{(.*?)\n\}" % struct, _api(), re.S)
         assert body, struct
         for field in {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}:

@@ -13,6 +13,7 @@ struct FAMApp: App {
                 .environmentObject(model.player)
                 .environmentObject(model.nowPlaying)
                 .environmentObject(model.mixes)
+                .environmentObject(model.social)
                 .aiConsentSheet(model.consent)
                 .tint(FAMColor.copper)
                 .preferredColorScheme(.light)
@@ -61,21 +62,28 @@ struct LoadingLayer: View {
 }
 
 enum Tab: Hashable {
-    case daily, myfam, search, you
+    case daily, myfam, search, messages, you
 }
 
-/// The web's bottom bar (`.tabbar`): DailyFAM, the round search button in
-/// the middle, YourFAM. myFAM and Messages join it when they are built - a
-/// control with nothing behind it is worse than no control
-/// (`no-dead-controls`). The mini player sits just above it, and leaving
-/// the player never stops it (`transport`).
+/// The web's bottom bar (`.tabbar`): DailyFAM, myFAM, the round search
+/// button in the middle, Messages (with its unread badge) and YourFAM. The
+/// mini player sits just above it, and leaving the player never stops it
+/// (`transport`). The notifications poll runs here, every 3 s while the
+/// app is in front (`op-social-live`), with its banners and the follower
+/// popup over every tab.
 struct MainTabs: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
+    @EnvironmentObject private var social: SocialModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .daily
     @State private var scrollToTop = 0
 
-    private var sectionOpen: Bool { tab == .daily && !model.dailyPath.isEmpty }
+    /// A rail's View more, and every screen pushed from Messages (a
+    /// conversation, a profile, Friends), have no tab bar or mini player.
+    private var sectionOpen: Bool {
+        (tab == .daily && !model.dailyPath.isEmpty) || (tab == .messages && !social.messagesPath.isEmpty)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,9 +91,20 @@ struct MainTabs: View {
                 DailyView(scrollToTop: $scrollToTop).opacity(tab == .daily ? 1 : 0).allowsHitTesting(tab == .daily)
                 MyFAMView(path: $model.mixPath).opacity(tab == .myfam ? 1 : 0).allowsHitTesting(tab == .myfam)
                 SearchView(tab: $tab).opacity(tab == .search ? 1 : 0).allowsHitTesting(tab == .search)
+                MessagesView().opacity(tab == .messages ? 1 : 0).allowsHitTesting(tab == .messages)
                 YouView().opacity(tab == .you ? 1 : 0).allowsHitTesting(tab == .you)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // A social screen opened from another tab: over it, with a
+            // stack of its own (a face, a story's header, Find new friends).
+            .fullScreenCover(item: $social.cover) { cover in
+                SocialCoverView(cover: cover)
+                    .environmentObject(model)
+                    .environmentObject(player)
+                    .environmentObject(model.nowPlaying)
+                    .environmentObject(model.mixes)
+                    .environmentObject(social)
+            }
             // A rail's View more is a screen of its own on the web, with
             // neither the tab bar nor the mini player.
             if !sectionOpen {
@@ -94,7 +113,7 @@ struct MainTabs: View {
                         .padding(.horizontal, 10)
                         .padding(.bottom, 8)
                 }
-                TabBar(tab: $tab, onDaily: {
+                TabBar(tab: $tab, unread: social.unread, onDaily: {
                     // DailyFAM again while on it: back to the rails from View
                     // more, to the top when scrolled, else the page afresh;
                     // arriving from another tab fetches it too (`openMyFamTab`).
@@ -110,8 +129,25 @@ struct MainTabs: View {
                     model.mixPath = []
                     model.mixes.categoryState = CategoryState()
                     Task { await model.mixes.load() }
+                }, onMessages: {
+                    // Every arrival opens on the list, read afresh (`openMessages`).
+                    social.messagesPath = []
+                    Task { await social.loadInbox() }
                 })
             }
+        }
+        .overlay(alignment: .top) { SocialBannerLayer() }
+        .overlay {
+            if let person = social.follower {
+                FollowerPopup(person: person)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: social.follower)
+        .onChange(of: tab) { _, now in social.onMessagesTab = now == .messages }
+        // The poll: while the app is in front only; back in front, at once.
+        .task(id: scenePhase == .active) {
+            guard scenePhase == .active else { return }
+            await social.runNotifications()
         }
         .overlay(alignment: .bottom) {
             ToastView().padding(.bottom, 96)
@@ -148,21 +184,20 @@ struct MainTabs: View {
 
 struct TabBar: View {
     @Binding var tab: Tab
+    /// The Messages badge (`[data-msg-badge]`): unread messages.
+    var unread: Int = 0
     var onDaily: () -> Void = {}
     var onMyFAM: () -> Void = {}
+    var onMessages: () -> Void = {}
 
     var body: some View {
         // Five equal slots with the search in the middle, as the web's five
-        // tabs sit: Messages' slot stays empty until it is built
-        // (`no-dead-controls`), so the search is still centred.
+        // tabs sit.
         HStack(alignment: .bottom, spacing: 0) {
             item(.daily, "DailyFAM", Icons.daily, tone: Icons.dailyTone)
             item(.myfam, "myFAM", Icons.myfam, tone: Icons.myfamTone)
             centre
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: 1)
-                .accessibilityHidden(true)
+            item(.messages, "Messages", Icons.messages, tone: Icons.messages, badge: unread)
             item(.you, "YourFAM", Icons.you, tone: Icons.youTone)
         }
         .padding(.horizontal, 8)
@@ -172,12 +207,14 @@ struct TabBar: View {
         .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
     }
 
-    private func item(_ which: Tab, _ label: String, _ icon: Path, tone: Path? = nil) -> some View {
+    private func item(_ which: Tab, _ label: String, _ icon: Path, tone: Path? = nil,
+                      badge: Int = 0) -> some View {
         let on = tab == which
         let color = on ? FAMColor.copper : FAMColor.textMuted
         return Button {
             if which == .daily { onDaily() }
             if which == .myfam { onMyFAM() }
+            if which == .messages { onMessages() }
             tab = which
         } label: {
             VStack(spacing: 3) {
@@ -194,6 +231,9 @@ struct TabBar: View {
                 }
                 .frame(width: 44, height: 28)
                 .background(on ? FAMColor.copper.opacity(0.18) : Color.clear, in: Capsule())
+                .overlay(alignment: .topTrailing) {
+                    if badge > 0 { TabBadge(count: badge).offset(x: 7, y: -4) }
+                }
                 Text(label)
                     .font(FAMFont.mono(8.5, bold: on))
                     .foregroundStyle(on ? FAMColor.copper : FAMColor.textMuted)
@@ -202,7 +242,7 @@ struct TabBar: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label)
+        .accessibilityLabel(badge > 0 ? "\(label), \(badge) unread" : label)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -229,5 +269,21 @@ struct TabBar: View {
         .frame(maxWidth: .infinity)
         .accessibilityLabel("Search")
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// `.tab-badge`: coral, at least 14 x 14, radius 7, white Geist Mono 8
+/// bold; "9+" above nine; drawn on the icon's top right.
+struct TabBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text(count > 9 ? "9+" : "\(count)")
+            .font(FAMFont.mono(8, bold: true))
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 3)
+            .frame(minWidth: 14, minHeight: 14)
+            .background(FAMColor.coral, in: Capsule())
+            .accessibilityHidden(true)
     }
 }

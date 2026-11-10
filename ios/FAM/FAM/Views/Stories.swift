@@ -7,9 +7,10 @@ import SwiftUI
 /// have - then Invite. Nothing for a listener with nobody and no story of
 /// their own.
 ///
-/// On the web a face with no story opens that person's profile, and your
-/// own face with no story (or its (+)) opens the note composer. Neither
-/// screen is built here, so those faces do nothing (`no-dead-controls`).
+/// A face with no story opens that person's profile (by handle; with no
+/// handle, a conversation - `openCircleFace`). Your own face with no story
+/// (or its (+)) opens the note composer on the web; that is not built
+/// here, so it does nothing (`no-dead-controls`).
 struct FacesRow: View {
     @EnvironmentObject private var model: AppModel
     @State private var viewing: StoryReel?
@@ -30,7 +31,9 @@ struct FacesRow: View {
                         let face = faceItem(name: person.name, handle: person.handle, avatar: person.avatar,
                                             label: label, ring: state, plus: false)
                         if person.stories.isEmpty {
-                            face.accessibilityElement(children: .combine)
+                            Button { openFace(person) } label: { face }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(person.handle.isEmpty ? "Message \(label)" : "\(label)'s profile")
                         } else {
                             Button { open(circle: circle.circle, at: index) } label: { face }
                                 .buttonStyle(.plain)
@@ -153,6 +156,16 @@ struct FacesRow: View {
         var map = seen
         map[id] = max(map[id] ?? 0, at)
         if let data = try? JSONEncoder().encode(map) { seenJSON = String(decoding: data, as: UTF8.self) }
+    }
+
+    /// `openCircleFace`: the profile by handle, else a conversation.
+    private func openFace(_ p: CirclePerson) {
+        if p.handle.isEmpty {
+            model.social.open(.thread(ChatOpen(with: p.userId, name: p.name, avatar: p.avatar)))
+        } else {
+            model.social.open(.person(PersonOpen(handle: p.handle, userID: p.userId, name: p.name,
+                                                 avatar: p.avatar)))
+        }
     }
 
     private func open(circle people: [CirclePerson], at index: Int) {
@@ -301,12 +314,24 @@ struct StoryViewer: View {
         .blockConfirmation(isPresented: $blocking, name: ready ? who.name : "", handle: ready ? who.handle : "",
                            api: model.safety, onBlocked: {
                                model.nowPlaying.say("Blocked")
+                               Task {
+                                   await model.social.loadGraph()
+                                   await model.loadCircle()
+                               }
                                dismiss()
-                           })
+                           }, onError: { model.nowPlaying.say($0) })
         .sheet(isPresented: $reporting) {
             if ready {
                 ReportSheet(api: model.safety,
-                            subject: isNote ? .note(id: story.id) : .vibe(id: story.id)) { _ in }
+                            subject: isNote ? .note(id: story.id) : .vibe(id: story.id)) { receipt in
+                    // Taken off this listener's screen at once: the story closes.
+                    if receipt?.hidden == true {
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 450_000_000)
+                            dismiss()
+                        }
+                    }
+                }
             }
         }
     }
@@ -329,9 +354,32 @@ struct StoryViewer: View {
     }
 
     /// The avatar with its copper ring, the name ("Your story", else the
-    /// name or "@handle") and the age. The web's picture opens the profile;
-    /// with no profile screen yet it is words only.
+    /// name or "@handle") and the age. On somebody else's story the
+    /// picture and name open their profile, once the story has closed.
     private var header: some View {
+        HStack(spacing: 10) {
+            if who.mine || who.handle.isEmpty {
+                headerWho
+            } else {
+                Button { openProfile() } label: { headerWho }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens their profile")
+            }
+            Spacer()
+            Button { storyMenu = true } label: {
+                WebFill(path: Icons.dots(1.9), size: 18).frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("More")
+            Button { dismiss() } label: {
+                WebIcon(path: Icons.close, size: 14, line: 2.4).frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
+        }
+    }
+
+    private var headerWho: some View {
         HStack(spacing: 10) {
             Face(name: who.mine ? (model.circle?.me?.name ?? "") : who.name, handle: who.handle,
                  avatar: who.avatar, size: 34, initialsSize: 13)
@@ -345,18 +393,15 @@ struct StoryViewer: View {
                     .foregroundStyle(Self.paper.opacity(0.6))
             }
             .accessibilityElement(children: .combine)
-            Spacer()
-            Button { storyMenu = true } label: {
-                WebFill(path: Icons.dots(1.9), size: 18).frame(width: 32, height: 32)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("More")
-            Button { dismiss() } label: {
-                WebIcon(path: Icons.close, size: 14, line: 2.4).frame(width: 32, height: 32)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
         }
+        .contentShape(Rectangle())
+    }
+
+    private func openProfile() {
+        let route = SocialRoute.person(PersonOpen(handle: who.handle, userID: who.id, name: who.name,
+                                                  avatar: who.avatar))
+        dismiss()
+        model.social.openAfterClose(route)
     }
 
     /// `.story-main`, centred: VIBE, the title (a tap plays), who vibed it,

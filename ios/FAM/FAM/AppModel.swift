@@ -51,6 +51,8 @@ final class AppModel: ObservableObject {
     /// because a share sheet must open inside the tap (`loadInviteLink`).
     @Published private(set) var inviteLink: String?
     let mixes: MixesModel
+    /// Messages, Friends and profiles, and the notifications poll.
+    let social: SocialModel
     /// Where a resumed episode should jump to once enough has arrived.
     private var resumeAt: Double = 0
 
@@ -74,6 +76,7 @@ final class AppModel: ObservableObject {
         consent = ConsentModel(api: safety)
         nowPlaying = NowPlayingModel(api: api, player: player)
         mixes = MixesModel(api: api)
+        social = SocialModel(api: api)
         // The player calls back on the main queue (its delegate queue).
         player.onRefused = { [weak self] error in
             MainActor.assumeIsolated { self?.refused(error) ?? false }
@@ -115,6 +118,8 @@ final class AppModel: ObservableObject {
             self?.nowPlaying.say(text, action: action, perform: perform)
         }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
+        social.say = { [weak self] text in self?.nowPlaying.say(text) }
+        social.requestTab = { [weak self] tab in self?.tabRequest = tab }
     }
 
     // MARK: - Opening and accounts
@@ -196,6 +201,7 @@ final class AppModel: ObservableObject {
         listener = nil
         rails = []
         mixes.reset()
+        social.reset()
         mixPlay = nil
         mixPath = []
         dailyPath = []
@@ -320,6 +326,43 @@ final class AppModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// An episode a message carries, by its own length: is it saved?
+    func isSaved(query: String, minutes: Double) -> Bool {
+        savedTiles.contains("\(query)|\(FAMAPI.minutes(minutes))")
+    }
+
+    /// A message card's bookmark (`saveSharedEpisode`): "Saved for Later" /
+    /// "Removed from Saved for Later", or "Could not save that".
+    func toggleSaved(query: String, minutes: Double, title: String) {
+        let key = "\(query)|\(FAMAPI.minutes(minutes))"
+        let on = savedTiles.contains(key)
+        if on { savedTiles.remove(key) } else { savedTiles.insert(key) }
+        Task {
+            do {
+                if on {
+                    try await api.unsaveShared(query: query, minutes: minutes)
+                    nowPlaying.say("Removed from Saved for Later")
+                } else {
+                    try await api.saveShared(query: query, minutes: minutes, title: title)
+                    nowPlaying.say("Saved for Later")
+                }
+            } catch {
+                if on { savedTiles.insert(key) } else { savedTiles.remove(key) }
+                nowPlaying.say("Could not save that")
+            }
+        }
+    }
+
+    /// A shared episode's Listen (`playSharedEpisode`): the sender's exact
+    /// episode when the message names one, else the question.
+    func playShared(query: String, minutes: Double, title: String, episode: String) {
+        guard !query.isEmpty else { return }
+        var ep = Episode(key: EpisodeKey(query: query, minutes: minutes),
+                         title: title.isEmpty ? query : title, surface: "other")
+        ep.episodeID = episode
+        play(ep)
     }
 
     /// "Not interested" from a card's ⋯ (§499): the tile leaves every rail.
@@ -511,7 +554,7 @@ final class AppModel: ObservableObject {
         self.resumeAt = resumeAt
         let request = api.audio(query: ep.key.query, minutes: ep.key.minutes, surface: ep.surface,
                                 topicID: ep.topicID, context: ep.key.context, own: ep.own,
-                                cachedOnly: cachedOnly)
+                                cachedOnly: cachedOnly, episode: ep.episodeID)
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }
@@ -568,6 +611,14 @@ final class AppModel: ObservableObject {
             forget()
             showPlayer = false
             return true
+        case let .refused(status, _) where status == 409 && !(pending?.episodeID.isEmpty ?? true):
+            // The sender's episode is no longer kept (`askIfGone`): the
+            // question is asked instead, as a message always played before §288.
+            guard var again = pending else { return false }
+            again.episodeID = ""
+            loading.stop()
+            play(again)
+            return true
         case let .refused(status, message):
             // An allowance running out (429, `X-FAM-Quota`) or a plan that
             // does not cover it (402): the next item would be refused the
@@ -591,6 +642,14 @@ extension AppModel {
     func openMix(_ id: String) {
         tabRequest = .myfam
         mixPath = [.mix(id)]
+        showPlayer = false
+    }
+
+    /// Somebody else's public mix from anywhere (a profile's Mixes tile):
+    /// the myFAM tab, its public page.
+    func openPublicMix(_ id: String) {
+        tabRequest = .myfam
+        mixPath = [.publicMix(id)]
         showPlayer = false
     }
 

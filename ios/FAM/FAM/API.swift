@@ -230,7 +230,7 @@ final class FAMAPI: @unchecked Sendable {
     /// names its topic; a search names its length and says it is a search.
     func audio(query: String, minutes: Double, surface: String,
                topicID: String = "", context: String = "", own: Bool = false,
-               cachedOnly: Bool = false) -> URLRequest {
+               cachedOnly: Bool = false, episode: String = "") -> URLRequest {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -244,6 +244,10 @@ final class FAMAPI: @unchecked Sendable {
         if own { items.append(URLQueryItem(name: "own", value: "1")) }
         // A replay of an episode somebody else made: never written again.
         if cachedOnly { items.append(URLQueryItem(name: "cached_only", value: "true")) }
+        // The exact episode somebody heard (`X-FAM-Episode`, §173, §288): a
+        // message's Listen replays the sender's, current or not, and never
+        // writes; a 409 says it is no longer kept.
+        if !episode.isEmpty { items.append(URLQueryItem(name: "episode", value: episode)) }
         return request("GET", "api/v1/audio", query: items)
     }
 
@@ -552,6 +556,7 @@ struct SavedPage: Decodable { let items: [SavedItem] }
 struct SavedItem: Decodable {
     let query: String
     let minutes: Double
+    let title: String?
 }
 
 /// `/api/circle?notes=1`.
@@ -858,6 +863,9 @@ struct SavedState: Decodable { let saved: Bool }
 struct SharedLink: Decodable {
     let url: String
     let targets: [String: ShareTarget]?
+    /// False when the server has no public address: the link only works
+    /// on its own network.
+    let `public`: Bool?
 }
 
 /// One destination (`sharing._rendered`): its label, the words, and where
@@ -1055,6 +1063,8 @@ struct ProfileSummary: Decodable {
     /// The interests pills (`profile_interests`): a subject (`kind`
     /// "topic") or a facet.
     let interestsShown: [ProfileInterest]?
+    /// Your own vibes, newest first (a chat's (+) offers them).
+    let echoes: [ProfileEcho]?
 }
 
 struct ProfileInterest: Decodable {
@@ -1286,4 +1296,343 @@ struct CategoryEpisode: Decodable, Identifiable, Hashable {
     let nodeLabel: String?
 
     var id: String { query + "|" + String(minutes ?? 0) }
+}
+
+// MARK: - Messages, friends and profiles (`messages.py`, `social.py`)
+//
+// `op-social-live`: the message cursor is the server's `head`, a row id,
+// never a timestamp, and it belongs to the client; `bootstrap` announces
+// nothing. `listener-id-server`: nobody's id is ever sent as "me" - only the
+// other person's, and only one the server itself handed out (`/api/friends`,
+// `/api/people`). `/api/person` carries no id at all (`op-friend-profile`).
+
+extension FAMAPI {
+    /// Every conversation, newest first, and the Messages badge (`renderThreadList`).
+    func inbox() async throws -> InboxPage {
+        try await get("api/v1/messages", [], as: InboxPage.self)
+    }
+
+    /// One conversation (`openThreadWith`), or - with `since` - only what
+    /// arrived after that row id (the 2 s poll). Reading marks it read.
+    func chat(with: String, since: Int = 0) async throws -> ChatPage {
+        var items = [URLQueryItem(name: "with", value: with)]
+        if since > 0 { items.append(URLQueryItem(name: "since", value: String(since))) }
+        return try await get("api/v1/messages/thread", items, as: ChatPage.self)
+    }
+
+    /// Delete a chat - for this listener only (§142).
+    func deleteChat(with: String) async throws -> UnreadAnswer {
+        try await sendQuery("DELETE", "api/v1/messages/thread",
+                            [URLQueryItem(name: "with", value: with)], as: UnreadAnswer.self)
+    }
+
+    /// Words, or an episode (`query` set) - with `episode`, the id of the
+    /// one the sender heard, so the friend replays exactly that (§288).
+    /// `reply` marks a reply to, or a like on, a vibe (§282).
+    func sendMessage(to: String, text: String = "", query: String = "", minutes: Double = 0,
+                     title: String = "", episode: String = "", reply: Bool = false) async throws -> SentMessage {
+        var body: [String: Any] = ["to": to]
+        if !text.isEmpty { body["text"] = text }
+        if !query.isEmpty {
+            body["query"] = query
+            body["minutes"] = minutes
+            body["title"] = title
+            if !episode.isEmpty { body["episode"] = episode }
+        }
+        if reply { body["reply"] = true }
+        return try await send("POST", "api/v1/messages", body: body, as: SentMessage.self)
+    }
+
+    /// "I am typing to this person" - held five seconds by the server.
+    func noteTyping(to: String) async {
+        _ = try? await send("POST", "api/v1/messages/typing", body: ["to": to], as: Ignored.self)
+    }
+
+    func startGroup(userIDs: [String], name: String) async throws -> GroupAnswer {
+        try await send("POST", "api/v1/messages/groups", body: ["user_ids": userIDs, "name": name],
+                       as: GroupAnswer.self)
+    }
+
+    func renameGroup(_ gid: String, name: String) async throws -> GroupAnswer {
+        try await send("PATCH", "api/v1/messages/groups/\(gid)", body: ["name": name], as: GroupAnswer.self)
+    }
+
+    /// A `data:` URL, or "" to take the photo off. The server checks it.
+    func setGroupPhoto(_ gid: String, avatar: String) async throws -> GroupAnswer {
+        try await send("POST", "api/v1/messages/groups/\(gid)/photo", body: ["avatar": avatar],
+                       as: GroupAnswer.self)
+    }
+
+    func leaveGroup(_ gid: String) async throws -> UnreadAnswer {
+        try await send("DELETE", "api/v1/messages/groups/\(gid)", as: UnreadAnswer.self)
+    }
+
+    /// The drop-downs' poll: `bootstrap` first (the cursor, nothing to
+    /// announce), then `since` the cursor the client holds.
+    func notifications(since: Int, bootstrap: Bool) async throws -> NoticePage {
+        let items = bootstrap ? [URLQueryItem(name: "bootstrap", value: "1")]
+                              : [URLQueryItem(name: "since", value: String(since))]
+        return try await get("api/v1/notifications", items, as: NoticePage.self)
+    }
+
+    /// The follow graph (`/api/friends`): friends are derived, never stored.
+    func friends() async throws -> FriendsPage {
+        try await get("api/v1/friends", [], as: FriendsPage.self)
+    }
+
+    /// Opening Friends is what clears "new followers" - never the popup.
+    func friendsSeen() async {
+        _ = try? await send("POST", "api/v1/friends/seen", as: Ignored.self)
+    }
+
+    /// The popup or banner for this follower was shown: once, ever (§142).
+    func followerAnnounced(_ userID: String) async {
+        _ = try? await send("POST", "api/v1/friends/announced", body: ["user_id": userID], as: Ignored.self)
+    }
+
+    /// Follow by the id the graph or a search returned, or by handle (a
+    /// friend of a friend has no id on this side).
+    func follow(userID: String = "", handle: String = "") async throws {
+        var body: [String: Any] = [:]
+        if !userID.isEmpty { body["user_id"] = userID } else { body["handle"] = handle }
+        _ = try await send("POST", "api/v1/friends/follow", body: body, as: FollowAnswer.self)
+    }
+
+    func unfollow(userID: String) async throws {
+        _ = try await sendQuery("DELETE", "api/v1/friends/follow",
+                                [URLQueryItem(name: "user_id", value: userID)], as: FollowAnswer.self)
+    }
+
+    /// Find somebody by handle or name (two letters at least).
+    func people(_ words: String) async throws -> [FollowPerson] {
+        try await get("api/v1/people", [URLQueryItem(name: "q", value: words)], as: PeoplePage.self).people
+    }
+
+    /// Somebody's profile: what they chose to publish, no id.
+    func person(handle: String, userID: String = "") async throws -> PersonPage {
+        let items = handle.isEmpty ? [URLQueryItem(name: "user_id", value: userID)]
+                                   : [URLQueryItem(name: "handle", value: handle)]
+        return try await get("api/v1/person", items, as: PersonPage.self)
+    }
+
+    /// The Saved for Later shelf with its titles, for a chat's (+).
+    func savedItems() async throws -> [SavedItem] {
+        try await get("api/v1/saved", [], as: SavedPage.self).items
+    }
+
+    /// Save or unsave an episode a message carries (`saveSharedEpisode`).
+    func saveShared(query: String, minutes: Double, title: String) async throws {
+        _ = try await send("POST", "api/v1/saved", body: [
+            "query": query, "minutes": minutes, "title": title, "source": "message",
+        ], as: SavedState.self)
+    }
+
+    func unsaveShared(query: String, minutes: Double) async throws {
+        _ = try await sendQuery("DELETE", "api/v1/saved", [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
+        ], as: SavedState.self)
+    }
+}
+
+/// `GET /api/messages`.
+struct InboxPage: Decodable {
+    let threads: [InboxThread]
+    let unread: Int
+}
+
+/// One row of the inbox: a person (`with` is their id) or a group (`g:...`).
+struct InboxThread: Decodable, Identifiable {
+    let with: String
+    let group: Bool?
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    let explicit: Bool?
+    let members: [ChatMember]?
+    let unread: Int?
+    let last: ChatMessage?
+
+    var id: String { with }
+}
+
+/// Somebody in a group (`_group_view`): no listener id, by design.
+struct ChatMember: Decodable, Hashable {
+    let name: String
+    let handle: String
+    let avatar: String
+    let me: Bool
+}
+
+/// A message (`Message.as_dict`), as a conversation, the inbox's last
+/// line and a notification carry it. `kind` is text, episode or system.
+struct ChatMessage: Decodable, Hashable {
+    let id: Int
+    let thread: String?
+    let mine: Bool?
+    let kind: String?
+    let text: String?
+    let query: String?
+    let minutes: Double?
+    let title: String?
+    let at: Double?
+    let episode: String?
+    let topic: String?
+    let finished: Bool?
+    let from: ChatSender?
+    let fromName: String?
+    let group: NoticeGroup?
+}
+
+extension ChatMessage {
+    /// What the composer draws at once, before the server answers.
+    init(draftText: String, query: String = "", minutes: Double = 0, title: String = "") {
+        self.init(id: 0, thread: nil, mine: true, kind: query.isEmpty ? "text" : "episode",
+                  text: draftText, query: query, minutes: minutes, title: title,
+                  at: Date().timeIntervalSince1970, episode: nil, topic: nil, finished: nil,
+                  from: nil, fromName: nil, group: nil)
+    }
+}
+
+struct ChatSender: Decodable, Hashable {
+    let userId: String?
+    let name: String?
+    let handle: String?
+    let avatar: String?
+}
+
+/// A notification's group (`/api/notifications`): the id opens it.
+struct NoticeGroup: Decodable, Hashable {
+    let userId: String
+    let name: String?
+}
+
+/// `GET /api/messages/thread`.
+struct ChatPage: Decodable {
+    let with: ChatWith
+    let typing: Bool?
+    let messages: [ChatMessage]
+    let partial: Bool?
+    let head: Int
+}
+
+/// Who a conversation is with: a person, or a group and its people.
+struct ChatWith: Decodable, Hashable {
+    let userId: String?
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    let explicit: Bool?
+    let group: Bool?
+    let named: Bool?
+    let members: [ChatMember]?
+}
+
+struct SentMessage: Decodable {
+    let message: ChatMessage?
+}
+
+struct GroupAnswer: Decodable {
+    let group: ChatWith?
+}
+
+struct UnreadAnswer: Decodable {
+    let unread: Int?
+}
+
+/// `GET /api/notifications`.
+struct NoticePage: Decodable {
+    let messages: [ChatMessage]
+    let follows: [FollowPerson]
+    let head: Int
+    let unread: Int
+}
+
+/// A person in the follow graph, a search result or a new follower.
+struct FollowPerson: Decodable, Hashable, Identifiable {
+    let userId: String
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    let explicit: Bool?
+    let waitlisted: Bool?
+    let followsBack: Bool?
+    let following: Bool?
+
+    var id: String { userId }
+}
+
+/// `GET /api/friends`.
+struct FriendsPage: Decodable {
+    let following: [FollowPerson]
+    let followers: [FollowPerson]
+    let friends: [FollowPerson]
+    let counts: FollowCounts?
+    let newFollowers: [FollowPerson]?
+    let announce: [FollowPerson]?
+}
+
+struct FollowCounts: Decodable, Hashable {
+    let friends: Int?
+    let following: Int?
+    let followers: Int?
+}
+
+struct FollowAnswer: Decodable {
+    let counts: FollowCounts?
+}
+
+struct PeoplePage: Decodable {
+    let people: [FollowPerson]
+}
+
+/// `GET /api/person`: only what they chose to publish, and no id.
+struct PersonPage: Decodable {
+    let name: String
+    let handle: String
+    let avatar: String?
+    let explicit: Bool?
+    let location: String?
+    let mixes: [PersonMix]?
+    let vibes: [PersonVibe]?
+    let vibeCount: Int?
+    let interests: [String]?
+    let interestLabels: [String]?
+    let friendCount: Int?
+    /// Their friends - only for a friend of theirs; nil otherwise.
+    let friends: [PersonFriend]?
+}
+
+struct PersonMix: Decodable, Hashable, Identifiable {
+    let id: String
+    let name: String?
+    let cover: String?
+    let thumb: String?
+    let added: Bool?
+    let mine: Bool?
+}
+
+struct PersonVibe: Decodable, Hashable, Identifiable {
+    let id: Int
+    let query: String
+    let title: String?
+    let minutes: Double?
+    let at: Double?
+    let topic: String?
+    let thumb: String?
+}
+
+struct PersonFriend: Decodable, Hashable {
+    let name: String?
+    let handle: String
+    let avatar: String?
+    let explicit: Bool?
+    let following: Bool?
+}
+
+/// A vibe of your own (`/api/profile` `echoes`), for a chat's (+).
+struct ProfileEcho: Decodable, Hashable {
+    let query: String
+    let title: String?
+    let minutes: Double?
 }

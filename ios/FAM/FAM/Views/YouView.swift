@@ -6,6 +6,7 @@ import SwiftUI
 /// which has to be inside the app, not behind a support address (5.1.1(v)).
 struct YouView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var social: SocialModel
 
     @State private var confirmDelete = false
     @State private var problem = ""
@@ -44,6 +45,9 @@ struct YouView: View {
                         .listRowBackground(FAMColor.background)
                     }
 
+                    friendsRow
+                        .listRowBackground(FAMColor.surface)
+
                     signInMethods
                         .listRowBackground(FAMColor.surface)
 
@@ -75,6 +79,12 @@ struct YouView: View {
             .background(FAMColor.background)
             .toolbar(.hidden, for: .navigationBar)
             .task(id: model.listener?.userId) { info = try? await model.api.account() }
+            // YourFAM loading is one of the two moments the web looks for a
+            // follower to announce (`checkNewFollowers`).
+            .task {
+                await social.loadGraph()
+                social.checkNewFollowers()
+            }
             .confirmationDialog("Delete your account?", isPresented: $confirmDelete,
                                 titleVisibility: .visible) {
                 Button("Delete my account", role: .destructive) {
@@ -92,6 +102,40 @@ struct YouView: View {
     /// How this account signs in, and linking Apple or Google to it, so a
     /// later "Sign in with Apple" lands here rather than making a new
     /// account (the server never joins accounts by email).
+    /// Friends (the web's friends number on YourFAM): the counts, and how
+    /// many followed since Friends was last opened - cleared by opening
+    /// it, never by the popup (quirk 18).
+    private var friendsRow: some View {
+        Section {
+            Button { social.open(.friends) } label: {
+                HStack(spacing: 10) {
+                    Text("Friends").foregroundStyle(FAMColor.text)
+                    Spacer()
+                    if let fresh = social.graph?.newFollowers?.count, fresh > 0 {
+                        TabBadge(count: fresh)
+                            .accessibilityLabel("\(fresh) new")
+                    }
+                    Text(friendsLine)
+                        .font(FAMFont.body(12))
+                        .foregroundStyle(FAMColor.textMuted)
+                    WebIcon(path: Icons.chevron, size: 14)
+                        .foregroundStyle(FAMColor.textFaint)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Text("Friends").monoLabel(9, color: FAMColor.copper, bold: true)
+        }
+    }
+
+    private var friendsLine: String {
+        guard let counts = social.graph?.counts else { return "" }
+        let friends = counts.friends ?? 0
+        let following = counts.following ?? 0
+        return "\(friends) \(friends == 1 ? "friend" : "friends") \u{00B7} \(following) following"
+    }
+
     private var signInMethods: some View {
         Section {
             if info?.hasPassword == true {

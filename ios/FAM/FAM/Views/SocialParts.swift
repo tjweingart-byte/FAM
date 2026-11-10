@@ -1,0 +1,549 @@
+import SwiftUI
+
+// The pieces Messages, a conversation, Friends and a profile share, each
+// measured from the web (`static/index.html`; the shots and Appendix A of
+// the social spec): the dashed notice card (`.pf-empty`), the round 36 pt
+// buttons (`.yf-round`), the action sheet (`#sheetOverlay`), the in-app
+// banner (`#notifBanner`), the follower popup (`#followerOverlay`), and the
+// web's clock words (`yfWhen`) - in the phone's own 12/24-hour setting.
+
+// MARK: - Icons the social screens draw (the web's SVG paths)
+
+extension Icons {
+    /// Messages (`M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z`):
+    /// the speech bubble, also its own `.tone` fill.
+    static let messages: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 4, y: 4)); p.addLine(to: CGPoint(x: 20, y: 4))
+        p.addQuadCurve(to: CGPoint(x: 22, y: 6), control: CGPoint(x: 22, y: 4))
+        p.addLine(to: CGPoint(x: 22, y: 15))
+        p.addQuadCurve(to: CGPoint(x: 20, y: 17), control: CGPoint(x: 22, y: 17))
+        p.addLine(to: CGPoint(x: 9, y: 17)); p.addLine(to: CGPoint(x: 5, y: 21))
+        p.addLine(to: CGPoint(x: 5, y: 17)); p.addLine(to: CGPoint(x: 4, y: 17))
+        p.addQuadCurve(to: CGPoint(x: 2, y: 15), control: CGPoint(x: 2, y: 17))
+        p.addLine(to: CGPoint(x: 2, y: 6))
+        p.addQuadCurve(to: CGPoint(x: 4, y: 4), control: CGPoint(x: 2, y: 4))
+        p.closeSubpath()
+        return p
+    }()
+
+    /// The profile's Message (`M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z`).
+    static let chat: Path = {
+        var p = Path()
+        let c = CGPoint(x: 13, y: 12)
+        p.move(to: CGPoint(x: 21, y: 12))
+        p.addArc(center: c, radius: 8, startAngle: .degrees(0), endAngle: .degrees(116.9), clockwise: false)
+        p.addLine(to: CGPoint(x: 4, y: 20))
+        p.addLine(to: CGPoint(x: 5, y: 15.4))
+        p.addArc(center: c, radius: 8, startAngle: .degrees(157), endAngle: .degrees(360), clockwise: false)
+        p.closeSubpath()
+        return p
+    }()
+
+    /// The single back chevron (`M15 5l-7 7 7 7`).
+    static let backOne: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 15, y: 5)); p.addLine(to: CGPoint(x: 8, y: 12)); p.addLine(to: CGPoint(x: 15, y: 19))
+        return p
+    }()
+
+    /// The composer's send (`M5 12h14M13 6l6 6-6 6`).
+    static let arrow: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 5, y: 12)); p.addLine(to: CGPoint(x: 19, y: 12))
+        p.move(to: CGPoint(x: 13, y: 6)); p.addLine(to: CGPoint(x: 19, y: 12)); p.addLine(to: CGPoint(x: 13, y: 18))
+        return p
+    }()
+
+    /// Search messages / friends (`circle cx11 cy11 r7`, `M21 21l-4.3-4.3`).
+    static let magnifier: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 4, y: 4, width: 14, height: 14))
+        p.move(to: CGPoint(x: 21, y: 21)); p.addLine(to: CGPoint(x: 16.7, y: 16.7))
+        return p
+    }()
+}
+
+// MARK: - Words for times (`yfWhen`, the day separators)
+
+enum SocialTime {
+    static func date(_ at: Double) -> Date { Date(timeIntervalSince1970: at) }
+
+    /// The clock in the phone's own 12/24-hour setting ("4:17 PM").
+    static func clock(_ at: Double) -> String {
+        date(at).formatted(date: .omitted, time: .shortened)
+    }
+
+    /// A list row's time: today the clock, within 6.5 days the weekday
+    /// ("Sun"), else "Nov 1".
+    static func when(_ at: Double) -> String {
+        let d = date(at)
+        if Calendar.current.isDateInToday(d) { return clock(at) }
+        if Date().timeIntervalSince(d) < 6.5 * 86_400 {
+            return d.formatted(.dateTime.weekday(.abbreviated))
+        }
+        return d.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    /// A conversation's day separator: "TODAY 4:17 PM", else "SUN, NOV 8".
+    static func day(_ at: Double) -> String {
+        let d = date(at)
+        if Calendar.current.isDateInToday(d) { return "TODAY " + clock(at) }
+        return d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()).uppercased()
+    }
+
+    static func sameDay(_ a: Double, _ b: Double) -> Bool {
+        Calendar.current.isDate(date(a), inSameDayAs: date(b))
+    }
+}
+
+/// `firstName`: the first word of the name, else of the handle.
+func socialFirstName(_ name: String, handle: String = "") -> String {
+    let source = name.trimmingCharacters(in: .whitespaces).isEmpty ? handle : name
+    let first = source.split(separator: " ").first.map(String.init) ?? ""
+    return first.isEmpty ? "Someone" : first
+}
+
+// MARK: - The dashed notice (`.pf-empty`)
+
+/// Padding 15, a 1 pt dashed strong border, radius 12, Geist 11 / 16.5 muted.
+struct SocialNote<Extra: View>: View {
+    let text: String
+    @ViewBuilder var extra: () -> Extra
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(text)
+                .font(FAMFont.body(11))
+                .foregroundStyle(FAMColor.textMuted)
+                .lineSpacing(5.5)
+                .fixedSize(horizontal: false, vertical: true)
+            extra()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(15)
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .stroke(FAMColor.borderStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+        .padding(.top, 12)
+    }
+}
+
+extension SocialNote where Extra == EmptyView {
+    init(text: String) {
+        self.text = text
+        self.extra = { EmptyView() }
+    }
+}
+
+// MARK: - Round buttons (`.yf-round`)
+
+/// A 36 pt circle: outlined, or gold (`.yf-round.gold`).
+struct RoundIcon<Mark: View>: View {
+    var size: CGFloat = 36
+    var gold = false
+    @ViewBuilder var glyph: () -> Mark
+
+    var body: some View {
+        glyph()
+            .foregroundStyle(gold ? FAMColor.ink : FAMColor.text)
+            .frame(width: size, height: size)
+            .background(gold ? FAMColor.copper : Color.clear, in: Circle())
+            .overlay(Circle().stroke(gold ? FAMColor.copper : FAMColor.borderStrong))
+            .contentShape(Circle())
+    }
+}
+
+/// The web's back button on a social screen (`.yf-back`, 36 pt, chevron 20).
+struct SocialBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            WebIcon(path: Icons.backOne, size: 20, line: 2.2)
+                .foregroundStyle(FAMColor.text)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, -8)
+        .accessibilityLabel("Back")
+    }
+}
+
+// MARK: - A row of chips that wraps (`#threadChips`)
+
+struct FlowRow: Layout {
+    var spacing: CGFloat = 7
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 10_000
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var line: CGFloat = 0
+        var widest: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0 && x + size.width > width {
+                y += line + spacing
+                x = 0
+                line = 0
+            }
+            x += size.width + spacing
+            line = max(line, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return CGSize(width: min(widest, width), height: y + line)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var line: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + size.width > bounds.maxX {
+                y += line + spacing
+                x = bounds.minX
+                line = 0
+            }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            line = max(line, size.height)
+        }
+    }
+}
+
+/// An interest chip (`.yf-chip`); "N in common" is copper.
+struct InterestChip: View {
+    let label: String
+    var common = false
+    var height: CGFloat = 23
+    var size: CGFloat = 10
+
+    var body: some View {
+        Text(label)
+            .font(FAMFont.body(size))
+            .foregroundStyle(common ? FAMColor.copper : FAMColor.text)
+            .lineLimit(1)
+            .padding(.horizontal, height > 24 ? 11 : 9)
+            .frame(height: height)
+            .overlay(Capsule().stroke(common ? FAMColor.copper : FAMColor.borderStrong))
+    }
+}
+
+// MARK: - The action sheet (`showActionSheet`, `#sheetOverlay`)
+
+struct SheetAction: Identifiable {
+    let id = UUID()
+    let label: String
+    var danger = false
+    let run: () -> Void
+}
+
+struct SheetSpec: Identifiable {
+    let id = UUID()
+    var header: String = ""
+    let actions: [SheetAction]
+
+    /// The card's height: 10 on top, the header, 46 a row, Cancel and 22.
+    var height: CGFloat {
+        let head: CGFloat = header.isEmpty ? 0 : 33
+        return 10 + head + CGFloat(actions.count) * 46 + 8 + 41 + 22 + 12
+    }
+}
+
+/// Rows 46 pt, Geist 13.5 semibold, danger rows coral; an optional mono
+/// header; a separate white Cancel. A row closes the sheet, then runs.
+struct FAMActionSheet: View {
+    let spec: SheetSpec
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !spec.header.isEmpty { SheetGroupLabel(text: spec.header) }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(spec.actions) { action in
+                        row(action)
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            SheetCancelButton { dismiss() }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(FAMColor.surface)
+        .presentationDetents([.height(min(spec.height, 640))])
+        .presentationBackground(FAMColor.surface)
+        .presentationCornerRadius(20)
+    }
+
+    private func row(_ action: SheetAction) -> some View {
+        Button {
+            dismiss()
+            // Whatever the row opens waits for the sheet to finish closing.
+            let run = action.run
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 450_000_000)
+                run()
+            }
+        } label: {
+            Text(action.label)
+                .font(FAMFont.body(13.5, .semibold))
+                .foregroundStyle(action.danger ? FAMColor.coral : FAMColor.text)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                .padding(.horizontal, 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - The centred modal card (`.modal-card`)
+
+/// 312 wide, padding 20, radius 18, surface, a strong border, the web's
+/// shadow, over a dim that closes it.
+struct ModalCard<Content: View>: View {
+    let close: () -> Void
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .ignoresSafeArea()
+                .onTapGesture { close() }
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                content()
+            }
+            .padding(20)
+            .frame(width: 312)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
+            .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
+        }
+        .presentationBackground(Color(hex: 0x0A090F).opacity(0.62))
+    }
+}
+
+/// The modal's buttons (`.modal-btn`): 34 tall, radius 20, Geist 12 bold.
+struct ModalButton: View {
+    let label: String
+    var primary = false
+    var wide = false
+    var enabled = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(FAMFont.body(12, .bold))
+                .foregroundStyle(primary ? FAMColor.ink : FAMColor.textMuted)
+                .padding(.horizontal, 16)
+                .frame(maxWidth: wide ? .infinity : nil)
+                .frame(height: 34)
+                .background(primary ? FAMColor.copper : Color.clear, in: Capsule())
+                .opacity(enabled ? 1 : 0.5)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
+}
+
+/// A modal's white field (`.modal-input`): 41 tall, radius 10, Geist 13.
+struct ModalField: View {
+    let placeholder: String
+    @Binding var text: String
+    var plain = false
+
+    var body: some View {
+        TextField("", text: $text, prompt: Text(placeholder).foregroundColor(FAMColor.textFaint))
+            .font(FAMFont.body(13))
+            .foregroundStyle(FAMColor.text)
+            .textInputAutocapitalization(plain ? .never : .sentences)
+            .autocorrectionDisabled(plain)
+            .padding(.horizontal, 12)
+            .frame(height: 41)
+            .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
+    }
+}
+
+// MARK: - The drop-down banner (`#notifBanner`, shots 35-37)
+
+/// Inset 12 from the sides and 10 from the top, radius 16, surface, a
+/// strong border and the web's shadow; a 34 pt face, the title Geist 12.5
+/// bold, the text Geist 11 muted, a 12 pt X. A tap opens; a swipe up of
+/// 28 pt or the X dismisses; a finger on it holds it.
+struct SocialBannerLayer: View {
+    @EnvironmentObject private var social: SocialModel
+    @State private var drag: CGFloat = 0
+
+    var body: some View {
+        if let b = social.banner {
+            card(b)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .offset(y: min(0, drag))
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .gesture(swipe)
+                .zIndex(10)
+        }
+    }
+
+    private func card(_ b: SocialBanner) -> some View {
+        HStack(spacing: 11) {
+            Button { social.openBanner(b) } label: {
+                HStack(spacing: 11) {
+                    Face(name: b.name, handle: b.handle, avatar: b.avatar, size: 34, initialsSize: 11)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(b.title)
+                            .font(FAMFont.body(12.5, .bold))
+                            .foregroundStyle(FAMColor.text)
+                            .lineLimit(1)
+                        Text(b.text)
+                            .font(FAMFont.body(11))
+                            .foregroundStyle(FAMColor.textMuted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(b.chat == nil ? "Opens Friends" : "Opens the conversation")
+            Button { social.dismissBanner() } label: {
+                WebIcon(path: Icons.close, size: 12, line: 2.6)
+                    .foregroundStyle(FAMColor.textMuted)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(FAMColor.borderStrong))
+        .shadow(color: .black.opacity(0.3), radius: 16, y: 12)
+    }
+
+    private var swipe: some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                if drag == 0 { social.holdBanner(true) }
+                drag = value.translation.height
+            }
+            .onEnded { value in
+                let up = value.translation.height
+                drag = 0
+                if up <= -28 { social.dismissBanner() } else { social.holdBanner(false) }
+            }
+    }
+}
+
+// MARK: - "<Name> started following you" (`#followerOverlay`, shots 33-34)
+
+struct FollowerPopup: View {
+    @EnvironmentObject private var social: SocialModel
+    let person: FollowPerson
+
+    private var name: String {
+        let n = person.name ?? ""
+        return n.isEmpty ? "@" + (person.handle ?? "") : n
+    }
+
+    var body: some View {
+        ZStack {
+            Color(hex: 0x0A090F).opacity(0.62)
+                .ignoresSafeArea()
+                .onTapGesture { social.notNow() }
+                .accessibilityHidden(true)
+            VStack(spacing: 0) {
+                Face(name: person.name ?? "", handle: person.handle ?? "", avatar: person.avatar ?? "",
+                     size: 64, initialsSize: 22)
+                    .padding(.top, 6)
+                    .padding(.bottom, 12)
+                (Text(name).font(FAMFont.heading(16, .semibold)).foregroundColor(FAMColor.text)
+                 + Text(" started following you").font(FAMFont.heading(16, .medium)).foregroundColor(FAMColor.textMuted))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(5.6)
+                if let h = person.handle, !h.isEmpty {
+                    Text("@" + h)
+                        .font(FAMFont.mono(9))
+                        .tracking(0.72)
+                        .foregroundStyle(FAMColor.textFaint)
+                        .padding(.top, 5)
+                }
+                if person.followsBack == true {
+                    Text("You already follow them \u{2014} you are friends.")
+                        .font(FAMFont.mono(8.5))
+                        .foregroundStyle(FAMColor.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 14)
+                        .padding(.bottom, 8)
+                } else {
+                    ModalButton(label: "Follow back", primary: true, wide: true) { social.followBack(person) }
+                        .padding(.top, 14)
+                        .padding(.bottom, 8)
+                }
+                ModalButton(label: "Not now", wide: true) { social.notNow() }
+            }
+            .padding(20)
+            .frame(width: 312)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
+            .overlay(alignment: .topTrailing) {
+                Button { social.notNow() } label: {
+                    WebIcon(path: Icons.close, size: 14, line: 2.2)
+                        .foregroundStyle(FAMColor.textMuted)
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .padding(13)
+                .accessibilityLabel("Ignore this")
+            }
+            .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
+        }
+        .transition(.opacity)
+    }
+}
+
+// MARK: - The screens, wherever they are shown
+
+/// One social route as its screen.
+struct SocialScreen: View {
+    @EnvironmentObject private var model: AppModel
+    let route: SocialRoute
+
+    var body: some View {
+        switch route {
+        case .thread(let open):
+            ChatScreen(api: model.api, open: open)
+        case .person(let open):
+            PersonView(open: open)
+        case .friends:
+            FriendsView()
+        }
+    }
+}
+
+/// A social screen opened from another tab: its own stack, the banners
+/// and the toast over it, no tab bar (the web's pushed screens have none).
+struct SocialCoverView: View {
+    @EnvironmentObject private var social: SocialModel
+    let cover: SocialCover
+
+    var body: some View {
+        NavigationStack(path: $social.coverPath) {
+            SocialScreen(route: cover.root)
+                .navigationDestination(for: SocialRoute.self) { route in
+                    SocialScreen(route: route)
+                }
+        }
+        .overlay(alignment: .top) { SocialBannerLayer() }
+        .overlay(alignment: .bottom) { ToastView().padding(.bottom, 80) }
+    }
+}

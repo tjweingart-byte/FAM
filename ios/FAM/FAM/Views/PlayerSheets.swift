@@ -13,15 +13,24 @@ import UIKit
 struct GoDeeperSheet: View {
     @EnvironmentObject private var now: NowPlayingModel
     @Environment(\.dismiss) private var dismiss
+    /// An episode a message carries, before it has been played
+    /// (`goDeeperOnShared`): the follow-up builds on it, not on the player.
+    var base: SharedEpisode? = nil
+    /// Where a follow-up of `base` goes (the chat plays it).
+    var onGo: ((String, Double, Bool) -> Void)? = nil
     @State private var typed = ""
     @State private var minutes: Double = 1.5
+    @State private var baseThread = ""
     @FocusState private var typing: Bool
 
     private static let lengths: [Double] = [1, 1.5, 2, 3, 4, 5]
 
+    private var thread: String { base == nil ? now.thread : baseThread }
+    private var baseTitle: String { base?.title ?? now.title }
+
     private var suggestion: String {
-        if !now.thread.isEmpty { return now.thread }
-        return now.title.isEmpty ? "" : "What's the bigger story behind \(now.title)?"
+        if !thread.isEmpty { return thread }
+        return baseTitle.isEmpty ? "" : "What's the bigger story behind \(baseTitle)?"
     }
 
     var body: some View {
@@ -33,7 +42,7 @@ struct GoDeeperSheet: View {
             if !suggestion.isEmpty {
                 Button { go(suggestion, typed: false) } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(now.thread.isEmpty ? "Follow the thread" : "Pick up the thread").monoLabel(8)
+                        Text(thread.isEmpty ? "Follow the thread" : "Pick up the thread").monoLabel(8)
                         Text(suggestion)
                             .font(FAMFont.body(12, .semibold))
                             .foregroundStyle(FAMColor.text)
@@ -96,8 +105,14 @@ struct GoDeeperSheet: View {
         .presentationBackground(FAMColor.surface)
         .onAppear {
             // The episode's own length, rounded to a half and kept to 1-5.
-            let m = ((now.episode?.key.minutes ?? 1.5) * 2).rounded() / 2
+            let m = ((base?.minutes ?? now.episode?.key.minutes ?? 1.5) * 2).rounded() / 2
             minutes = min(max(m, 1), 5)
+        }
+        .task {
+            // A shared episode's own predicted follow-up, from what is kept.
+            guard let base else { return }
+            let key = EpisodeKey(query: base.query, minutes: base.minutes)
+            if let next = try? await now.api.next(key, cachedOnly: true) { baseThread = next.thread ?? "" }
         }
     }
 
@@ -113,6 +128,12 @@ struct GoDeeperSheet: View {
 
     private func go(_ words: String, typed: Bool) {
         dismiss()
+        if base != nil, let onGo {
+            let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !question.isEmpty else { return }
+            onGo(question, minutes, typed || question != thread)
+            return
+        }
         now.followUp(words, minutes: minutes, typed: typed)
     }
 }
@@ -512,31 +533,76 @@ struct VibeComposer: View {
 
 // MARK: - Share
 
-/// Makes the link (`POST /api/share`), then hands its words to iOS's own
-/// share sheet - iMessage, WhatsApp, Mail, Instagram and the rest are the
-/// web's targets list, which iOS draws for us.
+/// "Share this FAM" (`openShareModal`, shots 45-48): send it inside FAM to
+/// a group or a person - with the id of the episode heard, so they hear
+/// that one (§288) - or ANYWHERE ELSE through the server's destinations
+/// (`POST /api/share`), with iOS's share sheet for the rest.
 struct ShareSheet: View {
+    @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var now: NowPlayingModel
     @Environment(\.dismiss) private var dismiss
-    @State private var items: [Any]?
+    @State private var link: SharedLink?
+    @State private var problem = ""
 
     var body: some View {
-        Group {
-            if let items {
-                ActivityView(items: items) { dismiss() }
-            } else {
-                VStack(spacing: 12) {
-                    ProgressView()
-                    Text("Making a link…").font(FAMFont.body(13)).foregroundStyle(FAMColor.textMuted)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Share this FAM")
+                .font(FAMFont.heading(16, .medium))
+                .foregroundStyle(FAMColor.text)
+                .padding(.horizontal, 22)
+                .padding(.top, 20)
+                .padding(.bottom, 14)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    SendInsideFAM(send: { to, label in await sendInside(to: to, label: label) },
+                                  sent: { dismiss() })
+                    Text("Anywhere else").monoLabel(9.5, tracking: 1.14)
+                        .padding(.top, 20)
+                        .padding(.bottom, 4)
+                    if let link {
+                        ShareTargetRows(url: link.url, targets: link.targets ?? [:],
+                                        isPublic: link.public ?? true) { dismiss() }
+                    } else {
+                        Text(problem.isEmpty ? "Making a link\u{2026}" : problem)
+                            .font(FAMFont.body(12))
+                            .foregroundStyle(FAMColor.textMuted)
+                            .padding(.vertical, 10)
+                    }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(FAMColor.surface)
+                .padding(.horizontal, 22)
             }
+            SheetCancelButton { dismiss() }
         }
-        .presentationDetents([.medium, .large])
-        .task {
-            if let made = await now.shareItems() { items = made } else { dismiss() }
+        .padding(.bottom, 12)
+        .background(FAMColor.surface)
+        .presentationDetents([.large])
+        .presentationBackground(FAMColor.surface)
+        .environmentObject(model.social)
+        .task { await makeLink() }
+    }
+
+    private func makeLink() async {
+        guard let ep = now.episode else {
+            problem = "Play something first"
+            return
         }
+        do {
+            link = try await model.api.share(ep.key, title: now.title)
+        } catch {
+            problem = "Could not make a link"
+        }
+    }
+
+    /// The episode playing, by its question and length, and the id of the
+    /// one heard (`X-FAM-Episode`).
+    private func sendInside(to: String, label: String) async -> Bool {
+        guard let ep = now.episode else {
+            model.nowPlaying.say("Play something first")
+            return false
+        }
+        return await model.social.sendShare(to: to, label: label, query: ep.key.query,
+                                            minutes: ep.key.minutes, title: now.title,
+                                            episode: model.player.episodeID)
     }
 }
 

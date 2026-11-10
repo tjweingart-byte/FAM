@@ -341,10 +341,7 @@ struct PublicMixView: View {
                                     .monoLabel(8.5, tracking: 0.51)
                                     .padding(.top, 5)
                                 if let owner = mix.owner {
-                                    Text("by " + ownerLine(owner))
-                                        .font(FAMFont.body(11, .bold))
-                                        .foregroundStyle(FAMColor.copper)
-                                        .padding(.top, 7)
+                                    ownerButton(owner)
                                 }
                             }
                             Spacer(minLength: 0)
@@ -409,6 +406,25 @@ struct PublicMixView: View {
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
         .padding(.bottom, 9)
+    }
+
+    /// "by Name · @handle" (`ownerLabel`); with a handle it opens their
+    /// profile, as the web's owner link does.
+    @ViewBuilder private func ownerButton(_ owner: MixOwner) -> some View {
+        let label = Text("by " + ownerLine(owner))
+            .font(FAMFont.body(11, .bold))
+            .foregroundStyle(FAMColor.copper)
+        let handle = owner.handle ?? ""
+        if handle.isEmpty {
+            label.padding(.top, 7)
+        } else {
+            Button {
+                model.social.openPerson(handle: handle, name: owner.name ?? "")
+            } label: { label }
+                .buttonStyle(.plain)
+                .padding(.top, 7)
+                .accessibilityHint("Opens their profile")
+        }
     }
 
     private func ownerLine(_ owner: MixOwner) -> String {

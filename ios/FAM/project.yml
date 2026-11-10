@@ -62,6 +62,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true
         GIDClientID: $(GOOGLE_IOS_CLIENT_ID)
+        # A group chat's "Take a photo" (the web's camera source).
+        NSCameraUsageDescription: FAM uses the camera only when you take a photo for a group chat.
         CFBundleURLTypes:
           - CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]
         # The web's three typefaces (`typefaces`), as static instances of

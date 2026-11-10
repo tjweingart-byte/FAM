@@ -125,7 +125,6 @@ struct RailRow: View {
     @State private var atEnd = false
     @State private var viewport: CGFloat = 0
     @State private var endX: CGFloat = 0
-    @State private var invite = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -174,9 +173,9 @@ struct RailRow: View {
                 .padding(.trailing, -18)
             }
             // The friends rail always ends in the way to find some (10.1 #2):
-            // here the invite, since the Friends screen is not built yet.
+            // the Friends screen.
             if rail.key == "followers" {
-                Button { invite = true } label: {
+                Button { model.social.open(.friends) } label: {
                     HStack(spacing: 5) {
                         WebIcon(path: Icons.plus, size: 12)
                         Text("Find new friends").font(FAMFont.body(12, .bold))
@@ -189,10 +188,7 @@ struct RailRow: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 10)
-                .accessibilityHint("Invites a friend to FAM")
-                .sheet(isPresented: $invite) {
-                    ActivityView(items: [model.inviteText(handle: model.circle?.me?.handle ?? "")]) { invite = false }
-                }
+                .accessibilityHint("Opens Friends")
             }
         }
     }
@@ -628,10 +624,10 @@ struct TileMenu: View {
 
 /// "N friends listened" (`#friendsListenedOverlay`, §394): a centred
 /// card, not a sheet - the title, a bordered round close, and a row a
-/// friend with their face, name and @handle. The web's rows open each
-/// profile; there is no profile screen here yet, so the rows are words
-/// only and carry no chevron (`no-dead-controls`).
+/// friend with their face, name and @handle; a row with a handle opens
+/// that friend's profile once the card has closed.
 struct FriendsListened: View {
+    @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let count: Int
     let faces: [FriendFace]
@@ -660,27 +656,9 @@ struct FriendsListened: View {
                 }
                 .padding(.bottom, 10)
                 ForEach(Array(faces.enumerated()), id: \.offset) { i, face in
-                    HStack(spacing: 11) {
-                        Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
-                             size: 30, initialsSize: 12)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(face.name.isEmpty ? "@" + (face.handle ?? "") : face.name)
-                                .font(FAMFont.body(12, .semibold))
-                                .foregroundStyle(FAMColor.text)
-                                .lineLimit(1)
-                            if let h = face.handle, !h.isEmpty {
-                                Text("@" + h).monoLabel(8, color: FAMColor.textFaint, tracking: 0.48)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 10)
-                    .overlay(alignment: .bottom) {
-                        if i < faces.count - 1 {
-                            Rectangle().fill(FAMColor.border).frame(height: 1)
-                        }
-                    }
-                    .accessibilityElement(children: .combine)
+                    Button { openProfile(face) } label: { listenedRow(i, face) }
+                        .buttonStyle(.plain)
+                        .disabled((face.handle ?? "").isEmpty)
                 }
             }
             .padding(20)
@@ -690,6 +668,38 @@ struct FriendsListened: View {
             .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
         }
         .presentationBackground(Color(hex: 0x0A090F).opacity(0.62))
+    }
+
+    private func openProfile(_ face: FriendFace) {
+        let handle = face.handle ?? ""
+        guard !handle.isEmpty else { return }
+        dismiss()
+        model.social.openAfterClose(.person(PersonOpen(handle: handle, name: face.name, avatar: face.avatar ?? "")))
+    }
+
+    private func listenedRow(_ i: Int, _ face: FriendFace) -> some View {
+        HStack(spacing: 11) {
+            Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
+                 size: 30, initialsSize: 12)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(face.name.isEmpty ? "@" + (face.handle ?? "") : face.name)
+                    .font(FAMFont.body(12, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .lineLimit(1)
+                if let h = face.handle, !h.isEmpty {
+                    Text("@" + h).monoLabel(8, color: FAMColor.textFaint, tracking: 0.48)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 10)
+        .overlay(alignment: .bottom) {
+            if i < faces.count - 1 {
+                Rectangle().fill(FAMColor.border).frame(height: 1)
+            }
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 

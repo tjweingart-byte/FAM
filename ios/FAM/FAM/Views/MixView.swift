@@ -825,8 +825,10 @@ struct ListenTimeSheet: View {
 }
 
 /// "Who's in this mix" (`openMixPeople`): each person with Owner or Can
-/// add topics. No profile screen exists yet, so the rows open nothing.
+/// add topics; a row with a handle opens that person's profile (yours
+/// does not).
 struct MixPeopleSheet: View {
+    @EnvironmentObject private var model: AppModel
     let mix: Mix
     @Environment(\.dismiss) private var dismiss
 
@@ -836,7 +838,19 @@ struct MixPeopleSheet: View {
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(Array(mix.people.enumerated()), id: \.offset) { _, p in
-                        row(p)
+                        let handle = p.handle ?? ""
+                        if handle.isEmpty || p.you == true {
+                            row(p)
+                        } else {
+                            Button {
+                                dismiss()
+                                model.social.openAfterClose(.person(PersonOpen(handle: handle, name: p.name ?? "",
+                                                                               avatar: p.avatar ?? "")))
+                            } label: {
+                                row(p).contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
@@ -882,21 +896,17 @@ struct MixPeopleSheet: View {
 }
 
 /// Share a mix (`openMixShareModal`): FAM's share sheet titled "Share this
-/// mix", with the server's destinations from `/api/mixes/{id}/share`. Copy
-/// is the clipboard; a destination opens its app with the words; the rest
-/// go to iOS's share sheet. The story cards are not ported.
+/// mix" - to a group or a person inside FAM (the link's words as a
+/// message), then the server's destinations from `/api/mixes/{id}/share`.
+/// Copy is the clipboard; a destination opens its app with the words; the
+/// rest go to iOS's share sheet. The story cards are not ported.
 struct MixShareSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     let id: String
 
     @State private var link: MixShare?
     @State private var problem = ""
-    @State private var activity: [Any]?
-
-    /// The web's order (`sharing.TARGETS`); story targets need a card.
-    static let order = ["copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -905,44 +915,36 @@ struct MixShareSheet: View {
                 .foregroundStyle(FAMColor.text)
                 .padding(.horizontal, 22)
                 .padding(.top, 20)
-                .padding(.bottom, 10)
+                .padding(.bottom, 14)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // To a person or a group inside FAM: the link's words,
+                    // as a message (`shareSubject.kind == "mix"`).
+                    SendInsideFAM(send: { to, label in await sendInside(to: to, label: label) },
+                                  sent: { dismiss() })
+                    Text("Anywhere else").monoLabel(9.5, tracking: 1.14)
+                        .padding(.top, 20)
+                        .padding(.bottom, 4)
                     if let link {
-                        ForEach(Self.order, id: \.self) { key in
-                            if let t = link.targets?[key], t.needsImage != true {
-                                targetRow(key, t)
-                            }
-                        }
-                        if !link.public {
-                            Text("This server has no public address set, so the link only works on this network.")
-                                .font(FAMFont.body(11))
-                                .foregroundStyle(FAMColor.textMuted)
-                                .padding(.horizontal, 22)
-                                .padding(.top, 12)
-                        }
+                        ShareTargetRows(url: link.url, targets: link.targets ?? [:],
+                                        isPublic: link.public) { dismiss() }
                     } else {
-                        Text(problem.isEmpty ? "Making a link…" : problem)
+                        Text(problem.isEmpty ? "Making a link\u{2026}" : problem)
                             .font(FAMFont.body(12))
                             .foregroundStyle(FAMColor.textMuted)
-                            .padding(.horizontal, 22)
                             .padding(.vertical, 14)
                     }
                 }
+                .padding(.horizontal, 22)
             }
             SheetCancelButton { dismiss() }
         }
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationBackground(FAMColor.surface)
+        .environmentObject(model.social)
         .task { await load() }
-        .sheet(isPresented: Binding(get: { activity != nil }, set: { if !$0 { activity = nil } })) {
-            ActivityView(items: activity ?? []) {
-                activity = nil
-                dismiss()
-            }
-        }
     }
 
     private func load() async {
@@ -953,54 +955,15 @@ struct MixShareSheet: View {
         }
     }
 
-    /// Which way a tap goes, said on the row (`shareHint`).
-    private func hint(_ key: String, _ t: ShareTarget) -> String {
-        if key == "copy" { return "clipboard" }
-        let destination = t.destination ?? ""
-        return destination.isEmpty ? "share sheet" : "opens"
-    }
-
-    private func targetRow(_ key: String, _ t: ShareTarget) -> some View {
-        Button { send(key, t) } label: {
-            HStack(spacing: 12) {
-                Text(t.label ?? key)
-                    .font(FAMFont.body(13.5, .semibold))
-                    .foregroundStyle(FAMColor.text)
-                Spacer()
-                Text(hint(key, t)).monoLabel(8.5, color: FAMColor.textFaint, tracking: 0.85)
-            }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
+    /// The SMS words with the link, as a message; before the link is made,
+    /// "Still making the link — try again in a moment".
+    private func sendInside(to: String, label: String) async -> Bool {
+        guard let link else {
+            model.nowPlaying.say("Still making the link \u{2014} try again in a moment")
+            return false
         }
-        .buttonStyle(.plain)
-    }
-
-    /// `shareTo`: Copy is the clipboard and nothing else; a destination is
-    /// opened (Facebook and LinkedIn drop the words, so those go to the
-    /// clipboard alongside); anything else goes to the share sheet.
-    private func send(_ key: String, _ t: ShareTarget) {
-        let text = t.text ?? link?.url ?? ""
-        if key == "copy" {
-            UIPasteboard.general.string = text
-            model.nowPlaying.say("Link copied — paste it wherever you like")
-            dismiss()
-            return
-        }
-        if let destination = t.destination, !destination.isEmpty, let url = URL(string: destination) {
-            let dropsText = key == "facebook" || key == "linkedin"
-            if dropsText { UIPasteboard.general.string = text }
-            openURL(url)
-            if dropsText { model.nowPlaying.say("Your words are on the clipboard — paste them in") }
-            dismiss()
-            return
-        }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("http"), !trimmed.contains(" "), let url = URL(string: trimmed) {
-            activity = [url]
-        } else {
-            activity = [text]
-        }
+        let words = link.targets?["sms"]?.text ?? link.targets?["copy"]?.text ?? link.url
+        return await model.social.sendShare(to: to, label: label, text: words)
     }
 }
 

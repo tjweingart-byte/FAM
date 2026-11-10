@@ -18,6 +18,9 @@ struct Episode: Equatable {
     /// A replay only, never written anew: a category's episodes, queued
     /// after the one tapped (`cachedOnly` on the web's queue entry).
     var cachedOnly: Bool = false
+    /// A kept episode's id (`X-FAM-Episode`): a message's Listen replays the
+    /// sender's exact episode (§288); "" asks the question as usual.
+    var episodeID: String = ""
 }
 
 /// A queued episode (§190): client state only, never sent to the server.
@@ -78,7 +81,7 @@ final class NowPlayingModel: ObservableObject {
         var action: String?
     }
 
-    private let api: FAMAPI
+    let api: FAMAPI
     private let player: StreamPlayer
     /// Who to ask to play an episode (the app model, which owns the loading screen).
     var playEpisode: ((Episode) -> Void)?
