@@ -45,6 +45,8 @@ final class YouModel: ObservableObject {
     var vibeDeleted: () -> Void = {}
     /// The name, handle or picture changed: whoever shows them re-reads.
     var meChanged: () -> Void = {}
+    /// The preferences were read: private search follows the stored switch.
+    var prefsLoaded: (MyPreferences) -> Void = { _ in }
 
     init(api: FAMAPI, safety: SafetyAPI) {
         self.api = api
@@ -80,7 +82,10 @@ final class YouModel: ObservableObject {
     }
 
     func loadPrefs() async {
-        if let found = try? await api.preferences() { prefs = found }
+        if let found = try? await api.preferences() {
+            prefs = found
+            prefsLoaded(found)
+        }
     }
 
     func loadAccount() async {

@@ -34,6 +34,16 @@ struct Episode: Equatable {
     var fromCategory: Bool = false
     /// Played from the Queue, which keeps a category's list as it is.
     var queued: Bool = false
+    /// The ids of what the listener attached (`attach=`): such an episode is
+    /// never stored - no history row, no resume, not queueable (§op-attachments).
+    var attach: String = ""
+    /// A private search or Go Deeper (§282, §285): `private=1`, and no
+    /// search / complete / skip event, history row or resume position.
+    var isPrivate: Bool = false
+
+    /// Whether listening to it may be written down anywhere (history,
+    /// resume): not for a private one, nor one built on an attachment.
+    var keepsRecord: Bool { !isPrivate && attach.isEmpty }
 }
 
 /// A queued episode (§190): client state only, never sent to the server.
@@ -115,6 +125,11 @@ final class NowPlayingModel: ObservableObject {
     /// Whether the full player is on screen: What's next is offered there
     /// only, never under the mini bar (`post-episode-grid`).
     var playerShowing: () -> Bool = { true }
+    /// Private search is on (`privateSearch`): a Go Deeper started now is
+    /// private too (§285).
+    var privateOn: () -> Bool = { false }
+    /// FAM's speller, for a typed follow-up (`acCorrectQuestion`).
+    var speller: Speller?
 
     private var run = 0
     private var reported = false
@@ -216,8 +231,12 @@ final class NowPlayingModel: ObservableObject {
 
         if signedIn() {
             let heard = title
-            Task { await api.noteListen(ep.key, surface: ep.surface, title: heard,
-                                        episode: player.episodeID) }
+            // A private search is nobody's history, its searcher's included
+            // (§282); an attachment's episode is never stored.
+            if ep.keepsRecord {
+                Task { await api.noteListen(ep.key, surface: ep.surface, title: heard,
+                                            episode: player.episodeID) }
+            }
             Task { if let s = try? await api.isSaved(ep.key), mine == run { saved = s } }
         }
         Task { await askCard(mine) }
@@ -232,7 +251,7 @@ final class NowPlayingModel: ObservableObject {
     func ended() {
         guard let ep = episode else { return }
         let whole = player.total
-        if signedIn() {
+        if signedIn() && ep.keepsRecord {
             Task { await api.noteResume(ep.key, seconds: whole, title: title,
                                         duration: whole, episode: player.episodeID) }
         }
@@ -288,6 +307,8 @@ final class NowPlayingModel: ObservableObject {
     private func reportComplete() {
         guard !reported, let ep = episode else { return }
         reported = true
+        // A private episode's finish is not reported (§282).
+        if ep.isPrivate { return }
         Task { await api.event("complete", topicID: ep.topicID, text: ep.key.query,
                                thread: thread, minutes: ep.key.minutes, episode: player.episodeID) }
     }
@@ -297,6 +318,7 @@ final class NowPlayingModel: ObservableObject {
         guard let ep = episode, !reported, player.position > Self.skipAfter,
               !player.complete else { return }
         reported = true
+        if ep.isPrivate { return }
         Task { await api.event("skip", topicID: ep.topicID, text: ep.key.query,
                                minutes: ep.key.minutes, episode: player.episodeID) }
     }
@@ -304,6 +326,9 @@ final class NowPlayingModel: ObservableObject {
     private func sendResume() {
         guard let ep = episode, signedIn(), player.position > 0 else { return }
         lastResume = Date()
+        // No resume position for a private search (§282), nor for an
+        // attachment's episode, which cannot be asked for again.
+        guard ep.keepsRecord else { return }
         let duration = player.complete ? player.arrived : 0
         Task { await api.noteResume(ep.key, seconds: player.position, title: title,
                                     duration: duration, episode: player.episodeID) }
@@ -333,7 +358,7 @@ final class NowPlayingModel: ObservableObject {
             if !ep.titleOverridden && t != title {
                 // The wipe is drawn by the title itself (`WipeText`).
                 title = t
-                if signedIn() {
+                if signedIn() && ep.keepsRecord {
                     Task { await api.noteListen(ep.key, surface: ep.surface, title: t,
                                                 episode: player.episodeID, retitle: true) }
                 }
@@ -545,6 +570,11 @@ final class NowPlayingModel: ObservableObject {
     var detourFor: ((Episode) -> String)?
 
     func addToQueue(_ ep: Episode) {
+        // Never stored, so there is nothing to play later (`queueable`).
+        guard ep.attach.isEmpty else {
+            say("An episode about an attachment can\u{2019}t be queued")
+            return
+        }
         queue.append(QueueEntry(episode: ep))
         say("Added to Queue", action: "Open") { [weak self] in self?.showQueue = true }
     }
@@ -657,16 +687,42 @@ final class NowPlayingModel: ObservableObject {
         guard let base = episode else { return }
         let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty else { return }
-        Task { await api.event("search", text: question) }
-        var ep = Episode(key: EpisodeKey(query: question, minutes: minutes, context: title),
-                         title: Self.titleFromQuestion(question),
+        let context = title
+        // A typed follow-up is a search, corrected whole at send as the
+        // search box's is (`acCorrectQuestion`); FAM's own suggestion is
+        // sent as written.
+        let own = typed || question != thread
+        guard own, let speller else {
+            startFollowUp(question, base: base, context: context, minutes: minutes, own: own)
+            return
+        }
+        Task {
+            let fixed = await speller.correct(question)
+            startFollowUp(fixed.query, base: base, context: context, minutes: minutes, own: true)
+        }
+    }
+
+    private func startFollowUp(_ question: String, base: Episode, context: String,
+                               minutes: Double, own: Bool) {
+        // With private search on, a Go Deeper is private too (§285): no
+        // event, no history, written under nobody's name and listed nowhere.
+        let hush = privateOn()
+        if !hush { Task { await api.event("search", text: question) } }
+        var ep = Episode(key: EpisodeKey(query: question, minutes: minutes, context: context),
+                         title: Self.titleFromPrompt(question),
                          surface: base.surface == "search" ? "search" : "other",
-                         own: typed || question != thread,
+                         own: own,
                          picture: nil, titleOverridden: false)
+        ep.isPrivate = hush
         // Going deeper on a playlist's episode is a detour, never the end of
         // the playlist (§519); a Go Deeper on that follow-up is the same one.
         ep.mixDetour = detourFor?(base) ?? ""
         playEpisode?(ep)
+    }
+
+    /// A search's provisional title (`deriveTitleFromPrompt`, `SearchTitle`).
+    static func titleFromPrompt(_ text: String) -> String {
+        SearchTitle.from(text)
     }
 
     /// A question as a provisional title, until the writer's lands.

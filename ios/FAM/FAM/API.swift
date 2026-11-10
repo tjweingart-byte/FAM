@@ -231,7 +231,9 @@ final class FAMAPI: @unchecked Sendable {
     func audio(query: String, minutes: Double, surface: String,
                topicID: String = "", context: String = "", own: Bool = false,
                cachedOnly: Bool = false, episode: String = "",
-               reading: String = "", askReading: Bool = false) -> URLRequest {
+               reading: String = "", askReading: Bool = false,
+               voice: String = "", voicePicked: Bool = false,
+               isPrivate: Bool = false, attach: String = "") -> URLRequest {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -255,6 +257,16 @@ final class FAMAPI: @unchecked Sendable {
         // never a replay (`askReading` on the web's `playOpts`).
         if !reading.isEmpty { items.append(URLQueryItem(name: "reading", value: reading)) }
         if askReading { items.append(URLQueryItem(name: "ask_reading", value: "1")) }
+        // A search's voice (§147), sent for a search only, and `voice_picked`
+        // once, on the search after a pick (§447): without it a cached
+        // search plays in the voice its audio is already kept in.
+        if !voice.isEmpty { items.append(URLQueryItem(name: "voice", value: voice)) }
+        if voicePicked { items.append(URLQueryItem(name: "voice_picked", value: "1")) }
+        // Private search (§282, §285): off every feed, nobody's author. The
+        // server also honours the stored preference whatever is sent.
+        if isPrivate { items.append(URLQueryItem(name: "private", value: "1")) }
+        // What the listener attached (`/api/attach`): ids, never the file.
+        if !attach.isEmpty { items.append(URLQueryItem(name: "attach", value: String(attach.prefix(400)))) }
         return request("GET", "api/v1/audio", query: items)
     }
 
@@ -784,8 +796,17 @@ struct TrendingSearch: Decodable, Hashable {
     let query: String
     let title: String
     let minutes: Double
+    /// The question as the speller would have sent it, for a chip with no
+    /// title (10.1 #4); `query` is still what is asked.
+    let spelled: String?
 
-    var label: String { title.isEmpty ? query : title }
+    /// The episode's own title, else the question made a title
+    /// (`deriveTitleFromPrompt(spelled || query)`).
+    var label: String {
+        if !title.isEmpty { return title }
+        let words = (spelled ?? "").isEmpty ? query : (spelled ?? query)
+        return SearchTitle.from(words)
+    }
 }
 
 struct TrendingSearches: Decodable { let searches: [TrendingSearch] }
@@ -955,6 +976,49 @@ enum FAMError: LocalizedError, Equatable {
             return "The server's answer could not be read."
         }
     }
+}
+
+// MARK: - searchFAM: the speller, attachments (`autocorrect-at-send`, `op-attachments`)
+
+extension FAMAPI {
+    /// FAM's own speller behind the keyboard (`/api/spell`, §142): `nil` for
+    /// every word it is not sure about. No account needed.
+    func spell(_ words: [String], first: [Bool]) async throws -> SpellAnswer {
+        try await send("POST", "api/v1/spell", body: ["words": Array(words.prefix(40)),
+                                                     "first": Array(first.prefix(40))],
+                       as: SpellAnswer.self)
+    }
+
+    /// Extract a document, photo or link once, when it is added (never on
+    /// the generation path). `data` is the file's base64; a link sends `url`.
+    func attach(kind: String, name: String, data: String = "", url: String = "") async throws -> AttachedFile {
+        var body: [String: Any] = ["kind": kind, "name": String(name.prefix(300))]
+        if !data.isEmpty { body["data"] = data }
+        if !url.isEmpty { body["url"] = String(url.prefix(2000)) }
+        return try await send("POST", "api/v1/attach", body: body, as: AttachedFile.self)
+    }
+
+    /// × on a chip: fire and forget (the server expires it anyway).
+    func detach(_ id: String) async {
+        _ = try? await sendQuery("DELETE", "api/v1/attach", [URLQueryItem(name: "id", value: id)],
+                                 as: OK.self)
+    }
+}
+
+/// `POST /api/spell`: one correction per word asked, `nil` to leave it.
+struct SpellAnswer: Decodable {
+    let corrections: [String?]
+    let available: Bool?
+}
+
+/// `POST /api/attach` (`Attachment.as_dict`): never the payload.
+struct AttachedFile: Decodable {
+    let id: String
+    let kind: String
+    let name: String
+    let chars: Int?
+    let url: String?
+    let preview: String?
 }
 
 // MARK: - Keychain

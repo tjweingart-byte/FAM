@@ -166,13 +166,15 @@ def test_a_tile_names_its_surface_and_topic():
 def test_trending_searches_decode(monkeypatch):
     monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
     fields = _fields("TrendingSearch")
-    assert fields == {"query", "title", "minutes"}, fields
+    # `spelled`: the question as the speller would send it, for a chip with
+    # no title (`deriveTitleFromPrompt(spelled || query)`).
+    assert fields == {"query", "title", "minutes", "spelled"}, fields
     # What the handler appends for each search, read from its source so an
     # empty deployment still checks the shape.
     import inspect
     source = inspect.getsource(appmod.trending_searches)
     for name in fields:
-        assert f'"{name}":' in source, name
+        assert f'"{name}":' in source or f'["{name}"]' in source, name
     page = TestClient(appmod.app).get("/api/v1/searches/trending",
                                       headers={"X-FAM-Client": "ios/1.0.0+2"}).json()
     assert "searches" in page
@@ -216,7 +218,15 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
     # `ask_reading` lets the server ask which reading of a name is meant
     # (300, §426); the reading chosen (`reading`) is part of the key, so
     # both requests carry that.
-    assert names("audio") - {"fmt", "own", "cached_only", "episode", "ask_reading"} == names("progress"), (names("audio"), names("progress"))
+    # searchFAM's four are not the key either (`pipeline.key_for`): `voice`
+    # and `voice_picked` choose how it is spoken, not what is written (the
+    # loading screen's marks are the script's); `private` decides where it
+    # is filed, not which episode; `attach` makes an episode with no key at
+    # all, and `/api/progress` takes no attachments - the web's
+    # `trackGenSteps` sends exactly these same fields.
+    not_key = {"fmt", "own", "cached_only", "episode", "ask_reading",
+               "voice", "voice_picked", "private", "attach"}
+    assert names("audio") - not_key == names("progress"), (names("audio"), names("progress"))
 
 
 def test_the_players_side_channels_decode_what_the_server_sends():
@@ -253,7 +263,9 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    "ActivationGender", "ActivationHelp", "ActivationCounting", "CountingNotice",
                    "ActivationAnswer", "PlansPage", "PlanTier", "PlanLimit", "VoicesPage",
                    "VoiceOption", "SavedShelf", "SavedFolder", "FolderAnswer", "HistoryPage",
-                   "HistoryItem", "VibesPage", "VibeRow"):
+                   "HistoryItem", "VibesPage", "VibeRow",
+                   # searchFAM: the speller, attachments, trending searches.
+                   "SpellAnswer", "AttachedFile", "TrendingSearch"):
         body = re.search(r"struct %s:[^{]*\{(.*?)\n\}" % struct, _api(), re.S)
         assert body, struct
         for field in {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}:

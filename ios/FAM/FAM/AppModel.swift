@@ -87,6 +87,27 @@ final class AppModel: ObservableObject {
     /// The limit screen (`showLimitReached`): an allowance ran out.
     @Published var limitReached: QuotaVerdict?
 
+    // searchFAM's state shared with Settings and the player.
+
+    /// Private search (§282, §285): one switch in two places - the bubble
+    /// and Settings - kept with the account's preferences (`private_search`),
+    /// on until it is turned off, covering every search and Go Deeper.
+    @Published private(set) var privateSearch = false
+    /// The voice bank and the voice searches are spoken in (§147, §447).
+    @Published private(set) var voices: VoicesPage?
+    /// A voice was picked on the search page for the next search only
+    /// (`voicePickedForSearch`); a Settings choice is standing and sets nothing.
+    private var voicePicked = false
+    /// The player was playing when voice search opened: it carries on if
+    /// the listener closes it without searching.
+    private var resumeAfterVoice = false
+    /// The status bar and keyboard over private search's charcoal
+    /// (`SearchView.chromeDark`); light everywhere else.
+    @Published var darkChrome = false
+    let speller: Speller
+    let attachments: AttachModel
+    let voiceSearch = VoiceSearchModel()
+
     init(api: FAMAPI = FAMAPI()) {
         self.api = api
         let tokenSource = api
@@ -97,6 +118,8 @@ final class AppModel: ObservableObject {
         mixes = MixesModel(api: api)
         social = SocialModel(api: api)
         you = YouModel(api: api, safety: safety)
+        speller = Speller(api: api)
+        attachments = AttachModel(api: api)
         // The player calls back on the main queue (its delegate queue).
         player.onRefused = { [weak self] error in
             MainActor.assumeIsolated { self?.refused(error) ?? false }
@@ -161,6 +184,15 @@ final class AppModel: ObservableObject {
             }
         }
         nowPlaying.openSaved = { [weak self] in self?.openSaved() }
+        nowPlaying.speller = speller
+        nowPlaying.privateOn = { [weak self] in self?.privateSearch ?? false }
+        attachments.say = { [weak self] text in self?.nowPlaying.say(text) }
+        you.prefsLoaded = { [weak self] prefs in self?.privateSearch = prefs.privateSearch ?? false }
+        voiceSearch.onCancel = { [weak self] in
+            guard let self, self.resumeAfterVoice else { return }
+            self.resumeAfterVoice = false
+            self.player.resume()
+        }
         social.requestTab = { [weak self] tab in self?.tabRequest = tab }
         social.leavePlayer = { [weak self] in
             guard let self, self.showPlayer else { return false }
@@ -271,6 +303,9 @@ final class AppModel: ObservableObject {
         listener = who
         stage = who.waitlisted ? .waiting : .ready
         Task { await consent.load() }
+        // Painted from the stored preference, so private search is on from
+        // the first search after a launch (`loadPreferences`).
+        if !who.waitlisted { Task { await loadSearchSettings() } }
     }
 
     func forgetEverything() {
@@ -288,6 +323,12 @@ final class AppModel: ObservableObject {
         mixPath = []
         dailyPath = []
         inviteLink = nil
+        privateSearch = false
+        darkChrome = false
+        voices = nil
+        voicePicked = false
+        attachments.clear()
+        if voiceSearch.isOpen { voiceSearch.close(sending: true) }
         stage = .signedOut
     }
 
@@ -588,16 +629,116 @@ final class AppModel: ObservableObject {
         go()
     }
 
+    // MARK: - searchFAM
+
+    /// What search reads at launch: the private switch and the voice bank.
+    func loadSearchSettings() async {
+        await you.loadPrefs()
+        if let page = try? await api.voices() { voices = page }
+    }
+
+    /// The bubble or Settings (`setPrivateSearch`): painted at once, saved
+    /// with the account, "Could not save that" if it was not.
+    func setPrivateSearch(_ on: Bool) {
+        privateSearch = on
+        nowPlaying.say(on ? "Private search is on" : "Private search is off")
+        Task {
+            if !(await you.savePreference(["private_search": on])) {
+                nowPlaying.say("Could not save that")
+            }
+        }
+    }
+
+    /// The voice searches are spoken in (`voiceItem`): a pick on the search
+    /// page is for the next search (`voice_picked`, §447); one in Settings is
+    /// a standing choice. Kept on the server either way.
+    func chooseVoice(_ id: String, fromSettings: Bool) {
+        if !fromSettings { voicePicked = true }
+        if let page = voices {
+            if id == (page.selected ?? "") { return }
+            voices = VoicesPage(selected: id, voices: page.voices)
+        }
+        Task {
+            try? await api.chooseVoice(id)
+            await you.loadSettings()
+        }
+    }
+
+    /// The voice a search is sent in: the listener's choice, else none (the
+    /// server's own default).
+    var searchVoice: String { voices?.selected ?? "" }
+
     /// A search: the listener's own words, so the AI question comes first
-    /// (5.1.2(i), `consent.py`) - asked before the tap's wait, never inside it.
-    /// Its provisional title is the question until the writer's lands.
-    func search(_ words: String, minutes: Double) async {
-        let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !question.isEmpty else { return }
-        guard await consent.ensure() else { return }
-        play(Episode(key: EpisodeKey(query: question, minutes: minutes),
-                     title: NowPlayingModel.titleFromQuestion(question), surface: "search",
-                     picture: nil, titleOverridden: false))
+    /// (5.1.2(i), `consent.py`) - asked before the tap's wait, never inside it
+    /// (`sendSearch`). `query` is asked, `title` (every spelling fixed) is
+    /// the provisional title until the writer's lands. With only an
+    /// attachment, the fixed summarise question, titled with its name.
+    /// Returns whether it was sent, so the box and the chips clear.
+    @discardableResult
+    func sendSearch(query: String, title: String, minutes: Double) async -> Bool {
+        guard await consent.ensure() else { return false }
+        if attachments.pending {
+            nowPlaying.say("Still reading that attachment")
+            return false
+        }
+        let attach = attachments.ids
+        var question = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let typed = !question.isEmpty
+        if !typed && !attach.isEmpty { question = AttachModel.summarise }
+        // Nothing typed and nothing attached sends nothing (the web plays
+        // its demo episode here; quirk 1 not copied).
+        guard !question.isEmpty else { return false }
+        let shown: String
+        if !typed && !attach.isEmpty {
+            shown = attachments.firstName
+        } else {
+            shown = NowPlayingModel.titleFromPrompt(title.isEmpty ? question : title)
+        }
+        var ep = Episode(key: EpisodeKey(query: question, minutes: minutes),
+                         title: shown, surface: "search",
+                         picture: nil, titleOverridden: !attach.isEmpty)
+        ep.attach = attach
+        ep.isPrivate = privateSearch
+        // What someone searches is the clearest statement of interest they
+        // make - unless it is private.
+        if !privateSearch { Task { await api.event("search", text: question) } }
+        // The attachment belonged to that question.
+        attachments.clear()
+        play(ep)
+        return true
+    }
+
+    /// A trending search is a search (`runTrendSearch`): the same question
+    /// at the length its episode was written for, so it lands on the
+    /// episode already written; private when private search is on.
+    func playTrending(_ t: TrendingSearch) {
+        var ep = Episode(key: EpisodeKey(query: t.query, minutes: t.minutes > 0 ? t.minutes : 1.5),
+                         title: t.label, surface: "search",
+                         picture: nil, titleOverridden: !t.title.isEmpty)
+        ep.isPrivate = privateSearch
+        if !privateSearch { Task { await api.event("search", text: t.query) } }
+        play(ep)
+    }
+
+    /// The mic: voice search opens and listens at once. Whatever is playing
+    /// pauses while the microphone has the audio.
+    func openVoiceSearch() {
+        guard VoiceSearchModel.available else {
+            nowPlaying.say("This phone can't turn speech into a search")
+            return
+        }
+        if player.playing {
+            player.pause()
+            resumeAfterVoice = true
+        } else {
+            resumeAfterVoice = false
+        }
+        voiceSearch.present()
+    }
+
+    /// A voice search was sent: what was playing stays paused for it.
+    func voiceSearchSent() {
+        resumeAfterVoice = false
     }
 
     /// Cancel from the loading screen's X: the episode is not wanted.
@@ -645,10 +786,18 @@ final class AppModel: ObservableObject {
         // Which reading of a name is asked on any tap that may write an
         // episode, never on a replay (§426).
         let askReading = !cachedOnly && ep.episodeID.isEmpty
+        // The voice is sent only for a search (§147), and "picked" once, on
+        // the next search after a pick (§447).
+        let searched = ep.surface == "search"
+        let voice = searched ? searchVoice : ""
+        let picked = searched && voicePicked
+        if searched { voicePicked = false }
         let request = api.audio(query: ep.key.query, minutes: ep.key.minutes, surface: ep.surface,
                                 topicID: ep.topicID, context: ep.key.context, own: ep.own,
                                 cachedOnly: cachedOnly, episode: ep.episodeID,
-                                reading: ep.key.reading, askReading: askReading)
+                                reading: ep.key.reading, askReading: askReading,
+                                voice: voice, voicePicked: picked,
+                                isPrivate: ep.isPrivate, attach: ep.attach)
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }

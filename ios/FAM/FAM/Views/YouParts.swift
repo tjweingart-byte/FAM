@@ -366,6 +366,9 @@ struct YouSheetItem: Identifiable {
     var group = false
     var danger = false
     var icon: Path?
+    /// The current choice, marked with a check just after the label
+    /// (searchFAM's Length and Voice sheets; the web writes "  ✓").
+    var checked = false
     var run: () -> Void = {}
 }
 
@@ -460,10 +463,16 @@ struct YouSheet: View {
                         .foregroundStyle(item.danger ? FAMColor.coral : FAMColor.textMuted)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.label)
-                        .font(FAMFont.body(13.5, .semibold))
-                        .foregroundStyle(item.danger ? FAMColor.coral : FAMColor.text)
-                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Text(item.label)
+                            .font(FAMFont.body(13.5, .semibold))
+                            .foregroundStyle(item.danger ? FAMColor.coral : FAMColor.text)
+                            .lineLimit(1)
+                        if item.checked {
+                            WebIcon(path: Icons.check, size: 13, line: 2.6)
+                                .foregroundStyle(FAMColor.text)
+                        }
+                    }
                     if !item.sub.isEmpty {
                         Text(item.sub)
                             .font(FAMFont.body(11.5))
@@ -478,6 +487,7 @@ struct YouSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(item.checked ? .isSelected : [])
     }
 }
 

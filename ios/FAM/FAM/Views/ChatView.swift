@@ -394,9 +394,11 @@ struct ChatScreen: View {
 
     /// A follow-up of the shared episode: its title is the context.
     private func followUp(_ base: SharedEpisode, words: String, minutes: Double, typed: Bool) {
-        let ep = Episode(key: EpisodeKey(query: words, minutes: minutes, context: base.title),
+        var ep = Episode(key: EpisodeKey(query: words, minutes: minutes, context: base.title),
                          title: NowPlayingModel.titleFromQuestion(words), surface: "other",
                          own: typed, picture: nil, titleOverridden: false)
+        // With private search on, a Go Deeper is private too (§285).
+        ep.isPrivate = model.privateSearch
         let app = model
         social.closeCover { app.play(ep) }
     }

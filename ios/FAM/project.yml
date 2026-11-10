@@ -64,6 +64,10 @@ targets:
         GIDClientID: $(GOOGLE_IOS_CLIENT_ID)
         # A group chat's "Take a photo" (the web's camera source).
         NSCameraUsageDescription: FAM uses the camera only when you take a photo for your profile or a group chat.
+        # searchFAM's mic (§151): only while voice search is open, never in
+        # the background ("Hey FAM" is not on iOS 1.0).
+        NSMicrophoneUsageDescription: FAM listens only while voice search is open, to turn what you say into a search.
+        NSSpeechRecognitionUsageDescription: FAM turns what you say into the words of your search. On phones that can, this happens on the phone; otherwise Apple's speech recognition does it. Only the finished question is sent to FAM.
         CFBundleURLTypes:
           - CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]
         # The web's three typefaces (`typefaces`), as static instances of

@@ -688,8 +688,10 @@ struct ReadingCard: View {
     var body: some View {
         ModalTitle(text: "Which one do you mean?")
         Text(ask.question)
-            .font(FAMFont.body(12))
+            .font(FAMFont.body(12.5))
             .foregroundStyle(FAMColor.textMuted)
+            .lineSpacing(5)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.bottom, 14)
         VStack(spacing: 8) {
             ForEach(ask.readings, id: \.self) { reading in

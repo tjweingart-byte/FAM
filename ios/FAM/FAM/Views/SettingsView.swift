@@ -6,7 +6,8 @@ import SwiftUI
 /// again (`op-profile-hub`). Toggle rows stay rows whose value reads On /
 /// Off, as the web draws them. Where iOS has no such control the row is
 /// left out rather than drawn dead (`no-dead-controls`): Dark mode (light
-/// only, §250) and "Hey FAM" (no voice search here). iOS adds what the web
+/// only, §250) and "Hey FAM" (it needs a microphone open whenever the app is,
+/// which iOS 1.0 does not do; voice search itself is on searchFAM's mic). iOS adds what the web
 /// has no need of: the sign-in methods (Apple, Google), under Account
 /// settings. Friends is reached from the hub's friends count, Messages is a
 /// tab - the web's groups, and no others.
@@ -115,8 +116,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             SetGroup(text: "Account settings")
             SetRow(label: "Subscription", value: you.planLabel ?? "\u{2014}") { openPlans() }
-            SetRow(label: "Private search", value: (you.prefs?.privateSearch ?? false) ? "On" : "Off") {
-                setPrivateSearch(!(you.prefs?.privateSearch ?? false))
+            // The same switch as searchFAM's Private bubble (§285).
+            SetRow(label: "Private search", value: model.privateSearch ? "On" : "Off") {
+                model.setPrivateSearch(!model.privateSearch)
             }
             SetNote(text: "While it\u{2019}s on, every search and Go Deeper you start stays out of the episode library, off your friends\u{2019} DailyFAM and your listening history, and doesn\u{2019}t teach your feed.")
             SetRow(label: "Show my name on episodes I searched",
@@ -229,12 +231,10 @@ struct SettingsView: View {
         return items
     }
 
+    /// A standing choice, not a pick for the next search (§447).
     private func chooseVoice(_ id: String) {
         guard id != (you.voices?.selected ?? "") else { return }
-        Task {
-            try? await model.api.chooseVoice(id)
-            await you.loadSettings()
-        }
+        model.chooseVoice(id, fromSettings: true)
     }
 
     private var aiOffItems: [YouSheetItem] {
@@ -330,14 +330,6 @@ struct SettingsView: View {
         Task {
             plans = try? await model.api.plans()
             sheet = .plans
-        }
-    }
-
-    private func setPrivateSearch(_ on: Bool) {
-        Task {
-            if !(await you.savePreference(["private_search": on])) {
-                model.nowPlaying.say("Could not save that")
-            }
         }
     }
 

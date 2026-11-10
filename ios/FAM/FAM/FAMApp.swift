@@ -15,9 +15,10 @@ struct FAMApp: App {
                 .environmentObject(model.mixes)
                 .environmentObject(model.social)
                 .environmentObject(model.you)
-                .aiConsentSheet(model.consent)
                 .tint(FAMColor.copper)
-                .preferredColorScheme(.light)
+                // Light only (§250); the system's chrome goes dark over
+                // private search's charcoal while that screen shows.
+                .preferredColorScheme(model.darkChrome ? .dark : .light)
                 .task { await model.open() }
                 // Google's sign-in comes back to the app through its URL scheme.
                 .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
@@ -60,6 +61,23 @@ struct RootView: View {
         .overlay { LoadingLayer(loading: model.loading) }
         // "Which one do you mean?" and the limit screen (`onGenerationFailed`).
         .overlay { RefusalLayer() }
+        // The AI question as the web's centred card (`aiConsentOverlay`),
+        // over everything here; the player and the social covers draw it too.
+        .overlay { ConsentLayer(consent: model.consent) }
+    }
+}
+
+/// Voice search's screen while it is open.
+struct VoiceSearchLayer: View {
+    @ObservedObject var voice: VoiceSearchModel
+
+    var body: some View {
+        ZStack {
+            if voice.isOpen {
+                VoiceSearchView(voice: voice)
+                    .transition(.opacity)
+            }
+        }
     }
 }
 
@@ -119,7 +137,8 @@ struct MainTabs: View {
             ZStack {
                 DailyView(scrollToTop: $scrollToTop).opacity(tab == .daily ? 1 : 0).allowsHitTesting(tab == .daily)
                 MyFAMView(path: $model.mixPath).opacity(tab == .myfam ? 1 : 0).allowsHitTesting(tab == .myfam)
-                SearchView(tab: $tab).opacity(tab == .search ? 1 : 0).allowsHitTesting(tab == .search)
+                SearchView(tab: $tab, attach: model.attachments, voice: model.voiceSearch,
+                           loading: model.loading).opacity(tab == .search ? 1 : 0).allowsHitTesting(tab == .search)
                 MessagesView().opacity(tab == .messages ? 1 : 0).allowsHitTesting(tab == .messages)
                 YouView().opacity(tab == .you ? 1 : 0).allowsHitTesting(tab == .you)
             }
@@ -134,6 +153,7 @@ struct MainTabs: View {
                     .environmentObject(model.mixes)
                     .environmentObject(social)
                     .environmentObject(model.you)
+                    .overlay { ConsentLayer(consent: model.consent) }
             }
             // A rail's View more is a screen of its own on the web, with
             // neither the tab bar nor the mini player.
@@ -168,7 +188,10 @@ struct MainTabs: View {
                     // `openProfile`: the stack reset to the hub, read afresh.
                     model.youPath = []
                     Task { await model.you.loadProfile() }
-                })
+                }, dark: tab == .search && model.privateSearch)
+                // The charcoal comes and goes with the screen (`transition:
+                // background .25s`).
+                .animation(.easeInOut(duration: 0.25), value: model.privateSearch)
             }
         }
         // The bar rises from behind the tabs (260 ms) and drops (200 ms).
@@ -204,6 +227,8 @@ struct MainTabs: View {
         .overlay(alignment: .bottom) {
             ToastView().padding(.bottom, 96)
         }
+        // Voice search (§151): full screen over the tabs and the mini player.
+        .overlay { VoiceSearchLayer(voice: model.voiceSearch) }
         .overlay {
             if let name = model.mixDone {
                 MixDoneOverlay(name: name) {
@@ -236,6 +261,8 @@ struct MainTabs: View {
                 // down over it (the web's banner sits over every screen);
                 // its tap takes the player down first (`leavePlayer`).
                 .overlay(alignment: .top) { SocialBannerLayer().environmentObject(social) }
+                // A typed Go Deeper asks the AI question over the player.
+                .overlay { ConsentLayer(consent: model.consent) }
         }
     }
 }
@@ -248,6 +275,11 @@ struct TabBar: View {
     var onMyFAM: () -> Void = {}
     var onMessages: () -> Void = {}
     var onYou: () -> Void = {}
+    /// Private search's charcoal: the search screen includes its tab bar
+    /// (`#screen-home.private-search`), so the bar goes dark with it.
+    var dark = false
+
+    private var palette: SearchPalette { SearchPalette.of(dark) }
 
     var body: some View {
         // Five equal slots with the search in the middle, as the web's five
@@ -264,14 +296,14 @@ struct TabBar: View {
         .padding(.horizontal, 8)
         .padding(.top, 10)
         .padding(.bottom, 4)
-        .background(FAMColor.background.ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+        .background(palette.background.ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) { Rectangle().fill(palette.border).frame(height: 1) }
     }
 
     private func item(_ which: Tab, _ label: String, _ icon: Path, tone: Path? = nil,
                       badge: Int = 0) -> some View {
         let on = tab == which
-        let color = on ? FAMColor.copper : FAMColor.textMuted
+        let color = on ? palette.copper : palette.textMuted
         return Button {
             if which == .daily { onDaily() }
             if which == .myfam { onMyFAM() }
@@ -292,13 +324,13 @@ struct TabBar: View {
                         .foregroundStyle(color)
                 }
                 .frame(width: 44, height: 28)
-                .background(on ? FAMColor.copper.opacity(0.18) : Color.clear, in: Capsule())
+                .background(on ? palette.copper.opacity(0.18) : Color.clear, in: Capsule())
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 { TabBadge(count: badge).offset(x: 7, y: -4) }
                 }
                 Text(label)
                     .font(FAMFont.mono(8.5, bold: on))
-                    .foregroundStyle(on ? FAMColor.copper : FAMColor.textMuted)
+                    .foregroundStyle(on ? palette.copper : palette.textMuted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
@@ -311,7 +343,7 @@ struct TabBar: View {
     /// The round search button, raised out of the bar; copper when it is on.
     private var centre: some View {
         let on = tab == .search
-        let color = on ? FAMColor.ink : FAMColor.text
+        let color = on ? FAMColor.ink : palette.text
         return Button { tab = .search } label: {
             ZStack {
                 Glyph(path: Icons.searchTone, box: CGRect(x: 0, y: 0, width: 24, height: 24))
@@ -321,8 +353,8 @@ struct TabBar: View {
                     .foregroundStyle(color)
             }
                 .frame(width: 50, height: 50)
-                .background(on ? FAMColor.copper : FAMColor.surface, in: Circle())
-                .overlay(Circle().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
+                .background(on ? palette.copper : palette.surface, in: Circle())
+                .overlay(Circle().stroke(on ? palette.copper : palette.borderStrong))
                 .shadow(color: .black.opacity(0.18), radius: 9, y: 6)
                 .offset(y: -14)
                 .padding(.bottom, -14)
