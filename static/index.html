@@ -10157,7 +10157,7 @@
       playOpts.nextUp = false;
       mixOnEnd = function(){
         if(mixPlay) mixPlay.failures = 0;
-        advanceMix(detourOf);
+        resumeMix(detourOf);
       };
     } else if(!t.fromMix){
       mixPlay = null;
@@ -11351,7 +11351,14 @@
     // ends (or is skipped) the playlist carries on with its next episode. A
     // Go Deeper on that follow-up is the same detour.
     var detour = mixDetourFor(baseKey);
-    if(detour) TOPICS[newKey].mixDetour = detour;
+    if(detour){
+      TOPICS[newKey].mixDetour = detour;
+      // The owner's rule (§536): the playlist is a queue that Go Deeper only
+      // interrupts. Going deeper off the playlist's own episode remembers
+      // where it was, so that episode - the same audio - picks up from there
+      // when the detour is over, and only then does the playlist move on.
+      if(baseKey === mixPlay.key) noteMixInterrupted();
+    }
     generate(newKey);
   }
   // The playlist episode `baseKey` belongs to, when a playlist is playing it
@@ -12667,7 +12674,7 @@
     var off = TOPICS[offKey];
     if(off && off.mixDetour === mixPlay.key && offKey !== mixPlay.key){
       toast("That follow-up couldn\u2019t play \u2014 back to your playlist.");
-      advanceMix(mixPlay.key);
+      resumeMix(mixPlay.key);
       return true;
     }
     if(mixPlay.key !== currentPlayingTopicKey) return false;
@@ -12694,11 +12701,47 @@
     if(!mixPlay){ stopSpeech(); setPlayState(false); playQueueNext(); return; }
     mixPlay.failures = 0;
     var from = mixPlay.key;
+    // Skipping a Go Deeper follow-up ends the detour: back to the playlist's
+    // episode where it was interrupted (§536), not past it. Read before the
+    // player is stopped, and from what was asked for as well as what is on
+    // the player - a follow-up can still be loading.
+    var onKey = currentPlayingTopicKey;
+    var on = TOPICS[onKey];
+    var asked = lastGenerate ? TOPICS[lastGenerate.key] : null;
+    var detour = (onKey !== from && on && on.mixDetour === from)
+      || (asked && lastGenerate.key !== from && asked.mixDetour === from);
     // The same bookkeeping as leaving any episode early - a skip is evidence
     // - and then the next in line, never the What's next popup.
     stopSpeech();
     setPlayState(false);
+    if(detour){ resumeMix(from); return; }
     advanceMix(from);
+  }
+
+  // Where the playlist's episode was when a Go Deeper interrupted it (§536):
+  // its position, and its episode id so the same audio comes back rather
+  // than a fresh write. Nothing is kept when it had already played through.
+  function noteMixInterrupted(){
+    if(!mixPlay || !mixPlay.key || mixPlay.key !== currentPlayingTopicKey) return;
+    var at = FamAudio.position();
+    var done = FamAudio.isComplete() && (FamAudio.seekLimit() - at) < 2;
+    mixPlay.resume = (done || !nowBarState) ? null
+      : { key: mixPlay.key, at: at, episode: FamAudio.episode() || "",
+          query: nowBarState.query, minutes: nowBarState.minutes };
+  }
+
+  // A Go Deeper detour is over (ended, skipped or failed): the interrupted
+  // episode carries on from where it was, and when that ends the playlist
+  // moves on; with nothing to resume, the playlist's next episode.
+  function resumeMix(fromKey){
+    if(!mixPlay || (fromKey && fromKey !== mixPlay.key)) return;
+    var r = mixPlay.resume;
+    mixPlay.resume = null;
+    var t = TOPICS[mixPlay.key];
+    if(!r || r.key !== mixPlay.key || !t){ advanceMix(fromKey); return; }
+    if(r.episode) t.episode = r.episode;
+    pendingResumeSeek = r.at > 0 ? { query: r.query, minutes: r.minutes, at: r.at } : null;
+    generate(mixPlay.key);
   }
 
   function finishMix(){
