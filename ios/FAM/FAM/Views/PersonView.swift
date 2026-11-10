@@ -116,7 +116,14 @@ struct PersonView: View {
             }
         }
         .fullScreenCover(item: $story) { reel in
-            StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 })
+            StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 }, openMine: {
+                // "Vibed to your story · View" after the VIBE! arrows.
+                Task { @MainActor in
+                    await model.loadCircle()
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    if let mine = StoryReel.mine(model) { story = mine }
+                }
+            })
                 .environmentObject(model)
         }
     }

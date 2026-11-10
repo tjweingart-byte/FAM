@@ -172,12 +172,13 @@ struct YouView: View {
         let avatar = p.avatar ?? ""
         let account = model.listener?.authenticated == true
         return ZStack(alignment: .bottomTrailing) {
-            if mine.isEmpty {
+            if mine.isEmpty && !account {
+                Face(name: name, handle: handle, avatar: avatar, size: 92, initialsSize: 28)
+            } else if mine.isEmpty {
                 Button { compose() } label: {
                     Face(name: name, handle: handle, avatar: avatar, size: 92, initialsSize: 28)
                 }
                 .buttonStyle(.press)
-                .disabled(!account)
                 .accessibilityLabel("Add to your story")
             } else {
                 Button { openMyStory(p) } label: {
