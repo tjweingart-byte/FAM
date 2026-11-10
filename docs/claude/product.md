@@ -280,11 +280,11 @@ surfaces; on search, keep the work small enough that there is no gap to fill.
 **DailyFAM and a mix have their own loading screens** *(PROBLEMS.md §509, the
 owner's pick from a six-option page, 11.9).* A DailyFAM tile tapped shows a
 tuning dial: the needle sweeps the categories of the rail the tile came from,
-overshoots and settles on the tile's own, with the tile's title and "Getting
-your episode ready". A myFAM mix's episode shows the mix gliding along: its
-episodes in order, the ones before marked Played (its audio started) or
-Skipped, this one slid to the middle,
-"2 of 5" in the header. Neither shows the five steps - those stay search's and
+overshoots and settles on the tile's own, named in full under it ("Tuning in
+to Technology"), with the tile's title and "Getting your episode ready". A
+myFAM mix's episode shows the mix gliding along: its episodes in order, the
+ones before marked Played (its audio started) or Skipped, this one slid to the
+middle, "2 of 5" in the header. Neither shows the five steps - those stay search's and
 Go Deeper's (§148, `search-no-cover`) - and **neither holds the audio**: the
 server's marks are still polled, only to move the give-up time (§497), and the
 screen goes the moment audio arrives, wherever the needle has got to (§292).

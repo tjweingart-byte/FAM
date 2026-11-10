@@ -3696,7 +3696,6 @@ def main() -> int:
             assert not seen["stepped"], "a DailyFAM tile showed search's five steps"
             page.evaluate("stopSpeech(); clearGenOverlay()")
 
-            ensure_account()
             page.evaluate("openPlayFAM()")
             page.wait_for_selector(".mix-card", timeout=10000, state="attached")
             page.evaluate("() => openMix(mixes[0].id)")
