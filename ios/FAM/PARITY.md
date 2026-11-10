@@ -84,7 +84,7 @@ Checked against a specification written from `static/index.html` (the web's
 | Pick up where you left off: resume (time left, bar) and thread cards, X dismisses for good | Done | resumes seek once the audio has arrived. **Server bug found:** progress keeps `minutes` as an integer, so a 1.5-minute resume is asked as 1 minute (a different episode) - on the web too |
 | Five rails in the server's order, "Made for you, {Day} {part}" / "Start here", the others' headings | Done | |
 | Each rail's empty sentence from the server; friends rail silent with nobody followed | Done | |
-| Card: picture, subject chip, ready badge, save bookmark, ⋯, friends pill and "N friends listened", title size steps (>48, >72), live line with its age, hook with each rail's fallback | Done | |
+| Card: picture, subject chip, ready badge, save bookmark, ⋯, friends pill and "N friends listened", title size steps (>48, >72), live line with its age, hook with each rail's fallback | Done, differs on purpose | the owner's call for iOS: the picture at its full 4:3 (the web crops rail pictures to a 96 pt strip) and the whole hook (the web clamps it to two lines) |
 | Card ⋯: Share, Add to Queue, Go to Queue, Not interested | Done | |
 | Card ⋯: Add to myFAM Playlist | Not yet | waits for myFAM |
 | VIEW MORE at a rail's end → View more: 16 at a time, Refresh, the reason line, wrap notes, caught up, Trending by continent | Done | VIEW MORE always shows (the web shows an arrow until the rail is scrolled to its end) |

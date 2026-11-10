@@ -214,7 +214,9 @@ struct TileCard: View {
                     .padding(.bottom, tile.thumbFacet.isEmpty ? 8 : 30)
             }
         }
-        .frame(height: 96)
+        // The whole picture, at its own 4:3 - never the web's 96 pt strip,
+        // which cropped the top and bottom off every one (the owner, on iOS).
+        .aspectRatio(4 / 3, contentMode: .fit)
         .clipped()
     }
 
@@ -299,11 +301,12 @@ struct TileCard: View {
             default: text = Text("Playing across FAM now")
             }
         }
+        // The whole line, never clamped to two with "…" (the owner, on iOS).
         return text
             .font(FAMFont.body(10))
             .foregroundStyle(FAMColor.textMuted)
             .lineSpacing(2)
-            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
