@@ -944,6 +944,13 @@ struct MixShareSheet: View {
         .presentationDetents([.large])
         .presentationBackground(FAMColor.surface)
         .environmentObject(model.social)
+        // The toast over the sheet: a send's refusal in the server's words
+        // ("You can message people who follow you back.") would be under it.
+        .overlay(alignment: .bottom) {
+            ToastView()
+                .environmentObject(model.nowPlaying)
+                .padding(.bottom, 70)
+        }
         .task { await load() }
     }
 

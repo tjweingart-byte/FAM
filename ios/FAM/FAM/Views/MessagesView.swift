@@ -270,6 +270,13 @@ struct NewMessageCard: View {
         // Asked afresh on every open (`openNewChatModal`): somebody who has
         // just followed back is a friend now. What was drawn stays meanwhile.
         .task { await social.loadGraph() }
+        // Its sentences ("Nobody with that handle", a refused group) over
+        // the cover, which hides the tab bar's toast.
+        .overlay(alignment: .bottom) {
+            ToastView()
+                .environmentObject(model.nowPlaying)
+                .padding(.bottom, 40)
+        }
     }
 
     /// `.share-contacts`: 56 wide, a 40 pt face, the first name; picked
