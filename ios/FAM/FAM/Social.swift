@@ -107,6 +107,8 @@ final class SocialModel: ObservableObject {
     // The drop-down banner and the "started following you" popup.
     @Published private(set) var banner: SocialBanner?
     @Published var follower: FollowPerson?
+    /// New message's card is up (`#newChatOverlay`), over every tab.
+    @Published var newChatOpen = false
 
     /// Set by the tab bar: whether Messages is the tab on screen. Published:
     /// a conversation left open under another tab stops polling (and stops
@@ -140,6 +142,7 @@ final class SocialModel: ObservableObject {
         coverPath = []
         banner = nil
         follower = nil
+        newChatOpen = false
         cursor = 0
         bootstrapped = false
         bannerQueue = []

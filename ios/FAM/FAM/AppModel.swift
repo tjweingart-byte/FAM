@@ -97,7 +97,14 @@ final class AppModel: ObservableObject {
     /// Private search (§282, §285): one switch in two places - the bubble
     /// and Settings - kept with the account's preferences (`private_search`),
     /// on until it is turned off, covering every search and Go Deeper.
-    @Published private(set) var privateSearch = false
+    /// Private search, remembered on this phone so it holds from the first
+    /// second after launch - before the server's preferences arrive - and a
+    /// search in that window is never recorded (`private-search`). The
+    /// server's answer, when it comes, is the truth and replaces it.
+    @Published private(set) var privateSearch = UserDefaults.standard.bool(forKey: AppModel.privateKey) {
+        didSet { UserDefaults.standard.set(privateSearch, forKey: AppModel.privateKey) }
+    }
+    static let privateKey = "fam.privateSearch"
     /// The voice bank and the voice searches are spoken in (§147, §447).
     @Published private(set) var voices: VoicesPage?
     /// A voice was picked on the search page for the next search only

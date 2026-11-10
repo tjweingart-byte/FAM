@@ -9,7 +9,6 @@ struct MessagesView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var social: SocialModel
     @State private var search = ""
-    @State private var newChat = false
 
     var body: some View {
         NavigationStack(path: $social.messagesPath) {
@@ -31,11 +30,9 @@ struct MessagesView: View {
             }
             .onAppear { Task { await social.loadInbox() } }
         }
-        .fullScreenCover(isPresented: $newChat) {
-            NewMessageCard()
-                .environmentObject(model)
-                .environmentObject(social)
-        }
+        // New message is the web's centred card over the whole app, tab
+        // bar included (`#newChatOverlay`): drawn by MainTabs
+        // (`NewMessageLayer`), not a full-screen cover.
     }
 
     // MARK: The bar (`.yf-bar`)
@@ -47,7 +44,7 @@ struct MessagesView: View {
                 .foregroundStyle(FAMColor.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
-            Button { newChat = true } label: {
+            Button { social.newChatOpen = true } label: {
                 RoundIcon(gold: true) { WebIcon(path: Icons.plus, size: 17, line: 2.4) }
             }
             .buttonStyle(.press)
@@ -222,7 +219,6 @@ struct InboxRow: View {
 struct NewMessageCard: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var social: SocialModel
-    @Environment(\.dismiss) private var dismiss
     @State private var picked: [String] = []
     @State private var groupName = ""
     @State private var typed = ""
@@ -270,13 +266,13 @@ struct NewMessageCard: View {
         // Asked afresh on every open (`openNewChatModal`): somebody who has
         // just followed back is a friend now. What was drawn stays meanwhile.
         .task { await social.loadGraph() }
-        // Its sentences ("Nobody with that handle", a refused group) over
-        // the cover, which hides the tab bar's toast.
-        .overlay(alignment: .bottom) {
-            ToastView()
-                .environmentObject(model.nowPlaying)
-                .padding(.bottom, 40)
-        }
+        // Its sentences ("Nobody with that handle", a refused group) are the
+        // app's own toast, which MainTabs draws over this card.
+    }
+
+    /// Cancel, the dim behind the card, or a conversation opening.
+    private func dismiss() {
+        social.newChatOpen = false
     }
 
     /// `.share-contacts`: 56 wide, a 40 pt face, the first name; picked
@@ -437,7 +433,8 @@ struct NewMessageCard: View {
         }
         dismiss()
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            // The card fades out first (200 ms), as the web's overlay does.
+            try? await Task.sleep(nanoseconds: 220_000_000)
             social.open(.thread(chat))
         }
     }
@@ -492,5 +489,33 @@ struct PickFace: View {
         .frame(width: 56)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// The New message card over everything (`#newChatOverlay.active`): the
+/// web's dim, the card centred on it, fading in and lifting a little as the
+/// web's modals do. A tap on the dim closes it (`event.target===this`).
+struct NewMessageLayer: View {
+    @EnvironmentObject private var social: SocialModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            if social.newChatOpen {
+                Color(hex: 0x0A090F).opacity(0.62)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .accessibilityHidden(true)
+                NewMessageCard()
+                    .accessibilityAddTraits(.isModal)
+                    .transition(cardTransition)
+            }
+        }
+        .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.22), value: social.newChatOpen)
+    }
+
+    private var cardTransition: AnyTransition {
+        if reduceMotion { return AnyTransition.opacity }
+        return AnyTransition.opacity.combined(with: AnyTransition.offset(x: 0, y: 12))
     }
 }

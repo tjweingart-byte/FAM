@@ -922,7 +922,8 @@ struct LocationView: View {
                     field("City", "City", $city, .addressCity)
                     field("State or region", "State or region", $region, .addressState)
                     field("Country", "Country", $country, .countryName)
-                    Text("Your town shows on your profile.")  // the web says "Only you can see this.", which is not so
+                    // The web's note, word for word (`#locNote`, the owner's call).
+                    Text("Only you can see this.")
                         .font(FAMFont.body(10.5))
                         .foregroundStyle(FAMColor.textFaint)
                         .fixedSize(horizontal: false, vertical: true)

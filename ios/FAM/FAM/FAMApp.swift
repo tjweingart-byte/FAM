@@ -282,6 +282,8 @@ struct MainTabs: View {
             guard scenePhase == .active, model.feedDrawn else { return }
             await social.runNotifications()
         }
+        // New message: the web's centred card over every tab and the bar.
+        .overlay { NewMessageLayer() }
         .overlay(alignment: .bottom) {
             ToastView().padding(.bottom, 96)
         }

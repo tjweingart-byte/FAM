@@ -131,10 +131,8 @@ struct SettingsView: View {
             SetRow(label: "Change password") { PasswordChange.start(model: model, ask: $textAsk) }
             SetRow(label: "Log out") { Task { await model.signOut() } }
             SetRow(label: "Delete account", danger: true) { sheet = .delete }
-            // The web's note, word for word (the owner's call over Q1).
-            // The web's note says reset isn't available; it is (the log-in screen's
-            // "Forgot password?"), so the app says what is true.
-            SetNote(text: "Deleting your account is immediate and can\u{2019}t be undone.")
+            // The web's note, word for word (the owner's call).
+            SetNote(text: "Password reset isn\u{2019}t available yet, so keep your password somewhere safe. Deleting your account is immediate and can\u{2019}t be undone.")
         }
     }
 
