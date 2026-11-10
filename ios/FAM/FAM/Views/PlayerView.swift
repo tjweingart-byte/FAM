@@ -159,8 +159,10 @@ struct PlayerView: View {
                 seekButton(back: false)
             }
             .overlay(alignment: .trailing) {
-                if !now.queue.isEmpty {
-                    Button { model.stopEpisode(); now.playQueueNext() } label: {
+                if !now.queue.isEmpty || model.mixPlay != nil {
+                    Button {
+                        if model.mixPlay != nil { model.skipMixItem() } else { model.stopEpisode(); now.playQueueNext() }
+                    } label: {
                         Image(systemName: "forward.end.fill")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(FAMColor.text)
@@ -169,7 +171,8 @@ struct PlayerView: View {
                             .overlay(Circle().stroke(FAMColor.borderStrong))
                     }
                     .offset(x: 54)
-                    .accessibilityLabel("Play the next in the queue")
+                    .accessibilityLabel(model.mixPlay != nil ? "Skip to the next episode in this playlist"
+                                        : "Play the next in the queue")
                 }
             }
             HStack {
@@ -246,6 +249,7 @@ struct PlayerView: View {
         case .queue: QueueSheet()
         case .vibe: VibeComposer()
         case .share: ShareSheet()
+        case .addToMix: AddToMixSheet(query: now.episode?.key.query ?? "", title: now.title)
         case .report:
             if let ep = now.episode {
                 ReportSheet(api: model.safety,
@@ -256,7 +260,7 @@ struct PlayerView: View {
 }
 
 enum PlayerSheet: String, Identifiable {
-    case goDeeper, menu, sources, playback, queue, vibe, share, report
+    case goDeeper, menu, sources, playback, queue, vibe, share, report, addToMix
     var id: String { rawValue }
 }
 

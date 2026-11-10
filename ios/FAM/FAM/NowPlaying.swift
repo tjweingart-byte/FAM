@@ -161,6 +161,9 @@ final class NowPlayingModel: ObservableObject {
             await refreshThreadOnce(mine)
             await refreshSourcesOnce(mine)
         }
+        // A mix playing as a playlist plays its next item instead of
+        // offering What's next (`fromMix`).
+        if onEnded?() == true { return }
         if let next = queue.first {
             queue.removeFirst()
             playEpisode?(next.episode)
@@ -413,6 +416,10 @@ final class NowPlayingModel: ObservableObject {
     }
 
     // MARK: - The queue (§190)
+
+    /// Asked when an episode ends, before the queue: true if a mix's
+    /// playlist took over.
+    var onEnded: (() -> Bool)?
 
     func addToQueue(_ ep: Episode) {
         queue.append(QueueEntry(episode: ep))

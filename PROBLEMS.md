@@ -32623,3 +32623,35 @@ that account (the "link" case).
 Recovery for the owner's case: delete the Apple-made account on the waiting
 screen, log in with email and password, YourFAM → Sign-in methods → Continue
 with Apple. Contract test: `test_sign_in_methods_decode_what_the_account_sends`.
+
+## 522. The iOS app, stage 2: myFAM (2026-11-10)
+
+The mixes surface - shown as **myFAM**, coded as DailyFAM mixes
+(`names-swapped`) - ported from a control-by-control specification of
+`screen-playfam`, `screen-newmix`, `screen-mixdetail`, `screen-addtopics` and
+`screen-publicmix` (19 mix routes plus push, the catalogue and the episode's
+topic). `ios/FAM/PARITY.md` lists every row.
+
+**Kept from the web**: made by naming it, empty, then filled from its page
+(`mix-made-by-naming`); public by default, copies private; members edit
+topics only (`joint-mixes`); add and remove are operations; a typed topic is
+sent untitled so the server names it short (`mix-topic-title`); a mix plays
+as a playlist of today's edition on the `dailyfam` surface at each item's
+own length, behind the glide (§509), and its end shows the finished overlay
+rather than What's next.
+
+**Not copied, on purpose** (the web's quirks the spec found): Delete asks
+first; Rename starts from the current name; the page updates in place
+instead of being pushed again; "Remove from this playlist" sends `remove`
+rather than the whole list, and is offered only for a mix of yours.
+
+**Not yet**: the category filter chips that live on the web's myFAM tab
+(§500 - they filter today's cached episodes, not mixes); the cover
+position-and-zoom editor; joining from a `/j/` link (universal links);
+story cards for a mix. **The listen time's notification is Web Push only**:
+the server has no APNs kind yet, so the app saves the time and says
+notifications on iPhone come later.
+
+Written without a compiler (§520); `tests/test_ios_app_contract.py` now
+checks interpolated paths (`/api/mixes/{id}/open`) against the routes with
+their methods, every mix field against the server, and how a mix plays.

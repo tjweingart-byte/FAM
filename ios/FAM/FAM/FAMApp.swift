@@ -12,6 +12,7 @@ struct FAMApp: App {
                 .environmentObject(model)
                 .environmentObject(model.player)
                 .environmentObject(model.nowPlaying)
+                .environmentObject(model.mixes)
                 .aiConsentSheet(model.consent)
                 .tint(FAMColor.copper)
                 .preferredColorScheme(.light)
@@ -60,7 +61,7 @@ struct LoadingLayer: View {
 }
 
 enum Tab: Hashable {
-    case daily, search, you
+    case daily, myfam, search, you
 }
 
 /// The web's bottom bar (`.tabbar`): DailyFAM, the round search button in
@@ -78,6 +79,7 @@ struct MainTabs: View {
         VStack(spacing: 0) {
             ZStack {
                 DailyView(scrollToTop: $scrollToTop).opacity(tab == .daily ? 1 : 0).allowsHitTesting(tab == .daily)
+                MyFAMView(path: $model.mixPath).opacity(tab == .myfam ? 1 : 0).allowsHitTesting(tab == .myfam)
                 SearchView(tab: $tab).opacity(tab == .search ? 1 : 0).allowsHitTesting(tab == .search)
                 YouView().opacity(tab == .you ? 1 : 0).allowsHitTesting(tab == .you)
             }
@@ -87,15 +89,37 @@ struct MainTabs: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 8)
             }
-            TabBar(tab: $tab) {
+            TabBar(tab: $tab, onDaily: {
                 // DailyFAM again while on it scrolls to the top; arriving
                 // from another tab fetches the page afresh (`openMyFamTab`).
                 if tab == .daily { scrollToTop += 1 } else { Task { await model.loadRails() } }
-            }
+            }, onMyFAM: {
+                // Every arrival opens on the list and asks for it afresh
+                // (`openPlayFAM`).
+                model.mixPath = []
+                Task { await model.mixes.load() }
+            })
         }
         .overlay(alignment: .bottom) {
             ToastView().padding(.bottom, 96)
         }
+        .overlay {
+            if let name = model.mixDone {
+                MixDoneOverlay(name: name) {
+                    model.mixDone = nil
+                    tab = .myfam
+                    model.mixPath = []
+                    Task { await model.mixes.load() }
+                }
+            }
+        }
+        .onChange(of: model.tabRequest) { _, wanted in
+            guard let wanted else { return }
+            tab = wanted
+            model.tabRequest = nil
+            if wanted == .myfam { Task { await model.mixes.load() } }
+        }
+        .task { await model.mixes.load() }
         .background(FAMColor.background.ignoresSafeArea())
         // Full screen, as the web's player is a screen of its own; the Home
         // mark minimises it and the episode carries on in the mini player.
@@ -104,6 +128,7 @@ struct MainTabs: View {
                 .environmentObject(model)
                 .environmentObject(player)
                 .environmentObject(model.nowPlaying)
+                .environmentObject(model.mixes)
         }
     }
 }
@@ -111,10 +136,12 @@ struct MainTabs: View {
 struct TabBar: View {
     @Binding var tab: Tab
     var onDaily: () -> Void = {}
+    var onMyFAM: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
             item(.daily, "DailyFAM", Icons.daily)
+            item(.myfam, "myFAM", Icons.myfam)
             centre
             item(.you, "YourFAM", Icons.you)
         }
@@ -129,6 +156,7 @@ struct TabBar: View {
         let on = tab == which
         return Button {
             if which == .daily { onDaily() }
+            if which == .myfam { onMyFAM() }
             tab = which
         } label: {
             VStack(spacing: 3) {

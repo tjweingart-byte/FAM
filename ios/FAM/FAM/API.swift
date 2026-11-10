@@ -810,3 +810,263 @@ enum Keychain {
         SecItemDelete(query as CFDictionary)
     }
 }
+
+// MARK: - myFAM: mixes (`/api/mixes`, `mixes.py`)
+//
+// The listener sees this surface as "myFAM"; code and routes keep the old
+// name, DailyFAM mixes (`names-swapped`). A mix is topic ids, never audio
+// (`op-dailyfam-mixes`); its episodes are written each morning.
+
+extension FAMAPI {
+    /// Your mixes, joined ones included (`joint=1`; without it they are left out).
+    func mixes() async throws -> [Mix] {
+        try await get("api/v1/mixes", [URLQueryItem(name: "joint", value: "1")], as: MixesPage.self).mixes
+    }
+
+    /// Made by naming it, empty, public unless said otherwise (`mix-made-by-naming`).
+    func createMix(name: String, topics: [Any] = [], cover: String = "") async throws -> Mix {
+        var body: [String: Any] = ["name": name, "topic_ids": topics]
+        if !cover.isEmpty { body["cover"] = cover }
+        return try await send("POST", "api/v1/mixes", body: body, as: Mix.self)
+    }
+
+    /// Any of name, public, cover, listen_at/listen_tz, add, remove, topic_ids.
+    func updateMix(_ id: String, _ body: [String: Any]) async throws -> Mix {
+        try await send("PATCH", "api/v1/mixes/" + id, body: body, as: Mix.self)
+    }
+
+    func deleteMix(_ id: String) async throws {
+        _ = try await send("DELETE", "api/v1/mixes/" + id, as: Ignored.self)
+    }
+
+    /// Opened or played: keeps the mix out of dormancy (`mix-dormancy`).
+    func noteMixOpen(_ id: String, played: Bool) async {
+        _ = try? await send("POST", "api/v1/mixes/\(id)/open", body: ["played": played], as: Ignored.self)
+    }
+
+    func recommendedTopics() async throws -> RecommendedTopics {
+        try await get("api/v1/mixes/recommended", [], as: RecommendedTopics.self)
+    }
+
+    /// The subjects a mix can follow (`/api/preferences` → catalogue).
+    func catalogue() async throws -> Catalogue {
+        try await get("api/v1/preferences", [], as: Catalogue.self)
+    }
+
+    func inviteToMix(_ id: String) async throws -> MixInvite {
+        try await send("POST", "api/v1/mixes/\(id)/invite", as: MixInvite.self)
+    }
+
+    /// "Make it yours alone": the invite link stops working, members go.
+    func stopJointMix(_ id: String) async throws -> Mix {
+        try await send("DELETE", "api/v1/mixes/\(id)/invite", as: Mix.self)
+    }
+
+    func joinMix(token: String) async throws -> Mix {
+        try await send("POST", "api/v1/mixes/join", body: ["token": token], as: Mix.self)
+    }
+
+    func leaveMix(_ id: String) async throws {
+        _ = try await send("POST", "api/v1/mixes/\(id)/leave", as: Ignored.self)
+    }
+
+    func publicMixes(_ words: String) async throws -> [Mix] {
+        try await get("api/v1/mixes/public", [URLQueryItem(name: "q", value: words)], as: MixesPage.self).mixes
+    }
+
+    func publicMix(_ id: String) async throws -> Mix {
+        try await get("api/v1/mixes/public/" + id, [], as: Mix.self)
+    }
+
+    /// (+) on somebody else's public mix: a private copy, not a link.
+    func addPublicMix(_ id: String) async throws -> Mix {
+        try await send("POST", "api/v1/mixes/\(id)/add", as: Mix.self)
+    }
+
+    func removePublicMix(_ id: String) async throws {
+        _ = try await send("DELETE", "api/v1/mixes/\(id)/add", as: Ignored.self)
+    }
+
+    func shareMix(_ id: String) async throws -> MixShare {
+        try await send("POST", "api/v1/mixes/\(id)/share", as: MixShare.self)
+    }
+
+    func pushStatus() async throws -> PushStatus {
+        try await get("api/v1/push", [], as: PushStatus.self)
+    }
+
+    /// What an episode is about, as a mix topic (`/api/episode/topic`).
+    func episodeTopic(query: String, title: String) async throws -> EpisodeTopic {
+        try await get("api/v1/episode/topic", [URLQueryItem(name: "q", value: query),
+                                                URLQueryItem(name: "title", value: title)],
+                      as: EpisodeTopic.self)
+    }
+}
+
+struct MixesPage: Decodable {
+    let mixes: [Mix]
+}
+
+/// A mix as its owner, a member or a stranger sees it (`_mix_out`,
+/// `public_dict`, `_public_mix`). Lenient: a field one view leaves out
+/// decodes to its empty value.
+struct Mix: Decodable, Identifiable, Equatable {
+    let id: String
+    let name: String
+    let items: [MixItem]
+    let `public`: Bool
+    let cover: String
+    let sourceId: String
+    /// "HH:MM", or "" - the owner's view only (`mix-listen-time`).
+    let listenAt: String
+    /// "owner" or "member".
+    let role: String
+    let joint: Bool
+    let people: [MixPerson]
+    /// A copy's original owner.
+    let from: MixOwner?
+    /// Somebody else's public mix: who made it, whether it is yours,
+    /// whether you have added it.
+    let owner: MixOwner?
+    let mine: Bool
+    let added: Bool
+
+    var isOwner: Bool { role != "member" }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, items, `public`, cover, sourceId, listenAt, role, joint, people, from, owner, mine, added
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        items = (try? c.decode([MixItem].self, forKey: .items)) ?? []
+        `public` = (try? c.decode(Bool.self, forKey: .public)) ?? false
+        cover = (try? c.decode(String.self, forKey: .cover)) ?? ""
+        sourceId = (try? c.decode(String.self, forKey: .sourceId)) ?? ""
+        listenAt = (try? c.decode(String.self, forKey: .listenAt)) ?? ""
+        role = (try? c.decode(String.self, forKey: .role)) ?? "owner"
+        joint = (try? c.decode(Bool.self, forKey: .joint)) ?? false
+        people = (try? c.decode([MixPerson].self, forKey: .people)) ?? []
+        from = try? c.decode(MixOwner.self, forKey: .from)
+        owner = try? c.decode(MixOwner.self, forKey: .owner)
+        mine = (try? c.decode(Bool.self, forKey: .mine)) ?? false
+        added = (try? c.decode(Bool.self, forKey: .added)) ?? false
+    }
+}
+
+/// One topic in a mix (`MixItem.as_dict`): a followed subject (`f:nfl`,
+/// `f:nfl~Eagles`), a typed one (`q:...`) or an old bank id.
+struct MixItem: Decodable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let query: String
+    let custom: Bool
+    let subtitle: String
+    /// "{date}" is filled with today's date (`mixes.daily_prompt`).
+    let dailyPrompt: String
+    /// Already dated for today's edition; wins when both are sent (§143).
+    let prompt: String
+    let minutes: Double
+    let follow: Bool
+    /// An index into the mix's `people` (joint mixes).
+    let addedBy: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, query, custom, subtitle, dailyPrompt, prompt, minutes, follow, addedBy
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = (try? c.decode(String.self, forKey: .title)) ?? ""
+        query = (try? c.decode(String.self, forKey: .query)) ?? ""
+        custom = (try? c.decode(Bool.self, forKey: .custom)) ?? false
+        subtitle = (try? c.decode(String.self, forKey: .subtitle)) ?? ""
+        dailyPrompt = (try? c.decode(String.self, forKey: .dailyPrompt)) ?? ""
+        prompt = (try? c.decode(String.self, forKey: .prompt)) ?? ""
+        minutes = (try? c.decode(Double.self, forKey: .minutes)) ?? FAMAPI.browseMinutes
+        follow = (try? c.decode(Bool.self, forKey: .follow)) ?? false
+        addedBy = try? c.decode(Int.self, forKey: .addedBy)
+    }
+
+    /// What the server is asked to keep for this entry in a whole-list
+    /// write: the id, or a typed topic's words and title (so it is never
+    /// renamed).
+    var entry: Any { custom ? ["query": query, "title": title] as [String: Any] : id }
+}
+
+struct MixPerson: Decodable, Equatable, Hashable {
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    let owner: Bool?
+    let you: Bool?
+}
+
+struct MixOwner: Decodable, Equatable {
+    let name: String?
+    let handle: String?
+
+    /// `@handle`, else the name, else "another listener" (`ownerLabel`).
+    var label: String {
+        if let handle, !handle.isEmpty { return "@" + handle }
+        if let name, !name.isEmpty { return name }
+        return "another listener"
+    }
+}
+
+struct RecommendedTopics: Decodable {
+    /// `f:<id>` in the order to offer them.
+    let order: [String]
+    let personalised: Bool
+}
+
+struct Catalogue: Decodable {
+    let catalogue: [Subject]
+    let tagParent: [String: String]?
+    let tagLabels: [String: String]?
+}
+
+/// A subject a mix can follow; `focus_picks` are the teams and companies
+/// inside it ("eagles" finds NFL · Eagles).
+struct Subject: Decodable, Identifiable, Hashable {
+    let id: String
+    let label: String
+    let icon: String?
+    let tags: [String]?
+    let focusPicks: [String]?
+}
+
+struct MixInvite: Decodable {
+    let url: String
+    let name: String
+}
+
+struct MixShare: Decodable {
+    let url: String
+    let `public`: Bool
+    let targets: [String: ShareTarget]?
+}
+
+struct ShareTarget: Decodable {
+    let label: String
+    let text: String?
+    let url: String?
+}
+
+struct PushStatus: Decodable {
+    let available: Bool
+    let reason: String?
+    let subscribed: Bool?
+}
+
+/// A catalogue subject (`id` like `f:nfl~Eagles`), or a typed topic
+/// (`id` empty, `query` its words).
+struct EpisodeTopic: Decodable {
+    let id: String
+    let label: String
+    let title: String
+    let query: String?
+}

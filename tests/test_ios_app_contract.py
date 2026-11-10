@@ -43,18 +43,36 @@ def _fields(struct: str) -> set[str]:
     return {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}
 
 
+_LITERAL = r'"(api/v1/[^"]*)"(\s*\+\s*\w+)?'
+
+
+def _norm(path: str, tail: str | None = None) -> str:
+    """`api/v1/mixes/\\(id)/open` and `"api/v1/mixes/" + id` as the route
+    template they hit: every interpolated or appended part is `{}`."""
+    path = re.sub(r"\\\([^)]*\)", "{}", path)
+    if tail:
+        path += "{}"
+    return path
+
+
+def _route(path: str) -> str:
+    """A server route with its parameters written `{}`."""
+    return re.sub(r"\{[^}]*\}", "{}", path)
+
+
 def _calls() -> set[tuple[str, str]]:
     """(method, path) for every call the app makes."""
-    found = set(re.findall(r'send\("(GET|POST|DELETE|PATCH)", "(api/v1/[a-z/\-]+)"', _api()))
-    found |= {("GET", p) for p in re.findall(r'request\("GET", "(api/v1/[a-z/\-]+)"', _api())}
-    found |= {("GET", p) for p in re.findall(r'\bget\("(api/v1/[a-z/\-]+)"', _api())}
-    found |= set(re.findall(r'sendQuery\("(GET|POST|DELETE|PATCH)", "(api/v1/[a-z/\-]+)"', _api()))
+    found = set()
+    for verb, lit, tail in re.findall(r'(?:send|sendQuery)\("(GET|POST|DELETE|PATCH)", ' + _LITERAL, _api()):
+        found.add((verb, _norm(lit, tail)))
+    for lit, tail in re.findall(r'(?:request\("GET", |\bget\()' + _LITERAL, _api()):
+        found.add(("GET", _norm(lit, tail)))
     return found
 
 
 def test_every_path_the_app_names_routes():
-    paths = set(re.findall(r'"(api/v1/[a-z/\-]+)"', _api()))
-    routes = {getattr(r, "path", "") for r in appmod.app.routes}
+    paths = {_norm(lit, tail) for lit, tail in re.findall(_LITERAL, _api())}
+    routes = {_route(getattr(r, "path", "")) for r in appmod.app.routes}
     missing = sorted(p for p in paths if "/" + p.replace("api/v1/", "api/") not in routes)
     assert not missing, missing
 
@@ -62,7 +80,8 @@ def test_every_path_the_app_names_routes():
 def test_every_call_routes_with_its_method():
     calls = _calls()
     assert ("GET", "api/v1/myfam") in calls and ("DELETE", "api/v1/account") in calls, calls
-    routes = {(m, r.path) for r in appmod.app.routes
+    assert ("PATCH", "api/v1/mixes/{}") in calls and ("POST", "api/v1/mixes/{}/open") in calls, calls
+    routes = {(m, _route(r.path)) for r in appmod.app.routes
               for m in (getattr(r, "methods", None) or ())}
     missing = sorted((m, p) for m, p in calls
                      if (m, "/" + p.replace("api/v1/", "api/")) not in routes)
@@ -205,7 +224,10 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # DailyFAM: View more, Pick up, the faces row, the library.
                    "SectionPage", "TileGroup", "PickUpPage", "PickUpThread", "PickUpResume",
                    "SavedPage", "SavedItem", "CirclePage", "CirclePerson", "CircleMe", "Story",
-                   "CatalogPage", "CatalogEpisode", "FriendFace", "RailsPage"):
+                   "CatalogPage", "CatalogEpisode", "FriendFace", "RailsPage",
+                   # myFAM: mixes, the catalogue, sharing, push, the episode's topic.
+                   "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",
+                   "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic"):
         body = re.search(r"struct %s:[^{]*\{(.*?)\n\}" % struct, _api(), re.S)
         assert body, struct
         for field in {_snake(m) for m in re.findall(r"^    let (\w+):", body.group(1), re.M)}:
@@ -258,3 +280,25 @@ def test_sign_in_methods_decode_what_the_account_sends(monkeypatch):
     assert ("DELETE", "api/v1/account/identity") in _calls()
     model = (SWIFT / "AppModel.swift").read_text()
     assert "func link(provider:" in model and "acceptTerms: false" in model
+
+
+def test_a_mix_plays_as_the_web_plays_it():
+    """A mix's episode is today's edition on the `dailyfam` surface, at the
+    item's own length, dated by the server's prompt when it sends one; its
+    loading screen is the glide (§509), and a reorder writes the whole list
+    once while add/remove are operations (§498)."""
+    model = (SWIFT / "AppModel.swift").read_text()
+    mixes = (SWIFT / "Mixes.swift").read_text()
+    assert 'surface: "dailyfam"' in model
+    assert "minutes: item.minutes" in model
+    assert "LoadingModel.Glide(" in model
+    assert 'replacingOccurrences(of: "{date}"' in mixes
+    assert "item.prompt.isEmpty && !item.dailyPrompt.isEmpty" in mixes
+    views = "\n".join(p.read_text() for p in (SWIFT / "Views").glob("Mix*.swift"))
+    assert '["topic_ids": items.map(\\.entry)]' in views
+    assert '[adding ? "add" : "remove": [topicID]]' in views
+    assert '["remove": [item.id]]' in model
+    # The server's mix fields the app reads are the ones it writes.
+    server = "\n".join(p.read_text() for p in ROOT.glob("*.py"))
+    for name in ("listen_at", "listen_tz", "people", "role", "joint", "source_id"):
+        assert f'"{name}"' in server, name

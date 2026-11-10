@@ -32,6 +32,13 @@ final class AppModel: ObservableObject {
     @Published private(set) var savedTiles: Set<String> = []
     @Published private(set) var pickUp: PickUpPage?
     @Published private(set) var circle: CirclePage?
+    /// A mix playing as a playlist (§134), and the "finished" overlay.
+    @Published private(set) var mixPlay: MixPlaylist?
+    @Published var mixDone: String?
+    /// The myFAM tab's stack, and a request to show a tab.
+    @Published var mixPath: [MixRoute] = []
+    @Published var tabRequest: Tab?
+    let mixes: MixesModel
     /// Where a resumed episode should jump to once enough has arrived.
     private var resumeAt: Double = 0
 
@@ -54,6 +61,7 @@ final class AppModel: ObservableObject {
                            token: { tokenSource.token })
         consent = ConsentModel(api: safety)
         nowPlaying = NowPlayingModel(api: api, player: player)
+        mixes = MixesModel(api: api)
         // The player calls back on the main queue (its delegate queue).
         player.onRefused = { [weak self] error in
             MainActor.assumeIsolated { self?.refused(error) ?? false }
@@ -63,7 +71,9 @@ final class AppModel: ObservableObject {
         }
         player.onFailed = { [weak self] in
             MainActor.assumeIsolated {
-                guard let self, self.loading.visible else { return }
+                guard let self else { return }
+                if self.mixPlay != nil { self.mixItemFailed(); return }
+                guard self.loading.visible else { return }
                 // Step aside and let the player say why, in the server's words.
                 self.loading.stop()
                 self.showPlayer = true
@@ -74,6 +84,11 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 self.player.release()
                 if let ep = self.pending { self.nowPlaying.begin(ep) }
+                if var list = self.mixPlay {
+                    list.failures = 0
+                    list.played.insert(list.pos)
+                    self.mixPlay = list
+                }
                 self.pending = nil
                 self.showPlayer = true
                 self.seekWhenArrived()
@@ -83,6 +98,10 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated { self?.nowPlaying.ended() }
         }
         nowPlaying.playEpisode = { [weak self] ep in self?.play(ep) }
+        nowPlaying.onEnded = { [weak self] in self?.mixItemEnded() ?? false }
+        mixes.say = { [weak self] text, action, perform in
+            self?.nowPlaying.say(text, action: action, perform: perform)
+        }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
     }
 
@@ -376,7 +395,10 @@ final class AppModel: ObservableObject {
         startPlaying(ep, resumeAt: resumeAt)
     }
 
-    private func startPlaying(_ ep: Episode, resumeAt: Double = 0, cachedOnly: Bool = false) {
+    private func startPlaying(_ ep: Episode, resumeAt: Double = 0, cachedOnly: Bool = false,
+                              glide: LoadingModel.Glide? = nil) {
+        // Anything else started ends a mix's playlist.
+        if glide == nil { mixPlay = nil }
         self.resumeAt = resumeAt
         let request = api.audio(query: ep.key.query, minutes: ep.key.minutes, surface: ep.surface,
                                 topicID: ep.topicID, context: ep.key.context, own: ep.own,
@@ -391,7 +413,7 @@ final class AppModel: ObservableObject {
                 try? await api.progress(query: ep.key.query, minutes: ep.key.minutes,
                                         surface: ep.surface, topicID: ep.topicID,
                                         context: ep.key.context)
-            })
+            }, glide: glide)
             self.player.play(title: ep.title, picture: ep.picture, request: request,
                              minutes: ep.key.minutes, holdStart: true)
         }
@@ -440,5 +462,126 @@ final class AppModel: ObservableObject {
         default:
             return false
         }
+    }
+}
+
+// MARK: - myFAM: a mix playing as a playlist (§134)
+
+extension AppModel {
+    /// Open one of your mixes from anywhere: the myFAM tab, its page.
+    func openMix(_ id: String) {
+        tabRequest = .myfam
+        mixPath = [.mix(id)]
+        showPlayer = false
+    }
+
+    /// Play a mix from one of its items to the end, then the ones above it
+    /// (`startMixQueue`). Somebody else's public mix plays the same way.
+    func playMix(_ mix: Mix, from itemID: String? = nil) {
+        guard !mix.items.isEmpty else { nowPlaying.say("Add a topic first"); return }
+        let start = itemID.flatMap { id in mix.items.firstIndex { $0.id == id } } ?? 0
+        let order = Array(start..<mix.items.count) + Array(0..<start)
+        mixPlay = MixPlaylist(mixID: mix.id, name: mix.name, items: mix.items, order: order, pos: 0,
+                              mine: mixes.mix(mix.id) != nil)
+        playMixItem()
+    }
+
+    /// One item, as today's edition, behind the glide (`playMixItem`).
+    private func playMixItem() {
+        guard let list = mixPlay, let item = list.current else { return }
+        let (words, dated) = MixPlaylist.prompt(item)
+        let ep = Episode(key: EpisodeKey(query: words, minutes: item.minutes),
+                         title: dated ? item.title + " · today" : item.title,
+                         surface: "dailyfam",
+                         topicID: (item.custom || item.follow) ? "" : item.id)
+        let glide = LoadingModel.Glide(mixName: list.name,
+                                       titles: list.order.map { list.items[$0].title },
+                                       pos: list.pos, played: list.played,
+                                       first: list.pos == 0)
+        if list.mine { Task { await api.noteMixOpen(list.mixID, played: true) } }
+        startPlaying(ep, glide: glide)
+    }
+
+    /// An item ended: the next one, or the end of the playlist. False lets
+    /// the queue (or What's next) carry on.
+    func mixItemEnded() -> Bool {
+        guard var list = mixPlay else { return false }
+        if list.pos + 1 < list.order.count {
+            list.pos += 1
+            mixPlay = list
+            playMixItem()
+            return true
+        }
+        return finishMix()
+    }
+
+    /// The player's skip while a mix plays (`skipMixItem`).
+    func skipMixItem() {
+        guard mixPlay != nil else { nowPlaying.playQueueNext(); return }
+        if !mixItemEnded() { nowPlaying.playQueueNext() }
+    }
+
+    /// After the last item: the listener's Queue carries on, else the
+    /// player stops and says the mix is done (`finishMix`).
+    private func finishMix() -> Bool {
+        let name = mixPlay?.name ?? "myFAM"
+        mixPlay = nil
+        if !nowPlaying.queue.isEmpty { return false }
+        stopEpisode()
+        showPlayer = false
+        mixDone = name
+        return true
+    }
+
+    /// An item could not play: the next one, unless two failed in a row
+    /// (`mixItemFailed`).
+    func mixItemFailed() {
+        guard var list = mixPlay, let item = list.current else { return }
+        loading.stop()
+        let title = item.title.isEmpty ? "That episode" : item.title
+        list.failures += 1
+        if list.failures >= 2 {
+            mixPlay = nil
+            nowPlaying.say("\(title) couldn’t play, and neither could the one before it, so the playlist stopped.")
+            return
+        }
+        if list.pos + 1 >= list.order.count {
+            mixPlay = nil
+            nowPlaying.say("\(title) couldn’t play.")
+            return
+        }
+        nowPlaying.say("\(title) couldn’t play — playing the next one.")
+        list.pos += 1
+        mixPlay = list
+        playMixItem()
+    }
+
+    /// The items still to come, for the Queue sheet's "Next from {mix}".
+    var mixUpNext: [MixItem] {
+        guard let list = mixPlay, list.pos + 1 < list.order.count else { return [] }
+        return list.order[(list.pos + 1)...].map { list.items[$0] }
+    }
+
+    /// The player's "Remove from this playlist": a `remove` operation, never
+    /// the whole list (§498); playback carries on to the next.
+    func removeFromPlayingMix() {
+        guard let list = mixPlay, list.mine, let item = list.current,
+              mixes.mix(list.mixID)?.items.contains(where: { $0.id == item.id }) == true else {
+            nowPlaying.say("That playlist has changed")
+            return
+        }
+        let name = list.name
+        Task {
+            // The running order is left alone: this episode plays on and
+            // the next one follows; tomorrow's edition is without it.
+            if await mixes.update(list.mixID, ["remove": [item.id]]) != nil {
+                nowPlaying.say("Removed from \(name)")
+            }
+        }
+    }
+
+    var canRemoveFromPlayingMix: Bool {
+        guard let list = mixPlay, list.mine, let item = list.current else { return false }
+        return mixes.mix(list.mixID)?.items.contains(where: { $0.id == item.id }) == true
     }
 }

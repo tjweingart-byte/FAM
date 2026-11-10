@@ -25,7 +25,7 @@ the app.
 
 | Web | iOS | Note |
 |---|---|---|
-| Bottom bar: DailyFAM, myFAM, search (centre), Messages, YourFAM | Partial | DailyFAM, search, YourFAM; myFAM and Messages when built (`no-dead-controls`) |
+| Bottom bar: DailyFAM, myFAM, search (centre), Messages, YourFAM | Partial | DailyFAM, myFAM, search, YourFAM; Messages when built (`no-dead-controls`) |
 | Mini player above the bar, X stops (`transport`) | Done | |
 | Leaving the player never stops it | Done | |
 
@@ -88,7 +88,7 @@ Checked against a specification written from `static/index.html` (the web's
 | Each rail's empty sentence from the server; friends rail silent with nobody followed | Done | |
 | Card: picture, subject chip, ready badge, save bookmark, ⋯, friends pill and "N friends listened", title size steps (>48, >72), live line with its age, hook with each rail's fallback | Done, differs on purpose | the owner's call for iOS: the picture at its full 4:3 (the web crops rail pictures to a 96 pt strip), the whole hook (the web clamps it to two lines), and the friends' faces on the subject chip's line, centred on it (the web lifts them above the chip) |
 | Card ⋯: Share, Add to Queue, Go to Queue, Not interested | Done | |
-| Card ⋯: Add to myFAM Playlist | Not yet | waits for myFAM |
+| Card ⋯: Add to myFAM Playlist | Done | |
 | VIEW MORE at a rail's end → View more: 16 at a time, Refresh, the reason line, wrap notes, caught up, Trending by continent | Done | VIEW MORE always shows (the web shows an arrow until the rail is scrolled to its end) |
 | Find new friends pill after the friends rail | Not yet | waits for the Friends screen |
 | Guest sample note | n/a | the iOS app requires an account |
@@ -108,7 +108,7 @@ Checked against a specification written from `static/index.html` (the web's
 | Share / VIBE! / save on the right (§192) | Partial | save and share done (iOS share sheet for the web's targets); VIBE! posts with a caption - the web's full story editor and "send inside FAM" not yet; the burst animation not yet |
 | Sources by the title, and the Sources sheet | Done | favicons over initials |
 | Live captions sheet (`live-captions`) | Done, differs on purpose | the owner's call for iOS: the whole script, scrollable, the current sentence highlighted and followed (the web shows the current sentence alone); tap a sentence to jump there |
-| ⋯ menu: Share, VIBE!, Save, Captions, Add to/Go to Queue, Report (1.2) | Partial | "Add to myFAM Playlist" and "Remove from this playlist" wait for myFAM |
+| ⋯ menu: Share, VIBE!, Save, Captions, Add to/Go to Queue, Add to myFAM Playlist, Remove from this playlist, Report (1.2) | Done | "Remove from this playlist" only for your own mix, as a `remove` operation (the web sends the whole list, §498) |
 | Speed 0.5-2x, keep the voice's pitch (`speed-pitch`) | Done | time-pitch unit; length for searches rebuilds |
 | Queue (§190), next-in-queue button, badge | Done | |
 | After an episode: four recommendations, first starts in 15 s (`post-episode-grid`) | Done | `/api/nextup`; album tile n/a |
@@ -118,9 +118,29 @@ Checked against a specification written from `static/index.html` (the web's
 
 ## myFAM (mixes)
 
+Checked against a specification written from `static/index.html`
+(`screen-playfam`, `screen-newmix`, `screen-mixdetail`, `screen-addtopics`,
+`screen-publicmix`), item by item.
+
 | Web | iOS | Note |
 |---|---|---|
-| The mixes screen, Create new mix, a mix's page, joint mixes, (+) to copy | Not yet | `/api/mixes` |
+| The myFAM tab: wordmark, Create new mix (shown once `/api/mixes` answers), subtitle, your mixes (cover, meta with public/private, from, joint; preview), empty and error sentences | Done | every arrival opens on the list and asks afresh |
+| Public-mix search: Cancel, 180 ms debounce, out-of-order answers dropped, the four sentences, result cards with (+) | Done | |
+| Category filter chips on the myFAM tab (§500) | Not yet | today's cached episodes by category; unrelated to mixes - next build |
+| New mix: cover, live name preview, 40-character name, the client's duplicate check, Create opens the empty mix | Done | cover is cut square from the middle; the web's position-and-zoom editor not yet |
+| A mix's page: hero, Change, people line and Who's in it, Share and Invite, Add topics, Play today's N, Today's edition date, topics with the adder's face | Done | updates in place (the web pushes the page again) |
+| Drag to reorder (one whole-list write) | Done | |
+| Recommended topics: five, Shuffle, personalised order or local ranking, (+) adds | Done | |
+| Listen time: picker, Clear, the toasts | Partial | saved for the server; the "ready" notification is Web Push only - APNs is not built on the server, and the row says so |
+| Public / Private switch | Done | |
+| ⋯ menu, owner and member, each action and sentence | Done, differs on purpose | Delete asks first (the web deletes in one tap); Rename starts from the current name |
+| Joint mixes: invite link, make it yours alone, leave, member permissions | Partial | joining from a `/j/` link needs universal links (not yet); invites are sent from the app |
+| Covers: choose, change, remove, the AI-check note | Done | |
+| Sharing a mix (make public first; the share text) | Done | iOS share sheet; story cards not yet |
+| Add topics: recommended, typed topic first (short-named by the server), teams and companies, topics, (+)/✓ as operations | Done | |
+| Somebody else's public mix: owner, Add to myFAM / In your myFAM, play, remove a copy | Done | the owner's profile link waits for the profile screen |
+| Playing a mix: the playlist, today's edition prompts, the glide loading screen, skip, failures, Next from {mix} in the Queue, the finished overlay | Done | |
+| Guest sample mix | n/a | the iOS app requires an account |
 
 ## Social
 

@@ -1,0 +1,518 @@
+import PhotosUI
+import SwiftUI
+
+/// Name a new mix (`screen-newmix`, `mix-made-by-naming`): a cover, a name,
+/// Create. Create makes it at once, empty, and opens it; topics are added
+/// from its own page. No picker.
+struct NewMixView: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var mixes: MixesModel
+    @Binding var path: [MixRoute]
+
+    @State private var name = ""
+    @State private var cover = ""
+    @State private var photo: PhotosPickerItem?
+    @State private var picking = false
+    @State private var coverChoice = false
+    @State private var working = false
+    @FocusState private var focused: Bool
+
+    private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button { path.removeAll() } label: {
+                    Image(systemName: "xmark").font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(FAMColor.text).frame(width: 36, height: 36)
+                }
+                .accessibilityLabel("Cancel")
+                Spacer()
+                Text("New mix").monoLabel(9.5)
+                Spacer()
+                Color.clear.frame(width: 36, height: 36)
+            }
+            .padding(.horizontal, 10)
+            ScrollView {
+                VStack(spacing: 0) {
+                    Button { if cover.isEmpty { picking = true } else { coverChoice = true } } label: { folder }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Choose a cover photo")
+                        .padding(.top, 30)
+                    Text(cover.isEmpty ? "Tap to add a cover photo" : "Tap to change the cover")
+                        .monoLabel(8.5, color: FAMColor.copper)
+                        .padding(.top, 12)
+                    Text("Name your mix")
+                        .font(FAMFont.heading(24))
+                        .foregroundStyle(FAMColor.text)
+                        .padding(.top, 26)
+                    Text("You’ll add topics once it’s made.")
+                        .font(FAMFont.body(11.5))
+                        .foregroundStyle(FAMColor.textMuted)
+                        .padding(.top, 6)
+                    TextField("", text: $name, prompt: Text("Morning commute").foregroundColor(FAMColor.textFaint))
+                        .font(FAMFont.heading(22))
+                        .multilineTextAlignment(.center)
+                        .autocorrectionDisabled()
+                        .focused($focused)
+                        .submitLabel(.done)
+                        .onSubmit { Task { await create() } }
+                        .onChange(of: name) { _, v in if v.count > 40 { name = String(v.prefix(40)) } }
+                        .padding(.vertical, 8)
+                        .overlay(alignment: .bottom) {
+                            Rectangle().fill(focused ? FAMColor.copper : FAMColor.borderStrong).frame(height: 1.5)
+                        }
+                        .padding(.horizontal, 48)
+                        .padding(.top, 20)
+                        .accessibilityLabel("Mix name")
+                }
+            }
+            Button { Task { await create() } } label: {
+                if working { ProgressView().tint(FAMColor.ink) } else { Text("Create") }
+            }
+            .buttonStyle(CopperButtonStyle())
+            .disabled(trimmed.isEmpty || working)
+            .opacity(trimmed.isEmpty ? 0.35 : 1)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
+        }
+        .background(FAMColor.background)
+        .toolbar(.hidden, for: .navigationBar)
+        .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { focused = true } }
+        .photosPicker(isPresented: $picking, selection: $photo, matching: .images)
+        .onChange(of: photo) { _, item in
+            guard let item else { return }
+            Task {
+                photo = nil
+                if let data = try? await item.loadTransferable(type: Data.self), let url = MixCover.dataURL(from: data) {
+                    cover = url
+                } else {
+                    model.nowPlaying.say("That file is not an image FAM can read")
+                }
+            }
+        }
+        .confirmationDialog("Cover", isPresented: $coverChoice, titleVisibility: .hidden) {
+            Button("Choose a different photo") { picking = true }
+            Button("Remove cover", role: .destructive) { cover = "" }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text(MixCover.note) }
+    }
+
+    private var folder: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 22).fill(FAMColor.paper)
+            if let image = MixCover.image(cover) {
+                Image(uiImage: image).resizable().scaledToFill()
+                LinearGradient(colors: [.clear, .black.opacity(0.45)], startPoint: .center, endPoint: .bottom)
+                VStack {
+                    Spacer()
+                    Text(trimmed.isEmpty ? "Your mix" : trimmed)
+                        .font(FAMFont.heading(13, .semibold))
+                        .foregroundStyle(FAMColor.paper)
+                        .lineLimit(1)
+                        .padding(10)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    WebIcon(path: Icons.folder, size: 34, line: 1.9).foregroundStyle(FAMColor.ink)
+                    Text(trimmed.isEmpty ? "Your mix" : trimmed)
+                        .font(FAMFont.heading(13, .semibold))
+                        .foregroundStyle(FAMColor.ink.opacity(trimmed.isEmpty ? 0.4 : 1))
+                        .lineLimit(1)
+                        .padding(.horizontal, 10)
+                }
+            }
+        }
+        .frame(width: 128, height: 128)
+        .clipShape(RoundedRectangle(cornerRadius: 22))
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 8)
+        .overlay(alignment: .bottomTrailing) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(FAMColor.ink)
+                .frame(width: 30, height: 30)
+                .background(FAMColor.copper, in: Circle())
+                .overlay(Circle().stroke(FAMColor.background, lineWidth: 2.5))
+                .offset(x: 6, y: 6)
+        }
+    }
+
+    private func create() async {
+        guard !trimmed.isEmpty else { focused = true; return }
+        if mixes.mixes.contains(where: { $0.isOwner && $0.name.lowercased() == trimmed.lowercased() }) {
+            model.nowPlaying.say("You already have a mix called \(trimmed)")
+            return
+        }
+        working = true
+        defer { working = false }
+        do {
+            let mix = try await model.api.createMix(name: trimmed, cover: cover)
+            mixes.keep(mix)
+            path = [.mix(mix.id)]
+        } catch {
+            model.nowPlaying.say(MixesModel.sentence(error, else: "Could not save that mix"))
+        }
+    }
+}
+
+/// Add topics to mix (`screen-addtopics`): recommended subjects with nothing
+/// typed; with words, the typed topic first, then teams and companies
+/// inside subjects, then subjects. Each (+) or ✓ saves at once as an add or
+/// remove operation, so quick taps and other members never undo each other.
+struct AddTopicsView: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var mixes: MixesModel
+    @Environment(\.dismiss) private var dismiss
+    let id: String
+    @State private var words = ""
+
+    private var mix: Mix? { mixes.mix(id) }
+    private var typed: String { words.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MixHeader(title: "Add topics to mix", backLabel: "Back to the mix", back: { dismiss() }) { EmptyView() }
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(FAMColor.textMuted)
+                TextField("", text: $words,
+                          prompt: Text("Search topics, or type anything").foregroundColor(FAMColor.textFaint))
+                    .font(FAMFont.body(14))
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .onSubmit { Task { await addTyped() } }
+                    .accessibilityLabel("Search topics, or type anything")
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.borderStrong))
+            .padding(.horizontal, 18)
+            .padding(.bottom, 12)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if typed.isEmpty { suggestions } else { matches }
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 30)
+            }
+        }
+        .background(FAMColor.background)
+        .toolbar(.hidden, for: .navigationBar)
+        .task { await mixes.loadForPage() }
+    }
+
+    private func inMix(_ topicID: String) -> Bool {
+        mix?.items.contains { $0.id.lowercased() == topicID.lowercased() } ?? false
+    }
+
+    @ViewBuilder
+    private var suggestions: some View {
+        if mixes.subjects.isEmpty {
+            EmptyNote(text: "Topics could not load. Type one above to add it.")
+        } else {
+            Text(mixes.recommended?.personalised == true ? "Recommended for you" : "Topics to follow")
+                .monoLabel(9).padding(.bottom, 10)
+            ForEach(mixes.recommendations(for: nil, excludingMix: false).prefix(15)) { s in
+                row(s, id: "f:" + s.id, title: s.label, sub: mixes.subjectSub(s), label: s.label)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var matches: some View {
+        let lower = typed.lowercased()
+        let wordCount = typed.split(separator: " ").count
+        SubjectRow(subject: nil, title: typed,
+                   sub: wordCount > 4 ? "Add it · we’ll give it a short name" : "Add as your own topic",
+                   added: false, label: "Add it to this mix") { Task { await addTyped() } }
+            .contentShape(Rectangle())
+            .onTapGesture { Task { await addTyped() } }
+        if typed.count >= 2 {
+            let picks = mixes.subjects.filter { $0.id != "sports" }.flatMap { s in
+                (s.focusPicks ?? []).filter { $0.lowercased().contains(lower) }.map { (s, $0) }
+            }.prefix(5)
+            if !picks.isEmpty {
+                Text("Teams, companies & more").monoLabel(9).padding(.top, 12).padding(.bottom, 10)
+                ForEach(Array(picks.enumerated()), id: \.offset) { _, hit in
+                    row(hit.0, id: "f:\(hit.0.id)~\(Self.encode(hit.1))", title: "\(hit.0.label) · \(hit.1)",
+                        sub: hit.0.label, label: hit.1)
+                }
+            }
+        }
+        let subjects = mixes.subjects.filter { $0.label.lowercased().contains(lower) }.prefix(12)
+        if !subjects.isEmpty {
+            Text("Topics").monoLabel(9).padding(.top, 12).padding(.bottom, 10)
+            ForEach(Array(subjects)) { s in
+                row(s, id: "f:" + s.id, title: s.label, sub: mixes.facetLabel(s) ?? "Topic", label: s.label)
+            }
+        }
+    }
+
+    private func row(_ s: Subject, id topicID: String, title: String, sub: String, label: String) -> some View {
+        let added = inMix(topicID)
+        return SubjectRow(subject: s, title: title, sub: sub, added: added,
+                          label: added ? "Remove \(title) from this mix" : "Add \(title) to this mix") {
+            Task { await toggle(topicID, label: label) }
+        }
+    }
+
+    private func toggle(_ topicID: String, label: String) async {
+        guard let mix else { return }
+        let adding = !inMix(topicID)
+        if await mixes.update(id, [adding ? "add" : "remove": [topicID]]) != nil {
+            model.nowPlaying.say(adding ? "Added \(label) to \(mix.name)" : "Removed \(label) from \(mix.name)")
+        }
+    }
+
+    /// A typed topic is sent with no title: the server names it short
+    /// (`mix-topic-title`).
+    private func addTyped() async {
+        let text = typed
+        guard !text.isEmpty, let mix else { return }
+        words = ""
+        guard let fresh = await mixes.update(id, ["add": [["query": text]]]) else {
+            words = text
+            return
+        }
+        let squash = { (s: String) in s.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ") }
+        let saved = fresh.items.first { $0.custom && squash($0.query) == squash(text) }
+        model.nowPlaying.say("Added “\(saved?.title ?? text)” to \(mix.name)")
+    }
+
+    /// JavaScript's `encodeURIComponent`, which the server's ids match.
+    static func encode(_ s: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-_.!~*'()")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+    }
+}
+
+/// Somebody else's public mix (`screen-publicmix`): who made it, Add to
+/// myFAM, and today's edition to play - hearing it needs no account.
+struct PublicMixView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    let id: String
+    @Binding var path: [MixRoute]
+    @State private var mix: Mix?
+    @State private var problem = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MixHeader(title: mix?.name ?? "", back: { dismiss() }) { EmptyView() }
+            ScrollView {
+                if let mix {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 14) {
+                            MixArt(cover: mix.cover, size: 84, radius: 16)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(mix.name).font(FAMFont.heading(17, .semibold)).foregroundStyle(FAMColor.text)
+                                Text("\(MixesModel.briefings(mix.items.count)) · daily").monoLabel(8.5)
+                                if let owner = mix.owner {
+                                    Text("by " + ownerLine(owner))
+                                        .font(FAMFont.body(11.5, .semibold))
+                                        .foregroundStyle(FAMColor.copper)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.top, 8)
+                        if mix.mine {
+                            Text("This is one of your mixes").monoLabel(8.5).padding(.top, 14)
+                        } else {
+                            AddMixButton(mix: mix, wide: true).padding(.top, 16)
+                        }
+                        if mix.items.isEmpty {
+                            EmptyNote(text: "This mix is empty.").padding(.top, 16)
+                        } else {
+                            Button { model.playMix(mix) } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "play.fill").font(.system(size: 12))
+                                    Text(mix.items.count == 1 ? "Play today’s 1 episode"
+                                         : "Play today’s \(mix.items.count) episodes")
+                                }
+                            }
+                            .buttonStyle(CopperButtonStyle())
+                            .padding(.top, 18)
+                            Text("Today’s edition · \(MixView.today)").monoLabel(8.5).padding(.vertical, 10)
+                            ForEach(mix.items) { item in
+                                HStack(spacing: 11) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(item.title).font(FAMFont.heading(12.5, .semibold)).foregroundStyle(FAMColor.text)
+                                        Text(item.subtitle).font(FAMFont.body(9.5)).foregroundStyle(FAMColor.textMuted)
+                                    }
+                                    Spacer()
+                                    Button { model.playMix(mix, from: item.id) } label: {
+                                        Image(systemName: "play.fill").font(.system(size: 10))
+                                            .foregroundStyle(FAMColor.text)
+                                            .frame(width: 30, height: 30)
+                                            .overlay(Circle().stroke(FAMColor.borderStrong))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Play this one")
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 11)
+                                .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+                                .padding(.bottom, 8)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 30)
+                } else if !problem.isEmpty {
+                    EmptyNote(text: problem).padding(18)
+                }
+            }
+        }
+        .background(FAMColor.background)
+        .toolbar(.hidden, for: .navigationBar)
+        .task {
+            do {
+                let found = try await model.api.publicMix(id)
+                if found.mine { path = [.mix(found.id)] } else { mix = found }
+            } catch {
+                problem = MixesModel.sentence(error, else: "That mix is private or no longer exists.")
+            }
+        }
+    }
+
+    private func ownerLine(_ owner: MixOwner) -> String {
+        if let name = owner.name, !name.isEmpty {
+            if let handle = owner.handle, !handle.isEmpty { return "\(name) · @\(handle)" }
+            return name
+        }
+        return owner.label
+    }
+}
+
+/// "Add to myFAM Playlist" from the player's ⋯ and a DailyFAM card's ⋯
+/// (`openAddToMix`): what the episode is about, then which mix - or a new
+/// one named for it.
+struct AddToMixSheet: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var mixes: MixesModel
+    @Environment(\.dismiss) private var dismiss
+    let query: String
+    let title: String
+
+    @State private var topic: EpisodeTopic?
+    @State private var problem = ""
+    @State private var naming = false
+    @State private var newName = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let topic {
+                Text("Add \(topic.label) to a myFAM mix")
+                    .font(FAMFont.heading(16, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 16)
+                Divider()
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(mixes.mixes) { mix in
+                            Button { Task { await add(to: mix, topic) } } label: {
+                                HStack(spacing: 12) {
+                                    MixArt(cover: mix.cover, size: 42, radius: 10)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(mix.name).font(FAMFont.body(14, .semibold)).foregroundStyle(FAMColor.text)
+                                            .lineLimit(1)
+                                        Text(MixesModel.briefings(mix.items.count)).monoLabel(8.5)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 22)
+                                .padding(.vertical, 8)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Button { newName = topic.label; naming = true } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "plus").font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(FAMColor.text)
+                                    .frame(width: 42, height: 42)
+                                    .background(FAMColor.surface2, in: RoundedRectangle(cornerRadius: 10))
+                                Text("Create new playlist").font(FAMFont.body(14, .semibold)).foregroundStyle(FAMColor.text)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 22)
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } else if !problem.isEmpty {
+                Text(problem).font(FAMFont.body(13)).foregroundStyle(FAMColor.textMuted).padding(22)
+            } else {
+                ProgressView().frame(maxWidth: .infinity).padding(30)
+            }
+            Button("Cancel") { dismiss() }
+                .font(FAMFont.body(14, .semibold))
+                .foregroundStyle(FAMColor.textMuted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+        }
+        .background(FAMColor.surface)
+        .presentationDetents([.medium, .large])
+        .presentationBackground(FAMColor.surface)
+        .task { await load() }
+        .alert("Name your new playlist", isPresented: $naming) {
+            TextField("e.g. Morning commute", text: $newName)
+            Button("Cancel", role: .cancel) {}
+            Button("Create") { Task { await create() } }
+        }
+    }
+
+    private func load() async {
+        guard !query.isEmpty else { problem = "Play something first"; return }
+        async let found = model.api.episodeTopic(query: query, title: title)
+        async let refreshed: Void = mixes.load()
+        do {
+            let answer = try await found
+            _ = await refreshed
+            if answer.id.isEmpty && (answer.query ?? "").isEmpty {
+                problem = "Could not tell what this episode is about"
+            } else {
+                topic = answer
+            }
+        } catch {
+            problem = "Could not load your myFAM mixes"
+        }
+    }
+
+    private func entry(_ t: EpisodeTopic) -> Any {
+        t.id.isEmpty ? ["query": t.query ?? "", "title": t.title] as [String: Any] : t.id
+    }
+
+    private func add(to mix: Mix, _ t: EpisodeTopic) async {
+        let present = mix.items.contains { item in
+            (!t.id.isEmpty && item.id == t.id)
+                || (t.id.isEmpty && item.custom && item.query.lowercased() == (t.query ?? "").lowercased())
+        }
+        dismiss()
+        if present {
+            model.nowPlaying.say("\(t.label) is already in \(mix.name)", action: "Open") { model.openMix(mix.id) }
+            return
+        }
+        if await mixes.update(mix.id, ["add": [entry(t)]]) != nil {
+            model.nowPlaying.say("Added to \(mix.name)", action: "Open") { model.openMix(mix.id) }
+        }
+    }
+
+    private func create() async {
+        guard let topic else { return }
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        dismiss()
+        do {
+            let mix = try await model.api.createMix(name: name, topics: [entry(topic)])
+            mixes.keep(mix)
+            model.nowPlaying.say("Added to \(mix.name)", action: "Open") { model.openMix(mix.id) }
+        } catch {
+            model.nowPlaying.say(MixesModel.sentence(error, else: "Could not save that mix"))
+        }
+    }
+}

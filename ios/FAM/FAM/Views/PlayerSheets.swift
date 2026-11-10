@@ -162,6 +162,10 @@ struct PlayerMenu: View {
                 if let ep = now.episode { now.addToQueue(ep) } else { now.say("Nothing to queue") }
             }
             row("Go to Queue", "list.bullet") { open(.queue) }
+            row("Add to myFAM Playlist", "plus.circle") { open(.addToMix) }
+            if model.canRemoveFromPlayingMix {
+                row("Remove from this playlist", "minus.circle") { dismiss(); model.removeFromPlayingMix() }
+            }
             if now.episode != nil {
                 row("Report", "flag", danger: true) { open(.report) }
             }
@@ -364,6 +368,14 @@ struct QueueSheet: View {
             Text(now.episode == nil ? "Nothing is playing." : now.title)
                 .font(FAMFont.body(13, .semibold))
                 .foregroundStyle(now.episode == nil ? FAMColor.textMuted : FAMColor.copper)
+            if let list = model.mixPlay, !model.mixUpNext.isEmpty {
+                Text("Next from \(list.name)").monoLabel(9).padding(.top, 10)
+                ForEach(model.mixUpNext) { item in
+                    Text(item.title)
+                        .font(FAMFont.body(13, .semibold))
+                        .foregroundStyle(FAMColor.text)
+                }
+            }
             Text("Next in queue").monoLabel(9).padding(.top, 10)
             if now.queue.isEmpty {
                 Text("Your queue is empty. Add episodes from the three dots on the player or on a DailyFAM tile.")

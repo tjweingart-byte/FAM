@@ -360,6 +360,7 @@ struct TileMenu: View {
     let tile: Tile
     @State private var shareItems: [Any]?
     @State private var queue = false
+    @State private var addToMix = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -387,6 +388,7 @@ struct TileMenu: View {
             }
             row("Add to Queue", "text.badge.plus") { dismiss(); model.addToQueue(tile) }
             row("Go to Queue", "list.bullet") { queue = true }
+            row("Add to myFAM Playlist", "plus.circle") { addToMix = true }
             row("Not interested", "hand.thumbsdown") { dismiss(); model.notInterested(tile) }
             Button("Cancel") { dismiss() }
                 .font(FAMFont.body(14, .semibold))
@@ -403,6 +405,12 @@ struct TileMenu: View {
         .sheet(isPresented: $queue) {
             QueueSheet()
                 .environmentObject(model)
+                .environmentObject(model.nowPlaying)
+        }
+        .sheet(isPresented: $addToMix, onDismiss: { dismiss() }) {
+            AddToMixSheet(query: tile.query, title: tile.title)
+                .environmentObject(model)
+                .environmentObject(model.mixes)
                 .environmentObject(model.nowPlaying)
         }
     }

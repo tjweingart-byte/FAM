@@ -226,6 +226,29 @@ enum Icons {
         return p
     }()
 
+    /// myFAM: the double chevron (fast-forward).
+    static let myfam: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 6, y: 5)); p.addLine(to: CGPoint(x: 12, y: 12)); p.addLine(to: CGPoint(x: 6, y: 19))
+        p.move(to: CGPoint(x: 13, y: 5)); p.addLine(to: CGPoint(x: 19, y: 12)); p.addLine(to: CGPoint(x: 13, y: 19))
+        return p
+    }()
+
+    /// A mix: the folder.
+    static let folder: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 3, y: 7))
+        p.addQuadCurve(to: CGPoint(x: 5, y: 5), control: CGPoint(x: 3, y: 5))
+        p.addLine(to: CGPoint(x: 9, y: 5)); p.addLine(to: CGPoint(x: 11, y: 7)); p.addLine(to: CGPoint(x: 19, y: 7))
+        p.addQuadCurve(to: CGPoint(x: 21, y: 9), control: CGPoint(x: 21, y: 7))
+        p.addLine(to: CGPoint(x: 21, y: 17))
+        p.addQuadCurve(to: CGPoint(x: 19, y: 19), control: CGPoint(x: 21, y: 19))
+        p.addLine(to: CGPoint(x: 5, y: 19))
+        p.addQuadCurve(to: CGPoint(x: 3, y: 17), control: CGPoint(x: 3, y: 19))
+        p.closeSubpath()
+        return p
+    }()
+
     /// The trending searches' arrow.
     static let trend: Path = {
         var p = Path()

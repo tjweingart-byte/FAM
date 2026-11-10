@@ -34,6 +34,21 @@ final class LoadingModel: ObservableObject {
     @Published private(set) var visible = false
     /// How many steps are checked off (0-5).
     @Published private(set) var shown = 0
+    /// A mix's episode: the glide along the mix (§509) instead of the
+    /// five steps. It holds nothing - audio starts the moment it arrives,
+    /// after the 0.45 s minimum.
+    @Published private(set) var glide: Glide?
+
+    struct Glide: Equatable {
+        var mixName: String
+        /// Titles in playlist order, " · today" left off.
+        var titles: [String]
+        var pos: Int
+        /// Positions before `pos` whose audio arrived ("Played"); the
+        /// rest were skipped.
+        var played: Set<Int>
+        var first: Bool
+    }
 
     /// Start the held audio and open the player.
     var onRelease: (() -> Void)?
@@ -46,9 +61,10 @@ final class LoadingModel: ObservableObject {
     private var run = 0
     private var ask: (() async -> Progress?)?
 
-    func start(ask: @escaping () async -> Progress?) {
+    func start(ask: @escaping () async -> Progress?, glide: Glide? = nil) {
         run += 1
         let mine = run
+        self.glide = glide
         self.ask = ask
         server = [false, false, false, false]
         audioReady = false
@@ -65,7 +81,7 @@ final class LoadingModel: ObservableObject {
     func ready(cacheHit: Bool) {
         guard visible else { onRelease?(); return }
         audioReady = true
-        if cacheHit {
+        if cacheHit || glide != nil {
             // A replay: all five done, held only long enough to be seen.
             shown = Self.labels.count
             let wait = max(0, Self.minVisible - Date().timeIntervalSince(shownAt))
@@ -79,7 +95,7 @@ final class LoadingModel: ObservableObject {
     }
 
     private func tick(_ mine: Int) async {
-        while mine == run && visible {
+        while mine == run && visible && glide == nil {
             advance()
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
@@ -116,7 +132,7 @@ final class LoadingModel: ObservableObject {
     }
 
     private func pollLoop(_ mine: Int) async {
-        while mine == run && visible && !audioReady {
+        while mine == run && visible && !audioReady && glide == nil {
             if let answer = await ask?() {
                 for (i, done) in answer.steps.marks.enumerated() where done {
                     server[i] = true
@@ -139,6 +155,9 @@ struct LoadingView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             background
+            if let glide = loading.glide {
+                GlideView(glide: glide, still: reduceMotion)
+            } else {
             VStack(spacing: 22) {
                 FAMLetters(capHeight: 22)
                     .opacity(0.92)
@@ -156,6 +175,7 @@ struct LoadingView: View {
             }
             .padding(.horizontal, 32)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
 
             Button(action: cancel) {
                 Image(systemName: "xmark")
@@ -288,5 +308,95 @@ private struct RisingChevrons: View {
 
     private static func ease(_ x: Double) -> Double {
         x < 0.5 ? 2 * x * x : 1 - pow(-2 * x + 2, 2) / 2
+    }
+}
+
+/// The glide (§509, `paintLoadingVariant("glide")`): the mix's episodes as a
+/// strip of cards, sliding so the one being fetched is centred and lifted;
+/// earlier ones say Played or Skipped; dots under it for 2-12 items.
+struct GlideView: View {
+    let glide: LoadingModel.Glide
+    let still: Bool
+
+    @State private var arrived = false
+
+    private let cardWidth: CGFloat = 128
+    private let gap: CGFloat = 10
+
+    var body: some View {
+        VStack(spacing: 20) {
+            kicker
+            GeometryReader { geo in
+                let step = cardWidth + gap
+                let centre = geo.size.width / 2 - cardWidth / 2 - CGFloat(glide.pos) * step
+                let from = glide.pos == 0 ? centre + 80 : centre + step
+                HStack(spacing: gap) {
+                    ForEach(Array(glide.titles.enumerated()), id: \.offset) { i, title in
+                        card(i, title)
+                    }
+                }
+                .offset(x: arrived || still ? centre : from)
+            }
+            .frame(height: 112)
+            if glide.titles.count >= 2 && glide.titles.count <= 12 { dots }
+            VStack(spacing: 6) {
+                Text(glide.titles.indices.contains(glide.pos) ? glide.titles[glide.pos] : "")
+                    .font(FAMFont.heading(19))
+                    .foregroundStyle(FAMColor.text)
+                    .multilineTextAlignment(.center)
+                Text(glide.first ? "Getting your episode ready" : "Getting the next episode ready")
+                    .font(FAMFont.body(12.5))
+                    .foregroundStyle(FAMColor.textMuted)
+            }
+            .padding(.horizontal, 28)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            guard !still else { return }
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.78).delay(0.1)) { arrived = true }
+        }
+        .id(glide.pos)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var kicker: some View {
+        (Text("myFAM · ") + Text(glide.mixName).bold()
+            + Text(glide.titles.count > 1 ? " · \(glide.pos + 1) of \(glide.titles.count)" : ""))
+            .font(FAMFont.mono(9.5))
+            .foregroundStyle(FAMColor.textMuted)
+            .textCase(.uppercase)
+            .padding(.horizontal, 24)
+            .multilineTextAlignment(.center)
+    }
+
+    private func card(_ i: Int, _ title: String) -> some View {
+        let current = i == glide.pos
+        let label: String = i < glide.pos ? "\(i + 1) · \(glide.played.contains(i) ? "Played" : "Skipped")" : "\(i + 1)"
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(FAMFont.mono(9.5)).foregroundStyle(FAMColor.textMuted)
+            Text(title)
+                .font(FAMFont.heading(13, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .lineLimit(3)
+            Spacer(minLength: 0)
+        }
+        .padding(11)
+        .frame(width: cardWidth, height: 96, alignment: .topLeading)
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(current ? FAMColor.copper : FAMColor.border,
+                                                          lineWidth: current ? 1.5 : 1))
+        .opacity(current ? 1 : 0.4)
+        .scaleEffect(current && (arrived || still) ? 1.08 : 1)
+        .animation(still ? nil : .spring(response: 0.4, dampingFraction: 0.6).delay(0.25), value: arrived)
+    }
+
+    private var dots: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<glide.titles.count, id: \.self) { i in
+                Capsule()
+                    .fill(i == glide.pos ? FAMColor.copper : (i < glide.pos ? FAMColor.textFaint : FAMColor.border))
+                    .frame(width: i == glide.pos ? 18 : 6, height: 6)
+            }
+        }
     }
 }
