@@ -96,15 +96,17 @@ struct ProviderButtons: View {
         // The top-most screen presents the sheet.
         var top = root
         while let next = top.presentedViewController { top = next }
-        let nonce = Self.randomNonce()
         do {
-            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: top, hint: nil,
-                                                                   additionalScopes: nil, nonce: nonce)
+            // No nonce: this version of Google's package does not take one
+            // on this call, and the server's nonce check is optional - it
+            // still verifies the token's signature and that it was issued
+            // for FAM's own iOS client (`oauth.verify`).
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: top)
             guard let token = result.user.idToken?.tokenString else {
                 problem = "Google did not send a sign-in. Try again."
                 return
             }
-            await send(provider: "google", token: token, nonce: nonce, code: "")
+            await send(provider: "google", token: token, nonce: "", code: "")
         } catch {
             // -5 is Google's "the user cancelled" (kGIDSignInErrorCodeCanceled).
             if (error as NSError).code != -5 {
