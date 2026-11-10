@@ -14,6 +14,7 @@ struct NewMixView: View {
     @State private var photo: PhotosPickerItem?
     @State private var picking = false
     @State private var coverChoice = false
+    @State private var pendingCover: String?
     @State private var working = false
     @FocusState private var focused: Bool
 
@@ -21,60 +22,78 @@ struct NewMixView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            // The back row with an X; the step label where a title would be,
+            // beside it (`h2.nm-step`).
+            HStack(spacing: 10) {
                 Button { path.removeAll() } label: {
-                    Image(systemName: "xmark").font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(FAMColor.text).frame(width: 36, height: 36)
+                    WebIcon(path: Icons.close, size: 20, line: 2.4)
+                        .foregroundStyle(FAMColor.text)
+                        .frame(width: 36, height: 36)
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Cancel")
-                Spacer()
-                Text("New mix").monoLabel(9.5)
-                Spacer()
-                Color.clear.frame(width: 36, height: 36)
+                Text("New mix")
+                    .monoLabel(9.5, tracking: 1.14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 10)
+            .frame(minHeight: 48)
             ScrollView {
                 VStack(spacing: 0) {
                     Button { if cover.isEmpty { picking = true } else { coverChoice = true } } label: { folder }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Choose a cover photo")
-                        .padding(.top, 30)
+                        .padding(.top, 20)
                     Text(cover.isEmpty ? "Tap to add a cover photo" : "Tap to change the cover")
-                        .monoLabel(8.5, color: FAMColor.copper)
-                        .padding(.top, 12)
+                        .monoLabel(8.5, color: FAMColor.copper, tracking: 0.85)
+                        .padding(.top, 14)
                     Text("Name your mix")
-                        .font(FAMFont.heading(24))
+                        .font(FAMFont.heading(24, .medium))
                         .foregroundStyle(FAMColor.text)
-                        .padding(.top, 26)
+                        .padding(.top, 16)
                     Text("You’ll add topics once it’s made.")
                         .font(FAMFont.body(11.5))
                         .foregroundStyle(FAMColor.textMuted)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 240)
                         .padding(.top, 6)
-                    TextField("", text: $name, prompt: Text("Morning commute").foregroundColor(FAMColor.textFaint))
-                        .font(FAMFont.heading(22))
+                    // The underline runs the whole width (`.nm-input`).
+                    TextField("", text: $name,
+                              prompt: Text("Morning commute").foregroundColor(FAMColor.textFaint.opacity(0.6)))
+                        .font(FAMFont.heading(22, .medium))
                         .multilineTextAlignment(.center)
                         .autocorrectionDisabled()
                         .focused($focused)
                         .submitLabel(.done)
                         .onSubmit { Task { await create() } }
                         .onChange(of: name) { _, v in if v.count > 40 { name = String(v.prefix(40)) } }
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 6)
+                        .padding(.bottom, 9)
                         .overlay(alignment: .bottom) {
                             Rectangle().fill(focused ? FAMColor.copper : FAMColor.borderStrong).frame(height: 1.5)
                         }
-                        .padding(.horizontal, 48)
+                        .padding(.horizontal, 18)
                         .padding(.top, 20)
                         .accessibilityLabel("Mix name")
                 }
             }
+            // Create, pinned under the scroller (`.np-save-btn.nm-create`).
             Button { Task { await create() } } label: {
-                if working { ProgressView().tint(FAMColor.ink) } else { Text("Create") }
+                ZStack {
+                    if working { ProgressView().tint(FAMColor.ink) } else { Text("Create") }
+                }
+                .font(.system(size: 13.5, weight: .bold))
+                .foregroundStyle(FAMColor.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+                .background(FAMColor.copper, in: RoundedRectangle(cornerRadius: 14))
             }
-            .buttonStyle(CopperButtonStyle())
+            .buttonStyle(.plain)
             .disabled(trimmed.isEmpty || working)
             .opacity(trimmed.isEmpty ? 0.35 : 1)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 18)
         }
         .background(FAMColor.background)
         .toolbar(.hidden, for: .navigationBar)
@@ -85,14 +104,27 @@ struct NewMixView: View {
             Task {
                 photo = nil
                 if let data = try? await item.loadTransferable(type: Data.self), let url = MixCover.dataURL(from: data) {
-                    cover = url
+                    // Said before the photo is used, as on a mix's page:
+                    // others see it, so it is checked.
+                    pendingCover = url
                 } else {
                     model.nowPlaying.say("That file is not an image FAM can read")
                 }
             }
         }
+        .alert("Use this photo as the cover?", isPresented: Binding(get: { pendingCover != nil },
+                                                                     set: { if !$0 { pendingCover = nil } })) {
+            Button("Cancel", role: .cancel) { pendingCover = nil }
+            Button("Use photo") {
+                cover = pendingCover ?? ""
+                pendingCover = nil
+            }
+        } message: { Text(MixCover.note) }
         .confirmationDialog("Cover", isPresented: $coverChoice, titleVisibility: .hidden) {
-            Button("Choose a different photo") { picking = true }
+            // The picker waits for the dialog to close, or it is dropped.
+            Button("Choose a different photo") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { picking = true }
+            }
             Button("Remove cover", role: .destructive) { cover = "" }
             Button("Cancel", role: .cancel) {}
         } message: { Text(MixCover.note) }
@@ -103,18 +135,21 @@ struct NewMixView: View {
             RoundedRectangle(cornerRadius: 22).fill(FAMColor.paper)
             if let image = MixCover.image(cover) {
                 Image(uiImage: image).resizable().scaledToFill()
-                LinearGradient(colors: [.clear, .black.opacity(0.45)], startPoint: .center, endPoint: .bottom)
+                LinearGradient(stops: [.init(color: Color(red: 24 / 255, green: 21 / 255, blue: 31 / 255).opacity(0.78), location: 0),
+                                       .init(color: Color(red: 24 / 255, green: 21 / 255, blue: 31 / 255).opacity(0), location: 0.58)],
+                               startPoint: .bottom, endPoint: .top)
                 VStack {
                     Spacer()
                     Text(trimmed.isEmpty ? "Your mix" : trimmed)
                         .font(FAMFont.heading(13, .semibold))
-                        .foregroundStyle(FAMColor.paper)
+                        .foregroundStyle(Color(hex: 0xF4EFE4))
                         .lineLimit(1)
-                        .padding(10)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 11)
                 }
             } else {
-                VStack(spacing: 8) {
-                    WebIcon(path: Icons.folder, size: 34, line: 1.9).foregroundStyle(FAMColor.ink)
+                VStack(spacing: 10) {
+                    WebIcon(path: Icons.folder, size: 34, line: 1.7).foregroundStyle(FAMColor.ink)
                     Text(trimmed.isEmpty ? "Your mix" : trimmed)
                         .font(FAMFont.heading(13, .semibold))
                         .foregroundStyle(FAMColor.ink.opacity(trimmed.isEmpty ? 0.4 : 1))
@@ -127,13 +162,7 @@ struct NewMixView: View {
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .shadow(color: .black.opacity(0.18), radius: 12, y: 8)
         .overlay(alignment: .bottomTrailing) {
-            Image(systemName: "camera.fill")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(FAMColor.ink)
-                .frame(width: 30, height: 30)
-                .background(FAMColor.copper, in: Circle())
-                .overlay(Circle().stroke(FAMColor.background, lineWidth: 2.5))
-                .offset(x: 6, y: 6)
+            CoverBadge(size: 30, glyph: 13, ring: 2.5).offset(x: 7, y: 7)
         }
     }
 
@@ -211,7 +240,7 @@ struct AddTopicsView: View {
             EmptyNote(text: "Topics could not load. Type one above to add it.")
         } else {
             Text(mixes.recommended?.personalised == true ? "Recommended for you" : "Topics to follow")
-                .monoLabel(9).padding(.top, 14).padding(.bottom, 8)
+                .monoLabel(9, tracking: 1.08).padding(.top, 14).padding(.bottom, 8)
             ForEach(mixes.recommendations(for: nil, excludingMix: false).prefix(15)) { s in
                 row(s, id: "f:" + s.id, title: s.label, sub: mixes.subjectSub(s), label: s.label)
             }
@@ -232,7 +261,7 @@ struct AddTopicsView: View {
                 (s.focusPicks ?? []).filter { $0.lowercased().contains(lower) }.map { (s, $0) }
             }.prefix(5)
             if !picks.isEmpty {
-                Text("Teams, companies & more").monoLabel(9).padding(.top, 14).padding(.bottom, 8)
+                Text("Teams, companies & more").monoLabel(9, tracking: 1.08).padding(.top, 14).padding(.bottom, 8)
                 ForEach(Array(picks.enumerated()), id: \.offset) { _, hit in
                     row(hit.0, id: "f:\(hit.0.id)~\(Self.encode(hit.1))", title: "\(hit.0.label) · \(hit.1)",
                         sub: hit.0.label, label: hit.1)
@@ -241,7 +270,7 @@ struct AddTopicsView: View {
         }
         let subjects = mixes.subjects.filter { $0.label.lowercased().contains(lower) }.prefix(12)
         if !subjects.isEmpty {
-            Text("Topics").monoLabel(9).padding(.top, 14).padding(.bottom, 8)
+            Text("Topics").monoLabel(9, tracking: 1.08).padding(.top, 14).padding(.bottom, 8)
             ForEach(Array(subjects)) { s in
                 row(s, id: "f:" + s.id, title: s.label, sub: mixes.facetLabel(s) ?? "Topic", label: s.label)
             }
@@ -279,10 +308,11 @@ struct AddTopicsView: View {
         model.nowPlaying.say("Added “\(saved?.title ?? text)” to \(mix.name)")
     }
 
-    /// JavaScript's `encodeURIComponent`, which the server's ids match.
+    /// JavaScript's `encodeURIComponent`, which the server's ids match:
+    /// ASCII letters, digits and `-_.!~*'()` stay; everything else -
+    /// accented letters included - is UTF-8 percent-encoded.
     static func encode(_ s: String) -> String {
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-_.!~*'()")
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()")
         return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
     }
 }

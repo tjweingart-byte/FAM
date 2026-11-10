@@ -142,7 +142,7 @@ struct TabBar: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
             item(.daily, "DailyFAM", Icons.daily)
-            item(.myfam, "myFAM", Icons.myfam)
+            item(.myfam, "myFAM", Icons.myfam, tone: Icons.myfamTone)
             centre
             item(.you, "YourFAM", Icons.you)
         }
@@ -153,18 +153,28 @@ struct TabBar: View {
         .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
     }
 
-    private func item(_ which: Tab, _ label: String, _ icon: Path) -> some View {
+    private func item(_ which: Tab, _ label: String, _ icon: Path, tone: Path? = nil) -> some View {
         let on = tab == which
+        let color = on ? FAMColor.copper : FAMColor.textMuted
         return Button {
             if which == .daily { onDaily() }
             if which == .myfam { onMyFAM() }
             tab = which
         } label: {
             VStack(spacing: 3) {
-                WebIcon(path: icon, size: 20)
-                    .foregroundStyle(on ? FAMColor.copper : FAMColor.textMuted)
-                    .frame(width: 44, height: 28)
-                    .background(on ? FAMColor.copper.opacity(0.18) : Color.clear, in: Capsule())
+                ZStack {
+                    // The web's `.tone`: a filled shape under the strokes,
+                    // faint until the tab is on.
+                    if let tone {
+                        Glyph(path: tone, box: CGRect(x: 0, y: 0, width: 24, height: 24))
+                            .fill(color.opacity(on ? 0.45 : 0.16))
+                            .frame(width: 20, height: 20)
+                    }
+                    WebIcon(path: icon, size: 20)
+                        .foregroundStyle(color)
+                }
+                .frame(width: 44, height: 28)
+                .background(on ? FAMColor.copper.opacity(0.18) : Color.clear, in: Capsule())
                 Text(label)
                     .font(FAMFont.mono(8.5, bold: on))
                     .foregroundStyle(on ? FAMColor.copper : FAMColor.textMuted)

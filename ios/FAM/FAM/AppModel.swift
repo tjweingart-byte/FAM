@@ -388,11 +388,12 @@ final class AppModel: ObservableObject {
         if ep.own && consent.current?.given != true {
             Task {
                 guard await consent.ensure() else { return }
-                startPlaying(ep, resumeAt: resumeAt)
+                startPlaying(ep, resumeAt: resumeAt, cachedOnly: ep.cachedOnly)
             }
             return
         }
-        startPlaying(ep, resumeAt: resumeAt)
+        // A queued category episode stays a replay (`cachedOnly`).
+        startPlaying(ep, resumeAt: resumeAt, cachedOnly: ep.cachedOnly)
     }
 
     private func startPlaying(_ ep: Episode, resumeAt: Double = 0, cachedOnly: Bool = false,
@@ -459,6 +460,16 @@ final class AppModel: ObservableObject {
             forget()
             showPlayer = false
             return true
+        case let .refused(status, message):
+            // An allowance running out (429, `X-FAM-Quota`) or a plan that
+            // does not cover it (402): the next item would be refused the
+            // same way, so the playlist is over (`endMixQueue`), said in
+            // the server's own sentence. The player still shows why.
+            if (status == 429 || status == 402) && mixPlay != nil {
+                mixPlay = nil
+                if !message.isEmpty { nowPlaying.say(message) }
+            }
+            return false
         default:
             return false
         }
@@ -517,7 +528,11 @@ extension AppModel {
 
     /// The player's skip while a mix plays (`skipMixItem`).
     func skipMixItem() {
-        guard mixPlay != nil else { nowPlaying.playQueueNext(); return }
+        guard var list = mixPlay else { nowPlaying.playQueueNext(); return }
+        // A skip is the listener moving on, not a failure: the count of
+        // failures in a row starts again (`skipMixItem`).
+        list.failures = 0
+        mixPlay = list
         if !mixItemEnded() { nowPlaying.playQueueNext() }
     }
 
@@ -540,6 +555,12 @@ extension AppModel {
         loading.stop()
         let title = item.title.isEmpty ? "That episode" : item.title
         list.failures += 1
+        // No connection: the next one would fail the same way.
+        if player.lastFailureWasNetwork {
+            mixPlay = nil
+            nowPlaying.say("\(title) couldn’t play (no connection), so the playlist stopped.")
+            return
+        }
         if list.failures >= 2 {
             mixPlay = nil
             nowPlaying.say("\(title) couldn’t play, and neither could the one before it, so the playlist stopped.")
@@ -563,7 +584,7 @@ extension AppModel {
     }
 
     /// The player's "Remove from this playlist": a `remove` operation, never
-    /// the whole list (§498); playback carries on to the next.
+    /// the whole list (§498); this episode plays on and the next one follows.
     func removeFromPlayingMix() {
         guard let list = mixPlay, list.mine, let item = list.current,
               mixes.mix(list.mixID)?.items.contains(where: { $0.id == item.id }) == true else {
@@ -571,13 +592,28 @@ extension AppModel {
             return
         }
         let name = list.name
+        let mixID = list.mixID
         Task {
-            // The running order is left alone: this episode plays on and
-            // the next one follows; tomorrow's edition is without it.
-            if await mixes.update(list.mixID, ["remove": [item.id]]) != nil {
-                nowPlaying.say("Removed from \(name)")
-            }
+            guard let saved = await mixes.update(mixID, ["remove": [item.id]]) else { return }
+            spliceFromPlaylist(mixID: mixID, itemID: item.id)
+            nowPlaying.say("Removed from \(saved.name.isEmpty ? name : saved.name)")
         }
+    }
+
+    /// Out of the running order too, by id - the playlist may have moved on
+    /// meanwhile - with the position stepped back when it was at or before
+    /// it, so the next item still follows (`removeFromPlayingMix`).
+    private func spliceFromPlaylist(mixID: String, itemID: String) {
+        guard var list = mixPlay, list.mixID == mixID else { return }
+        guard let at = list.order.firstIndex(where: { list.items[$0].id == itemID }) else { return }
+        list.order.remove(at: at)
+        var played: Set<Int> = []
+        for p in list.played {
+            if p < at { played.insert(p) } else if p > at { played.insert(p - 1) }
+        }
+        list.played = played
+        if at <= list.pos { list.pos -= 1 }
+        mixPlay = list
     }
 
     var canRemoveFromPlayingMix: Bool {
@@ -592,11 +628,21 @@ extension AppModel {
             nowPlaying.say("Nothing has been made in this category today yet")
             return
         }
+        // No surface: a category replay is not a DailyFAM edition
+        // (`categoryQueueEntry`, `surface: ""`).
         func ep(_ e: CategoryEpisode) -> Episode {
-            Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
-                    title: e.title, surface: "dailyfam", picture: api.picture(e.thumb ?? ""))
+            var made = Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
+                               title: e.title, surface: "", picture: api.picture(e.thumb ?? ""))
+            made.cachedOnly = true
+            return made
         }
-        nowPlaying.replaceCategoryQueue(list.enumerated().filter { $0.offset != index }.map { ep($0.element) })
+        // The rest of the category after the one tapped, never the ones
+        // above it (`list.slice(1)` of what was played from).
+        var rest: [Episode] = []
+        if index + 1 < list.count {
+            for e in list[(index + 1)...] { rest.append(ep(e)) }
+        }
+        nowPlaying.replaceCategoryQueue(rest)
         startPlaying(ep(list[index]), cachedOnly: true)
     }
 }

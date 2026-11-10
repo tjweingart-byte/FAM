@@ -22,6 +22,9 @@ final class MixesModel: ObservableObject {
     @Published private(set) var tagLabels: [String: String] = [:]
     @Published private(set) var recommended: RecommendedTopics?
     @Published private(set) var push: PushStatus?
+    /// Your own profile: the face on a mix that is yours alone, and the
+    /// interests the local recommendation order starts from.
+    @Published private(set) var me: ProfileSummary?
     /// The category chips' tree and what you follow (§500).
     @Published private(set) var categories: CategoriesPage?
     /// Which chip is on; every arrival on the tab opens on All.
@@ -84,6 +87,17 @@ final class MixesModel: ObservableObject {
         }
         if let rec = try? await api.recommendedTopics() { recommended = rec }
         if push == nil { push = try? await api.pushStatus() }
+        if me == nil, let found = try? await api.profile() { me = found }
+    }
+
+    /// The face a mix with nobody else in it shows (`mixOwnerFace`): your
+    /// own name, handle and picture as your profile has them - nil when
+    /// none is known, so nothing is drawn rather than something invented.
+    func ownFace(fallbackName: String?) -> MixPerson? {
+        let name = (me?.name ?? "").isEmpty ? (fallbackName ?? "") : (me?.name ?? "")
+        let handle = me?.handle ?? ""
+        if name.isEmpty && handle.isEmpty { return nil }
+        return MixPerson(name: name, handle: handle, avatar: me?.avatar, owner: true, you: nil)
     }
 
     /// The server's answer replaces the local copy, by id (`saveMix`).
@@ -139,8 +153,9 @@ final class MixesModel: ObservableObject {
         return String(rest.split(separator: "~", maxSplits: 1).first ?? "")
     }
 
-    /// The order to offer subjects in: the server's when personalised, else
-    /// the catalogue's own, nudged toward what the mix already holds.
+    /// The order to offer subjects in: the server's when personalised,
+    /// else the catalogue in the listener's interest order, re-ranked by
+    /// facet overlap with what the mix already holds (`recRanked`).
     /// Subjects already in the mix are left out when `excludingMix`.
     func recommendations(for mix: Mix?, excludingMix: Bool) -> [Subject] {
         let inMix = Set((mix?.items ?? []).map { Self.base($0.id) })
@@ -151,14 +166,67 @@ final class MixesModel: ObservableObject {
             let named = Set(ordered.map(\.id))
             ordered += subjects.filter { !named.contains($0.id) }
         } else {
-            let mixTags = Set((mix?.items ?? []).compactMap { subject(Self.base($0.id))?.tags?.first })
-            ordered = subjects.enumerated().sorted { a, b in
-                let sa = mixTags.contains(a.element.tags?.first ?? "") ? 1 : 0
-                let sb = mixTags.contains(b.element.tags?.first ?? "") ? 1 : 0
-                return sa != sb ? sa > sb : a.offset < b.offset
-            }.map(\.element)
+            ordered = byMixFacets(followRanked(), mix: mix)
         }
         return excludingMix ? ordered.filter { !inMix.contains($0.id) } : ordered
+    }
+
+    /// A subject's tags and the parent of each (`facetsOf`).
+    private func facets(_ tags: [String]) -> Set<String> {
+        var out: Set<String> = []
+        for g in tags {
+            out.insert(g)
+            if let up = tagParent[g], !up.isEmpty { out.insert(up) }
+        }
+        return out
+    }
+
+    /// The catalogue in interest order (`followRanked`): a chosen subject
+    /// first, then subjects under a chosen facet. Interests are your
+    /// profile's (`interests_shown`, first eight), else every facet.
+    private func followRanked() -> [Subject] {
+        var want: [String: Int] = [:]
+        let shown = Array((me?.interestsShown ?? []).prefix(8))
+        if shown.isEmpty {
+            for facet in tagLabels.keys { want[facet] = 2 }
+        } else {
+            for row in shown {
+                if row.kind == "topic" {
+                    if let c = subject(row.id) {
+                        want["id:" + c.id] = 3
+                        for g in c.tags ?? [] { want[g] = max(want[g] ?? 0, 1) }
+                    }
+                } else {
+                    want[row.id] = 2
+                }
+            }
+        }
+        var scored: [(subject: Subject, score: Int, index: Int)] = []
+        for (index, c) in subjects.enumerated() {
+            var score = want["id:" + c.id] ?? 0
+            for k in facets(c.tags ?? []) { score = max(score, want[k] ?? 0) }
+            scored.append((subject: c, score: score, index: index))
+        }
+        scored.sort { a, b in a.score != b.score ? a.score > b.score : a.index < b.index }
+        return scored.map { $0.subject }
+    }
+
+    /// Re-ranked by how many of the mix's items share each facet.
+    private func byMixFacets(_ ranked: [Subject], mix: Mix?) -> [Subject] {
+        var want: [String: Int] = [:]
+        for item in mix?.items ?? [] {
+            let tags = subject(Self.base(item.id))?.tags ?? []
+            for k in facets(tags) { want[k] = (want[k] ?? 0) + 1 }
+        }
+        if want.isEmpty { return ranked }
+        var scored: [(subject: Subject, score: Int, index: Int)] = []
+        for (index, c) in ranked.enumerated() {
+            var score = 0
+            for k in facets(c.tags ?? []) { score += want[k] ?? 0 }
+            scored.append((subject: c, score: score, index: index))
+        }
+        scored.sort { a, b in a.score != b.score ? a.score > b.score : a.index < b.index }
+        return scored.map { $0.subject }
     }
 
     // MARK: - People
@@ -215,7 +283,9 @@ struct MixPlaylist: Equatable {
     /// Somebody else's public mix: not yours to edit, not yours to note.
     var mine: Bool
 
-    var current: MixItem? { pos < order.count ? items[order[pos]] : nil }
+    /// Nil while `pos` is -1: the item playing was taken out of the
+    /// playlist and the next one is still to come.
+    var current: MixItem? { pos >= 0 && pos < order.count ? items[order[pos]] : nil }
 
     /// "Thursday, November 12, 2026", for `{date}` (the device's clock).
     static func today() -> String {

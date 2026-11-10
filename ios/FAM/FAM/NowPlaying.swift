@@ -15,6 +15,9 @@ struct Episode: Equatable {
     /// A tile's title stands; only a typed question's title is replaced by
     /// the writer's (`titleOverridden` on the web).
     var titleOverridden: Bool = true
+    /// A replay only, never written anew: a category's episodes, queued
+    /// after the one tapped (`cachedOnly` on the web's queue entry).
+    var cachedOnly: Bool = false
 }
 
 /// A queued episode (§190): client state only, never sent to the server.

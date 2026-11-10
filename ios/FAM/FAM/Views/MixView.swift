@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// One of your mixes, or a joint mix you are in (`screen-mixdetail`): the
 /// cover and name, who is in it, Share and Invite, Add topics, today's
@@ -25,25 +26,29 @@ struct MixView: View {
     @State private var photo: PhotosPickerItem?
     @State private var pendingCover: String?
     @State private var shareItems: [Any]?
+    @State private var sharing = false
     @State private var shown: [String] = []
     @State private var seen: Set<String> = []
     @State private var dragging: Int?
     @State private var dragY: CGFloat = 0
     @State private var rowPitch: CGFloat = 62
-    @State private var listenTime = Date()
+    /// A reorder shown at once, until the server's answer replaces it (or
+    /// a refusal puts the old order back).
+    @State private var localOrder: [String]?
+    @State private var reorderRun = 0
+    /// The listen-time picker: open, and the time on its wheel. Written
+    /// once, on Done - never on each turn of the wheel.
+    @State private var pickingTime = false
+    @State private var draftTime = Date()
 
     private var mix: Mix? { mixes.mix(id) }
 
     var body: some View {
         VStack(spacing: 0) {
-            MixHeader(title: mix?.name ?? "", back: { path.removeAll() }) {
-                Button { menu = true } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(FAMColor.text)
-                        .frame(width: 36, height: 36)
-                }
-                .accessibilityLabel("More options")
+            MixHeader(title: mix?.name ?? "", back: back) {
+                Button { menu = true } label: { HeadDots() }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("More options")
             }
             if let mix {
                 ScrollView {
@@ -55,11 +60,12 @@ struct MixView: View {
                             EmptyNote(text: "Nothing in this mix yet. Add the topics you want a fresh briefing on every day.")
                                 .padding(.top, 16)
                         } else {
-                            playButton(mix)
+                            MixPlayButton(count: mix.items.count) { model.playMix(mix) }
+                                .padding(.top, 2)
                             Text("Today’s edition · \(Self.today)")
-                                .monoLabel(8.5)
-                                .padding(.top, 10)
-                                .padding(.bottom, 10)
+                                .monoLabel(8.5, tracking: 0.425)
+                                .padding(.top, 16)
+                                .padding(.bottom, 9)
                             topicList(mix)
                         }
                         recommended(mix)
@@ -81,15 +87,13 @@ struct MixView: View {
             await model.api.noteMixOpen(id, played: false)
             await mixes.loadForPage()
             if shown.isEmpty { shuffle() }
-            if let at = mix?.listenAt, let date = Self.date(at) { listenTime = date }
         }
         .confirmationDialog(mix?.name ?? "", isPresented: $menu, titleVisibility: .hidden) { menuButtons }
-        .confirmationDialog(mix.map { "\($0.name) · a joint mix" } ?? "", isPresented: $people,
-                            titleVisibility: .visible) {
-            ForEach(Array((mix?.people ?? []).enumerated()), id: \.offset) { _, p in
-                Button(personLine(p)) {}
+        .sheet(isPresented: $people) {
+            if let mix {
+                MixPeopleSheet(mix: mix)
+                    .environmentObject(model)
             }
-            Button("Cancel", role: .cancel) {}
         }
         .alert("Rename mix", isPresented: $renaming) {
             TextField(mix?.name ?? "", text: $newName)
@@ -114,13 +118,13 @@ struct MixView: View {
                             isPresented: $confirmPublicShare, titleVisibility: .visible) {
             Button("Make public and share") {
                 Task {
-                    if await mixes.update(id, ["public": true]) != nil { await share() }
+                    if await mixes.update(id, ["public": true]) != nil { later { sharing = true } }
                 }
             }
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Cover", isPresented: $coverChoice, titleVisibility: .hidden) {
-            Button("Choose a different photo") { pickingPhoto = true }
+            Button("Choose a different photo") { later { pickingPhoto = true } }
             Button("Remove cover", role: .destructive) {
                 Task { if await mixes.update(id, ["cover": ""]) != nil { model.nowPlaying.say("Cover removed") } }
             }
@@ -151,6 +155,29 @@ struct MixView: View {
         .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
             ActivityView(items: shareItems ?? []) { shareItems = nil }
         }
+        .sheet(isPresented: $sharing) {
+            MixShareSheet(id: id)
+                .environmentObject(model)
+        }
+        .sheet(isPresented: $pickingTime) {
+            ListenTimeSheet(time: $draftTime) { chosen in
+                pickingTime = false
+                let hhmm = Self.hhmm(chosen)
+                if hhmm != (mix?.listenAt ?? "") { Task { await setListenTime(hhmm) } }
+            }
+        }
+    }
+
+    /// Back to the list, asked for afresh (`loadMixes`).
+    private func back() {
+        path.removeAll()
+        Task { await mixes.load() }
+    }
+
+    /// A second presentation waits for a confirmation dialog to finish
+    /// closing, or it is dropped (as `PlayerMenu.open` does).
+    private func later(_ action: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: action)
     }
 
     // MARK: - Hero
@@ -163,13 +190,7 @@ struct MixView: View {
                         MixArt(cover: mix.cover, size: 84, radius: 16)
                             .shadow(color: .black.opacity(0.35), radius: 13, y: 12)
                             .overlay(alignment: .bottomTrailing) {
-                                Image(systemName: "camera.fill")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(FAMColor.ink)
-                                    .frame(width: 24, height: 24)
-                                    .background(FAMColor.copper, in: Circle())
-                                    .overlay(Circle().stroke(FAMColor.background, lineWidth: 2))
-                                    .offset(x: 4, y: 4)
+                                CoverBadge(size: 24, glyph: 11, ring: 2).offset(x: 5, y: 5)
                             }
                     }
                     .buttonStyle(.plain)
@@ -178,7 +199,7 @@ struct MixView: View {
                     MixArt(cover: mix.cover, size: 84, radius: 16)
                 }
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Text(mix.name)
                         .font(FAMFont.heading(17, .semibold))
@@ -187,7 +208,7 @@ struct MixView: View {
                         Button("Change") { startRename(mix) }
                             .font(FAMFont.body(10, .bold))
                             .foregroundStyle(FAMColor.text)
-                            .padding(.horizontal, 9)
+                            .padding(.horizontal, 10)
                             .frame(height: 22)
                             .background(FAMColor.surface2, in: Capsule())
                             .overlay(Capsule().stroke(FAMColor.borderStrong))
@@ -195,34 +216,49 @@ struct MixView: View {
                             .accessibilityLabel("Rename this mix")
                     }
                 }
-                if !mix.people.isEmpty {
-                    Button { people = true } label: { peopleLine(mix.people) }
-                        .buttonStyle(.plain)
-                }
-                Text("\(MixesModel.briefings(mix.items.count)) · daily · \(mix.joint ? "joint" : (mix.public ? "public" : "private"))")
-                    .monoLabel(8.5)
+                peopleRow(mix)
+                Text(heroMeta(mix))
+                    .monoLabel(8.5, tracking: 0.51)
+                    .padding(.top, 5)
             }
             Spacer(minLength: 0)
         }
         .padding(.top, 8)
+        .padding(.bottom, 16)
+    }
+
+    private func heroMeta(_ mix: Mix) -> String {
+        let kind = mix.joint ? "joint" : (mix.public ? "public" : "private")
+        return "\(MixesModel.briefings(mix.items.count)) · daily · \(kind)"
+    }
+
+    /// Who is in it (`mixPeopleLine`): a joint mix's people, which open
+    /// "Who's in this mix"; a mix that is yours alone shows your own face
+    /// and name, and opens nothing.
+    @ViewBuilder
+    private func peopleRow(_ mix: Mix) -> some View {
+        if !mix.people.isEmpty {
+            Button { people = true } label: { peopleLine(mix.people) }
+                .buttonStyle(.plain)
+                .padding(.top, 7)
+                .accessibilityHint("Shows who is in this mix")
+        } else if let me = mixes.ownFace(fallbackName: model.listener?.displayName) {
+            peopleLine([me])
+                .padding(.top, 7)
+        }
     }
 
     private func peopleLine(_ people: [MixPerson]) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             HStack(spacing: -6) {
                 ForEach(Array(people.prefix(3).enumerated()), id: \.offset) { _, p in
                     PersonFace(person: p, size: 20)
                 }
             }
             Text(MixesModel.peopleLabel(people))
-                .font(FAMFont.body(11.5, .semibold))
+                .font(FAMFont.body(11, .semibold))
                 .foregroundStyle(FAMColor.text)
         }
-    }
-
-    private func personLine(_ p: MixPerson) -> String {
-        let who = p.name.flatMap { $0.isEmpty ? nil : $0 } ?? p.handle.map { "@" + $0 } ?? "Someone"
-        return who + (p.you == true ? " (you)" : "") + " — " + (p.owner == true ? "Owner" : "Can add topics")
     }
 
     @ViewBuilder
@@ -230,24 +266,27 @@ struct MixView: View {
         if mix.isOwner {
             HStack(spacing: 4) {
                 Button { Task { await shareTapped() } } label: {
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 17)).frame(width: 36, height: 36)
+                    WebIcon(path: Icons.share, size: 19, line: 2).frame(width: 36, height: 36)
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Share this mix")
                 Button { Task { await invite() } } label: {
-                    Image(systemName: "person.badge.plus").font(.system(size: 17)).frame(width: 36, height: 36)
+                    WebIcon(path: Icons.invite, size: 20, line: 2).frame(width: 36, height: 36)
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Invite collaborators")
                 Spacer()
             }
             .foregroundStyle(FAMColor.textMuted)
-            .padding(.top, 8)
+            .padding(.leading, -6)
+            .padding(.bottom, 12)
         }
     }
 
     private var addTopicsPill: some View {
         Button { path.append(.add(id)) } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "plus").font(.system(size: 11, weight: .bold))
+            HStack(spacing: 7) {
+                WebIcon(path: Icons.plus, size: 13, line: 2.6)
                 Text("Add topics to mix")
             }
             .font(FAMFont.body(12, .bold))
@@ -258,29 +297,27 @@ struct MixView: View {
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
-        .padding(.top, 12)
-    }
-
-    private func playButton(_ mix: Mix) -> some View {
-        Button { model.playMix(mix) } label: {
-            HStack(spacing: 8) {
-                PlayTriangle().fill(FAMColor.ink).frame(width: 13, height: 13)
-                Text(mix.items.count == 1 ? "Play today’s 1 episode" : "Play today’s \(mix.items.count) episodes")
-            }
-            .font(FAMFont.body(12.5, .bold))
-            .foregroundStyle(FAMColor.ink)
-            .frame(maxWidth: .infinity, minHeight: 43)
-            .background(FAMColor.copper, in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 18)
+        .padding(.bottom, 16)
     }
 
     // MARK: - Topics, in order
 
+    /// The items as drawn: the reorder just made, until the server answers.
+    private func shownItems(_ mix: Mix) -> [MixItem] {
+        guard let order = localOrder else { return mix.items }
+        var byId: [String: MixItem] = [:]
+        for item in mix.items { byId[item.id] = item }
+        var out: [MixItem] = []
+        for itemID in order {
+            if let item = byId[itemID] { out.append(item) }
+        }
+        return out.count == mix.items.count ? out : mix.items
+    }
+
     private func topicList(_ mix: Mix) -> some View {
-        VStack(spacing: 9) {
-            ForEach(Array(mix.items.enumerated()), id: \.element.id) { index, item in
+        let items = shownItems(mix)
+        return VStack(spacing: 9) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 topicRow(mix, item, index)
                     .offset(y: offset(for: index))
                     .zIndex(dragging == index ? 2 : 0)
@@ -302,14 +339,32 @@ struct MixView: View {
 
     private func target(_ from: Int) -> Int {
         let count = mix?.items.count ?? 0
-        return max(0, min(count - 1, from + Int((dragY / rowPitch).rounded())))
+        let moved = Int((dragY / rowPitch).rounded())
+        return max(0, min(count - 1, from + moved))
+    }
+
+    /// Who added an item to a joint mix.
+    private func adder(_ mix: Mix, _ item: MixItem) -> MixPerson? {
+        guard mix.joint, let at = item.addedBy, at >= 0, at < mix.people.count else { return nil }
+        return mix.people[at]
+    }
+
+    /// "Added by you" / "Added by {name}" / "Added by @handle" - else the
+    /// item's own line, never "Added by " and nothing.
+    private func subLine(_ adder: MixPerson?, _ item: MixItem) -> String {
+        guard let adder else { return item.subtitle }
+        if adder.you == true { return "Added by you" }
+        if let name = adder.name, !name.isEmpty { return "Added by " + name }
+        if let handle = adder.handle, !handle.isEmpty { return "Added by @" + handle }
+        return item.subtitle
     }
 
     private func topicRow(_ mix: Mix, _ item: MixItem, _ index: Int) -> some View {
-        let adder = item.addedBy.flatMap { mix.joint && $0 < mix.people.count ? mix.people[$0] : nil }
+        let who = adder(mix, item)
+        let lifted = dragging == index
         return HStack(spacing: 11) {
             DragDots()
-                .foregroundStyle(dragging == index ? FAMColor.copper : FAMColor.textFaint)
+                .foregroundStyle(lifted ? FAMColor.copper : FAMColor.textFaint)
                 .frame(width: 22, height: 34)
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 2, coordinateSpace: .global)
@@ -320,14 +375,13 @@ struct MixView: View {
                     .onEnded { _ in drop(mix) })
                 .accessibilityLabel("Drag to reorder")
                 .overlay(alignment: .bottomTrailing) {
-                    if let adder { PersonFace(person: adder, size: 16).offset(x: 10, y: 6) }
+                    if let who { PersonFace(person: who, size: 16).offset(x: 10, y: 6) }
                 }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(FAMFont.heading(12.5, .semibold))
                     .foregroundStyle(FAMColor.text)
-                Text(adder.map { $0.you == true ? "Added by you" : "Added by \($0.name ?? ("@" + ($0.handle ?? "")))" }
-                     ?? item.subtitle)
+                Text(subLine(who, item))
                     .font(FAMFont.body(9.5))
                     .foregroundStyle(FAMColor.textMuted)
             }
@@ -344,25 +398,33 @@ struct MixView: View {
         .padding(.vertical, 11)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12)
-            .stroke(dragging == index ? FAMColor.copper : FAMColor.border))
-        .shadow(color: .black.opacity(dragging == index ? 0.35 : 0), radius: 11, y: 8)
+            .stroke(lifted ? FAMColor.copper : FAMColor.border))
+        .shadow(color: .black.opacity(lifted ? 0.35 : 0), radius: 11, y: 8)
         .background(GeometryReader { g in
             Color.clear.onAppear { if index == 0 { rowPitch = g.size.height + 9 } }
         })
     }
 
-    /// One whole-list write, as the web does for a reorder; the server's
-    /// answer replaces the local copy.
+    /// One whole-list write, as the web does for a reorder. The new order
+    /// is drawn at once; the server's answer replaces it, and a refusal
+    /// (said in the server's words) puts the old order back.
     private func drop(_ mix: Mix) {
         guard let from = dragging else { return }
         let to = target(from)
         dragging = nil
         dragY = 0
         guard to != from else { return }
-        var items = mix.items
+        var items = shownItems(mix)
+        guard from < items.count, to < items.count else { return }
         let moved = items.remove(at: from)
         items.insert(moved, at: to)
-        Task { await mixes.update(id, ["topic_ids": items.map(\.entry)]) }
+        localOrder = items.map(\.id)
+        reorderRun += 1
+        let mine = reorderRun
+        Task {
+            await mixes.update(id, ["topic_ids": items.map(\.entry)])
+            if mine == reorderRun { localOrder = nil }
+        }
     }
 
     // MARK: - Recommended topics
@@ -374,21 +436,19 @@ struct MixView: View {
             .filter { s in !mix.items.contains { MixesModel.base($0.id) == s.id } }
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .bottom, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("Recommended topics")
                             .font(FAMFont.heading(16, .semibold))
                             .foregroundStyle(FAMColor.text)
-                        Text(mixes.recommended?.personalised == true ? "Based on what you listen to"
-                             : (mix.items.isEmpty ? "Topics to follow, based on your interests"
-                                : "Topics to follow, based on this mix"))
+                        Text(recommendedSub(mix))
                             .font(FAMFont.body(9.5))
                             .foregroundStyle(FAMColor.textMuted)
                     }
                     Spacer()
                     Button { shuffle() } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "shuffle").font(.system(size: 10, weight: .bold))
+                        HStack(spacing: 6) {
+                            WebIcon(path: Icons.shuffle, size: 13, line: 2.2)
                             Text("Shuffle")
                         }
                         .font(FAMFont.body(10.5, .semibold))
@@ -412,8 +472,13 @@ struct MixView: View {
                     }
                 }
             }
-            .padding(.top, 26)
+            .padding(.top, 13)
         }
+    }
+
+    private func recommendedSub(_ mix: Mix) -> String {
+        if mixes.recommended?.personalised == true { return "Based on what you listen to" }
+        return mix.items.isEmpty ? "Topics to follow, based on your interests" : "Topics to follow, based on this mix"
     }
 
     /// The next five not yet shown; round again once the catalogue runs out
@@ -431,33 +496,61 @@ struct MixView: View {
 
     // MARK: - Listen time and visibility (the owner's)
 
+    /// Bell, what it does, then the time - a pill that opens the picker,
+    /// "--:--" when none is set - and Clear (shot 06c).
     private func listenRow(_ mix: Mix) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "bell").font(.system(size: 15)).foregroundStyle(FAMColor.copper)
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .center, spacing: 12) {
+            WebIcon(path: Icons.bell, size: 17, line: 2).foregroundStyle(FAMColor.copper)
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Listen time").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
-                Text(listenNote(mix)).font(FAMFont.body(10)).foregroundStyle(FAMColor.textMuted)
-                HStack {
-                    DatePicker("", selection: $listenTime, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .accessibilityLabel("Listen time")
-                        .onChange(of: listenTime) { _, value in
-                            let hhmm = Self.hhmm(value)
-                            if hhmm != mix.listenAt { Task { await setListenTime(hhmm) } }
-                        }
-                    if !mix.listenAt.isEmpty {
-                        Button("Clear") { Task { await setListenTime("") } }
-                            .font(FAMFont.body(12, .bold))
-                            .foregroundStyle(FAMColor.copper)
-                            .accessibilityLabel("Remove listen time")
-                    }
-                }
+                Text(listenNote(mix))
+                    .font(FAMFont.body(10))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .lineSpacing(4)
             }
             Spacer(minLength: 0)
+            Button { openTimePicker(mix) } label: {
+                HStack(spacing: 8) {
+                    Text(Self.pillLabel(mix.listenAt))
+                        .font(FAMFont.body(12, .bold))
+                        .monospacedDigit()
+                    WebIcon(path: Icons.clock, size: 12, line: 2)
+                }
+                .foregroundStyle(FAMColor.ink)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(FAMColor.paper, in: RoundedRectangle(cornerRadius: 9))
+            }
+            .buttonStyle(.plain)
+            .fixedSize()
+            .accessibilityLabel("Listen time")
+            .accessibilityValue(mix.listenAt.isEmpty ? "Not set" : MixesModel.timeLabel(mix.listenAt))
+            if !mix.listenAt.isEmpty {
+                Button("Clear") { Task { await setListenTime("") } }
+                    .font(.system(size: 11))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .padding(4)
+                    .buttonStyle(.plain)
+                    .fixedSize()
+                    .accessibilityLabel("Remove listen time")
+            }
         }
-        .padding(14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
-        .padding(.top, 26)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
+        .padding(.top, 14)
+    }
+
+    /// The wheel starts on the set time, else on the next whole hour.
+    private func openTimePicker(_ mix: Mix) {
+        if let set = Self.date(mix.listenAt) {
+            draftTime = set
+        } else {
+            let hour = (Calendar.current.component(.hour, from: Date()) + 1) % 24
+            draftTime = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
+        }
+        pickingTime = true
     }
 
     /// What the row says (`mixWhenNote`). Notifications reach a phone through
@@ -486,7 +579,7 @@ struct MixView: View {
                 }
             }
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(mix.public ? "Public" : "Private").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
                     Text(mix.public ? "Public will be displayed on your profile" : "Only you can see this mix")
@@ -504,8 +597,10 @@ struct MixView: View {
                 }
                 .animation(.easeOut(duration: 0.16), value: mix.public)
             }
-            .padding(14)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
         }
         .buttonStyle(.plain)
         .padding(.top, 10)
@@ -516,6 +611,8 @@ struct MixView: View {
 
     // MARK: - The ⋯ menu
 
+    /// Anything that opens another sheet, alert or picker waits for this
+    /// dialog to close first (`later`).
     @ViewBuilder
     private var menuButtons: some View {
         if let mix {
@@ -527,17 +624,17 @@ struct MixView: View {
                         }
                     }
                 }
-                Button("Rename") { startRename(mix) }
-                Button(mix.cover.isEmpty ? "Add a cover photo" : "Change cover") { tapCover(mix) }
+                Button("Rename") { later { startRename(mix) } }
+                Button(mix.cover.isEmpty ? "Add a cover photo" : "Change cover") { later { tapCover(mix) } }
                 Button("Add topics to mix") { path.append(.add(id)) }
-                Button("Invite collaborators") { Task { await invite() } }
-                if mix.joint { Button("Make it yours alone") { confirmAlone = true } }
-                Button("Share mix") { Task { await shareTapped() } }
-                Button("Delete mix", role: .destructive) { confirmDelete = true }
+                Button("Invite collaborators") { later { Task { await invite() } } }
+                if mix.joint { Button("Make it yours alone") { later { confirmAlone = true } } }
+                Button("Share mix") { later { Task { await shareTapped() } } }
+                Button("Delete mix", role: .destructive) { later { confirmDelete = true } }
             } else {
                 Button("Add topics to mix") { path.append(.add(id)) }
-                if !mix.people.isEmpty { Button("Who’s in this mix") { people = true } }
-                Button("Leave this mix", role: .destructive) { confirmLeave = true }
+                if !mix.people.isEmpty { Button("Who’s in this mix") { later { people = true } } }
+                Button("Leave this mix", role: .destructive) { later { confirmLeave = true } }
             }
             Button("Cancel", role: .cancel) {}
         }
@@ -594,20 +691,13 @@ struct MixView: View {
 
     // MARK: - Sharing and inviting
 
+    /// Empty: nothing to share. Private: asks before going public. Public:
+    /// FAM's share sheet for a mix (`openMixShareModal`).
     private func shareTapped() async {
         guard let mix else { return }
         if mix.items.isEmpty { model.nowPlaying.say("Add a topic before sharing it"); return }
         if !mix.public { confirmPublicShare = true; return }
-        await share()
-    }
-
-    private func share() async {
-        do {
-            let link = try await model.api.shareMix(id)
-            shareItems = [link.targets?["sms"]?.text ?? link.targets?["copy"]?.text ?? link.url]
-        } catch {
-            model.nowPlaying.say(MixesModel.sentence(error, else: "Could not make a share link"))
-        }
+        sharing = true
     }
 
     private func invite() async {
@@ -639,29 +729,341 @@ struct MixView: View {
         guard parts.count == 2 else { return nil }
         return Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: Date())
     }
+
+    /// The time field's text: "07:30 AM", or "--:--" with none set.
+    static func pillLabel(_ hhmm: String) -> String {
+        let parts = hhmm.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 2 else { return "--:--" }
+        let hour = parts[0] % 12 == 0 ? 12 : parts[0] % 12
+        let half = parts[0] < 12 ? "AM" : "PM"
+        return String(format: "%02d:%02d ", hour, parts[1]) + half
+    }
 }
 
-/// A face: the picture, else initials on a hue from the name.
+/// The mix page's ⋯ (`.head-dots`): three 3.5 pt dots.
+struct HeadDots: View {
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { _ in
+                Circle().fill(FAMColor.textMuted).frame(width: 3.5, height: 3.5)
+            }
+        }
+        .padding(8)
+        .frame(minWidth: 36, minHeight: 36)
+        .contentShape(Rectangle())
+    }
+}
+
+/// The copper camera badge on a cover (`.nm-cam`).
+struct CoverBadge: View {
+    var size: CGFloat = 24
+    var glyph: CGFloat = 11
+    var ring: CGFloat = 2
+
+    var body: some View {
+        WebIcon(path: Icons.camera, size: glyph, line: 2.2)
+            .foregroundStyle(FAMColor.ink)
+            .frame(width: size, height: size)
+            .background(FAMColor.copper, in: Circle())
+            .overlay(Circle().stroke(FAMColor.background, lineWidth: ring))
+            .accessibilityHidden(true)
+    }
+}
+
+/// "Play today's N episodes" (`.mix-play`): the mix page's and a public
+/// mix's, the same button.
+struct MixPlayButton: View {
+    let count: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                PlayTriangle().fill(FAMColor.ink).frame(width: 13, height: 13)
+                Text(count == 1 ? "Play today’s 1 episode" : "Play today’s \(count) episodes")
+            }
+            .font(FAMFont.body(12.5, .bold))
+            .foregroundStyle(FAMColor.ink)
+            .frame(maxWidth: .infinity, minHeight: 43)
+            .background(FAMColor.copper, in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The listen time's picker: the wheel, then Done. One write, on Done.
+struct ListenTimeSheet: View {
+    @Binding var time: Date
+    let done: (Date) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .font(FAMFont.body(13, .semibold))
+                    .foregroundStyle(FAMColor.textMuted)
+                Spacer()
+                Text("Listen time").font(FAMFont.heading(16, .semibold)).foregroundStyle(FAMColor.text)
+                Spacer()
+                Button("Done") { done(time) }
+                    .font(FAMFont.body(13, .bold))
+                    .foregroundStyle(FAMColor.copper)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            DatePicker("", selection: $time, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .accessibilityLabel("Listen time")
+            Spacer(minLength: 0)
+        }
+        .background(FAMColor.surface)
+        .presentationDetents([.height(300)])
+        .presentationBackground(FAMColor.surface)
+    }
+}
+
+/// "Who's in this mix" (`openMixPeople`): each person with Owner or Can
+/// add topics. No profile screen exists yet, so the rows open nothing.
+struct MixPeopleSheet: View {
+    let mix: Mix
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SheetGroupLabel(text: "\(mix.name) · a joint mix")
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(Array(mix.people.enumerated()), id: \.offset) { _, p in
+                        row(p)
+                    }
+                }
+            }
+            SheetCancelButton { dismiss() }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(FAMColor.surface)
+        .presentationDetents([.medium, .large])
+        .presentationBackground(FAMColor.surface)
+    }
+
+    private func name(_ p: MixPerson) -> String {
+        var who = ""
+        if let n = p.name, !n.isEmpty {
+            who = n
+        } else if let h = p.handle, !h.isEmpty {
+            who = "@" + h
+        } else {
+            who = "Someone"
+        }
+        return p.you == true ? who + " (you)" : who
+    }
+
+    private func row(_ p: MixPerson) -> some View {
+        HStack(spacing: 12) {
+            PersonFace(person: p, size: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name(p))
+                    .font(FAMFont.body(13.5, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .lineLimit(1)
+                Text(p.owner == true ? "Owner" : "Can add topics")
+                    .font(FAMFont.body(11.5, .medium))
+                    .foregroundStyle(FAMColor.textMuted)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Share a mix (`openMixShareModal`): FAM's share sheet titled "Share this
+/// mix", with the server's destinations from `/api/mixes/{id}/share`. Copy
+/// is the clipboard; a destination opens its app with the words; the rest
+/// go to iOS's share sheet. The story cards are not ported.
+struct MixShareSheet: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    let id: String
+
+    @State private var link: MixShare?
+    @State private var problem = ""
+    @State private var activity: [Any]?
+
+    /// The web's order (`sharing.TARGETS`); story targets need a card.
+    static let order = ["copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Share this mix")
+                .font(FAMFont.heading(16, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .padding(.horizontal, 22)
+                .padding(.top, 20)
+                .padding(.bottom, 10)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let link {
+                        ForEach(Self.order, id: \.self) { key in
+                            if let t = link.targets?[key], t.needsImage != true {
+                                targetRow(key, t)
+                            }
+                        }
+                        if !link.public {
+                            Text("This server has no public address set, so the link only works on this network.")
+                                .font(FAMFont.body(11))
+                                .foregroundStyle(FAMColor.textMuted)
+                                .padding(.horizontal, 22)
+                                .padding(.top, 12)
+                        }
+                    } else {
+                        Text(problem.isEmpty ? "Making a link…" : problem)
+                            .font(FAMFont.body(12))
+                            .foregroundStyle(FAMColor.textMuted)
+                            .padding(.horizontal, 22)
+                            .padding(.vertical, 14)
+                    }
+                }
+            }
+            SheetCancelButton { dismiss() }
+        }
+        .padding(.bottom, 12)
+        .background(FAMColor.surface)
+        .presentationDetents([.medium, .large])
+        .presentationBackground(FAMColor.surface)
+        .task { await load() }
+        .sheet(isPresented: Binding(get: { activity != nil }, set: { if !$0 { activity = nil } })) {
+            ActivityView(items: activity ?? []) {
+                activity = nil
+                dismiss()
+            }
+        }
+    }
+
+    private func load() async {
+        do {
+            link = try await model.api.shareMix(id)
+        } catch {
+            problem = MixesModel.sentence(error, else: "Could not make a share link")
+        }
+    }
+
+    /// Which way a tap goes, said on the row (`shareHint`).
+    private func hint(_ key: String, _ t: ShareTarget) -> String {
+        if key == "copy" { return "clipboard" }
+        let destination = t.destination ?? ""
+        return destination.isEmpty ? "share sheet" : "opens"
+    }
+
+    private func targetRow(_ key: String, _ t: ShareTarget) -> some View {
+        Button { send(key, t) } label: {
+            HStack(spacing: 12) {
+                Text(t.label ?? key)
+                    .font(FAMFont.body(13.5, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                Spacer()
+                Text(hint(key, t)).monoLabel(8.5, color: FAMColor.textFaint, tracking: 0.85)
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// `shareTo`: Copy is the clipboard and nothing else; a destination is
+    /// opened (Facebook and LinkedIn drop the words, so those go to the
+    /// clipboard alongside); anything else goes to the share sheet.
+    private func send(_ key: String, _ t: ShareTarget) {
+        let text = t.text ?? link?.url ?? ""
+        if key == "copy" {
+            UIPasteboard.general.string = text
+            model.nowPlaying.say("Link copied — paste it wherever you like")
+            dismiss()
+            return
+        }
+        if let destination = t.destination, !destination.isEmpty, let url = URL(string: destination) {
+            let dropsText = key == "facebook" || key == "linkedin"
+            if dropsText { UIPasteboard.general.string = text }
+            openURL(url)
+            if dropsText { model.nowPlaying.say("Your words are on the clipboard — paste them in") }
+            dismiss()
+            return
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("http"), !trimmed.contains(" "), let url = URL(string: trimmed) {
+            activity = [url]
+        } else {
+            activity = [text]
+        }
+    }
+}
+
+/// A face (`mixFaceHTML`): the picture where one is set, over two-letter
+/// initials on the person's colour - the web's `SRC_HUES`, picked by
+/// `personHue` (a hash of "@" + handle, else name), so one person is the
+/// same colour on every surface. Ringed in the card colour.
 struct PersonFace: View {
     @EnvironmentObject private var model: AppModel
     let person: MixPerson
     var size: CGFloat = 20
 
+    /// `SRC_HUES`.
+    static let hues: [UInt32] = [0xC9A876, 0x8FAE9A, 0xC3A8E0, 0xE2694F, 0x8FB4D9, 0xD9B38F]
+
+    /// `personHue(text)` = `srcHue("@" + text)`: sum = (sum * 31 + UTF-16
+    /// unit) % 9973 over the string, then one of six.
+    static func hue(_ text: String) -> Color {
+        var sum = 0
+        for unit in ("@" + text).utf16 {
+            sum = (sum * 31 + Int(unit)) % 9973
+        }
+        return Color(hex: hues[sum % hues.count])
+    }
+
+    /// `deriveInitials`: the first letters of the first two words, else the
+    /// first two characters, without a leading "@".
+    static func initials(_ text: String) -> String {
+        var clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.hasPrefix("@") { clean = String(clean.dropFirst()) }
+        let words = clean.split(whereSeparator: { $0.isWhitespace })
+        if words.count >= 2, let a = words[0].first, let b = words[1].first {
+            return (String(a) + String(b)).uppercased()
+        }
+        return String(clean.prefix(2)).uppercased()
+    }
+
+    private var hueKey: String {
+        if let h = person.handle, !h.isEmpty { return h }
+        return person.name ?? ""
+    }
+
+    private var initialsText: String {
+        if let n = person.name, !n.isEmpty { return Self.initials(n) }
+        if let h = person.handle, !h.isEmpty { return Self.initials(h) }
+        return "?"
+    }
+
     var body: some View {
-        let name = person.name ?? person.handle ?? "?"
         ZStack {
-            Circle().fill(Color(hue: Double(name.unicodeScalars.reduce(0) { ($0 * 31 + Int($1.value)) % 360 }) / 360,
-                                saturation: 0.35, brightness: 0.75))
-            Text(String(name.prefix(1)).uppercased())
-                .font(.system(size: size * 0.45, weight: .bold))
-                .foregroundStyle(.white)
-            if let avatar = person.avatar, let url = model.api.picture(avatar) {
+            Circle().fill(Self.hue(hueKey))
+            Text(initialsText)
+                .font(FAMFont.body(max(7, size * 0.4), .bold))
+                .foregroundStyle(FAMColor.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            if let avatar = person.avatar, !avatar.isEmpty, let url = model.api.picture(avatar) {
                 AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
             }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .overlay(Circle().stroke(FAMColor.background, lineWidth: 1.5))
+        .overlay(Circle().stroke(FAMColor.surface, lineWidth: 1.5))
         .accessibilityHidden(true)
     }
 }

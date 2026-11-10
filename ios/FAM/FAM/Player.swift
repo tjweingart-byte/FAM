@@ -80,6 +80,10 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
     var onReady: ((Bool) -> Void)?
     /// Called when an episode fails, so the loading screen can step aside.
     var onFailed: (() -> Void)?
+    /// The last failure was the connection itself - the stream broke and
+    /// every reconnect failed - not the server saying no. A playlist stops
+    /// on it rather than walking on (`mixItemFailed`'s `err.network`).
+    private(set) var lastFailureWasNetwork = false
 
     private let engine = AVAudioEngine()
     private let node = AVAudioPlayerNode()
@@ -368,7 +372,8 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
                 }
                 return
             }
-            fail("the stream broke and three reconnects failed: \(error.localizedDescription)")
+            fail("the stream broke and three reconnects failed: \(error.localizedDescription)",
+                 network: error.domain == NSURLErrorDomain)
             return
         }
         if bytesTaken == 0 {
@@ -536,7 +541,8 @@ final class StreamPlayer: NSObject, ObservableObject, URLSessionDataDelegate {
         onFinished?()
     }
 
-    private func fail(_ why: String) {
+    private func fail(_ why: String, network: Bool = false) {
+        lastFailureWasNetwork = network
         stopStream()
         epoch += 1
         phase = .failed

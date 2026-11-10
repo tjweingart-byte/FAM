@@ -735,8 +735,16 @@ struct SharedLink: Decodable {
     let targets: [String: ShareTarget]?
 }
 
+/// One destination (`sharing._rendered`): its label, the words, and where
+/// to send them - `destination` empty when the platform takes an image or
+/// the server has no public address.
 struct ShareTarget: Decodable {
     let text: String?
+    let label: String?
+    let kind: String?
+    let needsImage: Bool?
+    let subject: String?
+    let destination: String?
 }
 
 /// An answer whose body nothing reads.
@@ -895,6 +903,13 @@ extension FAMAPI {
         try await get("api/v1/push", [], as: PushStatus.self)
     }
 
+    /// Your own profile (`/api/profile`): the name, handle and picture a
+    /// solo mix's people line shows, and the interests the local
+    /// recommendation order starts from (`profileNow`).
+    func profile() async throws -> ProfileSummary {
+        try await get("api/v1/profile", [], as: ProfileSummary.self)
+    }
+
     /// What an episode is about, as a mix topic (`/api/episode/topic`).
     func episodeTopic(query: String, title: String) async throws -> EpisodeTopic {
         try await get("api/v1/episode/topic", [URLQueryItem(name: "q", value: query),
@@ -905,6 +920,22 @@ extension FAMAPI {
 
 struct MixesPage: Decodable {
     let mixes: [Mix]
+}
+
+/// The parts of `/api/profile` myFAM reads. Lenient: everything optional.
+struct ProfileSummary: Decodable {
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    /// The interests pills (`profile_interests`): a subject (`kind`
+    /// "topic") or a facet.
+    let interestsShown: [ProfileInterest]?
+}
+
+struct ProfileInterest: Decodable {
+    let id: String
+    let label: String?
+    let kind: String?
 }
 
 /// A mix as its owner, a member or a stranger sees it (`_mix_out`,

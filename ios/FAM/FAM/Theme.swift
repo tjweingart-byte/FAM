@@ -65,10 +65,13 @@ enum FAMFont {
 }
 
 extension View {
-    /// The web's small uppercase labels: Geist Mono, spaced out.
-    func monoLabel(_ size: CGFloat = 9, color: Color = FAMColor.textMuted, bold: Bool = false) -> some View {
+    /// The web's small uppercase labels: Geist Mono, spaced out. `tracking`
+    /// is the web's computed letter-spacing in points where a screen gives
+    /// one (myFAM does); without it, the spacing every other screen uses.
+    func monoLabel(_ size: CGFloat = 9, color: Color = FAMColor.textMuted, bold: Bool = false,
+                   tracking: CGFloat? = nil) -> some View {
         self.font(FAMFont.mono(size, bold: bold))
-            .tracking(size * 0.14)
+            .tracking(tracking ?? size * 0.14)
             .textCase(.uppercase)
             .foregroundStyle(color)
     }
@@ -234,6 +237,14 @@ enum Icons {
         return p
     }()
 
+    /// The filled tone under myFAM's chevrons (`M13 5l6 7-6 7z`).
+    static let myfamTone: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 13, y: 5)); p.addLine(to: CGPoint(x: 19, y: 12)); p.addLine(to: CGPoint(x: 13, y: 19))
+        p.closeSubpath()
+        return p
+    }()
+
     /// A mix: the folder.
     static let folder: Path = {
         var p = Path()
@@ -263,6 +274,113 @@ enum Icons {
         var p = Path()
         p.move(to: CGPoint(x: 17, y: 6)); p.addLine(to: CGPoint(x: 11, y: 12)); p.addLine(to: CGPoint(x: 17, y: 18))
         p.move(to: CGPoint(x: 10, y: 6)); p.addLine(to: CGPoint(x: 4, y: 12)); p.addLine(to: CGPoint(x: 10, y: 18))
+        return p
+    }()
+
+    /// Plus (`M12 5v14M5 12h14`): Create new mix, Add topics, (+) a mix.
+    static let plus: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 12, y: 5)); p.addLine(to: CGPoint(x: 12, y: 19))
+        p.move(to: CGPoint(x: 5, y: 12)); p.addLine(to: CGPoint(x: 19, y: 12))
+        return p
+    }()
+
+    /// Added (`M5 12.5l4.5 4.5L19 7`).
+    static let check: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 5, y: 12.5)); p.addLine(to: CGPoint(x: 9.5, y: 17)); p.addLine(to: CGPoint(x: 19, y: 7))
+        return p
+    }()
+
+    /// A mix card's chevron (`M9 6l6 6-6 6`).
+    static let chevron: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 9, y: 6)); p.addLine(to: CGPoint(x: 15, y: 12)); p.addLine(to: CGPoint(x: 9, y: 18))
+        return p
+    }()
+
+    /// Close (`M6 6l12 12M18 6L6 18`).
+    static let close: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 6, y: 6)); p.addLine(to: CGPoint(x: 18, y: 18))
+        p.move(to: CGPoint(x: 18, y: 6)); p.addLine(to: CGPoint(x: 6, y: 18))
+        return p
+    }()
+
+    /// The cover badge's camera (`M4 8h3l2-3h6l2 3h3v11H4z` and a lens).
+    static let camera: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 4, y: 8)); p.addLine(to: CGPoint(x: 7, y: 8)); p.addLine(to: CGPoint(x: 9, y: 5))
+        p.addLine(to: CGPoint(x: 15, y: 5)); p.addLine(to: CGPoint(x: 17, y: 8)); p.addLine(to: CGPoint(x: 20, y: 8))
+        p.addLine(to: CGPoint(x: 20, y: 19)); p.addLine(to: CGPoint(x: 4, y: 19)); p.closeSubpath()
+        p.addEllipse(in: CGRect(x: 8.5, y: 9.5, width: 7, height: 7))
+        return p
+    }()
+
+    /// Share a mix: the arrow out of the tray.
+    static let share: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 12, y: 3)); p.addLine(to: CGPoint(x: 12, y: 15))
+        p.move(to: CGPoint(x: 7, y: 8)); p.addLine(to: CGPoint(x: 12, y: 3)); p.addLine(to: CGPoint(x: 17, y: 8))
+        p.move(to: CGPoint(x: 5, y: 13)); p.addLine(to: CGPoint(x: 5, y: 19))
+        p.addQuadCurve(to: CGPoint(x: 7, y: 21), control: CGPoint(x: 5, y: 21))
+        p.addLine(to: CGPoint(x: 17, y: 21))
+        p.addQuadCurve(to: CGPoint(x: 19, y: 19), control: CGPoint(x: 19, y: 21))
+        p.addLine(to: CGPoint(x: 19, y: 13))
+        return p
+    }()
+
+    /// Invite collaborators: a person and a plus.
+    static let invite: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 5.5, y: 4.5, width: 7, height: 7))
+        p.move(to: CGPoint(x: 3, y: 20))
+        p.addCurve(to: CGPoint(x: 9, y: 14), control1: CGPoint(x: 3, y: 16.7), control2: CGPoint(x: 5.7, y: 14))
+        p.addCurve(to: CGPoint(x: 15, y: 20), control1: CGPoint(x: 12.3, y: 14), control2: CGPoint(x: 15, y: 16.7))
+        p.move(to: CGPoint(x: 19, y: 8)); p.addLine(to: CGPoint(x: 19, y: 14))
+        p.move(to: CGPoint(x: 16, y: 11)); p.addLine(to: CGPoint(x: 22, y: 11))
+        return p
+    }()
+
+    /// The listen time's bell.
+    static let bell: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 6, y: 8))
+        p.addArc(center: CGPoint(x: 12, y: 8), radius: 6,
+                 startAngle: .degrees(180), endAngle: .degrees(360), clockwise: false)
+        p.addCurve(to: CGPoint(x: 21, y: 17), control1: CGPoint(x: 18, y: 15), control2: CGPoint(x: 21, y: 17))
+        p.addLine(to: CGPoint(x: 3, y: 17))
+        p.addCurve(to: CGPoint(x: 6, y: 8), control1: CGPoint(x: 3, y: 17), control2: CGPoint(x: 6, y: 15))
+        p.move(to: CGPoint(x: 10.3, y: 21))
+        p.addQuadCurve(to: CGPoint(x: 13.7, y: 21), control: CGPoint(x: 12, y: 23))
+        return p
+    }()
+
+    /// Shuffle recommendations.
+    static let shuffle: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 16, y: 3)); p.addLine(to: CGPoint(x: 21, y: 3)); p.addLine(to: CGPoint(x: 21, y: 8))
+        p.move(to: CGPoint(x: 4, y: 20)); p.addLine(to: CGPoint(x: 21, y: 3))
+        p.move(to: CGPoint(x: 21, y: 16)); p.addLine(to: CGPoint(x: 21, y: 21)); p.addLine(to: CGPoint(x: 16, y: 21))
+        p.move(to: CGPoint(x: 15, y: 15)); p.addLine(to: CGPoint(x: 21, y: 21))
+        p.move(to: CGPoint(x: 4, y: 4)); p.addLine(to: CGPoint(x: 9, y: 9))
+        return p
+    }()
+
+    /// The ⋯ menu's "Add to myFAM Playlist": a circled plus.
+    static let circlePlus: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 3, y: 3, width: 18, height: 18))
+        p.move(to: CGPoint(x: 12, y: 8)); p.addLine(to: CGPoint(x: 12, y: 16))
+        p.move(to: CGPoint(x: 8, y: 12)); p.addLine(to: CGPoint(x: 16, y: 12))
+        return p
+    }()
+
+    /// A clock, the time field's own mark.
+    static let clock: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 3.5, y: 3.5, width: 17, height: 17))
+        p.move(to: CGPoint(x: 12, y: 7.5)); p.addLine(to: CGPoint(x: 12, y: 12)); p.addLine(to: CGPoint(x: 15, y: 14))
         return p
     }()
 
