@@ -32142,3 +32142,49 @@ signing decision's option 2 is no longer Mac-only. #232's `/admin`
 **Categories (Nando)** page and its **Run the one-time check** button
 (§503) are added to the owner-only list in 01. The agents' names, roles and
 switches are unchanged (`agents/names.py` gained only a model setting).
+
+## 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09)
+
+The owner sent a photo of FAMiliarizing with its five steps - "I like this
+loading screen for when someone searches. But when it's on myFAM mix or a
+DailyFAM episode, I think I want to create a different one" - and asked for
+six options, easy to compare, with the animations visible, leaving search and
+Go Deeper as they are. A comparison page put six animated phones on one clock
+(Cover Rise, Warm-up Wave, Rail Glide, Spinning Record, Tuning Dial, Chevron
+Meter), each switchable between a DailyFAM tap and a mix's next episode, three
+wait lengths and slow motion. The owner chose **option 5 (Tuning Dial) for
+DailyFAM and option 3 (Rail Glide) for mixes.**
+
+**What changed.** `generate` reads `loader` off the topic: `startBankTopic`
+(every DailyFAM tile, the rails and their View more) sets `dial`;
+`playMixItem` sets `glide`. With a loader the loading screen takes the class
+`alt`, hides the wordmark, chevrons, word, dots and steps, and
+`paintLoadingVariant` draws the screen into `#famLoadingAlt`:
+
+- *Dial:* the categories of the rail the tile came from (`seedTagText`, at
+  most four besides the tile's own, which sits fourth), the needle sweeping
+  across, overshooting and settling on the tile's; the rail's heading in the
+  kicker. The dial keeps the short tag, in capitals; the line under it names
+  the category in full, capitalised (`dialWord`, owner's direction): a broad
+  category's own name ("Tuning in to Technology"), else the tree's label,
+  else the tag with each word capitalised.
+- *Glide:* the mix's episodes in `mixPlay.order`, earlier ones marked Played
+  (only once their first audio arrived, `mixPlay.played`) or Skipped - a
+  failure or a skip before a word is not something that played -
+  the row sliding one card along (measured, since the screen is a phone frame
+  on a desktop and the whole width on a phone); "Morning Eagles · 2 of 5";
+  dots up to twelve episodes.
+
+Both show the episode's title and "Getting your episode ready" (or "the next
+episode") - true whether the script was written ahead or is being written now.
+A server that cannot write (`genStatusNote`) says so there instead.
+
+**What did not change, deliberately.** The five steps hold the audio until the
+fifth is shown (§148); that is search's honest wait and stays search's and Go
+Deeper's. These two screens hold nothing: `startGenSteps(free)` still polls
+`/api/progress`, because the server's marks are what move the give-up time
+(§497) - without the poll a cold voice would be abandoned at a flat 45 s again
+- but `genStepsGate` starts the audio the moment it arrives. On a cache hit the
+screen is up for `GEN_MIN_VISIBLE_MS` (450 ms) and the dial is cut off
+mid-sweep; that is the rule (§292), not a bug. Reduced motion shows each at
+rest: needle on the category, row on the episode.
