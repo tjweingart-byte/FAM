@@ -21,7 +21,7 @@ from script_generator import ScriptNotes, plan_episode
 
 EVIDENCE = ("SOURCE 1\nTitle: Fed holds\nPublished: 2026-11-02 (yesterday)\n"
             "Source type: wire service, paper of record or primary source\n"
-            "Key evidence:\nThe Fed held rates at 4.25 percent. Two members dissented.\n")
+            "Key evidence:\nThe Fed held rates at 4.25 percent. Two members of the committee dissented.\n")
 
 
 def test_profile_and_comparison_are_shapes_the_brief_may_pick():

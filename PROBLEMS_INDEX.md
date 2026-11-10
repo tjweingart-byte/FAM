@@ -500,3 +500,4 @@ and `limit` = Lines.
 | 31829 | 29 | 506. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09) |
 | 31858 | 61 | 507. The §501 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10) |
 | 31919 | 54 | 508. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10) |
+| 31973 | 58 | 509. The packet Shakespeare numbers, cleaned (2026-11-10) |

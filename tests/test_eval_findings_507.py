@@ -21,7 +21,7 @@ from script_generator import ScriptNotes, build_prompt, plan_episode
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EVIDENCE = ("SOURCE 1\nTitle: Fed holds\nPublished: 2026-11-02 (yesterday)\n"
             "Source type: established outlet\nKey evidence:\n"
-            "The Fed held rates at 4.25 percent. Two members dissented.\n")
+            "The Fed held rates at 4.25 percent. Two members of the committee dissented.\n")
 
 
 def test_matched_examples_are_off_by_default():
@@ -42,7 +42,7 @@ def test_the_landing_wording_is_back_as_it_was():
                           landing=["P1.2"], thin=False, missing=[])
     built, _ = editor.to_outline(answer, sources)
     block = editor.writer_block(built, "x", sources)
-    assert "\nLand on:\n- Two members dissented." in block
+    assert "\nLand on:\n- Two members of the committee dissented." in block
     assert "your last sentence" not in block
 
 

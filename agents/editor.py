@@ -76,15 +76,88 @@ class NumberedSource:
         return ("P" if self.packet == "plugin" else "A") + str(self.number)
 
 
-def _split(text: str) -> list:
-    out = []
+#: Page furniture in a source, cleaned before he numbers it (§509). The
+#: words kept are the publisher's: markup is taken off, never a word changed.
+_LINK = re.compile(r"\[([^\]]*)\]\((?:https?://|/)[^)]*\)")
+#: A link the source's excerpt cut in half: "that [it had opened an inquiry".
+_HALF_LINK = re.compile(r"\]\([^)]*$|\[(?=[^\]]*$)")
+_URL = re.compile(r"(?:https?://|www\.)\S+")
+_EMPHASIS = re.compile(r"\*\*|__|^\s*(?:#+|[-*•]|\d+\.)\s+", re.M)
+#: Two sentences scraped together with no space: "agreed to.The efforts".
+_GLUED = re.compile(r"(?<=[a-z0-9%][.!?])(?=[A-Z][a-z])")
+#: The page around an article, as Consuela screens it (§466) less her table
+#: rows: a standings table is evidence a sports episode lands on (§508).
+_INVITATION = re.compile(
+    r"click(?:ing)? here|preferred source|subscribe to (?:our|the)|"
+    r"sign up for (?:our|the)|all rights reserved|follow us on|"
+    r"add [\w .&'-]{1,30} to google|skip to (?:content|table|main)", re.I)
+#: A numbered "sentence" this short is a fragment; this long, a page dumped
+#: whole (a full league table, a transactions log). Long real sentences - a
+#: central bank's directive, a long quote - run to 60-120 words, so they stay.
+MIN_WORDS = 4
+MAX_WORDS = 150
+
+
+def _clean(text: str) -> str:
+    text = _LINK.sub(r"\1", text or "")
+    text = _HALF_LINK.sub("", text)
+    text = _URL.sub(" ", text)
+    text = _EMPHASIS.sub(" ", text)
+    text = _GLUED.sub(" ", text)
+    return " ".join(text.split())
+
+
+def _split(text: str, dropped: Optional[collections.Counter] = None) -> list:
+    """A source's text as he numbers it (§509): Consuela's own sentences
+    (`evidence_digest.split_sentences`, never cut at "Oct." or "p.m."), with
+    markup taken off, and invitations to click, fragments, whole-page dumps
+    and repeats left out - each counted in `dropped`."""
+    from agents import dedupe
+    from agents.housekeeper import _whole
+    import evidence_digest
+
+    out, seen = [], set()
+    dropped = dropped if dropped is not None else collections.Counter()
     for line in (text or "").splitlines():
-        line = line.strip()
+        line = _clean(line)
         if not line:
             continue
-        out.extend(s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"“'])", line)
-                   if len(s.strip()) > 2)
+        for piece in _whole(evidence_digest.split_sentences(line)):
+            words = len(re.findall(r"[\w.%$']+", piece))   # a table's cells count
+            if _INVITATION.search(piece):
+                dropped["clutter"] += 1
+            elif words < MIN_WORDS and not re.search(r"[.!?][\"'”’)]*$", piece):
+                # "Two members dissented." is a sentence; "The newest thing" is not.
+                dropped["fragment"] += 1
+            elif words > MAX_WORDS:
+                dropped["run_on"] += 1
+            elif dedupe.normalise(piece) in seen:
+                dropped["repeat"] += 1
+            else:
+                seen.add(dedupe.normalise(piece))
+                out.append(piece)
     return out
+
+
+def _live_sentences(live) -> list:
+    """The live state's facts, as he numbers them (§509): its status and
+    each fact the provider gave - never the guidance written around them for
+    the writer ("Not knowing is not the same as nothing having happened..."),
+    which he used to be handed as if it were a source. A lookup that found
+    no facts gives him nothing to number."""
+    import live_facts
+
+    found = live
+    if hasattr(live, "outcome"):                      # a LiveLookup
+        if live.outcome != live_facts.FACTS or live.facts is None:
+            return []
+        found = live.facts
+    lines = [" ".join(str(f).split()) for f in (getattr(found, "facts", None) or [])]
+    lines = [line for line in lines if line]
+    status = str(getattr(found, "status", "") or "")
+    if lines and status:
+        lines.insert(0, f"Status: {status.replace('_', ' ')}.")
+    return lines
 
 
 def number_packets(plan) -> list:
@@ -100,7 +173,7 @@ def number_packets(plan) -> list:
         live = getattr(plan, "live", None)
         if live is not None:
             try:
-                lines = _split(live.as_prompt_block())
+                lines = _live_sentences(live)
             except Exception:  # noqa: BLE001
                 lines = []
             if lines:
@@ -114,7 +187,10 @@ def number_packets(plan) -> list:
             title = (re.search(r"^Title:\s*(.*)$", chunk, re.M) or [None, ""])[1]
             day = (re.search(r"^Published:\s*(.*)$", chunk, re.M) or [None, ""])[1]
             body = chunk.split("Key evidence:", 1)[1] if "Key evidence:" in chunk else ""
-            sentences = _split(body)[:SENTENCES_PER_SOURCE]
+            dropped = collections.Counter()
+            sentences = _split(body, dropped)[:SENTENCES_PER_SOURCE]
+            for kind, n in dropped.items():
+                _count(f"packet_{kind}", n)
             if not sentences:
                 continue
             counts[packet] += 1

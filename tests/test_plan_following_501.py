@@ -120,7 +120,7 @@ def test_the_report_reads_ahead_and_tandem_apart(quality):
 def test_his_outline_puts_his_chosen_sentences_on_the_notes(monkeypatch):
     evidence = ("SOURCE 1\nTitle: Fed holds\nPublished: 2026-11-02 (yesterday)\n"
                 "Source type: wire service, paper of record or primary source\n"
-                "Key evidence:\nThe Fed held rates at 4.25 percent. Two members dissented.\n")
+                "Key evidence:\nThe Fed held rates at 4.25 percent. Two members of the committee dissented.\n")
     answer = EditorAnswer(answers="what the Fed did", summary=["P1.1"], opening=["P1.1"],
                           beats=[_Beat(purpose="the split", sentences=["P1.2"])],
                           landing=["P1.2"], thin=False, missing=[])
@@ -134,5 +134,5 @@ def test_his_outline_puts_his_chosen_sentences_on_the_notes(monkeypatch):
                                search=False, evidence=evidence)
     assert asyncio.run(editor.outline(plan, notes))
     assert notes.editor["plan"] == {"opening": ["The Fed held rates at 4.25 percent."],
-                                    "beats": [["Two members dissented."]],
-                                    "landing": ["Two members dissented."]}
+                                    "beats": [["Two members of the committee dissented."]],
+                                    "landing": ["Two members of the committee dissented."]}

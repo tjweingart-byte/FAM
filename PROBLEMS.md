@@ -31969,3 +31969,61 @@ Tests: `tests/test_plan_landing_508.py` (a figure read out is the figure
 printed; a long table matched by its names and numbers; a distinctive figure
 counts twice and a small one once; an unrelated ending is no landing);
 `tests/test_eval_findings_507.py` (the wording back as it was).
+
+## 509. The packet Shakespeare numbers, cleaned (2026-11-10)
+
+The owner: "Start on 1" - §508's next step: clean the sources before
+Shakespeare reads them, because the writer mostly follows what he chooses
+(§508).
+
+**What he was choosing from**, measured on the 50 frozen packets
+(`~/.fam/editor_eval_501/`): 2,735 numbered sentences, as `editor._split`
+cut the sources' raw lines.
+- **17 of the 50 had a "live state" source made entirely of FAM's own
+  guidance to the writer.** `number_packets` numbered `live.as_prompt_block()`,
+  and a lookup with no facts renders only guidance: "This question turns on a
+  live markets state...", "**Not knowing is not the same as nothing having
+  happened.** You do not know...". 204 lines, numbered P1.1-P1.12 as if they
+  were a source he could plan from, with every real source numbered one
+  later.
+- 143 sentences carried markup: markdown links with their addresses,
+  `**bold**`, bare URLs.
+- Sentences glued with no space ("agreed to.The efforts..."), sentences cut
+  at "Oct." ("10, but they continue almost daily."), repeats, and
+  "Add NBC News to Google" lines.
+
+**Now** (`agents/editor.py`):
+- the live state gives him only what the provider found: its status
+  ("Status: final.") and each fact. A lookup with no facts gives him no
+  source; the writer still reads the whole block, as before;
+- each source is split by Consuela's own splitter
+  (`evidence_digest.split_sentences`, mended at abbreviations by
+  `housekeeper._whole`, §466), so a sentence is never cut at "Oct." or
+  "p.m." and a piece under 25 characters joins its neighbour;
+- markup comes off (links keep their words, addresses go, half-cut links
+  too, emphasis and list markers), and glued sentences are parted. **Never
+  a word changed**: what he points at, and what the writer is shown in
+  `writer_block`, are still the publisher's words;
+- left out, and counted in his health block (`packet_*`): invitations
+  ("click here", "add ... to Google", "skip to content"), fragments (under
+  four words and not ending like a sentence: "Inflation remains elevated."
+  stays, "The newest thing" goes), pages dumped whole (over 150 words: a full
+  league table, a transactions log) and repeats within a source.
+- **Tables stay.** A first version dropped every table row and every piece
+  over 60 words. That cut the standings a sports episode lands on (the
+  Eagles, §508) and real long sentences - a central bank's directive, a long
+  quote, the China tariff extension - so the rules were narrowed to the
+  above.
+
+On the 50 packets: 2,475 numbered sentences; no guidance lines, no markup;
+5 fragments, 11 repeats, 3 invitations and 4 whole-page dumps left out.
+Unmeasured: whether his plans, and the episodes written from them, are
+better for it - §508's next step 2, the combined comparison.
+
+Tests: `tests/test_packet_cleaning_509.py` (markup off, the words kept; a
+half link and a bare address; glued and cut sentences mended; tables kept,
+invitations, fragments and dumps out, a short true sentence kept; a repeat
+once; the live block gives facts and status, never guidance, and nothing
+when it found nothing). Three fixtures in §501/§504/§507's tests now use a
+longer second sentence: "Two members dissented." is joined to its
+neighbour by Consuela's splitter, so the fixtures' P1.2 no longer existed.
