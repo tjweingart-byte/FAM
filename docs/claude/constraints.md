@@ -1455,6 +1455,12 @@
   `WAITLIST=0`.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
+  > **Current (§519, the 11.9 packet):** switched **off again in production**
+  > at the owner's direction - "until I change it, I want everyone to have
+  > unlimited access." `render.yaml` sets `ENFORCE_QUOTAS=0` on `fam`
+  > (explicitly, so turning it back on is one value); nobody sees the limit
+  > screen. Everything §207 built - admin `unlimited`, `/api/admin/plan`, the
+  > plans sheet worded from `/api/plans` `enforced` - stays.
   > **Current:** switched **on in production** at the owner's direction
   > (§207): `render.yaml` sets `ENFORCE_QUOTAS=1` on `fam`, so the worst
   > listener is bounded (5 episodes a day on free, ~$0.50) rather than ~$2 a

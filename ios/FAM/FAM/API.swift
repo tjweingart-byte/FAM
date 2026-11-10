@@ -1483,7 +1483,7 @@ struct ChatMember: Decodable, Hashable {
     let handle: String
     let avatar: String
     let me: Bool
-    /// Whether this listener and that member follow each other (§523): a
+    /// Whether this listener and that member follow each other (§520): a
     /// group may hold people who are not friends with each other.
     let friend: Bool?
 }
@@ -1551,7 +1551,7 @@ struct ChatWith: Decodable, Hashable {
     let named: Bool?
     let members: [ChatMember]?
     /// A group holding people this listener is not friends with: the
-    /// server's sentence saying who (§523); "" otherwise.
+    /// server's sentence saying who (§520); "" otherwise.
     let warning: String?
 }
 

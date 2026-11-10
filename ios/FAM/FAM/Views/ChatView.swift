@@ -296,7 +296,7 @@ struct ChatScreen: View {
     @ViewBuilder private var bodyContent: some View {
         if who.group && !who.warning.isEmpty {
             // The server's sentence: who in this group the listener is not
-            // friends with (§523).
+            // friends with (§520).
             Text(who.warning)
                 .font(FAMFont.body(11.5))
                 .foregroundStyle(FAMColor.text)
@@ -1064,7 +1064,7 @@ struct GroupMembersSheet: View {
                                 .font(FAMFont.body(11))
                                 .foregroundStyle(FAMColor.textMuted)
                         }
-                        // §523: a group may hold people you are not friends
+                        // §520: a group may hold people you are not friends
                         // with; the server says which (`friend`).
                         if m.friend == false {
                             Text("Not your friend").monoLabel(8.5, color: FAMColor.copper, tracking: 0.6)

@@ -30,7 +30,7 @@ struct ChatOpen: Hashable {
     var group: Bool = false
     var named: Bool = false
     var members: [ChatMember] = []
-    /// "You’re not friends with …" for a group with strangers in it (§523).
+    /// "You’re not friends with …" for a group with strangers in it (§520).
     var warning: String = ""
     /// False until the server has answered once - a group opened from a
     /// banner has no members yet (quirk 16), so its sub line waits.
@@ -278,7 +278,7 @@ final class SocialModel: ObservableObject {
 
     /// The people a message, a group or a share can go to: friends only -
     /// two people who follow each other (the owner's rule, PROBLEMS.md
-    /// §523; the server refuses anyone else).
+    /// §520; the server refuses anyone else).
     var reachable: [FollowPerson] {
         guard let g = graph else { return [] }
         var seen: Set<String> = []
@@ -296,7 +296,7 @@ final class SocialModel: ObservableObject {
         !userID.isEmpty && (graph?.friends.contains { $0.userId == userID } ?? false)
     }
 
-    /// New message's empty sentence (`paintNewChatContacts`, §523).
+    /// New message's empty sentence (`paintNewChatContacts`, §520).
     static let nobodyToMessage = "Nobody to message yet. When someone you follow follows you back, you can message them."
     /// The share sheet's (`loadShareContacts`).
     static let nobodyToSend = "Nobody to send to yet \u{2014} find people under Friends"

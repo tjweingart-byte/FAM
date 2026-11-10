@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Sending inside FAM (`#shareOverlay`, shots 45-48): GROUPS (only when you
-/// are in one) and FRIENDS (mutual follows only, §523), each with a
+/// are in one) and FRIENDS (mutual follows only, §520), each with a
 /// round search that filters the faces drawn; a tap selects, a second tap
 /// or Cancel unselects, and "Share with @handle" sends - one tap, one
 /// message. What is sent is the caller's (`send`): an episode with the id

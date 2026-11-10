@@ -226,6 +226,7 @@ Responses name members and carry no listener ids.
 > reported group takes the photo down.
 
 <!-- rule:names-swapped -->
+> **Current (PROBLEMS.md §519):** the tab bar spells them as the wordmarks do - **dailyFAM**, **myFAM**, **yourFAM** - lower-case first letter; the other listener-facing sentences are unchanged.
 **The listener sees myFAM and DailyFAM with their names swapped (§185), at
 the owner's direction.** The rails screen (the first tab, `screen-myfam`) is
 labelled **DailyFAM**; the mixes screen (`screen-playfam`) is labelled
@@ -800,6 +801,7 @@ to the writer is judged.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §519, the owner's 11.9 packet):** **closed captions are a labelled CC pill** beside the queue (one tap, on or off, and the choice is remembered on the device for the next episode); on, they are read **over the picture** - one sentence at a time (§127) in large type on a dark card, a copy button and an X in its corner, a swipe down closes it - never a sheet at the bottom, which hid the transport. **The transport** is five slots (four that shrink with the screen, a 74px middle one), play dead centre in the middle one, the ±15 and next glyphs bare (no outlined circles) with the 15 readable inside its arrow; the first slot is empty to balance the next button. Share, vibe and save sit 24px higher, clear of the sources pill. The tab labels read **dailyFAM / myFAM / yourFAM** (lower-case first letter, as the wordmarks).
 > **Current (PROBLEMS.md §507, the owner 11.9, "this rock is everywhere"):** a picture is **borrowed, never hashed**: past the episode's branch and the facets its category and words fall under (strongest first - the category's facet, then the facet of the deepest node the words name, then a named sport, then keyword count; never alphabetical), an episode nothing places has **no picture**, reversing §193's "never missing" and §214's "every tile" for that case. **A broad node holds several pictures** - each facet and each node directly under one, `THUMBNAILS_BROAD_PICTURES` (4) - as rows `node#2`, `node#3` beside the node's own; the sweep paints them after every node has its first, telling the scene writer what the others show. An episode wears one of its node's pictures chosen by a hash of its words (`thumbnails.choose_picture`), so it is random across episodes and the same on its tile, player, vibe and share card.
 > **Current (PROBLEMS.md §363, the owner 10.31):** when the words name several subjects and the deepest is unpainted, the borrowed picture is the **most specific** painted one any of them reaches (a painted team beats another subject's league); an episode's category still walks its own branch first (§209).
 
@@ -878,6 +880,7 @@ to the writer is judged.
 > `reelFeed`), its back arrow returning to the page; replay only.
 
 <!-- rule:queue -->
+> **Current (PROBLEMS.md §519, the owner's 11.9 packet):** **Go Deeper on a myFAM playlist's episode is a detour, never the end of the playlist**: the follow-up carries `mixDetour` (the playlist episode it left), plays with the playlist waiting behind it, and when it ends, is skipped or fails, the playlist carries on with its next episode (a Go Deeper on the follow-up is the same detour). The queue sheet is laid out with room: a "Queue" heading, rows inset from the edge with a picture (or place in line), a title over what the row is.
 - **The queue** *(PROBLEMS.md §190)*: Add to Queue from the player's menu or a
   DailyFAM tile's three dots (top right, beside save; the same menu less what
   needs a playing episode); Go to Queue lists Now playing, the playlist's

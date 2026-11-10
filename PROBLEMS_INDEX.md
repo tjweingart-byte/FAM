@@ -510,8 +510,9 @@ and `limit` = Lines.
 | 32318 | 12 | 516. "power grid" and "world record" seeded (2026-11-10) |
 | 32330 | 9 | 517. "nfl trade rumors" seeded (2026-11-10) |
 | 32339 | 43 | 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
-| 32382 | 85 | 519. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
-| 32467 | 128 | 520. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
-| 32595 | 32 | 521. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
-| 32627 | 42 | 522. The iOS app, stage 2: myFAM (2026-11-10) |
-| 32669 | 36 | 523. Messages only between friends (2026-11-10) |
+| 32382 | 74 | 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |
+| 32456 | 35 | 520. Messages only between friends (2026-11-10) |
+| 32491 | 85 | 521. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
+| 32576 | 128 | 522. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 32704 | 32 | 523. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
+| 32736 | 42 | 524. The iOS app, stage 2: myFAM (2026-11-10) |

@@ -230,7 +230,7 @@ def test_two_listeners_can_find_follow_and_message_each_other(client):
 
     assert client.post("/api/friends/follow",
                        json={"handle": "ana"}).json()["counts"]["following"] == 1
-    # Following is not enough: a message goes only between friends (§523).
+    # Following is not enough: a message goes only between friends (§520).
     one_way = client.post("/api/messages", json={"to": ana, "text": "hi"})
     assert one_way.status_code == 403
     assert one_way.json()["error"] == "You can message people who follow you back."
@@ -536,7 +536,7 @@ def test_an_anonymous_listener_polls_quietly(client):
 
 def test_knowing_an_id_does_not_open_a_conversation(client):
     """A stranger who has another listener's id cannot message them, nor put
-    them in a group (§523)."""
+    them in a group (§520)."""
     ana = signed_in(client, "ana@b.com", "Ana", "ana")
     client.post("/api/auth/logout")
     signed_in(client, "ben@b.com", "Ben", "ben")
@@ -547,7 +547,7 @@ def test_knowing_an_id_does_not_open_a_conversation(client):
 def test_a_group_may_hold_strangers_and_tells_each_member_who(client):
     """Whoever makes a group must be friends with everyone in it; the others
     need not be friends with each other, and each is told who they are not
-    friends with (§523)."""
+    friends with (§520)."""
     ana = signed_in(client, "ana@b.com", "Ana", "ana")
     client.post("/api/auth/logout")
     ben = signed_in(client, "ben@b.com", "Ben", "ben")

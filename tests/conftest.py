@@ -897,7 +897,7 @@ def everyone_friends(monkeypatch):
     """For tests about conversations, groups, replies and notifications rather
     than about who may message whom: everybody counts as friends. The rule
     itself - one-to-one messages and new groups only between people who
-    follow each other (PROBLEMS.md §523) - has its own tests in
+    follow each other (PROBLEMS.md §520) - has its own tests in
     tests/test_friends_and_messages.py."""
     import app as appmod
 

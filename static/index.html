@@ -691,7 +691,7 @@
   .fr-note{ font-size:11px; line-height:1.5; color:var(--text-faint);
     padding:0 2px 6px; }
 
-  /* A group with people this listener is not friends with says so (§523). */
+  /* A group with people this listener is not friends with says so (§520). */
   .thread-warn{ margin:4px 0 12px; padding:11px 13px; border:1px solid var(--copper);
     border-radius:12px; background:rgba(168,117,32,.08); color:var(--text);
     font-size:11.5px; line-height:1.45; }
@@ -1349,7 +1349,9 @@
   #screen-player .p-demo{ position:absolute; top:6px; left:50%; transform:translateX(-50%); }
   /* Share, vibe and save, one above another on the right, above the
      transport (10.2 packet). The captions hang under each circle. */
-  .p-side{ position:absolute; right:16px; bottom:10px; display:flex; flex-direction:column;
+  /* Lifted clear of the title row (11.9 packet, §519): at 10px the SAVE
+     caption sat on the sources pill below it. */
+  .p-side{ position:absolute; right:16px; bottom:34px; display:flex; flex-direction:column;
     align-items:center; gap:24px; padding-bottom:12px; }
   /* They sit on the picture, so they carry their own contrast whatever it
      is (10.16 packet, §285): a light glyph in a dark circle with a light
@@ -1376,28 +1378,69 @@
   #screen-player .mini-title{ font-size:22px; line-height:1.2; margin:0;
     display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .mini-src[hidden]{ display:none; }
-  #screen-player .player-controls-2row{ padding:14px 20px 60px; gap:14px; }
-  #screen-player .pc-row1{ gap:22px; }
-  #screen-player .mini-play-btn{ width:60px; height:60px; }
+  /* The bottom padding held the captions strip until §519 moved captions
+     onto the picture; it is the controls' own breathing room now. */
+  #screen-player .player-controls-2row{ padding:14px 20px 22px; gap:14px; }
+  /* The transport (11.9 packet, §519): five equal slots with play in the
+     middle one, so it is centred whether or not the next button is drawn,
+     and every glyph bare - the outlined circles round ±15 and next read as
+     three more buttons the size of play's little brothers. */
+  /* Columns that shrink with the screen: fixed 52px slots overflowed the
+     desktop preview's phone (and a 320px phone) and cut next off the edge. */
+  #screen-player .pc-row1{ display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) 74px minmax(0,1fr) minmax(0,1fr);
+    justify-items:center; align-items:center; gap:0; width:100%; max-width:330px; margin:0 auto; }
+  #screen-player .pc-slot{ width:48px; height:48px; }
+  #screen-player .pc-row1 .mini-ctrl-btn{ width:48px; height:48px; background:none;
+    border:0; color:var(--text); border-radius:50%; }
+  #screen-player .pc-row1 .mini-ctrl-btn:active{ background:rgba(var(--fg-rgb),0.08); }
+  #screen-player .pc-row1 .skip-num{ top:calc(50% + 1px); font-family:'Geist', sans-serif;
+    font-size:10.5px; font-weight:700; letter-spacing:-0.02em; }
+  #screen-player .mix-skip{ position:static; margin:0; }
+  #screen-player .mini-play-btn{ width:66px; height:66px;
+    box-shadow:0 6px 18px -8px rgba(0,0,0,0.45); }
+  #screen-player .mini-play-btn svg{ width:22px; height:22px; }
   #screen-player .pc-row2{ width:100%; gap:12px; }
   .pc-gap{ flex:1; }
-  /* The captions sheet: shut is a strip at the bottom; slid up is open, and
-     open is on. */
-  #screen-player .captions-panel{ position:absolute; left:0; right:0; bottom:0; z-index:3;
-    margin:0; border-radius:16px 16px 0 0; padding:0 18px 18px; min-height:0;
-    max-height:58%; display:flex; flex-direction:column;
-    transform:translateY(calc(100% - 46px)); transition:transform 260ms ease; }
-  #screen-player .captions-panel.on{ transform:none; }
-  #screen-player .cc-toprow{ height:46px; margin:0; gap:10px; cursor:pointer; flex:none;
-    position:relative; justify-content:flex-start; }
-  #screen-player .cc-toprow .cc-copybtn{ margin-left:auto; }
-  .cc-grab{ position:absolute; left:50%; top:6px; width:36px; height:4px; border-radius:2px;
-    margin-left:-18px; background:var(--border-strong); }
-  #screen-player .cc-text{ overflow-y:auto; min-height:60px; }
+  /* Closed captions (11.9 packet, §519). A labelled CC pill beside the queue
+     turns them on; on, they are read over the picture, large and one sentence
+     at a time, with the transport untouched below. Off, nothing is drawn. */
+  .cc-pill{ flex:none; display:flex; align-items:center; gap:7px; height:36px; padding:0 14px 0 12px;
+    border-radius:18px; border:1px solid var(--border-strong); background:var(--surface);
+    color:var(--text); font-family:'Geist', sans-serif; font-size:12.5px; font-weight:700;
+    cursor:pointer; }
+  .cc-pill.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  #screen-player .captions-panel{ position:absolute; z-index:2; top:8px; bottom:8px; left:12px; right:12px;
+    margin:0; padding:14px 64px 16px 18px; min-height:0; border-radius:18px;
+    display:flex; flex-direction:column; border:0;
+    background:rgba(18,15,28,0.90); color:#F4EFE4; text-align:left;
+    -webkit-backdrop-filter:blur(14px) saturate(1.2); backdrop-filter:blur(14px) saturate(1.2);
+    box-shadow:0 18px 40px -20px rgba(0,0,0,0.6);
+    transition:opacity 220ms ease, transform 220ms ease; }
+  #screen-player .captions-panel.off{ opacity:0; transform:translateY(8px); pointer-events:none;
+    visibility:hidden; }
+  #screen-player .captions-panel.on{ opacity:1; transform:none; visibility:visible; }
+  /* Share, vibe and save stay above it, so they are never lost to reading. */
+  #screen-player .p-side{ z-index:3; }
+  #screen-player .cc-toprow{ display:flex; align-items:center; gap:8px; margin:0 -50px 0 0; flex:none; }
+  #screen-player .captions-panel .cc-label{ font-family:'Geist Mono', monospace; font-size:10px;
+    letter-spacing:0.12em; text-transform:uppercase; color:var(--copper); font-weight:700;
+    margin-right:auto; }
+  #screen-player .cc-copybtn, #screen-player .cc-close{ width:32px; height:32px; border-radius:50%;
+    border:1px solid rgba(244,239,228,0.25); background:rgba(244,239,228,0.08); color:#F4EFE4;
+    display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; opacity:1; }
+  #screen-player .captions-panel.on .cc-text{ flex:1; min-height:0; overflow-y:auto;
+    display:grid; align-content:center; color:#F4EFE4; }
+  #screen-player .captions-panel.on .cc-text,
+  #screen-player .captions-panel.on .cc-text mark.cc-now{
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:24px;
+    line-height:1.28; letter-spacing:-0.01em; color:#F4EFE4; }
+  #screen-player .captions-panel.on .cc-text .cc-leaving{ font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:24px; line-height:1.28; color:rgba(244,239,228,0.45); }
   @media (prefers-reduced-motion: reduce){
     #screen-player .captions-panel{ transition:none; }
   }
-  /* The queue sheet and the menu's header (§190). */
+  /* The menu's header (§190). */
   .sheet-head{ display:flex; align-items:center; gap:12px; padding:4px 4px 12px;
     margin-bottom:6px; border-bottom:1px solid var(--border); }
   .sheet-head-pic{ flex:none; width:44px; height:44px; border-radius:8px;
@@ -1407,16 +1450,30 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sheet-head-sub{ font-size:11.5px; color:var(--text-muted); margin-top:2px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .q-group{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.1em;
-    text-transform:uppercase; color:var(--text-muted); margin:12px 2px 6px; }
-  .q-row{ display:flex; align-items:center; gap:10px; padding:9px 2px;
-    border-bottom:1px solid var(--border); }
-  .q-row .q-title{ flex:1; min-width:0; font-size:13px; color:var(--text); cursor:pointer;
+  /* The queue (11.9 packet, §519): a heading, rows inset from the edge with
+     a picture each, and a title over what the row is. */
+  .q-sheet-head{ display:flex; align-items:center; padding:6px 22px 4px; flex:none; }
+  .q-sheet-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600;
+    font-size:19px; color:var(--text); }
+  .q-sheet{ padding:0 0 4px; }
+  .q-group{ font-family:'Geist Mono', monospace; font-size:9px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--text-faint); margin:16px 22px 4px; }
+  .q-row{ display:flex; align-items:center; gap:12px; padding:7px 14px 7px 22px; min-height:56px; }
+  .q-tap{ flex:1; min-width:0; display:flex; align-items:center; gap:12px; cursor:pointer; }
+  .q-pic{ flex:none; width:42px; height:42px; border-radius:8px;
+    background:var(--surface-2) center / cover no-repeat; }
+  .q-pic-empty{ display:flex; align-items:center; justify-content:center;
+    font-family:'Geist Mono', monospace; font-size:11px; font-weight:700; color:var(--text-muted); }
+  .q-text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .q-row .q-title{ display:block; font-size:14px; font-weight:600; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3; }
+  .q-sub{ display:block; font-size:11.5px; color:var(--text-muted);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .q-row.now .q-title{ color:var(--copper); font-weight:600; cursor:default; }
-  .q-rm{ flex:none; border:0; background:none; color:var(--text-muted); font-size:18px;
-    width:32px; height:32px; cursor:pointer; }
-  .q-empty{ font-size:12.5px; color:var(--text-faint); padding:10px 2px; line-height:1.5; }
+  .q-row.now .q-title{ color:var(--copper); }
+  .q-row.now .q-pic-empty{ color:var(--copper); font-size:12px; }
+  .q-rm{ flex:none; border:0; background:none; color:var(--text-muted); font-size:20px;
+    width:40px; height:40px; cursor:pointer; border-radius:50%; }
+  .q-empty{ font-size:12.5px; color:var(--text-faint); padding:6px 22px 8px; line-height:1.5; }
   /* The menu's rows carry Spotify's icons (§190). */
   .menu-row{ display:flex; align-items:center; gap:14px; }
   .menu-row svg{ flex:none; color:var(--text-muted); }
@@ -3982,11 +4039,11 @@
         </div>
 
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre active" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
         </div>
       </section>
 
@@ -4045,11 +4102,11 @@
           <div class="nowbar-progress"><div class="nowbar-fill" id="nowFill"></div></div>
         </div>
         <div class="tabbar">
-          <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
         </div>
       </section>
 
@@ -4106,11 +4163,11 @@
           </div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
           <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
         </div>
       </section>
 
@@ -4233,6 +4290,15 @@
             <span class="pt-icon" id="playerEcho" data-echo onclick="toggleEcho()" title="VIBE! this to your friends"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg><span class="pt-cap vibe-cap">vibe</span></span>
             <span class="pt-icon" id="playerSave" data-save onclick="saveForLater()" title="Save for later"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg><span class="pt-cap save-cap">save</span></span>
           </div>
+          <!-- Closed captions (11.9 packet, §519): turned on from the CC
+               button beside the queue, and read where the picture is - large,
+               one sentence at a time, the transport still in reach below.
+               It used to be a strip of 8px capitals at the very bottom that
+               had to be slid up, and when it was up it covered the transport. -->
+          <div class="captions-panel off" id="ccPanel" aria-live="polite">
+            <div class="cc-toprow"><span class="cc-label">Captions</span><button type="button" class="cc-copybtn" onclick="copyTranscript()" aria-label="Copy the transcript"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button><button type="button" class="cc-close" onclick="toggleCC()" aria-label="Turn captions off"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+            <div class="cc-text" id="cc-text">Displayed here when captions are turned on.</div>
+          </div>
         </div>
         <div class="p-titlerow">
           <div class="p-titles">
@@ -4259,26 +4325,27 @@
           <div class="time-row"><span id="curTime">1:24</span><span id="totalTime">3:00</span></div>
         </div>
         <div class="player-controls-2row">
+          <!-- The transport (11.9 packet, §519): five equal slots, play dead
+               centre, the glyphs bare rather than in outlined circles, the
+               15 inside its arrow at a size that reads. The empty first slot
+               balances the next-episode button, which is only drawn when
+               somebody chose a "next". -->
           <div class="pc-row1">
-            <div class="mini-ctrl-btn seek" onclick="skipAudio(-15)" title="Back 15 seconds" aria-label="Back 15 seconds"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M5.95 6.92A7.9 7.9 0 1 1 5.95 17.08" stroke-width="1.9"/><path d="M1.9 12 6.5 9v6z" fill="currentColor" stroke="none"/></svg><span class="skip-num">15</span></div>
+            <span class="pc-slot" aria-hidden="true"></span>
+            <div class="mini-ctrl-btn seek" onclick="skipAudio(-15)" title="Back 15 seconds" aria-label="Back 15 seconds"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.6 4.6A8.4 8.4 0 1 1 4.3 9.6"/><path d="M12.6 2.2 9.4 4.7l3.2 2.5z" fill="currentColor" stroke-width="1.2"/></svg><span class="skip-num">15</span></div>
             <div class="mini-play-btn" onclick="togglePlay()"><div id="playIcon2"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg></div></div>
-            <div class="mini-ctrl-btn seek" onclick="skipAudio(15)" title="Forward 15 seconds" aria-label="Forward 15 seconds"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M18.05 6.92A7.9 7.9 0 1 0 18.05 17.08" stroke-width="1.9"/><path d="M22.1 12 17.5 9v6z" fill="currentColor" stroke="none"/></svg><span class="skip-num">15</span></div>
+            <div class="mini-ctrl-btn seek" onclick="skipAudio(15)" title="Forward 15 seconds" aria-label="Forward 15 seconds"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.4 4.6A8.4 8.4 0 1 0 19.7 9.6"/><path d="M11.4 2.2 14.6 4.7l-3.2 2.5z" fill="currentColor" stroke-width="1.2"/></svg><span class="skip-num">15</span></div>
             <!-- The next episode: the playlist's next while a myFAM playlist
                  plays (§134), else the first in the queue (§190). Hidden
                  when there is no "next" anybody chose. -->
-            <div class="mini-ctrl-btn mix-skip" id="mixSkipBtn" onclick="skipMixItem()" title="Skip to the next episode in this playlist" aria-label="Skip to the next episode in this playlist" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4l10 8-10 8V4z" fill="currentColor"/><path d="M19 5v14"/></svg></div>
+            <div class="mini-ctrl-btn mix-skip" id="mixSkipBtn" onclick="skipMixItem()" title="Skip to the next episode in this playlist" aria-label="Skip to the next episode in this playlist" hidden><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 5.2v13.6a.8.8 0 0 0 1.2.7l10-6.8a.8.8 0 0 0 0-1.4l-10-6.8a.8.8 0 0 0-1.2.7z"/><rect x="18.4" y="4.6" width="2.4" height="14.8" rx="1.1" stroke="none"/></svg></div>
           </div>
           <div class="pc-row2">
             <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1x · 1.5 min</div>
             <span class="pc-gap"></span>
+            <button type="button" class="cc-pill" id="ccIcon" onclick="toggleCC()" aria-pressed="false" aria-label="Captions"><svg width="18" height="14" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.1" y="1.1" width="21.8" height="15.8" rx="4"/><path d="M10 6.9a2.7 2.7 0 1 0 0 4.2"/><path d="M17.4 6.9a2.7 2.7 0 1 0 0 4.2"/></svg><span>Captions</span></button>
             <span class="pt-icon" id="queueBtn" onclick="openQueue()" title="The queue" aria-label="The queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 14v6l4-3z" fill="currentColor"/></svg><span class="pt-cap">queue</span><span class="q-badge" id="queueBadge" aria-hidden="true" hidden></span></span>
           </div>
-        </div>
-        <!-- Closed captions, where Spotify keeps the lyrics: a sheet at the
-             bottom, shut until it is slid (or tapped) up. Open is on. -->
-        <div class="captions-panel off" id="ccPanel">
-          <div class="cc-toprow" id="ccIcon" onclick="toggleCC()" role="button" tabindex="0" aria-label="Closed captions"><span class="cc-grab" aria-hidden="true"></span><span class="cc-label">Closed captions</span><div class="cc-copybtn" onclick="event.stopPropagation(); copyTranscript()" aria-label="Copy the transcript"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8h10v10H8zM6 6v10"/></svg></div></div>
-          <div class="cc-text" id="cc-text">Displayed here when captions are turned on.</div>
         </div>
       </section>
 
@@ -4357,11 +4424,11 @@
           <div id="profileBody"></div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
-          <div class="tab active" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab active" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
         </div>
       </section>
 
@@ -4386,11 +4453,11 @@
         </label>
         <div class="scroll"><div id="threadList"></div></div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab active" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
         </div>
       </section>
 
@@ -8858,7 +8925,7 @@
       .then(function(d){
         var seen = {}, out = [];
         // Friends only: a tag sends the episode as a message, and messages
-        // go only between people who follow each other (§523).
+        // go only between people who follow each other (§520).
         (d.friends || []).forEach(function(p){
           if(!p.handle || seen[p.handle]) return;
           seen[p.handle] = true;
@@ -9344,14 +9411,13 @@
     });
   }
 
-  // The captions sheet slides: up opens it (and turns captions on), down
-  // shuts it. A tap on its strip does the same as the slide.
+  // The captions card closes with a swipe down, as well as its X (§519).
   (function(){
     var panel = document.getElementById("ccPanel");
     if(!panel) return;
     var y0 = null;
     // Not from inside the transcript while it can still scroll up: that
-    // drag is reading back, not shutting the sheet.
+    // drag is reading back, not closing the card.
     panel.addEventListener("touchstart", function(e){
       var text = document.getElementById("cc-text");
       var inText = text && text.contains(e.target);
@@ -9359,12 +9425,11 @@
     }, { passive: true });
     panel.addEventListener("touchend", function(e){
       if(y0 === null) return;
-      // The sheet's own slide, never the player's swipe to the album's next.
+      // The card's own swipe, never the player's swipe to the album's next.
       e.stopPropagation();
-      var dy = y0 - e.changedTouches[0].clientY;
+      var dy = e.changedTouches[0].clientY - y0;
       y0 = null;
-      var open = panel.classList.contains("on");
-      if((dy > 30 && !open) || (dy < -30 && open)) toggleCC();
+      if(dy > 40 && panel.classList.contains("on")) toggleCC();
     }, { passive: true });
   })();
 
@@ -9455,18 +9520,37 @@
     playQueueNext();
   }
   // The sequence after this one: the playlist's rest, then the queue.
+  // Laid out as a list with room round it (11.9 packet, §519): it ran edge to
+  // edge in 13px rows with nothing beside them, which on a phone read as the
+  // sheet zoomed in. Each row now has its picture (or its place in line), a
+  // title over what it is, and the sheet a heading of its own.
+  function queuePic(thumb, mark){
+    return thumb
+      ? '<span class="q-pic" style="background-image:url(&quot;' + escapeHtml(thumb) + '&quot;)" aria-hidden="true"></span>'
+      : '<span class="q-pic q-pic-empty" aria-hidden="true">' + escapeHtml(mark || "") + '</span>';
+  }
+  function queueRow(title, sub){
+    return '<span class="q-text"><span class="q-title">' + escapeHtml(title) + '</span>'
+      + (sub ? '<span class="q-sub">' + escapeHtml(sub) + '</span>' : '') + '</span>';
+  }
   function openQueue(){
     var card = document.getElementById("sheetCard");
     var t = TOPICS[currentPlayingTopicKey];
     var now = nowBarState ? (nowBarState.title || nowBarState.query) : (t && t.title) || "";
-    var html = '<div class="sheet-scroll">';
+    var nowThumb = (typeof PLAYER_CARD !== "undefined" && PLAYER_CARD.thumb) || (t && t.thumb) || "";
+    var html = '<div class="q-sheet-head"><span class="q-sheet-title">Queue</span></div>';
+    html += '<div class="sheet-scroll q-sheet">';
     html += '<div class="q-group">Now playing</div>'
-      + (now ? '<div class="q-row now"><span class="q-title">' + escapeHtml(now) + '</span></div>'
+      + (now ? '<div class="q-row now">' + queuePic(nowThumb, "\u25B6")
+               + queueRow(now, t && t.mixDetour && mixPlay ? "Going deeper \u00b7 " + (mixPlay.name || "your playlist") + " carries on after" : "")
+               + '</div>'
              : '<div class="q-empty">Nothing is playing.</div>');
     if(mixPlay && mixPlay.order && mixPlay.pos + 1 < mixPlay.order.length){
-      html += '<div class="q-group">Next from ' + escapeHtml(mixPlay.name || "your playlist") + '</div>';
-      mixPlay.order.slice(mixPlay.pos + 1).forEach(function(item){
-        html += '<div class="q-row"><span class="q-title">' + escapeHtml(item.title || item.query || "") + '</span></div>';
+      var mixName = mixPlay.name || "your playlist";
+      html += '<div class="q-group">Next from ' + escapeHtml(mixName) + '</div>';
+      mixPlay.order.slice(mixPlay.pos + 1).forEach(function(item, n){
+        html += '<div class="q-row">' + queuePic(item.thumb || "", String(n + 1))
+          + queueRow(item.title || item.query || "", mixName) + '</div>';
       });
     }
     html += '<div class="q-group">Next in queue</div>';
@@ -9474,8 +9558,9 @@
       html += '<div class="q-empty">Your queue is empty. Add episodes from the three dots on the player or on a DailyFAM tile.</div>';
     }
     QUEUE.forEach(function(e, i){
-      html += '<div class="q-row"><span class="q-title" role="button" tabindex="0" onclick="playFromQueue(' + i + ')">'
-        + escapeHtml(e.title) + '</span><button type="button" class="q-rm" aria-label="Take '
+      html += '<div class="q-row"><span class="q-tap" role="button" tabindex="0" onclick="playFromQueue(' + i + ')">'
+        + queuePic(e.thumb || "", String(i + 1)) + queueRow(e.title, "Queued")
+        + '</span><button type="button" class="q-rm" aria-label="Take '
         + escapeHtml(e.title) + ' out of the queue" onclick="removeFromQueue(' + i + ')">×</button></div>';
     });
     html += '</div><div class="sheet-cancel" onclick="closeSheet()">Close</div>';
@@ -10065,6 +10150,15 @@
         if(mixPlay) mixPlay.failures = 0;   // one played through
         advanceMix(key);
       };
+    } else if(t.mixDetour && mixPlay && mixPlay.key === t.mixDetour){
+      // A Go Deeper off the playlist's episode (§519): the playlist waits
+      // behind it and carries on from the next episode when it ends.
+      var detourOf = t.mixDetour;
+      playOpts.nextUp = false;
+      mixOnEnd = function(){
+        if(mixPlay) mixPlay.failures = 0;
+        advanceMix(detourOf);
+      };
     } else if(!t.fromMix){
       mixPlay = null;
     }
@@ -10092,6 +10186,9 @@
     clearSources();
     panel.dataset.key = key;
     document.getElementById("ccIcon").classList.remove("on");
+    document.getElementById("ccIcon").setAttribute("aria-pressed", "false");
+    // Turned on again if that is how the listener left them (§519).
+    if(captionsWanted()) setTimeout(function(){ if(!captionsOn()) toggleCC(); }, 0);
     // reset play state to "playing"
     setPlayState(true);
 
@@ -10171,6 +10268,15 @@
     }, { passive: true });
   })();
 
+  // Captions stay as the listener left them, episode to episode and visit
+  // to visit (§519): somebody who reads along should not have to turn them
+  // on again for every episode. Per device, a convenience - nothing else.
+  function rememberCaptions(on){
+    try { localStorage.setItem("fam.captions", on ? "1" : "0"); } catch(e){}
+  }
+  function captionsWanted(){
+    try { return localStorage.getItem("fam.captions") === "1"; } catch(e){ return false; }
+  }
   function toggleCC(){
     var panel = document.getElementById("ccPanel");
     var icon = document.getElementById("ccIcon");
@@ -10184,10 +10290,14 @@
       if(captionTimer){ clearInterval(captionTimer); captionTimer = null; }
       renderCaptions();
       icon.classList.remove("on");
+      icon.setAttribute("aria-pressed", "false");
+      rememberCaptions(false);
       return;
     }
     panel.classList.remove("off"); panel.classList.add("on");
     icon.classList.add("on");
+    icon.setAttribute("aria-pressed", "true");
+    rememberCaptions(true);
     // Ask immediately, then keep asking until it lands. The script is written
     // far faster than it is spoken, so this usually resolves on the first try
     // even when captions are turned on during the opening sentence.
@@ -11236,7 +11346,21 @@
       titleOverridden: false,
       private: hush
     };
+    // Going deeper on a myFAM playlist's episode is a detour, never the end
+    // of the playlist (11.9 packet, §519): the follow-up plays, and when it
+    // ends (or is skipped) the playlist carries on with its next episode. A
+    // Go Deeper on that follow-up is the same detour.
+    var detour = mixDetourFor(baseKey);
+    if(detour) TOPICS[newKey].mixDetour = detour;
     generate(newKey);
+  }
+  // The playlist episode `baseKey` belongs to, when a playlist is playing it
+  // (itself, or a follow-up already on its detour); else "".
+  function mixDetourFor(baseKey){
+    if(!mixPlay || !mixPlay.key || !baseKey) return "";
+    if(baseKey === mixPlay.key) return mixPlay.key;
+    var b = TOPICS[baseKey];
+    return (b && b.mixDetour === mixPlay.key) ? mixPlay.key : "";
   }
 
   var FROM_OPTIONS = ["Today","Yesterday","This Week","This Month"];
@@ -12534,7 +12658,19 @@
   // playlist toasting its way to the end is not playing anything.
   var MIX_FAILURES_IN_A_ROW = 2;
   function mixItemFailed(message, err){
-    if(!mixPlay || !mixPlay.key || mixPlay.key !== currentPlayingTopicKey) return false;
+    if(!mixPlay || !mixPlay.key) return false;
+    // A Go Deeper detour that would not play (§519): said, and the playlist
+    // carries on from its next episode rather than waiting behind it.
+    // Read from what was being generated: a follow-up can fail before the
+    // player is populated, while the playlist's episode is still "current".
+    var offKey = lastGenerate ? lastGenerate.key : currentPlayingTopicKey;
+    var off = TOPICS[offKey];
+    if(off && off.mixDetour === mixPlay.key && offKey !== mixPlay.key){
+      toast("That follow-up couldn\u2019t play \u2014 back to your playlist.");
+      advanceMix(mixPlay.key);
+      return true;
+    }
+    if(mixPlay.key !== currentPlayingTopicKey) return false;
     var from = mixPlay.key;
     var t = TOPICS[from];
     var what = t ? t.title.replace(/ \u00b7 today$/, "") : "That episode";
@@ -19071,7 +19207,7 @@
 
   var threadShown = { thread: "", keys: {} };
   // The server's sentence when this group holds people the listener is not
-  // friends with (§523); nothing otherwise.
+  // friends with (§520); nothing otherwise.
   function threadWarnHTML(){
     var w = (currentThread && currentThread.warning) || "";
     return w ? '<div class="thread-warn" role="note">' + escapeHtml(w) + '</div>' : "";
@@ -19305,7 +19441,7 @@
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         // Friends only - messages go only between people who follow each
-        // other (§523).
+        // other (§520).
         var people = (d.friends || []);
         var seen = {}, unique = [];
         people.forEach(function(person){
@@ -20065,7 +20201,7 @@
         if(seq !== shareSheetSeq) return;
         var seen = {};
         var people = [];
-        // Friends only (§523).
+        // Friends only (§520).
         (d.friends || []).forEach(function(person){
           if(seen[person.user_id]) return;
           seen[person.user_id] = true;

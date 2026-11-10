@@ -214,7 +214,7 @@ struct InboxRow: View {
 }
 
 /// New message (`#newChatOverlay`, shots 08-10): pick one or more friends
-/// (mutual follows only, §523) - one is a chat, two or more a group with an
+/// (mutual follows only, §520) - one is a chat, two or more a group with an
 /// optional name -
 /// or find somebody by name or @handle and pick from what comes back (the
 /// web says "Name or phone number" and opens the first hit blindly;
@@ -428,7 +428,7 @@ struct NewMessageCard: View {
     }
 
     private func go(_ chat: ChatOpen) {
-        // One-to-one only with a friend (§523): the server's own sentence,
+        // One-to-one only with a friend (§520): the server's own sentence,
         // before a conversation that could not send opens. With no graph to
         // ask, the conversation opens and the server decides on the send.
         if !chat.group && social.graph != nil && !social.isFriend(chat.with) {

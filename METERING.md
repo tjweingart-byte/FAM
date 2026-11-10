@@ -185,7 +185,7 @@ cost.
 
 * **It does not enforce anything itself.** Metering only records. Limits are
   `quotas.py` and `entitlements.py`, switched on by `ENFORCE_QUOTAS=1` — set on
-  the production service in `render.yaml` since §207, off by default for local
+  the production service from §207, set back to `0` there by §519 (everyone unlimited for now), off by default for local
   runs, tests and staging.
 * **It does not bill anyone.** There is no payment processor, no invoice, no
   Stripe. `plan` decides limits, not charges.

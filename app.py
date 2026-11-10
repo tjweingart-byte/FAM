@@ -3577,7 +3577,7 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
                         "me": uid == me,
                         # Whether this listener and that member follow each
                         # other. Whoever made the group is friends with all
-                        # of it; the others may not be (§523).
+                        # of it; the others may not be (§520).
                         "friend": uid != me and _mutual(me, uid)})
     others = [m for m in members if not m["me"]]
     name = group.get("name") or ", ".join(
@@ -3591,7 +3591,7 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
 
 def _group_warning(strangers: list[dict]) -> str:
     """The sentence a member reads when the group holds people they are not
-    friends with (§523): who, and what that means. Composed here so every
+    friends with (§520): who, and what that means. Composed here so every
     client says the same thing; "" when they are friends with everyone."""
     if not strangers:
         return ""
@@ -3923,7 +3923,7 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
             MODERATION.is_apart(user, req.to) or MODERATION.is_suspended(req.to)):
         raise HTTPException(status_code=403, detail="You can't message this person.")
     # A one-to-one message goes only between friends - two people who follow
-    # each other (the owner's rule, PROBLEMS.md §523). An id is not a
+    # each other (the owner's rule, PROBLEMS.md §520). An id is not a
     # permission: knowing somebody's id must not open a conversation.
     if not messages_mod.is_group(req.to) and not _mutual(user, req.to):
         raise HTTPException(status_code=403, detail=(
@@ -3984,7 +3984,7 @@ async def messages_new_group(req: GroupRequest, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     _require_can_post(user)
-    # Friends only, as one-to-one (§523): a group is not a way round it.
+    # Friends only, as one-to-one (§520): a group is not a way round it.
     graph = {p["user_id"] for p in _without_apart(user, SOCIAL.following(user))
              if _mutual(user, p["user_id"])}
     picked = [u for u in dict.fromkeys(req.user_ids) if u in graph]

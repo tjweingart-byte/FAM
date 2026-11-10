@@ -274,12 +274,12 @@ struct PersonView: View {
         .contentShape(Rectangle())
     }
 
-    /// Message (gold, friends only - §523) + Following / Follow; with no id - somebody reached
+    /// Message (gold, friends only - §520) + Following / Follow; with no id - somebody reached
     /// through a friend's friends - only Follow, by handle.
     @ViewBuilder private var actions: some View {
         HStack(spacing: 7) {
             if !userID.isEmpty {
-                // Message only between friends (§523); the server refuses
+                // Message only between friends (§520); the server refuses
                 // anyone else.
                 if social.isFriend(userID) {
                 Button { message() } label: {

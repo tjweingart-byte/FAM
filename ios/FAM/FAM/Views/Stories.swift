@@ -165,7 +165,7 @@ struct FacesRow: View {
     /// `openCircleFace`: the profile by handle, else a conversation.
     private func openFace(_ p: CirclePerson) {
         if p.handle.isEmpty {
-            // A conversation only with a friend (§523).
+            // A conversation only with a friend (§520).
             guard model.social.isFriend(p.userId) else {
                 model.nowPlaying.say("You can message people who follow you back.")
                 return
