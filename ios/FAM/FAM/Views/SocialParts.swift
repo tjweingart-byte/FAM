@@ -684,6 +684,8 @@ struct SocialScreen: View {
             PersonView(open: open)
         case .friends:
             FriendsView()
+        case .topic(let open):
+            TopicView(open: open)
         }
     }
 }

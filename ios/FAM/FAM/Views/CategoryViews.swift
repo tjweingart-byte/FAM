@@ -22,12 +22,12 @@ struct CategoryChip: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 if starred {
-                    StarShape().fill(on ? Color.white : FAMColor.copper).frame(width: 11, height: 11)
+                    StarShape().fill(on ? FAMColor.background : FAMColor.copper).frame(width: 11, height: 11)
                         .accessibilityLabel("Following")
                 }
                 Text(label)
                     .font(FAMFont.body(12.5, .semibold))
-                    .foregroundStyle(on ? Color.white : (dashed ? FAMColor.textMuted : FAMColor.text))
+                    .foregroundStyle(on ? FAMColor.background : (dashed ? FAMColor.textMuted : FAMColor.text))
                     .lineLimit(1)
                     .fixedSize()
             }

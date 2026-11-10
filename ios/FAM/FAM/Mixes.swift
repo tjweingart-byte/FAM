@@ -319,6 +319,9 @@ struct MixPlaylist: Equatable {
     /// where it was once the detour is over (the owner's call, differing
     /// from the web's §519, which moves on to the next episode).
     var interrupted: InterruptedItem?
+    /// The episode key already taken out of its mix (`mixPlay.removedKey`):
+    /// a second press must not take the one before it.
+    var removedKey: String = ""
     /// Nil while `pos` is -1: the item playing was taken out of the
     /// playlist and the next one is still to come.
     var current: MixItem? { pos >= 0 && pos < order.count ? items[order[pos]] : nil }

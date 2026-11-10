@@ -5,6 +5,9 @@ import SwiftUI
 @main
 struct FAMApp: App {
     @StateObject private var model = AppModel()
+    /// Settings' "Dark mode", on this device only (the web's `fam.theme`):
+    /// light unless it says dark (§250).
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.light
 
     init() {
         // A proper picture cache (a faster start): the cards' pictures
@@ -26,9 +29,14 @@ struct FAMApp: App {
                 .environmentObject(model.social)
                 .environmentObject(model.you)
                 .tint(FAMColor.copper)
-                // Light only (§250); the system's chrome goes dark over
-                // private search's charcoal while that screen shows.
-                .preferredColorScheme(model.darkChrome ? .dark : .light)
+                // Every colour resolves in the theme this device chose,
+                // whatever the window's scheme is...
+                .famThemed()
+                // ...and the window's - the status bar, the keyboard, the
+                // system's sheets - is that theme, or dark over private
+                // search's charcoal while that screen shows, which holds in
+                // either theme (`#screen-home.private-search`).
+                .preferredColorScheme(model.darkChrome ? .dark : FAMTheme.scheme(theme))
                 .task { await model.open() }
                 // Google's sign-in comes back to the app through its URL scheme.
                 .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
@@ -196,6 +204,7 @@ struct MainTabs: View {
                     .environmentObject(social)
                     .environmentObject(model.you)
                     .overlay { ConsentLayer(consent: model.consent, say: { model.nowPlaying.say($0) }) }
+                    .famThemed()
             }
             // A rail's View more is a screen of its own on the web, with
             // neither the tab bar nor the mini player.
@@ -247,6 +256,7 @@ struct MainTabs: View {
             QueueSheet()
                 .environmentObject(model)
                 .environmentObject(now)
+                .famThemed()
         }
         .overlay(alignment: .top) { SocialBannerLayer() }
         .overlay {
@@ -324,6 +334,7 @@ struct MainTabs: View {
                 .overlay(alignment: .top) { SocialBannerLayer().environmentObject(social) }
                 // A typed Go Deeper asks the AI question over the player.
                 .overlay { ConsentLayer(consent: model.consent, say: { model.nowPlaying.say($0) }) }
+                .famThemed()
         }
     }
 }

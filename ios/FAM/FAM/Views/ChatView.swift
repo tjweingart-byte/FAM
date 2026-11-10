@@ -195,8 +195,8 @@ struct ChatScreen: View {
             }
             if !who.group && !chipLabels.isEmpty {
                 FlowRow(spacing: 7) {
-                    ForEach(chipLabels, id: \.self) { label in
-                        InterestChip(label: label)
+                    ForEach(person?.topics ?? [], id: \.self) { topic in
+                        InterestChipButton(topic: topic) { social.open(.topic($0)) }
                     }
                     if inCommon > 0 {
                         InterestChip(label: "\(inCommon) in common", common: true)
@@ -947,7 +947,7 @@ struct SharedEpisodeCard: View {
         .padding(11)
         .frame(maxWidth: 236, alignment: .leading)
         .background(FAMColor.surface2, in: ChatShape.bubble(mine: mine))
-        .overlay(ChatShape.bubble(mine: mine).stroke(Color(red: 30 / 255, green: 27 / 255, blue: 39 / 255).opacity(0.14)))
+        .overlay(ChatShape.bubble(mine: mine).stroke(FAMColor.text.opacity(0.14)))
     }
 
     private var actions: some View {

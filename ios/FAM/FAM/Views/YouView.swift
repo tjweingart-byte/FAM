@@ -18,8 +18,9 @@ struct YouView: View {
     @State private var story: StoryReel?
     @AppStorage("storiesSeen") private var seenJSON = "{}"
 
-    /// The top strip's wash (`.screen-top`: copper 24% over the page).
-    static let wash = Color(hex: 0xEADDC7)
+    /// The top strip's wash (`.screen-top`: copper 24% over the page), in
+    /// either theme.
+    static let wash = FAMColor.wash
 
     var body: some View {
         NavigationStack(path: $model.youPath) {
@@ -267,8 +268,8 @@ struct YouView: View {
     // MARK: - Interests (`interests_shown`, at most `interests_max`)
 
     /// One line that scrolls sideways, cut at the edge on purpose; the
-    /// server chose them and the order. Chips open nothing on iOS - there
-    /// is no Topic screen - so they are not buttons (`no-dead-controls`).
+    /// server chose them and the order. Each chip opens its Topic screen
+    /// (`openInterestAt`).
     private func interests(_ p: MyProfile) -> some View {
         let limit = max(1, p.interestsMax ?? 5)
         let shown = Array((p.interestsShown ?? []).prefix(limit))
@@ -290,7 +291,8 @@ struct YouView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(shown, id: \.id) { i in
-                            InterestChip(label: i.label ?? i.id, height: 26, size: 11)
+                            InterestChipButton(topic: TopicOpen(id: i.id, label: i.label ?? i.id),
+                                               height: 26, size: 11) { model.youPath.append(.topic($0)) }
                         }
                     }
                     .padding(.vertical, 1)
@@ -475,6 +477,7 @@ struct YouScreen: View {
         case .history: HistoryView()
         case .myVibe: MyVibeView()
         case .signInMethods: SignInMethodsView()
+        case .topic(let open): TopicView(open: open)
         }
     }
 }

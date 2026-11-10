@@ -3,7 +3,8 @@ import SwiftUI
 
 // MARK: - The two palettes of searchFAM
 
-/// searchFAM's colours: the light theme, or the private charcoal
+/// searchFAM's colours: the theme's own (`light` is the app's tokens, which
+/// follow Settings' "Dark mode"), or the private charcoal
 /// (`#screen-home.private-search`, index.html:219-228), which holds in either
 /// theme and covers only the search screen and its tab bar - never the
 /// player, the sheets or the voice search screen (shots 11, 37).

@@ -9,7 +9,7 @@ import UIKit
 /// choice), the private note, and the five trending searches.
 ///
 /// Private search turns this screen and its tab bar charcoal; the player,
-/// the sheets and voice search stay light, as on the web. Length goes back
+/// the sheets and voice search stay in the chosen theme, as on the web. Length goes back
 /// to 1.5 whenever the app returns. "Hey FAM" is not on iOS 1.0, so there
 /// is no control for it (`no-dead-controls`).
 struct SearchView: View {
@@ -92,12 +92,15 @@ struct SearchView: View {
         .fullScreenCover(isPresented: $library) {
             CatalogView()
                 .environmentObject(model)
+                .famThemed()
         }
         .sheet(item: $sheet) { kind in
             YouSheet(items: items(for: kind)).environmentObject(model)
+                .famThemed()
         }
         .fullScreenCover(isPresented: $linkOpen) {
             LinkModal { url in attach.addLink(url) }
+                .famThemed()
         }
         .background(pickers)
         // Built the first time searchFAM is shown (a faster start), so this

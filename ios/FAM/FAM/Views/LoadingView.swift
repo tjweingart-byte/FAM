@@ -204,7 +204,10 @@ struct LoadingView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(FAMColor.text)
                     .frame(width: 34, height: 34)
-                    .background(Color.black.opacity(0.06), in: Circle())
+                    // `.fam-loading-x`'s rgba(0,0,0,.18) in dark; light keeps
+                    // its own lighter wash.
+                    .background(Color(light: 0x000000, lightAlpha: 0.06, dark: 0x000000, darkAlpha: 0.18),
+                                in: Circle())
                     .overlay(Circle().stroke(FAMColor.borderStrong))
             }
             .padding(.top, 18)

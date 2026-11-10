@@ -1,31 +1,69 @@
 import SwiftUI
 
 /// The web app's look, as one place every screen reads from. The values are
-/// `static/index.html`'s light theme (`:root` / `html[data-theme="light"]`,
-/// the default since §250) and its type rule (`typefaces`): Bricolage
-/// Grotesque for headings, Geist for body, Geist Mono for labels. A CSS pixel
-/// is a point here - the web is drawn for a 390-point phone - so its sizes
-/// carry over as they are. Change the look there and here together.
+/// `static/index.html`'s two themes: light (`html[data-theme="light"]`, the
+/// default since §250) and dark (the `:root` block, the listener's choice in
+/// Settings, "Dark mode", kept on this device under `fam.theme`). Every
+/// token resolves by the trait it is drawn in (`Color(light:dark:)`), so the
+/// root's colour scheme (`FAMApp`, `FAMTheme`) is the only switch. Its type
+/// rule (`typefaces`): Bricolage Grotesque for headings, Geist for body,
+/// Geist Mono for labels. A CSS pixel is a point here - the web is drawn for a
+/// 390-point phone - so its sizes carry over as they are. Change the look
+/// there and here together.
 enum FAMColor {
-    static let page = Color(hex: 0xE9E3D6)
-    static let background = Color(hex: 0xFFFFFF)
-    static let surface = Color(hex: 0xF7F3EA)
-    static let surface2 = Color(hex: 0xEEE8DC)
-    static let paper = Color(hex: 0xE6DECD)
-    /// The thumbnail's ground while its picture loads (`.seed-thumb`).
+    static let page = Color(light: 0xE9E3D6, dark: 0x1E1B27)
+    static let background = Color(light: 0xFFFFFF, dark: 0x2A2733)
+    static let surface = Color(light: 0xF7F3EA, dark: 0x38334A)
+    static let surface2 = Color(light: 0xEEE8DC, dark: 0x423C56)
+    static let paper = Color(light: 0xE6DECD, dark: 0xF4EFE4)
+    /// The thumbnail's ground while its picture loads (`.seed-thumb`): a
+    /// literal on the web, the same in both themes.
     static let thumb = Color(hex: 0xEDE6D6)
-    static let copper = Color(hex: 0xA87520)
-    static let coral = Color(hex: 0xC4502F)
-    static let sage = Color(hex: 0x5C8669)
-    /// GO DEEPER's yellow (`--deeper`).
+    static let copper = Color(light: 0xA87520, dark: 0xE0B563)
+    static let coral = Color(light: 0xC4502F, dark: 0xE2694F)
+    static let sage = Color(light: 0x5C8669, dark: 0x8FAE9A)
+    /// GO DEEPER's yellow (`--deeper`), the same in both themes.
     static let deeper = Color(hex: 0xFFD23F)
-    static let text = Color(hex: 0x1E1B27)
-    static let textMuted = Color(hex: 0x5E5770)
-    static let textFaint = Color(hex: 0x7D768C)
-    /// Text on copper or yellow (`--ink`).
+    static let text = Color(light: 0x1E1B27, dark: 0xF4EFE4)
+    static let textMuted = Color(light: 0x5E5770, dark: 0xABA3C4)
+    static let textFaint = Color(light: 0x7D768C, dark: 0x8A83A0)
+    /// Text on copper or yellow (`--ink`), the same in both themes.
     static let ink = Color(hex: 0x18151F)
-    static let border = Color(red: 30 / 255, green: 27 / 255, blue: 39 / 255).opacity(0.12)
-    static let borderStrong = Color(red: 30 / 255, green: 27 / 255, blue: 39 / 255).opacity(0.22)
+    static let border = Color(light: 0x1E1B27, lightAlpha: 0.12, dark: 0xF4EFE4, darkAlpha: 0.10)
+    static let borderStrong = Color(light: 0x1E1B27, lightAlpha: 0.22, dark: 0xF4EFE4, darkAlpha: 0.20)
+    /// YourFAM's and a friend's hero wash at its top (`.screen-top`,
+    /// `.yf-bar`: `color-mix(in srgb, var(--copper) 24%, var(--bg))`).
+    static let wash = Color(light: 0xEADEC9, dark: 0x56493E)
+}
+
+/// The theme this device chose (Settings, "Dark mode"): the web's
+/// `fam.theme`, its own key rather than the preferences, so signing out
+/// never changes the colours. Light unless it says "dark" (§250).
+enum FAMTheme {
+    static let key = "fam.theme"
+    static let light = "light"
+    static let dark = "dark"
+
+    static func scheme(_ stored: String) -> ColorScheme {
+        stored == dark ? .dark : .light
+    }
+}
+
+/// Draws its content in the theme this device chose. The root carries it;
+/// a sheet or cover that can open while the window is dark for private
+/// search's charcoal (`AppModel.darkChrome`) carries it too, since a
+/// presentation takes its scheme from the window rather than the view that
+/// presents it.
+struct FAMThemed: ViewModifier {
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.light
+
+    func body(content: Content) -> some View {
+        content.environment(\.colorScheme, FAMTheme.scheme(theme))
+    }
+}
+
+extension View {
+    func famThemed() -> some View { modifier(FAMThemed()) }
 }
 
 extension Color {
@@ -33,6 +71,30 @@ extension Color {
         self.init(red: Double((hex >> 16) & 0xFF) / 255,
                   green: Double((hex >> 8) & 0xFF) / 255,
                   blue: Double(hex & 0xFF) / 255)
+    }
+
+    /// One colour per theme, chosen by the trait it is drawn in.
+    init(light: UInt32, dark: UInt32) {
+        self.init(light: light, lightAlpha: 1, dark: dark, darkAlpha: 1)
+    }
+
+    /// One colour per theme with its own opacity (the web's
+    /// `rgba(var(--fg-rgb), a)` borders).
+    init(light: UInt32, lightAlpha: CGFloat, dark: UInt32, darkAlpha: CGFloat) {
+        self.init(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(famHex: dark, alpha: darkAlpha)
+                : UIColor(famHex: light, alpha: lightAlpha)
+        })
+    }
+}
+
+extension UIColor {
+    convenience init(famHex hex: UInt32, alpha: CGFloat = 1) {
+        self.init(red: CGFloat((hex >> 16) & 0xFF) / 255,
+                  green: CGFloat((hex >> 8) & 0xFF) / 255,
+                  blue: CGFloat(hex & 0xFF) / 255,
+                  alpha: alpha)
     }
 }
 

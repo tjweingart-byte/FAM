@@ -103,7 +103,8 @@ def test_the_listener_fields_are_sent(monkeypatch):
         "email": "ios-contract@example.com", "password": "password12",
         "accept_terms": True, "want_token": True}).json()
     fields = _fields("Listener")
-    assert fields <= set(signup), sorted(fields - set(signup))
+    # `activation_needed` is `/me`'s alone (§411); a sign-up decodes it nil.
+    assert fields - {"activation_needed"} <= set(signup), sorted(fields - set(signup))
     token = signup["session_token"]
     me = c.get("/api/v1/auth/me", headers={**headers, "Authorization": "Bearer " + token}).json()
     required = fields - {"session_token", "display_name", "status"}
@@ -349,3 +350,30 @@ def test_the_subject_icons_are_the_webs():
     run = subprocess.run([sys.executable, str(ROOT / "tools" / "ios_icons.py"), "--check"],
                          capture_output=True, text=True)
     assert run.returncode == 0, run.stderr
+
+
+def test_the_topic_screen_and_story_cards_decode(monkeypatch):
+    """The Topic screen behind every interest chip reads `/api/interest`, and
+    the share sheets' story cards come from the `card` the share answers carry
+    (an SVG the app rasterises to a PNG)."""
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    c = TestClient(appmod.app)
+    headers = {"X-FAM-Client": "ios/1.0.0+2"}
+    page = c.get("/api/v1/interest", headers=headers,
+                 params={"id": "f:nfl", "label": "NFL", "filter": "latest", "offset": 0}).json()
+    assert _fields("InterestPage") <= set(page), sorted(_fields("InterestPage") - set(page))
+    friends = c.get("/api/v1/interest", headers=headers,
+                    params={"id": "f:nfl", "label": "NFL", "filter": "friends"}).json()
+    assert "reason" in friends and "episodes" in friends
+    src = inspect.getsource(appmod.interest_episodes)
+    for field in _fields("InterestCard") | _fields("InterestVibedBy"):
+        assert f'"{field}"' in src or f"{field}=" in src, field
+    share = c.post("/api/v1/share", headers=headers,
+                   json={"query": "why is the sky blue", "minutes": 1.5, "title": "Sky"}).json()
+    assert _fields("SharedLink") <= set(share), sorted(_fields("SharedLink") - set(share))
+    from urllib.parse import urlsplit
+    where = urlsplit(share["card"])
+    card = c.get(where.path + ("?" + where.query if where.query else ""), headers=headers)
+    assert card.status_code == 200 and "<svg" in card.text
+    assert '"card"' in inspect.getsource(appmod.share_mix)

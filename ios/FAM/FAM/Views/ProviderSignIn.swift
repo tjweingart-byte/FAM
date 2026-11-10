@@ -22,6 +22,10 @@ struct ProviderButtons: View {
     var showGoogle = true
 
     @State private var appleNonce = ""
+    /// Dark mode (Settings): the web has neither button, so each follows its
+    /// maker's own rule - Apple's white button and Google's dark one on a
+    /// dark page.
+    @Environment(\.colorScheme) private var scheme
 
     private var enabled: Bool { (!making || agreed) && !working }
 
@@ -41,14 +45,14 @@ struct ProviderButtons: View {
             } onCompletion: { result in
                 Task { await finishApple(result) }
             }
-            .signInWithAppleButtonStyle(.black)
+            .signInWithAppleButtonStyle(scheme == .dark ? .white : .black)
             .frame(height: 46)
             .clipShape(Capsule())
             .disabled(!enabled)
             .opacity(enabled ? 1 : 0.45)
             // Apple's button sets its words once; a new id makes it redraw
             // when Log in and Sign up switch.
-            .id("apple-\(making)-\(linking)")
+            .id("apple-\(making)-\(linking)-\(scheme == .dark)")
             }
 
             if showGoogle && Self.googleConfigured {
@@ -57,11 +61,11 @@ struct ProviderButtons: View {
                         GoogleMark().frame(width: 18, height: 18)
                         Text(linking ? "Continue with Google" : making ? "Sign up with Google" : "Sign in with Google")
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Color.black.opacity(0.85))
+                            .foregroundStyle(scheme == .dark ? Color(hex: 0xE3E3E3) : Color.black.opacity(0.85))
                     }
                     .frame(maxWidth: .infinity, minHeight: 46)
-                    .background(Color.white, in: Capsule())
-                    .overlay(Capsule().stroke(Color(hex: 0x747775)))
+                    .background(scheme == .dark ? Color(hex: 0x131314) : Color.white, in: Capsule())
+                    .overlay(Capsule().stroke(Color(hex: scheme == .dark ? 0x8E918F : 0x747775)))
                 }
                 .buttonStyle(.press)
                 .disabled(!enabled)

@@ -387,6 +387,7 @@ struct PlayerView: View {
         case .share: ShareSheet()
         case .speed: ActionSheetList(items: speedItems)
         case .length: ActionSheetList(items: lengthItems)
+        case .voice: ActionSheetList(items: voiceItems)
         case .addToMix: AddToMixSheet(query: now.episode?.key.query ?? "", title: now.title)
         case .report:
             if let ep = now.episode {
@@ -410,6 +411,22 @@ struct PlayerView: View {
         return items
     }
 
+    /// `openVoiceMenu` from the Playback modal (a search only): "Voice for
+    /// your searches", the bank with a tick on the chosen one; a new voice
+    /// is the same episode voiced again (`AppModel.revoice`).
+    private var voiceItems: [ActionItem] {
+        var items = [ActionItem(label: "Voice for your searches", group: true)]
+        let page = model.voices
+        let selected = page?.selected ?? ""
+        for v in page?.voices ?? [] {
+            let label = v.label + (v.id == selected ? "  \u{2713}" : "")
+            let id = v.id
+            let name = v.label
+            items.append(ActionItem(label: label, action: { model.revoice(id, label: name) }))
+        }
+        return items
+    }
+
     /// `openLengthMenu` (a search only): a new length is a new episode.
     private var lengthItems: [ActionItem] {
         guard let ep = now.episode else { return [] }
@@ -429,7 +446,7 @@ struct PlayerView: View {
 }
 
 enum PlayerSheet: String, Identifiable {
-    case menu, queue, vibe, share, report, addToMix, speed, length
+    case menu, queue, vibe, share, report, addToMix, speed, length, voice
     var id: String { rawValue }
 }
 
@@ -616,7 +633,7 @@ struct SourceMark: View {
             if host.contains("."), let url = URL(string: "https://\(host)/favicon.ico") {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFit().padding(size * 0.15)
-                        .background(Circle().fill(Color.white))
+                        .background(Circle().fill(FAMColor.paper))
                 } placeholder: { Color.clear }
                 .clipShape(Circle())
             }

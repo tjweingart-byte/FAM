@@ -10,6 +10,8 @@ import UIKit
 /// there (`intro-not-on-stack`, quirk Q3 not copied).
 enum YouRoute: Hashable {
     case settings, saved, history, myVibe, signInMethods
+    /// One of the hub's interest chips (`openInterestAt`).
+    case topic(TopicOpen)
 }
 
 /// The steps after an account is made or signed in (`afterAccount`): who

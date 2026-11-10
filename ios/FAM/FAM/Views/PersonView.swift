@@ -31,7 +31,7 @@ struct PersonView: View {
     @AppStorage("storiesSeen") private var seenJSON = "{}"
 
     /// `.yf-person .yf-hero`'s wash, the top bar's colour at the top.
-    private static let wash = Color(hex: 0xEADEC9)
+    private static let wash = FAMColor.wash
 
     private var handle: String { page?.handle ?? open.handle }
     private var name: String {
@@ -336,8 +336,8 @@ struct PersonView: View {
                 Text("Interests").monoLabel(10, color: FAMColor.copper, tracking: 1.6)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
-                        ForEach(labels, id: \.self) { label in
-                            InterestChip(label: label, height: 26, size: 11)
+                        ForEach(page?.topics ?? [], id: \.self) { topic in
+                            InterestChipButton(topic: topic, height: 26, size: 11) { social.open(.topic($0)) }
                         }
                         if common > 0 {
                             InterestChip(label: "\(common) in common", common: true, height: 26, size: 11)

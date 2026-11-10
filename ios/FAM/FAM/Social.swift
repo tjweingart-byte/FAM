@@ -16,6 +16,8 @@ enum SocialRoute: Hashable {
     case thread(ChatOpen)
     case person(PersonOpen)
     case friends
+    /// An interest chip's Topic screen (`openTopic`).
+    case topic(TopicOpen)
 }
 
 /// What the caller knew about a conversation when it opened it: the header

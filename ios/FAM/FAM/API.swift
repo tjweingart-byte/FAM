@@ -557,6 +557,9 @@ struct Listener: Decodable, Equatable {
     let displayName: String?
     let status: String?
     let sessionToken: String?
+    /// The activation step is still owed (§411): only `/api/auth/me` says
+    /// so (a sign-up or log-in answer leaves it out, and it decodes nil).
+    let activationNeeded: Bool?
 
     /// Waiting for a place while the waitlist runs (`waitlist.WAITLISTED`).
     var waitlisted: Bool { status == "waitlisted" }
@@ -981,6 +984,9 @@ struct SavedState: Decodable { let saved: Bool }
 struct SharedLink: Decodable {
     let url: String
     let targets: [String: ShareTarget]?
+    /// The story card (`/api/share/card?share=`), absolute where the server
+    /// knows its own address, else a path on it.
+    let card: String?
     /// False when the server has no public address: the link only works
     /// on its own network.
     let `public`: Bool?
@@ -1204,6 +1210,35 @@ extension FAMAPI {
         try await get("api/v1/profile", [], as: ProfileSummary.self)
     }
 
+    /// One interest's episodes (`/api/interest`, the Topic screen behind
+    /// every interest chip): `latest` or `friends`, a page at `offset`.
+    /// Generates nothing.
+    func interest(id: String, label: String, filter: String, offset: Int) async throws -> InterestPage {
+        try await get("api/v1/interest", [URLQueryItem(name: "id", value: id),
+                                          URLQueryItem(name: "label", value: label),
+                                          URLQueryItem(name: "filter", value: filter),
+                                          URLQueryItem(name: "offset", value: String(offset))],
+                      as: InterestPage.self)
+    }
+
+    /// A story card's SVG (`sharing.story_card`), from the address the share
+    /// answer gave. The session goes only to this server, never elsewhere.
+    func storyCardSVG(_ card: String) async throws -> String {
+        guard let url = URL(string: card, relativeTo: base)?.absoluteURL else { throw FAMError.unreadable }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue(Self.client, forHTTPHeaderField: "X-FAM-Client")
+        if url.host == base.host, let token {
+            req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await readPaced(req)
+        try Self.check(response, data)
+        guard let text = String(data: data, encoding: .utf8), text.contains("<svg") else {
+            throw FAMError.unreadable
+        }
+        return text
+    }
+
     /// What an episode is about, as a mix topic (`/api/episode/topic`).
     func episodeTopic(query: String, title: String) async throws -> EpisodeTopic {
         try await get("api/v1/episode/topic", [URLQueryItem(name: "q", value: query),
@@ -1375,12 +1410,39 @@ struct MixShare: Decodable {
     let url: String
     let `public`: Bool
     let targets: [String: ShareTarget]?
+    /// The mix's story card (`/api/mixes/{id}/card`).
+    let card: String?
 }
 
 struct PushStatus: Decodable {
     let available: Bool
     let reason: String?
     let subscribed: Bool?
+}
+
+/// `GET /api/interest`: the cards, whether there are more, and - for an
+/// empty page - the server's sentence why.
+struct InterestPage: Decodable {
+    let label: String?
+    let episodes: [InterestCard]
+    let more: Bool?
+    let reason: String?
+}
+
+/// One card on the Topic screen: a question and its original length; a
+/// friend's vibe says who.
+struct InterestCard: Decodable, Hashable {
+    let query: String
+    let title: String?
+    let minutes: Double?
+    let source: String?
+    let vibedBy: InterestVibedBy?
+}
+
+struct InterestVibedBy: Decodable, Hashable {
+    let name: String?
+    let handle: String?
+    let avatar: String?
 }
 
 /// A catalogue subject (`id` like `f:nfl~Eagles`), or a typed topic

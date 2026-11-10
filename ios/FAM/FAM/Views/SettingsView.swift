@@ -27,6 +27,8 @@ struct SettingsView: View {
     @State private var textAsk: TextAsk?
     @State private var page: LegalPage?
     @AppStorage(FAMAPI.zoneKey) private var pinnedZone = ""
+    /// "Dark mode", on this device only (`fam.theme`, the web's key).
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.light
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +36,7 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     youGroup
+                    appearanceGroup
                     listeningGroup
                     PrivacyRows(consent: model.consent, open: open)
                     accountGroup
@@ -81,6 +84,20 @@ struct SettingsView: View {
         guard let a = you.activation else { return "" }
         let g = a.gender ?? ""
         return (a.genders ?? []).first { $0.id == g }?.label ?? "Not set"
+    }
+
+    // MARK: - Appearance
+
+    /// The web's row (`setTheme`): "Dark mode", On or Off, a tap turns it
+    /// the other way. Light is the default (§250); the choice is this
+    /// device's and survives signing out.
+    private var appearanceGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SetGroup(text: "Appearance")
+            SetRow(label: "Dark mode", value: theme == FAMTheme.dark ? "On" : "Off") {
+                theme = theme == FAMTheme.dark ? FAMTheme.light : FAMTheme.dark
+            }
+        }
     }
 
     // MARK: - Listening

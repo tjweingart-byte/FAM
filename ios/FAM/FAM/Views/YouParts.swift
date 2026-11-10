@@ -366,12 +366,15 @@ extension View {
 /// The sign-up steps (`firstRunStep`): three marks, copper up to this one.
 struct StepMarks: View {
     let step: Int
+    /// The unfilled marks (`--border-strong` on the page): light's measured
+    /// grey, or dark's border over the dark page.
+    private static let track = Color(light: 0xD6D2CB, dark: 0x524F56)
 
     var body: some View {
         HStack(spacing: 5) {
             ForEach(1...3, id: \.self) { i in
                 Capsule()
-                    .fill(i <= step ? FAMColor.copper : Color(hex: 0xD6D2CB))
+                    .fill(i <= step ? FAMColor.copper : Self.track)
                     .frame(width: 18, height: 3)
             }
         }

@@ -114,7 +114,7 @@ final class AppModel: ObservableObject {
     /// the listener closes it without searching.
     private var resumeAfterVoice = false
     /// The status bar and keyboard over private search's charcoal
-    /// (`SearchView.chromeDark`); light everywhere else.
+    /// (`SearchView.chromeDark`); the chosen theme everywhere else.
     @Published var darkChrome = false
     let speller: Speller
     let attachments: AttachModel
@@ -852,6 +852,25 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// The Playback modal's Voice row (`voiceItem` from the player): a pick
+    /// for the next search (`voice_picked`), kept on the server first; then,
+    /// for a searched episode on the player, "Switching to …" and the same
+    /// episode asked again in that voice - the cached script reused, only
+    /// the audio new (§447).
+    func revoice(_ id: String, label: String) {
+        voicePicked = true
+        guard let page = voices, id != (page.selected ?? "") else { return }
+        voices = VoicesPage(selected: id, voices: page.voices)
+        let ep = nowPlaying.episode
+        let again = showPlayer && ep?.surface == "search" ? ep : nil
+        if again != nil { nowPlaying.say("Switching to " + label) }
+        Task {
+            try? await api.chooseVoice(id)
+            await you.loadSettings()
+            if let again { play(again) }
+        }
+    }
+
     /// The voice a search is sent in: the listener's choice, else none (the
     /// server's own default).
     var searchVoice: String { voices?.selected ?? "" }
@@ -1359,12 +1378,17 @@ extension AppModel {
 
     /// The player's "Remove from this playlist": a `remove` operation, never
     /// the whole list (§498); this episode plays on and the next one follows.
+    /// Somebody else's public mix, or an entry already gone from the mix:
+    /// "That playlist has changed", as the web says (`mixById` finds none).
     func removeFromPlayingMix() {
-        guard let list = mixPlay, list.mine, let item = list.current,
+        guard var list = mixPlay, !list.mixID.isEmpty, list.removedKey != list.key else { return }
+        guard list.mine, let item = list.current,
               mixes.mix(list.mixID)?.items.contains(where: { $0.id == item.id }) == true else {
             nowPlaying.say("That playlist has changed")
             return
         }
+        list.removedKey = list.key
+        mixPlay = list
         let name = list.name
         let mixID = list.mixID
         Task {
@@ -1391,11 +1415,13 @@ extension AppModel {
     }
 
     /// Only while the playlist plays its own entry - not during a detour
-    /// (`openPlayerMenu`: `mixPlay.key === current`).
+    /// (`openPlayerMenu`: `mixPlay.id && mixPlay.key === current`, and not
+    /// once it was taken out). Any mix, as the web shows it - somebody
+    /// else's public one too, where the tap says the playlist has changed.
     var canRemoveFromPlayingMix: Bool {
-        guard let list = mixPlay, list.mine, !list.key.isEmpty, let item = list.current,
+        guard let list = mixPlay, !list.mixID.isEmpty, !list.key.isEmpty,
               nowPlaying.episode?.mixKey == list.key else { return false }
-        return mixes.mix(list.mixID)?.items.contains(where: { $0.id == item.id }) == true
+        return list.removedKey != list.key
     }
 
     /// The Queue's "Going deeper · {mix} carries on after": the episode on
