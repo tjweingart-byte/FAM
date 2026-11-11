@@ -28,7 +28,7 @@ struct SettingsView: View {
     @State private var page: LegalPage?
     @AppStorage(FAMAPI.zoneKey) private var pinnedZone = ""
     /// "Dark mode", on this device only (`fam.theme`, the web's key).
-    @AppStorage(FAMTheme.key) private var theme = FAMTheme.light
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
     var body: some View {
         VStack(spacing: 0) {
@@ -94,8 +94,8 @@ struct SettingsView: View {
     private var appearanceGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SetGroup(text: "Appearance")
-            SetRow(label: "Dark mode", value: theme == FAMTheme.dark ? "On" : "Off") {
-                theme = theme == FAMTheme.dark ? FAMTheme.light : FAMTheme.dark
+            SetRow(label: "Dark mode", value: FAMTheme.isDark(theme) ? "On" : "Off") {
+                theme = FAMTheme.isDark(theme) ? FAMTheme.light : FAMTheme.dark
             }
         }
     }

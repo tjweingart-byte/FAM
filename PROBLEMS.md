@@ -33765,7 +33765,349 @@ would have taken the first sweep after the deploy as its status time,
 reporting last night's result as new to somebody who listened this morning;
 it takes its last known time (`live_as_of`, else `first_seen`) instead.
 
-## 546. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes | Categories, the morning dot, the pop-ups (2026-11-11)
+## 546. The app starts dark, and draws itself before the server answers (2026-11-11)
+
+**What was asked.** The owner, after build 3 reached TestFlight: "I want to
+make dark mode the standard version that new users have, with the option to
+change to light mode", and "It still takes way too long to load the app when
+you first open it. Please think of more ways to help this, and make sure the
+fixes from yesterday are in."
+
+**Dark by default, in the app.** `FAMTheme.standard` is dark: a phone with no
+`fam.theme` is drawn dark, "light" is the only stored value that draws light,
+and Settings' "Dark mode" reads On for anything else (`FAMTheme.isDark`). The
+launch screen (`LaunchBackground`) is the dark `--bg`, #2A2733. A phone that
+never touched the switch turns dark with this build. The web keeps light
+(§250); the rule's note says so (`docs/claude/constraints.md`, typefaces).
+
+**Yesterday's start-up work is in build 3**: the remembered page, rails
+first, tabs that load on first look, warming behind the feed, the poll after
+it, the 429 retry and the picture cache.
+
+**What still waited.** Every open showed the wordmark until `/api/auth/me`
+answered, then played the 1.8 s intro, then drew the app. Now a phone whose
+account was last let in (`fam.lastReady`, set by `arrive`, cleared on any
+sign-out) with its first run done draws the app at once, the remembered
+page on it and the intro over it, and asks `/api/auth/me` behind it; the
+answer still decides - signed out or waiting replaces the app the moment it
+lands. The first feed still waits on that answer (`firstFeed` awaits
+`whoTask`), so the two are still never asked together (the owner's earlier
+call), and the first-run steps and the Terms check run after it without
+holding the feed. The first open after updating behaves as before, once.
+
+
+**The DailyFAM page refreshed while the app is closed (iOS only).** To make
+the first open faster still, the remembered page is kept recent in the
+background: `FeedRefresh` (a `BGAppRefreshTask`, `net.familiarize.fam.feed`,
+registered with SwiftUI's `.backgroundTask(.appRefresh(...))`; `fetch` beside
+`audio` in `UIBackgroundModes`, the id under
+`BGTaskSchedulerPermittedIdentifiers`). The next run is asked for, no sooner
+than an hour away, each time the app goes to the background and after every
+run; iOS decides when it comes. A run is one read - `FAMAPI.railsData()`,
+the same `/api/v1/myfam` query with the Keychain's token and the read pace's
+one patient retry - kept with the same `rememberFeed` a successful draw uses,
+only if it decodes, and only while a token exists and the account was last
+let in (`AppModel.readyKey`, asked again before keeping); a sign-out cancels
+the request. Nothing on the audio path, no episode, no event; a failure keeps
+nothing. A page refreshed this way is drawn at the next open by
+`showRememberedFeed`, and the fresh feed replaces it as before.
+
+**§543 in the iOS app.** Every DailyFAM rail with episodes has the web's Play
+all pill beside its heading (`RailPlayAll`, `RailHeadLayout`: the heading
+keeps 12 em, scaled with the text, and the pill wraps under it when it would
+not). `AppModel.playRailAll` plays the first tile exactly as a tap does (the
+dial, the browse length) and queues the rest (`NowPlayingModel.replaceRailQueue`,
+`fromRail`): a second Play all replaces them and a category's, anything else
+starting drops them with a category's (`dropCategoryQueue`), and what the
+listener queued stays. Offline, only tiles on the phone ("None of these are on
+your device yet"); the web's guest rule has nothing to act on, the app being
+an account's alone. The friends who listened show top left of the player's
+picture, under the captions (`PlayerFriendsPill`): a DailyFAM tap hands over
+the tile's own faces (`AppModel.noteTileFaces`), anything else asks
+`/api/v1/listened` (`ListenedPage`), never for a private search or an
+attached episode; a tap opens the same "N friends listened" card, whose
+profile rows take the player down first. Unbuilt here (no Swift compiler).
+
+## 547. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11)
+
+The owner's "Vibes as Posts" note: *"The episodes that are displayed on my
+profile as a vibe, I wanna create a new player for those… almost like an
+Instagram post. I want them to appear more as posts rather than episodes. So
+it shows the day that I vibe with the episode. This is only for when I click
+on the ones on my profile or a friend's profile."* Two rounds of mock-ups
+(ten designs, then six blends of the three the owner picked - 03 Playable
+Post, 08 The Line, 10 Conversation); the owner chose **C, "Compact Trio"**:
+all three at feed size.
+
+**What a tap on a grid does now.** `playProfileVibe` and `playPersonVibe`
+open `screen-vibeposts` at the tile tapped instead of starting the episode:
+that person's vibes, newest first, as posts. A friend's page needs a handle
+to ask by; without one the old play stays. Nothing else changed - a story,
+My Vibe's list and every other surface still play the episode, and the
+press-and-hold delete on your own grid (§499) is untouched.
+
+**A post** (`vibePostHTML`): face, handle, "Vibed yesterday" (the catalogue's
+calendar, §499, from the vibe's age); the picture with the line across its
+foot in quotes; a play button, a bar with the line's stretch in gold, the
+times, and a gold chip with the line's start; heart, reply, send (the share
+sheet), save; then "n likes · heard by n friends" with faces, the title, the
+caption, the top reply and "View all n replies" / "Add a reply". ⋯ is
+Delete vibe on yours (the same `DELETE /api/vibe`) and Report vibe on a
+friend's.
+
+**The line.** VIBE!'s editor has a **Line** tool: the episode's own
+sentences (the player's captions if it is the episode playing, else
+`/api/transcript`), each with its start time, measured when the server
+measured it (§127) and otherwise the captions' character estimate. Picking
+one sends `line` and `line_at` with the vibe. Stored on the echo row
+(`line`, `line_at`); a vibe that sends neither keeps what the row had, so an
+installed client or a re-vibe that picked nothing never wipes it. Cut to
+`social.MAX_LINE` (300), slurs out, time clamped to 15 minutes, negative
+means "no time". The line is not drawn on the story; it is the post's.
+
+**Playing in place.** A post's play is the ordinary `generate` with
+`inPlace: true` on the topic; `onGenerationStarted` does not open the full
+player while the posts screen is showing. The bar is painted from
+`refreshProgressNow` and the button from `setPlayState`/`markPlaying`
+(`paintVibePostTransport`), so there is still one transport; dragging the
+playing post's bar is the player's own `makeScrubbable`. The chip seeks the
+playing episode (never past what is written) or starts it with
+`pendingResumeSeek`, the wait a resumed episode keeps. Leaving the screen
+does not stop it; the mini bar carries it on the tab screens.
+
+**Likes and replies, and who sees them.** A like is per post
+(`vibe_likes`, keyed on the vibe's row, an account's). Replies are
+**public to whoever may see the vibe** - its owner, or anyone who may open
+the owner's profile (reachable, not blocked either way, not suspended) and
+is not kept out of a close-friends vibe. That is a product change from
+§282, where a reply to a vibe was a private message; the story's reply row
+is unchanged and still sends a message. A post's reply is a comment filed
+under the vibe: `comments.echo_id` (0 is an episode's own thread, Explore's,
+which now filters on it, as does `comment_counts_many`), so the reply code,
+likes on replies, reports (`comment`) and deletion are the comment code; the
+poster may also delete any reply on their own post. Deleting a vibe takes
+its likes and replies (`_drop_post`); deleting an account takes the likes it
+gave and the posts of its vibes.
+
+**Who heard it** is `_mark_friends_listened(public_searches_only=True)` per
+post, the player's faces (§543) with the same caution.
+
+Endpoints: `GET /api/vibe/posts` (`handle`, `before`, `limit`),
+`POST /api/vibe/{id}/like`, `GET`/`POST /api/vibe/{id}/replies`,
+`POST /api/vibe/replies/{reply}/like` and `DELETE /api/vibe/replies/{reply}`. No person ids in any response. Both
+previews answer them. Not built: the iOS client's posts screen, and a
+notice to the poster when someone replies (a reply is not a message).
+
+**Caught in review** (a second read of the whole branch, at the owner's
+request):
+
+- `vibe_posts` and `echo_row` said `int(minutes)`, so a 1.5-minute vibe -
+  the browse length - came back as 1: another episode's key. Its post
+  played or wrote the wrong episode, never showed as playing, could not be
+  deleted, and filed its replies where the post did not read them. Both now
+  say `as_minutes` (§332), which also mends a moderator's removal of a
+  half-minute vibe (`echo_row` was already `int` before this).
+- Dragging the bar of a post that was not playing seeked the episode that
+  was: `makeScrubbable` seeks on release whatever the paint callback does.
+  A post's own `pointerdown`, registered first, now stops the drag unless
+  its episode is the one playing.
+- A reply under a vibe could be liked by anybody who guessed its id
+  (`/api/comments/{id}/like` checked only that it existed); it now asks
+  `_visible_vibe` first and answers 404 as for a missing reply.
+- A guest on a friend's page was gated where the tap used to play: a guest
+  now plays it as before.
+- A like's or the reply sheet's late answer redrew the post at its old
+  index after a delete had moved the list: posts are found again by id.
+- "No line" sent nothing, so a re-vibe kept the old line; it now sends "",
+  and is always offered.
+- The sheet liked and deleted replies through `/api/comments/...`, which
+  §499 keeps out of the page (`test_explorefam_is_gone_from_the_app`):
+  a vibe's replies have their own paths, `/api/vibe/replies/{id}/like` and
+  `DELETE /api/vibe/replies/{id}`, each asking `_visible_vibe` first.
+
+**A second review** (the whole branch against Main, at the owner's request):
+
+- The line chip on a post whose episode was not the one loaded usually
+  played from 0:00: the previous episode's mini-bar ticker saw a seek for
+  another episode and dropped it before the new bar was up. The chip now
+  brings the old bar down before it starts (`hideNowBar`).
+- A reply's author lost the way to delete their own reply once the vibe's
+  owner blocked them; `DELETE /api/vibe/replies/{id}` lets the author through.
+- `SocialStore.comment` said `int(minutes)` too (a reported reply under a
+  1.5 vibe showed 1 minute); it is `as_minutes` now.
+- Deleting or reporting from a post's menu could remove the last post if
+  the list had been reloaded meanwhile; it removes only the post itself.
+- Preview mocks: a friend's posts have ids of their own, and the live
+  preview's vibe delete takes its likes and replies.
+
+Known and left as they are: a post's episode ending with something in the
+Queue plays the Queue in the full player, as every episode does; and where
+the server never measured an episode's sentences, a line's time is the
+captions' estimate against the episode's length ceiling, so on an episode
+that ended early it can land late (the seek never passes the end).
+
+Tests: `tests/test_vibe_posts.py`.
+
+## 548. myFAM in a handful of statements, off the event loop (2026-11-11)
+
+A profiling pass for the iOS launch (a seeded deployment: 400 listeners,
+3,000 cached episodes, 28k events) found `GET /api/myfam` doing 0.6 s
+(SQLite) to 1.5 s (Postgres) of synchronous work inside an `async def` -
+about 1,100 SQL statements a draw - so every other request on the worker
+waited behind it: a launch's client-status, health and auth queued behind
+somebody else's page. Four causes, fixed in this order, with **the response
+unchanged**: the same JSON, byte for byte, for 26 listeners on the seed,
+before and after, on SQLite and on Postgres (and for View more's five rails
+and a guest's page).
+
+1. **A cache probe per candidate tile** (~976 a draw). Each crowd rail asks
+   whether every tallied question is cached at the browse length, one
+   `SELECT ... WHERE key = ?` at a time, after a `plan_episode` that logged
+   "SEARCH yes" for each. Now the three probes share one per-request reader
+   (`app._FeedProbe`) over a new batch read, `ScriptCache.rows_many` (one
+   `WHERE key IN (...)` per 500 keys; `holds_many` beside it). The rankers
+   prime it with the tiles they are about to ask about (`topics._prime`:
+   `ready_first`, `repeats`, and `_crowd_tiles` in batches of 64 growing
+   fourfold), and each answer comes from `cache.ProbeRow`, which *is*
+   `SqliteScriptCache.holds` now, so the batch and the single-key read cannot
+   drift. Still per request, never kept. The key is still `_episode_key`'s
+   (`[prefetch-same-key]`): `_browse_key` only remembers its answers, keyed
+   on the question, the length, every settings object and function that
+   reads into it, and never under `SEARCH_MODE=auto`; `plan_episode`'s line
+   is quiet on that thread while it does (`_QUIET_PLANS`). A crowd tile is
+   built (tags and all) only once it is kept (`_tile_ref`).
+2. **The crowd's listens read four times a draw, for every listener.**
+   Most played (24 h), What you missed (3-7 days), the friends rail and the
+   friends' faces (14 days) each read `listens_between` and `heard_since`.
+   One snapshot of the widest window (`CROWD_SPAN`) now serves every rail and
+   every listener, filtered in memory by exactly the bounds each read asked
+   for, in the order the database returned them - so it answers what a fresh
+   read answers. It is thrown away when this process writes a play, a
+   completion or a heard listen, or forgets or clears the log
+   (`_crowd_changed`); re-read when the newest play, completion or heard
+   listen in the database is not the one it saw (`_crowd_mark`, asked at most
+   once a second); and re-read every `CROWD_REFRESH_SECONDS` (30) regardless.
+   `_norm_question` is memoised.
+   **The one semantic change, stated:** with more than one worker, another
+   worker's new play reaches this worker's crowd rails within a second rather
+   than at once, and a row another worker *deleted* (an account deletion) or
+   wrote with an older time than its newest can stay on them up to 30 s. In
+   one process nothing changed: a play recorded here is on the next draw
+   (tested). `[heard-not-tapped]`, `[missed-rail]`, `[two-crowd-rows]` and
+   `[friends-listened]` are otherwise untouched - same windows, same
+   thresholds, same tallies.
+3. **The page drawn twice.** `prefetch.schedule_cycle` ran `FeedSource`,
+   which called `build_feed` again on the loop - a whole draw's stall right
+   after the first open. The draw now hands its page to the cycle
+   (`schedule_cycle(user, minutes, feed)` -> `run_once(feed=)` ->
+   `plan(feed=)` -> `FeedSource.candidates(feed=)`, only the rails' keys,
+   titles and tiles' ids and questions kept). The same rails, ranks, weights
+   and reasons; and the tiles are now exactly the ones the listener was shown
+   - the parallel build had none of the page's cache, place, account or
+   interests inputs, so it could warm tiles nobody saw. Without a page (a
+   tool, a test) it builds one as before.
+4. **On the event loop.** The draw (`_draw_myfam`, and a guest's,
+   `_draw_guest_myfam`) runs in `asyncio.to_thread`; the story sweep,
+   vocabulary growth and the prefetch cycle are still scheduled on the loop
+   first and after. Every store keeps a connection per thread (`_conn`, the
+   Postgres pool is locked), the story pool is replaced whole, and the new
+   memos are written whole or under a lock.
+
+And **/api/health** (~25 ms a call, ~1 s the first): built in a thread
+(`_health_report`); the cache totals, which scan every script, kept 15 s
+(`_health_memo`, and read once rather than twice); the HTTP client
+`http2_enabled` inspects built once per setting. The databases' real reads
+and `build` still run on every call (`[verify-not-inspect]`,
+`[server-says-build]`). The agents' modules, the house style's pictures and
+the ranker's semantic model are loaded at boot in a thread
+(`_warm_first_calls`).
+
+Measured with uvicorn, one worker, the iOS launch requests (`measure.py`;
+medians of five, warm unless marked):
+
+| | SQLite before | SQLite after | Postgres before | Postgres after |
+|---|---:|---:|---:|---:|
+| myfam | 595 ms | 218 ms | 1,552 ms | 215 ms |
+| SQL statements a draw (in process) | 1,124 | 29 (11 cache) | 1,114 | 40 |
+| feed on screen (client-status + health + me, then myfam) | 543-824 ms | 201-274 ms | 1,360-1,522 ms | 263-356 ms |
+| a 2 ms request's worst wait while myfam draws | 667 ms | 142 ms | 1,494 ms | 203 ms |
+| health | 20.5 ms | 13.8 ms | 33 ms | 30 ms |
+| first health / first myfam, 8 s after boot | 134 / 1,064 ms | 19 / 730 ms | | |
+
+What is left of the wait while a draw runs is the GIL, not the loop: the
+draw's thread is pure Python, and the loop gets it back every switch
+interval. The tallies themselves (`_tally_listens`, per listener for What you
+missed) are now the largest part of a draw.
+
+Tests: `tests/test_feed_speed_548.py` - the batch read against each
+single-key read, a draw's cache statements (at most 12, none by single key,
+on a fixture with hundreds of candidates), the batched draw equal to the one
+a key at a time and the snapshot draw equal to fresh reads, a play here and
+another worker's play both seen, prefetch handed the page, the page drawn
+where no loop runs, health's 15 s and its client built once.
+
+## 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11)
+
+**What was asked.** The owner: "Pronunciation is still a massive problem in
+episodes, how can we cross check our names pronunciation list against another
+source to changes the answers. My first idea is to download the whole list of
+names in somewhere(maybe a regular fable claude chat), have it edit the list,
+then put it back in here". Then: "both, build the export/import and give me
+the command" (for the stress experiment below).
+
+**Why Wikipedia may not be enough.** Not measured: the guess is that many
+names on file are sports players whose article lead has no pronunciation, so
+the writer's or the brief's guess stands (§289, §324). The download's
+`wikipedia_status` column counts it.
+
+**The round trip** (`pronounce_review.py`, /admin → How names are said →
+"Checked by another reader"):
+
+- **Download list** - `GET /api/admin/pronunciations/export`, a CSV of every
+  respelling with its source, Wikipedia's reading and status, and a sentence the
+  name was met in (from the `CONTEXT_EPISODES` most recent episodes) with its
+  episode, so the reviewer can tell which Nguyen is meant.
+- **Copy the prompt** - `pronounce_review.PROMPT`, fixed so every run asks the
+  same thing: the lexicon's respelling rules (hyphenated syllables, stressed
+  syllable in capitals, as many words as the name), the evidence order (the
+  person, the leagues' media pronunciation guides, Wikipedia's IPA, broadcast
+  usage), and a reply of only the rows it would change, `name,say,confidence,reason`.
+- **Upload corrections** (or paste the reply) - `POST
+  /api/admin/pronunciations/import` reads the CSV (a ``` fence or a line of
+  prose around it is fine; a file edited in place is read from `current_say`)
+  into proposals beside what is on file, high confidence first. **It changes
+  nothing.** Unchanged rows are counted, unusable ones refused with the reason.
+  A change of stress alone is a change: rows are compared exactly, case and all.
+- Each proposal is **Accepted** (saved through the admin's own save, so as
+  `admin`), **Skipped**, or **Heard 4 ways** first; "Accept all high
+  confidence" asks before it saves. Nothing accepts the whole file blind,
+  because an admin's respelling is never replaced afterwards - not by a model,
+  not by Wikipedia (`[op-voice]`) - so a reviewer's wrong guess accepted
+  blind would be permanent.
+
+**The voice never hears the stress.** `pronunciation.voiced` lowercases every
+respelling before the voice gets it (capitals would be read as letters by
+`spoken_text`), so "sah-gah-poh-loo-TEH-leh" reaches Chatterbox as
+"Sah-gah-poh-loo-teh-leh". The lexicon records stress and the voice gets none
+of it. A corrected list may still be said with the stress in the wrong place. Unheard; to be
+measured, not assumed: `pronounce_review.stress_variants` writes one
+respelling four ways - `now` (today's), `joined` (syllables run together),
+`accent` (an acute on the stressed vowel), `spaced` (each syllable a word,
+the stressed one capitalised) - and two ways to hear them, both keeping
+nothing:
+
+- /admin: **Hear 4 ways** on every name and every proposal
+  (`POST /api/admin/pronunciations/hear-variants`, an optional `say` to hear a
+  proposal as proposed);
+- `python tools/stress_trial.py --csv <download> --limit 10`: the names with a
+  marked stress and three or more syllables, bare and in a sentence, written
+  to `stress-trial/<stamp>/index.html` to listen to.
+
+If one variant wins by ear, `voiced` changes to it - one function, on the
+synthesis path for every chunk - and the lexicon's format stays as it is.
+Until then `voiced` is unchanged. Tests: `tests/test_pronunciation_review_549.py`.
+
+## 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes | Categories, the morning dot, the pop-ups (2026-11-11)
 
 Six screenshots from the owner, five changes.
 
@@ -33819,6 +34161,19 @@ Six screenshots from the owner, five changes.
    action (Undo, Open) to the right of the words. It reads the same over any
    screen. The drop-down banner (`.notif`) is unchanged.
 
-Tests: `tests/test_owner_notes_546.py`; §229's, §108's, 10.23's tests and
+Tests: `tests/test_owner_notes_550.py`; §229's, §108's, 10.23's tests and
 the smoke run's category and playlist checks follow the new layout and
 check back by a real click.
+
+**Merged with Main before the pull request (2026-11-11).** Main had gained
+its own §546-§549 (the app starts dark, vibes as posts, myFAM's
+statements, the pronunciation list) while this branch was open, so this
+section, written as §546, is §550, with every reference in its code, tests
+and notes renumbered; `tests/test_owner_notes_546.py` is
+`tests/test_owner_notes_550.py`. Both sides added CSS at the end of the
+stylesheet; both are kept.
+
+**From reviewing the branch.** As first written, `/api/mixes/fresh` counted
+a mix made after the morning's edition ran - active, never played - as new,
+a dot for a mix nobody wrote. It now takes only mixes made before the
+edition's `built_at`, active as of then.

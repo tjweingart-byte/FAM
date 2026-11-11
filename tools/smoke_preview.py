@@ -1940,7 +1940,7 @@ def main() -> int:
                 page.wait_for_timeout(1200)
                 assert page.evaluate("() => mixPlay && mixPlay.pos") == step, \
                     f"skip did not move to episode {step + 1}"
-            # Back one (§546), by a real click, and forward again.
+            # Back one (§550), by a real click, and forward again.
             assert page.eval_on_selector("#mixPrevBtn", "e => !e.hidden"), \
                 "no back-an-episode on the playlist's player"
             page.click("#mixPrevBtn", timeout=3000)
@@ -4009,7 +4009,7 @@ def main() -> int:
             assert leftovers == 0, f"{leftovers} old per-screen overlay(s) survive"
 
         def category_chips_filter_the_page_in_place():
-            """The 11.3 packet, option 2, under §546's tabs: the screen that
+            """The 11.3 packet, option 2, under §550's tabs: the screen that
             shows "myFAM" opens on Mixes; Categories lists them with a chip
             row; a chip shows that category - a picture, Play all, the rest -
             the X goes back to the list, and Mixes brings the mixes back."""

@@ -273,7 +273,7 @@ def test_categories_are_a_row_of_chips_above_the_mixes():
 def test_followed_categories_lead_the_chips_with_a_star():
     draw = _fn("renderCategoryChips")
     # Followed, then the facets not followed - each chip once - then More.
-    # No "All" since §546: the mixes are their own tab.
+    # No "All" since §550: the mixes are their own tab.
     assert 'catChipHTML("", "All"' not in draw
     assert draw.index("mine.map(") < draw.index("!followed[f.id]") < draw.index("catchip-more")
     assert "CAT_STAR" in _fn("catChipHTML")

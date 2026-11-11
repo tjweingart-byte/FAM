@@ -1,4 +1,4 @@
-"""The owner's 11.11 notes (§546).
+"""The owner's 11.11 notes (§550).
 
 1. Back an episode in a myFAM playlist, not only forward.
 2. A vibe made mid-playlist holds the playlist: an episode that ends while the

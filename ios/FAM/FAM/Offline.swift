@@ -177,6 +177,16 @@ final class OfflineShelf {
         }
     }
 
+    /// Everything handed to the file queue so far is done: the background
+    /// refresh (`FeedRefresh`) waits on this before iOS suspends the app,
+    /// so a page it remembered is on the disk, not still on its way.
+    func settled() async {
+        let queue = io
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            queue.async { done.resume() }
+        }
+    }
+
     func rememberedFeed() -> RailsPage? {
         let url = folder.appendingPathComponent("last-feed.json")
         guard let data = try? Data(contentsOf: url) else { return nil }

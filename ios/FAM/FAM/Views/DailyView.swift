@@ -167,19 +167,19 @@ struct RailRow: View {
     @State private var viewport: CGFloat = 0
     @State private var endX: CGFloat = 0
 
+    /// `.feed-head .feed-title{ flex:1 1 12em }`: the heading keeps at
+    /// least 12 em of its row - em of its own 20, so larger text needs more.
+    @ScaledMetric(relativeTo: .title) private var em: CGFloat = 20
+
+    /// A rail with no episodes says why instead, and has no Play all.
+    private var empty: Bool {
+        rail.topics.isEmpty && !model.emptiedRails.contains(rail.key)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(model.heading(for: rail))
-                .font(FAMFont.heading(20))
-                .foregroundStyle(FAMColor.text)
-                .lineSpacing(5)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, tight ? 8 : 26)
-                .padding(.bottom, 12)
-                .accessibilityAddTraits(.isHeader)
-                // Headings arrive only on the page's first draw (`arriveRails`).
-                .arriving("heading:" + rail.key, index: 0, slot: order * 4, book: model.arrivals)
-            if rail.topics.isEmpty && !model.emptiedRails.contains(rail.key) {
+            head
+            if empty {
                 // The friends rail with nobody followed says nothing, and
                 // nothing is said that the server did not send: never an
                 // empty dashed box.
@@ -233,6 +233,42 @@ struct RailRow: View {
                 .accessibilityHint("Opens Friends")
             }
         }
+    }
+
+    private var title: some View {
+        Text(model.heading(for: rail))
+            .font(FAMFont.heading(20))
+            .foregroundStyle(FAMColor.text)
+            .lineSpacing(5)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, tight ? 8 : 26)
+            .padding(.bottom, 12)
+            .accessibilityAddTraits(.isHeader)
+            // Headings arrive only on the page's first draw (`arriveRails`).
+            .arriving("heading:" + rail.key, index: 0, slot: order * 4, book: model.arrivals)
+    }
+
+    /// The heading and, on a rail with episodes, its Play all (§543,
+    /// `.feed-head`): beside the heading while the heading keeps 12 em,
+    /// under it when larger text needs the row (§499) - never squeezing it.
+    @ViewBuilder private var head: some View {
+        if empty {
+            title
+        } else {
+            RailHeadLayout(minHeading: em * 12) {
+                title
+                RailPlayAll(label: playAllLabel) {
+                    model.playRailAll(rail.key)
+                }
+                .padding(.bottom, 14)
+            }
+        }
+    }
+
+    /// `aria-label="Play all of {title}"`, the heading on one line.
+    private var playAllLabel: String {
+        let heading = model.heading(for: rail)
+        return "Play all of " + heading.replacingOccurrences(of: "\n", with: " ")
     }
 
     /// The cards, then the end (`.feed-rail`): each a snap target.
@@ -290,6 +326,90 @@ struct RailRow: View {
     }
 }
 
+/// `.feed-playall` (§543): a copper pill, the catalogue row's filled play
+/// at 11 and PLAY ALL in Geist Mono 10 bold, 0.1 em apart, in ink; padding
+/// 6 by 11; on one line always (`white-space:nowrap`).
+struct RailPlayAll: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                WebFill(path: Icons.rowPlay, size: 11)
+                Text("Play all")
+                    .monoLabel(10, color: FAMColor.ink, bold: true, tracking: 1.0)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(FAMColor.ink)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 11)
+            .background(FAMColor.copper, in: Capsule())
+            .fixedSize()
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel(label)
+    }
+}
+
+/// `.feed-head` (§543): `flex-wrap:wrap; align-items:flex-end;
+/// justify-content:space-between; column-gap:12px`. Two children, the
+/// heading then Play all: side by side, bottoms level, while the heading
+/// keeps `minHeading` of the row; otherwise Play all wraps under the
+/// heading, at its left.
+struct RailHeadLayout: Layout {
+    var minHeading: CGFloat
+    var gap: CGFloat = 12
+
+    private func sideBySide(_ width: CGFloat, _ pill: CGSize) -> Bool {
+        width - pill.width - gap >= minHeading
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard subviews.count == 2 else {
+            return subviews.first?.sizeThatFits(proposal) ?? .zero
+        }
+        let pill = subviews[1].sizeThatFits(.unspecified)
+        let width: CGFloat
+        if let given = proposal.width {
+            width = given
+        } else {
+            let ideal = subviews[0].sizeThatFits(.unspecified)
+            width = ideal.width + gap + pill.width
+        }
+        if sideBySide(width, pill) {
+            let headWidth = width - pill.width - gap
+            let head = subviews[0].sizeThatFits(ProposedViewSize(width: headWidth, height: nil))
+            return CGSize(width: width, height: max(head.height, pill.height))
+        }
+        let head = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        return CGSize(width: width, height: head.height + pill.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else {
+            subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: nil))
+            return
+        }
+        let pill = subviews[1].sizeThatFits(.unspecified)
+        if sideBySide(bounds.width, pill) {
+            let headWidth = bounds.width - pill.width - gap
+            let headProposal = ProposedViewSize(width: headWidth, height: nil)
+            let head = subviews[0].sizeThatFits(headProposal)
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.maxY - head.height),
+                              proposal: headProposal)
+            subviews[1].place(at: CGPoint(x: bounds.maxX - pill.width, y: bounds.maxY - pill.height),
+                              proposal: ProposedViewSize(pill))
+        } else {
+            let headProposal = ProposedViewSize(width: bounds.width, height: nil)
+            let head = subviews[0].sizeThatFits(headProposal)
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.minY), proposal: headProposal)
+            subviews[1].place(at: CGPoint(x: bounds.minX, y: bounds.minY + head.height),
+                              proposal: ProposedViewSize(pill))
+        }
+    }
+}
+
 /// Where a rail's end sits in its scroll view.
 private struct RailEndKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
@@ -333,7 +453,7 @@ struct TileCard: View {
         // (`not-offline`): the picture to .35 and greyed, the words to .5.
         let faded = model.isOffline && !model.isKept(tile)
         Button {
-            model.play(tile, railKey: railKey)
+            model.play(tile, railKey: railKey, faces: faces)
         } label: {
             card(faded: faded)
         }
@@ -891,7 +1011,19 @@ struct FriendsListened: View {
         let handle = face.handle ?? ""
         guard !handle.isEmpty else { return }
         dismiss()
-        model.social.openAfterClose(.person(PersonOpen(handle: handle, name: face.name, avatar: face.avatar ?? "")))
+        let route = SocialRoute.person(PersonOpen(handle: handle, name: face.name, avatar: face.avatar ?? ""))
+        // Opened from the player's faces (§543): the player goes down once
+        // this card has, and the profile opens over the tabs.
+        guard model.showPlayer else {
+            model.social.openAfterClose(route)
+            return
+        }
+        let social = model.social
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            _ = social.leavePlayer()
+            social.openAfterClose(route)
+        }
     }
 
     private func listenedRow(_ i: Int, _ face: FriendFace) -> some View {

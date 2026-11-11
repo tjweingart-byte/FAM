@@ -162,7 +162,7 @@ def test_actions_are_confirmed_by_the_bar_with_somewhere_to_go():
                  'toast("Saved for later \\u2713")'):
         assert gone not in INDEX, gone
     # One style for both, no colours of their own (§299); a floating card
-    # on the surface colour since §546.
+    # on the surface colour since §550.
     assert "--snack-bg:" not in INDEX
     assert ".toast, .snack{" in INDEX and ".toast::before, .snack::before{" in INDEX
 
