@@ -255,11 +255,21 @@ struct LoadingView: View {
         ZStack(alignment: .topTrailing) {
             background
             if let glide = loading.glide {
-                GlideView(glide: glide, still: reduceMotion, note: loading.note)
+                // The FAM mark above the glide and the dial, larger than
+                // search's (§541, the web's `.fam-loading.alt .fam-loading-wm`).
+                VStack(spacing: 22) {
+                    FAMLetters(capHeight: 40).opacity(0.92).padding(.bottom, 10)
+                    GlideView(glide: glide, still: reduceMotion, note: loading.note)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let dial = loading.dial {
-                DialView(dial: dial, still: reduceMotion, note: loading.note)
-                    .padding(.horizontal, 32)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 22) {
+                    FAMLetters(capHeight: 40).opacity(0.92).padding(.bottom, 10)
+                    DialView(dial: dial, still: reduceMotion, note: loading.note)
+                }
+                .padding(.horizontal, 32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
             VStack(spacing: 22) {
                 FAMLetters(capHeight: 22)

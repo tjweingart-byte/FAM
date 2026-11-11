@@ -532,3 +532,4 @@ and `limit` = Lines.
 | 33342 | 128 | 538. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
 | 33470 | 32 | 539. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
 | 33502 | 42 | 540. The iOS app, stage 2: myFAM (2026-11-10) |
+| 33544 | 13 | 541. The FAM mark above the dial and the glide (2026-11-10) |

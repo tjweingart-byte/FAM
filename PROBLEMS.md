@@ -33540,3 +33540,16 @@ It added the category chips, panel and Find a category; the web's 48 subject
 icons, generated from `CAT_ICONS` by `tools/ios_icons.py` (a contract test
 runs `--check`, so the two cannot drift); and the measured rows, handles,
 buttons and fields.
+
+## 541. The FAM mark above the dial and the glide (2026-11-10)
+
+The owner, from a screenshot of a mix's glide with the FAM mark drawn in
+above it: keep the DailyFAM and myFAM loading screens as they are, but put
+the FAM logo above both. Since §509 the `.alt` loading screen hid every
+child but the X and `#famLoadingAlt`, the wordmark with them. Now the
+wordmark (`.fam-loading-wm`, the same F, chevron A and M as everywhere) is
+exempt from that rule and drawn at 46px glyphs instead of search's 26px,
+with 10px more room under it. Search's and Go Deeper's screen is unchanged.
+The iOS app's `LoadingView` does the same: `FAMLetters(capHeight: 40)` in a
+stack above `GlideView` and `DialView`. Nothing else about the two waits
+moves - no steps, audio never held (`browse-loaders`).
