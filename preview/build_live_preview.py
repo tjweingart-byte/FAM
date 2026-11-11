@@ -2182,6 +2182,18 @@ __WRITING_SIM__
     // is more permissive than the server hides exactly this decision.
     // The example playlist a guest sees under the wall (§154). Open to all.
     if (path === "/api/mixes/sample") return json(FIXTURES["/api/mixes/sample"]);
+    // The morning's new mix (§550): a preview has no edition, so every mix
+    // of the listener's with topics counts as written this morning until
+    // one is played today. A guest has none, as on the server.
+    if (path === "/api/mixes/fresh") {
+      if (!EMAIL) return json({ fresh: [], edition: "" });
+      var today = new Date().toISOString().slice(0, 10);
+      var fresh = rows("mixes").filter(function (m) {
+        return m.user_id === UID && (m.items || []).length
+          && !(m.played_at && new Date(m.played_at * 1000).toISOString().slice(0, 10) === today);
+      }).map(function (m) { return m.id; });
+      return json({ fresh: fresh, edition: fresh.length ? today + "T05:00" : "" });
+    }
     if (path.indexOf("/api/mixes") === 0 && !EMAIL) {
       return json({ error: ACCOUNT_REQUIRED }, 401);
     }

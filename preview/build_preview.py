@@ -2040,6 +2040,13 @@ __PREVIEW_PICTURE__
       }, qs));
     }
     if (path === "/api/mixes" && method === "GET") return json(mixes);
+    // The morning's new mix (§550): the fixture's first mix is this
+    // morning's, so the dot on the myFAM tab can be seen.
+    if (path === "/api/mixes/fresh") {
+      var firstMix = (mixes.mixes || [])[0];
+      return json({ fresh: firstMix ? [firstMix.id] : [],
+                    edition: firstMix ? new Date().toISOString().slice(0, 10) + "T05:00" : "" });
+    }
     // "Recommended topics" in the listener's order (11.7 packet). A preview
     // has no listening history, so it is the catalogue's own order - what
     // the server answers for somebody who has played nothing.
