@@ -33541,7 +33541,45 @@ icons, generated from `CAT_ICONS` by `tools/ios_icons.py` (a contract test
 runs `--check`, so the two cannot drift); and the measured rows, handles,
 buttons and fields.
 
-## 541. The FAM mark above the dial and the glide (2026-11-10)
+## 541. Ready for the iOS launch, on the server: universal links for invites, the iOS 1.0.0 release, two web wordings (2026-11-10)
+
+**Universal links.** `/.well-known/apple-app-site-association` named `/s/*`
+and `/m/*`, so a joint mix's invite (`/j/<token>`) opened Safari - the web
+app, which joins the mix - even on a phone with the app, which reads `/j/`
+links already (`AppLinks.swift`). It now names `/j/*` too. The file is still
+answered only when both ids are set, as JSON at the exact path with no
+redirect (Apple's CDN follows none); a test asks with redirects off and
+checks the content type. Production's ids are in `render.yaml` for `fam`
+(`APPLE_TEAM_ID` 484A7YD2S3, `IOS_BUNDLE_ID` net.familiarize.fam) rather
+than `sync: false`: neither is a secret, the file itself publishes both.
+Staging names neither, so a staging link never opens the App Store build;
+a test pins both halves.
+
+**The iOS 1.0.0 release** (`old-clients`). Cut with the tooling, as an iOS
+release is meant to be: `python tools/cut_release.py --platform ios
+--version 1.0.0 --build 2 --source <ios/FAM/FAM>`, which wrote
+`releases/contracts/ios-1.0.0.json` (51 routes, 21 response shapes; two
+unrouted literals noted, `/api/image` and `/api/v1/` - prefixes of real
+routes, never checked) and the registry entry. The source was the iOS
+branch's `ios/FAM/FAM` as it stood that day; Main does not carry the app
+yet. The header the app sends is `ios/1.0.0+<build>` (`client_versions`
+parses the build after `+`), and the registry matches on the version
+alone - so raising `CURRENT_PROJECT_VERSION` for each upload changes nothing
+here, and `build` ("2") is a record, to be set to the build Apple approves.
+If the app's routes change before 1.0.0 ships, recut with `--force` from the
+submitted commit: it has not shipped, so the contract is not yet a promise.
+Widening `tests/test_ios_app_contract.py` to every Swift file under
+`ios/FAM/FAM` belongs with that test, which lives on the iOS branch beside
+the app, not here.
+
+**Two web wordings** (decision 7). Friends' counts printed "1 friends" and
+"1 followers"; they go through `plural()` like the profile's counts already
+did. The View more Refresh button's label still said "Show eight different
+episodes" after §363 made it deal sixteen; it says 16, and a test pins the
+label to `SECTION_PAGE` so the two cannot drift again
+(`tests/test_web_wording_541.py`).
+
+## 542. The FAM mark above the dial and the glide (2026-11-10)
 
 The owner, from a screenshot of a mix's glide with the FAM mark drawn in
 above it: keep the DailyFAM and myFAM loading screens as they are, but put

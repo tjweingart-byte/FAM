@@ -446,9 +446,9 @@
      they came from is pictures, and a section that changed shape on the way
      through would not read as the same shelf. */
   .sec-grid{ display:grid; grid-template-columns:1fr 1fr; gap:11px; }
-  /* "View more" shows eight, and this deals the next eight of the same
-     ranking (§165). In the header, so it is in reach without scrolling past
-     the eight it replaces. */
+  /* "View more" shows 16, and this deals the next 16 of the same ranking
+     (§165, §363). In the header, so it is in reach without scrolling past
+     the 16 it replaces. */
   .sec-refresh{ flex:none; display:flex; align-items:center; gap:6px; height:32px;
     padding:0 13px; border-radius:16px; border:1px solid var(--border-strong);
     background:none; color:var(--text); cursor:pointer;
@@ -2047,7 +2047,7 @@
      the animation is doing. Painted by `paintLoadingVariant`. */
   .fam-ld-alt{ display:none; }
   /* The FAM mark stays on both, larger, above the dial or the glide (the
-     owner's direction, §541): the wait is the brand's, as search's is. */
+     owner's direction, §542): the wait is the brand's, as search's is. */
   .fam-loading.alt > :not(.fam-loading-x):not(.fam-ld-alt):not(.fam-loading-wm){ display:none !important; }
   .fam-loading.alt .fam-loading-wm{ gap:2px; margin-bottom:10px; }
   .fam-loading.alt .fam-loading-wm .wm-glyph, .fam-loading.alt .fam-loading-wm .wm-a{ width:46px; height:46px; }
@@ -3891,7 +3891,7 @@
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="sectionTitle">Section</h2>
-          <button class="sec-refresh" id="sectionRefresh" hidden onclick="refreshSection()" aria-label="Show eight different episodes"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span>Refresh</span></button>
+          <button class="sec-refresh" id="sectionRefresh" hidden onclick="refreshSection()" aria-label="Show 16 different episodes"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span>Refresh</span></button>
         </div>
         <div class="scroll" id="sectionScroll" style="padding:0 18px 20px;">
           <p class="xn-reason" id="sectionReason">Loading…</p>
@@ -17528,9 +17528,11 @@
   function renderFriends(){
     var el = document.getElementById("friendsBody");
     var c = friendsData.counts || {};
-    var html = '<div class="fr-counts"><b>' + (c.friends || 0) + '</b> friends · <b>'
+    // "1 friend", "1 follower" (decision 7); "following" has no plural.
+    var html = '<div class="fr-counts"><b>' + (c.friends || 0) + '</b> '
+      + plural(c.friends || 0, "friend") + ' · <b>'
       + (c.following || 0) + '</b> following · <b>'
-      + (c.followers || 0) + '</b> followers</div>';
+      + (c.followers || 0) + '</b> ' + plural(c.followers || 0, "follower") + '</div>';
 
     // Three groups, and nobody in two of them. A friend is by definition in
     // all three lists the server returns, so printing them raw put the same

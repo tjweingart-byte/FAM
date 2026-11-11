@@ -4424,9 +4424,10 @@ def _landing_template() -> str:
 def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
     """What iOS reads from this domain to trust the app (APP_STORE.md).
 
-    `applinks`: a shared episode (`/s/<id>`) or mix (`/m/<id>`) opens in the
-    app when it is installed, and in the browser - the landing page, which
-    plays it - when it is not. `webcredentials`: the app may offer a FAM
+    `applinks`: a shared episode (`/s/<id>`), a mix (`/m/<id>`) or a joint
+    mix's invite (`/j/<token>`, §541) opens in the app when it is installed,
+    and in the browser - the landing page, which plays it, or the web app,
+    which joins the mix - when it is not. `webcredentials`: the app may offer a FAM
     password saved in iCloud Keychain. None until both ids are configured.
     """
     if not (team_id and bundle_id):
@@ -4435,7 +4436,7 @@ def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
     return {
         "applinks": {"details": [{
             "appIDs": [app_id],
-            "components": [{"/": "/s/*"}, {"/": "/m/*"}],
+            "components": [{"/": "/s/*"}, {"/": "/m/*"}, {"/": "/j/*"}],
         }]},
         "webcredentials": {"apps": [app_id]},
     }

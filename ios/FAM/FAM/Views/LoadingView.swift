@@ -256,7 +256,7 @@ struct LoadingView: View {
             background
             if let glide = loading.glide {
                 // The FAM mark above the glide and the dial, larger than
-                // search's (§541, the web's `.fam-loading.alt .fam-loading-wm`).
+                // search's (§542, the web's `.fam-loading.alt .fam-loading-wm`).
                 VStack(spacing: 22) {
                     FAMLetters(capHeight: 40).opacity(0.92).padding(.bottom, 10)
                     GlideView(glide: glide, still: reduceMotion, note: loading.note)
