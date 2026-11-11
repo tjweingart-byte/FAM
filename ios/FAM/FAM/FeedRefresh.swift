@@ -2,7 +2,7 @@ import BackgroundTasks
 import Foundation
 
 /// **The remembered DailyFAM page, kept fresh while the app is closed**
-/// (iOS only, §544; the owner asked for a faster first open). iOS now and
+/// (iOS only, §546; the owner asked for a faster first open). iOS now and
 /// then wakes the app in the background (`BGAppRefreshTask`, registered in
 /// `FAMApp` with `.backgroundTask(.appRefresh(...))`); it asks for the page
 /// exactly as the app does (`FAMAPI.railsData()`: the same `/api/v1/myfam`

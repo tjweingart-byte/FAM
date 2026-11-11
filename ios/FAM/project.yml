@@ -79,13 +79,13 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # The launch screen is the default theme's page (dark `--bg` #2A2733,
-        # §544) whatever the phone's own appearance: it is drawn before the
+        # §546) whatever the phone's own appearance: it is drawn before the
         # app can read the device's "Dark mode" (`fam.theme`).
         UILaunchScreen:
           UIColorName: LaunchBackground
         # Audio keeps an episode playing; fetch lets iOS wake the app now
         # and then to refresh the remembered DailyFAM page (`FeedRefresh`,
-        # §544) - one read of /api/v1/myfam, nothing else.
+        # §546) - one read of /api/v1/myfam, nothing else.
         UIBackgroundModes: [audio, fetch]
         BGTaskSchedulerPermittedIdentifiers: [net.familiarize.fam.feed]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]

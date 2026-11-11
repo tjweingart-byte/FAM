@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The web app's look, as one place every screen reads from. The values are
 /// `static/index.html`'s two themes: dark (the `:root` block, the app's
-/// default since §544) and light (`html[data-theme="light"]`, the listener's
+/// default since §546) and light (`html[data-theme="light"]`, the listener's
 /// choice in Settings, "Dark mode" Off, kept on this device under `fam.theme`). Every
 /// token resolves by the trait it is drawn in (`Color(light:dark:)`), so the
 /// root's colour scheme (`FAMApp`, `FAMTheme`) is the only switch. Its type
@@ -39,7 +39,7 @@ enum FAMColor {
 /// The theme this device chose (Settings, "Dark mode"): the web's
 /// `fam.theme`, its own key rather than the preferences, so signing out
 /// never changes the colours. Dark unless it says "light": dark is what a
-/// new listener sees on the iPhone, light the choice in Settings (§544, the
+/// new listener sees on the iPhone, light the choice in Settings (§546, the
 /// owner 11.11, reversing §250's light default for the app).
 enum FAMTheme {
     static let key = "fam.theme"

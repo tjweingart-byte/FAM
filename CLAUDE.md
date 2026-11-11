@@ -447,7 +447,7 @@ Accounts, tiers, sharing
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
-  (§204); daily/my/your one rule, centred (§363), web light, app dark (§544). [typefaces]
+  (§204); daily/my/your one rule, centred (§363), web light, app dark (§546). [typefaces]
 - **Larger phone text never breaks a screen** (§499): heights are floors,
   headings never share a squeezed row. [large-text]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]

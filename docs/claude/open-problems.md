@@ -646,6 +646,17 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
+> **Current (PROBLEMS.md §545, the owner 11.11):** a mix whose followed topic
+> is trending or has a major update since the listener last heard it shows R5
+> on its card (the story's picture, the mix's cover in its corner, one line,
+> a "Trending"/"Major update" pill) and Q5 inside (then -> now bubbles, "Start
+> with what changed"). `signals.py`; measurements only; quiet once heard.
+
+> **Current (PROBLEMS.md §544, the owner 11.10):** in the mixes list a mix
+> card is its cover, its name and a right arrow - no briefing count, no
+> "daily", no public/private, no owner or joint label, no topic line. All of
+> it is still on the mix's own page; search results keep their owner line.
+
 **A mix is made by naming it, then filled from its own page** *(PROBLEMS.md
 §498, the 11.7 packet, Spotify's flow)*. The mixes screen's circled (+) is a
 **Create new mix** pill under the myFAM wordmark (still hidden until

@@ -7,7 +7,7 @@ import SwiftUI
 struct FAMApp: App {
     @StateObject private var model = AppModel()
     /// Settings' "Dark mode", on this device only (the web's `fam.theme`):
-    /// dark unless it says light (§544).
+    /// dark unless it says light (§546).
     @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
     init() {
