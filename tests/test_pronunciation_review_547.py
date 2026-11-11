@@ -177,3 +177,22 @@ def test_the_admin_page_has_the_round_trip():
         assert needle in TRACKER, needle
     # Accepting goes through the admin's own save, one row at a time.
     assert 'api("/api/admin/pronunciations", { name: p.name, say: p.say })' in TRACKER
+
+
+def test_the_accent_falls_on_a_vowel_not_a_leading_y():
+    assert pronounce_review.stress_variants("wem-ban-YAH-mah")["accent"] == "wem-ban-yáh-mah"
+    assert pronounce_review.stress_variants("MY-lz")["accent"] == "mý-lz"
+
+
+def test_free_text_that_opens_like_a_formula_is_defused(lexicon):
+    cache = _Cache({"k": ("=HYPERLINK(\"x\")", ["=cmd| Wembanyama scored."])})
+    row = next(r for r in csv.DictReader(io.StringIO(
+        pronounce_review.export_csv(lexicon, cache))) if r["name"] == "Wembanyama")
+    assert row["context"].startswith("'=") and row["episode"].startswith("'=")
+    assert row["current_say"] == "wem-ban-YAH-mah"
+
+
+def test_prose_that_starts_with_name_is_not_taken_for_the_header():
+    text = "Name, say and confidence follow.\nname,say,confidence\nWembanyama,WEM-ban-yah-mah,high\n"
+    r = pronounce_review.read_upload(text, {})
+    assert [p["name"] for p in r["proposals"]] == ["Wembanyama"]

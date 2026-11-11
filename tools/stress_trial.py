@@ -114,10 +114,19 @@ def main() -> int:
     given = [p.split("=", 1) for p in (args.names or "").split(",") if "=" in p]
     if given:
         # "Name=respelling": tried as given, with or without a list.
-        rows = [(n.strip(), s.strip()) for n, s in given] + rows
+        typed = []
+        for n, s in given:
+            pair = pronunciation.clean(n, s)
+            if pair:
+                typed.append(pair)
+            else:
+                print(f"not a respelling the voice can use, skipped: {n.strip()}={s.strip()}")
+        rows = typed + rows
     if args.names:
         wanted = {n.split("=", 1)[0].strip() for n in args.names.split(",") if n.strip()}
-        names = [(n, s) for n, s in rows if n in wanted][:args.limit]
+        seen: set = set()
+        names = [(n, s) for n, s in rows
+                 if n in wanted and not (n in seen or seen.add(n))][:args.limit]
         missing = wanted - {n for n, _ in names}
         if missing:
             print(f"not on the list: {', '.join(sorted(missing))}")
@@ -133,6 +142,10 @@ def main() -> int:
         results = asyncio.run(run(names, out, not args.no_sentence))
     except voice_check.VoiceCheckUnavailable as exc:
         print(f"No voice here: {exc}")
+        return 2
+    except Exception as exc:  # noqa: BLE001 - the voice's own words, not a traceback
+        print(f"The voice could not be heard: {type(exc).__name__}: {exc}")
+        print("Check the worker answers: python tools/probe_remote_voice.py")
         return 2
     (out / "index.html").write_text(_page(results), encoding="utf-8")
     with open(out / "results.csv", "w", newline="", encoding="utf-8") as fh:

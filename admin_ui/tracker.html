@@ -210,7 +210,7 @@
   .wikibar b { display:block; }
   .wikibar span { font-size:12.5px; color:var(--muted); }
   .wikibar .go { padding:8px 14px; }
-  .wikibar label.button { display:inline-block; cursor:pointer; padding:8px 14px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
+  .wikibar label.button { display:inline-block; cursor:pointer; padding:8px 14px; }
   .reviewpaste { margin:0 0 10px; font-size:13px; }
   .reviewpaste textarea { width:100%; box-sizing:border-box; font:12px/1.4 ui-monospace, monospace; margin:6px 0; }
   .reviewacts { align-items:center; gap:10px; flex-wrap:wrap; }
@@ -218,6 +218,7 @@
   .reviewrow .conf.high { border-color:#2e7d32; color:#2e7d32; }
   .reviewrow .conf.low { opacity:.7; }
   .reviewrow.done { opacity:.55; }
+  .go.tiny { padding:3px 10px; font-size:11.5px; border-radius:8px; }
   .ways { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px; margin:6px 0; }
   .ways .way { border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:12.5px; }
   .ways audio { width:100%; height:32px; margin-top:4px; }
@@ -2259,10 +2260,10 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       .then(function () { btn.disabled = false; btn.textContent = was; });
   }
   // Checked by another reader (§547): out as a CSV, back as proposals.
-  var reviewRows = [], reviewDone = {};
+  var reviewRows = [], reviewDone = {}, reviewErr = {};
   function drawReview(r) {
     if (r) {
-      reviewRows = r.proposals || []; reviewDone = {};
+      reviewRows = r.proposals || []; reviewDone = {}; reviewErr = {};
       var refused = r.refused || [];
       $("reviewState").textContent = reviewRows.length + " correction" + (reviewRows.length === 1 ? "" : "s") + " to look at" +
         (r.unchanged ? ", " + r.unchanged + " already as on file" : "") +
@@ -2282,6 +2283,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         (p.reason ? '<span class="hardex">' + esc(p.reason) + '</span>' : '') +
         (p.note ? '<span class="hardex">Note: ' + esc(p.note) + '</span>' : '') +
         waysHTML(p.name + "\u0000" + p.say) +
+        (reviewErr[p.name] && !done ? '<span class="hardex err">' + esc(reviewErr[p.name]) + '</span>' : '') +
         '<div class="sayacts">' + (done ? '<span class="faint">' + esc(done) + '</span>' :
           '<button class="ghost tiny" type="button" data-rv-hear="' + i + '">Hear 4 ways</button> ' +
           '<button class="go tiny" type="button" data-rv-accept="' + i + '">Accept</button> ' +
@@ -2290,8 +2292,8 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   }
   function acceptReview(p) {
     return api("/api/admin/pronunciations", { name: p.name, say: p.say })
-      .then(function () { reviewDone[p.name] = "Accepted - saved as yours"; })
-      .catch(function (e) { reviewDone[p.name] = "Not saved: " + e.message; });
+      .then(function () { reviewDone[p.name] = "Accepted - saved as yours"; delete reviewErr[p.name]; })
+      .catch(function (e) { reviewErr[p.name] = "Not saved: " + e.message; });
   }
   function readReview(text) {
     $("reviewState").textContent = "Reading…";

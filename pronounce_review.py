@@ -136,11 +136,24 @@ def export_rows(bank, cache=None) -> list[dict]:
     return out
 
 
+#: Columns that hold text from outside (episodes, Wikipedia), not a name or a
+#: respelling - a cell there that opens like a formula is defused.
+_FREE_TEXT = ("context", "episode", "wikipedia_ipa", "wikipedia_status")
+
+
+def _defused(value: str) -> str:
+    """A spreadsheet runs a cell opening with = + - @ as a formula; a leading
+    apostrophe makes it text. Names and respellings open with a letter
+    (`pronunciation.clean`), so only free text needs it."""
+    return "'" + value if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+
+
 def export_csv(bank, cache=None) -> str:
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=EXPORT_COLUMNS, lineterminator="\n")
     writer.writeheader()
-    writer.writerows(export_rows(bank, cache))
+    for row in export_rows(bank, cache):
+        writer.writerow({k: _defused(v) if k in _FREE_TEXT else v for k, v in row.items()})
     return buf.getvalue()
 
 
@@ -156,8 +169,10 @@ def _unwrapped(text: str) -> str:
     if fence:
         text = fence.group(1)
     lines = text.split("\n")
+    say = "|".join(_SAY_HEADERS).replace("_", "[ _]?")
     for i, line in enumerate(lines):
-        if re.match(r"\s*\"?name\"?\s*[,\t;]", line, re.I):
+        if re.match(r"\s*\"?name\"?\s*[,\t;]", line, re.I) and \
+                re.search(r"[,\t;]\s*\"?(" + say + r")\"?\s*([,\t;]|$)", line, re.I):
             return "\n".join(lines[i:])
     return text
 
@@ -196,8 +211,9 @@ def read_upload(text: str, entries: dict) -> dict:
     proposals: dict = {}
     refused: list = []
     unchanged = 0
-    for i, row in enumerate(reader, start=2):
-        if i > MAX_UPLOAD_ROWS + 1:
+    for n, row in enumerate(reader, start=1):
+        i = reader.line_num
+        if n > MAX_UPLOAD_ROWS:
             refused.append({"line": i, "name": "",
                             "why": f"Only the first {MAX_UPLOAD_ROWS} rows are read."})
             break
@@ -251,6 +267,13 @@ def _stressed(syllable: str) -> bool:
         (len(letters) > 1 or len(syllable) == 1)
 
 
+def _accented(syllable: str) -> str:
+    """The syllable with an acute on its first vowel - a y only when it has
+    no other ("YAH" is yáh, not ýah)."""
+    vowel = "[aeiou]" if re.search("[aeiou]", syllable) else "y"
+    return re.sub(vowel, lambda m: _ACUTE[m.group(0)], syllable, count=1)
+
+
 def has_stress(say: str) -> bool:
     """Whether the respelling marks a stressed syllable in capitals."""
     return any(_stressed(s) for w in (say or "").split() for s in w.split("-"))
@@ -273,7 +296,7 @@ def stress_variants(say: str) -> dict:
         for s in sylls:
             low = s.lower()
             if _stressed(s):
-                acc.append(re.sub(r"[aeiouy]", lambda m: _ACUTE[m.group(0)], low, count=1))
+                acc.append(_accented(low))
                 spc.append(low.capitalize())
             else:
                 acc.append(low)

@@ -33832,14 +33832,15 @@ profile rows take the player down first. Unbuilt here (no Swift compiler).
 
 **What was asked.** The owner: "Pronunciation is still a massive problem in
 episodes, how can we cross check our names pronunciation list against another
-source to change the answers. My first idea is to download the whole list of
-names somewhere (maybe a regular Claude chat), have it edit the list, then put
-it back in here." Then: "both, build the export/import and give me the command"
-(for the stress experiment below).
+source to changes the answers. My first idea is to download the whole list of
+names in somewhere(maybe a regular fable claude chat), have it edit the list,
+then put it back in here". Then: "both, build the export/import and give me
+the command" (for the stress experiment below).
 
-**Why Wikipedia was not enough.** Most names on file are sports players; for
-most of them Wikipedia's lead has no pronunciation, so the writer's or the
-brief's guess stood (§289, §324).
+**Why Wikipedia may not be enough.** Not measured: the guess is that many
+names on file are sports players whose article lead has no pronunciation, so
+the writer's or the brief's guess stands (§289, §324). The download's
+`wikipedia_status` column counts it.
 
 **The round trip** (`pronounce_review.py`, /admin → How names are said →
 "Checked by another reader"):
