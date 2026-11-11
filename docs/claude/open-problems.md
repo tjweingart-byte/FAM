@@ -78,6 +78,15 @@
    > recogniser on the same card hears it back (`"hear": true` on the wire,
    > never on an episode's chunks). Its verdict is a hint with the audio
    > beside it; nothing changes the lexicon by itself.
+   > **Current (PROBLEMS.md §549, at the owner's direction):** the list goes
+   > out to another reader and comes back as proposals
+   > (`pronounce_review.py`): /admin downloads every respelling with
+   > Wikipedia's reading and a sentence it was heard in, a fixed prompt goes
+   > with it, and an uploaded reply **changes nothing** - each correction is
+   > shown beside what it would replace and saved, as an admin's, only when
+   > accepted. Never accept a whole file blind: an admin's respelling is never
+   > replaced afterwards. `voiced` hands the voice no stress; "Hear 4 ways"
+   > and `tools/stress_trial.py` compare four spellings by ear before it changes.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default

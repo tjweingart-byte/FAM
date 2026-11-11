@@ -34046,7 +34046,139 @@ a key at a time and the snapshot draw equal to fresh reads, a play here and
 another worker's play both seen, prefetch handed the page, the page drawn
 where no loop runs, health's 15 s and its client built once.
 
-## 549. The app catches up with #247 and #249 (2026-11-11)
+## 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11)
+
+**What was asked.** The owner: "Pronunciation is still a massive problem in
+episodes, how can we cross check our names pronunciation list against another
+source to changes the answers. My first idea is to download the whole list of
+names in somewhere(maybe a regular fable claude chat), have it edit the list,
+then put it back in here". Then: "both, build the export/import and give me
+the command" (for the stress experiment below).
+
+**Why Wikipedia may not be enough.** Not measured: the guess is that many
+names on file are sports players whose article lead has no pronunciation, so
+the writer's or the brief's guess stands (§289, §324). The download's
+`wikipedia_status` column counts it.
+
+**The round trip** (`pronounce_review.py`, /admin → How names are said →
+"Checked by another reader"):
+
+- **Download list** - `GET /api/admin/pronunciations/export`, a CSV of every
+  respelling with its source, Wikipedia's reading and status, and a sentence the
+  name was met in (from the `CONTEXT_EPISODES` most recent episodes) with its
+  episode, so the reviewer can tell which Nguyen is meant.
+- **Copy the prompt** - `pronounce_review.PROMPT`, fixed so every run asks the
+  same thing: the lexicon's respelling rules (hyphenated syllables, stressed
+  syllable in capitals, as many words as the name), the evidence order (the
+  person, the leagues' media pronunciation guides, Wikipedia's IPA, broadcast
+  usage), and a reply of only the rows it would change, `name,say,confidence,reason`.
+- **Upload corrections** (or paste the reply) - `POST
+  /api/admin/pronunciations/import` reads the CSV (a ``` fence or a line of
+  prose around it is fine; a file edited in place is read from `current_say`)
+  into proposals beside what is on file, high confidence first. **It changes
+  nothing.** Unchanged rows are counted, unusable ones refused with the reason.
+  A change of stress alone is a change: rows are compared exactly, case and all.
+- Each proposal is **Accepted** (saved through the admin's own save, so as
+  `admin`), **Skipped**, or **Heard 4 ways** first; "Accept all high
+  confidence" asks before it saves. Nothing accepts the whole file blind,
+  because an admin's respelling is never replaced afterwards - not by a model,
+  not by Wikipedia (`[op-voice]`) - so a reviewer's wrong guess accepted
+  blind would be permanent.
+
+**The voice never hears the stress.** `pronunciation.voiced` lowercases every
+respelling before the voice gets it (capitals would be read as letters by
+`spoken_text`), so "sah-gah-poh-loo-TEH-leh" reaches Chatterbox as
+"Sah-gah-poh-loo-teh-leh". The lexicon records stress and the voice gets none
+of it. A corrected list may still be said with the stress in the wrong place. Unheard; to be
+measured, not assumed: `pronounce_review.stress_variants` writes one
+respelling four ways - `now` (today's), `joined` (syllables run together),
+`accent` (an acute on the stressed vowel), `spaced` (each syllable a word,
+the stressed one capitalised) - and two ways to hear them, both keeping
+nothing:
+
+- /admin: **Hear 4 ways** on every name and every proposal
+  (`POST /api/admin/pronunciations/hear-variants`, an optional `say` to hear a
+  proposal as proposed);
+- `python tools/stress_trial.py --csv <download> --limit 10`: the names with a
+  marked stress and three or more syllables, bare and in a sentence, written
+  to `stress-trial/<stamp>/index.html` to listen to.
+
+If one variant wins by ear, `voiced` changes to it - one function, on the
+synthesis path for every chunk - and the lexicon's format stays as it is.
+Until then `voiced` is unchanged. Tests: `tests/test_pronunciation_review_549.py`.
+
+## 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes | Categories, the morning dot, the pop-ups (2026-11-11)
+
+Six screenshots from the owner, five changes.
+
+1. **Back an episode** ("on myFAM mixes, add a way to go backwards an
+   episode too, not just forward"). The player's empty first slot, kept since
+   §519 to balance next, now holds a mirrored next glyph (`#mixPrevBtn`,
+   `prevMixItem`), drawn only while a myFAM playlist plays - the queue has no
+   "before". It plays the playlist's previous episode, which replays from
+   what is kept (the same dated prompt, so the same cache key); on the first
+   episode it starts that one again. Off a Go Deeper follow-up (§536), back
+   is the playlist's episode it came off, as skip is.
+
+2. **A vibe holds the playlist** ("it should not automatically skip to the
+   next episode in the queue while I'm taking a second to make the vibe
+   post"). An episode that ends while the VIBE! editor is open keeps what
+   would have come next - the mix's next, the queue's, the countdown - in
+   `heldForVibe`, and `closeVibeComposer` runs it, posted or backed out of.
+   Anything else starting in the meantime (`generate`) drops it. The audio
+   itself is not paused: only the moving on waits, as under Go Deeper (10.1).
+
+3. **Mixes | Categories** ("change the layout so there's two tabs", with the
+   Groups | Messages screenshot). Two equal tabs under the wordmark, a copper
+   rule under the one on (`.pf-tabs`, `showPlayfamTab`). Mixes is Create new
+   mix, the search and the cards; Categories is §500's chip row without All
+   over a list of categories (`#catHome`, `renderCategoryHome`: followed with
+   today's count, then the facets with what is under them). A chip or a row
+   opens the category in place, its X back to that list. Arrival opens on
+   Mixes (§500 review's rule, now with a reason the tab makes visible). The
+   owner's note says "Mixed"; the tab says Mixes, the word the app uses.
+
+4. **The morning dot** ("add a notification thing to myFAM in the morning
+   encouraging them to click on the new myFAM mix"). `GET /api/mixes/fresh`
+   answers which of the listener's mixes (own and joined) this morning's
+   DailyFAM edition wrote and nobody has played since: the edition's slot
+   must be `ready` (a dot for a mix nobody wrote would invite a wait), the
+   mix active (§359 - a dormant mix was not written) and `played_at` before
+   the edition's `built_at`. A guest gets an empty answer, never a 401; any
+   failure is no dot. Every tab bar's myFAM tab carries a copper dot
+   (`data-mix-dot`), asked with the notifications, on returning to the app
+   and every quarter hour; looking at the tab clears it for that edition
+   (kept on the device, so it is back tomorrow and not twice today), and the
+   mix's card says "New today" until it is played. In-app only; the push is
+   still §448's at the mix's listen time.
+
+5. **The pop-ups** ("CHANGE THE POP UP NOTIFICATIONS!!!", over a "Sent to
+   Beth" across a friend's vibe). §299's plain line sat on a fade of the
+   page's own colour; over the dark story viewer that fade was a white band
+   across the picture and the Play episode button. Toast and snack are now one
+   floating card: the surface colour, a hairline border, a shadow, a copper
+   dot, sized to its words and centred above the mini player or tabs, the
+   action (Undo, Open) to the right of the words. It reads the same over any
+   screen. The drop-down banner (`.notif`) is unchanged.
+
+Tests: `tests/test_owner_notes_550.py`; §229's, §108's, 10.23's tests and
+the smoke run's category and playlist checks follow the new layout and
+check back by a real click.
+
+**Merged with Main before the pull request (2026-11-11).** Main had gained
+its own §546-§549 (the app starts dark, vibes as posts, myFAM's
+statements, the pronunciation list) while this branch was open, so this
+section, written as §546, is §550, with every reference in its code, tests
+and notes renumbered; `tests/test_owner_notes_546.py` is
+`tests/test_owner_notes_550.py`. Both sides added CSS at the end of the
+stylesheet; both are kept.
+
+**From reviewing the branch.** As first written, `/api/mixes/fresh` counted
+a mix made after the morning's edition ran - active, never played - as new,
+a dot for a mix nobody wrote. It now takes only mixes made before the
+edition's `built_at`, active as of then.
+
+## 551. The app catches up with #247 and #249 (2026-11-11)
 
 **What was asked.** The owner merged #247 (mix cards and what changed since
 you last listened, §544-§545), #249 (vibes as posts, §547) and #250 (the feed

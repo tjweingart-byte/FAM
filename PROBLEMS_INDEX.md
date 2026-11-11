@@ -540,4 +540,6 @@ and `limit` = Lines.
 | 33768 | 63 | 546. The app starts dark, and draws itself before the server answers (2026-11-11) |
 | 33831 | 120 | 547. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11) |
 | 33951 | 98 | 548. myFAM in a handful of statements, off the event loop (2026-11-11) |
-| 34049 | 31 | 549. The app catches up with #247 and #249 (2026-11-11) |
+| 34049 | 61 | 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11) |
+| 34110 | 71 | 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes / Categories, the morning dot, the pop-ups (2026-11-11) |
+| 34181 | 31 | 551. The app catches up with #247 and #249 (2026-11-11) |
