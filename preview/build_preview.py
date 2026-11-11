@@ -258,7 +258,7 @@ def load_fixtures() -> dict:
         ],
         "starters": [{"name": n, "topic_ids": list(i)} for n, i in mixes_mod.STARTER_MIXES],
     }
-    # What changed since the listener last heard each mix (§538), the shape
+    # What changed since the listener last heard each mix (§545), the shape
     # `app._mix_signals` serves: R5 on Morning's card (trending) and At the
     # gym's (a result in), Q5's bubbles on the items. Invented, like every
     # fixture; the pictures are crops of the landing page's own tiles.
@@ -833,7 +833,7 @@ def _tile_crop(name: str) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-#: Each fixture topic's picture (§538), by item id - crops of the landing
+#: Each fixture topic's picture (§545), by item id - crops of the landing
 #: page's tiles standing in for the approved pictures a preview lacks. The
 #: typed council topic has none, so the row shows its icon, as the app does
 #: when nothing is approved.

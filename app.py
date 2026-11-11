@@ -4424,9 +4424,10 @@ def _landing_template() -> str:
 def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
     """What iOS reads from this domain to trust the app (APP_STORE.md).
 
-    `applinks`: a shared episode (`/s/<id>`) or mix (`/m/<id>`) opens in the
-    app when it is installed, and in the browser - the landing page, which
-    plays it - when it is not. `webcredentials`: the app may offer a FAM
+    `applinks`: a shared episode (`/s/<id>`), a mix (`/m/<id>`) or a joint
+    mix's invite (`/j/<token>`, §541) opens in the app when it is installed,
+    and in the browser - the landing page, which plays it, or the web app,
+    which joins the mix - when it is not. `webcredentials`: the app may offer a FAM
     password saved in iCloud Keychain. None until both ids are configured.
     """
     if not (team_id and bundle_id):
@@ -4435,7 +4436,7 @@ def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
     return {
         "applinks": {"details": [{
             "appIDs": [app_id],
-            "components": [{"/": "/s/*"}, {"/": "/m/*"}],
+            "components": [{"/": "/s/*"}, {"/": "/m/*"}, {"/": "/j/*"}],
         }]},
         "webcredentials": {"apps": [app_id]},
     }
@@ -6622,7 +6623,7 @@ async def list_mixes(request: Request):
                          if wants_joint else [])
     return {
         # Each with its pictures and what changed since this listener last
-        # heard it (§538), via `_mix_out`.
+        # heard it (§545), via `_mix_out`.
         "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user)
                   for m in shown],
         "starters": [
@@ -6817,7 +6818,7 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
 
 def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
     """One mix as this viewer sees it, with each topic's picture and what
-    changed since they last heard it (§538) - on every route that answers
+    changed since they last heard it (§545) - on every route that answers
     with a mix, so adding or reordering a topic never drops either."""
     body = _mix_body(mix, viewer, people, joint)
     _mix_pictures(mix, body)
@@ -6826,7 +6827,7 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
 
 
 def _mix_pictures(mix, body: dict) -> None:
-    """Each topic row's picture (§538): the player's own picker over the
+    """Each topic row's picture (§545): the player's own picker over the
     item's words, so a row, its episode in the player and the card that
     leads with it never disagree. "" when nothing is approved; the client
     draws the subject's icon. Never fails the mix."""
@@ -6873,7 +6874,7 @@ def _mix_body(mix, viewer: str, people: dict, joint: bool) -> dict:
 
 
 def _mix_signals(user: str, pairs: list) -> None:
-    """Mark what changed in each mix since this listener last heard it (§538).
+    """Mark what changed in each mix since this listener last heard it (§545).
 
     `pairs` is `[(Mix, served dict), ...]`; each served dict gains `signal`
     (R5 on the card: kind, label, topic, headline, picture) when one of its
@@ -8164,7 +8165,8 @@ async def myfam_section(request: Request,
     return body
 
 
-def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
+def _mark_friends_listened(user: str, tiles: list[dict],
+                           public_searches_only: bool = False) -> list[dict]:
     """Who of your friends listened, on a DailyFAM card (the owner's 10.31
     notebook; faces in place of "N friends listened" at the owner's
     direction): `friends_listened` (the count, kept for installed clients)
@@ -8177,12 +8179,19 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     picture is up to `social.MAX_AVATAR` and one friend may be on a dozen
     cards. Name, handle, picture and the E mark (`explicit`, §224) only -
     what a friend's own profile already shows a friend - and never an id. A tile nobody listened to
-    carries no field. Never raises: social proof is never worth a page."""
+    carries no field. Never raises: social proof is never worth a page.
+
+    `public_searches_only` (the player, §543): a friend's listen with no
+    tile behind it - their own search, a replay - counts only if they made
+    their searches public (`searches_public`, §282)."""
     if not user or not tiles:
         return []
     try:
         people = {p["user_id"]: p for p in SOCIAL.friends(user)}
-        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles)
+        untiled = ([uid for uid in people if PREFS.get(uid).searches_public]
+                   if public_searches_only else None)
+        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles,
+                                                   untiled=untiled)
     except Exception:  # noqa: BLE001 - the cards draw without it
         log.exception("could not read friends' listens")
         return []
@@ -8205,6 +8214,28 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
             shown.append(index[uid])
         tile["friends_faces"] = shown
     return faces
+
+
+@app.get("/api/listened")
+async def listened(request: Request,
+                   q: str = Query("", max_length=600,
+                                  description="The episode's question")):
+    """**Who of your friends listened**, on the player (the owner's 11.11
+    note): the same faces a DailyFAM card shows (`_mark_friends_listened`),
+    for whatever episode is playing, matched by its normalised question the
+    way every listen count is. Friends only, an account only, and an empty
+    answer rather than an error: social proof is never worth a page. It
+    answers any question, so a friend's own search shows only if their
+    searches are public (§282) - or anyone could learn what a friend
+    searched by searching it."""
+    _read_limit(request)
+    user = _listener(request)
+    if not user or not _has_account(request) or not q.strip():
+        return {"count": 0, "faces": []}
+    tile = {"id": "_player", "query": q.strip()}
+    faces = _mark_friends_listened(user, [tile], public_searches_only=True)
+    shown = [faces[i] for i in tile.get("friends_faces", []) if i < len(faces)]
+    return {"count": int(tile.get("friends_listened") or 0), "faces": shown}
 
 
 def _cycles_cached(key: str, cycle: str) -> bool:

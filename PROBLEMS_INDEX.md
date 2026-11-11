@@ -528,5 +528,12 @@ and `limit` = Lines.
 | 33194 | 17 | 534. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10) |
 | 33211 | 25 | 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10) |
 | 33236 | 21 | 536. Go Deeper in a mix resumes the interrupted episode (2026-11-10) |
-| 33257 | 27 | 537. A mix card in the list is its picture, its name and an arrow (2026-11-10) |
-| 33284 | 83 | 538. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11) |
+| 33257 | 85 | 537. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
+| 33342 | 128 | 538. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 33470 | 32 | 539. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
+| 33502 | 42 | 540. The iOS app, stage 2: myFAM (2026-11-10) |
+| 33544 | 38 | 541. Ready for the iOS launch, on the server: universal links for invites, the iOS 1.0.0 release, two web wordings (2026-11-10) |
+| 33582 | 13 | 542. The FAM mark above the dial and the glide (2026-11-10) |
+| 33595 | 42 | 543. Play all on a rail; friends' faces on the player (2026-11-11) |
+| 33637 | 33 | 544. A mix card in the list is its picture, its name and an arrow (2026-11-10) |
+| 33670 | 90 | 545. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11) |

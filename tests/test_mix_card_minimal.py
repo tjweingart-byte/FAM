@@ -1,4 +1,4 @@
-"""A mix card in the mixes list is its picture, its name and an arrow (§537).
+"""A mix card in the mixes list is its picture, its name and an arrow (§544).
 
 The owner's direction (11.10): "we just want the thumbnail of the playlist,
 the title of the playlist, and an arrow pointing right" - the briefing count,

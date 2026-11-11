@@ -17,7 +17,7 @@
     --page-bg:#1E1B27; --bg:#2A2733; --surface:#38334A; --surface-2:#423C56;
     --copper:#E0B563; --coral:#E2694F; --sage:#8FAE9A; --gold:#E0B563;
     --deeper:#FFD23F;
-    /* What changed since you last listened (§538): trending gold, a major
+    /* What changed since you last listened (§545): trending gold, a major
        update coral, each with the ink a filled pill takes. Lighter than
        --copper/--coral in dark so small text on a card reads. */
     --sig-tr:#E0B563; --sig-up:#F08A6E; --sig-ink:#18151F;
@@ -451,9 +451,9 @@
      they came from is pictures, and a section that changed shape on the way
      through would not read as the same shelf. */
   .sec-grid{ display:grid; grid-template-columns:1fr 1fr; gap:11px; }
-  /* "View more" shows eight, and this deals the next eight of the same
-     ranking (§165). In the header, so it is in reach without scrolling past
-     the eight it replaces. */
+  /* "View more" shows 16, and this deals the next 16 of the same ranking
+     (§165, §363). In the header, so it is in reach without scrolling past
+     the 16 it replaces. */
   .sec-refresh{ flex:none; display:flex; align-items:center; gap:6px; height:32px;
     padding:0 13px; border-radius:16px; border:1px solid var(--border-strong);
     background:none; color:var(--text); cursor:pointer;
@@ -728,7 +728,7 @@
   .mix-chev{ flex:none; color:var(--text-muted); opacity:0.6; }
   /* A mix row in the list is its name alone (11.10), so nothing sits under it. */
   #mixList .mix-name{ margin-bottom:0; }
-  /* R5 (§538): when one of a mix's topics changed since the listener last
+  /* R5 (§545): when one of a mix's topics changed since the listener last
      heard it, the card leads with the story's picture, the mix's own cover
      small in its corner, one line naming the story and a pill where the
      arrow was. The colour always comes with its word. */
@@ -1398,6 +1398,25 @@
   #screen-player .player-top .go-deeper-pill{ margin:0 auto; padding:8px 34px; font-size:13px;
     line-height:1.2; }
   #screen-player .p-demo{ position:absolute; top:6px; left:50%; transform:translateX(-50%); }
+  /* Friends who listened (11.11 note): the card's faces pill, top left of
+     the picture, where the owner's mock-up put it; under the captions. The
+     picture is centred in the stage and 4:3 of the stage's width plus the
+     20px it bleeds each side, so its top edge is worked out from the
+     stage's width (`cqw`, the stage is a container), and never above the
+     stage when the picture is taller than it. */
+  .p-friends{ position:absolute; left:16px; top:10px;
+    top:max(10px, calc(50% - (100cqw + 80px) * 0.375 + 12px)); z-index:1;
+    display:flex; align-items:center; gap:5px; cursor:pointer;
+    background:rgba(20,18,28,0.62); color:var(--copper);
+    border:1px solid rgba(244,239,228,0.45); border-radius:999px;
+    padding:3px 8px 3px 3px; font-family:'Geist Mono', monospace; font-size:10px;
+    font-weight:700; box-shadow:0 1px 6px rgba(0,0,0,0.35);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  .p-friends[hidden]{ display:none; }
+  .p-friends:not(:has(.src-count)){ padding-right:3px; }
+  .p-friends .friend-face{ width:26px; height:26px; font-size:10px; }
+  .p-friends .src-marks .src-mark{ border-color:rgba(20,18,28,0.9); }
+  .p-friends .src-mark img{ opacity:0; }
   /* Share, vibe and save, one above another on the right, above the
      transport (10.2 packet). The captions hang under each circle. */
   /* Lifted clear of the title row (11.9 packet, §519): at 10px the SAVE
@@ -1423,7 +1442,7 @@
   .p-down, .p-more{ width:44px; height:44px; border:0; background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
     border-radius:50%; }
-  #screen-player .mini-stage{ padding:0 20px; }
+  #screen-player .mini-stage{ padding:0 20px; container-type:inline-size; }
   .p-titlerow{ flex:none; display:flex; align-items:center; gap:12px; padding:0 20px; }
   .p-titles{ flex:1; min-width:0; text-align:left; }
   #screen-player .mini-title{ font-size:22px; line-height:1.2; margin:0;
@@ -1742,6 +1761,17 @@
     background:var(--border-strong); }
   .gd-bar span{ display:block; height:100%; background:var(--copper); }
 
+  /* A rail's heading and its Play all (11.11 note). The heading keeps at
+     least 12em of the row - em, so larger phone text needs more - and Play
+     all wraps under it rather than squeezing it (§499). */
+  .feed-head{ display:flex; flex-wrap:wrap; align-items:flex-end;
+    justify-content:space-between; column-gap:12px; }
+  .feed-head .feed-title{ flex:1 1 12em; min-width:0; }
+  .feed-playall{ flex:none; display:inline-flex; align-items:center; gap:6px;
+    margin:0 0 14px; padding:6px 11px; border:0; border-radius:999px;
+    background:var(--copper); color:var(--ink); cursor:pointer;
+    font-family:'Geist Mono', monospace; font-size:10px; font-weight:700;
+    letter-spacing:0.1em; text-transform:uppercase; white-space:nowrap; }
   /* Section headings speak instead of labelling: a sentence about why these
      are here, in the display face rather than a mono kicker. */
   .feed-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:400; font-size:20px;
@@ -2094,7 +2124,11 @@
      the audio: the screen goes the moment the first audio arrives, whatever
      the animation is doing. Painted by `paintLoadingVariant`. */
   .fam-ld-alt{ display:none; }
-  .fam-loading.alt > :not(.fam-loading-x):not(.fam-ld-alt){ display:none !important; }
+  /* The FAM mark stays on both, larger, above the dial or the glide (the
+     owner's direction, §542): the wait is the brand's, as search's is. */
+  .fam-loading.alt > :not(.fam-loading-x):not(.fam-ld-alt):not(.fam-loading-wm){ display:none !important; }
+  .fam-loading.alt .fam-loading-wm{ gap:2px; margin-bottom:10px; }
+  .fam-loading.alt .fam-loading-wm .wm-glyph, .fam-loading.alt .fam-loading-wm .wm-a{ width:46px; height:46px; }
   .fam-loading.alt .fam-ld-alt{ display:flex; flex-direction:column; align-items:center; gap:14px; width:100%; }
   .fam-ld-kick{ font-family:'Geist Mono', monospace; font-size:10.5px; letter-spacing:.1em;
     text-transform:uppercase; color:var(--text-muted); max-width:100%; overflow:hidden;
@@ -3935,7 +3969,7 @@
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="sectionTitle">Section</h2>
-          <button class="sec-refresh" id="sectionRefresh" hidden onclick="refreshSection()" aria-label="Show eight different episodes"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span>Refresh</span></button>
+          <button class="sec-refresh" id="sectionRefresh" hidden onclick="refreshSection()" aria-label="Show 16 different episodes"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span>Refresh</span></button>
         </div>
         <div class="scroll" id="sectionScroll" style="padding:0 18px 20px;">
           <p class="xn-reason" id="sectionReason">Loading…</p>
@@ -4331,6 +4365,12 @@
           <div class="player-bg" id="playerBg" aria-hidden="true"></div>
           <span class="demo-badge p-demo" title="No API key: a built-in sample script is standing in for Claude">not your episode</span>
           <div class="next-hint" id="nextHint"></div>
+          <!-- Who of your friends listened (11.11 note): the DailyFAM card's
+               faces, top left of the picture (the mock-up). Hidden until a
+               friend has; tapping lists them all (§394). -->
+          <div class="p-friends" id="playerFriends" hidden role="button" tabindex="0"
+               onclick="openFriendsListened('_player')"
+               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); openFriendsListened('_player');}"></div>
           <!-- Share, vibe and save, stacked on the right above the transport
                (10.2 packet). The three dots' menu offers vibe and save too. -->
           <div class="p-side" id="playerSide">
@@ -7790,8 +7830,8 @@
     // all is not this episode's "next". A queue entry or another category
     // play keeps it; what the listener queued themselves always stays.
     if(key !== "_category" && String(key).indexOf("queue_") !== 0
-       && typeof QUEUE !== "undefined" && QUEUE.some(function(q){ return q.fromCategory; })){
-      for(var qi = QUEUE.length - 1; qi >= 0; qi--){ if(QUEUE[qi].fromCategory) QUEUE.splice(qi, 1); }
+       && typeof QUEUE !== "undefined" && QUEUE.some(function(q){ return q.fromCategory || q.fromRail; })){
+      for(var qi = QUEUE.length - 1; qi >= 0; qi--){ if(QUEUE[qi].fromCategory || QUEUE[qi].fromRail) QUEUE.splice(qi, 1); }
       if(typeof drawMixSkip === "function") drawMixSkip(!!mixPlay);
     }
     // One tap is one request. The player's own topic row invites a re-tap -
@@ -10232,6 +10272,7 @@
     resetCaptions();
     document.getElementById("cc-text").innerHTML = "Displayed here when captions are turned on.";
     clearSources();
+    loadPlayerFriends(query, t, myToken);
     panel.dataset.key = key;
     document.getElementById("ccIcon").classList.remove("on");
     document.getElementById("ccIcon").setAttribute("aria-pressed", "false");
@@ -11811,7 +11852,7 @@
     if(btn) btn.hidden = !on;
   }
 
-  // The two signals' icons (§538): a trend line, and a bolt for a result in.
+  // The two signals' icons (§545): a trend line, and a bolt for a result in.
   function sigIconSVG(kind, size){
     var s = size || 12;
     var path = kind === "update" ? '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'
@@ -11820,7 +11861,7 @@
       + 'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
   }
 
-  // R5 (the owner's pick, §538): the story's picture with the mix's own cover
+  // R5 (the owner's pick, §545): the story's picture with the mix's own cover
   // in its corner, ringed in the signal's colour; the name, and one line
   // naming the topic and the story; and a pill saying which signal it is
   // where the arrow was. With no picture approved for the story, the mix's
@@ -11866,7 +11907,7 @@
     // private, whose it was and the topic list are gone from this row; all of
     // them are still on the mix's own page, one tap in.
     html += mixes.map(function(m){
-      // R5 (§538): what changed since this listener last heard the mix.
+      // R5 (§545): what changed since this listener last heard the mix.
       if(m.signal) return mixSignalCardHTML(m);
       return '<div class="mix-card" onclick="openMix(\'' + m.id + '\')">'
         + '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
@@ -12312,7 +12353,7 @@
       + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to mix</button>';
     var changed = items.filter(function(t){ return t.since; });
     if(items.length && changed.length){
-      // Q5 (§538): something changed since this listener last heard the mix,
+      // Q5 (§545): something changed since this listener last heard the mix,
       // so the one button starts there; the whole mix is a link under it.
       html += '<button class="mix-play" onclick="playWhatChanged()">'
         + sigIconSVG(changed[0].signal && changed[0].signal.kind, 14)
@@ -12712,7 +12753,7 @@
     startMixQueue(m, 0);
   }
 
-  // Each topic row's picture (§538): the one the player will draw for it,
+  // Each topic row's picture (§545): the one the player will draw for it,
   // ringed in the signal's colour when the topic changed since the listener
   // last heard it; the subject's own icon on paper when nothing is approved.
   function mixTopicPicHTML(t){
@@ -12721,7 +12762,7 @@
     return '<span class="mix-topic-pic">' + inner + '</span>';
   }
 
-  // Q5 (§538): what the listener last heard of this topic and what is true
+  // Q5 (§545): what the listener last heard of this topic and what is true
   // today, as two bubbles joined by an arrow. One bubble when they have
   // never heard it - never an invented "before".
   function mixBubblesHTML(since){
@@ -14196,10 +14237,60 @@
       + (n > faces.length ? '<span class="src-count">+' + (n - faces.length) + '</span>' : '')
       + '</span>';
   }
+  // **Friends who listened, on the player** (the owner's 11.11 note): the
+  // card's faces for whatever is playing. A tile already knows them, so a
+  // tap from DailyFAM draws them at once; anything else asks the server
+  // (`/api/listened`, by the question). Accounts only, never a private
+  // search, and nothing at all rather than an empty row.
+  var playerFriends = null;
+  function drawPlayerFriends(){
+    var box = document.getElementById("playerFriends");
+    if(!box) return;
+    var t = playerFriends;
+    var faces = ((t && t.friendKeys) || []).length;
+    if(!faces){ box.hidden = true; box.innerHTML = ""; return; }
+    var n = Math.floor(Number(t.friends_listened)) || 0;
+    var shown = Math.min(faces, 3);
+    box.innerHTML = '<span class="src-marks">'
+      + t.friendKeys.slice(0, 3).map(function(k){ return friendFaceHtml(FRIEND_FACE_BOOK[k]); }).join("")
+      + '</span>' + (n > shown ? '<span class="src-count">+' + (n - shown) + '</span>' : '');
+    box.setAttribute("aria-label", n === 1
+      ? (FRIEND_FACE_BOOK[t.friendKeys[0]].name || "A friend") + " listened"
+      : n + " friends listened");
+    box.hidden = false;
+  }
+  function loadPlayerFriends(query, t, token){
+    playerFriends = null;
+    drawPlayerFriends();
+    if(!t || t.private || t.attach || !AUTH.authenticated || !query) return;
+    var tile = t.bankTopicId ? myFamTopics[t.bankTopicId] : null;
+    if(tile && tile.friendKeys && tile.friendKeys.length){
+      playerFriends = { friendKeys: tile.friendKeys.slice(),
+                        friends_listened: tile.friends_listened };
+      drawPlayerFriends();
+      return;
+    }
+    fetch("/api/listened?q=" + encodeURIComponent(query))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        if(!data || token !== playerSpeechToken) return;
+        var faces = data.faces || [];
+        if(!faces.length) return;
+        var keys = faces.map(function(f, i){
+          var k = f.handle ? "@" + f.handle
+            : "~" + (f.name || "") + "~" + String(f.avatar || "").slice(-32) + "~p" + i;
+          FRIEND_FACE_BOOK[k] = f;
+          return k;
+        });
+        playerFriends = { friendKeys: keys,
+                          friends_listened: Math.max(keys.length, Number(data.count) || 0) };
+        drawPlayerFriends();
+      }).catch(function(){});
+  }
   // **Who listened** (§394): the faces' own sheet, the Sources popup's
   // shape - every friend who listened, newest first, each row their profile.
   function openFriendsListened(topicId){
-    var t = myFamTopics[topicId];
+    var t = topicId === "_player" ? playerFriends : myFamTopics[topicId];
     var faces = ((t && t.friendKeys) || []).map(function(k){
       return FRIEND_FACE_BOOK[k];
     }).filter(Boolean);
@@ -14527,6 +14618,15 @@
         return '<div class="feed-section">' + heading + empty + findFriends + '</div>';
       }
 
+      // **Play all** (the owner's 11.11 note): the rail's episodes one
+      // after another, hands off. Beside the heading while it fits, under it
+      // when larger text needs the row (§499) - never squeezing it.
+      heading = '<div class="feed-head">' + heading
+        + '<button type="button" class="feed-playall" data-section="' + escapeHtml(sec.key) + '"'
+        + ' onclick="playRailAll(this.dataset.section)" aria-label="Play all of '
+        + escapeHtml(String(title || sec.title || "").replace(/\n/g, " ")) + '">'
+        + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+        + 'Play all</button></div>';
       var rail = '<div class="feed-rail" data-section="' + escapeHtml(sec.key) + '">'
         + sec.topics.map(function(t){
         myFamTopics[t.id] = t;
@@ -14578,6 +14678,38 @@
     watchRailEnds();
     markOfflineCards();
     if(!isOffline()) loadTileSaves();
+  }
+
+  // **Play all on a rail** (the owner's 11.11 note): the first tile plays as
+  // a tap on it would, and the rest of the rail goes into the ordinary queue
+  // behind it (§190), so they play one after another, Go to Queue shows
+  // what is coming and any of them can be taken out. Like a category's Play
+  // all, a second Play all replaces what the first queued, anything else
+  // that starts ends it (`generate`), and what the listener queued
+  // themselves always stays. A guest's rail plays only what is already made.
+  function playRailAll(sectionKey){
+    var tiles = (railTiles[sectionKey] || []).filter(function(t){
+      if(!t || !t.id || !t.query) return false;
+      if(t.playable === false && !AUTH.authenticated) return false;
+      if(isOffline() && !OfflineShelf.has(t.query, BROWSE_MINUTES, "")) return false;
+      return true;
+    });
+    if(!tiles.length){
+      if(!AUTH.authenticated && (railTiles[sectionKey] || []).length){ showGuestGate(); return; }
+      toast(isOffline() ? "None of these are on your device yet" : "Nothing to play here yet");
+      return;
+    }
+    for(var i = QUEUE.length - 1; i >= 0; i--){ if(QUEUE[i].fromRail || QUEUE[i].fromCategory) QUEUE.splice(i, 1); }
+    tiles.forEach(function(t){ myFamTopics[t.id] = myFamTopics[t.id] || t; });
+    startBankTopic(tiles[0].id);
+    var source = (SECTION_TITLE[sectionKey] || "DailyFAM").replace(/\n/g, " ");
+    tiles.slice(1).forEach(function(t){
+      QUEUE.push({ title: t.title || t.query, prompt: t.query,
+                   minutes: myfamLengthMinutes, source: source, surface: "myfam",
+                   bankTopicId: t.id, cachedOnly: false, thumb: t.thumb || "",
+                   playable: t.playable, titleOverridden: true, fromRail: true });
+    });
+    drawMixSkip(!!mixPlay);
   }
 
   // Which rails have been scrolled to their end, so the chevron can stand
@@ -17645,9 +17777,11 @@
   function renderFriends(){
     var el = document.getElementById("friendsBody");
     var c = friendsData.counts || {};
-    var html = '<div class="fr-counts"><b>' + (c.friends || 0) + '</b> friends · <b>'
+    // "1 friend", "1 follower" (decision 7); "following" has no plural.
+    var html = '<div class="fr-counts"><b>' + (c.friends || 0) + '</b> '
+      + plural(c.friends || 0, "friend") + ' · <b>'
       + (c.following || 0) + '</b> following · <b>'
-      + (c.followers || 0) + '</b> followers</div>';
+      + (c.followers || 0) + '</b> ' + plural(c.followers || 0, "follower") + '</div>';
 
     // Three groups, and nobody in two of them. A friend is by definition in
     // all three lists the server returns, so printing them raw put the same

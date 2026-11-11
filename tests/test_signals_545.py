@@ -1,4 +1,4 @@
-"""What changed in a mix since the listener last heard it (§538).
+"""What changed in a mix since the listener last heard it (§545).
 
 R5 on the mix card and Q5 inside the mix, both fed by `signals.py` through
 `/api/mixes`. These pin the rules the owner's picks rest on: a signal is a

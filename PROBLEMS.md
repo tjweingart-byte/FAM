@@ -33254,7 +33254,387 @@ and keeps the first resume point. The iOS app does the same. Smoke check:
 the §519 detour check now also skips the follow-up and expects the
 interrupted episode back.
 
-## 537. A mix card in the list is its picture, its name and an arrow (2026-11-10)
+## 537. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09)
+
+**What was asked.** The owner walked App Store Connect with Claude for the
+first TestFlight and App Store submission, then asked for the audio spike
+(`IOS_APP.md` stage 2). The production voice has been heard many times, so
+stage 0 is met.
+
+**App Store Connect, as left.** App Information (name, subtitle "Keep up with
+audio stories", News / Entertainment), App Privacy published with eleven data
+types (all linked, none tracking - `APP_STORE.md` Part C's table), the
+privacy policy URL, age rating questionnaire (Apple calculated 13+, matching
+the terms; Social Media yes, under-13 gating no), pricing free in 174
+countries (China off; trader status verified so the EU stays on), the 1.0
+product page text written from the pitch script's problem, solution and
+mission, and TestFlight Test Information. Still open: Content Rights, the
+demo and second reviewer accounts (sign-in left blank for now), screenshots
+and a build. The Routing App Coverage File stays empty: FAM gives no
+directions.
+
+**The spike** is `ios/FAMSpike`, an XcodeGen project (`project.yml`; the
+.xcodeproj is generated, not committed) with bundle id `net.familiarize.fam`
+so a build can go straight to internal TestFlight. It plays the sign-up
+samples - `/api/v1/welcome`, then `/api/v1/audio` with `cached_only=true`,
+`minutes=1.5`, `fmt=pcm` - because that is the one request a guest may make
+past the waitlist and it wakes no voice; *Keep going* chains them so one
+session runs past ten minutes. `StreamPlayer` schedules the PCM on an
+`AVAudioPlayerNode` in quarter-second buffers, starts at half a second, and
+logs what iOS does to it: lock, background, interruptions, headphones out,
+engine configuration changes, and dropped streams (three reconnects,
+skipping the bytes already taken - which assumes a replay is the same bytes
+every time; a join that sounds wrong is that assumption failing).
+
+**Not compiled.** Written on Linux; the first build is on the owner's Mac.
+`tests/test_ios_spike_contract.py` holds the Swift to the server: both paths
+route, `Sample` decodes only tile keys, and the audio request passes
+`app._welcome_sample_request` - change its shape and a guest would get a 403.
+The phone test and its pass line are in `ios/FAMSpike/README.md`.
+
+**The phone test (2026-11-09, the owner's iPhone, Xcode 27.2).** It compiled
+first time once signing was sorted (Apali team, device registered, Developer
+Mode on; the stale Apple Development certificate had to be revoked on the
+portal before Xcode would make one with a key in this Mac's keychain). Only
+one sample was offered, so *Keep going* replayed it. Locked for ten minutes:
+no gaps, no stops. Lock-screen pause/play, a phone call (paused, resumed on
+hang-up) and an AirPod out (paused) all behaved. Airplane mode: silent while
+it was on, then played smoothly once it was off. The log was cleared by
+accident, so whether that was the buffer running dry or a reconnect is not
+recorded; redo it with the log before calling reconnects proven. **Stage 2
+passes**: background PCM streaming on `AVAudioPlayerNode` is the approach.
+
+**The log, read after the test, found a bug the ear could not.** At 14:16:19
+a call interrupted the episode and the route changed twice; each change
+emptied the player node, every queued buffer reported itself played, and
+the player logged `finished: 1:30 heard` 17 seconds early and started the
+next sample. With one sample looping it sounded like a resume. Fixed in
+`StreamPlayer`: every sample that arrives is kept, the node only ever holds
+a copy, a buffer's completion counts only for the current filling (`epoch`),
+and pause, an interruption or a route change refills the node from the
+heard position (`refill(from:play:)`). Also from the log: first audio in
+0.36-0.93 s on a cache hit, the whole 1:30 arriving in about a second, the
+server sending 24 kHz (read from `X-Sample-Rate`), and no "interruption
+over" ever logged - iOS did not send one after the call, so resuming then is
+the listener's tap. "App came back" is now logged on `didBecomeActive`, so it
+reads `[fg]`.
+
+**The retest restarted the episode on a call all the same.** iOS empties the
+node's queue a moment *before* the interruption notification arrives, so in
+that moment the queue was empty, the whole episode had arrived (a replay
+lands in about a second) and the phase still said playing: an ending, by
+the old test. An ending is now the node's own clock at the last sample
+(`reachedEnd`: engine running, node playing, heard within a quarter-second
+of the end). A queue emptied anywhere else is logged as "emptied … not at
+the end", given 0.4 s for the notification to pause it, and otherwise
+refilled from the heard position.
+
+**Player 3 on the phone: the call test passes.** (The first retest ran the
+old build - the code had not been re-downloaded; the on-screen version line
+now makes that visible.) Two calls in a row: `interrupted at 0:33` → iOS
+said resume after the call → `resumed at 0:33`; `interrupted at 0:38` →
+`resumed at 0:38`. Route changes after each resume refilled from the same
+second, and once the queue emptied short of the end it was logged as
+"emptied at 0:38, not at the end" instead of being taken for an ending. iOS
+did send "interruption over; resume" this time, so a call resumes on its
+own.
+
+## 538. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09)
+
+**What was asked.** With the spike passed (§537), the owner asked to start the
+real app. `ios/FAM` is an XcodeGen project (`project.yml`, bundle id
+`net.familiarize.fam`, build 2, so it replaces the spike on a phone) that
+links `ios/FAMSafety`.
+
+**What is in it.** `API.swift` is the whole client: `/api/v1/...` only,
+`X-FAM-Client` and `X-FAM-TZ` on every request, the bearer token in the
+Keychain (`AfterFirstUnlockThisDeviceOnly`, so a locked phone that is playing
+can still ask for the next episode), and the server's refusals turned into
+four cases - waitlisted (`X-FAM-Waitlist`), the AI question
+(`X-FAM-Consent: ai`), signed out (401), or the server's own sentence.
+`AppModel` decides the screen from `/api/auth/me` on every open: sign in,
+waiting (today's samples, as the exact replay the waitlist lets through),
+or the three tabs. DailyFAM is `/api/myfam`'s sections as rows of 4:3 cards;
+a tap plays at `BROWSE_MINUTES` with `surface=myfam` and the `topic_id`.
+Search asks the AI question before the tap (`consent.ensure()`), sends
+`surface=search` and the chosen length (back to 1.5 whenever the app
+returns), and a refusal on the audio itself asks and retries. The player
+is the spike's, kept as it passed, plus `seek(to:)` clamped to what has
+arrived, ±15 s, and the lock screen's skip and scrub. You holds
+`PrivacyAndSafetySection`, sign out, and delete account (5.1.1(v)).
+
+**A bug found in FAMSafety on the way.** `aiConsentSheet` read the model
+through a plain parameter, so nothing redrew when `ensure()` began asking
+and the consent question would never have appeared. It is now a
+`ViewModifier` that observes the model.
+
+**Not compiled here.** `tests/test_ios_app_contract.py` checks every call
+routes with its method, `Listener`/`Rail`/`Tile` decode only what the server
+sends (signed in and not), sign-up sends `accept_terms`, the browse length
+is the server's, a tile names its surface and topic, and the waiting
+screen's sample request passes `_welcome_sample_request`.
+
+**Stage 1 ran on the owner's iPhone, and "it looks nothing like the web app"
+(the owner).** It used iOS's stock look. The look is now the web's, taken
+from `static/index.html` and photographed with `tools/shots.py` at 390 pt:
+`Theme.swift` holds the light theme's colours, the three typefaces
+(Bricolage Grotesque, Geist, Geist Mono - static instances cut from the
+Google Fonts variable files with fontTools, OFL licences beside them), and
+the wordmark drawn from the web's own SVG paths (F, the chevron A, M, one
+cap height, copper). The bottom bar is `.tabbar` (mono labels, the copper
+pill under the chosen icon, the raised round search button); DailyFAM has
+the centred `daily` wordmark, rail headings in Bricolage 20 and `.seed-card`
+cards (150 pt, 96 pt picture with the subject chip, title never cut, the
+hook); Search is the FAM mark, the rounded bar with the copper go, the
+Length bubble (never printing the choice) and TRENDING SEARCHES from
+`/api/searches/trending`; the player is the Home mark, the 4:3 picture, the
+title, the copper scrubber and ±15 either side of the copper play; sign-up
+and log-in are the web's form; YourFAM wears the `your` wordmark. myFAM,
+Messages, GO DEEPER, Voice, Private, the mic and attach are left off until
+they work (`no-dead-controls`). The project now names the Apali team, so a
+regenerated project keeps its signing.
+
+**"The loading screens do not look like they do in the demo… a lot of things
+are being left out" (the owner).** True: the app showed "Writing your
+episode…" in the player, where the web shows its loading screen over the app
+and checks off five steps from `/api/progress`, holding the audio until the
+fifth. Ported (`Views/LoadingView.swift`): the same five labels, the same
+clock (2 s a step, the first 0.5 s, 0.7 s polls after a 0.25 s first, 0.4 s
+on the last check, a replay all done after 0.45 s), the light theme's wash,
+the rising chevrons, FAMiliarizing… (slanted in code - Bricolage has no
+italic, the browser slants it too) and the X that cancels. `StreamPlayer`
+gained the web's `startGate`: `holdStart`, `onReady(cacheHit)`, `release()`.
+`tests/test_ios_app_contract.py` now reads the timings and labels out of
+`static/index.html`, so the two screens cannot drift, and checks the progress
+request carries the audio request's key fields. **`ios/FAM/PARITY.md`** lists
+every web feature against the iOS app so nothing more is left out silently;
+the gaps it makes plain first are play events for the taste model, Report and
+Block, and Sign in with Apple.
+
+**"The audio player looks wrong, and it's changing the total time" (the
+owner).** Both true: the total was the seconds arrived so far, and the
+player was an outline of the web's. A specification of the web player was
+written from the code first (every control, request, state and wording),
+and the player rebuilt from it: full screen; the Home mark, GO DEEPER (the
+thread from `/api/next`, typed follow-ups as `own`, 1-5 lengths) and the ⋯
+menu (share, VIBE!, save, captions, queue, Report through FAMSafety); the
+picture full width, 4:3 and faded, with share/vibe/save on the dark glass
+circles; the title with the explicit E and the writer's title replacing a
+typed question's; the sources strip and sheet; the scrubber with the
+requested length as the total until complete, the arrived part drawn and
+seeks clamped 2 s short (`TAIL_MARGIN`), with "Caught up with the writing";
+±15 and the copper play; speed 0.5-2x keeping pitch (`AVAudioUnitTimePitch`)
+and a search's length rebuild; the queue; captions; the What's next grid with
+its 15 s countdown. **Listening is now recorded from iOS**: `complete` at 85%,
+`skip` past 5 s, `search` on follow-ups, `POST /api/progress` every 15 s and on
+pause, and the history row - without these Made for you could not learn from
+the phone. Still not ported, in PARITY.md: the full VIBE! story editor,
+sending inside FAM, Add to myFAM Playlist, the save/vibe burst.
+
+**DailyFAM, combed through against the web (the owner: "make sure everything
+related to dailyfam has transferred over").** A second specification, of
+`screen-myfam`, was written from the code and the screen rebuilt from it:
+the time-of-day heading ("Made for you, Monday evening", "Start here" with
+no history), the five rails' headings and server empty sentences, the full
+card (save bookmark, ⋯ with Share / Add to Queue / Go to Queue / Not
+interested, ready badge, friends' faces and "N friends listened", the title
+stepping down past 48 and 72 characters, a game's live line with its age,
+each rail's fallback hook), VIEW MORE and the View more screen (16 at a time,
+Refresh, wrap and caught-up notes, Trending by continent), Pick up where you
+left off (resume with its seek, threads, X dismissing for good), the friends'
+stories row and viewer (reply and heart), and the library behind search's
+bookshelf. Not yet, in PARITY.md: Add to myFAM Playlist, Find new friends,
+offline, the rails' arrival animation. **Found on the way, not changed:**
+`saved.progress()` returns `int(minutes)` and the column is `INTEGER`, so a
+1.5-minute episode resumed from Pick up is asked as 1 minute - a different
+cache key - on the web as on the phone. The fix is a schema change
+(SQLite stores 1.5 as REAL in an INTEGER column, Postgres rounds it), so it is
+the owner's call.
+
+**Sign in with Apple and Google on iOS.** `/api/auth/provider` was built
+(§222, `oauth.py`) and waiting. The app draws Continue with Apple
+(`SignInWithAppleButton`: a fresh nonce per sign-in, its SHA-256 to Apple and
+the raw value to the server, which accepts either; Apple's one-time
+`authorization_code` sent so `apple_tokens.py` can revoke on deletion) and
+Continue with Google (the GoogleSignIn package, its nonce echoed raw) above
+the email form, both held until the terms box is ticked on sign-up, as the
+form is (§228). The web has neither on purpose - they only complete on a
+phone. **Two settings only the owner can make:** the server's
+`APPLE_CLIENT_IDS` must contain `net.familiarize.fam`, and Google needs an iOS
+OAuth client for that bundle id in Google Cloud, its id put in `project.yml`
+(`GOOGLE_IOS_CLIENT_ID` and the reversed `GOOGLE_REVERSED_CLIENT_ID`) and added
+to the server's `GOOGLE_CLIENT_IDS`. Until the client id is set the Google
+button is not drawn (`no-dead-controls`). `/api/health` > `oauth` says which
+provider the server can verify.
+
+## 539. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10)
+
+**What happened.** On the phone, signed out, the owner tapped Sign in with
+Apple. The button still read "Sign up with Apple" (Apple's button sets its
+words once; switching Log in / Sign up did not redraw it), and the server
+made a new, waitlisted account for that Apple ID - although an account with
+the same email already existed.
+
+**Why, and why it stays.** `ACCOUNTS.sign_in_with` never joins accounts by
+email, on purpose: a provider's email is not proof of owning a FAM account
+(Apple's private relay addresses differ anyway, and an email someone typed
+at sign-up was never verified). A new provider identity reaches an existing
+account in one way only - by signing in with it while already signed in to
+that account (the "link" case).
+
+**What changed (iOS only).**
+- Apple's button takes `.id("apple-<making>-<linking>")`, so its words follow
+  Log in / Sign up.
+- YourFAM has **Sign-in methods**: email and password, Apple, Google (when
+  configured), each linked or with its button ("Continue with Apple") to
+  link. `AppModel.link` sends the provider sign-in with the session's token;
+  if the identity already had its own account the app says so, since the
+  server signs in to that one. Unlink appears when another way in remains
+  (the server's `unlink_identity` rule).
+- The waiting screen has **Delete this account** - `/api/account` is open
+  past the waitlist, and 5.1.1(v) wants every account deletable in the app.
+  Deleting revokes the Apple token kept at sign-in.
+
+Recovery for the owner's case: delete the Apple-made account on the waiting
+screen, log in with email and password, YourFAM → Sign-in methods → Continue
+with Apple. Contract test: `test_sign_in_methods_decode_what_the_account_sends`.
+
+## 540. The iOS app, stage 2: myFAM (2026-11-10)
+
+The mixes surface - shown as **myFAM**, coded as DailyFAM mixes
+(`names-swapped`) - ported from a control-by-control specification of
+`screen-playfam`, `screen-newmix`, `screen-mixdetail`, `screen-addtopics` and
+`screen-publicmix` (19 mix routes plus push, the catalogue and the episode's
+topic). `ios/FAM/PARITY.md` lists every row.
+
+**Kept from the web**: made by naming it, empty, then filled from its page
+(`mix-made-by-naming`); public by default, copies private; members edit
+topics only (`joint-mixes`); add and remove are operations; a typed topic is
+sent untitled so the server names it short (`mix-topic-title`); a mix plays
+as a playlist of today's edition on the `dailyfam` surface at each item's
+own length, behind the glide (§509), and its end shows the finished overlay
+rather than What's next.
+
+**Not copied, on purpose** (the web's quirks the spec found): Delete asks
+first; Rename starts from the current name; the page updates in place
+instead of being pushed again; "Remove from this playlist" sends `remove`
+rather than the whole list, and is offered only for a mix of yours.
+
+**Not yet**: the category filter chips that live on the web's myFAM tab
+(§500 - they filter today's cached episodes, not mixes); the cover
+position-and-zoom editor; joining from a `/j/` link (universal links);
+story cards for a mix. **The listen time's notification is Web Push only**:
+the server has no APNs kind yet, so the app saves the time and says
+notifications on iPhone come later.
+
+Written without a compiler (§538); `tests/test_ios_app_contract.py` now
+checks interpolated paths (`/api/mixes/{id}/open`) against the routes with
+their methods, every mix field against the server, and how a mix plays.
+
+**Second pass, the same day.** The owner found the first port bland: the
+category chips missing, the topic rows wrong. It had ported what each
+control does, not how it looks. The second pass started from phone-size
+screenshots of every web screen and measured sizes, colours and icons
+(`getComputedStyle`), and from now on every ported screen starts that way.
+It added the category chips, panel and Find a category; the web's 48 subject
+icons, generated from `CAT_ICONS` by `tools/ios_icons.py` (a contract test
+runs `--check`, so the two cannot drift); and the measured rows, handles,
+buttons and fields.
+
+## 541. Ready for the iOS launch, on the server: universal links for invites, the iOS 1.0.0 release, two web wordings (2026-11-10)
+
+**Universal links.** `/.well-known/apple-app-site-association` named `/s/*`
+and `/m/*`, so a joint mix's invite (`/j/<token>`) opened Safari - the web
+app, which joins the mix - even on a phone with the app, which reads `/j/`
+links already (`AppLinks.swift`). It now names `/j/*` too. The file is still
+answered only when both ids are set, as JSON at the exact path with no
+redirect (Apple's CDN follows none); a test asks with redirects off and
+checks the content type. Production's ids are in `render.yaml` for `fam`
+(`APPLE_TEAM_ID` 484A7YD2S3, `IOS_BUNDLE_ID` net.familiarize.fam) rather
+than `sync: false`: neither is a secret, the file itself publishes both.
+Staging names neither, so a staging link never opens the App Store build;
+a test pins both halves.
+
+**The iOS 1.0.0 release** (`old-clients`). Cut with the tooling, as an iOS
+release is meant to be: `python tools/cut_release.py --platform ios
+--version 1.0.0 --build 2 --source <ios/FAM/FAM>`, which wrote
+`releases/contracts/ios-1.0.0.json` (51 routes, 21 response shapes; two
+unrouted literals noted, `/api/image` and `/api/v1/` - prefixes of real
+routes, never checked) and the registry entry. The source was the iOS
+branch's `ios/FAM/FAM` as it stood that day; Main does not carry the app
+yet. The header the app sends is `ios/1.0.0+<build>` (`client_versions`
+parses the build after `+`), and the registry matches on the version
+alone - so raising `CURRENT_PROJECT_VERSION` for each upload changes nothing
+here, and `build` ("2") is a record, to be set to the build Apple approves.
+If the app's routes change before 1.0.0 ships, recut with `--force` from the
+submitted commit: it has not shipped, so the contract is not yet a promise.
+Widening `tests/test_ios_app_contract.py` to every Swift file under
+`ios/FAM/FAM` belongs with that test, which lives on the iOS branch beside
+the app, not here.
+
+**Two web wordings** (decision 7). Friends' counts printed "1 friends" and
+"1 followers"; they go through `plural()` like the profile's counts already
+did. The View more Refresh button's label still said "Show eight different
+episodes" after §363 made it deal sixteen; it says 16, and a test pins the
+label to `SECTION_PAGE` so the two cannot drift again
+(`tests/test_web_wording_541.py`).
+
+## 542. The FAM mark above the dial and the glide (2026-11-10)
+
+The owner, from a screenshot of a mix's glide with the FAM mark drawn in
+above it: keep the DailyFAM and myFAM loading screens as they are, but put
+the FAM logo above both. Since §509 the `.alt` loading screen hid every
+child but the X and `#famLoadingAlt`, the wordmark with them. Now the
+wordmark (`.fam-loading-wm`, the same F, chevron A and M as everywhere) is
+exempt from that rule and drawn at 46px glyphs instead of search's 26px,
+with 10px more room under it. Search's and Go Deeper's screen is unchanged.
+The iOS app's `LoadingView` does the same: `FAMLetters(capHeight: 40)` in a
+stack above `GlideView` and `DialView`. Nothing else about the two waits
+moves - no steps, audio never held (`browse-loaders`).
+
+## 543. Play all on a rail; friends' faces on the player (2026-11-11)
+
+The owner's 11.11 note, two ideas, with a mock-up of "PLAY ALL" beside
+"Made for you" and "Trending", and a face circled on the player's picture:
+
+1. **Play all.** "If you want to go through and listen to all the things in
+   that row, they'll just play one after the other, so the user can have a
+   hands-off experience." Every myFAM rail with episodes now has a Play all
+   pill beside its heading (`playRailAll`). The first tile plays exactly as a
+   tap on it would (`startBankTopic`, so the dial loader and the browse
+   length); the rest of the rail goes into the ordinary queue (§190) marked
+   `fromRail`, so the full player plays each straight after the last, Go to
+   Queue shows them and each is removable. It behaves like a category's Play
+   all (§500): a second Play all replaces what the first queued, anything else
+   starting ends it (`generate` now clears `fromRail` beside `fromCategory`),
+   and what the listener queued themselves stays. A guest's rail plays only
+   tiles already made; offline, only what is on the device. The heading keeps
+   at least 12em of its row and the pill wraps under it rather than squeezing
+   it (§499's large-text rule).
+
+2. **Faces on the player.** The DailyFAM card's "friends who listened"
+   (§393/§394) now shows on the player too, top left of the picture as in
+   the mock-up (its top edge worked out from the stage's width with `cqw`,
+   never above the stage), under the captions. A tile already carries its
+   faces, so a tap from DailyFAM draws them at once; anything else asks the
+   new `GET /api/listened?q=` - the same `_mark_friends_listened`, matched by
+   the normalised question like every listen count, friends only, accounts
+   only, never an id, empty rather than an error. Never on a private search
+   or an attached episode. Tapping the faces opens the same "Friends who
+   listened" sheet.
+
+   **Caught in review:** the endpoint takes any question, so as first written
+   anyone could learn what a friend had searched by searching the same words
+   and seeing the face - past `searches_public` (§282), which is the only
+   thing that lets the player name a searcher. A listen with no tile behind
+   it (a search, a replay) now counts on the player only for friends who made
+   their searches public (`friends_who_listened(untiled=...)`,
+   `_mark_friends_listened(public_searches_only=True)`); the cards are
+   unchanged, their questions being FAM's own.
+
+Tests: `tests/test_play_all_and_player_faces.py`.
+
+## 544. A mix card in the list is its picture, its name and an arrow (2026-11-10)
 
 **The owner's direction (11.10), with a screenshot of two mix cards:** "get
 rid of the unnecessary stuff here: # of briefings, daily, and public. Remove
@@ -33281,7 +33661,13 @@ today; the signal concepts (round two's lit edge and topic chip, round
 three's variations) are being redrawn on top of this plainer card and are
 not built.
 
-## 538. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11)
+**The iOS app too** (merged from Main with this pull request): its `MixCard`
+draws your own mixes the same way - picture, name, arrow - and keeps the
+owner, count and topic line for a public mix found in search, as the web
+does. Written without a Swift compiler to hand, like the rest of the iOS
+code (§538); a SwiftUI `if` on `trailing != .chevron`, nothing else.
+
+## 545. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11)
 
 **The owner's picks** from five rounds of signal designs (the slideshows are
 artifacts, not in the repo): **R5** on the myFAM mix card and **Q5** inside the
@@ -33295,7 +33681,7 @@ player's own picker) with the mix's cover small in its corner, ringed in the
 signal's colour; under the name, one line naming the topic and the story; and
 where the arrow was, a pill saying "Trending" or "Major update". No picture
 approved for the story: the mix's own cover takes the ring and nothing sits
-in the corner. Any other day the card is §537's picture, name and arrow.
+in the corner. Any other day the card is §544's picture, name and arrow.
 
 **Q5, inside the mix.** Each changed topic's row is outlined and says
 "Trending · since you last listened" (or "Major update"), then two bubbles
@@ -33348,7 +33734,7 @@ Light and dark each get the colours as tokens (`--sig-tr`, `--sig-up`,
 card, light's darker pair. The fixture preview shows both signals on Morning
 and At the gym, its pictures cropped from the landing page's tiles.
 
-Tests: `tests/test_signals_538.py` (matching, both signals' timing, quiet once
+Tests: `tests/test_signals_545.py` (matching, both signals' timing, quiet once
 heard, one per mix, the status clock, the bubbles, the route, a failure never
 taking the list down, both themes' tokens).
 
@@ -33363,3 +33749,10 @@ itself, so every route answering with a mix carries them - before, a reorder
 or an added topic would have dropped the bubbles until the list reloaded. The
 arrow now opens the "Today" bubble, so on a row narrowed by its picture the
 two bubbles stack cleanly.
+
+**Merged with Main before the pull request (2026-11-11).** Main had gained
+its own §537-§543 (the iOS launch, the loading mark, play-all on a rail)
+while this branch was open, so this branch's two sections, written as §537
+and §538, are §544 and §545, and every reference in its code, tests and
+notes was renumbered with them; `tests/test_signals_538.py` is
+`tests/test_signals_545.py`.

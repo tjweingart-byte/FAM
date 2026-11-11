@@ -480,7 +480,7 @@ class Story:
     live_status: str = ""
     live_as_of: float = 0.0
     #: When `live_status` last changed - first set, or moved on - as this
-    #: server saw it (§538). `live_as_of` moves on every sweep, so it cannot
+    #: server saw it (§545). `live_as_of` moves on every sweep, so it cannot
     #: say "the result came in after you last listened"; this can.
     status_at: float = 0.0
     #: The category-tree node this story is about (`categories`), chosen by
