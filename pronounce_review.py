@@ -107,7 +107,11 @@ def _contexts(cache, names: Iterable[str], limit: int = CONTEXT_EPISODES) -> dic
             sentences = cache.get(row["key"], current=False) or []
         except Exception:  # noqa: BLE001
             continue
-        title = row.get("title") or row.get("query") or ""
+        # The writer's title only, never the query: the download is pasted
+        # into a chat outside FAM, and a listener's own words reach a model
+        # only after their yes (`[app-review-safety]`, consent.py). Private
+        # searches are never listed by `recent` at all.
+        title = row.get("title") or ""
         for sentence in sentences:
             text = pronunciation.strip_markers(sentence)
             for m in pattern.finditer(text):

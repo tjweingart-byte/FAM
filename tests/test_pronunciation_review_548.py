@@ -196,3 +196,12 @@ def test_prose_that_starts_with_name_is_not_taken_for_the_header():
     text = "Name, say and confidence follow.\nname,say,confidence\nWembanyama,WEM-ban-yah-mah,high\n"
     r = pronounce_review.read_upload(text, {})
     assert [p["name"] for p in r["proposals"]] == ["Wembanyama"]
+
+
+def test_a_listeners_query_never_goes_out_only_the_writers_title(lexicon):
+    class Untitled(_Cache):
+        def recent(self, limit=40, **_):
+            return [{"key": "k", "title": "", "query": "my own private words"}]
+    cache = Untitled({"k": ("", ["Wembanyama scored."])})
+    text = pronounce_review.export_csv(lexicon, cache)
+    assert "my own private words" not in text and "Wembanyama scored." in text
