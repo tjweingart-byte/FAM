@@ -90,7 +90,7 @@ def build_async_client(api_key: str | None = None) -> anthropic.AsyncAnthropic:
 
 
 #: The client `http2_enabled()` asks when it is given none, built once per
-#: `ANTHROPIC_HTTP2` value (§547): /api/health asked on every call, and
+#: `ANTHROPIC_HTTP2` value (§548): /api/health asked on every call, and
 #: building the SDK's client is milliseconds of TLS context each time.
 _PROBE_CLIENTS: dict = {}
 

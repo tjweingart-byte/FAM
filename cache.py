@@ -715,7 +715,7 @@ ROWS_MANY_CHUNK = 500
 
 @dataclass(frozen=True)
 class ProbeRow:
-    """What a browse page asks of one cache row, read once (§547).
+    """What a browse page asks of one cache row, read once (§548).
 
     myFAM asked `holds`, `written_at`, `title` and `sources` of every
     candidate tile one statement at a time - about a thousand round trips a
@@ -1534,7 +1534,7 @@ class SqliteScriptCache:
 
     def rows_many(self, keys) -> dict:
         """`ProbeRow` for each of `keys` that has a row, in one statement per
-        `ROWS_MANY_CHUNK` keys (§547). A key with no row is absent. Raises on
+        `ROWS_MANY_CHUNK` keys (§548). A key with no row is absent. Raises on
         a broken database, like `written_at`: the caller decides what an
         unknown reads as."""
         wanted = list(dict.fromkeys(k for k in keys if k))

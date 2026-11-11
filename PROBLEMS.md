@@ -33828,7 +33828,127 @@ the tile's own faces (`AppModel.noteTileFaces`), anything else asks
 attached episode; a tap opens the same "N friends listened" card, whose
 profile rows take the player down first. Unbuilt here (no Swift compiler).
 
-## 547. myFAM in a handful of statements, off the event loop (2026-11-11)
+## 547. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11)
+
+The owner's "Vibes as Posts" note: *"The episodes that are displayed on my
+profile as a vibe, I wanna create a new player for those… almost like an
+Instagram post. I want them to appear more as posts rather than episodes. So
+it shows the day that I vibe with the episode. This is only for when I click
+on the ones on my profile or a friend's profile."* Two rounds of mock-ups
+(ten designs, then six blends of the three the owner picked - 03 Playable
+Post, 08 The Line, 10 Conversation); the owner chose **C, "Compact Trio"**:
+all three at feed size.
+
+**What a tap on a grid does now.** `playProfileVibe` and `playPersonVibe`
+open `screen-vibeposts` at the tile tapped instead of starting the episode:
+that person's vibes, newest first, as posts. A friend's page needs a handle
+to ask by; without one the old play stays. Nothing else changed - a story,
+My Vibe's list and every other surface still play the episode, and the
+press-and-hold delete on your own grid (§499) is untouched.
+
+**A post** (`vibePostHTML`): face, handle, "Vibed yesterday" (the catalogue's
+calendar, §499, from the vibe's age); the picture with the line across its
+foot in quotes; a play button, a bar with the line's stretch in gold, the
+times, and a gold chip with the line's start; heart, reply, send (the share
+sheet), save; then "n likes · heard by n friends" with faces, the title, the
+caption, the top reply and "View all n replies" / "Add a reply". ⋯ is
+Delete vibe on yours (the same `DELETE /api/vibe`) and Report vibe on a
+friend's.
+
+**The line.** VIBE!'s editor has a **Line** tool: the episode's own
+sentences (the player's captions if it is the episode playing, else
+`/api/transcript`), each with its start time, measured when the server
+measured it (§127) and otherwise the captions' character estimate. Picking
+one sends `line` and `line_at` with the vibe. Stored on the echo row
+(`line`, `line_at`); a vibe that sends neither keeps what the row had, so an
+installed client or a re-vibe that picked nothing never wipes it. Cut to
+`social.MAX_LINE` (300), slurs out, time clamped to 15 minutes, negative
+means "no time". The line is not drawn on the story; it is the post's.
+
+**Playing in place.** A post's play is the ordinary `generate` with
+`inPlace: true` on the topic; `onGenerationStarted` does not open the full
+player while the posts screen is showing. The bar is painted from
+`refreshProgressNow` and the button from `setPlayState`/`markPlaying`
+(`paintVibePostTransport`), so there is still one transport; dragging the
+playing post's bar is the player's own `makeScrubbable`. The chip seeks the
+playing episode (never past what is written) or starts it with
+`pendingResumeSeek`, the wait a resumed episode keeps. Leaving the screen
+does not stop it; the mini bar carries it on the tab screens.
+
+**Likes and replies, and who sees them.** A like is per post
+(`vibe_likes`, keyed on the vibe's row, an account's). Replies are
+**public to whoever may see the vibe** - its owner, or anyone who may open
+the owner's profile (reachable, not blocked either way, not suspended) and
+is not kept out of a close-friends vibe. That is a product change from
+§282, where a reply to a vibe was a private message; the story's reply row
+is unchanged and still sends a message. A post's reply is a comment filed
+under the vibe: `comments.echo_id` (0 is an episode's own thread, Explore's,
+which now filters on it, as does `comment_counts_many`), so the reply code,
+likes on replies, reports (`comment`) and deletion are the comment code; the
+poster may also delete any reply on their own post. Deleting a vibe takes
+its likes and replies (`_drop_post`); deleting an account takes the likes it
+gave and the posts of its vibes.
+
+**Who heard it** is `_mark_friends_listened(public_searches_only=True)` per
+post, the player's faces (§543) with the same caution.
+
+Endpoints: `GET /api/vibe/posts` (`handle`, `before`, `limit`),
+`POST /api/vibe/{id}/like`, `GET`/`POST /api/vibe/{id}/replies`,
+`POST /api/vibe/replies/{reply}/like` and `DELETE /api/vibe/replies/{reply}`. No person ids in any response. Both
+previews answer them. Not built: the iOS client's posts screen, and a
+notice to the poster when someone replies (a reply is not a message).
+
+**Caught in review** (a second read of the whole branch, at the owner's
+request):
+
+- `vibe_posts` and `echo_row` said `int(minutes)`, so a 1.5-minute vibe -
+  the browse length - came back as 1: another episode's key. Its post
+  played or wrote the wrong episode, never showed as playing, could not be
+  deleted, and filed its replies where the post did not read them. Both now
+  say `as_minutes` (§332), which also mends a moderator's removal of a
+  half-minute vibe (`echo_row` was already `int` before this).
+- Dragging the bar of a post that was not playing seeked the episode that
+  was: `makeScrubbable` seeks on release whatever the paint callback does.
+  A post's own `pointerdown`, registered first, now stops the drag unless
+  its episode is the one playing.
+- A reply under a vibe could be liked by anybody who guessed its id
+  (`/api/comments/{id}/like` checked only that it existed); it now asks
+  `_visible_vibe` first and answers 404 as for a missing reply.
+- A guest on a friend's page was gated where the tap used to play: a guest
+  now plays it as before.
+- A like's or the reply sheet's late answer redrew the post at its old
+  index after a delete had moved the list: posts are found again by id.
+- "No line" sent nothing, so a re-vibe kept the old line; it now sends "",
+  and is always offered.
+- The sheet liked and deleted replies through `/api/comments/...`, which
+  §499 keeps out of the page (`test_explorefam_is_gone_from_the_app`):
+  a vibe's replies have their own paths, `/api/vibe/replies/{id}/like` and
+  `DELETE /api/vibe/replies/{id}`, each asking `_visible_vibe` first.
+
+**A second review** (the whole branch against Main, at the owner's request):
+
+- The line chip on a post whose episode was not the one loaded usually
+  played from 0:00: the previous episode's mini-bar ticker saw a seek for
+  another episode and dropped it before the new bar was up. The chip now
+  brings the old bar down before it starts (`hideNowBar`).
+- A reply's author lost the way to delete their own reply once the vibe's
+  owner blocked them; `DELETE /api/vibe/replies/{id}` lets the author through.
+- `SocialStore.comment` said `int(minutes)` too (a reported reply under a
+  1.5 vibe showed 1 minute); it is `as_minutes` now.
+- Deleting or reporting from a post's menu could remove the last post if
+  the list had been reloaded meanwhile; it removes only the post itself.
+- Preview mocks: a friend's posts have ids of their own, and the live
+  preview's vibe delete takes its likes and replies.
+
+Known and left as they are: a post's episode ending with something in the
+Queue plays the Queue in the full player, as every episode does; and where
+the server never measured an episode's sentences, a line's time is the
+captions' estimate against the episode's length ceiling, so on an episode
+that ended early it can land late (the seek never passes the end).
+
+Tests: `tests/test_vibe_posts.py`.
+
+## 548. myFAM in a handful of statements, off the event loop (2026-11-11)
 
 A profiling pass for the iOS launch (a seeded deployment: 400 listeners,
 3,000 cached episodes, 28k events) found `GET /api/myfam` doing 0.6 s
@@ -33919,7 +34039,7 @@ draw's thread is pure Python, and the loop gets it back every switch
 interval. The tallies themselves (`_tally_listens`, per listener for What you
 missed) are now the largest part of a draw.
 
-Tests: `tests/test_feed_speed_547.py` - the batch read against each
+Tests: `tests/test_feed_speed_548.py` - the batch read against each
 single-key read, a draw's cache statements (at most 12, none by single key,
 on a fixture with hundreds of candidates), the batched draw equal to the one
 a key at a time and the snapshot draw equal to fresh reads, a play here and

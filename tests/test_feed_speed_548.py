@@ -1,4 +1,4 @@
-"""§547: myFAM drawn in a handful of statements, off the event loop.
+"""§548: myFAM drawn in a handful of statements, off the event loop.
 
 What a draw used to cost, and what each fix must not change:
 
@@ -133,7 +133,7 @@ def _draw(store, now):
 
 class _OneKeyAtATime:
     """The same cache without the batch read: the probes fall back to one
-    statement per tile, which is what every draw did before §547."""
+    statement per tile, which is what every draw did before §548."""
 
     def __init__(self, inner):
         self._inner = inner

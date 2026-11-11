@@ -587,7 +587,7 @@ class Prefetcher:
         what a cycle run from a tool or a test wants.
         """
         limit = limit or settings.prefetch_per_cycle
-        # `feed` is the page that scheduled this cycle, when one did (§547):
+        # `feed` is the page that scheduled this cycle, when one did (§548):
         # a source that reads the feed (`takes_feed`) is handed it rather
         # than drawing the same page a second time.
         per_source = [list((s.candidates(listener, limit, feed=feed)
@@ -1002,7 +1002,7 @@ def schedule_cycle(listener: str = "", minutes: int = 0,
       or this listener warmed recently - each is a dictionary lookup or a
       subtraction, because this runs on every page draw.
 
-    `feed` is the page just drawn for this listener (§547). The feed source
+    `feed` is the page just drawn for this listener (§548). The feed source
     reads it instead of building the same page again on the loop; only the
     rails' keys, titles and each tile's id and question are kept.
     """
