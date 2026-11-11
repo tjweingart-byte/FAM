@@ -33280,3 +33280,74 @@ This is the first step of the owner's rethink of how myFAM shows what is new
 today; the signal concepts (round two's lit edge and topic chip, round
 three's variations) are being redrawn on top of this plainer card and are
 not built.
+
+## 538. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11)
+
+**The owner's picks** from five rounds of signal designs (the slideshows are
+artifacts, not in the repo): **R5** on the myFAM mix card and **Q5** inside the
+mix. The brief throughout: someone who listened yesterday should open the
+mixes screen and see at once that something in their topics is trending or
+has a major update, without the screen shouting on days when nothing has.
+
+**R5, the card.** When one of a mix's topics changed since the listener last
+heard it, the card leads with the story's picture (`app._picture_url`, the
+player's own picker) with the mix's cover small in its corner, ringed in the
+signal's colour; under the name, one line naming the topic and the story; and
+where the arrow was, a pill saying "Trending" or "Major update". No picture
+approved for the story: the mix's own cover takes the ring and nothing sits
+in the corner. Any other day the card is §537's picture, name and arrow.
+
+**Q5, inside the mix.** Each changed topic's row is outlined and says
+"Trending · since you last listened" (or "Major update"), then two bubbles
+joined by an arrow: the day and title of the episode of that topic the
+listener last heard, and the title of today's (the written episode's, else
+the story's). Never heard it before: one bubble, never an invented "before".
+The play button becomes "Start with what changed" (`playWhatChanged`: the
+changed topics first in the mix's order, then the rest), with "or play all N
+from the top" as a link under it.
+
+**What counts, in `signals.py`.** Two measurements, never a result
+(`tile-title-angle`):
+
+* *Trending*: a story naming a subject the mix follows is in this slot's
+  Trending edition, or in the live pool carried by at least
+  `TRENDING_MIN_OUTLETS` (15, a starting value to tune against the
+  deployment's pool), and appeared after the listener last heard that topic.
+* *Major update*: a game the mix follows went `final` after the listener last
+  heard that topic. The pool had no clock for that - `live_as_of` moves on
+  every sweep - so `stories.Story.status_at` is new: set when a status first
+  appears or changes (`_seen_again`), kept otherwise, default 0 so stories
+  saved before it load as they were.
+
+"Names a subject the mix follows" is `topics.episode_subject`, the reading the
+player's (+) uses, kept to its specific answers (a named team or company, a
+subject named by its label or id, or its subtag); its facet-wide last resort
+is refused (`signals.specific_subject`), §155's rule that a field is not a
+subject - "Bond yields climb" is money news, not news about Stocks & Economy.
+A whole subject ("NFL") takes its teams' stories; a narrowed one ("NFL ·
+Eagles") only its own. Typed topics carry no signal: nothing short of a model
+call can tell a subject from a kind of thing (`mixes.TYPED_HEAD`).
+
+Quiet by default and quiet once heard: an item whose today's episode is in the
+listener's history carries nothing; a topic never heard reaches back one day
+(`NEVER_HEARD_WINDOW`); a card shows one signal, a result before a trend, then
+wider coverage. "Last heard" is the history's newest row whose question is one
+of the item's earlier dated prompts (`mixes.earlier_prompts`, thirteen days);
+the day is shown in the listener's clock (`listener-clock`).
+
+**Where it runs.** `app._mix_signals`, from `GET /api/mixes`, on what is held:
+the history (one read), the Trending edition and the pool in memory
+(`stories_in_memory`, `pool().held` - not `live`, whose variety cap could hide
+the one story about this listener's team), and the script cache for today's
+title. Nothing waits, nothing is written, and any failure leaves the list as
+it was and is logged. New fields only (`signal` on a mix; `signal` and `since`
+on its items), so installed clients are unaffected (`old-clients`).
+
+Light and dark each get the colours as tokens (`--sig-tr`, `--sig-up`,
+`--sig-ink`): dark's gold and a lighter coral so small text reads on the
+card, light's darker pair. The fixture preview shows both signals on Morning
+and At the gym, its pictures cropped from the landing page's tiles.
+
+Tests: `tests/test_signals_538.py` (matching, both signals' timing, quiet once
+heard, one per mix, the status clock, the bubbles, the route, a failure never
+taking the list down, both themes' tokens).

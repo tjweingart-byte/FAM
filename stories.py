@@ -479,6 +479,10 @@ class Story:
     live_line: str = ""
     live_status: str = ""
     live_as_of: float = 0.0
+    #: When `live_status` last changed - first set, or moved on - as this
+    #: server saw it (§538). `live_as_of` moves on every sweep, so it cannot
+    #: say "the result came in after you last listened"; this can.
+    status_at: float = 0.0
     #: The category-tree node this story is about (`categories`), chosen by
     #: the composer and resolved against the tree in code
     #: (`resolve_category`). What the tile's picture and its facet label are
@@ -1110,6 +1114,7 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
         live_line=signal.live_line,
         live_status=signal.live_status,
         live_as_of=now if signal.live_line else 0.0,
+        status_at=now if signal.live_status else 0.0,
         minor_league=bool(getattr(signal, "minor_league", False)),
         observation=signal.observation,
         observed_at=now,
@@ -1874,6 +1879,8 @@ def _seen_again(previous: Story, signal, now: float,
         live_line=live_line,
         live_status=live_status,
         live_as_of=now if signal.live_line else previous.live_as_of,
+        status_at=(now if signal.live_status and signal.live_status != previous.live_status
+                   else (previous.status_at or (now if live_status else 0.0))),
         outcome_pending=(bool(signal.outcome_pending) if signal.live_status
                          else previous.outcome_pending),
         query=query,
