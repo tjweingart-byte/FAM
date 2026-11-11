@@ -887,8 +887,11 @@ class SocialStore:
             (int(echo_id),)).fetchone()
         if not row:
             return None
+        # A half minute stays a half minute (§332): `int` turned a 1.5 vibe
+        # into 1, which is another episode's key - a moderator's removal and
+        # a post's replies both missed it.
         return {"id": int(row[0]), "user_id": row[1], "query": row[2],
-                "minutes": int(row[3]), "title": row[4] or "", "caption": row[5] or "",
+                "minutes": as_minutes(row[3]), "title": row[4] or "", "caption": row[5] or "",
                 "audience": row[6] or "", "line": row[7] or "",
                 "line_at": float(row[8] if row[8] is not None else -1)}
 
@@ -1447,7 +1450,7 @@ class SocialStore:
             top = thread[0] if thread else None
             out.append({
                 "id": int(eid), "query": query, "title": title or "",
-                "minutes": int(minutes), "at": float(at), "caption": caption or "",
+                "minutes": as_minutes(minutes), "at": float(at), "caption": caption or "",
                 "line": ({"text": line, "at": float(line_at) if line_at is not None
                           and float(line_at) >= 0 else None} if line else None),
                 "likes": likes.get(int(eid), 0), "liked": int(eid) in liked,

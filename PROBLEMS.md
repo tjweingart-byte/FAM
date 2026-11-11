@@ -33704,4 +33704,27 @@ reply is `DELETE /api/comments/{id}`. No person ids in any response. Both
 previews answer them. Not built: the iOS client's posts screen, and a
 notice to the poster when someone replies (a reply is not a message).
 
+**Caught in review** (a second read of the whole branch, at the owner's
+request):
+
+- `vibe_posts` and `echo_row` said `int(minutes)`, so a 1.5-minute vibe -
+  the browse length - came back as 1: another episode's key. Its post
+  played or wrote the wrong episode, never showed as playing, could not be
+  deleted, and filed its replies where the post did not read them. Both now
+  say `as_minutes` (§332), which also mends a moderator's removal of a
+  half-minute vibe (`echo_row` was already `int` before this).
+- Dragging the bar of a post that was not playing seeked the episode that
+  was: `makeScrubbable` seeks on release whatever the paint callback does.
+  A post's own `pointerdown`, registered first, now stops the drag unless
+  its episode is the one playing.
+- A reply under a vibe could be liked by anybody who guessed its id
+  (`/api/comments/{id}/like` checked only that it existed); it now asks
+  `_visible_vibe` first and answers 404 as for a missing reply.
+- A guest on a friend's page was gated where the tap used to play: a guest
+  now plays it as before.
+- A like's or the reply sheet's late answer redrew the post at its old
+  index after a delete had moved the list: posts are found again by id.
+- "No line" sent nothing, so a re-vibe kept the old line; it now sends "",
+  and is always offered.
+
 Tests: `tests/test_vibe_posts.py`.

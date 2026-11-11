@@ -9692,6 +9692,15 @@ async def like_comment(comment_id: int, req: CommentLikeRequest,
                        request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
+    # A reply under a vibe (§544) is liked only by somebody who may see the
+    # vibe; otherwise it answers as a reply that is not there.
+    found = SOCIAL.comment(comment_id)
+    if found and found.get("echo_id"):
+        try:
+            _visible_vibe(request, found["echo_id"])
+        except HTTPException:
+            raise HTTPException(status_code=404,
+                                detail="That comment is not here any more.") from None
     try:
         return SOCIAL.like_comment(user, comment_id, on=req.on)
     except social_mod.SocialError as exc:

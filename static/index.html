@@ -9123,7 +9123,8 @@
               + '<span class="vcs-line-t">' + formatTime(vcsLineAt(lines, i)) + '</span>'
               + escapeHtml(s) + '</button>';
           }).join("") + '</div>'
-        + (chosen ? '<button class="vcs-line-none" onclick="vcsPickLine(-1)">No line</button>' : '');
+        // Always offered: a vibe posted again may carry a line from before.
+        + '<button class="vcs-line-none" onclick="vcsPickLine(-1)">No line</button>';
     }).catch(function(){
       panel.innerHTML = vcsPanelHead("YOUR LINE") + '<div class="vcs-hint">Could not load the episode’s words.</div>';
     });
@@ -9132,6 +9133,8 @@
     var lines = vcs.lines;
     vcs.model.line = (i >= 0 && lines && lines.sentences[i])
       ? { text: lines.sentences[i], at: vcsLineAt(lines, i) } : null;
+    // "No line" is a choice, sent as "" so a re-vibe takes the old one off.
+    vcs.model.lineCleared = !vcs.model.line;
     var tool = document.querySelector('#vibeComposer .vcs-tool[data-tool="line"]');
     if(tool) tool.classList.toggle("set", !!vcs.model.line);
     vcsTool("");
@@ -9373,7 +9376,8 @@
                              tags: model.tags,
                              // The line (§544) only when one was picked: left
                              // out, a re-vibe keeps the one it had.
-                             line: model.line ? model.line.text : undefined,
+                             line: model.line ? model.line.text
+                                              : (model.lineCleared ? "" : undefined),
                              line_at: model.line && model.line.at >= 0 ? model.line.at : undefined })
     }).then(function(r){
       return r.json().then(function(d){
@@ -18303,7 +18307,9 @@
     if(!v) return;
     var handle = (personPublished && personPublished.handle)
       || (viewingProfile && viewingProfile.handle) || v.handle || "";
-    if(handle){ openVibePosts(handle, i); return; }
+    // A guest who reaches a friend's page plays it as before: liking and
+    // replying are an account's, and the posts screen is for those.
+    if(handle && AUTH.authenticated){ openVibePosts(handle, i); return; }
     var key = "pvibe_" + i + "_" + Date.now();
     TOPICS[key] = { title: v.title || v.query, surface: "other",
                     source: "vibed by " + (viewingProfile && viewingProfile.name
@@ -18336,7 +18342,6 @@
   var VP_PAGE = 12;
 
   function openVibePosts(handle, index){
-    if(!AUTH.authenticated && handle){ showGuestGate("Create a free account to see friends\u2019 vibes."); return; }
     vp = { handle: handle || "", mine: !handle, person: null, posts: [], more: false,
            loading: false, focus: index || 0 };
     document.getElementById("vpTitle").textContent = "Vibes";
@@ -18526,6 +18531,11 @@
   // the player's own scrubber code, so it lands on release like the player's.
   function makeVibePostScrubbable(track, i){
     if(!track) return;
+    // Registered before the player's own handler, so a drag on a post that
+    // is not playing never reaches it - it would seek whatever *is* playing.
+    track.addEventListener("pointerdown", function(e){
+      if(!vibePostIsCurrent(vp.posts[i])){ e.stopImmediatePropagation(); }
+    });
     makeScrubbable(track, function(pct, seconds){
       var p = vp.posts[i];
       if(!vibePostIsCurrent(p)) return;
@@ -18569,6 +18579,10 @@
     playVibePost(i, at);
   }
 
+  function vibePostIndex(id){
+    for(var k = 0; k < vp.posts.length; k++) if(vp.posts[k].id === id) return k;
+    return -1;
+  }
   function likeVibePost(i){
     var p = vp.posts[i];
     if(!p) return;
@@ -18577,13 +18591,14 @@
     // Drawn at once, put right if the server says otherwise.
     p.liked = on; p.likes = Math.max(0, (p.likes || 0) + (on ? 1 : -1));
     redrawVibePost(i);
+    // The list may have changed by the time this answers: found again by id.
     fetch("/api/vibe/" + p.id + "/like", { method: "POST",
       headers: {"Content-Type": "application/json"}, body: JSON.stringify({ on: on }) })
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ p.likes = d.likes; p.liked = d.liked; redrawVibePost(i); })
+      .then(function(d){ p.likes = d.likes; p.liked = d.liked; redrawVibePost(vibePostIndex(p.id)); })
       .catch(function(){
         p.liked = !on; p.likes = Math.max(0, (p.likes || 0) + (on ? -1 : 1));
-        redrawVibePost(i);
+        redrawVibePost(vibePostIndex(p.id));
         toast("Could not like that");
       });
   }
@@ -18663,8 +18678,8 @@
         if(id !== vpr.id) return;
         vpr.replies = d.replies || [];
         vpr.mine = !!d.mine;
-        var p = vp.posts[vpr.i];
-        if(p){ p.replies = d.count || 0; p.top_reply = vpr.replies[0] || null; redrawVibePost(vpr.i); }
+        var at = vibePostIndex(id), p = vp.posts[at];
+        if(p){ p.replies = d.count || 0; p.top_reply = vpr.replies[0] || null; redrawVibePost(at); }
         paintVibeReplies();
       })
       .catch(function(){

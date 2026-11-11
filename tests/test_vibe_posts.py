@@ -146,6 +146,16 @@ def test_posts_page_by_time(store):
     assert [p["query"] for p in first + rest] == ["q4", "q3", "q2", "q1", "q0"]
 
 
+def test_a_half_minute_vibe_keeps_its_length(store):
+    # Caught in review: `int` turned a 1.5 vibe into 1 - another episode's
+    # key - so its replies, its replay and its delete all missed it.
+    e = store.echo("a", "q", "T", 1.5)
+    assert store.echo_row(e.id)["minutes"] == 1.5
+    store.add_comment("b", "q", store.echo_row(e.id)["minutes"], "hi", echo_id=e.id)
+    post = store.vibe_posts("a", viewer="a")[0]
+    assert post["minutes"] == 1.5 and post["replies"] == 1
+
+
 # --- the API -------------------------------------------------------------------
 
 def test_your_own_posts_and_a_friends(client):
@@ -192,6 +202,18 @@ def test_a_guest_can_neither_like_nor_reply(client):
                           json={"text": "hi"}).status_code == 401
 
 
+def test_a_reply_on_a_hidden_vibe_cannot_be_liked(client):
+    signed_in(client, "vp7@b.com", "Ian", "ianvp7")
+    eid = client.post("/api/vibe", json={"query": "secret two", "minutes": 2,
+                                         "audience": "close"}).json()["id"]
+    rid = client.post(f"/api/vibe/{eid}/replies", json={"text": "note"}).json()["id"]
+    other = TestClient(appmod.app)
+    with other:
+        signed_in(other, "vp8@b.com", "Zed", "zedvp8")
+        assert other.post(f"/api/comments/{rid}/like", json={"on": True}).status_code == 404
+    assert client.post(f"/api/comments/{rid}/like", json={"on": True}).json()["likes"] == 1
+
+
 def test_no_post_for_a_handle_nobody_has_or_a_vibe_that_is_gone(client):
     signed_in(client, "vp4@b.com", "Ian", "ianvp4")
     assert client.get("/api/vibe/posts", params={"handle": "nobody_here"}).status_code == 404
@@ -233,6 +255,13 @@ def test_the_composer_offers_a_line_and_sends_it():
     assert 'data-tool="line"' in INDEX
     body = _fn("postVibeStory")
     assert "line_at" in body and "line:" in body
+    # "No line" is sent as "", so a re-vibe can take an old line off.
+    assert "lineCleared" in body and "lineCleared" in _fn("vcsPickLine")
+
+
+def test_dragging_a_post_that_is_not_playing_seeks_nothing():
+    body = _fn("makeVibePostScrubbable")
+    assert body.index("stopImmediatePropagation") < body.index("makeScrubbable(")
 
 
 def test_a_post_says_the_day_it_was_vibed():
