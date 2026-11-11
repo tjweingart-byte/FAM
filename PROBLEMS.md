@@ -33562,8 +33562,9 @@ The owner's 11.11 note, two ideas, with a mock-up of "PLAY ALL" beside
    it (§499's large-text rule).
 
 2. **Faces on the player.** The DailyFAM card's "friends who listened"
-   (§393/§394) now shows on the player too, bottom left of the picture,
-   opposite share/vibe/save, under the captions. A tile already carries its
+   (§393/§394) now shows on the player too, top left of the picture as in
+   the mock-up (its top edge worked out from the stage's width with `cqw`,
+   never above the stage), under the captions. A tile already carries its
    faces, so a tap from DailyFAM draws them at once; anything else asks the
    new `GET /api/listened?q=` - the same `_mark_friends_listened`, matched by
    the normalised question like every listen count, friends only, accounts
