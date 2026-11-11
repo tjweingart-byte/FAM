@@ -9,6 +9,7 @@ capitalised - bare and in a sentence, and writes a page to listen to them.
 
     python tools/stress_trial.py --csv fam-pronunciations-2026-11-11.csv
     python tools/stress_trial.py --names "Sagapolutele,Wembanyama" --limit 12
+    python tools/stress_trial.py --names "Sagapolutele=sah-gah-poh-loo-TEH-leh"
 
 Names come from a download of /admin's list (`--csv`), else this machine's
 lexicon. Only names with a stressed syllable marked and three or more
@@ -98,7 +99,8 @@ async def run(names: list[tuple[str, str]], out: pathlib.Path, sentences: bool) 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--csv", help="a download of /admin's list (Download list)")
-    ap.add_argument("--names", help="comma-separated names to try, instead of picking")
+    ap.add_argument("--names", help="comma-separated names to try, instead of picking; "
+                    "Name=respelling tries that respelling")
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--no-sentence", action="store_true",
                     help="bare names only (half the calls)")
@@ -109,8 +111,12 @@ def main() -> int:
         rows = _from_csv(args.csv)
     else:
         rows = [(n, v[0]) for n, v in pronunciation.lexicon().entries().items()]
+    given = [p.split("=", 1) for p in (args.names or "").split(",") if "=" in p]
+    if given:
+        # "Name=respelling": tried as given, with or without a list.
+        rows = [(n.strip(), s.strip()) for n, s in given] + rows
     if args.names:
-        wanted = {n.strip() for n in args.names.split(",") if n.strip()}
+        wanted = {n.split("=", 1)[0].strip() for n in args.names.split(",") if n.strip()}
         names = [(n, s) for n, s in rows if n in wanted][:args.limit]
         missing = wanted - {n for n, _ in names}
         if missing:
