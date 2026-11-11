@@ -38,6 +38,8 @@ struct PlayerView: View {
     @State private var pictureFrame: CGRect = .zero
     @State private var queueFrame: CGRect = .zero
     @State private var queueBump: CGFloat = 1
+    /// "N friends listened", from the faces on the picture (§543).
+    @State private var friendsOpen = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -80,6 +82,10 @@ struct PlayerView: View {
         .fullScreenCover(item: $myStory) { reel in
             StoryViewerCover(reel: reel)
                 .environmentObject(model)
+        }
+        // The faces' own card (§394), as a DailyFAM card opens it.
+        .fullScreenCover(isPresented: $friendsOpen) {
+            friendsSheet
         }
         .onChange(of: now.showQueue) { _, wanted in
             guard wanted else { return }
@@ -198,6 +204,15 @@ struct PlayerView: View {
                     .frame(width: wide, height: wide * 3 / 4)
                     .background(FrameReporter(space: Self.space) { pictureFrame = $0 })
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                // Who of your friends listened (§543): top left of the
+                // picture, under the captions.
+                if let friends = now.listenedFriends {
+                    PlayerFriendsPill(friends: friends) { openFriends() }
+                        .padding(.leading, 16)
+                        .padding(.top, friendsTop(stage: geo.size.height, picture: wide * 3 / 4))
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                        .transition(.opacity)
+                }
                 if now.captionsOn {
                     CaptionsCard()
                         .padding(.horizontal, 12)
@@ -211,6 +226,34 @@ struct PlayerView: View {
             .animation(.easeOut(duration: 0.22), value: now.captionsOn)
         }
         .frame(maxHeight: .infinity)
+    }
+
+    /// `.p-friends`' top: 12 below the picture's top edge, never above 10
+    /// from the stage's (the picture can be taller than the stage).
+    private func friendsTop(stage: CGFloat, picture: CGFloat) -> CGFloat {
+        max(10, stage / 2 - picture / 2 + 12)
+    }
+
+    /// `openFriendsListened('_player')`: one presentation at a time.
+    private func openFriends() {
+        guard now.listenedFriends != nil else { return }
+        if sheet == nil && popup == nil {
+            friendsOpen = true
+            return
+        }
+        sheet = nil
+        popup = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { friendsOpen = true }
+    }
+
+    @ViewBuilder private var friendsSheet: some View {
+        if let friends = now.listenedFriends {
+            FriendsListened(count: max(friends.count, friends.faces.count), faces: friends.faces)
+                .environmentObject(model)
+        } else {
+            FriendsListened(count: 0, faces: [])
+                .environmentObject(model)
+        }
     }
 
     /// Share / VIBE! / save (`.p-side`): 24 apart, 34 pt up plus 12 of
@@ -554,6 +597,68 @@ struct PlayerExplicitBadge: View {
             .frame(minWidth: size, minHeight: size)
             .background(FAMColor.textMuted, in: RoundedRectangle(cornerRadius: 3))
             .accessibilityLabel("Explicit")
+    }
+}
+
+/// `.p-friends` (§543): the DailyFAM card's faces on the player - up to
+/// three 26 pt faces overlapped 6, ringed in the pill's ink, and a copper
+/// "+N" for the rest, on rgba(20,18,28,.62) over a blur, a cream hairline
+/// round it and a soft shadow under it. A tap lists who listened.
+struct PlayerFriendsPill: View {
+    let friends: NowPlayingModel.PlayerFriends
+    let open: () -> Void
+
+    private static let ground = Color(red: 20 / 255, green: 18 / 255, blue: 28 / 255)
+    private static let rim = Color(red: 244 / 255, green: 239 / 255, blue: 228 / 255)
+
+    private var shown: [FriendFace] { Array(friends.faces.prefix(3)) }
+
+    private var count: Int { max(friends.count, friends.faces.count) }
+
+    private var more: Int { count - shown.count }
+
+    private var label: String {
+        if count == 1, let face = friends.faces.first {
+            let name = face.name.isEmpty ? (face.handle ?? "") : face.name
+            return (name.isEmpty ? "A friend" : name) + " listened"
+        }
+        return "\(count) friends listened"
+    }
+
+    var body: some View {
+        Button(action: open) { look }
+            .buttonStyle(.press)
+            .fixedSize()
+            .accessibilityLabel(label)
+    }
+
+    private var look: some View {
+        HStack(spacing: 5) {
+            faces
+            if more > 0 {
+                Text("+\(more)")
+                    .font(FAMFont.mono(10, bold: true))
+                    .foregroundStyle(FAMColor.copper)
+            }
+        }
+        .padding(.leading, 3)
+        .padding(.trailing, more > 0 ? 8 : 3)
+        .padding(.vertical, 3)
+        .background(Self.ground.opacity(0.62), in: Capsule())
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(Self.rim.opacity(0.45), lineWidth: 1))
+        .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
+    }
+
+    private var faces: some View {
+        HStack(spacing: -6) {
+            ForEach(Array(shown.enumerated()), id: \.offset) { i, face in
+                Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
+                     size: 26, initialsSize: 10)
+                    .overlay(Circle().stroke(Self.ground.opacity(0.9), lineWidth: 1.5))
+                    .zIndex(Double(3 - i))
+            }
+        }
     }
 }
 

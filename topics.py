@@ -150,7 +150,7 @@ MISSED_QUIET = 3 * 86400
 #: screen's three samples are the top of this same ranking.
 MOST_PLAYED_WINDOW = 24 * 3600
 
-#: **The crowd's listens are read once and shared** (§544). Every crowd rail
+#: **The crowd's listens are read once and shared** (§547). Every crowd rail
 #: - Most played (24 h), What you missed (3-7 days), the friends rail and the
 #: friends' faces (14 days) - is a window over the same plays and heard
 #: listens, identical for every listener, and each draw used to read them
@@ -2848,7 +2848,7 @@ class EventStore:
         until = float("inf") if until is None else until
         snap = self._crowd(since)
         if snap is not None:
-            # The same rows in the same order a fresh read returns (§544):
+            # The same rows in the same order a fresh read returns (§547):
             # the snapshot is that read over a wider window.
             return [r for r in snap.rows if since <= r[3] < until]
         return self._listens_sql(since, until)
@@ -2878,7 +2878,7 @@ class EventStore:
     def _crowd(self, since: float) -> Optional["_CrowdSnapshot"]:
         """The shared snapshot of the crowd's listens, current as of now, or
         None when it cannot answer a read reaching back to `since` - which is
-        then read from the database as it always was (§544)."""
+        then read from the database as it always was (§547)."""
         clock = time.monotonic()
         with _CROWD_LOCK:
             gen = _CROWD_GEN.get(self.path, 0)
@@ -3772,7 +3772,7 @@ REMAKE_MARGIN = 3600.0
 
 @functools.lru_cache(maxsize=65536)
 def _norm_question(text: str) -> str:
-    # Memoised (§544): every crowd tally normalises every listen's question,
+    # Memoised (§547): every crowd tally normalises every listen's question,
     # tens of thousands a draw, over a few thousand distinct questions.
     return " ".join(_WORD.findall((text or "").lower()))
 
@@ -4206,7 +4206,7 @@ def _tile_ref(entry: _Tally, known: dict, by_question: dict
     tile, "") when there is one, else (None, the topic id `episode_tile`
     would be given). A crowd rail drops most of what it visits before it
     draws anything, so the tags are worked out only for what it keeps
-    (§544)."""
+    (§547)."""
     ids = sorted(entry.ids, key=lambda i: (-entry.ids[i], i))
     for topic_id in ids:
         if topic_id in known:
@@ -4219,7 +4219,7 @@ def _tile_ref(entry: _Tally, known: dict, by_question: dict
 
 def _prime(probe, queries) -> None:
     """Tell a cache probe which questions are about to be asked, so it can
-    read them in one statement (§544). A probe without `prime` - a test's
+    read them in one statement (§547). A probe without `prime` - a test's
     lambda - is asked one question at a time, as it always was. Never
     raises: priming only ever saves reads."""
     prime = getattr(probe, "prime", None)
@@ -4232,7 +4232,7 @@ def _prime(probe, queries) -> None:
 
 
 #: How many crowd candidates `_crowd_tiles` reads in its first batch, and how
-#: much each later batch grows (§544). A rail usually fills from the first;
+#: much each later batch grows (§547). A rail usually fills from the first;
 #: one whose candidates are mostly not cached reads two or three.
 CROWD_PROBE_BATCH = 64
 CROWD_PROBE_GROWTH = 4
@@ -4295,7 +4295,7 @@ def _crowd_tiles(tallies: dict, known: dict, exclude: set,
         return not (tid in exclude or tid in seen
                     or (heard is not None and heard.last(_Ref(tid, query))))
 
-    # Read the cache for the candidates ahead in batches (§544) rather than
+    # Read the cache for the candidates ahead in batches (§547) rather than
     # one statement each: the first batch is what a rail usually fills from.
     primed = 0
     batch = CROWD_PROBE_BATCH

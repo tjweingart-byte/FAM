@@ -657,7 +657,7 @@ def _trending_bank_report() -> dict:
 
 def _warm_first_calls() -> None:
     """Load at boot what the first health check and the first myFAM draw
-    would load on a listener's time (§544). Never raises: each is loaded
+    would load on a listener's time (§547). Never raises: each is loaded
     again, on demand, if this did not."""
     for name, warm in (("agents", agent_models.health),
                        ("thumbnail styles", thumbnails_mod.style_references),
@@ -873,7 +873,7 @@ async def lifespan(_: FastAPI):
     # Unheard episodes drawn from an older bank draw again (§333).
     _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
     # What the first /api/health and the first myFAM would otherwise pay
-    # (§544): the agents' modules, the house style's pictures and the
+    # (§547): the agents' modules, the house style's pictures and the
     # ranker's semantic model, loaded in a thread while nobody waits.
     _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_warm_first_calls)))
     # The server's own size once a minute, and a full report in the log the
@@ -1075,7 +1075,7 @@ def _make_pipeline(voice: Optional[str] = None,
                            author=author)
 
 
-#: How long /api/health keeps a report that only counts things (§544).
+#: How long /api/health keeps a report that only counts things (§547).
 HEALTH_REPORT_SECONDS = 15.0
 _HEALTH_MEMO: dict = {}
 
@@ -2115,7 +2115,7 @@ def _usage_monitors_health() -> dict:
 async def health(request: Request) -> dict:
     """What this server is running and whether each part of it works.
 
-    Built in a worker thread (§544): it reads every store, and on the event
+    Built in a worker thread (§547): it reads every store, and on the event
     loop each call held up every other request for its whole length."""
     return await asyncio.to_thread(_health_report, request)
 
@@ -6672,14 +6672,19 @@ async def list_mixes(request: Request):
     # can only refuse (`old-clients`).
     wants_joint = request.query_params.get("joint") == "1"
     joint = MIXES.joint_ids([m.id for m in own])
+    # A mix added from somebody else's says whose it was; a joint mix
+    # (11.7 packet) says who is in it and who added what - the ones this
+    # listener owns, then the ones they were invited into.
+    shown = list(own) + ([m for m in MIXES.joined(user)
+                          if not MODERATION.is_apart(m.user_id, user)]
+                         if wants_joint else [])
+    # One read of the listening history for every mix's signals (§545).
+    history = _mix_history(user)
     return {
-        # A mix added from somebody else's says whose it was; a joint mix
-        # (11.7 packet) says who is in it and who added what - the ones this
-        # listener owns, then the ones they were invited into.
-        "mixes": [_mix_out(m, user, people, m.id in joint) for m in own]
-                 + ([_mix_out(m, user, people, True) for m in MIXES.joined(user)
-                     if not MODERATION.is_apart(m.user_id, user)]
-                    if wants_joint else []),
+        # Each with its pictures and what changed since this listener last
+        # heard it (§545), via `_mix_out`.
+        "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user, history)
+                  for m in shown],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
@@ -6870,7 +6875,31 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
     return out
 
 
-def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
+def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None) -> dict:
+    """One mix as this viewer sees it, with each topic's picture and what
+    changed since they last heard it (§545) - on every route that answers
+    with a mix, so adding or reordering a topic never drops either.
+
+    `history` is the viewer's listening history when the caller has already
+    read it (the list reads it once for every mix); None reads it here."""
+    body = _mix_body(mix, viewer, people, joint)
+    _mix_pictures(mix, body)
+    _mix_signals(viewer, [(mix, body)], history)
+    return body
+
+
+def _mix_pictures(mix, body: dict) -> None:
+    """Each topic row's picture (§545): the player's own picker over the
+    item's words, so a row, its episode in the player and the card that
+    leads with it never disagree. "" when nothing is approved; the client
+    draws the subject's icon. Never fails the mix."""
+    for item, out in zip(mix.items, body.get("items") or ()):
+        words = item.title if item.title.lower() in (item.query or "").lower() else \
+            f"{item.query} {item.title}".strip()
+        out["picture"] = _picture_url(words, item.title)
+
+
+def _mix_body(mix, viewer: str, people: dict, joint: bool) -> dict:
     """One mix as this viewer sees it.
 
     The owner sees everything (`as_dict`); a member of a joint mix sees what
@@ -6904,6 +6933,91 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
         if who in index:
             out["added_by"] = index[who]
     return body
+
+
+def _mix_history(user: str) -> list:
+    """The listening history `_mix_signals` reads; [] when it cannot be read
+    (a signal is never worth an error)."""
+    try:
+        return SAVED.history(user, limit=400) if user else []
+    except Exception:  # noqa: BLE001
+        log.exception("could not read the history for mix signals")
+        return []
+
+
+def _mix_signals(user: str, pairs: list, history=None) -> None:
+    """Mark what changed in each mix since this listener last heard it (§545).
+
+    `pairs` is `[(Mix, served dict), ...]`; each served dict gains `signal`
+    (R5 on the card: kind, label, topic, headline, picture) when one of its
+    items has one, and each such item gains `signal` and `since` (Q5's
+    bubbles). A read of what is held - the listening history, the Trending
+    edition and story pool in memory, the script cache - so nothing here
+    waits or writes, and **nothing here may fail the list**: any error leaves
+    the mixes as they were and is logged.
+    """
+    from datetime import datetime
+
+    import signals as signals_mod
+
+    try:
+        now = time.time()
+        rows = _mix_history(user) if history is None else history
+        heard_by_query: dict = {}
+        for row in rows:                       # newest first: keep the first
+            heard_by_query.setdefault(normalize_query(row.get("query") or ""), row)
+        edition = trending_bank.stories_in_memory(now)
+        try:
+            pool = stories_mod.pool().held(now)
+        except Exception:  # noqa: BLE001 - no pool is no trending, not an error
+            pool = []
+        zone = listener_clock.zone()
+        for mix, body in pairs:
+            found_all = []
+            for item, out in zip(mix.items, body.get("items") or ()):
+                if not getattr(item, "follow", False):
+                    continue
+                prompt = out.get("prompt") or ""
+                heard = signals_mod.Heard()
+                if normalize_query(prompt) in heard_by_query:
+                    heard.today = True
+                else:
+                    for earlier in mixes_mod.earlier_prompts(prompt, signals_mod.SINCE_DAYS):
+                        row = heard_by_query.get(normalize_query(earlier))
+                        if row:
+                            heard.at = float(row.get("at") or 0.0)
+                            heard.title = (row.get("title") or "").strip()
+                            break
+                found = signals_mod.item_signal(item, edition, pool, heard, now)
+                if found is None:
+                    continue
+                found_all.append(found)
+                out["signal"] = {"kind": found.kind, "label": signals_mod.LABELS[found.kind],
+                                 "headline": found.headline}
+                day = (datetime.fromtimestamp(heard.at, zone).strftime("%a")
+                       if heard.at else "")
+                out["since"] = signals_mod.bubbles(
+                    heard, _today_title(prompt, out.get("minutes")) or found.headline, day)
+            best = signals_mod.strongest(found_all)
+            if best is not None:
+                best.picture = _picture_url(best.query, best.headline)
+                body["signal"] = best.card()
+    except Exception:  # noqa: BLE001 - a signal is never worth the mixes list
+        log.exception("could not work out what changed in this listener's mixes")
+
+
+def _today_title(prompt: str, minutes) -> str:
+    """The title of today's episode of a mix item, when it is written; ""
+    otherwise. A cache read, never a write."""
+    if not prompt or SCRIPT_CACHE is None:
+        return ""
+    try:
+        key = _episode_key(_validated_plan(prompt, as_minutes(minutes or BROWSE_MINUTES)))
+        if not key or not _cache_holds(key):
+            return ""
+        return (SCRIPT_CACHE.title(key) or "").strip()
+    except Exception:  # noqa: BLE001 - a missing title is no title
+        return ""
 
 
 def _record_mix_adds(mix, before=None, by: str = "") -> None:
@@ -8073,7 +8187,7 @@ async def myfam_section(request: Request,
         body["algo"] = EVENTS.algo_stamp()
         return topics_mod.page_section(body, _seen_ids(seen), page_size,
                                        wrap=not cycling)
-    shared = _FeedProbe(minutes)  # one batch reader for the three (§544)
+    shared = _FeedProbe(minutes)  # one batch reader for the three (§547)
     written = _written_probe(minutes, shared)
     try:
         place = _place_for(request)
@@ -8207,7 +8321,7 @@ def _cycles_cached(key: str, cycle: str) -> bool:
 #: The script_generator logger's lines are quiet on this thread while it is
 #: set: a browse page computes a key for every candidate tile, and
 #: `plan_episode` says "SEARCH yes" for each one - a thousand log lines a
-#: draw, about episodes nobody asked for (§544). Per thread, so a search
+#: draw, about episodes nobody asked for (§547). Per thread, so a search
 #: being planned beside a draw still logs.
 _QUIET_PLANS = threading.local()
 
@@ -8220,7 +8334,7 @@ class _QuietPlans(logging.Filter):
 logging.getLogger("script_generator").addFilter(_QuietPlans())
 
 #: `(query, minutes, ...) -> cache key` for browse tiles, kept across
-#: requests (§544). A key is a pure function of the question, the length and
+#: requests (§547). A key is a pure function of the question, the length and
 #: the settings `_episode_key` reads, so every one of those is in the memo's
 #: own key - and the functions themselves, so a test that swaps one is never
 #: answered from the other's memo. Never under `SEARCH_MODE=auto`, where
@@ -8275,7 +8389,7 @@ _PROBE_FAILED = object()
 
 
 class _FeedProbe:
-    """One request's answers from the shared cache, read in batches (§544).
+    """One request's answers from the shared cache, read in batches (§547).
 
     The three probes below (`written`, `written_at`, `episode_info`) used
     to make a round trip per candidate tile - ~1,000 a draw. With a cache that
@@ -8388,7 +8502,7 @@ def _written_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     asks again about the ones that survived, so the same handful of queries
     comes up several times on one page load. Each answer is a local SQLite
     read - cheap, and cheaper still done once, and cheaper again read in one
-    batch (`prime`, §544). Memoised per request rather than globally, because
+    batch (`prime`, §547). Memoised per request rather than globally, because
     "is this cached" is exactly the sort of answer that must not be allowed
     to go stale.
     """
@@ -8437,7 +8551,7 @@ def _episode_info_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     What the three crowd rails read - they show cached episodes only, and
     "What you missed last week" also refuses one written from a live feed.
     None when the script is not in the cache at this length, which is also
-    the answer for anything unaskable. Read in batches (`prime`, §544), never
+    the answer for anything unaskable. Read in batches (`prime`, §547), never
     a model call.
     """
     shared = shared or _FeedProbe(minutes)
@@ -9283,7 +9397,7 @@ class EventRequest(BaseModel):
 
 def _draw_guest_myfam(user: str, minutes: int) -> dict:
     """A guest's myFAM: the bank on every rail (see `myfam`). Synchronous, so
-    the endpoint draws it in a worker thread (§544)."""
+    the endpoint draws it in a worker thread (§547)."""
     SOCIAL.seen(user)
     feed = topics_mod.guest_feed()
     for section in feed["sections"]:
@@ -9296,9 +9410,9 @@ def _draw_guest_myfam(user: str, minutes: int) -> dict:
 def _draw_myfam(request: Request, user: str, minutes: int, interests: str,
                 remembers: bool) -> dict:
     """An account's myFAM, ranked and marked (see `myfam`). Synchronous and
-    awaits nothing, so the endpoint draws it in a worker thread (§544); it
+    awaits nothing, so the endpoint draws it in a worker thread (§547); it
     reads the request's headers and nothing that needs the event loop."""
-    # One batch reader behind all three probes (§544): the rankers prime it
+    # One batch reader behind all three probes (§547): the rankers prime it
     # with the tiles they are about to ask about, so a draw is a handful of
     # cache statements rather than one per candidate.
     shared = _FeedProbe(minutes)
@@ -9379,7 +9493,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # impressions, which a guest does not keep anyway. A tap on one of these
     # tiles plays kept audio or asks for an account; see `_guest_play_gated`.
     if not _has_account(request):
-        # Off the event loop like an account's draw below (§544).
+        # Off the event loop like an account's draw below (§547).
         return await asyncio.to_thread(_draw_guest_myfam, user, minutes)
 
     # One refresh serves every listener, so this is scheduled rather than
@@ -9407,7 +9521,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         # normal.
         asyncio.create_task(_warm_stories())
 
-    # **Drawn off the event loop** (§544). Ranking is a few hundred
+    # **Drawn off the event loop** (§547). Ranking is a few hundred
     # milliseconds of reads and arithmetic with nothing to await, and on the
     # loop it held up every other request on this worker - a launch's
     # client-status, health and auth waited for somebody else's page. In a
@@ -9432,7 +9546,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # produce briefs nobody ever looks up for any listener who changed it.
     #
     # And the page itself, so the feed source warms what was just shown
-    # rather than drawing it a second time on the loop (§544).
+    # rather than drawing it a second time on the loop (§547).
     prefetch.schedule_cycle(user, minutes, feed)
     return feed
 

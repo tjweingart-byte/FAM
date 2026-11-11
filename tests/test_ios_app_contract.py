@@ -275,6 +275,8 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # The story editor's layout, its stickers and @tags (§213, §297).
                    "StoryStyle", "StorySticker", "StoryTag",
                    "CatalogPage", "CatalogEpisode", "FriendFace", "RailsPage",
+                   # Friends who listened, on the player (§543, `/api/listened`).
+                   "ListenedPage",
                    # myFAM: mixes, the catalogue, sharing, push, the episode's topic.
                    "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",
                    "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic",

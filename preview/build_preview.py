@@ -258,6 +258,11 @@ def load_fixtures() -> dict:
         ],
         "starters": [{"name": n, "topic_ids": list(i)} for n, i in mixes_mod.STARTER_MIXES],
     }
+    # What changed since the listener last heard each mix (§545), the shape
+    # `app._mix_signals` serves: R5 on Morning's card (trending) and At the
+    # gym's (a result in), Q5's bubbles on the items. Invented, like every
+    # fixture; the pictures are crops of the landing page's own tiles.
+    _signal_fixtures(mixes["mixes"])
 
     # Other listeners' public mixes, for DailyFAM's search and their
     # profiles - the shape `/api/mixes/public` answers in, owner included.
@@ -811,6 +816,58 @@ MIX_ITEMS_JS = r"""
     return item;
   }
 """
+
+
+def _tile_crop(name: str) -> str:
+    """A square crop of a landing tile's painted picture, as a data URL -
+    a preview has no approved photos, and R5 is a picture-led card."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    tile = ROOT / "tools" / "landing" / "tiles" / f"{name}.jpg"
+    with Image.open(tile) as im:
+        buf = io.BytesIO()
+        im.convert("RGB").crop((100, 68, 188, 156)).save(buf, "JPEG", quality=85)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+#: Each fixture topic's picture (§545), by item id - crops of the landing
+#: page's tiles standing in for the approved pictures a preview lacks. The
+#: typed council topic has none, so the row shows its icon, as the app does
+#: when nothing is approved.
+ROW_PICTURES = {
+    "f:stocks~Nvidia": "friends-2", "f:ai": "friends-3", "fed-next-move": "trending-5",
+    "f:nfl~Eagles": "trending-4", "f:nfl": "friends-1", "f:basketball~Lakers": "foryou-3",
+    "sleep-science": "trending-6",
+}
+
+
+def _signal_fixtures(mixes: list) -> None:
+    by_id = {m["id"]: m for m in mixes}
+    crops: dict = {}
+    for m in mixes:
+        for item in m["items"]:
+            tile = ROW_PICTURES.get(item["id"])
+            item["picture"] = crops.setdefault(tile, _tile_crop(tile)) if tile else ""
+    morning, gym = by_id["m1"], by_id["m2"]
+    nvidia = next(i for i in morning["items"] if i["id"].startswith("f:stocks~"))
+    nvidia["signal"] = {"kind": "trending", "label": "Trending",
+                        "headline": "Why chip stocks had their worst day since 2022"}
+    nvidia["since"] = {"then": {"day": "Mon", "title": "An export rule on chips is rumoured"},
+                       "now": {"title": "The rule passed and chip stocks fell"}}
+    morning["signal"] = {"kind": "trending", "label": "Trending", "item_id": nvidia["id"],
+                         "topic": nvidia["title"],
+                         "headline": nvidia["signal"]["headline"],
+                         "picture": _tile_crop("friends-2")}
+    eagles = next(i for i in gym["items"] if i["id"].startswith("f:nfl~"))
+    eagles["signal"] = {"kind": "update", "label": "Major update",
+                        "headline": "Eagles beat the Cowboys in overtime"}
+    eagles["since"] = {"then": None, "now": {"title": "Eagles beat the Cowboys in overtime"}}
+    gym["signal"] = {"kind": "update", "label": "Major update", "item_id": eagles["id"],
+                     "topic": eagles["title"], "headline": eagles["signal"]["headline"],
+                     "picture": _tile_crop("trending-4")}
 
 
 def mix_items_js() -> str:

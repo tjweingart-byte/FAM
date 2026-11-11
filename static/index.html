@@ -17,6 +17,10 @@
     --page-bg:#1E1B27; --bg:#2A2733; --surface:#38334A; --surface-2:#423C56;
     --copper:#E0B563; --coral:#E2694F; --sage:#8FAE9A; --gold:#E0B563;
     --deeper:#FFD23F;
+    /* What changed since you last listened (§545): trending gold, a major
+       update coral, each with the ink a filled pill takes. Lighter than
+       --copper/--coral in dark so small text on a card reads. */
+    --sig-tr:#E0B563; --sig-up:#F08A6E; --sig-ink:#18151F;
     --text:#F4EFE4; --text-muted:#ABA3C4; --text-faint:#8A83A0;
     --border:rgba(244,239,228,0.10); --border-strong:rgba(244,239,228,0.20);
     --muted:rgba(244,239,228,0.56); --ink-muted:#ABA3C4;
@@ -38,6 +42,7 @@
     --paper:#E6DECD;
     --page-bg:#E9E3D6; --bg:#FFFFFF; --surface:#F7F3EA; --surface-2:#EEE8DC;
     --copper:#A87520; --gold:#A87520; --coral:#C4502F; --sage:#5C8669;
+    --sig-tr:#8A5F14; --sig-up:#B4441F; --sig-ink:#FFFFFF;
     --text:#1E1B27; --text-muted:#5E5770; --text-faint:#7D768C;
     --border:rgba(30,27,39,0.12); --border-strong:rgba(30,27,39,0.22);
     --muted:rgba(30,27,39,0.60); --ink-muted:#5E5770;
@@ -721,6 +726,52 @@
   .mix-preview{ font-size:10px; line-height:1.35; color:var(--text-muted);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .mix-chev{ flex:none; color:var(--text-muted); opacity:0.6; }
+  /* A mix row in the list is its name alone (11.10), so nothing sits under it. */
+  #mixList .mix-name{ margin-bottom:0; }
+  /* R5 (§545): when one of a mix's topics changed since the listener last
+     heard it, the card leads with the story's picture, the mix's own cover
+     small in its corner, one line naming the story and a pill where the
+     arrow was. The colour always comes with its word. */
+  .mix-card.has-sig{ border-color:var(--sig-c); }
+  .mix-card.sig-trending{ --sig-c:var(--sig-tr); }
+  .mix-card.sig-update{ --sig-c:var(--sig-up); }
+  .mix-sig-pic{ position:relative; flex:0 0 46px; height:46px; }
+  .mix-sig-pic > img, .mix-sig-pic > .mix-folder{ width:46px; height:46px; border-radius:12px;
+    object-fit:cover; display:block; box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--sig-c); }
+  .mix-sig-own{ position:absolute; left:-6px; bottom:-6px; width:22px; height:22px; border-radius:7px;
+    background:var(--paper); color:var(--ink); border:2px solid var(--surface);
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    background-size:cover; background-position:center; }
+  .mix-sig-own svg{ width:12px; height:12px; }
+  .mix-sig-own.has-cover svg{ display:none; }
+  .mix-sig-line{ margin-top:3px; font-size:11.5px; line-height:1.35; color:var(--text);
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .mix-sig-line b{ color:var(--sig-c); font-weight:700; }
+  .mix-sig-line svg, .mix-sig-tag svg{ display:inline-block; vertical-align:-2px; margin-right:3px;
+    color:var(--sig-c); }
+  .mix-pill{ flex:none; display:inline-flex; align-items:center; gap:4px; min-height:26px;
+    padding:0 6px 0 9px; border-radius:13px; background:var(--sig-c); color:var(--sig-ink);
+    font-family:'Geist',sans-serif; font-size:11px; font-weight:700; white-space:nowrap; }
+  /* Q5 inside the mix: the changed topic, outlined, with then -> now. */
+  .mix-topic.has-sig{ border:1.5px solid var(--sig-c); align-items:flex-start; }
+  .mix-topic.sig-trending{ --sig-c:var(--sig-tr); }
+  .mix-topic.sig-update{ --sig-c:var(--sig-up); }
+  .mix-topic-pic{ flex:0 0 40px; width:40px; height:40px; border-radius:10px; overflow:hidden;
+    background:var(--paper); color:var(--ink); display:flex; align-items:center; justify-content:center; }
+  .mix-topic-pic img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .mix-topic-icon{ display:flex; width:20px; height:20px; }
+  .mix-topic-icon svg{ width:20px; height:20px; }
+  .mix-topic.has-sig .mix-topic-pic{ overflow:visible; box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--sig-c); }
+  .mix-topic.has-sig .mix-topic-pic img{ border-radius:10px; }
+  .mix-sig-tag{ font-size:11px; font-weight:700; color:var(--sig-c); margin-bottom:2px; }
+  .mix-bubbles{ display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .mix-bub{ font-size:11px; line-height:1.3; padding:4px 8px; border-radius:9px;
+    background:var(--bg); color:var(--text-muted); overflow-wrap:anywhere; }
+  .mix-bub.now{ background:transparent; color:var(--text); border:1px solid var(--sig-c); }
+  .mix-bub-arrow{ color:var(--sig-c); font-weight:700; font-size:12px; }
+  .mix-play-all{ display:block; width:100%; margin:-4px 0 12px; padding:6px; border:0; background:none;
+    color:var(--text-muted); font-family:'Geist',sans-serif; font-size:12px; font-weight:600;
+    text-align:center; cursor:pointer; }
   .mix-new{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
@@ -1555,8 +1606,6 @@
     color:var(--copper); margin-left:0.09em; margin-right:0.15em;
     vertical-align:baseline; }
 
-  /* Public / private on a mix. Public is the default for a new mix. */
-  .mix-public{ color:var(--copper); }
   /* The profile's interest row, named and editable. */
   .pf-tags-lab{ align-self:center; font-family:'Geist Mono', monospace;
     font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase;
@@ -1589,7 +1638,6 @@
     border-top:1px solid var(--border); }
   .pi-acts .pf-btn{ flex:1; }
 
-  .mix-private{ color:var(--text-muted); }
   .mix-vis{ display:flex; align-items:center; justify-content:space-between; gap:14px;
     padding:13px 14px; margin:14px 0 10px; border-radius:12px; background:var(--surface);
     border:1px solid var(--border); cursor:pointer; }
@@ -11756,14 +11804,12 @@
         renderMixesLocked();
       });
   }
+  // Drawn like a listener's own mix card: picture, name, arrow (11.10).
   function sampleMixCardHTML(m){
-    var names = m.items.map(function(t){ return t.title; }).join(" \u00b7 ");
     return '<div class="mix-card" onclick="openMix(\'sample\')">'
       + '<div class="mix-folder">' + folderSVG() + '</div>'
       + '<div class="mix-card-body">'
       + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-      + '<div class="mix-meta">' + m.items.length + ' briefings \u00b7 daily \u00b7 example</div>'
-      + '<div class="mix-preview">' + escapeHtml(names) + '</div>'
       + '</div>'
       + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
       + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
@@ -11806,14 +11852,39 @@
     if(btn) btn.hidden = !on;
   }
 
-  function jointLabel(m){
-    var people = m.people || [];
-    if(m.role === "member"){
-      var o = people[0] || {};
-      return "joint · " + (o.name || (o.handle ? "@" + o.handle : "another listener")) + "’s";
-    }
-    var others = people.length - 1;
-    return others > 0 ? "joint · with " + others + (others === 1 ? " other" : " others") : "joint";
+  // The two signals' icons (§545): a trend line, and a bolt for a result in.
+  function sigIconSVG(kind, size){
+    var s = size || 12;
+    var path = kind === "update" ? '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'
+                                 : '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>';
+    return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+      + 'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
+  }
+
+  // R5 (the owner's pick, §545): the story's picture with the mix's own cover
+  // in its corner, ringed in the signal's colour; the name, and one line
+  // naming the topic and the story; and a pill saying which signal it is
+  // where the arrow was. With no picture approved for the story, the mix's
+  // own cover takes the ring and nothing sits in the corner.
+  function mixSignalCardHTML(m){
+    var s = m.signal, kind = s.kind === "update" ? "update" : "trending";
+    var own = '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>';
+    var pic = s.picture
+      ? '<img src="' + escapeHtml(s.picture) + '" alt="">'
+        + '<span class="mix-sig-own' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</span>'
+      : own;
+    var cls = kind === "update" ? "mix-card has-sig sig-update" : "mix-card has-sig sig-trending";
+    return '<div class="' + cls + '" onclick="openMix(\'' + m.id + '\')">'
+      + '<div class="mix-sig-pic">' + pic + '</div>'
+      + '<div class="mix-card-body">'
+      + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
+      + '<div class="mix-sig-line">' + sigIconSVG(kind) + '<b>' + escapeHtml(s.topic) + '</b> \u00b7 '
+      + escapeHtml(s.headline) + '</div>'
+      + '</div>'
+      + '<span class="mix-pill">' + sigIconSVG(kind) + escapeHtml(s.label)
+      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" '
+      + 'stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>'
+      + '</div>';
   }
 
   function renderMixList(){
@@ -11830,23 +11901,18 @@
     // this screen carried both, so the same action sat twice on one page and
     // the second copy pushed every mix card down.
 
+    // **A mix card is its picture, its name and an arrow** (the owner, 11.10:
+    // "we just want the thumbnail of the playlist, the title of the playlist,
+    // and an arrow pointing right"). The briefing count, "daily", public or
+    // private, whose it was and the topic list are gone from this row; all of
+    // them are still on the mix's own page, one tap in.
     html += mixes.map(function(m){
-      var entries = m.items || m.topics;
-      var names = entries.map(function(t){ return t.title; }).join(" · ");
+      // R5 (§545): what changed since this listener last heard the mix.
+      if(m.signal) return mixSignalCardHTML(m);
       return '<div class="mix-card" onclick="openMix(\'' + m.id + '\')">'
         + '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
         + '<div class="mix-card-body">'
         + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-        + '<div class="mix-meta">' + entries.length
-        + (entries.length === 1 ? " briefing · daily" : " briefings · daily")
-        + ' · <span class="' + (m.public ? "mix-public" : "mix-private") + '">'
-        + (m.public ? "public" : "private") + '</span>'
-        // Added from somebody else's public mix: whose it was.
-        + (m.from ? ' · <span class="mix-by">from ' + escapeHtml(ownerLabel(m.from)) + '</span>' : '')
-        // A joint mix (11.7 packet): with whom, and whose it is.
-        + (m.joint ? ' · <span class="mix-by">' + escapeHtml(jointLabel(m)) + '</span>' : '')
-        + '</div>'
-        + '<div class="mix-preview">' + (escapeHtml(names) || "Nothing in it yet") + '</div>'
         + '</div>'
         + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
         + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
@@ -12285,17 +12351,32 @@
     html += '<button class="mix-add-topics" onclick="openAddTopics()">'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
       + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to mix</button>';
-    if(items.length){
+    var changed = items.filter(function(t){ return t.since; });
+    if(items.length && changed.length){
+      // Q5 (§545): something changed since this listener last heard the mix,
+      // so the one button starts there; the whole mix is a link under it.
+      html += '<button class="mix-play" onclick="playWhatChanged()">'
+        + sigIconSVG(changed[0].signal && changed[0].signal.kind, 14)
+        + (changed.length === 1 ? "Start with what changed" : "Start with the " + changed.length + " that changed")
+        + '</button>'
+        + '<button class="mix-play-all" onclick="playMix()">or play all ' + items.length
+        + ' from the top</button>';
+    } else if(items.length){
       html += '<button class="mix-play" onclick="playMix()">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
         + '<path d="M8 5v14l11-7z"/></svg>Play today’s ' + items.length
         + (items.length === 1 ? " episode" : " episodes") + '</button>';
+    }
+    if(items.length){
       html += '<div class="mix-meta" style="margin:0 0 9px;">Today’s edition · '
         + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>';
       html += '<div class="mix-list" id="mixOrder">' + items.map(function(t, i){
         // On a joint mix, the face of whoever added it (Spotify's).
         var by = (m.joint && m.people && typeof t.added_by === "number") ? m.people[t.added_by] : null;
-        return '<div class="mix-topic' + (by ? " has-face" : "") + '" data-i="' + i + '">'
+        var sig = t.since && t.signal ? (t.signal.kind === "update" ? "update" : "trending") : "";
+        return '<div class="mix-topic' + (by ? " has-face" : "")
+          + (sig === "update" ? " has-sig sig-update" : sig ? " has-sig sig-trending" : "")
+          + '" data-i="' + i + '">'
           // The handle (10.5 packet #3): drag to put the topics in the
           // order the playlist plays them.
           + '<button class="mix-drag" type="button" aria-label="Drag to reorder"'
@@ -12304,11 +12385,15 @@
           + '<circle cx="3" cy="3" r="1.4"/><circle cx="9" cy="3" r="1.4"/>'
           + '<circle cx="3" cy="8" r="1.4"/><circle cx="9" cy="8" r="1.4"/>'
           + '<circle cx="3" cy="13" r="1.4"/><circle cx="9" cy="13" r="1.4"/></svg></button>'
+          + mixTopicPicHTML(t)
           + (by ? mixFaceHTML(by) : '')
           + '<div class="mix-topic-body">'
+          + (sig ? '<div class="mix-sig-tag">' + sigIconSVG(sig, 11) + escapeHtml(t.signal.label)
+                   + ' \u00b7 since you last listened</div>' : '')
           + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
           + '<div class="mix-topic-sub">' + escapeHtml(by ? "Added by " + (by.you ? "you" : (by.name || "@" + by.handle))
                                                           : (t.subtitle || "")) + '</div>'
+          + (sig ? mixBubblesHTML(t.since) : '')
           + '</div>'
           // By data attribute, not inside the handler: a followed item's id
           // carries the specific the listener typed, and "O'Brien" in a
@@ -12666,6 +12751,42 @@
     var m = mixById(currentMixId);
     if(!m || !m.items.length){ toast("Add a topic first"); return; }
     startMixQueue(m, 0);
+  }
+
+  // Each topic row's picture (§545): the one the player will draw for it,
+  // ringed in the signal's colour when the topic changed since the listener
+  // last heard it; the subject's own icon on paper when nothing is approved.
+  function mixTopicPicHTML(t){
+    var inner = t.picture ? '<img src="' + escapeHtml(t.picture) + '" alt="">'
+                          : '<span class="mix-topic-icon">' + catIcon(t.icon) + '</span>';
+    return '<span class="mix-topic-pic">' + inner + '</span>';
+  }
+
+  // Q5 (§545): what the listener last heard of this topic and what is true
+  // today, as two bubbles joined by an arrow. One bubble when they have
+  // never heard it - never an invented "before".
+  function mixBubblesHTML(since){
+    // The arrow opens the "Today" bubble, so on a narrow row the two stack
+    // without leaving it stranded between them.
+    if(!since.then) return '<div class="mix-bubbles"><span class="mix-bub now">Today: '
+      + escapeHtml(since.now.title) + '</span></div>';
+    return '<div class="mix-bubbles"><span class="mix-bub">' + escapeHtml(since.then.day || "Before")
+      + ': ' + escapeHtml(since.then.title) + '</span>'
+      + '<span class="mix-bub now"><span class="mix-bub-arrow" aria-hidden="true">\u2192</span> Today: '
+      + escapeHtml(since.now.title) + '</span></div>';
+  }
+
+  // "Start with what changed": the changed topics first, in the mix's own
+  // order, then the rest in theirs.
+  function playWhatChanged(){
+    var m = mixById(currentMixId);
+    if(!m || !m.items.length){ toast("Add a topic first"); return; }
+    var first = m.items.filter(function(t){ return t.since; });
+    var rest = m.items.filter(function(t){ return !t.since; });
+    if(!first.length){ startMixQueue(m, 0); return; }
+    mixPlay = { name: m.name || "myFAM", id: m.sample ? "" : m.id,
+                order: first.concat(rest), pos: 0, key: "" };
+    playMixItem(mixPlay.order[0]);
   }
 
   function playMixFrom(itemId){

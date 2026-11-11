@@ -33634,7 +33634,201 @@ The owner's 11.11 note, two ideas, with a mock-up of "PLAY ALL" beside
 
 Tests: `tests/test_play_all_and_player_faces.py`.
 
-## 544. myFAM in a handful of statements, off the event loop (2026-11-11)
+## 544. A mix card in the list is its picture, its name and an arrow (2026-11-10)
+
+**The owner's direction (11.10), with a screenshot of two mix cards:** "get
+rid of the unnecessary stuff here: # of briefings, daily, and public. Remove
+all of that" - and, for the whole row, "we just want the thumbnail of the
+playlist, the title of the playlist, and an arrow pointing right on the right
+side". So the list on the mixes screen (the one the listener reads as
+**myFAM**, `names-swapped`) draws each mix as its cover (or the folder), its
+name, and the chevron. Gone from the row: the briefing count, "daily",
+public/private, "from" a copied mix's owner, the joint label and the topic
+preview line. Every one of them is still on the mix's own page, one tap in.
+
+The guest's example card (`sampleMixCardHTML`) is drawn the same way, so a
+first look at the screen matches what an account sees. `jointLabel` and the
+`.mix-public` / `.mix-private` styles had no other reader and are deleted.
+Public mixes found by search keep their owner line: there it is what tells
+two listeners' mixes of the same name apart. Nothing on the server changed;
+`/api/mixes` still serves every field, for installed clients
+(`old-clients`). Test: `tests/test_mix_card_minimal.py`; the smoke check
+that adds somebody's public mix now expects the copy in the list without a
+"from @mike" on its card.
+
+This is the first step of the owner's rethink of how myFAM shows what is new
+today; the signal concepts (round two's lit edge and topic chip, round
+three's variations) are being redrawn on top of this plainer card and are
+not built.
+
+**The iOS app too** (merged from Main with this pull request): its `MixCard`
+draws your own mixes the same way - picture, name, arrow - and keeps the
+owner, count and topic line for a public mix found in search, as the web
+does. Written without a Swift compiler to hand, like the rest of the iOS
+code (§538); a SwiftUI `if` on `trailing != .chevron`, nothing else.
+
+## 545. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11)
+
+**The owner's picks** from five rounds of signal designs (the slideshows are
+artifacts, not in the repo): **R5** on the myFAM mix card and **Q5** inside the
+mix. The brief throughout: someone who listened yesterday should open the
+mixes screen and see at once that something in their topics is trending or
+has a major update, without the screen shouting on days when nothing has.
+
+**R5, the card.** When one of a mix's topics changed since the listener last
+heard it, the card leads with the story's picture (`app._picture_url`, the
+player's own picker) with the mix's cover small in its corner, ringed in the
+signal's colour; under the name, one line naming the topic and the story; and
+where the arrow was, a pill saying "Trending" or "Major update". No picture
+approved for the story: the mix's own cover takes the ring and nothing sits
+in the corner. Any other day the card is §544's picture, name and arrow.
+
+**Q5, inside the mix.** Each changed topic's row is outlined and says
+"Trending · since you last listened" (or "Major update"), then two bubbles
+joined by an arrow: the day and title of the episode of that topic the
+listener last heard, and the title of today's (the written episode's, else
+the story's). Never heard it before: one bubble, never an invented "before".
+The play button becomes "Start with what changed" (`playWhatChanged`: the
+changed topics first in the mix's order, then the rest), with "or play all N
+from the top" as a link under it.
+
+**What counts, in `signals.py`.** Two measurements, never a result
+(`tile-title-angle`):
+
+* *Trending*: a story naming a subject the mix follows is in this slot's
+  Trending edition, or in the live pool carried by at least
+  `TRENDING_MIN_OUTLETS` (15, a starting value to tune against the
+  deployment's pool), and appeared after the listener last heard that topic.
+* *Major update*: a game the mix follows went `final` after the listener last
+  heard that topic. The pool had no clock for that - `live_as_of` moves on
+  every sweep - so `stories.Story.status_at` is new: set when a status first
+  appears or changes (`_seen_again`), kept otherwise, default 0 so stories
+  saved before it load as they were.
+
+"Names a subject the mix follows" is `topics.episode_subject`, the reading the
+player's (+) uses, kept to its specific answers (a named team or company, a
+subject named by its label or id, or its subtag); its facet-wide last resort
+is refused (`signals.specific_subject`), §155's rule that a field is not a
+subject - "Bond yields climb" is money news, not news about Stocks & Economy.
+A whole subject ("NFL") takes its teams' stories; a narrowed one ("NFL ·
+Eagles") only its own. Typed topics carry no signal: nothing short of a model
+call can tell a subject from a kind of thing (`mixes.TYPED_HEAD`).
+
+Quiet by default and quiet once heard: an item whose today's episode is in the
+listener's history carries nothing; a topic never heard reaches back one day
+(`NEVER_HEARD_WINDOW`); a card shows one signal, a result before a trend, then
+wider coverage. "Last heard" is the history's newest row whose question is one
+of the item's earlier dated prompts (`mixes.earlier_prompts`, thirteen days);
+the day is shown in the listener's clock (`listener-clock`).
+
+**Where it runs.** `app._mix_signals`, from `GET /api/mixes`, on what is held:
+the history (one read), the Trending edition and the pool in memory
+(`stories_in_memory`, `pool().held` - not `live`, whose variety cap could hide
+the one story about this listener's team), and the script cache for today's
+title. Nothing waits, nothing is written, and any failure leaves the list as
+it was and is logged. New fields only (`signal` on a mix; `signal` and `since`
+on its items), so installed clients are unaffected (`old-clients`).
+
+Light and dark each get the colours as tokens (`--sig-tr`, `--sig-up`,
+`--sig-ink`): dark's gold and a lighter coral so small text reads on the
+card, light's darker pair. The fixture preview shows both signals on Morning
+and At the gym, its pictures cropped from the landing page's tiles.
+
+Tests: `tests/test_signals_545.py` (matching, both signals' timing, quiet once
+heard, one per mix, the status clock, the bubbles, the route, a failure never
+taking the list down, both themes' tokens).
+
+**A picture on every topic row** (the owner, the same day: "add pictures to
+each topic row too" - Q5's mockup had them). `app._mix_pictures` gives each
+item the picture the player would draw for it (`_picture_url` over the item's
+words: "NFL Eagles" for a narrowed subject, the typed words for a typed
+topic), and the row draws it beside the title, ringed in the signal's colour
+when the topic changed; with nothing approved, the subject's own catalogue
+icon on paper (`catIcon`). Pictures and signals now come from `_mix_out`
+itself, so every route answering with a mix carries them - before, a reorder
+or an added topic would have dropped the bubbles until the list reloaded. The
+arrow now opens the "Today" bubble, so on a row narrowed by its picture the
+two bubbles stack cleanly.
+
+**Merged with Main before the pull request (2026-11-11).** Main had gained
+its own §537-§543 (the iOS launch, the loading mark, play-all on a rail)
+while this branch was open, so this branch's two sections, written as §537
+and §538, are §544 and §545, and every reference in its code, tests and
+notes was renumbered with them; `tests/test_signals_538.py` is
+`tests/test_signals_545.py`.
+
+**Two fixes from reviewing the branch before its pull request.** The list
+read the listening history once per mix when the signals moved into
+`_mix_out`; it reads it once per request now (`_mix_history`, passed down),
+and a test counts the reads. And a story held from before `status_at` existed
+would have taken the first sweep after the deploy as its status time,
+reporting last night's result as new to somebody who listened this morning;
+it takes its last known time (`live_as_of`, else `first_seen`) instead.
+
+## 546. The app starts dark, and draws itself before the server answers (2026-11-11)
+
+**What was asked.** The owner, after build 3 reached TestFlight: "I want to
+make dark mode the standard version that new users have, with the option to
+change to light mode", and "It still takes way too long to load the app when
+you first open it. Please think of more ways to help this, and make sure the
+fixes from yesterday are in."
+
+**Dark by default, in the app.** `FAMTheme.standard` is dark: a phone with no
+`fam.theme` is drawn dark, "light" is the only stored value that draws light,
+and Settings' "Dark mode" reads On for anything else (`FAMTheme.isDark`). The
+launch screen (`LaunchBackground`) is the dark `--bg`, #2A2733. A phone that
+never touched the switch turns dark with this build. The web keeps light
+(§250); the rule's note says so (`docs/claude/constraints.md`, typefaces).
+
+**Yesterday's start-up work is in build 3**: the remembered page, rails
+first, tabs that load on first look, warming behind the feed, the poll after
+it, the 429 retry and the picture cache.
+
+**What still waited.** Every open showed the wordmark until `/api/auth/me`
+answered, then played the 1.8 s intro, then drew the app. Now a phone whose
+account was last let in (`fam.lastReady`, set by `arrive`, cleared on any
+sign-out) with its first run done draws the app at once, the remembered
+page on it and the intro over it, and asks `/api/auth/me` behind it; the
+answer still decides - signed out or waiting replaces the app the moment it
+lands. The first feed still waits on that answer (`firstFeed` awaits
+`whoTask`), so the two are still never asked together (the owner's earlier
+call), and the first-run steps and the Terms check run after it without
+holding the feed. The first open after updating behaves as before, once.
+
+
+**The DailyFAM page refreshed while the app is closed (iOS only).** To make
+the first open faster still, the remembered page is kept recent in the
+background: `FeedRefresh` (a `BGAppRefreshTask`, `net.familiarize.fam.feed`,
+registered with SwiftUI's `.backgroundTask(.appRefresh(...))`; `fetch` beside
+`audio` in `UIBackgroundModes`, the id under
+`BGTaskSchedulerPermittedIdentifiers`). The next run is asked for, no sooner
+than an hour away, each time the app goes to the background and after every
+run; iOS decides when it comes. A run is one read - `FAMAPI.railsData()`,
+the same `/api/v1/myfam` query with the Keychain's token and the read pace's
+one patient retry - kept with the same `rememberFeed` a successful draw uses,
+only if it decodes, and only while a token exists and the account was last
+let in (`AppModel.readyKey`, asked again before keeping); a sign-out cancels
+the request. Nothing on the audio path, no episode, no event; a failure keeps
+nothing. A page refreshed this way is drawn at the next open by
+`showRememberedFeed`, and the fresh feed replaces it as before.
+
+**§543 in the iOS app.** Every DailyFAM rail with episodes has the web's Play
+all pill beside its heading (`RailPlayAll`, `RailHeadLayout`: the heading
+keeps 12 em, scaled with the text, and the pill wraps under it when it would
+not). `AppModel.playRailAll` plays the first tile exactly as a tap does (the
+dial, the browse length) and queues the rest (`NowPlayingModel.replaceRailQueue`,
+`fromRail`): a second Play all replaces them and a category's, anything else
+starting drops them with a category's (`dropCategoryQueue`), and what the
+listener queued stays. Offline, only tiles on the phone ("None of these are on
+your device yet"); the web's guest rule has nothing to act on, the app being
+an account's alone. The friends who listened show top left of the player's
+picture, under the captions (`PlayerFriendsPill`): a DailyFAM tap hands over
+the tile's own faces (`AppModel.noteTileFaces`), anything else asks
+`/api/v1/listened` (`ListenedPage`), never for a private search or an
+attached episode; a tap opens the same "N friends listened" card, whose
+profile rows take the player down first. Unbuilt here (no Swift compiler).
+
+## 547. myFAM in a handful of statements, off the event loop (2026-11-11)
 
 A profiling pass for the iOS launch (a seeded deployment: 400 listeners,
 3,000 cached episodes, 28k events) found `GET /api/myfam` doing 0.6 s
@@ -33725,7 +33919,7 @@ draw's thread is pure Python, and the loop gets it back every switch
 interval. The tallies themselves (`_tally_listens`, per listener for What you
 missed) are now the largest part of a draw.
 
-Tests: `tests/test_feed_speed_544.py` - the batch read against each
+Tests: `tests/test_feed_speed_547.py` - the batch read against each
 single-key read, a draw's cache statements (at most 12, none by single key,
 on a fixture with hundreds of candidates), the batched draw equal to the one
 a key at a time and the snapshot draw equal to fresh reads, a play here and
