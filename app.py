@@ -9222,6 +9222,13 @@ class EchoRequest(BaseModel):
     tags: Optional[list[dict]] = Field(None, max_length=social_mod.MAX_TAGS)
     #: "" for everybody who follows, "close" for close friends only.
     audience: Optional[str] = Field(None, max_length=10)
+    #: The sentence of the episode the poster picked (§544), shown across
+    #: the post's picture; "" takes it off. Omitted (None) keeps the row's,
+    #: so an installed client - or a re-vibe that picked nothing - never
+    #: wipes it. Cut to `social.MAX_LINE`, never refused.
+    line: Optional[str] = Field(None, max_length=2000)
+    #: Where that sentence starts in the audio, in seconds.
+    line_at: Optional[float] = Field(None, ge=0, le=3600)
 
 
 async def _check_photo(request: Request, user: str, data_url: Optional[str],
@@ -9302,7 +9309,7 @@ async def post_echo(req: EchoRequest, request: Request):
     try:
         echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread,
                            caption=req.caption, style=req.style, tags=tags,
-                           audience=audience)
+                           audience=audience, line=req.line, line_at=req.line_at)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Somebody tagged hears about it the way a share arrives: one message,
@@ -9486,6 +9493,150 @@ async def delete_vibe(request: Request, q: str = Query("", max_length=300),
                       minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """Take a vibe back. The same act as `DELETE /api/echo`."""
     return await delete_echo(request, q, minutes)
+
+
+# --- a vibe as a post (§544) -----------------------------------------------
+#
+# The owner's "Vibes as Posts" (option C, "Compact Trio"): a vibe tapped on
+# your own YourFAM grid or a friend's opens as a post - the day it was
+# vibed, the line the poster picked over the picture, a player under it, a
+# like count, the friends who heard it, and replies under it.
+#
+# Who may see a post is exactly who may see the vibe: its owner, or somebody
+# who could open the owner's profile (`/api/person`'s rules - reachable, not
+# blocked either way, not suspended) and is not kept out of a close-friends
+# vibe. A reply is a comment filed under the vibe (`comments.echo_id`), so
+# reading it, liking it, reporting it and deleting it are the comment code
+# (§203) - and a reply is public to that audience, which is what makes it a
+# post's reply rather than a message.
+def _vibe_post_owner(request: Request, handle: str) -> str:
+    """Whose vibes these are: the listener's own with no handle, else the
+    person the handle names if this listener may open their profile."""
+    me = _listener(request)
+    if not handle.strip():
+        return me
+    target = _person_by_handle(handle)
+    if not target:
+        return ""
+    if target == me:
+        return me
+    if not _reachable(me, target) or MODERATION.is_apart(me, target) \
+            or MODERATION.is_suspended(target):
+        return ""
+    return target
+
+
+def _visible_vibe(request: Request, echo_id: int) -> dict:
+    """The vibe behind a like or a reply, if this listener may see it - else
+    404, the same answer as for a vibe that is not there."""
+    me = _listener(request)
+    row = SOCIAL.echo_row(echo_id)
+    if row and row["user_id"] != me:
+        owner = row["user_id"]
+        if (not _reachable(me, owner) or MODERATION.is_apart(me, owner)
+                or MODERATION.is_suspended(owner)
+                or (row.get("audience") and me not in SOCIAL.close_friends(owner))):
+            row = None
+    if not row:
+        raise HTTPException(status_code=404, detail="That vibe is not here any more.")
+    return row
+
+
+@app.get("/api/vibe/posts")
+async def vibe_posts(request: Request,
+                     handle: str = Query("", max_length=social_mod.MAX_HANDLE + 1),
+                     before: float = Query(0.0, ge=0),
+                     limit: int = Query(12, ge=1, le=30)) -> dict:
+    """Somebody's vibes as posts (§544), newest first; no handle is your own.
+
+    Each post: the vibe (`id`, question, title, length, `at` - the moment it
+    was vibed, which the post shows), its caption, its `line` (`text` and
+    `at` in seconds, or null), the picture the player draws, its likes and
+    whether you liked it, how many replies and the one shown under it, and
+    `heard` - which of your friends heard the episode, the player's faces
+    (§543) with the same caution: a friend's own search counts only if their
+    searches are public. No ids of people anywhere (`listener-id-server`).
+    """
+    _read_limit(request)
+    me = _listener(request)
+    owner = _vibe_post_owner(request, handle)
+    if not owner:
+        raise HTTPException(status_code=404, detail="No listener by that handle.")
+    hidden = {int(c) for c in MODERATION.reported_by(me, "comment") if c.isdigit()}
+    posts = SOCIAL.vibe_posts(owner, viewer=me, limit=limit + 1, before=before,
+                              exclude_users=MODERATION.apart(me), exclude_ids=hidden)
+    more = len(posts) > limit
+    posts = posts[:limit]
+    for post in posts:
+        post["thumb"] = _picture_url(post["query"], post["title"], post["minutes"])
+        post["topic"] = _topic_label(post["query"], post["title"])
+    faces: list[dict] = []
+    if me and _has_account(request) and posts:
+        tiles = [{"id": str(p["id"]), "query": p["query"]} for p in posts]
+        faces = _mark_friends_listened(me, tiles, public_searches_only=True)
+        for post, tile in zip(posts, tiles):
+            shown = [faces[i] for i in tile.get("friends_faces", []) if i < len(faces)]
+            post["heard"] = {"count": int(tile.get("friends_listened") or 0),
+                             "faces": shown[:3]}
+    for post in posts:
+        post.setdefault("heard", {"count": 0, "faces": []})
+    person = SOCIAL.person(owner)
+    return {"person": {"name": person["name"], "handle": person["handle"],
+                       "avatar": person["avatar"],
+                       "explicit": person.get("explicit", False)},
+            "mine": owner == me, "posts": posts, "more": more}
+
+
+class VibeLikeRequest(BaseModel):
+    on: bool = True
+
+
+@app.post("/api/vibe/{echo_id}/like")
+async def like_vibe_post(echo_id: int, req: VibeLikeRequest, request: Request) -> dict:
+    """Like a vibe's post, or take the like back (§544). An account's: a
+    like is kept, and kept things take one (`account-gates-kept`)."""
+    _read_limit(request)
+    user = _require_account(request)
+    _visible_vibe(request, echo_id)
+    try:
+        return SOCIAL.like_vibe(user, echo_id, on=req.on)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/vibe/{echo_id}/replies")
+async def vibe_replies(echo_id: int, request: Request) -> dict:
+    """A vibe's replies (§544): most liked first, each with its answers -
+    the comments sheet's shape, minus the blocked and the reported."""
+    _read_limit(request)
+    viewer = _listener(request)
+    row = _visible_vibe(request, echo_id)
+    hidden = {int(c) for c in MODERATION.reported_by(viewer, "comment") if c.isdigit()}
+    rows = SOCIAL.comments(row["query"], row["minutes"], viewer=viewer, echo_id=echo_id,
+                           exclude_users=MODERATION.apart(viewer), exclude_ids=hidden)
+    return {"replies": rows, "count": sum(1 + len(c.get("replies") or []) for c in rows),
+            "mine": row["user_id"] == viewer}
+
+
+class VibeReplyRequest(BaseModel):
+    #: Cut to `social.MAX_COMMENT` rather than refused.
+    text: str = Field(..., max_length=2000)
+    #: The reply this answers, or 0 for a new one.
+    parent_id: int = Field(0, ge=0)
+
+
+@app.post("/api/vibe/{echo_id}/replies")
+async def post_vibe_reply(echo_id: int, req: VibeReplyRequest, request: Request) -> dict:
+    """Reply under a vibe (§544). An account's, not a suspended one's."""
+    _read_limit(request)
+    user = _require_account(request)
+    _require_can_post(user)
+    row = _visible_vibe(request, echo_id)
+    try:
+        return SOCIAL.add_comment(user, row["query"], row["minutes"], req.text,
+                                  parent_id=req.parent_id, echo_id=echo_id)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 # --- comments (10.5 packet #8) ---------------------------------------------

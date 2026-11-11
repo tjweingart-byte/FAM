@@ -208,6 +208,42 @@ replaced when the same episode is vibed again.
 > with the account. In the viewer it has no Play, no share-to-your-story and
 > no episode menu; a reply or heart is a text message quoting it.
 
+<!-- rule:vibe-posts -->
+**A vibe tapped on a YourFAM grid opens as posts** *(PROBLEMS.md §544, the
+owner's "Vibes as Posts", option C of two rounds of ten and six)*. Only
+from the two grids - your own and a friend's; a story, My Vibe's list and
+everything else still play the episode as before, and pressing and holding
+a tile on your own grid still offers delete (§499). The screen is that
+person's vibes newest first (`GET /api/vibe/posts`, `?handle=` for a
+friend), opened at the tile tapped. Each post: face and handle, **"Vibed"
+and the day** on the catalogue's calendar (`episodeDayLabel`), the
+picture with **the line** across it, a small player with the line marked
+in gold and a chip that plays from it, heart / reply / send / save, then
+likes and the friends who heard it, the title, the caption, the top reply
+and "View all n replies".
+
+- **The line** is one sentence the poster picks from the episode's own
+  captions in VIBE!'s **Line** tool - never typed - with where it starts
+  (measured, §127, else the captions' estimate). `echoes.line` and
+  `line_at`; omitted on a vibe it keeps the row's (installed clients, a
+  re-vibe that picked nothing); cut to `social.MAX_LINE`, slurs out, time
+  clamped. A vibe without one shows no strip.
+- **It plays where it sits**: a tap is the ordinary `generate` (so every
+  replay and quota rule holds) marked `inPlace`, which keeps the full player
+  from opening over the posts; the post's bar is painted by the one progress
+  clock and its button by `setPlayState` (`transport`). The line chip
+  seeks the playing episode, or starts it with `pendingResumeSeek`.
+- **Likes** are per post, not per episode (`vibe_likes`, an account's).
+- **Replies are public to whoever may see the vibe** - the owner, or anyone
+  who may open their profile and is not kept out of a close-friends vibe.
+  They are comments filed under the vibe (`comments.echo_id`; 0 is an
+  episode's own thread, which never shows them), so posting takes an
+  account and not a suspended one, likes, report (`comment`) and delete are
+  the comment code; the poster may also delete any reply on their own post.
+  Deleting a vibe or an account takes its likes and replies.
+- **Who heard it** is the player's faces (§543), friends only and a friend's
+  own search only if their searches are public.
+
 <!-- rule:group-chats -->
 **Group chats (§213).** Pick two or more people you follow under the
 Messages (+) and start typing. A group is the one thread whose id is

@@ -149,6 +149,32 @@ def clean_caption(caption: str) -> str:
     return _clean_words(caption, MAX_CAPTION)
 
 
+#: How long a vibe's line may be (§544): one sentence of the episode, picked
+#: from its captions when it is vibed. A long sentence is cut, never refused.
+MAX_LINE = 300
+#: The latest a line may start, in seconds: past the longest episode (ten
+#: minutes) with room to spare, so a wrong clock is clamped, not stored.
+MAX_LINE_AT = 15 * 60
+
+
+def clean_line(line) -> str:
+    """The sentence a vibe carries (§544): words as the episode spoke them,
+    folded and cut like a caption, slurs out as everywhere (`slurs-only`)."""
+    return _clean_words(str(line or ""), MAX_LINE)
+
+
+def clean_line_at(at) -> float:
+    """Where the line starts, in seconds - clamped to the episode's range,
+    -1 for "no time" (a line without one plays from the start)."""
+    try:
+        at = float(at)
+    except (TypeError, ValueError):
+        return -1.0
+    if at != at or at < 0:  # NaN or negative
+        return -1.0
+    return round(min(at, float(MAX_LINE_AT)), 2)
+
+
 # --- a vibe composed like a story (10.6 packet #2) --------------------------
 #
 # The vibe sheet became a story editor: the episode's picture, framed and
@@ -465,6 +491,42 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS comment_likes_comment"
                          " ON comment_likes(comment_id)")
+            # A vibe as a post (§544, the owner's "Vibes as Posts", option C):
+            # the sentence the poster picked from the episode's captions and
+            # where it starts ("" and -1 for none, as every older vibe has).
+            for column in ("line TEXT NOT NULL DEFAULT ''",
+                           "line_at REAL NOT NULL DEFAULT -1"):
+                try:
+                    conn.execute(f"ALTER TABLE echoes ADD COLUMN {column}")
+                except sqlite3.OperationalError:
+                    pass  # already there
+            # Replies on a vibe (§544) are comments filed under the vibe's row
+            # rather than under the episode: `echo_id` 0 is an episode's own
+            # thread (Explore's, §203) and anything else is one vibe's, so a
+            # reply to Ian's post is read with Ian's post and never shows up
+            # in the episode's thread, and the same reply code, likes, report
+            # and delete serve both.
+            try:
+                conn.execute("ALTER TABLE comments ADD COLUMN"
+                             " echo_id INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # already there
+            conn.execute("CREATE INDEX IF NOT EXISTS comments_echo"
+                         " ON comments(echo_id, at)")
+            # A like on a vibe (§544): one row per person per post, so the
+            # count under it is `COUNT(*)`, like a comment's. Keyed on the
+            # vibe's row, not the episode: liking Ian's post is not liking
+            # Maya's post of the same episode.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS vibe_likes (
+                       echo_id INTEGER NOT NULL,
+                       user_id TEXT NOT NULL,
+                       at      REAL NOT NULL,
+                       PRIMARY KEY (echo_id, user_id)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS vibe_likes_user"
+                         " ON vibe_likes(user_id)")
             # Who has already been announced to whom (§142). The "___ started
             # following you" popup used to remember this in page memory, so
             # every fresh open of the app showed the latest follower again.
@@ -639,7 +701,8 @@ class SocialStore:
 
     def echo(self, user_id: str, query: str, title: str, minutes: int,
              thread: str = "", caption: str = "", style=None, tags=None,
-             audience: Optional[str] = None) -> Echo:
+             audience: Optional[str] = None, line: Optional[str] = None,
+             line_at=None) -> Echo:
         if not user_id:
             raise SocialError("No listener id.")
         query = " ".join(str(query).split())[:300]
@@ -675,6 +738,15 @@ class SocialStore:
              None if tagged is None else (json.dumps(tagged) if tagged else ""),
              audience),
         )
+        # The line (§544). None is "not sent" - every client before posts,
+        # and a re-vibe whose editor picked nothing - and keeps the row's.
+        if line is not None:
+            words = clean_line(line)
+            conn.execute(
+                "UPDATE echoes SET line = ?, line_at = ?"
+                " WHERE user_id = ? AND query = ? AND minutes = ?",
+                (words, clean_line_at(line_at) if words else -1.0,
+                 user_id, query, as_minutes(minutes)))
         row = conn.execute(
             "SELECT id, user_id, query, title, minutes, thread, at FROM echoes"
             " WHERE user_id = ? AND query = ? AND minutes = ?",
@@ -810,19 +882,44 @@ class SocialStore:
     def echo_row(self, echo_id: int) -> Optional[dict]:
         """One vibe as the moderation inbox needs it: whose, on what, saying what."""
         row = self._conn().execute(
-            "SELECT id, user_id, query, minutes, title, caption FROM echoes WHERE id = ?",
+            "SELECT id, user_id, query, minutes, title, caption, audience, line, line_at"
+            " FROM echoes WHERE id = ?",
             (int(echo_id),)).fetchone()
         if not row:
             return None
         return {"id": int(row[0]), "user_id": row[1], "query": row[2],
-                "minutes": int(row[3]), "title": row[4] or "", "caption": row[5] or ""}
+                "minutes": int(row[3]), "title": row[4] or "", "caption": row[5] or "",
+                "audience": row[6] or "", "line": row[7] or "",
+                "line_at": float(row[8] if row[8] is not None else -1)}
 
     def unecho(self, user_id: str, query: str, minutes: int) -> bool:
-        cur = self._conn().execute(
+        conn = self._conn()
+        query = " ".join(str(query).split())[:300]
+        row = conn.execute(
+            "SELECT id FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
+            (user_id, query, as_minutes(minutes))).fetchone()
+        cur = conn.execute(
             "DELETE FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
-            (user_id, " ".join(str(query).split())[:300], as_minutes(minutes)),
+            (user_id, query, as_minutes(minutes)),
         )
+        # A vibe deleted whole (§499) takes its post with it (§544): the
+        # likes on it and the replies under it, which hung from nothing else.
+        if row:
+            self._drop_post(conn, int(row[0]))
         return bool(cur.rowcount)
+
+    @staticmethod
+    def _drop_post(conn, echo_id: int) -> None:
+        try:
+            ids = [r[0] for r in conn.execute(
+                "SELECT id FROM comments WHERE echo_id = ?", (int(echo_id),))]
+            if ids:
+                marks = ",".join("?" for _ in ids)
+                conn.execute(f"DELETE FROM comment_likes WHERE comment_id IN ({marks})", ids)
+                conn.execute(f"DELETE FROM comments WHERE id IN ({marks})", ids)
+            conn.execute("DELETE FROM vibe_likes WHERE echo_id = ?", (int(echo_id),))
+        except Exception:
+            log.exception("could not clear a deleted vibe's replies and likes")
 
     # -- likes, dislikes and the counts on an Explore card (§134) ----------
 
@@ -1113,7 +1210,7 @@ class SocialStore:
     # --- comments on an episode (10.5 packet #8) --------------------------
 
     def add_comment(self, user_id: str, query: str, minutes: int, text: str,
-                    parent_id: int = 0) -> dict:
+                    parent_id: int = 0, echo_id: int = 0) -> dict:
         """Post a comment, or a reply to one. Returns it as `comments` draws it.
 
         A reply is filed under the top-level comment it answers, so a thread
@@ -1133,16 +1230,17 @@ class SocialStore:
         parent = 0
         if parent_id:
             row = conn.execute(
-                "SELECT id, parent_id, query, minutes FROM comments WHERE id = ?",
+                "SELECT id, parent_id, query, minutes, echo_id FROM comments WHERE id = ?",
                 (int(parent_id),)).fetchone()
-            if not row or row[2] != query or as_minutes(row[3]) != as_minutes(minutes):
+            if (not row or row[2] != query or as_minutes(row[3]) != as_minutes(minutes)
+                    or int(row[4] or 0) != int(echo_id or 0)):
                 raise SocialError("That comment is not here any more.")
             parent = int(row[1]) or int(row[0])
         now = time.time()
         cur = conn.execute(
-            "INSERT INTO comments (user_id, query, minutes, parent_id, text, at)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, query, as_minutes(minutes), parent, text, now))
+            "INSERT INTO comments (user_id, query, minutes, parent_id, text, at, echo_id)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, query, as_minutes(minutes), parent, text, now, int(echo_id or 0)))
         person = self.person(user_id)
         return self._comment_dict(cur.lastrowid, user_id, parent, text, now,
                                   person, 0, False, user_id)
@@ -1160,7 +1258,8 @@ class SocialStore:
                 "mine": bool(viewer) and viewer == user_id}
 
     def comments(self, query: str, minutes: int, viewer: str = "",
-                 limit: int = 200, exclude_users=(), exclude_ids=()) -> list[dict]:
+                 limit: int = 200, exclude_users=(), exclude_ids=(),
+                 echo_id: int = 0) -> list[dict]:
         """An episode's comments, most liked first then newest, each with its
         replies (oldest first, as a conversation reads) under `replies`.
 
@@ -1173,9 +1272,10 @@ class SocialStore:
             rows = conn.execute(
                 "SELECT c.id, c.user_id, c.parent_id, c.text, c.at,"
                 " (SELECT COUNT(*) FROM comment_likes l WHERE l.comment_id = c.id)"
-                " FROM comments c WHERE c.query = ? AND c.minutes = ?"
+                " FROM comments c WHERE c.query = ? AND c.minutes = ? AND c.echo_id = ?"
                 " ORDER BY c.at DESC LIMIT ?",
-                (query, as_minutes(minutes), int(limit) * 4)).fetchall()
+                (query, as_minutes(minutes), int(echo_id or 0),
+                 int(limit) * 4)).fetchall()
         except Exception:
             log.exception("could not read an episode's comments")
             return []
@@ -1223,7 +1323,7 @@ class SocialStore:
         try:
             rows = self._conn().execute(
                 "SELECT query, minutes, COUNT(*) FROM comments"
-                f" WHERE query IN ({marks}) GROUP BY query, minutes",
+                f" WHERE query IN ({marks}) AND echo_id = 0 GROUP BY query, minutes",
                 queries).fetchall()
         except Exception:
             log.exception("could not count comments")
@@ -1255,21 +1355,27 @@ class SocialStore:
     def comment(self, comment_id: int) -> Optional[dict]:
         """One comment as the moderation inbox needs it: whose, and what."""
         row = self._conn().execute(
-            "SELECT id, user_id, query, minutes, text, at FROM comments WHERE id = ?",
+            "SELECT id, user_id, query, minutes, text, at, echo_id FROM comments WHERE id = ?",
             (int(comment_id),)).fetchone()
         if not row:
             return None
         return {"id": int(row[0]), "user_id": row[1], "query": row[2],
-                "minutes": int(row[3]), "text": row[4], "at": float(row[5])}
+                "minutes": int(row[3]), "text": row[4], "at": float(row[5]),
+                "echo_id": int(row[6] or 0)}
 
     def delete_comment(self, user_id: str, comment_id: int,
                        moderator: bool = False) -> bool:
         """Take back your own comment, with its replies and likes - or, for a
         reviewer acting on a report (`moderator`), anybody's."""
         conn = self._conn()
-        row = conn.execute("SELECT user_id FROM comments WHERE id = ?",
+        row = conn.execute("SELECT user_id, echo_id FROM comments WHERE id = ?",
                            (int(comment_id),)).fetchone()
-        if not row or (row[0] != user_id and not moderator):
+        # A reply on somebody's vibe is also theirs to take down (§544), as a
+        # post's owner can on Instagram: it sits under their name.
+        on_own_post = bool(row and row[1] and user_id and conn.execute(
+            "SELECT 1 FROM echoes WHERE id = ? AND user_id = ?",
+            (int(row[1]), user_id)).fetchone())
+        if not row or (row[0] != user_id and not moderator and not on_own_post):
             return False
         ids = [int(comment_id)] + [r[0] for r in conn.execute(
             "SELECT id FROM comments WHERE parent_id = ?", (int(comment_id),))]
@@ -1277,6 +1383,80 @@ class SocialStore:
         conn.execute(f"DELETE FROM comment_likes WHERE comment_id IN ({marks})", ids)
         conn.execute(f"DELETE FROM comments WHERE id IN ({marks})", ids)
         return True
+
+    # --- a vibe as a post (§544) --------------------------------------------
+
+    def like_vibe(self, user_id: str, echo_id: int, on: bool = True) -> dict:
+        """Like somebody's vibe, or take the like back. Its count and state."""
+        if not user_id:
+            raise SocialError("No listener id.")
+        conn = self._conn()
+        if not conn.execute("SELECT 1 FROM echoes WHERE id = ?", (int(echo_id),)).fetchone():
+            raise SocialError("That vibe is not here any more.")
+        if on:
+            conn.execute("INSERT OR IGNORE INTO vibe_likes (echo_id, user_id, at)"
+                         " VALUES (?, ?, ?)", (int(echo_id), user_id, time.time()))
+        else:
+            conn.execute("DELETE FROM vibe_likes WHERE echo_id = ? AND user_id = ?",
+                         (int(echo_id), user_id))
+        n = conn.execute("SELECT COUNT(*) FROM vibe_likes WHERE echo_id = ?",
+                         (int(echo_id),)).fetchone()[0]
+        return {"id": int(echo_id), "likes": int(n), "liked": bool(on)}
+
+    def vibe_posts(self, owner: str, viewer: str = "", limit: int = 12,
+                   before: float = 0.0, exclude_users=(), exclude_ids=()) -> list[dict]:
+        """One listener's vibes as posts (§544), newest first: the vibe, its
+        caption and line, its likes and replies, and the reply shown under it.
+
+        `viewer` is whoever is looking - the owner, or somebody whose look a
+        close-friends vibe must survive (`_visible`). `before` pages by the
+        vibe's time. `exclude_users`/`exclude_ids` keep blocked people's and
+        reported replies out of the counts and the top reply, as in a thread.
+        """
+        where, args = ("", ())
+        if viewer != owner:
+            where, args = self._visible("e", viewer)
+        if before and before > 0:
+            where += " AND e.at < ?"
+            args = (*args, float(before))
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT e.id, e.query, e.title, e.minutes, e.at, e.caption, e.line, e.line_at"
+                " FROM echoes e WHERE e.user_id = ?" + where + " ORDER BY e.at DESC LIMIT ?",
+                (owner, *args, max(1, min(int(limit), 50)))).fetchall()
+        except Exception:
+            log.exception("could not read vibe posts")
+            return []
+        ids = [int(r[0]) for r in rows]
+        likes: dict = {}
+        liked: set = set()
+        if ids:
+            marks = ",".join("?" for _ in ids)
+            likes = {int(e): int(n) for e, n in conn.execute(
+                f"SELECT echo_id, COUNT(*) FROM vibe_likes WHERE echo_id IN ({marks})"
+                " GROUP BY echo_id", ids)}
+            if viewer:
+                liked = {int(r[0]) for r in conn.execute(
+                    f"SELECT echo_id FROM vibe_likes WHERE user_id = ? AND echo_id IN ({marks})",
+                    (viewer, *ids))}
+        out = []
+        for eid, query, title, minutes, at, caption, line, line_at in rows:
+            thread = self.comments(query, minutes, viewer=viewer, echo_id=int(eid),
+                                   exclude_users=exclude_users, exclude_ids=exclude_ids)
+            top = thread[0] if thread else None
+            out.append({
+                "id": int(eid), "query": query, "title": title or "",
+                "minutes": int(minutes), "at": float(at), "caption": caption or "",
+                "line": ({"text": line, "at": float(line_at) if line_at is not None
+                          and float(line_at) >= 0 else None} if line else None),
+                "likes": likes.get(int(eid), 0), "liked": int(eid) in liked,
+                "replies": sum(1 + len(c.get("replies") or []) for c in thread),
+                "top_reply": ({k: top[k] for k in ("id", "text", "name", "handle",
+                                                   "avatar", "explicit", "at")}
+                              if top else None),
+            })
+        return out
 
     # --- the follow graph -------------------------------------------------
 
@@ -1613,6 +1793,17 @@ class SocialStore:
             removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase comments for %r", user_id)
+        # Their likes on vibes, and their vibes' posts - the likes and the
+        # replies other people left under them (§544) - before the rows go.
+        try:
+            conn = self._conn()
+            cur = conn.execute("DELETE FROM vibe_likes WHERE user_id = ?", (user_id,))
+            removed += cur.rowcount or 0
+            for (eid,) in conn.execute(
+                    "SELECT id FROM echoes WHERE user_id = ?", (user_id,)).fetchall():
+                self._drop_post(conn, int(eid))
+        except Exception:
+            log.exception("could not erase vibe posts for %r", user_id)
         # Their id out of the tags on other people's stories.
         try:
             import json

@@ -3342,6 +3342,103 @@
     font-family:'Geist Mono', monospace; font-size:8px; font-weight:700;
     display:flex; align-items:center; justify-content:center; }
   .tab-badge[hidden]{ display:none; }
+  /* ---- Vibes as posts (§544, option C) ---- */
+  .vp-bar-top{ display:flex; align-items:center; gap:6px; }
+  .vp-titles{ flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.15; }
+  .vp-titles b{ font-family:'Bricolage Grotesque', sans-serif; font-size:17px; font-weight:650; }
+  .vp-titles span{ font-size:12px; color:var(--text-muted); }
+  #vpBody{ padding:4px 0 120px; }
+  #vpBody > .pf-empty{ margin:8px 16px; }
+  .vp-post{ padding:6px 0 20px; scroll-margin-top:8px; }
+  .vp-head{ display:flex; align-items:center; gap:10px; padding:6px 16px 8px; }
+  .vp-head .av{ width:32px; height:32px; flex:none; border-radius:50%; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; }
+  .vp-who{ flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.2; }
+  .vp-handle{ font-weight:600; font-size:14px; overflow-wrap:anywhere; }
+  .vp-when{ font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--text-muted); }
+  .vp-icon{ background:none; border:none; color:var(--text); padding:6px; display:flex;
+    align-items:center; justify-content:center; cursor:pointer; min-width:36px; min-height:36px; }
+  .vp-icon.on{ color:var(--coral); }
+  .vp-pic{ position:relative; aspect-ratio:4/3; margin:0 16px; border-radius:14px; overflow:hidden;
+    background:var(--surface) center/cover no-repeat; }
+  .vp-strip{ position:absolute; left:0; right:0; bottom:0; padding:28px 12px 10px;
+    background:linear-gradient(transparent, rgba(14,12,18,.88)); color:#F4EFE4;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:15px; line-height:1.28; }
+  .vp-q{ color:#E0B563; }
+  .vp-tr{ display:flex; align-items:center; gap:10px; margin:10px 16px 0; }
+  .vp-play{ width:34px; height:34px; flex:none; border-radius:50%; border:none; cursor:pointer;
+    background:var(--gold); color:var(--ink); display:flex; align-items:center; justify-content:center; }
+  .vp-play svg{ margin-left:1px; }
+  .vp-bar{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; padding-top:6px; }
+  .vp-track{ position:relative; height:4px; border-radius:2px; background:var(--border-strong);
+    touch-action:none; cursor:pointer; }
+  .vp-track::before{ content:""; position:absolute; left:0; right:0; top:-10px; bottom:-10px; }
+  .vp-line-seg{ position:absolute; top:-2px; bottom:-2px; border-radius:3px; background:var(--gold); opacity:.85; }
+  .vp-fill{ position:absolute; left:0; top:0; bottom:0; width:0; border-radius:2px; background:var(--text); }
+  .vp-knob{ position:absolute; top:50%; left:0; width:11px; height:11px; border-radius:50%;
+    background:var(--text); transform:translate(-50%,-50%); opacity:0; }
+  .vp-track.live .vp-knob{ opacity:1; }
+  .vp-times{ display:flex; justify-content:space-between; font-family:'Geist Mono', monospace;
+    font-size:10px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+  .vp-chip{ flex:none; display:inline-flex; align-items:center; gap:4px; border:none; cursor:pointer;
+    font-family:'Geist Mono', monospace; font-size:11px; padding:5px 9px; border-radius:99px;
+    background:color-mix(in srgb, var(--gold) 18%, transparent); color:var(--gold); }
+  .vp-acts{ display:flex; align-items:center; gap:2px; padding:6px 10px 0; }
+  .vp-sp{ flex:1; }
+  .vp-meta{ display:flex; flex-direction:column; gap:3px; padding:2px 16px 0; font-size:14px; line-height:1.4; }
+  .vp-meta > div{ overflow-wrap:anywhere; }
+  .vp-counts{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .vp-faces{ display:flex; }
+  .vp-faces .av{ width:20px; height:20px; border-radius:50%; overflow:hidden; border:2px solid var(--bg);
+    display:flex; align-items:center; justify-content:center; font-size:8px; }
+  .vp-faces .av + .av{ margin-left:-7px; }
+  .vp-title{ font-weight:650; }
+  .vp-link{ align-self:flex-start; background:none; border:none; padding:2px 0; cursor:pointer;
+    color:var(--text-muted); font:inherit; font-size:13px; }
+  .vp-more{ display:block; margin:4px auto 0; background:none; border:1px solid var(--border-strong);
+    color:var(--text); border-radius:99px; padding:9px 18px; font:inherit; cursor:pointer; }
+  .vp-replies{ position:absolute; inset:0; z-index:30; display:flex; flex-direction:column;
+    justify-content:flex-end; background:rgba(14,12,18,.45); }
+  .vp-replies[hidden]{ display:none; }
+  .vpr-card{ background:var(--bg); border-radius:20px 20px 0 0; max-height:78%; display:flex;
+    flex-direction:column; padding-bottom:env(safe-area-inset-bottom, 0px); }
+  .vpr-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px 8px;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:650; font-size:16px;
+    border-bottom:1px solid var(--border); }
+  .vpr-list{ overflow:auto; flex:1; min-height:120px; padding:6px 0; }
+  .vpr-list > .pf-empty{ margin:10px 16px; }
+  .vpr-row{ display:flex; gap:10px; padding:8px 16px; align-items:flex-start; }
+  .vpr-row.sub{ padding-left:56px; }
+  .vpr-row .av{ width:30px; height:30px; flex:none; border-radius:50%; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; }
+  .vpr-body{ flex:1; min-width:0; font-size:13.5px; line-height:1.4; }
+  .vpr-text{ overflow-wrap:anywhere; }
+  .vpr-age{ color:var(--text-muted); font-size:12px; }
+  .vpr-acts{ display:flex; gap:14px; margin-top:2px; }
+  .vpr-acts button{ background:none; border:none; padding:2px 0; color:var(--text-muted);
+    font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+  .vpr-like{ background:none; border:none; color:var(--text-muted); display:flex; flex-direction:column;
+    align-items:center; gap:1px; font-size:10px; cursor:pointer; padding:4px; min-width:32px; }
+  .vpr-like.on{ color:var(--coral); }
+  .vpr-box{ border-top:1px solid var(--border); padding:10px 16px 14px; }
+  .vpr-to{ font-size:12px; color:var(--text-muted); margin-bottom:6px; }
+  .vpr-to button{ background:none; border:none; color:var(--text); font:inherit; font-weight:600; cursor:pointer; }
+  .vpr-in{ display:flex; gap:8px; }
+  .vpr-in input{ flex:1; min-width:0; border:1px solid var(--border-strong); border-radius:99px;
+    padding:9px 14px; font:inherit; font-size:14px; background:var(--surface); color:var(--text); }
+  .vpr-in button{ border:none; background:none; color:var(--gold); font:inherit; font-weight:700; cursor:pointer; }
+  .vpr-gate{ font-size:13px; color:var(--text-muted); }
+  /* The composer's line picker (§544). */
+  .vcs-tool.set i{ box-shadow:0 0 0 2px #E0B563; }
+  .vcs-lines{ display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .vcs-line{ text-align:left; background:rgba(244,239,228,.08); border:1px solid transparent; color:#F4EFE4;
+    border-radius:10px; padding:8px 10px; font:inherit; font-size:13px; line-height:1.35; cursor:pointer;
+    display:flex; gap:8px; }
+  .vcs-line.on{ border-color:#E0B563; background:rgba(224,181,99,.16); }
+  .vcs-line-t{ flex:none; font-family:'Geist Mono', monospace; font-size:10px; color:#E0B563; padding-top:2px; }
+  .vcs-line-none{ margin-top:8px; background:none; border:none; color:rgba(244,239,228,.7); font:inherit;
+    font-size:12px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -4442,6 +4539,27 @@
         <div class="scroll"><div class="yf-person" id="personBody"></div></div>
       </section>
 
+      <!-- ============ VIBES AS POSTS (§544) ============
+           A vibe tapped on your own YourFAM grid or a friend's: that
+           person's vibes as posts, opened at the one tapped. Each plays
+           where it sits; replies open in the sheet below. -->
+      <section class="screen" id="screen-vibeposts">
+        <div class="screen-top" aria-hidden="true"></div>
+        <div class="yf-bar vp-bar-top">
+          <button class="yf-back" onclick="goBack()" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <div class="vp-titles"><b id="vpTitle">Vibes</b><span id="vpSub"></span></div>
+        </div>
+        <div class="scroll"><div id="vpBody"></div></div>
+        <div class="vp-replies" id="vpReplies" hidden onclick="if(event.target===this) closeVibeReplies()">
+          <div class="vpr-card" role="dialog" aria-labelledby="vprTitle">
+            <div class="vpr-head"><span id="vprTitle">Replies</span>
+              <button class="vp-icon" onclick="closeVibeReplies()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+            <div class="vpr-list" id="vprList"></div>
+            <div class="vpr-box" id="vprBox"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- ============ TOPIC (one interest) ============
            Behind every interest chip - on YourFAM, a friend's profile and a
            chat header. Generates nothing to fill itself: every card is an
@@ -4884,6 +5002,7 @@
             <button class="vcs-tool note-only" data-tool="bg" onclick="vcsTool('bg')"><span>Background</span><i><span class="vcs-bg-dot" id="vcsBgDot"></span></i></button>
             <button class="vcs-tool note-only" data-tool="voice" id="vcsVoiceTool" onclick="vcsDictate()"><span>Speak</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></i></button>
             <button class="vcs-tool episode-only" data-tool="mention" onclick="vcsTool('mention')"><span>Mention</span><i>@</i></button>
+            <button class="vcs-tool episode-only" data-tool="line" onclick="vcsTool('line')"><span>Line</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h3v4c0 2-1 3.5-3 4M14 7h3v4c0 2-1 3.5-3 4"/></svg></i></button>
             <button class="vcs-tool episode-only" data-tool="picture" onclick="vcsTool('picture')"><span>Picture</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></i></button>
           </div>
           <div class="vcs-size" id="vcsSize" hidden>
@@ -7112,6 +7231,13 @@
   function onGenerationStarted(){
     finishGenOverlay();
     var activeId = document.querySelector(".screen.active") ? document.querySelector(".screen.active").id : "";
+    // A vibe's post plays where it sits (§544): the mini bar carries it and
+    // the post's own bar moves, so the full player does not open over it.
+    var started = lastGenerate && TOPICS[lastGenerate.key];
+    if(started && started.inPlace && activeId === "screen-vibeposts"){
+      paintVibePostTransport();
+      return;
+    }
     if(activeId !== "screen-player"){ navigate("player"); }
   }
 
@@ -7889,6 +8015,8 @@
       if(paCur) paCur.textContent = formatTime(seconds);
       if(paTot) paTot.textContent = formatTime(total);
     }
+    // A vibe's post, when its episode is the one playing (§544).
+    paintVibePostTransport();
   }
 
   // --- when an episode counts as finished -----------------------------
@@ -8766,9 +8894,11 @@
     if(nowBarState && nowBarState.query === ep.query) thumb = PLAYER_CARD.thumb || "";
     var st = storyStyleDefaults();
     st.thumb = thumb;
-    vcs = { ep: ep, sel: "", tool: "", people: vcs.people, sending: false,
+    vcs = { ep: ep, sel: "", tool: "", people: vcs.people, sending: false, lines: null,
             model: { query: ep.query, title: ep.title || ep.query, minutes: ep.minutes,
-                     caption: "", style: st, tags: [] } };
+                     caption: "", style: st, tags: [], line: null } };
+    var lineTool = document.querySelector('#vibeComposer .vcs-tool[data-tool="line"]');
+    if(lineTool) lineTool.classList.remove("set");
     vcsMode(false);
     document.getElementById("vcsCaption").value = "";
     document.getElementById("vcsSizeInput").value = st.size;
@@ -8925,7 +9055,8 @@
     document.getElementById("vcsSize").hidden = tool !== "text";
     document.getElementById("vcsFonts").hidden = tool !== "text";
     var panel = document.getElementById("vcsPanel");
-    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "bg");
+    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "bg"
+                     || tool === "line");
     if(tool === "text"){
       vcsPaintFonts();
       if(!keep){ try { document.getElementById("vcsCaption").focus(); } catch(e){} }
@@ -8934,6 +9065,77 @@
     if(tool === "mention") vcsPaintPeople();
     if(tool === "picture") vcsPaintPicture();
     if(tool === "bg") vcsPaintBackgrounds();
+    if(tool === "line") vcsPaintLine();
+  }
+  // The line (§544): the one sentence of the episode the poster picks,
+  // shown across their post with the player jumping to it. Chosen from the
+  // episode's own captions - the ones the player already holds when it is
+  // the episode playing, else the transcript the server keeps - so the words
+  // are the episode's and never typed. Where it starts is the measured
+  // start when the server measured one (§127), else the same estimate the
+  // captions use: its share of the words, of the episode's length.
+  function vcsLoadLines(){
+    var ep = vcs.ep;
+    if(!ep) return Promise.resolve(null);
+    if(vcs.lines && vcs.lines.ep === ep) return Promise.resolve(vcs.lines);
+    var parts = (episodeStamp || "").split("|");
+    var here = parts[0] === ep.query && +parts[1] === +ep.minutes && captionSentences.length;
+    var ready = here
+      ? Promise.resolve({ sentences: captionSentences.slice(), starts: captionStarts.slice(),
+                          total: FamAudio.isComplete() ? FamAudio.duration() : (ep.minutes || 1) * 60 })
+      : fetch("/api/transcript?q=" + encodeURIComponent(ep.query) + "&minutes=" + (ep.minutes || 1))
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){
+            return { sentences: (d && d.sentences) || [], starts: (d && d.starts) || [],
+                     total: (ep.minutes || 1) * 60 };
+          });
+    return ready.then(function(lines){
+      if(lines) lines.ep = ep;
+      if(vcs.ep === ep) vcs.lines = lines;
+      return lines;
+    });
+  }
+  function vcsLineAt(lines, i){
+    if(lines.starts && lines.starts.length === lines.sentences.length) return lines.starts[i];
+    var total = 0, before = 0;
+    lines.sentences.forEach(function(s, k){
+      var n = String(s || "").length || 1;
+      if(k < i) before += n;
+      total += n;
+    });
+    return total ? Math.round((before / total) * lines.total * 10) / 10 : 0;
+  }
+  function vcsPaintLine(){
+    var panel = document.getElementById("vcsPanel");
+    panel.innerHTML = vcsPanelHead("YOUR LINE") + '<div class="vcs-hint">Loading the episode’s words…</div>';
+    vcsLoadLines().then(function(lines){
+      if(vcs.tool !== "line") return;
+      if(!lines || !lines.sentences.length){
+        panel.innerHTML = vcsPanelHead("YOUR LINE")
+          + '<div class="vcs-hint">This episode’s words aren’t ready yet. Play a little of it and try again.</div>';
+        return;
+      }
+      var chosen = vcs.model.line ? vcs.model.line.text : "";
+      panel.innerHTML = vcsPanelHead("YOUR LINE")
+        + '<div class="vcs-hint">Pick the sentence that got you. It goes across your post, and plays from there.</div>'
+        + '<div class="vcs-lines">' + lines.sentences.map(function(s, i){
+            return '<button class="vcs-line' + (s === chosen ? ' on' : '') + '" onclick="vcsPickLine(' + i + ')">'
+              + '<span class="vcs-line-t">' + formatTime(vcsLineAt(lines, i)) + '</span>'
+              + escapeHtml(s) + '</button>';
+          }).join("") + '</div>'
+        + (chosen ? '<button class="vcs-line-none" onclick="vcsPickLine(-1)">No line</button>' : '');
+    }).catch(function(){
+      panel.innerHTML = vcsPanelHead("YOUR LINE") + '<div class="vcs-hint">Could not load the episode’s words.</div>';
+    });
+  }
+  function vcsPickLine(i){
+    var lines = vcs.lines;
+    vcs.model.line = (i >= 0 && lines && lines.sentences[i])
+      ? { text: lines.sentences[i], at: vcsLineAt(lines, i) } : null;
+    var tool = document.querySelector('#vibeComposer .vcs-tool[data-tool="line"]');
+    if(tool) tool.classList.toggle("set", !!vcs.model.line);
+    vcsTool("");
+    if(vcs.model.line) toast("Your line is set");
   }
   function vcsPanelHead(label){
     return '<div class="vcs-panel-head"><span>' + label + '</span>'
@@ -9168,7 +9370,11 @@
                              minutes: ep.minutes,
                              thread: episodeThread || "",
                              caption: caption, style: model.style,
-                             tags: model.tags })
+                             tags: model.tags,
+                             // The line (§544) only when one was picked: left
+                             // out, a re-vibe keeps the one it had.
+                             line: model.line ? model.line.text : undefined,
+                             line_at: model.line && model.line.at >= 0 ? model.line.at : undefined })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || d.detail || "Could not vibe that");
@@ -10379,6 +10585,7 @@
       playing);
     drawPlayAllTransport(playing);
     setNowBarPlaying(playing);
+    paintVibePostTransport();
     if(playing){ resumeSpeech(); } else { pauseSpeech(); }
     // "Hey FAM" (§158) never listens over an episode.
     scheduleWake(playing ? 0 : 400);
@@ -10403,6 +10610,7 @@
     if(icon) icon.innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>';
     drawPlayAllTransport(true);
     setNowBarPlaying(true);
+    paintVibePostTransport();
   }
 
   function toggleFavorite(el){
@@ -16373,8 +16581,10 @@
   function vibesCount(){
     return (profileNow && profileNow.echo_count) || profileVibes.length;
   }
+  // A vibe on your own grid opens as a post (§544), at the one tapped.
   function playProfileVibe(i){
-    playOwnVibe(profileVibes[i], i);
+    if(!profileVibes[i]) return;
+    openVibePosts("", i);
   }
   // Your own mix opens as you edit it; one the list has not loaded yet
   // opens as anybody sees it.
@@ -18086,9 +18296,14 @@
     openPublicMix(m);
   }
 
+  // A vibe on a friend's grid opens as their posts (§544), at the one
+  // tapped. Without a handle to ask by, it plays as it always did.
   function playPersonVibe(i){
     var v = personVibes[i];
     if(!v) return;
+    var handle = (personPublished && personPublished.handle)
+      || (viewingProfile && viewingProfile.handle) || v.handle || "";
+    if(handle){ openVibePosts(handle, i); return; }
     var key = "pvibe_" + i + "_" + Date.now();
     TOPICS[key] = { title: v.title || v.query, surface: "other",
                     source: "vibed by " + (viewingProfile && viewingProfile.name
@@ -18096,6 +18311,464 @@
                     caption: "", prompt: v.query,
                     exploreMinutes: v.minutes, titleOverridden: true };
     generate(key);
+  }
+
+  // ---------------- Vibes as posts (§544) ----------------
+  //
+  // The owner's "Vibes as Posts", option C ("Compact Trio"): a vibe tapped
+  // on your own YourFAM grid or a friend's opens here, as a post - who
+  // vibed it and the day they did, the line they picked across the picture,
+  // a small player under it with that line marked in gold, then likes, the
+  // friends who heard it, the title, the caption and the reply shown under
+  // it. Scrolling down goes through the rest of their vibes, newest first.
+  //
+  // Only from the two grids. A story, My Vibe's list and every other way to
+  // an episode still play it the way they did.
+  //
+  // **It plays where it sits.** Play starts the kept episode the way every
+  // tap does (`generate`, so a replay and its rules), marked `inPlace` so
+  // the full player does not open over the post; the mini bar carries it
+  // like anything else, and leaving this screen never stops it. The post's
+  // bar is painted by the one progress clock (`refreshProgressNow`) and its
+  // button by `setPlayState`, so there is still one transport.
+  var vp = { handle: "", mine: false, person: null, posts: [], more: false,
+             loading: false, focus: 0 };
+  var VP_PAGE = 12;
+
+  function openVibePosts(handle, index){
+    if(!AUTH.authenticated && handle){ showGuestGate("Create a free account to see friends\u2019 vibes."); return; }
+    vp = { handle: handle || "", mine: !handle, person: null, posts: [], more: false,
+           loading: false, focus: index || 0 };
+    document.getElementById("vpTitle").textContent = "Vibes";
+    document.getElementById("vpSub").textContent = handle ? "@" + handle : "";
+    document.getElementById("vpBody").innerHTML = '<div class="pf-empty">Loading…</div>';
+    navigate("vibeposts");
+    loadVibePosts(false);
+  }
+
+  function loadVibePosts(more){
+    if(vp.loading) return;
+    vp.loading = true;
+    var before = more && vp.posts.length ? vp.posts[vp.posts.length - 1].at : 0;
+    // The grid shows twelve; ask for enough that the tapped one is here.
+    var limit = Math.max(VP_PAGE, more ? VP_PAGE : vp.focus + 1);
+    var asked = vp;
+    fetch("/api/vibe/posts?limit=" + Math.min(30, limit)
+          + (vp.handle ? "&handle=" + encodeURIComponent(vp.handle) : "")
+          + (before ? "&before=" + encodeURIComponent(before) : ""))
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(asked !== vp) return;
+        vp.loading = false;
+        vp.person = d.person || vp.person;
+        vp.mine = !!d.mine;
+        vp.more = !!d.more;
+        vp.posts = more ? vp.posts.concat(d.posts || []) : (d.posts || []);
+        var who = vp.person || {};
+        document.getElementById("vpTitle").textContent = vp.mine ? "Your vibes" : "Vibes";
+        document.getElementById("vpSub").textContent = who.handle ? "@" + who.handle : "";
+        renderVibePosts();
+        if(!more){
+          var target = document.getElementById("vp-" + ((vp.posts[vp.focus] || {}).id));
+          if(target) target.scrollIntoView({ block: "start" });
+        }
+      })
+      .catch(function(){
+        if(asked !== vp) return;
+        vp.loading = false;
+        if(!more) document.getElementById("vpBody").innerHTML =
+          '<div class="pf-empty">Could not load these vibes. Pull back and try again.</div>';
+        else toast("Could not load more vibes");
+      });
+  }
+
+  function renderVibePosts(){
+    var body = document.getElementById("vpBody");
+    if(!vp.posts.length){
+      body.innerHTML = '<div class="pf-empty">' + (vp.mine
+        ? 'Nothing vibed yet. Tap VIBE! on any episode and it shows here.'
+        : 'No vibes to show.') + '</div>';
+      return;
+    }
+    body.innerHTML = vp.posts.map(vibePostHTML).join("")
+      + (vp.more ? '<button class="vp-more" onclick="loadVibePosts(true)">More vibes</button>' : '');
+    vp.posts.forEach(function(p, i){
+      var el = document.getElementById("vp-" + p.id);
+      makeVibePostScrubbable(el && el.querySelector(".vp-track"), i);
+    });
+    paintVibePostTransport();
+  }
+
+  // How long a post's bar is: the real length while its episode is the one
+  // playing (the same authority as the player's bar), else its minutes.
+  function vibePostTotal(p){
+    if(vibePostIsCurrent(p)){
+      var t = scrubTotal();
+      if(t > 0) return t;
+    }
+    return (p.minutes || BROWSE_MINUTES) * 60;
+  }
+  function vibePostIsCurrent(p){
+    return !!(p && nowBarState && nowBarState.query === p.query
+              && +nowBarState.minutes === +p.minutes);
+  }
+
+  function vibePostHTML(p, i){
+    var who = vp.person || {};
+    var line = p.line && p.line.text ? p.line : null;
+    var total = vibePostTotal(p);
+    var lineSeg = '';
+    if(line && line.at != null && total > 0){
+      var left = Math.min(98, (line.at / total) * 100);
+      // As wide as the sentence would take to say, near enough: a reading
+      // pace, never past the end.
+      var width = Math.max(2, Math.min(100 - left, (line.text.length / 15 / total) * 100));
+      lineSeg = '<span class="vp-line-seg" style="left:' + left + '%;width:' + width + '%"></span>';
+    }
+    var heard = p.heard || { count: 0, faces: [] };
+    var counts = [];
+    if(p.likes) counts.push('<b>' + p.likes + (p.likes === 1 ? ' like' : ' likes') + '</b>');
+    if(heard.count) counts.push('heard by ' + heard.count + (heard.count === 1 ? ' friend' : ' friends'));
+    return '<article class="vp-post" id="vp-' + p.id + '">'
+      + '<div class="vp-head">' + personAvHTML(who)
+      +   '<div class="vp-who"><span class="vp-handle' + (who.explicit ? ' is-explicit' : '') + '">'
+      +     escapeHtml(who.handle || who.name || "") + '</span>'
+      +   '<span class="vp-when">Vibed ' + escapeHtml(vibeDayWord(p.at)) + '</span></div>'
+      +   '<button class="vp-icon" onclick="openVibePostMenu(' + i + ')" aria-label="More">'
+      +     '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button></div>'
+      + '<div class="vp-pic"' + (p.thumb ? ' style="background-image:url(&quot;' + escapeHtml(p.thumb) + '&quot;)"' : '') + '>'
+      +   (line ? '<div class="vp-strip"><span class="vp-q">“</span>' + escapeHtml(line.text)
+                   + '<span class="vp-q">”</span></div>' : '')
+      + '</div>'
+      + '<div class="vp-tr">'
+      +   '<button class="vp-play" data-vp-play="' + i + '" onclick="playVibePost(' + i + ')" aria-label="Play">'
+      +     vibePlayIcon(false) + '</button>'
+      +   '<div class="vp-bar"><div class="vp-track" data-vp-track="' + i + '">' + lineSeg
+      +     '<span class="vp-fill"></span><span class="vp-knob"></span></div>'
+      +     '<div class="vp-times"><span data-vp-cur="' + i + '">0:00</span><span data-vp-tot="' + i + '">'
+      +       formatTime(total) + '</span></div></div>'
+      +   (line && line.at != null ? '<button class="vp-chip" onclick="playVibePostLine(' + i + ')" aria-label="Play from the line">'
+            + '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>'
+            + formatTime(line.at) + '</button>' : '')
+      + '</div>'
+      + '<div class="vp-acts">'
+      +   '<button class="vp-icon' + (p.liked ? ' on' : '') + '" onclick="likeVibePost(' + i + ')" aria-label="' + (p.liked ? 'Unlike' : 'Like') + '" aria-pressed="' + !!p.liked + '">'
+      +     '<svg width="22" height="22" viewBox="0 0 24 24" fill="' + (p.liked ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></svg></button>'
+      +   '<button class="vp-icon" onclick="openVibeReplies(' + i + ')" aria-label="Replies">'
+      +     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 1 1 3.3 6.2L4.5 19.5l1.1-3.4A7.5 7.5 0 0 1 4.5 12z"/></svg></button>'
+      +   '<button class="vp-icon" onclick="shareVibePost(' + i + ')" aria-label="Send">'
+      +     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M21 3 3 10.4l7.2 2.4L12.6 20 21 3z"/><path d="M10.2 12.8 15 8"/></svg></button>'
+      +   '<span class="vp-sp"></span>'
+      +   '<button class="vp-icon" onclick="saveVibePost(' + i + ')" aria-label="Save for later">'
+      +     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg></button>'
+      + '</div>'
+      + '<div class="vp-meta">'
+      +   (counts.length ? '<div class="vp-counts">' + (heard.faces && heard.faces.length
+            ? '<span class="vp-faces">' + heard.faces.map(personAvHTML).join("") + '</span>' : '')
+            + '<span>' + counts.join(" · ") + '</span></div>' : '')
+      +   '<div class="vp-title">' + escapeHtml(p.title || p.query) + '</div>'
+      +   (p.caption ? '<div><b>' + escapeHtml(who.handle || who.name || "") + '</b> ' + escapeHtml(p.caption) + '</div>' : '')
+      +   (p.top_reply ? '<div class="vp-reply1"><b' + (p.top_reply.explicit ? ' class="is-explicit"' : '') + '>'
+            + escapeHtml(p.top_reply.handle || p.top_reply.name || "") + '</b> ' + escapeHtml(p.top_reply.text) + '</div>' : '')
+      +   '<button class="vp-link" onclick="openVibeReplies(' + i + ')">'
+      +     (p.replies > 1 ? 'View all ' + p.replies + ' replies' : p.replies === 1 ? 'View the reply' : 'Add a reply')
+      +   '</button>'
+      + '</div></article>';
+  }
+
+  // The day it was vibed, on the catalogue's calendar (§499): "today",
+  // "yesterday", "3 days ago", then the date. Worked from how long ago, so
+  // a wrong phone clock is wrong by the same amount both ways.
+  function vibeDayWord(at){
+    var age = Math.max(0, Date.now() / 1000 - (at || 0));
+    var word = episodeDayLabel(age);
+    return /^(Today|Yesterday)$/.test(word) ? word.toLowerCase() : word;
+  }
+  function vibePlayIcon(playing){
+    return playing
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4.4" height="16" rx="1.5"/><rect x="13.6" y="4" width="4.4" height="16" rx="1.5"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.9v14.2L18.6 12z"/></svg>';
+  }
+
+  // Called by the progress clock and by every play-state change: the post
+  // whose episode is playing shows where it is; every other post rests.
+  function paintVibePostTransport(){
+    if(!vp.posts.length) return;
+    var screen = document.getElementById("screen-vibeposts");
+    if(!screen || !screen.classList.contains("active")) return;
+    vp.posts.forEach(function(p, i){
+      var current = vibePostIsCurrent(p);
+      var btn = screen.querySelector('[data-vp-play="' + i + '"]');
+      if(btn){
+        var playing = current && isPlaying;
+        if(btn.getAttribute("data-on") !== String(playing)){
+          btn.setAttribute("data-on", String(playing));
+          btn.innerHTML = vibePlayIcon(playing);
+          btn.setAttribute("aria-label", playing ? "Pause" : "Play");
+        }
+      }
+      var track = screen.querySelector('[data-vp-track="' + i + '"]');
+      if(!track || (scrubbingBar && scrubbingBar === track)) return;
+      var total = vibePostTotal(p);
+      var seconds = current ? Math.min(FamAudio.position(), total) : 0;
+      var pct = total ? (seconds / total) * 100 : 0;
+      track.querySelector(".vp-fill").style.width = pct + "%";
+      track.querySelector(".vp-knob").style.left = pct + "%";
+      track.classList.toggle("live", current);
+      var cur = screen.querySelector('[data-vp-cur="' + i + '"]');
+      var tot = screen.querySelector('[data-vp-tot="' + i + '"]');
+      if(cur) cur.textContent = formatTime(seconds);
+      if(tot) tot.textContent = formatTime(total);
+    });
+  }
+
+  // Dragging a post's bar seeks - only the post that is playing, through
+  // the player's own scrubber code, so it lands on release like the player's.
+  function makeVibePostScrubbable(track, i){
+    if(!track) return;
+    makeScrubbable(track, function(pct, seconds){
+      var p = vp.posts[i];
+      if(!vibePostIsCurrent(p)) return;
+      track.querySelector(".vp-fill").style.width = pct + "%";
+      track.querySelector(".vp-knob").style.left = pct + "%";
+      var cur = document.querySelector('[data-vp-cur="' + i + '"]');
+      if(cur) cur.textContent = formatTime(seconds);
+    });
+  }
+
+  function playVibePost(i, at){
+    var p = vp.posts[i];
+    if(!p) return;
+    if(vibePostIsCurrent(p) && !(at >= 0)){ togglePlay(); return; }
+    var key = "vpost_" + p.id + "_" + Date.now();
+    var who = vp.person || {};
+    TOPICS[key] = { title: p.title || p.query, surface: "other",
+                    source: vp.mine ? "From your vibes"
+                                    : "vibed by " + (who.name || ("@" + (who.handle || "a friend"))),
+                    caption: "", prompt: p.query, exploreMinutes: p.minutes,
+                    titleOverridden: true, thumb: p.thumb || "", inPlace: true };
+    generate(key);
+  }
+  // The gold chip: the line, from where it starts. The episode playing
+  // jumps there at once (never past what is written); one not playing starts
+  // and jumps once enough of it has arrived - the same wait a resumed
+  // episode keeps (`pendingResumeSeek`).
+  function playVibePostLine(i){
+    var p = vp.posts[i];
+    if(!p || !p.line || p.line.at == null) return;
+    var at = Math.max(0, p.line.at);
+    if(vibePostIsCurrent(p)){
+      if(FamAudio.isActive() || FamAudio.isComplete()){
+        FamAudio.seek(Math.min(at, FamAudio.seekLimit()));
+        if(!isPlaying) setPlayState(true);
+        refreshProgressNow();
+        return;
+      }
+    }
+    pendingResumeSeek = { query: p.query, minutes: p.minutes, at: at };
+    playVibePost(i, at);
+  }
+
+  function likeVibePost(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    if(!AUTH.authenticated){ showGuestGate("Create a free account to like vibes."); return; }
+    var on = !p.liked;
+    // Drawn at once, put right if the server says otherwise.
+    p.liked = on; p.likes = Math.max(0, (p.likes || 0) + (on ? 1 : -1));
+    redrawVibePost(i);
+    fetch("/api/vibe/" + p.id + "/like", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({ on: on }) })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ p.likes = d.likes; p.liked = d.liked; redrawVibePost(i); })
+      .catch(function(){
+        p.liked = !on; p.likes = Math.max(0, (p.likes || 0) + (on ? -1 : 1));
+        redrawVibePost(i);
+        toast("Could not like that");
+      });
+  }
+  function redrawVibePost(i){
+    var p = vp.posts[i];
+    var el = p && document.getElementById("vp-" + p.id);
+    if(!el) return;
+    var holder = document.createElement("div");
+    holder.innerHTML = vibePostHTML(p, i);
+    el.replaceWith(holder.firstChild);
+    var fresh = document.getElementById("vp-" + p.id);
+    makeVibePostScrubbable(fresh && fresh.querySelector(".vp-track"), i);
+    paintVibePostTransport();
+  }
+  function shareVibePost(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    openShareModal({ query: p.query, minutes: p.minutes, title: p.title || p.query });
+  }
+  function saveVibePost(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    if(!AUTH.authenticated){ showGuestGate("Create a free account to save episodes."); return; }
+    fetch("/api/saved", { method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ query: p.query, minutes: p.minutes,
+                             title: p.title || p.query, source: "vibe" }) })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(){ snack("Saved for Later", { label: "Open", run: openSaved }); })
+      .catch(function(){ toast("Could not save that"); });
+  }
+  function openVibePostMenu(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    var items = [{ head: menuHead(p.title || p.query, vp.mine ? "Your vibe" : "A vibe", p.thumb || "") }];
+    if(vp.mine){
+      items.push({ label: menuLabel("remove", "Delete vibe"), danger: true, action: function(){
+        deleteMyVibe(p, function(){
+          vp.posts.splice(vp.posts.indexOf(p), 1);
+          renderVibePosts();
+        });
+      } });
+    } else {
+      items.push({ label: menuLabel("report", "Report vibe"), danger: true, action: function(){
+        reportContent({ kind: "vibe", target: p.id }, function(){
+          vp.posts.splice(vp.posts.indexOf(p), 1);
+          renderVibePosts();
+        });
+      } });
+    }
+    showActionSheet(items);
+  }
+
+  // ---- replies: a sheet over the posts -------------------------------
+  // A reply is public to whoever may see the vibe (§544), one level deep as
+  // comments are (§203). Yours, and any on your own vibe, can be deleted;
+  // anybody else's can be reported, and leaves the sheet once it is.
+  var vpr = { i: -1, id: 0, replies: [], parent: 0, parentName: "", mine: false, sending: false };
+  function openVibeReplies(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    vpr = { i: i, id: p.id, replies: [], parent: 0, parentName: "", mine: vp.mine, sending: false };
+    document.getElementById("vprTitle").textContent = "Replies";
+    document.getElementById("vprList").innerHTML = '<div class="pf-empty">Loading…</div>';
+    paintVibeReplyBox();
+    document.getElementById("vpReplies").hidden = false;
+    loadVibeReplies();
+  }
+  function closeVibeReplies(){
+    document.getElementById("vpReplies").hidden = true;
+    vpr.i = -1;
+  }
+  function loadVibeReplies(){
+    var id = vpr.id;
+    fetch("/api/vibe/" + id + "/replies")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(id !== vpr.id) return;
+        vpr.replies = d.replies || [];
+        vpr.mine = !!d.mine;
+        var p = vp.posts[vpr.i];
+        if(p){ p.replies = d.count || 0; p.top_reply = vpr.replies[0] || null; redrawVibePost(vpr.i); }
+        paintVibeReplies();
+      })
+      .catch(function(){
+        if(id !== vpr.id) return;
+        document.getElementById("vprList").innerHTML = '<div class="pf-empty">Could not load the replies.</div>';
+      });
+  }
+  function vibeReplyHTML(c, top){
+    return '<div class="vpr-row' + (top ? '' : ' sub') + '">' + personAvHTML(c)
+      + '<div class="vpr-body"><div><b' + (c.explicit ? ' class="is-explicit"' : '') + '>'
+      + escapeHtml(c.handle || c.name || "") + '</b> <span class="vpr-age">'
+      + escapeHtml(episodeDayLabel(Date.now() / 1000 - c.at)) + '</span></div>'
+      + '<div class="vpr-text">' + escapeHtml(c.text) + '</div>'
+      + '<div class="vpr-acts"><button onclick="replyToVibeReply(' + c.id + ')">Reply</button>'
+      + '<button onclick="openVibeReplyMenu(' + c.id + ')">More</button></div></div>'
+      + '<button class="vpr-like' + (c.liked ? ' on' : '') + '" onclick="likeVibeReply(' + c.id + ')" aria-label="Like">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="' + (c.liked ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></svg>'
+      + (c.likes ? '<span>' + c.likes + '</span>' : '') + '</button></div>';
+  }
+  function paintVibeReplies(){
+    var list = document.getElementById("vprList");
+    if(!vpr.replies.length){
+      list.innerHTML = '<div class="pf-empty">No replies yet.' + (vpr.mine ? '' : ' Say something about it.') + '</div>';
+      return;
+    }
+    list.innerHTML = vpr.replies.map(function(c){
+      return vibeReplyHTML(c, true) + (c.replies || []).map(function(r){ return vibeReplyHTML(r, false); }).join("");
+    }).join("");
+  }
+  function findVibeReply(id){
+    var found = null;
+    vpr.replies.forEach(function(c){
+      if(c.id === id) found = c;
+      (c.replies || []).forEach(function(r){ if(r.id === id) found = r; });
+    });
+    return found;
+  }
+  function paintVibeReplyBox(){
+    var box = document.getElementById("vprBox");
+    if(!AUTH.authenticated){
+      box.innerHTML = '<div class="vpr-gate">Replying needs an account.' + gateActions() + '</div>';
+      return;
+    }
+    box.innerHTML = (vpr.parent ? '<div class="vpr-to">Replying to @' + escapeHtml(vpr.parentName)
+        + ' <button onclick="replyToVibeReply(0)">Cancel</button></div>' : '')
+      + '<div class="vpr-in"><input id="vprInput" type="text" maxlength="500" placeholder="Add a reply…"'
+      + ' aria-label="Your reply" onkeydown="if(event.key===\'Enter\') sendVibeReply()">'
+      + '<button onclick="sendVibeReply()">Post</button></div>';
+  }
+  function replyToVibeReply(id){
+    var c = id ? findVibeReply(id) : null;
+    vpr.parent = c ? id : 0;
+    vpr.parentName = c ? (c.handle || c.name || "") : "";
+    paintVibeReplyBox();
+    var input = document.getElementById("vprInput");
+    if(input) try { input.focus(); } catch(e){}
+  }
+  function sendVibeReply(){
+    var input = document.getElementById("vprInput");
+    var text = input ? input.value.trim() : "";
+    if(!text || vpr.sending) return;
+    vpr.sending = true;
+    fetch("/api/vibe/" + vpr.id + "/replies", { method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ text: text, parent_id: vpr.parent || 0 }) })
+      .then(function(r){ return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "Could not post that"); return d; }); })
+      .then(function(){
+        vpr.sending = false;
+        vpr.parent = 0; vpr.parentName = "";
+        paintVibeReplyBox();
+        loadVibeReplies();
+      })
+      .catch(function(err){ vpr.sending = false; toast(err.message || "Could not post that"); });
+  }
+  function likeVibeReply(id){
+    var c = findVibeReply(id);
+    if(!c) return;
+    if(!AUTH.authenticated){ showGuestGate("Create a free account to like replies."); return; }
+    var on = !c.liked;
+    fetch("/api/comments/" + id + "/like", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({ on: on }) })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ c.likes = d.likes; c.liked = d.liked; paintVibeReplies(); })
+      .catch(function(){ toast("Could not like that"); });
+  }
+  function openVibeReplyMenu(id){
+    var c = findVibeReply(id);
+    if(!c) return;
+    var items = [];
+    if(c.mine || vpr.mine){
+      items.push({ label: menuLabel("remove", "Delete reply"), danger: true, action: function(){
+        fetch("/api/comments/" + id, { method: "DELETE" })
+          .then(function(r){ return r.json(); })
+          .then(function(d){ if(!d.ok) throw new Error(); loadVibeReplies(); })
+          .catch(function(){ toast("Could not delete that"); });
+      } });
+    }
+    if(!c.mine){
+      items.push({ label: menuLabel("report", "Report reply"), danger: !items.length, action: function(){
+        reportContent({ kind: "comment", target: id }, loadVibeReplies);
+      } });
+    }
+    showActionSheet(items);
   }
 
   function messagePerson(userId){

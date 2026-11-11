@@ -33633,3 +33633,75 @@ The owner's 11.11 note, two ideas, with a mock-up of "PLAY ALL" beside
    unchanged, their questions being FAM's own.
 
 Tests: `tests/test_play_all_and_player_faces.py`.
+
+## 544. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11)
+
+The owner's "Vibes as Posts" note: *"The episodes that are displayed on my
+profile as a vibe, I wanna create a new player for those… almost like an
+Instagram post. I want them to appear more as posts rather than episodes. So
+it shows the day that I vibe with the episode. This is only for when I click
+on the ones on my profile or a friend's profile."* Two rounds of mock-ups
+(ten designs, then six blends of the three the owner picked - 03 Playable
+Post, 08 The Line, 10 Conversation); the owner chose **C, "Compact Trio"**:
+all three at feed size.
+
+**What a tap on a grid does now.** `playProfileVibe` and `playPersonVibe`
+open `screen-vibeposts` at the tile tapped instead of starting the episode:
+that person's vibes, newest first, as posts. A friend's page needs a handle
+to ask by; without one the old play stays. Nothing else changed - a story,
+My Vibe's list and every other surface still play the episode, and the
+press-and-hold delete on your own grid (§499) is untouched.
+
+**A post** (`vibePostHTML`): face, handle, "Vibed yesterday" (the catalogue's
+calendar, §499, from the vibe's age); the picture with the line across its
+foot in quotes; a play button, a bar with the line's stretch in gold, the
+times, and a gold chip with the line's start; heart, reply, send (the share
+sheet), save; then "n likes · heard by n friends" with faces, the title, the
+caption, the top reply and "View all n replies" / "Add a reply". ⋯ is
+Delete vibe on yours (the same `DELETE /api/vibe`) and Report vibe on a
+friend's.
+
+**The line.** VIBE!'s editor has a **Line** tool: the episode's own
+sentences (the player's captions if it is the episode playing, else
+`/api/transcript`), each with its start time, measured when the server
+measured it (§127) and otherwise the captions' character estimate. Picking
+one sends `line` and `line_at` with the vibe. Stored on the echo row
+(`line`, `line_at`); a vibe that sends neither keeps what the row had, so an
+installed client or a re-vibe that picked nothing never wipes it. Cut to
+`social.MAX_LINE` (300), slurs out, time clamped to 15 minutes, negative
+means "no time". The line is not drawn on the story; it is the post's.
+
+**Playing in place.** A post's play is the ordinary `generate` with
+`inPlace: true` on the topic; `onGenerationStarted` does not open the full
+player while the posts screen is showing. The bar is painted from
+`refreshProgressNow` and the button from `setPlayState`/`markPlaying`
+(`paintVibePostTransport`), so there is still one transport; dragging the
+playing post's bar is the player's own `makeScrubbable`. The chip seeks the
+playing episode (never past what is written) or starts it with
+`pendingResumeSeek`, the wait a resumed episode keeps. Leaving the screen
+does not stop it; the mini bar carries it on the tab screens.
+
+**Likes and replies, and who sees them.** A like is per post
+(`vibe_likes`, keyed on the vibe's row, an account's). Replies are
+**public to whoever may see the vibe** - its owner, or anyone who may open
+the owner's profile (reachable, not blocked either way, not suspended) and
+is not kept out of a close-friends vibe. That is a product change from
+§282, where a reply to a vibe was a private message; the story's reply row
+is unchanged and still sends a message. A post's reply is a comment filed
+under the vibe: `comments.echo_id` (0 is an episode's own thread, Explore's,
+which now filters on it, as does `comment_counts_many`), so the reply code,
+likes on replies, reports (`comment`) and deletion are the comment code; the
+poster may also delete any reply on their own post. Deleting a vibe takes
+its likes and replies (`_drop_post`); deleting an account takes the likes it
+gave and the posts of its vibes.
+
+**Who heard it** is `_mark_friends_listened(public_searches_only=True)` per
+post, the player's faces (§543) with the same caution.
+
+Endpoints: `GET /api/vibe/posts` (`handle`, `before`, `limit`),
+`POST /api/vibe/{id}/like`, `GET`/`POST /api/vibe/{id}/replies`; deleting a
+reply is `DELETE /api/comments/{id}`. No person ids in any response. Both
+previews answer them. Not built: the iOS client's posts screen, and a
+notice to the poster when someone replies (a reply is not a message).
+
+Tests: `tests/test_vibe_posts.py`.

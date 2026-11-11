@@ -1099,6 +1099,26 @@ __PREVIEW_PICTURE__
              name: p.name || "", handle: p.handle || "", avatar: p.avatar || "",
              likes: likeCount(c), liked: !!c.likers.me, mine: c.user_id === "me" };
   }
+  // Replies under a vibe's post (§544): the same thread shape, by vibe.
+  var VIBE_POSTS = {};
+  (function () {
+    var at = Date.now() / 1000;
+    COMMENTS.push({ id: NEXT_COMMENT++, user_id: "u_beth", query: "", minutes: 0, echo_id: 5000,
+                    parent_id: 0, text: "This is the clearest version of it I have heard.",
+                    at: at - 7200, likers: { fan1: 1, fan2: 1 } });
+    COMMENTS.push({ id: NEXT_COMMENT++, user_id: "u_mike", query: "", minutes: 0, echo_id: 5000,
+                    parent_id: 0, text: "Sending this to my dad.", at: at - 3600, likers: {} });
+  })();
+  function vibeReplyBody(echoId) {
+    var tops = [], byId = {};
+    COMMENTS.filter(function (c) { return c.echo_id === echoId; }).slice()
+      .sort(function (a, b) { return a.at - b.at; }).forEach(function (c) {
+        var d = commentDict(c);
+        if (c.parent_id) { if (byId[c.parent_id]) byId[c.parent_id].replies.push(d); return; }
+        d.replies = []; byId[c.id] = d; tops.push(d);
+      });
+    return tops.sort(function (a, b) { return (b.likes - a.likes) || (b.at - a.at); });
+  }
   function commentsBody(q, m) {
     var tops = [], byId = {};
     commentRows(q, m).slice().sort(function (a, b) { return a.at - b.at; }).forEach(function (c) {
@@ -1810,6 +1830,66 @@ __PREVIEW_PICTURE__
     if (path === "/api/episode/card") {
       return json({ thumb: previewPicture((qs.get("q") || "") + " " + (qs.get("title") || "")),
                     fallback: false, searcher: "" });
+    }
+    // ---- a vibe as a post (§544): `/api/vibe/posts`' shape, from the same
+    // vibes the grids draw; likes and replies kept on the page, replies in
+    // COMMENTS under the vibe's id (`echo_id`) so they never reach an
+    // episode's own thread.
+    if (path === "/api/vibe/posts") {
+      var vph = String(qs.get("handle") || "").replace(/^@/, "");
+      var vsrc = vph ? PEOPLE.published(vph)
+                     : { name: "You", handle: "you", avatar: "", vibes: PEOPLE.vibes };
+      if (!vsrc) return json({ error: "No listener by that handle." }, 404);
+      var vlines = ((FIXTURES["/api/transcript"] || {}).sentences || []);
+      var vnow = Date.now() / 1000;
+      return json({ person: { name: vsrc.name, handle: vsrc.handle, avatar: vsrc.avatar || "",
+                              explicit: false },
+                    mine: !vph, more: false,
+                    posts: (vsrc.vibes || []).map(function (v, i) {
+        var pid = vph ? 5000 + i : (v.id || i + 1);
+        var st = VIBE_POSTS[pid] || (VIBE_POSTS[pid] = { likes: (i * 5 + 3) % 9, liked: false });
+        var rows = COMMENTS.filter(function (c) { return c.echo_id === pid; });
+        var tops = vibeReplyBody(pid);
+        var line = vlines.length && i % 2 === 0
+          ? { text: vlines[(i * 2 + 1) % vlines.length], at: 12 + i * 9 } : null;
+        return { id: pid, query: v.query, title: v.title || v.query, minutes: v.minutes || 3,
+                 at: v.at || vnow - (i * 2 + 1) * 86400, caption: v.caption || "",
+                 line: line, likes: st.likes, liked: st.liked, replies: rows.length,
+                 top_reply: tops[0] || null,
+                 heard: { count: i % 3, faces: [] },
+                 thumb: previewPicture(v.query + " " + (v.title || "")),
+                 topic: "" };
+      }) });
+    }
+    var vplike = /^\/api\/vibe\/(\d+)\/like$/.exec(path);
+    if (vplike) {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var vpl = JSON.parse((init && init.body) || "{}");
+      var vps = VIBE_POSTS[Number(vplike[1])] || (VIBE_POSTS[Number(vplike[1])] = { likes: 0, liked: false });
+      var von = vpl.on !== false;
+      if (von !== vps.liked) vps.likes = Math.max(0, vps.likes + (von ? 1 : -1));
+      vps.liked = von;
+      return json({ id: Number(vplike[1]), likes: vps.likes, liked: von });
+    }
+    var vprep = /^\/api\/vibe\/(\d+)\/replies$/.exec(path);
+    if (vprep && method === "GET") {
+      var vrid = Number(vprep[1]);
+      return json({ replies: vibeReplyBody(vrid),
+                    count: COMMENTS.filter(function (c) { return c.echo_id === vrid; }).length,
+                    mine: vrid < 5000 });
+    }
+    if (vprep && method === "POST") {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var vrb = JSON.parse((init && init.body) || "{}");
+      var vrt = String(vrb.text || "").replace(/\s+/g, " ").trim().slice(0, 500);
+      if (!vrt) return json({ detail: "Write something first." }, 400);
+      var vhost = vrb.parent_id ? COMMENTS.filter(function (c) {
+        return c.id === Number(vrb.parent_id) && c.echo_id === Number(vprep[1]); })[0] : null;
+      var vrow = { id: NEXT_COMMENT++, user_id: "me", query: "", minutes: 0,
+                   echo_id: Number(vprep[1]), parent_id: vhost ? (vhost.parent_id || vhost.id) : 0,
+                   text: vrt, at: Date.now() / 1000, likers: {} };
+      COMMENTS.push(vrow);
+      return json(commentDict(vrow));
     }
     if (path === "/api/vibes") {
       var vfiles = window.__famVibeFiles || {};
