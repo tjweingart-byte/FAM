@@ -133,7 +133,10 @@ def main() -> int:
     else:
         names = pick(rows, args.limit)
     if not names:
-        print("No names to try: none on the list marks a stressed syllable in capitals.")
+        print("No names to try: " + (
+            "none of --names is on the list - give them as Name=respelling."
+            if args.names else
+            "none on the list marks a stressed syllable in capitals."))
         return 1
 
     out = pathlib.Path(args.out)
