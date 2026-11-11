@@ -33540,3 +33540,35 @@ It added the category chips, panel and Find a category; the web's 48 subject
 icons, generated from `CAT_ICONS` by `tools/ios_icons.py` (a contract test
 runs `--check`, so the two cannot drift); and the measured rows, handles,
 buttons and fields.
+
+## 541. Play all on a rail; friends' faces on the player (2026-11-11)
+
+The owner's 11.11 note, two ideas, with a mock-up of "PLAY ALL" beside
+"Made for you" and "Trending", and a face circled on the player's picture:
+
+1. **Play all.** "If you want to go through and listen to all the things in
+   that row, they'll just play one after the other, so the user can have a
+   hands-off experience." Every myFAM rail with episodes now has a Play all
+   pill beside its heading (`playRailAll`). The first tile plays exactly as a
+   tap on it would (`startBankTopic`, so the dial loader and the browse
+   length); the rest of the rail goes into the ordinary queue (§190) marked
+   `fromRail`, so the full player plays each straight after the last, Go to
+   Queue shows them and each is removable. It behaves like a category's Play
+   all (§500): a second Play all replaces what the first queued, anything else
+   starting ends it (`generate` now clears `fromRail` beside `fromCategory`),
+   and what the listener queued themselves stays. A guest's rail plays only
+   tiles already made; offline, only what is on the device. The heading keeps
+   at least 12em of its row and the pill wraps under it rather than squeezing
+   it (§499's large-text rule).
+
+2. **Faces on the player.** The DailyFAM card's "friends who listened"
+   (§393/§394) now shows on the player too, bottom left of the picture,
+   opposite share/vibe/save, under the captions. A tile already carries its
+   faces, so a tap from DailyFAM draws them at once; anything else asks the
+   new `GET /api/listened?q=` - the same `_mark_friends_listened`, matched by
+   the normalised question like every listen count, friends only, accounts
+   only, never an id, empty rather than an error. Never on a private search
+   or an attached episode. Tapping the faces opens the same "Friends who
+   listened" sheet.
+
+Tests: `tests/test_play_all_and_player_faces.py`.

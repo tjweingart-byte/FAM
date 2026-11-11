@@ -8108,6 +8108,25 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     return faces
 
 
+@app.get("/api/listened")
+async def listened(request: Request,
+                   q: str = Query("", max_length=600,
+                                  description="The episode's question")):
+    """**Who of your friends listened**, on the player (the owner's 11.11
+    note): the same faces a DailyFAM card shows (`_mark_friends_listened`),
+    for whatever episode is playing, matched by its normalised question the
+    way every listen count is. Friends only, an account only, and an empty
+    answer rather than an error: social proof is never worth a page."""
+    _read_limit(request)
+    user = _listener(request)
+    if not user or not _has_account(request) or not q.strip():
+        return {"count": 0, "faces": []}
+    tile = {"id": "_player", "query": q.strip()}
+    faces = _mark_friends_listened(user, [tile])
+    shown = [faces[i] for i in tile.get("friends_faces", []) if i < len(faces)]
+    return {"count": int(tile.get("friends_listened") or 0), "faces": shown}
+
+
 def _cycles_cached(key: str, cycle: str) -> bool:
     """Whether this View more deals written episodes only and ends "all
     caught up" (§286): Made for you, when the client asks for it."""
