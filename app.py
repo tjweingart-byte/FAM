@@ -4946,6 +4946,87 @@ async def admin_remove_pronunciation(name: str, request: Request) -> dict:
     return {"ok": pronunciation.lexicon().remove(name)}
 
 
+class PronunciationUpload(BaseModel):
+    csv: str = Field(..., max_length=2_000_000)
+
+
+class StressTrialRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+    #: A respelling to hear instead of the one on file - an uploaded proposal.
+    say: Optional[str] = Field(None, max_length=120)
+    sentence: bool = False
+
+
+@app.get("/api/admin/pronunciations/export")
+async def admin_export_pronunciations(request: Request) -> Response:
+    """Every respelling on file as a CSV, with Wikipedia's reading and a
+    sentence each name was met in, for a reviewer outside FAM (§547)."""
+    _require_admin(request)
+    import pronounce_review
+
+    body = await asyncio.to_thread(
+        pronounce_review.export_csv, voice_bank.bank(), SCRIPT_CACHE)
+    stamp = time.strftime("%Y-%m-%d")
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-pronunciations-{stamp}.csv"'})
+
+
+@app.get("/api/admin/pronunciations/review-prompt")
+async def admin_pronunciation_review_prompt(request: Request) -> dict:
+    """The fixed prompt that goes with a download (§547)."""
+    _require_admin(request)
+    import pronounce_review
+
+    return {"prompt": pronounce_review.PROMPT}
+
+
+@app.post("/api/admin/pronunciations/import")
+async def admin_import_pronunciations(req: PronunciationUpload,
+                                      request: Request) -> dict:
+    """Read a reviewer's CSV into proposals beside what is on file (§547).
+    Changes nothing: an admin accepts each one, which saves it as theirs."""
+    _require_admin(request)
+    import pronounce_review
+
+    stored = {r["name"]: (r["say"], r["source"]) for r in voice_bank.bank().pronunciations()}
+    try:
+        return pronounce_review.read_upload(req.csv, stored)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/admin/pronunciations/hear-variants")
+async def admin_hear_stress_variants(req: StressTrialRequest,
+                                     request: Request) -> dict:
+    """Say one name's respelling four ways - as the voice gets it now, and
+    three spellings that might carry its stress - and hear each back (§547).
+    Keeps nothing."""
+    _require_admin(request)
+    import pronounce_review
+    import voice_check
+
+    say = None
+    if req.say:
+        pair = pronunciation.clean(req.name, req.say)
+        if not pair:
+            raise HTTPException(status_code=400, detail=(
+                f"{req.say} is not a respelling the voice can use."))
+        say = pair[1]
+    try:
+        rows = await pronounce_review.hear_variants(
+            req.name.strip(), say=say, sentence=req.sentence)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except voice_check.VoiceCheckUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - the voice's own words
+        raise HTTPException(status_code=502, detail=(
+            f"The voice could not be heard: {exc}")[:400]) from exc
+    for row in rows:
+        row.pop("wav", None)
+    return {"name": req.name.strip(), "variants": rows}
+
+
 # ---------------------------------------------------------------- feedback
 #
 # Instant feedback (`feedback.py`): the button under the phone on the demo

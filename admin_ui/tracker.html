@@ -210,6 +210,17 @@
   .wikibar b { display:block; }
   .wikibar span { font-size:12.5px; color:var(--muted); }
   .wikibar .go { padding:8px 14px; }
+  .wikibar label.button { display:inline-block; cursor:pointer; padding:8px 14px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
+  .reviewpaste { margin:0 0 10px; font-size:13px; }
+  .reviewpaste textarea { width:100%; box-sizing:border-box; font:12px/1.4 ui-monospace, monospace; margin:6px 0; }
+  .reviewacts { align-items:center; gap:10px; flex-wrap:wrap; }
+  .reviewrow .conf { font-size:11px; padding:1px 6px; border-radius:6px; border:1px solid var(--line); }
+  .reviewrow .conf.high { border-color:#2e7d32; color:#2e7d32; }
+  .reviewrow .conf.low { opacity:.7; }
+  .reviewrow.done { opacity:.55; }
+  .ways { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px; margin:6px 0; }
+  .ways .way { border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:12.5px; }
+  .ways audio { width:100%; height:32px; margin-top:4px; }
   .formrow { display:flex; gap:8px; justify-content:flex-end; }
   .formrow .go { padding:8px 16px; }
   .sayrow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; }
@@ -641,6 +652,25 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div class="wikibar">
         <div><b>Heard back from the voice</b><span id="hearState">Hear sends a name through the production voice exactly as an episode would, and a phoneme recogniser on the same card writes down what it heard. The match is an estimate - listen to the audio before changing anything.</span></div>
         <button class="go" id="hearAll" type="button">Hear every name</button>
+      </div>
+      <div class="wikibar" id="reviewBar">
+        <div><b>Checked by another reader</b><span id="reviewState">Download every name with Wikipedia's reading and a sentence it was heard in, give it to another reader (a Claude chat, with the prompt) and upload what comes back. An upload changes nothing: each correction is listed beside the respelling it would replace, and only the ones you accept are saved - as yours, which nothing replaces.</span></div>
+        <button class="ghost" id="reviewDownload" type="button">Download list</button>
+        <button class="ghost" id="reviewPrompt" type="button">Copy the prompt</button>
+        <label class="ghost button" id="reviewUploadLabel">Upload corrections<input id="reviewFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden></label>
+      </div>
+      <details id="reviewPaste" class="reviewpaste">
+        <summary>Or paste the reply</summary>
+        <textarea id="reviewText" rows="6" placeholder="name,say,confidence,reason"></textarea>
+        <div class="formrow"><button class="go" id="reviewRead" type="button">Read corrections</button></div>
+      </details>
+      <div id="reviewOut" hidden>
+        <div class="formrow reviewacts">
+          <span class="sub" id="reviewCount"></span>
+          <button class="go" id="reviewAcceptHigh" type="button">Accept all high confidence</button>
+          <button class="ghost" id="reviewClear" type="button">Close</button>
+        </div>
+        <div id="reviewList"></div>
       </div>
       <form class="login" id="sayForm" style="margin-top:6px">
         <input id="sayName" placeholder="Name as spelled, e.g. Sagapolutele" maxlength="60" required>
@@ -2040,7 +2070,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(x.name) + '</b> = <code>' + esc(x.say) + '</code> ' +
         '<span class="srctag ' + esc(x.source) + '">' + esc(sourceWord(x.source)) + '</span></div>' + wiki +
         heardHTML(x.voice, heardAudio[x.name]) +
+        waysHTML(x.name) +
         '<div class="sayacts"><button class="ghost tiny" type="button" data-hear="' + esc(x.name) + '">Hear</button> ' +
+        '<button class="ghost tiny" type="button" data-ways="' + esc(x.name) + '" title="The respelling as the voice gets it now, and three spellings that might carry its stress">Hear 4 ways</button> ' +
         '<button class="ghost tiny" type="button" data-say-edit="' + esc(x.name) + '" data-say="' + esc(x.say) + '">Edit</button>' +
         ' <button class="ghost tiny" type="button" data-say-rm="' + esc(x.name) + '">Remove</button></div></div>';
     }).join("") : '<p class="sub">' + (sayRows.length ? "No names match this filter." : "No names on file yet.") + '</p>';
@@ -2192,6 +2224,8 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (hear) { hearOne(t, hear, function () { loadSay(); }); return; }
     var edit = t && t.getAttribute("data-say-edit");
     if (edit) { $("sayName").value = edit; $("saySay").value = t.getAttribute("data-say") || ""; $("saySay").focus(); return; }
+    var ways = t && t.getAttribute("data-ways");
+    if (ways) { hearWays(t, ways, null, drawSay); return; }
     var use = t && t.getAttribute("data-say-use");
     if (use) {
       t.disabled = true;
@@ -2202,6 +2236,109 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     var name = t && t.getAttribute("data-say-rm");
     if (!name || !confirm("Let the voice read " + name + " as spelled again?")) return;
     api("/api/admin/pronunciations/" + encodeURIComponent(name), null, "DELETE").then(loadSay);
+  });
+  // Four ways to hand the voice one respelling (§547): today's has no
+  // stress at all (the voice would spell capitals out as letters).
+  var waysAudio = {};
+  var WAY_WORDS = { now: "As now (no stress)", joined: "Run together", accent: "Accent on the stress", spaced: "Syllables apart, stress capitalised" };
+  function waysHTML(key) {
+    var v = waysAudio[key];
+    if (!v) return "";
+    return '<div class="ways">' + v.map(function (w) {
+      return '<div class="way"><b>' + esc(WAY_WORDS[w.variant] || w.variant) + '</b><br><code>' + esc(w.sent) + '</code>' +
+        (w.heard_say ? '<br><span class="faint">heard <code>' + esc(w.heard_say) + '</code>' + (w.score != null ? " · " + Math.round(w.score * 100) + "% alike" : "") + '</span>' : '') +
+        '<audio controls src="' + esc(w.audio) + '"></audio></div>';
+    }).join("") + '</div>';
+  }
+  function hearWays(btn, name, say, redraw) {
+    var key = say ? name + "\u0000" + say : name;
+    btn.disabled = true; var was = btn.textContent; btn.textContent = "Hearing 4 ways…";
+    api("/api/admin/pronunciations/hear-variants", say ? { name: name, say: say } : { name: name })
+      .then(function (v) { waysAudio[key] = v.variants; redraw(); })
+      .catch(function (e) { alert(e.message); })
+      .then(function () { btn.disabled = false; btn.textContent = was; });
+  }
+  // Checked by another reader (§547): out as a CSV, back as proposals.
+  var reviewRows = [], reviewDone = {};
+  function drawReview(r) {
+    if (r) {
+      reviewRows = r.proposals || []; reviewDone = {};
+      var refused = r.refused || [];
+      $("reviewState").textContent = reviewRows.length + " correction" + (reviewRows.length === 1 ? "" : "s") + " to look at" +
+        (r.unchanged ? ", " + r.unchanged + " already as on file" : "") +
+        (refused.length ? ", " + refused.length + " refused: " + refused.slice(0, 5).map(function (x) { return (x.name || "line " + x.line) + " (" + x.why + ")"; }).join("; ") + (refused.length > 5 ? "…" : "") : "") + ".";
+    }
+    $("reviewOut").hidden = !reviewRows.length;
+    var left = reviewRows.filter(function (p) { return !reviewDone[p.name]; });
+    var high = left.filter(function (p) { return p.confidence === "high"; }).length;
+    $("reviewCount").textContent = left.length + " left";
+    $("reviewAcceptHigh").disabled = !high;
+    $("reviewAcceptHigh").textContent = "Accept all high confidence (" + high + ")";
+    $("reviewList").innerHTML = reviewRows.map(function (p, i) {
+      var done = reviewDone[p.name];
+      return '<div class="vrow sayrow reviewrow' + (done ? " done" : "") + '"><div class="sayname"><b>' + esc(p.name) + '</b> ' +
+        (p.new ? '<span class="faint">new</span> ' : '<code>' + esc(p.current) + '</code> <span class="srctag ' + esc(p.current_source) + '">' + esc(sourceWord(p.current_source)) + '</span> → ') +
+        '<code>' + esc(p.say) + '</code> ' + (p.confidence ? '<span class="conf ' + esc(p.confidence) + '">' + esc(p.confidence) + '</span>' : '<span class="conf low">no confidence given</span>') + '</div>' +
+        (p.reason ? '<span class="hardex">' + esc(p.reason) + '</span>' : '') +
+        (p.note ? '<span class="hardex">Note: ' + esc(p.note) + '</span>' : '') +
+        waysHTML(p.name + "\u0000" + p.say) +
+        '<div class="sayacts">' + (done ? '<span class="faint">' + esc(done) + '</span>' :
+          '<button class="ghost tiny" type="button" data-rv-hear="' + i + '">Hear 4 ways</button> ' +
+          '<button class="go tiny" type="button" data-rv-accept="' + i + '">Accept</button> ' +
+          '<button class="ghost tiny" type="button" data-rv-skip="' + i + '">Skip</button>') + '</div></div>';
+    }).join("");
+  }
+  function acceptReview(p) {
+    return api("/api/admin/pronunciations", { name: p.name, say: p.say })
+      .then(function () { reviewDone[p.name] = "Accepted - saved as yours"; })
+      .catch(function (e) { reviewDone[p.name] = "Not saved: " + e.message; });
+  }
+  function readReview(text) {
+    $("reviewState").textContent = "Reading…";
+    api("/api/admin/pronunciations/import", { csv: text })
+      .then(function (r) { drawReview(r); })
+      .catch(function (e) { $("reviewState").textContent = e.message; });
+  }
+  $("reviewDownload").addEventListener("click", function () {
+    var b = $("reviewDownload"); b.disabled = true;
+    fetch("/api/admin/pronunciations/export", { credentials: "same-origin" }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var name = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "fam-pronunciations.csv";
+      return r.blob().then(function (blob) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      });
+    }).catch(function (e) { $("reviewState").textContent = "The list could not be downloaded: " + e.message; })
+      .then(function () { b.disabled = false; });
+  });
+  $("reviewPrompt").addEventListener("click", function () {
+    api("/api/admin/pronunciations/review-prompt").then(function (v) {
+      var done = function () { $("reviewPrompt").textContent = "Prompt copied"; setTimeout(function () { $("reviewPrompt").textContent = "Copy the prompt"; }, 2500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(v.prompt).then(done);
+      $("reviewText").value = v.prompt; $("reviewPaste").open = true; $("reviewText").select();
+    }).catch(function (e) { $("reviewState").textContent = e.message; });
+  });
+  $("reviewFile").addEventListener("change", function () {
+    var f = $("reviewFile").files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () { readReview(String(reader.result || "")); $("reviewFile").value = ""; };
+    reader.readAsText(f);
+  });
+  $("reviewRead").addEventListener("click", function () { readReview($("reviewText").value); });
+  $("reviewClear").addEventListener("click", function () { reviewRows = []; drawReview(); loadSay(); });
+  $("reviewAcceptHigh").addEventListener("click", function () {
+    var high = reviewRows.filter(function (p) { return p.confidence === "high" && !reviewDone[p.name]; });
+    if (!high.length || !confirm("Save " + high.length + " high-confidence respelling" + (high.length === 1 ? "" : "s") + " as yours? Nothing replaces an admin's respelling afterwards.")) return;
+    $("reviewAcceptHigh").disabled = true;
+    high.reduce(function (chain, p) { return chain.then(function () { return acceptReview(p); }); }, Promise.resolve())
+      .then(function () { drawReview(); loadSay(); });
+  });
+  $("reviewList").addEventListener("click", function (ev) {
+    var t = ev.target, i;
+    if ((i = t.getAttribute("data-rv-hear")) != null) { var h = reviewRows[+i]; hearWays(t, h.name, h.say, drawReview); return; }
+    if ((i = t.getAttribute("data-rv-accept")) != null) { t.disabled = true; acceptReview(reviewRows[+i]).then(function () { drawReview(); loadSay(); }); return; }
+    if ((i = t.getAttribute("data-rv-skip")) != null) { reviewDone[reviewRows[+i].name] = "Skipped"; drawReview(); }
   });
   $("sayForm").addEventListener("submit", function (ev) {
     ev.preventDefault();

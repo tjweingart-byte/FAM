@@ -33827,3 +33827,63 @@ the tile's own faces (`AppModel.noteTileFaces`), anything else asks
 `/api/v1/listened` (`ListenedPage`), never for a private search or an
 attached episode; a tap opens the same "N friends listened" card, whose
 profile rows take the player down first. Unbuilt here (no Swift compiler).
+
+## 547. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11)
+
+**What was asked.** The owner: "Pronunciation is still a massive problem in
+episodes, how can we cross check our names pronunciation list against another
+source to change the answers. My first idea is to download the whole list of
+names somewhere (maybe a regular Claude chat), have it edit the list, then put
+it back in here." Then: "both, build the export/import and give me the command"
+(for the stress experiment below).
+
+**Why Wikipedia was not enough.** Most names on file are sports players; for
+most of them Wikipedia's lead has no pronunciation, so the writer's or the
+brief's guess stood (§289, §324).
+
+**The round trip** (`pronounce_review.py`, /admin → How names are said →
+"Checked by another reader"):
+
+- **Download list** - `GET /api/admin/pronunciations/export`, a CSV of every
+  respelling with its source, Wikipedia's reading and status, and a sentence the
+  name was met in (from the `CONTEXT_EPISODES` most recent episodes) with its
+  episode, so the reviewer can tell which Nguyen is meant.
+- **Copy the prompt** - `pronounce_review.PROMPT`, fixed so every run asks the
+  same thing: the lexicon's respelling rules (hyphenated syllables, stressed
+  syllable in capitals, as many words as the name), the evidence order (the
+  person, the leagues' media pronunciation guides, Wikipedia's IPA, broadcast
+  usage), and a reply of only the rows it would change, `name,say,confidence,reason`.
+- **Upload corrections** (or paste the reply) - `POST
+  /api/admin/pronunciations/import` reads the CSV (a ``` fence or a line of
+  prose around it is fine; a file edited in place is read from `current_say`)
+  into proposals beside what is on file, high confidence first. **It changes
+  nothing.** Unchanged rows are counted, unusable ones refused with the reason.
+  A change of stress alone is a change: rows are compared exactly, case and all.
+- Each proposal is **Accepted** (saved through the admin's own save, so as
+  `admin`), **Skipped**, or **Heard 4 ways** first; "Accept all high
+  confidence" asks before it saves. Nothing accepts the whole file blind,
+  because an admin's respelling is never replaced afterwards - not by a model,
+  not by Wikipedia (`[op-voice]`) - so a reviewer's wrong guess accepted
+  blind would be permanent.
+
+**The voice never hears the stress.** `pronunciation.voiced` lowercases every
+respelling before the voice gets it (capitals would be read as letters by
+`spoken_text`), so "sah-gah-poh-loo-TEH-leh" reaches Chatterbox as
+"Sah-gah-poh-loo-teh-leh". The lexicon records stress and the voice gets none
+of it. A corrected list may still be said with the stress in the wrong place. Unheard; to be
+measured, not assumed: `pronounce_review.stress_variants` writes one
+respelling four ways - `now` (today's), `joined` (syllables run together),
+`accent` (an acute on the stressed vowel), `spaced` (each syllable a word,
+the stressed one capitalised) - and two ways to hear them, both keeping
+nothing:
+
+- /admin: **Hear 4 ways** on every name and every proposal
+  (`POST /api/admin/pronunciations/hear-variants`, an optional `say` to hear a
+  proposal as proposed);
+- `python tools/stress_trial.py --csv <download> --limit 10`: the names with a
+  marked stress and three or more syllables, bare and in a sentence, written
+  to `stress-trial/<stamp>/index.html` to listen to.
+
+If one variant wins by ear, `voiced` changes to it - one function, on the
+synthesis path for every chunk - and the lexicon's format stays as it is.
+Until then `voiced` is unchanged. Tests: `tests/test_pronunciation_review_547.py`.
