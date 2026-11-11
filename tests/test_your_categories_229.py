@@ -272,9 +272,9 @@ def test_categories_are_a_row_of_chips_above_the_mixes():
 
 def test_followed_categories_lead_the_chips_with_a_star():
     draw = _fn("renderCategoryChips")
-    # All, then followed, then the facets not followed - each chip once -
-    # then More.
-    assert 'catChipHTML("", "All", true' in draw
+    # Followed, then the facets not followed - each chip once - then More.
+    # No "All" since §546: the mixes are their own tab.
+    assert 'catChipHTML("", "All"' not in draw
     assert draw.index("mine.map(") < draw.index("!followed[f.id]") < draw.index("catchip-more")
     assert "CAT_STAR" in _fn("catChipHTML")
 
@@ -283,7 +283,7 @@ def test_a_chip_filters_the_page_in_place():
     pick = _fn("pickCategory")
     assert "showCategoryPanel(true)" in pick and "navigate(" not in pick
     shown = _fn("showCategoryPanel")
-    assert '"catPanel").hidden = !on' in shown and '"mixesPane").hidden = on' in shown
+    assert '"catPanel").hidden = !on' in shown and '"mixesPane").hidden = on || cats' in shown
     # Inside a category the row is an X, the category and the level below.
     draw = _fn("renderCategoryChips")
     assert "catPage.subs.map(" in draw and "clearCategory()" in draw
@@ -327,10 +327,10 @@ def test_no_category_opens_a_reel():
 
 # --- the §500 review ---------------------------------------------------------
 
-def test_arriving_on_the_screen_opens_on_all():
+def test_arriving_on_the_screen_opens_on_mixes():
     body = HTML.split("function openPlayFAM(", 1)[1].split("\n  }\n", 1)[0]
     assert "if(catPage.root || catPage.finding) clearCategory();" in body
-    assert body.index("clearCategory()") < body.index("loadMixes()")
+    assert body.index("clearCategory()") < body.index('showPlayfamTab("mixes")') < body.index("loadMixes()")
 
 
 def test_a_late_categories_answer_cannot_undo_a_follow():

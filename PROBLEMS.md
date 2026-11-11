@@ -33764,3 +33764,61 @@ and a test counts the reads. And a story held from before `status_at` existed
 would have taken the first sweep after the deploy as its status time,
 reporting last night's result as new to somebody who listened this morning;
 it takes its last known time (`live_as_of`, else `first_seen`) instead.
+
+## 546. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes | Categories, the morning dot, the pop-ups (2026-11-11)
+
+Six screenshots from the owner, five changes.
+
+1. **Back an episode** ("on myFAM mixes, add a way to go backwards an
+   episode too, not just forward"). The player's empty first slot, kept since
+   §519 to balance next, now holds a mirrored next glyph (`#mixPrevBtn`,
+   `prevMixItem`), drawn only while a myFAM playlist plays - the queue has no
+   "before". It plays the playlist's previous episode, which replays from
+   what is kept (the same dated prompt, so the same cache key); on the first
+   episode it starts that one again. Off a Go Deeper follow-up (§536), back
+   is the playlist's episode it came off, as skip is.
+
+2. **A vibe holds the playlist** ("it should not automatically skip to the
+   next episode in the queue while I'm taking a second to make the vibe
+   post"). An episode that ends while the VIBE! editor is open keeps what
+   would have come next - the mix's next, the queue's, the countdown - in
+   `heldForVibe`, and `closeVibeComposer` runs it, posted or backed out of.
+   Anything else starting in the meantime (`generate`) drops it. The audio
+   itself is not paused: only the moving on waits, as under Go Deeper (10.1).
+
+3. **Mixes | Categories** ("change the layout so there's two tabs", with the
+   Groups | Messages screenshot). Two equal tabs under the wordmark, a copper
+   rule under the one on (`.pf-tabs`, `showPlayfamTab`). Mixes is Create new
+   mix, the search and the cards; Categories is §500's chip row without All
+   over a list of categories (`#catHome`, `renderCategoryHome`: followed with
+   today's count, then the facets with what is under them). A chip or a row
+   opens the category in place, its X back to that list. Arrival opens on
+   Mixes (§500 review's rule, now with a reason the tab makes visible). The
+   owner's note says "Mixed"; the tab says Mixes, the word the app uses.
+
+4. **The morning dot** ("add a notification thing to myFAM in the morning
+   encouraging them to click on the new myFAM mix"). `GET /api/mixes/fresh`
+   answers which of the listener's mixes (own and joined) this morning's
+   DailyFAM edition wrote and nobody has played since: the edition's slot
+   must be `ready` (a dot for a mix nobody wrote would invite a wait), the
+   mix active (§359 - a dormant mix was not written) and `played_at` before
+   the edition's `built_at`. A guest gets an empty answer, never a 401; any
+   failure is no dot. Every tab bar's myFAM tab carries a copper dot
+   (`data-mix-dot`), asked with the notifications, on returning to the app
+   and every quarter hour; looking at the tab clears it for that edition
+   (kept on the device, so it is back tomorrow and not twice today), and the
+   mix's card says "New today" until it is played. In-app only; the push is
+   still §448's at the mix's listen time.
+
+5. **The pop-ups** ("CHANGE THE POP UP NOTIFICATIONS!!!", over a "Sent to
+   Beth" across a friend's vibe). §299's plain line sat on a fade of the
+   page's own colour; over the dark story viewer that fade was a white band
+   across the picture and the Play episode button. Toast and snack are now one
+   floating card: the surface colour, a hairline border, a shadow, a copper
+   dot, sized to its words and centred above the mini player or tabs, the
+   action (Undo, Open) to the right of the words. It reads the same over any
+   screen. The drop-down banner (`.notif`) is unchanged.
+
+Tests: `tests/test_owner_notes_546.py`; §229's, §108's, 10.23's tests and
+the smoke run's category and playlist checks follow the new layout and
+check back by a real click.

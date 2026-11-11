@@ -161,8 +161,8 @@ def test_actions_are_confirmed_by_the_bar_with_somewhere_to_go():
     for gone in ('toast("Added to your queue")', "VIBE! — posted to your story",
                  'toast("Saved for later \\u2713")'):
         assert gone not in INDEX, gone
-    # A plain line since §299 (the owner's pick, 10.21): no box of its own
-    # colours any more, and the pill it sat beside is the same line.
+    # One style for both, no colours of their own (§299); a floating card
+    # on the surface colour since §546.
     assert "--snack-bg:" not in INDEX
     assert ".toast, .snack{" in INDEX and ".toast::before, .snack::before{" in INDEX
 

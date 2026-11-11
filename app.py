@@ -6635,6 +6635,48 @@ async def list_mixes(request: Request):
     }
 
 
+def _fresh_mix_ids(mixes: list, now: Optional[float] = None) -> list:
+    """The mixes whose episodes this morning's edition wrote and nobody has
+    played since (§546): what the dot on the myFAM tab invites a tap on.
+
+    Only an edition that finished counts - a dot for a mix nobody wrote
+    would be an invitation to a wait - and a dormant mix is never in it,
+    because the edition did not write it. A read of what is stored; [] on
+    any failure (a dot is never worth an error)."""
+    now = time.time() if now is None else now
+    try:
+        slot = daily_edition.last_slot(now)
+        status = daily_edition.store().status(daily_edition.slot_id(slot)) or {}
+        if status.get("status") != daily_edition.READY:
+            return []
+        built = float(status.get("built_at") or slot.timestamp())
+        return [m.id for m in mixes
+                if getattr(m, "items", None) and daily_edition.is_active(m, now)
+                and float(getattr(m, "played_at", 0.0) or 0.0) < built]
+    except Exception:  # noqa: BLE001
+        log.exception("could not read which mixes are new this morning")
+        return []
+
+
+@app.get("/api/mixes/fresh")
+async def fresh_mixes(request: Request) -> dict:
+    """Which of this listener's mixes have a new edition waiting (§546), and
+    the edition it is - the client draws one dot per edition and clears it
+    once the listener has looked. A guest has no mixes: an empty answer,
+    never a 401, because the tab bar asks on every screen."""
+    _read_limit(request)
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated:
+        return {"fresh": [], "edition": ""}
+    user = listener.user_id
+    shown = list(MIXES.list_for_user(user)) + [
+        m for m in MIXES.joined(user) if not MODERATION.is_apart(m.user_id, user)]
+    now = time.time()
+    fresh = _fresh_mix_ids(shown, now)
+    edition = daily_edition.slot_id(daily_edition.last_slot(now)) if fresh else ""
+    return {"fresh": fresh, "edition": edition}
+
+
 @app.get("/api/mixes/sample")
 async def sample_mix(request: Request):
     """An example DailyFAM playlist for a listener with no account.
