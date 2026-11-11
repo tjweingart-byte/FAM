@@ -349,5 +349,5 @@ def test_following_mid_load_does_not_draw_an_empty_category():
 def test_starting_something_else_drops_a_categorys_queued_rest():
     gen = HTML.split("function generate(key, albumContext){", 1)[1][:900]
     assert 'key !== "_category"' in gen and 'indexOf("queue_") !== 0' in gen
-    # A rail's Play all (§542) is dropped the same way, on the same line.
+    # A rail's Play all (§543) is dropped the same way, on the same line.
     assert "if(QUEUE[qi].fromCategory || QUEUE[qi].fromRail) QUEUE.splice(qi, 1);" in gen

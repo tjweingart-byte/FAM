@@ -291,7 +291,8 @@ server's marks are still polled, only to move the give-up time (§497), and the
 screen goes the moment audio arrives, wherever the needle has got to (§292).
 Chosen by `loader` on the topic (`dial` in `startBankTopic`, `glide` in
 `playMixItem`); drawn by `paintLoadingVariant` from what is already on the
-listener's screen, never invented.
+listener's screen, never invented. Both show the FAM mark above them,
+larger than search's (§542, the owner's direction).
 
 <!-- rule:search-no-cover -->
 **On search that once meant two calls at once, and no longer does**

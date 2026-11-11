@@ -8082,7 +8082,7 @@ def _mark_friends_listened(user: str, tiles: list[dict],
     what a friend's own profile already shows a friend - and never an id. A tile nobody listened to
     carries no field. Never raises: social proof is never worth a page.
 
-    `public_searches_only` (the player, §542): a friend's listen with no
+    `public_searches_only` (the player, §543): a friend's listen with no
     tile behind it - their own search, a replay - counts only if they made
     their searches public (`searches_public`, §282)."""
     if not user or not tiles:
