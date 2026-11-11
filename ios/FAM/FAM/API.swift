@@ -1640,11 +1640,15 @@ struct Mix: Decodable, Identifiable, Equatable {
     let owner: MixOwner?
     let mine: Bool
     let added: Bool
+    /// What changed since this listener last heard the mix (§545, R5 on
+    /// the card): nil when nothing did, or from a server before §545.
+    let signal: MixSignal?
 
     var isOwner: Bool { role != "member" }
 
     enum CodingKeys: String, CodingKey {
         case id, name, items, `public`, cover, sourceId, listenAt, role, joint, people, from, owner, mine, added
+        case signal
     }
 
     init(from decoder: Decoder) throws {
@@ -1663,6 +1667,7 @@ struct Mix: Decodable, Identifiable, Equatable {
         owner = try? c.decode(MixOwner.self, forKey: .owner)
         mine = (try? c.decode(Bool.self, forKey: .mine)) ?? false
         added = (try? c.decode(Bool.self, forKey: .added)) ?? false
+        signal = try? c.decode(MixSignal.self, forKey: .signal)
     }
 }
 
@@ -1682,9 +1687,20 @@ struct MixItem: Decodable, Identifiable, Equatable {
     let follow: Bool
     /// An index into the mix's `people` (joint mixes).
     let addedBy: Int?
+    /// The subject's catalogue icon (`catIcon`), drawn when no picture is
+    /// approved; "leaf" falls back to the news icon, as on the web.
+    let icon: String
+    /// The picture the player would draw for this item (§545,
+    /// `_mix_pictures`): an `/api/...` path, or "" for none.
+    let picture: String
+    /// Trending / Major update since this listener last heard it (§545).
+    let signal: MixSignal?
+    /// Q5's two bubbles: what was last heard, and what is true today.
+    let since: MixSince?
 
     enum CodingKeys: String, CodingKey {
         case id, title, query, custom, subtitle, dailyPrompt, prompt, minutes, follow, addedBy
+        case icon, picture, signal, since
     }
 
     init(from decoder: Decoder) throws {
@@ -1699,12 +1715,82 @@ struct MixItem: Decodable, Identifiable, Equatable {
         minutes = (try? c.decode(Double.self, forKey: .minutes)) ?? FAMAPI.browseMinutes
         follow = (try? c.decode(Bool.self, forKey: .follow)) ?? false
         addedBy = try? c.decode(Int.self, forKey: .addedBy)
+        icon = (try? c.decode(String.self, forKey: .icon)) ?? "leaf"
+        picture = (try? c.decode(String.self, forKey: .picture)) ?? ""
+        signal = try? c.decode(MixSignal.self, forKey: .signal)
+        since = try? c.decode(MixSince.self, forKey: .since)
     }
 
     /// What the server is asked to keep for this entry in a whole-list
     /// write: the id, or a typed topic's words and title (so it is never
     /// renamed).
     var entry: Any { custom ? ["query": query, "title": title] as [String: Any] : id }
+}
+
+/// What changed in a mix since this listener last heard it (§545,
+/// `signals.Found.card`): on the mix, the strongest of its items' (R5) with
+/// the topic and the story's picture; on an item, its kind, label and
+/// headline. Lenient: a field one place leaves out decodes to "".
+struct MixSignal: Decodable, Equatable {
+    /// "trending" or "update".
+    let kind: String
+    /// "Trending" or "Major update", as the server words it.
+    let label: String
+    let itemId: String
+    let topic: String
+    let headline: String
+    /// The story's picture (the player's own picker), or "".
+    let picture: String
+
+    /// Anything but "update" is drawn as Trending (`mixSignalCardHTML`).
+    var isUpdate: Bool { kind == "update" }
+
+    enum CodingKeys: String, CodingKey {
+        case kind, label, itemId, topic, headline, picture
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = (try? c.decode(String.self, forKey: .kind)) ?? ""
+        label = (try? c.decode(String.self, forKey: .label)) ?? ""
+        itemId = (try? c.decode(String.self, forKey: .itemId)) ?? ""
+        topic = (try? c.decode(String.self, forKey: .topic)) ?? ""
+        headline = (try? c.decode(String.self, forKey: .headline)) ?? ""
+        picture = (try? c.decode(String.self, forKey: .picture)) ?? ""
+    }
+}
+
+/// Q5's bubbles (`signals.bubbles`): `then` is nil when the listener has
+/// never heard this topic - one bubble, never an invented "before".
+struct MixSince: Decodable, Equatable {
+    let then: MixSinceSide?
+    let now: MixSinceSide?
+
+    enum CodingKeys: String, CodingKey {
+        case then, now
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        then = try? c.decode(MixSinceSide.self, forKey: .then)
+        now = try? c.decode(MixSinceSide.self, forKey: .now)
+    }
+}
+
+/// One bubble: the day it was heard ("Mon"; "" for today's) and its title.
+struct MixSinceSide: Decodable, Equatable {
+    let day: String
+    let title: String
+
+    enum CodingKeys: String, CodingKey {
+        case day, title
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        day = (try? c.decode(String.self, forKey: .day)) ?? ""
+        title = (try? c.decode(String.self, forKey: .title)) ?? ""
+    }
 }
 
 struct MixPerson: Decodable, Equatable, Hashable {
@@ -2624,4 +2710,125 @@ struct VibeRow: Decodable, Hashable, Identifiable {
     let minutes: Double?
     let at: Double?
     let folderId: String?
+}
+
+// MARK: - A vibe as a post (§547, `vibe-posts`)
+
+extension FAMAPI {
+    /// Somebody's vibes as posts, newest first (`GET /api/vibe/posts`); no
+    /// handle is your own. `before` pages by the vibe's time.
+    func vibePosts(handle: String, before: Double, limit: Int) async throws -> VibePostsPage {
+        var items = [URLQueryItem(name: "limit", value: String(min(30, max(1, limit))))]
+        if !handle.isEmpty { items.append(URLQueryItem(name: "handle", value: handle)) }
+        if before > 0 { items.append(URLQueryItem(name: "before", value: String(before))) }
+        return try await get("api/v1/vibe/posts", items, as: VibePostsPage.self)
+    }
+
+    /// Like a vibe's post, or take the like back (`POST /api/vibe/{id}/like`).
+    func likeVibePost(_ id: Int, on: Bool) async throws -> VibeLikeAnswer {
+        try await send("POST", "api/v1/vibe/\(id)/like", body: ["on": on], as: VibeLikeAnswer.self)
+    }
+
+    /// A vibe's replies, most liked first, each with its answers.
+    func vibeReplies(_ id: Int) async throws -> VibeRepliesPage {
+        try await get("api/v1/vibe/\(id)/replies", [], as: VibeRepliesPage.self)
+    }
+
+    /// Reply under a vibe, or answer a reply (`parent`); the server cuts
+    /// the words to its own limit (`VibeReplyRequest`: 2000 here).
+    func postVibeReply(_ id: Int, text: String, parent: Int) async throws -> VibeReply {
+        let body: [String: Any] = ["text": Self.cut(text, 2000), "parent_id": max(0, parent)]
+        return try await send("POST", "api/v1/vibe/\(id)/replies", body: body, as: VibeReply.self)
+    }
+
+    /// Like a reply under a vibe (`POST /api/vibe/replies/{id}/like`).
+    func likeVibeReply(_ id: Int, on: Bool) async throws -> VibeLikeAnswer {
+        try await send("POST", "api/v1/vibe/replies/\(id)/like", body: ["on": on], as: VibeLikeAnswer.self)
+    }
+
+    /// Your own reply, or any reply on your own vibe (`DELETE /api/vibe/replies/{id}`).
+    func deleteVibeReply(_ id: Int) async throws -> Bool {
+        try await send("DELETE", "api/v1/vibe/replies/\(id)", as: OK.self).ok
+    }
+}
+
+/// `GET /api/vibe/posts`: whose vibes, whether they are yours, the posts
+/// and whether there are more. Lenient: anything missing decodes empty.
+struct VibePostsPage: Decodable {
+    let person: VibePostPerson?
+    let mine: Bool?
+    let posts: [VibePost]?
+    let more: Bool?
+}
+
+/// The poster: name, handle, picture and the E mark (§224). No id.
+struct VibePostPerson: Decodable, Hashable {
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    let explicit: Bool?
+}
+
+/// One vibe as a post (`SocialStore.vibe_posts` plus the picture and who
+/// heard it).
+struct VibePost: Decodable, Hashable, Identifiable {
+    let id: Int
+    let query: String
+    let title: String?
+    let minutes: Double?
+    /// The moment it was vibed, which the post shows ("Vibed yesterday").
+    let at: Double?
+    let caption: String?
+    /// The sentence the poster picked, and where it starts (or null).
+    let line: VibePostLine?
+    let likes: Int?
+    let liked: Bool?
+    let replies: Int?
+    let topReply: VibeReply?
+    let heard: VibePostHeard?
+    let thumb: String?
+    let topic: String?
+}
+
+/// `line`: the words, and where they start in seconds (null: no time).
+struct VibePostLine: Decodable, Hashable {
+    let text: String?
+    let at: Double?
+}
+
+/// `heard`: how many friends heard the episode, and up to three faces.
+struct VibePostHeard: Decodable, Hashable {
+    let count: Int?
+    let faces: [VibePostPerson]?
+}
+
+/// A reply under a vibe: the comments sheet's shape (`_comment_dict`),
+/// with its answers under `replies` at the top level.
+struct VibeReply: Decodable, Hashable, Identifiable {
+    let id: Int
+    let parentId: Int?
+    let text: String?
+    let at: Double?
+    let name: String?
+    let handle: String?
+    let avatar: String?
+    let explicit: Bool?
+    let likes: Int?
+    let liked: Bool?
+    let mine: Bool?
+    let replies: [VibeReply]?
+}
+
+/// `GET /api/vibe/{id}/replies`.
+struct VibeRepliesPage: Decodable {
+    let replies: [VibeReply]?
+    let count: Int?
+    let mine: Bool?
+}
+
+/// A like on a post or a reply: its count and state.
+struct VibeLikeAnswer: Decodable {
+    let id: Int?
+    let likes: Int?
+    let liked: Bool?
 }

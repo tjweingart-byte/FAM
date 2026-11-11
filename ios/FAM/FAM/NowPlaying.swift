@@ -43,6 +43,9 @@ struct Episode: Equatable {
     /// A private search or Go Deeper (§282, §285): `private=1`, and no
     /// search / complete / skip event, history row or resume position.
     var isPrivate: Bool = false
+    /// A vibe's post playing where it sits (§547, `inPlace`): the full
+    /// player does not open over the posts screen while it is showing.
+    var inPlace: Bool = false
 
     /// Whether listening to it may be written down anywhere (history,
     /// resume): not for a private one, nor one built on an attachment.

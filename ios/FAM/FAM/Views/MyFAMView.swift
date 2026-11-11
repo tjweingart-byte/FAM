@@ -116,10 +116,21 @@ struct MyFAMView: View {
                 EmptyNote(text: "No mixes yet. Make one for when you listen — the gym, the commute — and it’s fresh every morning.")
             } else {
                 ForEach(mixes.mixes) { mix in
-                    Button { path.append(.mix(mix.id)) } label: { MixCard(mix: mix, trailing: .chevron) }
+                    Button { path.append(.mix(mix.id)) } label: { listCard(mix) }
                         .buttonStyle(.press)
                 }
             }
+        }
+    }
+
+    /// A mix in the list: its picture, name and arrow (§544) - or, when one
+    /// of its topics changed since this listener last heard it, R5 (§545).
+    @ViewBuilder
+    private func listCard(_ mix: Mix) -> some View {
+        if let signal = mix.signal {
+            MixSignalCard(mix: mix, signal: signal)
+        } else {
+            MixCard(mix: mix, trailing: .chevron)
         }
     }
 
@@ -287,7 +298,9 @@ struct MixCard: View {
                         .lineLimit(1)
                 }
             }
-            Spacer(minLength: 4)
+            // `.mix-card-body{ flex:1 }` with the card's 13 pt gap: a long
+            // name wraps 13 pt short of the arrow, not 30.
+            .frame(maxWidth: .infinity, alignment: .leading)
             switch trailing {
             case .chevron:
                 WebIcon(path: Icons.chevron, size: 15, line: 2.2)

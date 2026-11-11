@@ -665,6 +665,22 @@ struct StoryEditorSubject: Identifiable {
     }
 }
 
+// MARK: - The line's sentences (§547)
+
+/// The episode's sentences, their measured starts (may be empty) and the
+/// length a share of the words is taken of.
+struct StoryLines: Equatable {
+    let sentences: [String]
+    let starts: [Double]
+    let total: Double
+}
+
+/// The line picked: its words and where it starts, in seconds.
+struct StoryLinePick: Equatable {
+    let text: String
+    let at: Double
+}
+
 // MARK: - The editor's state (`vcs`)
 
 @MainActor
@@ -683,6 +699,13 @@ final class StoryEditorModel: ObservableObject {
     @Published var term = ""
     @Published private(set) var sending = false
     @Published private(set) var listening = false
+    /// The line (§547): the episode's sentences, how far loading them got
+    /// ("", "loading", "ready", "failed"), the one picked, and whether
+    /// "No line" was chosen (sent as "" so a re-vibe takes the old one off).
+    @Published private(set) var lines: StoryLines?
+    @Published private(set) var linesState = ""
+    @Published private(set) var line: StoryLinePick?
+    private(set) var lineCleared = false
 
     let subject: StoryEditorSubject
     private weak var app: AppModel?
@@ -772,9 +795,81 @@ final class StoryEditorModel: ObservableObject {
         tool = next
         if next == "text" && !keep { focusAsk += 1 }
         if next == "mention" { loadPeople() }
+        if next == "line" { loadLines() }
     }
 
-    var panelOpen: Bool { tool == "stickers" || tool == "mention" || tool == "picture" || tool == "bg" }
+    var panelOpen: Bool {
+        tool == "stickers" || tool == "mention" || tool == "picture" || tool == "bg" || tool == "line"
+    }
+
+    // MARK: The line (`vcsLoadLines`, `vcsLineAt`, `vcsPickLine`, §547)
+
+    /// The episode's own sentences: the player's captions when it is the
+    /// episode playing, else the transcript the server keeps - so the words
+    /// are the episode's, never typed. Asked once per editor.
+    func loadLines() {
+        guard !note, let model = app else { return }
+        if lines != nil {
+            linesState = "ready"
+            return
+        }
+        linesState = "loading"
+        let key = subject.key
+        let length = (key.minutes > 0 ? key.minutes : 1) * 60
+        let now = model.nowPlaying
+        if let ep = now.episode, ep.key.query == key.query, ep.key.minutes == key.minutes,
+           !now.sentences.isEmpty {
+            let player = model.player
+            let total = player.complete ? player.total : length
+            lines = StoryLines(sentences: now.sentences, starts: now.captionStarts ?? [], total: total)
+            linesState = "ready"
+            return
+        }
+        let api = model.api
+        Task {
+            do {
+                let t = try await api.transcript(key)
+                self.lines = StoryLines(sentences: t.sentences, starts: t.starts ?? [], total: length)
+                self.linesState = "ready"
+            } catch FAMError.refused(_, _) {
+                // The web's `r.ok ? r.json() : null`: no words yet.
+                self.lines = StoryLines(sentences: [], starts: [], total: length)
+                self.linesState = "ready"
+            } catch {
+                self.linesState = "failed"
+            }
+        }
+    }
+
+    /// Where sentence `i` starts: the measured start when the server
+    /// measured one (§127), else its share of the words of the length.
+    func lineAt(_ i: Int) -> Double {
+        guard let l = lines else { return 0 }
+        if l.starts.count == l.sentences.count && l.starts.indices.contains(i) { return l.starts[i] }
+        var total = 0
+        var before = 0
+        for (k, s) in l.sentences.enumerated() {
+            let n = max(1, s.utf16.count)
+            if k < i { before += n }
+            total += n
+        }
+        guard total > 0 else { return 0 }
+        let share = Double(before) / Double(total)
+        return (share * l.total * 10).rounded() / 10
+    }
+
+    /// Pick sentence `i`, or -1 for "No line"; the panel closes, and
+    /// "Your line is set" once one is.
+    func pickLine(_ i: Int) {
+        var picked: StoryLinePick?
+        if let l = lines, l.sentences.indices.contains(i), !l.sentences[i].isEmpty {
+            picked = StoryLinePick(text: l.sentences[i], at: lineAt(i))
+        }
+        line = picked
+        lineCleared = picked == nil
+        setTool("")
+        if picked != nil { say("Your line is set") }
+    }
 
     func addSticker(_ index: Int) {
         guard StoryChoices.stickers.indices.contains(index) else { return }
@@ -1066,11 +1161,16 @@ final class StoryEditorModel: ObservableObject {
             tags.append(["handle": t.handle, "x": t.x, "y": t.y])
         }
         let style = layout.payload(note: false)
+        // The line only when one was picked, "" after "No line"; left out,
+        // a re-vibe keeps the one it had (§547).
+        let lineText: String? = line?.text ?? (lineCleared ? "" : nil)
+        let lineStart: Double? = line.flatMap { $0.at >= 0 ? $0.at : nil }
         sending = true
         Task {
             do {
                 try await api.vibeStory(key, title: self.subject.title, thread: self.subject.thread,
-                                        caption: caption, style: style, tags: tags)
+                                        caption: caption, style: style, tags: tags,
+                                        line: lineText, lineAt: lineStart)
                 done()
                 model.nowPlaying.vibedFromEditor(key)
                 model.nowPlaying.say("Vibed to your story", action: openMine == nil ? nil : "View",
@@ -1218,6 +1318,7 @@ struct StoryEditor: View {
                 toolButton("mention", "Mention") {
                     Text("@").font(FAMFont.body(14, .bold))
                 }
+                lineButton
                 toolButton("picture", "Picture") {
                     WebIcon(path: StoryIcons.sliders, size: 17, line: 1.9)
                 }
@@ -1233,6 +1334,30 @@ struct StoryEditor: View {
         }
         .buttonStyle(.press)
         .accessibilityLabel(label)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// Line (§547): the quote marks; a gold ring round them once a line is
+    /// set (`.vcs-tool.set i`).
+    private var lineButton: some View {
+        let on = ed.tool == "line"
+        let isSet = ed.line != nil
+        return Button { ed.setTool("line") } label: {
+            toolFace("Line", on: on, listening: false,
+                     icon: WebIcon(path: StoryIcons.quote, size: 17, line: 1.9))
+                .overlay(alignment: .trailing) {
+                    if isSet {
+                        Circle()
+                            .stroke(StoryPalette.gold, lineWidth: 2)
+                            .frame(width: 40, height: 40)
+                            .offset(x: 2)
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel("Line")
+        .accessibilityValue(isSet ? "Set" : "")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -1328,6 +1453,7 @@ struct StoryEditor: View {
         case "stickers": return "STICKERS"
         case "mention": return "MENTION"
         case "picture": return "PICTURE"
+        case "line": return "YOUR LINE"
         default: return "BACKGROUND"
         }
     }
@@ -1369,6 +1495,7 @@ struct StoryEditor: View {
             case "stickers": stickerPanel
             case "mention": mentionPanel
             case "picture": picturePanel
+            case "line": linePanel
             default: backgroundPanel
             }
         }
@@ -1418,6 +1545,67 @@ struct StoryEditor: View {
             }
             hint("Drag a sticker to move it, pinch to resize it, tap it to take it off.")
         }
+    }
+
+    /// YOUR LINE (`vcsPaintLine`): the episode's sentences with their
+    /// times, the chosen one gold; "No line" always offered, since a vibe
+    /// posted again may carry a line from before.
+    @ViewBuilder private var linePanel: some View {
+        let sentences = ed.lines?.sentences ?? []
+        if ed.linesState == "failed" {
+            hint("Could not load the episode\u{2019}s words.")
+        } else if ed.linesState != "ready" {
+            hint("Loading the episode\u{2019}s words\u{2026}")
+        } else if sentences.isEmpty {
+            hint("This episode\u{2019}s words aren\u{2019}t ready yet. Play a little of it and try again.")
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                hint("Pick the sentence that got you. It goes across your post, and plays from there.")
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(sentences.enumerated()), id: \.offset) { item in
+                        lineRow(item.offset, item.element)
+                    }
+                }
+                .padding(.top, 10)
+                Button { ed.pickLine(-1) } label: {
+                    Text("No line")
+                        .font(FAMFont.body(12))
+                        .foregroundStyle(StoryPalette.paper.opacity(0.7))
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.press)
+                .padding(.top, 8)
+            }
+        }
+    }
+
+    private func lineRow(_ i: Int, _ words: String) -> some View {
+        let on = (ed.line?.text ?? "") == words
+        let fill: Color = on ? StoryPalette.gold.opacity(0.16) : StoryPalette.paper.opacity(0.08)
+        let rim: Color = on ? StoryPalette.gold : Color.clear
+        return Button { ed.pickLine(i) } label: {
+            HStack(alignment: .top, spacing: 8) {
+                Text(clock(ed.lineAt(i)))
+                    .font(StoryFonts.mono(10))
+                    .foregroundStyle(StoryPalette.gold)
+                    .padding(.top, 2)
+                Text(words)
+                    .font(FAMFont.body(13))
+                    .foregroundStyle(StoryPalette.paper)
+                    .lineSpacing(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(fill, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(rim, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     @ViewBuilder private var mentionPanel: some View {
@@ -1787,6 +1975,18 @@ enum StoryIcons {
         return p
     }()
 
+    /// Line (§547): the quote marks (`M7 7h3v4c0 2-1 3.5-3 4M14 7h3v4c0 2-1 3.5-3 4`).
+    static let quote: Path = {
+        var p = Path()
+        for x in [CGFloat(7), 14] {
+            p.move(to: CGPoint(x: x, y: 7)); p.addLine(to: CGPoint(x: x + 3, y: 7))
+            p.addLine(to: CGPoint(x: x + 3, y: 11))
+            p.addCurve(to: CGPoint(x: x, y: 15), control1: CGPoint(x: x + 3, y: 13),
+                       control2: CGPoint(x: x + 2, y: 14.5))
+        }
+        return p
+    }()
+
     /// Post: the arrow (`M5 12h14M13 6l6 6-6 6`).
     static let arrow: Path = {
         var p = Path()
@@ -1803,13 +2003,17 @@ extension FAMAPI {
     /// (`POST /api/vibe` - `/api/echo` is the same handler). Each newly
     /// tagged friend is sent the episode by the server.
     func vibeStory(_ ep: EpisodeKey, title: String, thread: String, caption: String,
-                   style: [String: Any], tags: [[String: Any]]) async throws {
-        let body: [String: Any] = [
+                   style: [String: Any], tags: [[String: Any]],
+                   line: String? = nil, lineAt: Double? = nil) async throws {
+        var body: [String: Any] = [
             // `EchoRequest`'s limits, so a long field is never a silent 422.
             "query": FAMAPI.cut(ep.query, 300), "title": FAMAPI.cut(title, 200),
             "minutes": ep.minutes, "thread": FAMAPI.cut(thread, 200),
             "caption": FAMAPI.cut(caption, 1000), "style": style, "tags": tags,
         ]
+        // The line (§547): `EchoRequest`'s limits, 2000 and 0-3600 s.
+        if let line { body["line"] = FAMAPI.cut(line, 2000) }
+        if let lineAt { body["line_at"] = min(max(0, lineAt), 3600) }
         _ = try await send("POST", "api/v1/vibe", body: body, as: Ignored.self)
     }
 

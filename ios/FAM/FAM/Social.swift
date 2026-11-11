@@ -18,6 +18,8 @@ enum SocialRoute: Hashable {
     case friends
     /// An interest chip's Topic screen (`openTopic`).
     case topic(TopicOpen)
+    /// A vibe tapped on a friend's grid: their vibes as posts (§547).
+    case vibePosts(VibePostsOpen)
 }
 
 /// What the caller knew about a conversation when it opened it: the header

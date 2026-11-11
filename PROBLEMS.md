@@ -34045,3 +34045,34 @@ on a fixture with hundreds of candidates), the batched draw equal to the one
 a key at a time and the snapshot draw equal to fresh reads, a play here and
 another worker's play both seen, prefetch handed the page, the page drawn
 where no loop runs, health's 15 s and its client built once.
+
+## 549. The app catches up with #247 and #249 (2026-11-11)
+
+**What was asked.** The owner merged #247 (mix cards and what changed since
+you last listened, §544-§545), #249 (vibes as posts, §547) and #250 (the feed
+off the event loop, §548), then: update the app from those changes before the
+next build. #250 is server-only.
+
+**#247 on iOS.** A mix with a `signal` draws as R5 (`MixSignalCard`,
+`Views/MixSignals.swift`): the story's picture ringed in the signal's colour
+with the mix cover in its corner, one line naming the topic and the story,
+and the Trending / Major update pill where the arrow was. Inside the mix
+(Q5) a changed topic's row is outlined with its tag and the two bubbles
+(`MixBubbles`), "Start with what changed" plays the changed topics first
+(`AppModel.playMixChangedFirst`, the web's `playWhatChanged`), and "or play
+all N from the top" plays in order. Every topic row carries its picture
+(`MixTopicPic`). The minimal card's name now fills its row as the web's
+`flex:1`. The guest's example card has no counterpart: the app requires an
+account.
+
+**#249 on iOS.** A tap on a vibe in yourFAM's grid or a friend's profile opens
+the posts screen (`Views/VibePosts.swift`, the web's `screen-vibeposts`) at
+that vibe: its line across the picture's foot, the post's own player and
+the chip that plays from the line, likes, replies (a sheet with answers,
+likes, Delete and Report), save and share, More vibes. The VIBE! editor gains
+the Line tool (sent as `line` / `line_at`). Where iOS differs it is named in
+`ios/FAM/PARITY.md`: an E mark sits before a caption rather than inside it,
+and the posts screen inside a social cover draws its own loading screen.
+
+Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
+and every new name resolves.

@@ -607,9 +607,17 @@ struct PersonView: View {
         }
     }
 
-    /// A vibe plays as the story's Play does; a cover closes first so the
-    /// loading screen and the player are not hidden under it.
+    /// A vibe opens as their posts at the one tapped (§547,
+    /// `playPersonVibe`); without a handle to ask by - or for somebody
+    /// without an account - it plays as the story's Play does, a cover
+    /// closing first so the loading screen and the player are not hidden.
     private func play(_ v: PersonVibe) {
+        let vibes = page?.vibes ?? []
+        let index = vibes.firstIndex(of: v) ?? 0
+        if !handle.isEmpty && model.listener?.authenticated == true {
+            social.open(.vibePosts(VibePostsOpen(handle: handle, index: index, fromYou: false)))
+            return
+        }
         let ep = Episode(key: EpisodeKey(query: v.query, minutes: v.minutes ?? FAMAPI.browseMinutes),
                          title: v.title ?? v.query, surface: "other")
         let app = model

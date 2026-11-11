@@ -249,6 +249,8 @@ struct MainTabs: View {
     /// conversation, a profile, Friends), have no tab bar or mini player.
     private var sectionOpen: Bool {
         (tab == .daily && !model.dailyPath.isEmpty) || (tab == .messages && !social.messagesPath.isEmpty)
+            // Your vibes as posts (§547): a screen with no tab bar on the web.
+            || (tab == .you && (model.youPath.last?.isVibePosts ?? false))
     }
 
     /// The mini bar is there from the first word until the episode ends or

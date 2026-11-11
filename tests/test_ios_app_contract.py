@@ -281,6 +281,9 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",
                    "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic",
                    "ProfileSummary", "ProfileInterest",
+                   # What changed since you last listened (§545): R5 on the
+                   # card, Q5's bubbles inside the mix.
+                   "MixSignal", "MixSince", "MixSinceSide",
                    # The category chips and panel on the myFAM tab (§500).
                    "CategoriesPage", "CategoryFacet", "CategoryNode", "CategoryEpisodes",
                    "CategorySub", "CategoryEpisode",
@@ -290,6 +293,10 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    "UnreadAnswer", "NoticePage", "FollowPerson", "FriendsPage", "FollowCounts",
                    "FollowAnswer", "PeoplePage", "PersonPage", "PersonMix", "PersonVibe",
                    "PersonFriend", "ProfileEcho",
+                   # A grid vibe as posts: the line, likes, who heard it and
+                   # the replies under it (§547, `vibe-posts`).
+                   "VibePostsPage", "VibePostPerson", "VibePost", "VibePostLine",
+                   "VibePostHeard", "VibeReply", "VibeRepliesPage", "VibeLikeAnswer",
                    # YourFAM: the hub, Settings, Edit profile, Saved for Later,
                    # the listening history and My Vibe (`op-profile-hub`).
                    "AccountInfo", "MyProfile", "MyVibe", "ProfileMix", "MyPreferences",

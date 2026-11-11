@@ -73,6 +73,10 @@ final class AppModel: ObservableObject {
     /// The YourFAM tab's stack (Settings, the shelves), and the first-run
     /// step after an account is made or signed in (`afterAccount`).
     @Published var youPath: [YouRoute] = []
+    /// How many vibe-posts screens are on screen (§547): while one is, a
+    /// post's episode (`Episode.inPlace`) plays where it sits and the full
+    /// player does not open (`onGenerationStarted`'s `screen-vibeposts`).
+    var vibePostsShowing = 0
     /// The first-run step; when it ends, an activation step held through it
     /// opens (`releaseActivation`, §414).
     @Published var entry: EntryStep? {
@@ -274,6 +278,9 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.player.release()
+                // A vibe's post plays where it sits (§547): the posts
+                // screen's own bar carries it, so no full player over it.
+                let inPlace = (self.pending?.inPlace ?? false) && self.vibePostsShowing > 0
                 if let ep = self.pending { self.nowPlaying.begin(ep) }
                 // The glide marks the playlist's own episode Played only now:
                 // a skip before a word, or a failure, is not something that
@@ -284,7 +291,7 @@ final class AppModel: ObservableObject {
                     self.mixPlay = list
                 }
                 self.pending = nil
-                self.showPlayer = true
+                if !inPlace { self.showPlayer = true }
                 self.seekWhenArrived()
                 // A stream arrived, so there is a connection whatever was
                 // said before.
@@ -1772,6 +1779,26 @@ extension AppModel {
         let start = itemID.flatMap { id in mix.items.firstIndex { $0.id == id } } ?? 0
         let order = Array(start..<mix.items.count) + Array(0..<start)
         mixPlay = MixPlaylist(mixID: mix.id, name: mix.name, items: mix.items, order: order, pos: 0,
+                              mine: mixes.mix(mix.id) != nil)
+        playMixItem()
+    }
+
+    /// "Start with what changed" (Q5, §545, `playWhatChanged`): the items
+    /// that changed since this listener last heard them first, in the mix's
+    /// own order, then the rest in theirs. Nothing changed: from the top.
+    func playMixChangedFirst(_ mix: Mix) {
+        guard !mix.items.isEmpty else { nowPlaying.say("Add a topic first"); return }
+        var first: [Int] = []
+        var rest: [Int] = []
+        for (index, item) in mix.items.enumerated() {
+            if item.since != nil {
+                first.append(index)
+            } else {
+                rest.append(index)
+            }
+        }
+        guard !first.isEmpty else { playMix(mix); return }
+        mixPlay = MixPlaylist(mixID: mix.id, name: mix.name, items: mix.items, order: first + rest, pos: 0,
                               mine: mixes.mix(mix.id) != nil)
         playMixItem()
     }
