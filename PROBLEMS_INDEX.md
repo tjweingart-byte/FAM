@@ -529,4 +529,4 @@ and `limit` = Lines.
 | 33211 | 25 | 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10) |
 | 33236 | 21 | 536. Go Deeper in a mix resumes the interrupted episode (2026-11-10) |
 | 33257 | 27 | 537. A mix card in the list is its picture, its name and an arrow (2026-11-10) |
-| 33284 | 71 | 538. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11) |
+| 33284 | 83 | 538. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11) |

@@ -33351,3 +33351,15 @@ and At the gym, its pictures cropped from the landing page's tiles.
 Tests: `tests/test_signals_538.py` (matching, both signals' timing, quiet once
 heard, one per mix, the status clock, the bubbles, the route, a failure never
 taking the list down, both themes' tokens).
+
+**A picture on every topic row** (the owner, the same day: "add pictures to
+each topic row too" - Q5's mockup had them). `app._mix_pictures` gives each
+item the picture the player would draw for it (`_picture_url` over the item's
+words: "NFL Eagles" for a narrowed subject, the typed words for a typed
+topic), and the row draws it beside the title, ringed in the signal's colour
+when the topic changed; with nothing approved, the subject's own catalogue
+icon on paper (`catIcon`). Pictures and signals now come from `_mix_out`
+itself, so every route answering with a mix carries them - before, a reorder
+or an added topic would have dropped the bubbles until the list reloaded. The
+arrow now opens the "Today" bubble, so on a row narrowed by its picture the
+two bubbles stack cleanly.

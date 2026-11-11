@@ -833,8 +833,24 @@ def _tile_crop(name: str) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
+#: Each fixture topic's picture (§538), by item id - crops of the landing
+#: page's tiles standing in for the approved pictures a preview lacks. The
+#: typed council topic has none, so the row shows its icon, as the app does
+#: when nothing is approved.
+ROW_PICTURES = {
+    "f:stocks~Nvidia": "friends-2", "f:ai": "friends-3", "fed-next-move": "trending-5",
+    "f:nfl~Eagles": "trending-4", "f:nfl": "friends-1", "f:basketball~Lakers": "foryou-3",
+    "sleep-science": "trending-6",
+}
+
+
 def _signal_fixtures(mixes: list) -> None:
     by_id = {m["id"]: m for m in mixes}
+    crops: dict = {}
+    for m in mixes:
+        for item in m["items"]:
+            tile = ROW_PICTURES.get(item["id"])
+            item["picture"] = crops.setdefault(tile, _tile_crop(tile)) if tile else ""
     morning, gym = by_id["m1"], by_id["m2"]
     nvidia = next(i for i in morning["items"] if i["id"].startswith("f:stocks~"))
     nvidia["signal"] = {"kind": "trending", "label": "Trending",

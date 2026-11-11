@@ -247,3 +247,32 @@ def test_the_signal_colours_exist_in_both_themes():
     light = INDEX.split('html[data-theme="light"]{', 1)[1].split("}", 1)[0]
     for token in ("--sig-tr:", "--sig-up:", "--sig-ink:"):
         assert token in dark and token in light, token
+
+
+# --- a picture on every topic row ---------------------------------------------
+
+
+def test_every_topic_row_has_its_picture(client):
+    items = client.get("/api/mixes").json()["mixes"][0]["items"]
+    assert [i["picture"] for i in items] == ["/api/thumb/nfl", "/api/thumb/nfl"]
+
+
+def test_a_reorder_keeps_the_pictures_and_the_signal(client, monkeypatch):
+    """Every route answering with a mix goes through `_mix_out`, so adding or
+    reordering a topic never drops a row's picture or its Q5 bubbles."""
+    _with_story(monkeypatch, story("Eagles lose their left tackle"))
+    mix = client.get("/api/mixes").json()["mixes"][0]
+    res = client.patch(f"/api/mixes/{mix['id']}",
+                       json={"topic_ids": ["f:formula1", "f:nfl~Eagles"]})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert [i["id"] for i in body["items"]] == ["f:formula1", "f:nfl~Eagles"]
+    assert all(i.get("picture") for i in body["items"])
+    assert body["signal"]["item_id"] == "f:nfl~Eagles" and "since" in body["items"][1]
+
+
+def test_the_row_draws_its_picture_or_its_icon():
+    assert "function mixTopicPicHTML(t)" in INDEX
+    pic = INDEX.split("function mixTopicPicHTML(t){", 1)[1].split("\n  }\n", 1)[0]
+    assert "t.picture" in pic and "catIcon(t.icon)" in pic
+    assert "+ mixTopicPicHTML(t)" in INDEX

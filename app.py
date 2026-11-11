@@ -6620,12 +6620,11 @@ async def list_mixes(request: Request):
     shown = list(own) + ([m for m in MIXES.joined(user)
                           if not MODERATION.is_apart(m.user_id, user)]
                          if wants_joint else [])
-    pairs = [(m, _mix_out(m, user, people, m.id in joint or m.user_id != user))
-             for m in shown]
-    # What changed in each since this listener last heard it (§538).
-    _mix_signals(user, pairs)
     return {
-        "mixes": [body for _m, body in pairs],
+        # Each with its pictures and what changed since this listener last
+        # heard it (§538), via `_mix_out`.
+        "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user)
+                  for m in shown],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
@@ -6817,6 +6816,27 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
 
 
 def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
+    """One mix as this viewer sees it, with each topic's picture and what
+    changed since they last heard it (§538) - on every route that answers
+    with a mix, so adding or reordering a topic never drops either."""
+    body = _mix_body(mix, viewer, people, joint)
+    _mix_pictures(mix, body)
+    _mix_signals(viewer, [(mix, body)])
+    return body
+
+
+def _mix_pictures(mix, body: dict) -> None:
+    """Each topic row's picture (§538): the player's own picker over the
+    item's words, so a row, its episode in the player and the card that
+    leads with it never disagree. "" when nothing is approved; the client
+    draws the subject's icon. Never fails the mix."""
+    for item, out in zip(mix.items, body.get("items") or ()):
+        words = item.title if item.title.lower() in (item.query or "").lower() else \
+            f"{item.query} {item.title}".strip()
+        out["picture"] = _picture_url(words, item.title)
+
+
+def _mix_body(mix, viewer: str, people: dict, joint: bool) -> dict:
     """One mix as this viewer sees it.
 
     The owner sees everything (`as_dict`); a member of a joint mix sees what
