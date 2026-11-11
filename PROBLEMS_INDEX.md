@@ -528,3 +528,4 @@ and `limit` = Lines.
 | 33194 | 17 | 534. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10) |
 | 33211 | 25 | 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10) |
 | 33236 | 21 | 536. Go Deeper in a mix resumes the interrupted episode (2026-11-10) |
+| 33257 | 25 | 537. A mix card in the list is its picture, its name and an arrow (2026-11-10) |

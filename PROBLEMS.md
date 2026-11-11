@@ -33253,3 +33253,28 @@ is nothing to resume. A Go Deeper on the follow-up stays on the same detour
 and keeps the first resume point. The iOS app does the same. Smoke check:
 the §519 detour check now also skips the follow-up and expects the
 interrupted episode back.
+
+## 537. A mix card in the list is its picture, its name and an arrow (2026-11-10)
+
+**The owner's direction (11.10), with a screenshot of two mix cards:** "get
+rid of the unnecessary stuff here: # of briefings, daily, and public. Remove
+all of that" - and, for the whole row, "we just want the thumbnail of the
+playlist, the title of the playlist, and an arrow pointing right on the right
+side". So the list on the mixes screen (the one the listener reads as
+**myFAM**, `names-swapped`) draws each mix as its cover (or the folder), its
+name, and the chevron. Gone from the row: the briefing count, "daily",
+public/private, "from" a copied mix's owner, the joint label and the topic
+preview line. Every one of them is still on the mix's own page, one tap in.
+
+The guest's example card (`sampleMixCardHTML`) is drawn the same way, so a
+first look at the screen matches what an account sees. `jointLabel` and the
+`.mix-public` / `.mix-private` styles had no other reader and are deleted.
+Public mixes found by search keep their owner line: there it is what tells
+two listeners' mixes of the same name apart. Nothing on the server changed;
+`/api/mixes` still serves every field, for installed clients
+(`old-clients`). Test: `tests/test_mix_card_minimal.py`.
+
+This is the first step of the owner's rethink of how myFAM shows what is new
+today; the signal concepts (round two's lit edge and topic chip, round
+three's variations) are being redrawn on top of this plainer card and are
+not built.

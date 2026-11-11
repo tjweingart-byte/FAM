@@ -721,6 +721,8 @@
   .mix-preview{ font-size:10px; line-height:1.35; color:var(--text-muted);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .mix-chev{ flex:none; color:var(--text-muted); opacity:0.6; }
+  /* A mix row in the list is its name alone (11.10), so nothing sits under it. */
+  #mixList .mix-name{ margin-bottom:0; }
   .mix-new{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
@@ -1536,8 +1538,6 @@
     color:var(--copper); margin-left:0.09em; margin-right:0.15em;
     vertical-align:baseline; }
 
-  /* Public / private on a mix. Public is the default for a new mix. */
-  .mix-public{ color:var(--copper); }
   /* The profile's interest row, named and editable. */
   .pf-tags-lab{ align-self:center; font-family:'Geist Mono', monospace;
     font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase;
@@ -1570,7 +1570,6 @@
     border-top:1px solid var(--border); }
   .pi-acts .pf-btn{ flex:1; }
 
-  .mix-private{ color:var(--text-muted); }
   .mix-vis{ display:flex; align-items:center; justify-content:space-between; gap:14px;
     padding:13px 14px; margin:14px 0 10px; border-radius:12px; background:var(--surface);
     border:1px solid var(--border); cursor:pointer; }
@@ -11715,14 +11714,12 @@
         renderMixesLocked();
       });
   }
+  // Drawn like a listener's own mix card: picture, name, arrow (11.10).
   function sampleMixCardHTML(m){
-    var names = m.items.map(function(t){ return t.title; }).join(" \u00b7 ");
     return '<div class="mix-card" onclick="openMix(\'sample\')">'
       + '<div class="mix-folder">' + folderSVG() + '</div>'
       + '<div class="mix-card-body">'
       + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-      + '<div class="mix-meta">' + m.items.length + ' briefings \u00b7 daily \u00b7 example</div>'
-      + '<div class="mix-preview">' + escapeHtml(names) + '</div>'
       + '</div>'
       + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
       + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
@@ -11765,16 +11762,6 @@
     if(btn) btn.hidden = !on;
   }
 
-  function jointLabel(m){
-    var people = m.people || [];
-    if(m.role === "member"){
-      var o = people[0] || {};
-      return "joint · " + (o.name || (o.handle ? "@" + o.handle : "another listener")) + "’s";
-    }
-    var others = people.length - 1;
-    return others > 0 ? "joint · with " + others + (others === 1 ? " other" : " others") : "joint";
-  }
-
   function renderMixList(){
     showNewMixButton(true);
     var html = "";
@@ -11789,23 +11776,16 @@
     // this screen carried both, so the same action sat twice on one page and
     // the second copy pushed every mix card down.
 
+    // **A mix card is its picture, its name and an arrow** (the owner, 11.10:
+    // "we just want the thumbnail of the playlist, the title of the playlist,
+    // and an arrow pointing right"). The briefing count, "daily", public or
+    // private, whose it was and the topic list are gone from this row; all of
+    // them are still on the mix's own page, one tap in.
     html += mixes.map(function(m){
-      var entries = m.items || m.topics;
-      var names = entries.map(function(t){ return t.title; }).join(" · ");
       return '<div class="mix-card" onclick="openMix(\'' + m.id + '\')">'
         + '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
         + '<div class="mix-card-body">'
         + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-        + '<div class="mix-meta">' + entries.length
-        + (entries.length === 1 ? " briefing · daily" : " briefings · daily")
-        + ' · <span class="' + (m.public ? "mix-public" : "mix-private") + '">'
-        + (m.public ? "public" : "private") + '</span>'
-        // Added from somebody else's public mix: whose it was.
-        + (m.from ? ' · <span class="mix-by">from ' + escapeHtml(ownerLabel(m.from)) + '</span>' : '')
-        // A joint mix (11.7 packet): with whom, and whose it is.
-        + (m.joint ? ' · <span class="mix-by">' + escapeHtml(jointLabel(m)) + '</span>' : '')
-        + '</div>'
-        + '<div class="mix-preview">' + (escapeHtml(names) || "Nothing in it yet") + '</div>'
         + '</div>'
         + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
         + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
