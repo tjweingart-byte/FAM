@@ -2238,7 +2238,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (!name || !confirm("Let the voice read " + name + " as spelled again?")) return;
     api("/api/admin/pronunciations/" + encodeURIComponent(name), null, "DELETE").then(loadSay);
   });
-  // Four ways to hand the voice one respelling (§547): today's has no
+  // Four ways to hand the voice one respelling (§548): today's has no
   // stress at all (the voice would spell capitals out as letters).
   var waysAudio = {};
   var WAY_WORDS = { now: "As now (no stress)", joined: "Run together", accent: "Accent on the stress", spaced: "Syllables apart, stress capitalised" };
@@ -2259,7 +2259,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       .catch(function (e) { alert(e.message); })
       .then(function () { btn.disabled = false; btn.textContent = was; });
   }
-  // Checked by another reader (§547): out as a CSV, back as proposals.
+  // Checked by another reader (§548): out as a CSV, back as proposals.
   var reviewRows = [], reviewDone = {}, reviewErr = {};
   function drawReview(r) {
     if (r) {

@@ -1,4 +1,4 @@
-"""The pronunciation list, out to a reviewer and back as proposals (PROBLEMS.md §547).
+"""The pronunciation list, out to a reviewer and back as proposals (PROBLEMS.md §548).
 
 Wikipedia checks each name a model adds (§289), but most of the names on
 file are sports players, and for most of them Wikipedia has nothing to say
