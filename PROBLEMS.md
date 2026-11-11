@@ -33272,7 +33272,9 @@ first look at the screen matches what an account sees. `jointLabel` and the
 Public mixes found by search keep their owner line: there it is what tells
 two listeners' mixes of the same name apart. Nothing on the server changed;
 `/api/mixes` still serves every field, for installed clients
-(`old-clients`). Test: `tests/test_mix_card_minimal.py`.
+(`old-clients`). Test: `tests/test_mix_card_minimal.py`; the smoke check
+that adds somebody's public mix now expects the copy in the list without a
+"from @mike" on its card.
 
 This is the first step of the owner's rethink of how myFAM shows what is new
 today; the signal concepts (round two's lit edge and topic chip, round
