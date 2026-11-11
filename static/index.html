@@ -1351,9 +1351,14 @@
      transport (10.2 packet). The captions hang under each circle. */
   /* Lifted clear of the title row (11.9 packet, §519): at 10px the SAVE
      caption sat on the sources pill below it. */
-  /* Friends who listened (11.11 note): the card's faces pill, bottom left
-     of the picture, level with save on the right; under the captions. */
-  .p-friends{ position:absolute; left:16px; bottom:46px; z-index:1;
+  /* Friends who listened (11.11 note): the card's faces pill, top left of
+     the picture, where the owner's mock-up put it; under the captions. The
+     picture is centred in the stage and 4:3 of the stage's width plus the
+     20px it bleeds each side, so its top edge is worked out from the
+     stage's width (`cqw`, the stage is a container), and never above the
+     stage when the picture is taller than it. */
+  .p-friends{ position:absolute; left:16px; top:10px;
+    top:max(10px, calc(50% - (100cqw + 80px) * 0.375 + 12px)); z-index:1;
     display:flex; align-items:center; gap:5px; cursor:pointer;
     background:rgba(20,18,28,0.62); color:var(--copper);
     border:1px solid rgba(244,239,228,0.45); border-radius:999px;
@@ -1386,7 +1391,7 @@
   .p-down, .p-more{ width:44px; height:44px; border:0; background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
     border-radius:50%; }
-  #screen-player .mini-stage{ padding:0 20px; }
+  #screen-player .mini-stage{ padding:0 20px; container-type:inline-size; }
   .p-titlerow{ flex:none; display:flex; align-items:center; gap:12px; padding:0 20px; }
   .p-titles{ flex:1; min-width:0; text-align:left; }
   #screen-player .mini-title{ font-size:22px; line-height:1.2; margin:0;
@@ -4309,7 +4314,7 @@
           <span class="demo-badge p-demo" title="No API key: a built-in sample script is standing in for Claude">not your episode</span>
           <div class="next-hint" id="nextHint"></div>
           <!-- Who of your friends listened (11.11 note): the DailyFAM card's
-               faces, on the picture opposite share/vibe/save. Hidden until a
+               faces, top left of the picture (the mock-up). Hidden until a
                friend has; tapping lists them all (§394). -->
           <div class="p-friends" id="playerFriends" hidden role="button" tabindex="0"
                onclick="openFriendsListened('_player')"
