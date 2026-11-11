@@ -33947,3 +33947,101 @@ captions' estimate against the episode's length ceiling, so on an episode
 that ended early it can land late (the seek never passes the end).
 
 Tests: `tests/test_vibe_posts.py`.
+
+## 548. myFAM in a handful of statements, off the event loop (2026-11-11)
+
+A profiling pass for the iOS launch (a seeded deployment: 400 listeners,
+3,000 cached episodes, 28k events) found `GET /api/myfam` doing 0.6 s
+(SQLite) to 1.5 s (Postgres) of synchronous work inside an `async def` -
+about 1,100 SQL statements a draw - so every other request on the worker
+waited behind it: a launch's client-status, health and auth queued behind
+somebody else's page. Four causes, fixed in this order, with **the response
+unchanged**: the same JSON, byte for byte, for 26 listeners on the seed,
+before and after, on SQLite and on Postgres (and for View more's five rails
+and a guest's page).
+
+1. **A cache probe per candidate tile** (~976 a draw). Each crowd rail asks
+   whether every tallied question is cached at the browse length, one
+   `SELECT ... WHERE key = ?` at a time, after a `plan_episode` that logged
+   "SEARCH yes" for each. Now the three probes share one per-request reader
+   (`app._FeedProbe`) over a new batch read, `ScriptCache.rows_many` (one
+   `WHERE key IN (...)` per 500 keys; `holds_many` beside it). The rankers
+   prime it with the tiles they are about to ask about (`topics._prime`:
+   `ready_first`, `repeats`, and `_crowd_tiles` in batches of 64 growing
+   fourfold), and each answer comes from `cache.ProbeRow`, which *is*
+   `SqliteScriptCache.holds` now, so the batch and the single-key read cannot
+   drift. Still per request, never kept. The key is still `_episode_key`'s
+   (`[prefetch-same-key]`): `_browse_key` only remembers its answers, keyed
+   on the question, the length, every settings object and function that
+   reads into it, and never under `SEARCH_MODE=auto`; `plan_episode`'s line
+   is quiet on that thread while it does (`_QUIET_PLANS`). A crowd tile is
+   built (tags and all) only once it is kept (`_tile_ref`).
+2. **The crowd's listens read four times a draw, for every listener.**
+   Most played (24 h), What you missed (3-7 days), the friends rail and the
+   friends' faces (14 days) each read `listens_between` and `heard_since`.
+   One snapshot of the widest window (`CROWD_SPAN`) now serves every rail and
+   every listener, filtered in memory by exactly the bounds each read asked
+   for, in the order the database returned them - so it answers what a fresh
+   read answers. It is thrown away when this process writes a play, a
+   completion or a heard listen, or forgets or clears the log
+   (`_crowd_changed`); re-read when the newest play, completion or heard
+   listen in the database is not the one it saw (`_crowd_mark`, asked at most
+   once a second); and re-read every `CROWD_REFRESH_SECONDS` (30) regardless.
+   `_norm_question` is memoised.
+   **The one semantic change, stated:** with more than one worker, another
+   worker's new play reaches this worker's crowd rails within a second rather
+   than at once, and a row another worker *deleted* (an account deletion) or
+   wrote with an older time than its newest can stay on them up to 30 s. In
+   one process nothing changed: a play recorded here is on the next draw
+   (tested). `[heard-not-tapped]`, `[missed-rail]`, `[two-crowd-rows]` and
+   `[friends-listened]` are otherwise untouched - same windows, same
+   thresholds, same tallies.
+3. **The page drawn twice.** `prefetch.schedule_cycle` ran `FeedSource`,
+   which called `build_feed` again on the loop - a whole draw's stall right
+   after the first open. The draw now hands its page to the cycle
+   (`schedule_cycle(user, minutes, feed)` -> `run_once(feed=)` ->
+   `plan(feed=)` -> `FeedSource.candidates(feed=)`, only the rails' keys,
+   titles and tiles' ids and questions kept). The same rails, ranks, weights
+   and reasons; and the tiles are now exactly the ones the listener was shown
+   - the parallel build had none of the page's cache, place, account or
+   interests inputs, so it could warm tiles nobody saw. Without a page (a
+   tool, a test) it builds one as before.
+4. **On the event loop.** The draw (`_draw_myfam`, and a guest's,
+   `_draw_guest_myfam`) runs in `asyncio.to_thread`; the story sweep,
+   vocabulary growth and the prefetch cycle are still scheduled on the loop
+   first and after. Every store keeps a connection per thread (`_conn`, the
+   Postgres pool is locked), the story pool is replaced whole, and the new
+   memos are written whole or under a lock.
+
+And **/api/health** (~25 ms a call, ~1 s the first): built in a thread
+(`_health_report`); the cache totals, which scan every script, kept 15 s
+(`_health_memo`, and read once rather than twice); the HTTP client
+`http2_enabled` inspects built once per setting. The databases' real reads
+and `build` still run on every call (`[verify-not-inspect]`,
+`[server-says-build]`). The agents' modules, the house style's pictures and
+the ranker's semantic model are loaded at boot in a thread
+(`_warm_first_calls`).
+
+Measured with uvicorn, one worker, the iOS launch requests (`measure.py`;
+medians of five, warm unless marked):
+
+| | SQLite before | SQLite after | Postgres before | Postgres after |
+|---|---:|---:|---:|---:|
+| myfam | 595 ms | 218 ms | 1,552 ms | 215 ms |
+| SQL statements a draw (in process) | 1,124 | 29 (11 cache) | 1,114 | 40 |
+| feed on screen (client-status + health + me, then myfam) | 543-824 ms | 201-274 ms | 1,360-1,522 ms | 263-356 ms |
+| a 2 ms request's worst wait while myfam draws | 667 ms | 142 ms | 1,494 ms | 203 ms |
+| health | 20.5 ms | 13.8 ms | 33 ms | 30 ms |
+| first health / first myfam, 8 s after boot | 134 / 1,064 ms | 19 / 730 ms | | |
+
+What is left of the wait while a draw runs is the GIL, not the loop: the
+draw's thread is pure Python, and the loop gets it back every switch
+interval. The tallies themselves (`_tally_listens`, per listener for What you
+missed) are now the largest part of a draw.
+
+Tests: `tests/test_feed_speed_548.py` - the batch read against each
+single-key read, a draw's cache statements (at most 12, none by single key,
+on a fixture with hundreds of candidates), the batched draw equal to the one
+a key at a time and the snapshot draw equal to fresh reads, a play here and
+another worker's play both seen, prefetch handed the page, the page drawn
+where no loop runs, health's 15 s and its client built once.

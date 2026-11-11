@@ -17,6 +17,7 @@ import dataclasses
 import hmac
 import html
 import os
+import sys
 import json
 import logging
 import random
@@ -654,6 +655,20 @@ def _trending_bank_report() -> dict:
         return {"enabled": bool(settings.trending_bank), "error": str(exc)}
 
 
+def _warm_first_calls() -> None:
+    """Load at boot what the first health check and the first myFAM draw
+    would load on a listener's time (§548). Never raises: each is loaded
+    again, on demand, if this did not."""
+    for name, warm in (("agents", agent_models.health),
+                       ("thumbnail styles", thumbnails_mod.style_references),
+                       ("semantic ranker", taste_vectors.enabled),
+                       ("http client", http2_enabled)):
+        try:
+            warm()
+        except Exception:  # noqa: BLE001 - a warm-up is never worth a boot
+            log.exception("could not warm the %s at boot", name)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Whether zero spend's network guard can see this loop's connections
@@ -857,6 +872,10 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
     # Unheard episodes drawn from an older bank draw again (§333).
     _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
+    # What the first /api/health and the first myFAM would otherwise pay
+    # (§548): the agents' modules, the house style's pictures and the
+    # ranker's semantic model, loaded in a thread while nobody waits.
+    _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_warm_first_calls)))
     # The server's own size once a minute, and a full report in the log the
     # first time each boot it crosses each watch line (§334).
     _BACKGROUND.add(asyncio.create_task(_watch_memory_forever()))
@@ -1056,7 +1075,35 @@ def _make_pipeline(voice: Optional[str] = None,
                            author=author)
 
 
+#: How long /api/health keeps a report that only counts things (§548).
+HEALTH_REPORT_SECONDS = 15.0
+_HEALTH_MEMO: dict = {}
+
+
+def _health_memo(name: str, ident: tuple, build):
+    """`build()`, kept `HEALTH_REPORT_SECONDS` while `ident` is unchanged.
+
+    For the reports that count rows and nothing else - the cache's totals
+    scan every script. Never for a check that performs the real action
+    ([verify-not-inspect]: the databases' reads, the build) - those run on
+    every call, off the event loop."""
+    clock = time.monotonic()
+    held = _HEALTH_MEMO.get(name)
+    if held is not None and held[0] == ident and clock - held[1] < HEALTH_REPORT_SECONDS:
+        return held[2]
+    value = build()
+    _HEALTH_MEMO[name] = (ident, clock, value)
+    return value
+
+
 def _cache_report() -> dict:
+    return _health_memo(
+        "cache", (id(SCRIPT_CACHE), settings.audio_cache, settings.cache_vector,
+                  settings.cache_semantic_key),
+        _cache_report_now)
+
+
+def _cache_report_now() -> dict:
     if SCRIPT_CACHE is None:
         return {"enabled": False}
     report = {"enabled": True, "semantic_key": settings.cache_semantic_key}
@@ -1071,9 +1118,10 @@ def _cache_report() -> dict:
     # voice engine, and how much of the ceiling that audio is using - the
     # disk it lives on is shared with every other database.
     report["audio"] = settings.audio_cache
+    stats = None
     if settings.audio_cache:
         try:
-            held = SCRIPT_CACHE.stats()
+            held = stats = SCRIPT_CACHE.stats()
         except Exception:
             held = {}
         report["audio_entries"] = held.get("audio_entries")
@@ -1085,7 +1133,8 @@ def _cache_report() -> dict:
         report["threshold"] = settings.cache_vector_threshold
         report["overlap"] = settings.cache_vector_overlap
     if isinstance(SCRIPT_CACHE, (MemoryScriptCache, SqliteScriptCache)):
-        report.update(SCRIPT_CACHE.stats())
+        # The one read above, when there was one: it is the same moment.
+        report.update(stats if stats is not None else SCRIPT_CACHE.stats())
     return report
 
 
@@ -2064,6 +2113,14 @@ def _usage_monitors_health() -> dict:
 
 @app.get("/api/health")
 async def health(request: Request) -> dict:
+    """What this server is running and whether each part of it works.
+
+    Built in a worker thread (§548): it reads every store, and on the event
+    loop each call held up every other request for its whole length."""
+    return await asyncio.to_thread(_health_report, request)
+
+
+def _health_report(request: Request) -> dict:
     # Built once and read twice: the list and the summary over it have to
     # describe the same moment, and calling the report a second time would
     # stat every database again to say the same thing.
@@ -7822,6 +7879,7 @@ def _mark_guest_tiles(tiles: list[dict], minutes: int) -> None:
     `playable` is the cheap half of `_guest_play_gated`: written script and
     kept audio, read from SQLite. Never a model call, never the voice."""
     written = _written_probe(minutes)
+    written.prime([tile.get("query", "") for tile in tiles])
     for tile in tiles:
         tile["cached"] = written(tile.get("query", ""))
         tile["playable"] = bool(tile["cached"]
@@ -8129,15 +8187,16 @@ async def myfam_section(request: Request,
         body["algo"] = EVENTS.algo_stamp()
         return topics_mod.page_section(body, _seen_ids(seen), page_size,
                                        wrap=not cycling)
-    written = _written_probe(minutes)
+    shared = _FeedProbe(minutes)  # one batch reader for the three (§548)
+    written = _written_probe(minutes, shared)
     try:
         place = _place_for(request)
         circle = SOCIAL.circle_of(user)
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
             circle=circle, written=written,
-            written_at=_written_at_probe(minutes),
-            episode_info=_episode_info_probe(minutes),
+            written_at=_written_at_probe(minutes, shared),
+            episode_info=_episode_info_probe(minutes, shared),
             authored=_authored_by_circle(circle),
             place=place.words, place_name=place.label,
             has_account=_has_account(request),
@@ -8259,28 +8318,208 @@ def _cycles_cached(key: str, cycle: str) -> bool:
     return key == "from_history" and (cycle or "").strip().lower() == "cached"
 
 
-def _written_probe(minutes: int):
+#: The script_generator logger's lines are quiet on this thread while it is
+#: set: a browse page computes a key for every candidate tile, and
+#: `plan_episode` says "SEARCH yes" for each one - a thousand log lines a
+#: draw, about episodes nobody asked for (§548). Per thread, so a search
+#: being planned beside a draw still logs.
+_QUIET_PLANS = threading.local()
+
+
+class _QuietPlans(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not getattr(_QUIET_PLANS, "on", False)
+
+
+logging.getLogger("script_generator").addFilter(_QuietPlans())
+
+#: `(query, minutes, ...) -> cache key` for browse tiles, kept across
+#: requests (§548). A key is a pure function of the question, the length and
+#: the settings `_episode_key` reads, so every one of those is in the memo's
+#: own key - and the functions themselves, so a test that swaps one is never
+#: answered from the other's memo. Never under `SEARCH_MODE=auto`, where
+#: whether an episode is researched can depend on the day. None means the
+#: question is unaskable (`_validated_plan` refused it); "" that it has no
+#: shared identity. Still `_episode_key` and nothing else: this remembers its
+#: answers, it does not compute keys of its own ([prefetch-same-key]).
+_BROWSE_KEYS: dict = {}
+_BROWSE_KEYS_MAX = 50_000
+_BROWSE_KEYS_LOCK = threading.Lock()
+
+
+def _browse_key(query: str, minutes) -> Optional[str]:
+    # The settings each step reads, wherever it reads them from: a frozen
+    # settings object is replaced, never changed, so its identity says
+    # whether anything in it moved.
+    planned = getattr(sys.modules.get(getattr(plan_episode, "__module__", "")),
+                      "settings", settings)
+    keyed = getattr(sys.modules.get(getattr(cache_key, "__module__", "")),
+                    "settings", settings)
+    mode = getattr(planned, "search_mode", "always")
+    memo = (query, minutes, mode, id(settings), id(planned), id(keyed),
+            settings.model, settings.target_wpm, settings.cache_semantic_key,
+            settings.min_minutes, settings.max_minutes, plan_episode,
+            cache_key, is_shareable, _episode_key, _validated_plan)
+    if mode != "auto":
+        try:
+            return _BROWSE_KEYS[memo]
+        except KeyError:
+            pass
+    was = getattr(_QUIET_PLANS, "on", False)
+    _QUIET_PLANS.on = True
+    try:
+        plan = _validated_plan(query, minutes)
+    except HTTPException:
+        key = None
+    else:
+        key = _episode_key(plan)
+    finally:
+        _QUIET_PLANS.on = was
+    if mode != "auto":
+        with _BROWSE_KEYS_LOCK:
+            if len(_BROWSE_KEYS) >= _BROWSE_KEYS_MAX:
+                _BROWSE_KEYS.clear()
+            _BROWSE_KEYS[memo] = key
+    return key
+
+
+#: A batch read that failed, so the probes answer what their single-key
+#: forms answer on a broken database.
+_PROBE_FAILED = object()
+
+
+class _FeedProbe:
+    """One request's answers from the shared cache, read in batches (§548).
+
+    The three probes below (`written`, `written_at`, `episode_info`) used
+    to make a round trip per candidate tile - ~1,000 a draw. With a cache that
+    has `rows_many` they share this: `prime(queries)` reads every row a batch
+    of tiles needs in one statement, and each probe answers from the row
+    exactly what its single-key read answers (`cache.ProbeRow`). A query not
+    primed is read on its own, as before. Per request, never kept: "is this
+    cached" must not go stale. A cache without `rows_many` (a test's) is asked
+    the old way, one key at a time.
+    """
+
+    def __init__(self, minutes: int):
+        self.minutes = minutes
+        self.cache = SCRIPT_CACHE
+        self.batch = (self.cache is not None
+                      and callable(getattr(self.cache, "rows_many", None)))
+        self.rows: dict = {}
+
+    def prime(self, queries) -> None:
+        if not self.batch:
+            return
+        keys = []
+        for query in queries:
+            if not query:
+                continue
+            try:
+                key = _browse_key(query, self.minutes)
+            except Exception:  # noqa: BLE001 - asked again, alone, and raised there
+                continue
+            if key and key not in self.rows:
+                keys.append(key)
+        self._load(keys)
+
+    def _load(self, keys: list) -> None:
+        keys = list(dict.fromkeys(keys))
+        if not keys:
+            return
+        try:
+            found = self.cache.rows_many(keys)
+        except Exception:  # noqa: BLE001 - each probe says what a failure reads as
+            log.exception("cache probe failed for %d tiles", len(keys))
+            for key in keys:
+                self.rows[key] = _PROBE_FAILED
+            return
+        for key in keys:
+            self.rows[key] = found.get(key)
+
+    def row(self, key: str):
+        if key not in self.rows:
+            self._load([key])
+        return self.rows[key]
+
+    def written(self, query: str) -> bool:
+        if not self.batch:
+            return _topic_is_written(query, self.minutes)
+        if not query:
+            return False
+        key = _browse_key(query, self.minutes)
+        if not key:
+            return False
+        row = self.row(key)
+        return bool(row is not None and row is not _PROBE_FAILED
+                    and row.holds(time.time()))
+
+    def written_at(self, query: str) -> Optional[float]:
+        if not query:
+            raise ValueError("a tile with no question cannot be dated")
+        if not self.batch:
+            key = _episode_key(_validated_plan(query, self.minutes))
+            if not key:
+                raise ValueError(f"no episode key for {query!r}")
+            return SCRIPT_CACHE.written_at(key)
+        key = _browse_key(query, self.minutes)
+        if not key:
+            raise ValueError(f"no episode key for {query!r}")
+        row = self.row(key)
+        if row is _PROBE_FAILED:
+            raise RuntimeError(f"could not read the cache for {query!r}")
+        return None if row is None else row.written_at(time.time())
+
+    def episode_info(self, query: str):
+        if not self.batch:
+            return _cached_episode(query, self.minutes)
+        if not query:
+            return None
+        key = _browse_key(query, self.minutes)
+        if not key:
+            return None
+        row = self.row(key)
+        if row is None or row is _PROBE_FAILED:
+            return None
+        now = time.time()
+        if not row.holds(now):
+            return None
+        try:
+            title = row.title_text(now)
+            found = provenance_mod.Provenance.from_json(row.sources_text(now))
+        except Exception:  # noqa: BLE001 - a browse row is never worth a 500
+            log.exception("cache probe failed; treating %r as unwritten", query)
+            return None
+        feeds = tuple(item.label for item in found.items
+                      if getattr(item, "kind", "") == provenance_mod.LIVE)
+        return topics_mod.CachedEpisode(title=title, live_feeds=feeds)
+
+
+def _written_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> already in the cache?` for one request.
 
     The rankers ask about every candidate they consider and the endpoint then
     asks again about the ones that survived, so the same handful of queries
     comes up several times on one page load. Each answer is a local SQLite
-    read - cheap, and cheaper still done once. Memoised per request rather
-    than globally, because "is this cached" is exactly the sort of answer that
-    must not be allowed to go stale.
+    read - cheap, and cheaper still done once, and cheaper again read in one
+    batch (`prime`, §548). Memoised per request rather than globally, because
+    "is this cached" is exactly the sort of answer that must not be allowed
+    to go stale.
     """
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, bool] = {}
 
     def probe(query: str) -> bool:
         key = query or ""
         if key not in answers:
-            answers[key] = _topic_is_written(key, minutes)
+            answers[key] = shared.written(key)
         return answers[key]
 
+    probe.prime = shared.prime
     return probe
 
 
-def _written_at_probe(minutes: int):
+def _written_at_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> when its live script was written, or None`, or
     None when this cache cannot say.
 
@@ -8294,37 +8533,36 @@ def _written_at_probe(minutes: int):
     reader = getattr(SCRIPT_CACHE, "written_at", None)
     if reader is None:
         return None
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, Optional[float]] = {}
 
     def probe(query: str) -> Optional[float]:
         if query not in answers:
-            if not query:
-                raise ValueError("a tile with no question cannot be dated")
-            key = _episode_key(_validated_plan(query, minutes))
-            if not key:
-                raise ValueError(f"no episode key for {query!r}")
-            answers[query] = reader(key)
+            answers[query] = shared.written_at(query)
         return answers[query]
 
+    probe.prime = shared.prime
     return probe
 
 
-def _episode_info_probe(minutes: int):
+def _episode_info_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> topics.CachedEpisode | None` for one request.
 
     What the three crowd rails read - they show cached episodes only, and
     "What you missed last week" also refuses one written from a live feed.
     None when the script is not in the cache at this length, which is also
-    the answer for anything unaskable. Two local reads per episode (the
-    sentences, then the title and provenance of a hit), never a model call.
+    the answer for anything unaskable. Read in batches (`prime`, §548), never
+    a model call.
     """
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, Optional[topics_mod.CachedEpisode]] = {}
 
     def probe(query: str) -> Optional[topics_mod.CachedEpisode]:
         if query not in answers:
-            answers[query] = _cached_episode(query, minutes)
+            answers[query] = shared.episode_info(query)
         return answers[query]
 
+    probe.prime = shared.prime
     return probe
 
 
@@ -9157,6 +9395,68 @@ class EventRequest(BaseModel):
     episode: str = Field("", max_length=80)
 
 
+def _draw_guest_myfam(user: str, minutes: int) -> dict:
+    """A guest's myFAM: the bank on every rail (see `myfam`). Synchronous, so
+    the endpoint draws it in a worker thread (§548)."""
+    SOCIAL.seen(user)
+    feed = topics_mod.guest_feed()
+    for section in feed["sections"]:
+        _mark_guest_tiles(section["topics"], minutes)
+    feed["minutes"] = minutes
+    feed["algo"] = EVENTS.algo_stamp()
+    return feed
+
+
+def _draw_myfam(request: Request, user: str, minutes: int, interests: str,
+                remembers: bool) -> dict:
+    """An account's myFAM, ranked and marked (see `myfam`). Synchronous and
+    awaits nothing, so the endpoint draws it in a worker thread (§548); it
+    reads the request's headers and nothing that needs the event loop."""
+    # One batch reader behind all three probes (§548): the rankers prime it
+    # with the tiles they are about to ask about, so a draw is a handful of
+    # cache statements rather than one per candidate.
+    shared = _FeedProbe(minutes)
+    written = _written_probe(minutes, shared)
+    place = _place_for(request)
+    circle = SOCIAL.circle_of(user)
+    feed = topics_mod.build_feed(
+        EVENTS, user, interests=_interests_for(request, interests),
+        circle=circle, written=written,
+        written_at=_written_at_probe(minutes, shared),
+        episode_info=_episode_info_probe(minutes, shared),
+        authored=_authored_by_circle(circle),
+        place=place.words, place_name=place.label,
+        has_account=_has_account(request),
+        country=_country_for(request, place))
+    # Every tile says whether it would replay or generate, the same way the
+    # "view more" screen already did. A listener browsing is choosing between
+    # things to hear, and "this one starts instantly" is a real difference
+    # between two of them - and it is free to say, because the ranking asked
+    # the same question a moment ago and this is the memoised answer.
+    for section in feed["sections"]:
+        section["topics"] = _drop_removed(user, section["topics"], minutes)
+        for topic in section["topics"]:
+            topic["cached"] = written(topic.get("query", ""))
+        _name_written_tiles(section["topics"], minutes)
+    feed["friend_faces"] = _mark_friends_listened(
+        user, [t for sec in feed["sections"] for t in sec["topics"]])
+    feed["minutes"] = minutes
+    # Logged here rather than inside build_feed, which stays a pure function of
+    # the log - the whole ranking design is "computed on read, never stored",
+    # and a ranker that writes cannot be tested by calling it. The impression
+    # is a fact about this *request*, so it belongs at the request boundary.
+    SOCIAL.seen(user)
+    if remembers:
+        EVENTS.record_impressions(
+            user,
+            [(section["key"], topic["id"])
+             for section in feed["sections"] for topic in section["topics"]],
+        )
+    feed["algo"] = EVENTS.algo_stamp()
+
+    return feed
+
+
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200),
                 minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
@@ -9193,13 +9493,8 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # impressions, which a guest does not keep anyway. A tap on one of these
     # tiles plays kept audio or asks for an account; see `_guest_play_gated`.
     if not _has_account(request):
-        SOCIAL.seen(user)
-        feed = topics_mod.guest_feed()
-        for section in feed["sections"]:
-            _mark_guest_tiles(section["topics"], minutes)
-        feed["minutes"] = minutes
-        feed["algo"] = EVENTS.algo_stamp()
-        return feed
+        # Off the event loop like an account's draw below (§548).
+        return await asyncio.to_thread(_draw_guest_myfam, user, minutes)
 
     # One refresh serves every listener, so this is scheduled rather than
     # awaited: myFAM renders from whatever the shared pool holds and stays
@@ -9226,43 +9521,15 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         # normal.
         asyncio.create_task(_warm_stories())
 
-    written = _written_probe(minutes)
-    place = _place_for(request)
-    circle = SOCIAL.circle_of(user)
-    feed = topics_mod.build_feed(
-        EVENTS, user, interests=_interests_for(request, interests),
-        circle=circle, written=written,
-        written_at=_written_at_probe(minutes),
-        episode_info=_episode_info_probe(minutes),
-        authored=_authored_by_circle(circle),
-        place=place.words, place_name=place.label,
-        has_account=_has_account(request),
-        country=_country_for(request, place))
-    # Every tile says whether it would replay or generate, the same way the
-    # "view more" screen already did. A listener browsing is choosing between
-    # things to hear, and "this one starts instantly" is a real difference
-    # between two of them - and it is free to say, because the ranking asked
-    # the same question a moment ago and this is the memoised answer.
-    for section in feed["sections"]:
-        section["topics"] = _drop_removed(user, section["topics"], minutes)
-        for topic in section["topics"]:
-            topic["cached"] = written(topic.get("query", ""))
-        _name_written_tiles(section["topics"], minutes)
-    feed["friend_faces"] = _mark_friends_listened(
-        user, [t for sec in feed["sections"] for t in sec["topics"]])
-    feed["minutes"] = minutes
-    # Logged here rather than inside build_feed, which stays a pure function of
-    # the log - the whole ranking design is "computed on read, never stored",
-    # and a ranker that writes cannot be tested by calling it. The impression
-    # is a fact about this *request*, so it belongs at the request boundary.
-    SOCIAL.seen(user)
-    if _remembers(request):
-        EVENTS.record_impressions(
-            user,
-            [(section["key"], topic["id"])
-             for section in feed["sections"] for topic in section["topics"]],
-        )
-    feed["algo"] = EVENTS.algo_stamp()
+    # **Drawn off the event loop** (§548). Ranking is a few hundred
+    # milliseconds of reads and arithmetic with nothing to await, and on the
+    # loop it held up every other request on this worker - a launch's
+    # client-status, health and auth waited for somebody else's page. In a
+    # worker thread it costs this request what it always did and nobody else
+    # anything: every store keeps a connection per thread (`_conn`), and the
+    # shared memos it touches are written whole or under a lock.
+    feed = await asyncio.to_thread(_draw_myfam, request, user, minutes,
+                                   interests, _remembers(request))
 
     # Guess what this listener might tap, and pay for the *understanding* of it
     # now rather than when they are waiting (PROBLEMS.md §105).
@@ -9277,7 +9544,10 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # `minutes` is passed because it is part of the key. The browse length is
     # this header's own control, so warming at the interface default would
     # produce briefs nobody ever looks up for any listener who changed it.
-    prefetch.schedule_cycle(user, minutes)
+    #
+    # And the page itself, so the feed source warms what was just shown
+    # rather than drawing it a second time on the loop (§548).
+    prefetch.schedule_cycle(user, minutes, feed)
     return feed
 
 
@@ -10518,12 +10788,13 @@ def _explore_rail_entries(request: Request, listener: str, feed: str,
         else:
             place = _place_for(request)
             circle = SOCIAL.circle_of(listener)
+            shared = _FeedProbe(BROWSE_MINUTES)
             tiles = topics_mod.build_section(
                 EVENTS, listener, key,
                 interests=_interests_for(request, ""), circle=circle,
-                written=_written_probe(BROWSE_MINUTES),
-                written_at=_written_at_probe(BROWSE_MINUTES),
-                episode_info=_episode_info_probe(BROWSE_MINUTES),
+                written=_written_probe(BROWSE_MINUTES, shared),
+                written_at=_written_at_probe(BROWSE_MINUTES, shared),
+                episode_info=_episode_info_probe(BROWSE_MINUTES, shared),
                 authored=_authored_by_circle(circle),
                 place=place.words, place_name=place.label,
                 has_account=True,

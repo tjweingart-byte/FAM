@@ -569,7 +569,7 @@ class Prefetcher:
 
     # --- what to warm ------------------------------------------------------
     def plan(self, listener: str = "", limit: int = 0,
-             minutes: int = 0) -> list:
+             minutes: int = 0, feed: Optional[dict] = None) -> list:
         """Candidates to warm, best first, deduped and already-cached removed.
 
         Sources are **interleaved**, not concatenated, so one source cannot
@@ -587,7 +587,13 @@ class Prefetcher:
         what a cycle run from a tool or a test wants.
         """
         limit = limit or settings.prefetch_per_cycle
-        per_source = [list(s.candidates(listener, limit) or []) for s in _SOURCES]
+        # `feed` is the page that scheduled this cycle, when one did (§548):
+        # a source that reads the feed (`takes_feed`) is handed it rather
+        # than drawing the same page a second time.
+        per_source = [list((s.candidates(listener, limit, feed=feed)
+                            if feed is not None and getattr(s, "takes_feed", False)
+                            else s.candidates(listener, limit)) or [])
+                      for s in _SOURCES]
 
         interleaved: list = []
         for rank in range(limit):
@@ -845,7 +851,8 @@ class Prefetcher:
         return bucket_for(plan)
 
     # --- a cycle -----------------------------------------------------------
-    async def run_once(self, listener: str = "", minutes: int = 0) -> dict:
+    async def run_once(self, listener: str = "", minutes: int = 0,
+                       feed: Optional[dict] = None) -> dict:
         """Warm one cycle's worth. Returns what happened to each candidate.
 
         Stops early on `budget` or `busy` - both mean every later candidate
@@ -860,7 +867,7 @@ class Prefetcher:
         self._running = True
         outcomes: dict = {}
         try:
-            for candidate in self.plan(listener, minutes=minutes):
+            for candidate in self.plan(listener, minutes=minutes, feed=feed):
                 result = await self.warm(candidate)
                 outcomes[result] = outcomes.get(result, 0) + 1
                 if result in ("budget", "busy", "off"):
@@ -972,7 +979,8 @@ def warm_brief(query: str, minutes: int, context: str = ""):
     return item.brief
 
 
-def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
+def schedule_cycle(listener: str = "", minutes: int = 0,
+                   feed: Optional[dict] = None) -> bool:
     """Warm a cycle in the background. Returns whether one was started.
 
     **The thing that was missing.** `run_once` has existed since the framework
@@ -993,6 +1001,10 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
     * **It refuses cheaply and often.** Off, no prefetcher, no running loop,
       or this listener warmed recently - each is a dictionary lookup or a
       subtraction, because this runs on every page draw.
+
+    `feed` is the page just drawn for this listener (§548). The feed source
+    reads it instead of building the same page again on the loop; only the
+    rails' keys, titles and each tile's id and question are kept.
     """
     if _PREFETCHER is None or not settings.prefetch:
         return False
@@ -1018,6 +1030,13 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
     # Before the task rather than after it, so a page drawn twice in the same
     # tick schedules one cycle and not two.
     pf.note_cycle(listener)
+    drawn = None
+    if feed is not None:
+        drawn = {"sections": [
+            {"key": sec.get("key", ""), "title": sec.get("title", ""),
+             "topics": [{"id": t.get("id", ""), "query": t.get("query", "")}
+                        for t in sec.get("topics", [])]}
+            for sec in feed.get("sections", [])]}
 
     async def _cycle() -> None:
         # Started by a page draw, written for everybody: never on the clock of
@@ -1028,7 +1047,9 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
 
         metering.attribute_task("prefetch")
         try:
-            outcome = await pf.run_once(listener, minutes=minutes)
+            outcome = await pf.run_once(
+                listener, minutes=minutes,
+                **({"feed": drawn} if drawn is not None else {}))
             if outcome.get("outcomes"):
                 log.info("prefetch cycle for %s: %s", listener or "everybody",
                          outcome["outcomes"])
