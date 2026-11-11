@@ -1347,10 +1347,6 @@
   #screen-player .player-top .go-deeper-pill{ margin:0 auto; padding:8px 34px; font-size:13px;
     line-height:1.2; }
   #screen-player .p-demo{ position:absolute; top:6px; left:50%; transform:translateX(-50%); }
-  /* Share, vibe and save, one above another on the right, above the
-     transport (10.2 packet). The captions hang under each circle. */
-  /* Lifted clear of the title row (11.9 packet, §519): at 10px the SAVE
-     caption sat on the sources pill below it. */
   /* Friends who listened (11.11 note): the card's faces pill, top left of
      the picture, where the owner's mock-up put it; under the captions. The
      picture is centred in the stage and 4:3 of the stage's width plus the
@@ -1370,6 +1366,10 @@
   .p-friends .friend-face{ width:26px; height:26px; font-size:10px; }
   .p-friends .src-marks .src-mark{ border-color:rgba(20,18,28,0.9); }
   .p-friends .src-mark img{ opacity:0; }
+  /* Share, vibe and save, one above another on the right, above the
+     transport (10.2 packet). The captions hang under each circle. */
+  /* Lifted clear of the title row (11.9 packet, §519): at 10px the SAVE
+     caption sat on the sources pill below it. */
   .p-side{ position:absolute; right:16px; bottom:34px; display:flex; flex-direction:column;
     align-items:center; gap:24px; padding-bottom:12px; }
   /* They sit on the picture, so they carry their own contrast whatever it
@@ -1713,8 +1713,6 @@
     background:var(--border-strong); }
   .gd-bar span{ display:block; height:100%; background:var(--copper); }
 
-  /* Section headings speak instead of labelling: a sentence about why these
-     are here, in the display face rather than a mono kicker. */
   /* A rail's heading and its Play all (11.11 note). The heading keeps at
      least 12em of the row - em, so larger phone text needs more - and Play
      all wraps under it rather than squeezing it (§499). */
@@ -1726,6 +1724,8 @@
     background:var(--copper); color:var(--ink); cursor:pointer;
     font-family:'Geist Mono', monospace; font-size:10px; font-weight:700;
     letter-spacing:0.1em; text-transform:uppercase; white-space:nowrap; }
+  /* Section headings speak instead of labelling: a sentence about why these
+     are here, in the display face rather than a mono kicker. */
   .feed-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:400; font-size:20px;
     line-height:1.25; color:var(--text); margin:26px 0 12px; text-wrap:balance; }
   /* A rail whose heading opens something says so. Without this the tap target

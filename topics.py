@@ -4583,7 +4583,8 @@ def rank_friends(
 
 def friends_who_listened(store: EventStore, friends: Iterable[str],
                          tiles: Iterable[dict], now: Optional[float] = None,
-                         window: float = FRIENDS_WINDOW
+                         window: float = FRIENDS_WINDOW,
+                         untiled: Optional[Iterable[str]] = None
                          ) -> dict[str, list[str]]:
     """**Which of your friends listened to each tile**, most recent first -
     the faces on DailyFAM's cards (the owner's 10.31 notebook, then their
@@ -4599,6 +4600,12 @@ def friends_who_listened(store: EventStore, friends: Iterable[str],
 
     Returns tile id -> friend ids, newest listen first, with tiles nobody
     listened to left out: a card never shows an empty row of faces.
+
+    `untiled`, when given, is who may be counted for a listen with no tile
+    id - a search or a replay - and nobody else is (§541): the player asks
+    about any question, so a friend's own search shows only if they made
+    their searches public, the rule the player's searcher follows (§282).
+    None counts everyone, as the cards always have.
     """
     friends = {u for u in friends if u}
     tiles = [t for t in tiles if t.get("id")]
@@ -4612,7 +4619,10 @@ def friends_who_listened(store: EventStore, friends: Iterable[str],
             if r[0] in friends]
     # A face is a friend who heard it (§433), never one who only tapped it.
     heard = _heard_pairs(rows, known, store.heard_since(now - window))
+    open_to = None if untiled is None else set(untiled)
     for user, topic_id, text, at, *_kind in rows:
+        if open_to is not None and not topic_id and user not in open_to:
+            continue
         query = text or (known[topic_id].query if topic_id in known else "")
         norm = _norm_question(query)
         if (user, norm) not in heard:

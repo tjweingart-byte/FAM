@@ -8065,7 +8065,8 @@ async def myfam_section(request: Request,
     return body
 
 
-def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
+def _mark_friends_listened(user: str, tiles: list[dict],
+                           public_searches_only: bool = False) -> list[dict]:
     """Who of your friends listened, on a DailyFAM card (the owner's 10.31
     notebook; faces in place of "N friends listened" at the owner's
     direction): `friends_listened` (the count, kept for installed clients)
@@ -8078,12 +8079,19 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     picture is up to `social.MAX_AVATAR` and one friend may be on a dozen
     cards. Name, handle, picture and the E mark (`explicit`, §224) only -
     what a friend's own profile already shows a friend - and never an id. A tile nobody listened to
-    carries no field. Never raises: social proof is never worth a page."""
+    carries no field. Never raises: social proof is never worth a page.
+
+    `public_searches_only` (the player, §541): a friend's listen with no
+    tile behind it - their own search, a replay - counts only if they made
+    their searches public (`searches_public`, §282)."""
     if not user or not tiles:
         return []
     try:
         people = {p["user_id"]: p for p in SOCIAL.friends(user)}
-        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles)
+        untiled = ([uid for uid in people if PREFS.get(uid).searches_public]
+                   if public_searches_only else None)
+        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles,
+                                                   untiled=untiled)
     except Exception:  # noqa: BLE001 - the cards draw without it
         log.exception("could not read friends' listens")
         return []
@@ -8116,13 +8124,16 @@ async def listened(request: Request,
     note): the same faces a DailyFAM card shows (`_mark_friends_listened`),
     for whatever episode is playing, matched by its normalised question the
     way every listen count is. Friends only, an account only, and an empty
-    answer rather than an error: social proof is never worth a page."""
+    answer rather than an error: social proof is never worth a page. It
+    answers any question, so a friend's own search shows only if their
+    searches are public (§282) - or anyone could learn what a friend
+    searched by searching it."""
     _read_limit(request)
     user = _listener(request)
     if not user or not _has_account(request) or not q.strip():
         return {"count": 0, "faces": []}
     tile = {"id": "_player", "query": q.strip()}
-    faces = _mark_friends_listened(user, [tile])
+    faces = _mark_friends_listened(user, [tile], public_searches_only=True)
     shown = [faces[i] for i in tile.get("friends_faces", []) if i < len(faces)]
     return {"count": int(tile.get("friends_listened") or 0), "faces": shown}
 
