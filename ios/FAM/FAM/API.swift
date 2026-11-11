@@ -166,6 +166,15 @@ final class FAMAPI: @unchecked Sendable {
         return try await get("api/v1/myfam/section", items, as: SectionPage.self)
     }
 
+    /// Who of your friends listened to the episode playing (§543,
+    /// `/api/listened`): the faces a DailyFAM card shows, for any question,
+    /// matched as every listen count is. An account only; an empty answer
+    /// rather than an error.
+    func listened(query: String) async throws -> ListenedPage {
+        try await get("api/v1/listened", [URLQueryItem(name: "q", value: String(query.prefix(600)))],
+                      as: ListenedPage.self)
+    }
+
     /// Pick up where you left off (`/api/godeeper`).
     func pickUp() async throws -> PickUpPage {
         try await get("api/v1/godeeper", [], as: PickUpPage.self)
@@ -716,6 +725,14 @@ struct FriendFace: Decodable, Hashable {
     let avatar: String?
     /// The E mark before a flagged name (§224).
     let explicit: Bool?
+}
+
+/// `/api/listened` (§543): the friends who listened to one question -
+/// `count` all of them, `faces` the newest first. Lenient: anything
+/// missing decodes as nobody.
+struct ListenedPage: Decodable {
+    let count: Int?
+    let faces: [FriendFace]?
 }
 
 /// `/api/myfam/section`.

@@ -1,3 +1,4 @@
+import BackgroundTasks
 import FAMSafety
 import GoogleSignIn
 import SwiftUI
@@ -6,8 +7,8 @@ import SwiftUI
 struct FAMApp: App {
     @StateObject private var model = AppModel()
     /// Settings' "Dark mode", on this device only (the web's `fam.theme`):
-    /// light unless it says dark (§250).
-    @AppStorage(FAMTheme.key) private var theme = FAMTheme.light
+    /// dark unless it says light (§546).
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
     init() {
         // A proper picture cache (a faster start): the cards' pictures
@@ -59,6 +60,12 @@ struct FAMApp: App {
                     model.openLink(url)
                 }
         }
+        // The remembered DailyFAM page, refreshed while the app is closed
+        // (`FeedRefresh`, iOS only): registered here, before launch ends,
+        // and asked for each time the app goes to the background.
+        .backgroundTask(.appRefresh(FeedRefresh.identifier)) {
+            await FeedRefresh.run()
+        }
     }
 }
 
@@ -99,6 +106,9 @@ struct RootView: View {
             .onChange(of: scenePhase) { _, new in
                 if new == .background {
                     wentAway = true
+                    // The next background refresh of the DailyFAM page
+                    // (`FeedRefresh`): only for an account let in.
+                    FeedRefresh.schedule()
                 } else if new == .active && wentAway {
                     wentAway = false
                     model.cameToFront()

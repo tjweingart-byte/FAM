@@ -537,3 +537,4 @@ and `limit` = Lines.
 | 33595 | 42 | 543. Play all on a rail; friends' faces on the player (2026-11-11) |
 | 33637 | 33 | 544. A mix card in the list is its picture, its name and an arrow (2026-11-10) |
 | 33670 | 98 | 545. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11) |
+| 33768 | 63 | 546. The app starts dark, and draws itself before the server answers (2026-11-11) |
