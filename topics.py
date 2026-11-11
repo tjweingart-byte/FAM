@@ -4602,7 +4602,7 @@ def friends_who_listened(store: EventStore, friends: Iterable[str],
     listened to left out: a card never shows an empty row of faces.
 
     `untiled`, when given, is who may be counted for a listen with no tile
-    id - a search or a replay - and nobody else is (§541): the player asks
+    id - a search or a replay - and nobody else is (§542): the player asks
     about any question, so a friend's own search shows only if they made
     their searches public, the rule the player's searcher follows (§282).
     None counts everyone, as the cards always have.

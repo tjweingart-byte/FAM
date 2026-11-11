@@ -4424,9 +4424,10 @@ def _landing_template() -> str:
 def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
     """What iOS reads from this domain to trust the app (APP_STORE.md).
 
-    `applinks`: a shared episode (`/s/<id>`) or mix (`/m/<id>`) opens in the
-    app when it is installed, and in the browser - the landing page, which
-    plays it - when it is not. `webcredentials`: the app may offer a FAM
+    `applinks`: a shared episode (`/s/<id>`), a mix (`/m/<id>`) or a joint
+    mix's invite (`/j/<token>`, §541) opens in the app when it is installed,
+    and in the browser - the landing page, which plays it, or the web app,
+    which joins the mix - when it is not. `webcredentials`: the app may offer a FAM
     password saved in iCloud Keychain. None until both ids are configured.
     """
     if not (team_id and bundle_id):
@@ -4435,7 +4436,7 @@ def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
     return {
         "applinks": {"details": [{
             "appIDs": [app_id],
-            "components": [{"/": "/s/*"}, {"/": "/m/*"}],
+            "components": [{"/": "/s/*"}, {"/": "/m/*"}, {"/": "/j/*"}],
         }]},
         "webcredentials": {"apps": [app_id]},
     }
@@ -8081,7 +8082,7 @@ def _mark_friends_listened(user: str, tiles: list[dict],
     what a friend's own profile already shows a friend - and never an id. A tile nobody listened to
     carries no field. Never raises: social proof is never worth a page.
 
-    `public_searches_only` (the player, §541): a friend's listen with no
+    `public_searches_only` (the player, §542): a friend's listen with no
     tile behind it - their own search, a replay - counts only if they made
     their searches public (`searches_public`, §282)."""
     if not user or not tiles:

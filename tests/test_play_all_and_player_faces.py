@@ -34,6 +34,9 @@ def test_listened_names_friends_by_the_question(monkeypatch, tmp_path):
     people = [{"user_id": "u1", "name": "Ana", "handle": "ana", "avatar": ""},
               {"user_id": "u2", "name": "Ben", "handle": "ben", "avatar": ""}]
     monkeypatch.setattr(appmod.SOCIAL, "friends", lambda user, limit=500: people)
+    # Their searches are public, so their own searches may show (§282).
+    monkeypatch.setattr(appmod.PREFS, "get", lambda uid: type(
+        "P", (), {"searches_public": True})())
     monkeypatch.setattr(appmod, "_listener", lambda r: "me")
     monkeypatch.setattr(appmod, "_has_account", lambda r: True)
     monkeypatch.setattr(appmod, "_read_limit", lambda r: None)
@@ -89,3 +92,30 @@ def test_play_all_never_squeezes_the_heading():
     css = INDEX.split(".feed-head{", 1)[1].split("}", 1)[0]
     assert "flex-wrap:wrap" in css
     assert ".feed-head .feed-title{ flex:1 1 12em;" in INDEX
+
+
+def test_a_friends_own_search_shows_only_if_their_searches_are_public(monkeypatch, tmp_path):
+    store = T.EventStore(str(tmp_path / "e.db"))
+    monkeypatch.setattr(appmod, "EVENTS", store)
+    people = [{"user_id": "pub", "name": "Pub", "handle": "pub", "avatar": ""},
+              {"user_id": "shy", "name": "Shy", "handle": "shy", "avatar": ""},
+              {"user_id": "tile", "name": "Tile", "handle": "tile", "avatar": ""}]
+    monkeypatch.setattr(appmod.SOCIAL, "friends", lambda user, limit=500: people)
+    monkeypatch.setattr(appmod.PREFS, "get", lambda uid: type(
+        "P", (), {"searches_public": uid == "pub"})())
+    monkeypatch.setattr(appmod, "_listener", lambda r: "me")
+    monkeypatch.setattr(appmod, "_has_account", lambda r: True)
+    monkeypatch.setattr(appmod, "_read_limit", lambda r: None)
+    now = time.time()
+    q = "a rash that will not go away"
+    # Two friends searched it (no tile id); one played it from a tile.
+    for who, topic in (("pub", ""), ("shy", ""), ("tile", "t1")):
+        store.record(T.Event(who, "play", topic, q, at=now - 100))
+        store.mark_heard(who, q, now - 40)
+    got = asyncio.run(appmod.listened(_Req(), q=q))
+    assert sorted(f["handle"] for f in got["faces"]) == ["pub", "tile"]
+    assert got["count"] == 2
+    # The cards count everyone, as they always have.
+    tile = {"id": "t1", "query": q}
+    appmod._mark_friends_listened("me", [tile])
+    assert tile["friends_listened"] == 3
