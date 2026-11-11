@@ -820,6 +820,7 @@ final class AppModel: ObservableObject {
         entry = nil
         showPlayer = false
         nowPlaying.stopped()
+        nowPlaying.tileFriends = [:]
         consent.forget()
         rails = []
         mixes.reset()
@@ -843,6 +844,8 @@ final class AppModel: ObservableObject {
         attachments.clear()
         if voiceSearch.isOpen { voiceSearch.close(sending: true) }
         UserDefaults.standard.removeObject(forKey: Self.readyKey)
+        // No DailyFAM page is fetched for nobody while the app is closed.
+        FeedRefresh.cancel()
         stage = .signedOut
     }
 
@@ -1211,15 +1214,69 @@ final class AppModel: ObservableObject {
     /// A DailyFAM tile: written ahead, at the browse length (`op-taste-scoring`),
     /// behind the tuning dial (§509, `startBankTopic`): no steps, audio
     /// never held. `railKey` is the rail the card was tapped on.
-    func play(_ tile: Tile, railKey: String = "") {
+    /// `faces` is the face book of the page the card is on, so the player
+    /// draws the tile's friends at once (§543); none leaves it to ask.
+    func play(_ tile: Tile, railKey: String = "", faces: [FriendFace] = []) {
         if isOffline && !isKept(tile) {
             nowPlaying.say("You\u{2019}re offline, and this one isn\u{2019}t on your device yet")
             return
         }
+        if !faces.isEmpty { noteTileFaces(tile, faces: faces) }
         let ep = Episode(key: EpisodeKey(query: tile.query, minutes: FAMAPI.browseMinutes),
                          title: tile.title, surface: "myfam", topicID: tile.id,
                          picture: api.picture(tile.thumb))
         startPlaying(ep, dial: dial(for: tile, railKey: railKey))
+    }
+
+    /// A tile's friends who listened, resolved against its page's face
+    /// book and kept by its id for the player (§543, `myFamTopics`).
+    func noteTileFaces(_ tile: Tile, faces: [FriendFace]) {
+        var shown: [FriendFace] = []
+        for i in tile.friendsFaces where faces.indices.contains(i) {
+            shown.append(faces[i])
+        }
+        if shown.isEmpty {
+            nowPlaying.tileFriends[tile.id] = nil
+            return
+        }
+        let count = max(shown.count, tile.friendsListened)
+        nowPlaying.tileFriends[tile.id] = NowPlayingModel.PlayerFriends(count: count, faces: shown)
+    }
+
+    /// **Play all on a rail** (§543, `playRailAll`): the first tile plays
+    /// exactly as a tap on it does (the dial, the browse length) and the
+    /// rest of the rail goes into the ordinary queue behind it, marked
+    /// `fromRail`, so the full player plays each straight after the last,
+    /// the Queue shows them and each can be taken out. Like a category's
+    /// Play all, a second Play all replaces what the first queued, anything
+    /// else starting ends it (`startPlaying` → `dropCategoryQueue`), and
+    /// what the listener queued themselves stays. Offline, only what is on
+    /// this phone. (The web's guest rule - only tiles already made - has
+    /// nothing to act on here: the app is an account's alone.)
+    func playRailAll(_ railKey: String) {
+        let all = rails.first(where: { $0.key == railKey })?.topics ?? []
+        var tiles: [Tile] = []
+        for t in all {
+            if t.id.isEmpty || t.query.isEmpty { continue }
+            if isOffline && !isKept(t) { continue }
+            tiles.append(t)
+        }
+        guard let first = tiles.first else {
+            nowPlaying.say(isOffline ? "None of these are on your device yet" : "Nothing to play here yet")
+            return
+        }
+        // A second Play all replaces what the first (or a category) queued.
+        nowPlaying.dropCategoryQueue()
+        for t in tiles { noteTileFaces(t, faces: friendFaces) }
+        play(first, railKey: railKey)
+        var rest: [Episode] = []
+        for t in tiles.dropFirst() {
+            // `title: t.title || t.query`, as the web's queue entry.
+            var ep = episode(for: t)
+            if ep.title.isEmpty { ep.title = t.query }
+            rest.append(ep)
+        }
+        nowPlaying.replaceRailQueue(rest)
     }
 
     /// What the dial shows (`paintLoadingVariant("dial")`): the heading of

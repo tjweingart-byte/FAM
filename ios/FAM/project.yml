@@ -83,7 +83,11 @@ targets:
         # app can read the device's "Dark mode" (`fam.theme`).
         UILaunchScreen:
           UIColorName: LaunchBackground
-        UIBackgroundModes: [audio]
+        # Audio keeps an episode playing; fetch lets iOS wake the app now
+        # and then to refresh the remembered DailyFAM page (`FeedRefresh`,
+        # §544) - one read of /api/v1/myfam, nothing else.
+        UIBackgroundModes: [audio, fetch]
+        BGTaskSchedulerPermittedIdentifiers: [net.familiarize.fam.feed]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true

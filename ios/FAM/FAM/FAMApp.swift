@@ -1,3 +1,4 @@
+import BackgroundTasks
 import FAMSafety
 import GoogleSignIn
 import SwiftUI
@@ -59,6 +60,12 @@ struct FAMApp: App {
                     model.openLink(url)
                 }
         }
+        // The remembered DailyFAM page, refreshed while the app is closed
+        // (`FeedRefresh`, iOS only): registered here, before launch ends,
+        // and asked for each time the app goes to the background.
+        .backgroundTask(.appRefresh(FeedRefresh.identifier)) {
+            await FeedRefresh.run()
+        }
     }
 }
 
@@ -99,6 +106,9 @@ struct RootView: View {
             .onChange(of: scenePhase) { _, new in
                 if new == .background {
                     wentAway = true
+                    // The next background refresh of the DailyFAM page
+                    // (`FeedRefresh`): only for an account let in.
+                    FeedRefresh.schedule()
                 } else if new == .active && wentAway {
                     wentAway = false
                     model.cameToFront()

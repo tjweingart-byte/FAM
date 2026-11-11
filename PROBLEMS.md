@@ -33664,3 +33664,35 @@ lands. The first feed still waits on that answer (`firstFeed` awaits
 call), and the first-run steps and the Terms check run after it without
 holding the feed. The first open after updating behaves as before, once.
 
+
+**The DailyFAM page refreshed while the app is closed (iOS only).** To make
+the first open faster still, the remembered page is kept recent in the
+background: `FeedRefresh` (a `BGAppRefreshTask`, `net.familiarize.fam.feed`,
+registered with SwiftUI's `.backgroundTask(.appRefresh(...))`; `fetch` beside
+`audio` in `UIBackgroundModes`, the id under
+`BGTaskSchedulerPermittedIdentifiers`). The next run is asked for, no sooner
+than an hour away, each time the app goes to the background and after every
+run; iOS decides when it comes. A run is one read - `FAMAPI.railsData()`,
+the same `/api/v1/myfam` query with the Keychain's token and the read pace's
+one patient retry - kept with the same `rememberFeed` a successful draw uses,
+only if it decodes, and only while a token exists and the account was last
+let in (`AppModel.readyKey`, asked again before keeping); a sign-out cancels
+the request. Nothing on the audio path, no episode, no event; a failure keeps
+nothing. A page refreshed this way is drawn at the next open by
+`showRememberedFeed`, and the fresh feed replaces it as before.
+
+**§543 in the iOS app.** Every DailyFAM rail with episodes has the web's Play
+all pill beside its heading (`RailPlayAll`, `RailHeadLayout`: the heading
+keeps 12 em, scaled with the text, and the pill wraps under it when it would
+not). `AppModel.playRailAll` plays the first tile exactly as a tap does (the
+dial, the browse length) and queues the rest (`NowPlayingModel.replaceRailQueue`,
+`fromRail`): a second Play all replaces them and a category's, anything else
+starting drops them with a category's (`dropCategoryQueue`), and what the
+listener queued stays. Offline, only tiles on the phone ("None of these are on
+your device yet"); the web's guest rule has nothing to act on, the app being
+an account's alone. The friends who listened show top left of the player's
+picture, under the captions (`PlayerFriendsPill`): a DailyFAM tap hands over
+the tile's own faces (`AppModel.noteTileFaces`), anything else asks
+`/api/v1/listened` (`ListenedPage`), never for a private search or an
+attached episode; a tap opens the same "N friends listened" card, whose
+profile rows take the player down first. Unbuilt here (no Swift compiler).
