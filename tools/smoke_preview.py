@@ -2931,7 +2931,9 @@ def main() -> int:
             page.click("#dailySearchX")
             page.wait_for_timeout(300)
             listed = page.inner_text("#mixList").lower()
-            assert "morning brief" in listed and "from @mike" in listed, listed[:400]
+            # The copy is in the list, drawn like any mix card: picture, name,
+            # arrow - no "from @mike" on the card since §544.
+            assert "morning brief" in listed and "from @mike" not in listed, listed[:400]
             # And on somebody's profile, the same (+).
             page.evaluate("openPersonProfile('beth', {name: 'Beth Solomon'})")
             page.wait_for_function("personMixes.length > 0", timeout=5000)

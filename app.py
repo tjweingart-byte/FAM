@@ -6615,14 +6615,19 @@ async def list_mixes(request: Request):
     # can only refuse (`old-clients`).
     wants_joint = request.query_params.get("joint") == "1"
     joint = MIXES.joint_ids([m.id for m in own])
+    # A mix added from somebody else's says whose it was; a joint mix
+    # (11.7 packet) says who is in it and who added what - the ones this
+    # listener owns, then the ones they were invited into.
+    shown = list(own) + ([m for m in MIXES.joined(user)
+                          if not MODERATION.is_apart(m.user_id, user)]
+                         if wants_joint else [])
+    # One read of the listening history for every mix's signals (§545).
+    history = _mix_history(user)
     return {
-        # A mix added from somebody else's says whose it was; a joint mix
-        # (11.7 packet) says who is in it and who added what - the ones this
-        # listener owns, then the ones they were invited into.
-        "mixes": [_mix_out(m, user, people, m.id in joint) for m in own]
-                 + ([_mix_out(m, user, people, True) for m in MIXES.joined(user)
-                     if not MODERATION.is_apart(m.user_id, user)]
-                    if wants_joint else []),
+        # Each with its pictures and what changed since this listener last
+        # heard it (§545), via `_mix_out`.
+        "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user, history)
+                  for m in shown],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
@@ -6813,7 +6818,31 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
     return out
 
 
-def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
+def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None) -> dict:
+    """One mix as this viewer sees it, with each topic's picture and what
+    changed since they last heard it (§545) - on every route that answers
+    with a mix, so adding or reordering a topic never drops either.
+
+    `history` is the viewer's listening history when the caller has already
+    read it (the list reads it once for every mix); None reads it here."""
+    body = _mix_body(mix, viewer, people, joint)
+    _mix_pictures(mix, body)
+    _mix_signals(viewer, [(mix, body)], history)
+    return body
+
+
+def _mix_pictures(mix, body: dict) -> None:
+    """Each topic row's picture (§545): the player's own picker over the
+    item's words, so a row, its episode in the player and the card that
+    leads with it never disagree. "" when nothing is approved; the client
+    draws the subject's icon. Never fails the mix."""
+    for item, out in zip(mix.items, body.get("items") or ()):
+        words = item.title if item.title.lower() in (item.query or "").lower() else \
+            f"{item.query} {item.title}".strip()
+        out["picture"] = _picture_url(words, item.title)
+
+
+def _mix_body(mix, viewer: str, people: dict, joint: bool) -> dict:
     """One mix as this viewer sees it.
 
     The owner sees everything (`as_dict`); a member of a joint mix sees what
@@ -6847,6 +6876,91 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
         if who in index:
             out["added_by"] = index[who]
     return body
+
+
+def _mix_history(user: str) -> list:
+    """The listening history `_mix_signals` reads; [] when it cannot be read
+    (a signal is never worth an error)."""
+    try:
+        return SAVED.history(user, limit=400) if user else []
+    except Exception:  # noqa: BLE001
+        log.exception("could not read the history for mix signals")
+        return []
+
+
+def _mix_signals(user: str, pairs: list, history=None) -> None:
+    """Mark what changed in each mix since this listener last heard it (§545).
+
+    `pairs` is `[(Mix, served dict), ...]`; each served dict gains `signal`
+    (R5 on the card: kind, label, topic, headline, picture) when one of its
+    items has one, and each such item gains `signal` and `since` (Q5's
+    bubbles). A read of what is held - the listening history, the Trending
+    edition and story pool in memory, the script cache - so nothing here
+    waits or writes, and **nothing here may fail the list**: any error leaves
+    the mixes as they were and is logged.
+    """
+    from datetime import datetime
+
+    import signals as signals_mod
+
+    try:
+        now = time.time()
+        rows = _mix_history(user) if history is None else history
+        heard_by_query: dict = {}
+        for row in rows:                       # newest first: keep the first
+            heard_by_query.setdefault(normalize_query(row.get("query") or ""), row)
+        edition = trending_bank.stories_in_memory(now)
+        try:
+            pool = stories_mod.pool().held(now)
+        except Exception:  # noqa: BLE001 - no pool is no trending, not an error
+            pool = []
+        zone = listener_clock.zone()
+        for mix, body in pairs:
+            found_all = []
+            for item, out in zip(mix.items, body.get("items") or ()):
+                if not getattr(item, "follow", False):
+                    continue
+                prompt = out.get("prompt") or ""
+                heard = signals_mod.Heard()
+                if normalize_query(prompt) in heard_by_query:
+                    heard.today = True
+                else:
+                    for earlier in mixes_mod.earlier_prompts(prompt, signals_mod.SINCE_DAYS):
+                        row = heard_by_query.get(normalize_query(earlier))
+                        if row:
+                            heard.at = float(row.get("at") or 0.0)
+                            heard.title = (row.get("title") or "").strip()
+                            break
+                found = signals_mod.item_signal(item, edition, pool, heard, now)
+                if found is None:
+                    continue
+                found_all.append(found)
+                out["signal"] = {"kind": found.kind, "label": signals_mod.LABELS[found.kind],
+                                 "headline": found.headline}
+                day = (datetime.fromtimestamp(heard.at, zone).strftime("%a")
+                       if heard.at else "")
+                out["since"] = signals_mod.bubbles(
+                    heard, _today_title(prompt, out.get("minutes")) or found.headline, day)
+            best = signals_mod.strongest(found_all)
+            if best is not None:
+                best.picture = _picture_url(best.query, best.headline)
+                body["signal"] = best.card()
+    except Exception:  # noqa: BLE001 - a signal is never worth the mixes list
+        log.exception("could not work out what changed in this listener's mixes")
+
+
+def _today_title(prompt: str, minutes) -> str:
+    """The title of today's episode of a mix item, when it is written; ""
+    otherwise. A cache read, never a write."""
+    if not prompt or SCRIPT_CACHE is None:
+        return ""
+    try:
+        key = _episode_key(_validated_plan(prompt, as_minutes(minutes or BROWSE_MINUTES)))
+        if not key or not _cache_holds(key):
+            return ""
+        return (SCRIPT_CACHE.title(key) or "").strip()
+    except Exception:  # noqa: BLE001 - a missing title is no title
+        return ""
 
 
 def _record_mix_adds(mix, before=None, by: str = "") -> None:
