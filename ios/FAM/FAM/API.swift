@@ -1476,6 +1476,13 @@ extension FAMAPI {
         _ = try await send("DELETE", "api/v1/mixes/" + id, as: Ignored.self)
     }
 
+    /// Which of this listener's mixes this morning's edition wrote and
+    /// nobody has played since, and the edition it is (§550, the dot on the
+    /// myFAM tab). A guest gets an empty answer, never a 401.
+    func freshMixes() async throws -> FreshMixes {
+        try await get("api/v1/mixes/fresh", [], as: FreshMixes.self)
+    }
+
     /// Opened or played: keeps the mix out of dormancy (`mix-dormancy`).
     func noteMixOpen(_ id: String, played: Bool) async {
         _ = try? await send("POST", "api/v1/mixes/\(id)/open", body: ["played": played], as: Ignored.self)
@@ -1597,6 +1604,23 @@ extension FAMAPI {
 
 struct MixesPage: Decodable {
     let mixes: [Mix]
+}
+
+/// `GET /api/mixes/fresh` (§550): the mixes new this morning and the
+/// edition's id. Lenient: anything missing is no dot.
+struct FreshMixes: Decodable {
+    let fresh: [String]
+    let edition: String
+
+    enum CodingKeys: String, CodingKey {
+        case fresh, edition
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fresh = (try? c.decode([String].self, forKey: .fresh)) ?? []
+        edition = (try? c.decode(String.self, forKey: .edition)) ?? ""
+    }
 }
 
 /// The parts of `/api/profile` myFAM reads. Lenient: everything optional.
@@ -1920,6 +1944,15 @@ struct CategoriesPage: Decodable {
 struct CategoryFacet: Decodable, Identifiable, Hashable {
     let id: String
     let label: String
+    /// The tree's first level under it (§550: the Categories tab's row
+    /// names a few of them). Nil from a server before it.
+    let children: [CategoryChild]?
+}
+
+/// A facet's child on `/api/categories` (`facets[].children`).
+struct CategoryChild: Decodable, Hashable {
+    let id: String
+    let label: String
 }
 
 struct CategoryNode: Decodable, Identifiable, Hashable {
@@ -1927,6 +1960,10 @@ struct CategoryNode: Decodable, Identifiable, Hashable {
     let label: String
     let facet: String?
     let path: [String]?
+    /// On `mine` only (§550): the names of the level below, and how many
+    /// episodes were made in it today. Nil in `all`.
+    let children: [String]?
+    let today: Int?
 }
 
 struct CategoryEpisodes: Decodable {

@@ -34178,7 +34178,7 @@ a mix made after the morning's edition ran - active, never played - as new,
 a dot for a mix nobody wrote. It now takes only mixes made before the
 edition's `built_at`, active as of then.
 
-## 551. The app catches up with #247 and #249 (2026-11-11)
+## 551. The app catches up with #247, #249 and #252 (2026-11-11)
 
 **What was asked.** The owner merged #247 (mix cards and what changed since
 you last listened, §544-§545), #249 (vibes as posts, §547) and #250 (the feed
@@ -34205,6 +34205,23 @@ likes, Delete and Report), save and share, More vibes. The VIBE! editor gains
 the Line tool (sent as `line` / `line_at`). Where iOS differs it is named in
 `ios/FAM/PARITY.md`: an E mark sits before a caption rather than inside it,
 and the posts screen inside a social cover draws its own loading screen.
+
+**#252 on iOS (§550).** Back an episode: the player's first slot holds
+next's glyph mirrored while a myFAM playlist plays (`AppModel.prevMixItem`:
+the item before, by the same dated prompt, so a replay; the first again from
+the start; off a Go Deeper detour, the interrupted episode, as skip does). A
+vibe holds the playlist: an episode ending while the story editor is up keeps
+its carry-on (`NowPlayingModel.heldForVibe`), run when the editor goes and
+dropped by anything else starting. Mixes | Categories: `PlayfamTabs` under the
+wordmark; Categories is the chip row without All over `CategoryHome` (followed
+with today's count, then the facets with what is under them), and every
+arrival opens on Mixes. The morning dot: `GET /api/v1/mixes/fresh`
+(`FreshMixes`) asked beside the notifications, on return and every quarter
+hour; a copper dot on the myFAM tab until the screen is looked at that
+edition (`fam.mixDotSeen`), "New today" on the card until played. The toast is
+the floating card. The web's "New today" chip also matches an older
+`.mix-new` rule and stretches across the card; the app draws it as §550's rule
+writes it, and `ios/FAM/PARITY.md` says so.
 
 Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
 and every new name resolves.

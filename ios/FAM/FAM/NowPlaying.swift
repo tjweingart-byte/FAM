@@ -127,6 +127,11 @@ final class NowPlayingModel: ObservableObject {
     /// Go Deeper is open (`goDeeperIsOpen`): an episode ending under it
     /// starts nothing - no queue, no playlist, no What's next (10.1).
     var goDeeperOpen = false
+    /// The VIBE! story editor is up (`vibeComposerIsOpen`, §550).
+    var vibeEditorOpen: () -> Bool = { false }
+    /// An episode that ended under the open editor: what comes next, held
+    /// (`heldForVibe`). Anything else starting drops it.
+    var heldForVibe: (() -> Void)?
 
     /// Who of your friends listened: everybody counted, and the faces
     /// (newest first) the pill and its sheet draw.
@@ -310,6 +315,20 @@ final class NowPlayingModel: ObservableObject {
         // Ended under an open Go Deeper: the sound stops and the sheet
         // stays up on its own - nothing else starts over it (10.1).
         if goDeeperOpen { return }
+        // Ended while the listener is making a vibe of it (§550,
+        // `heldForVibe`): the mix, the queue and What's next wait until the
+        // editor closes, posted or not, rather than moving on underneath it.
+        // The audio itself is not paused; only the moving on waits.
+        if vibeEditorOpen() {
+            heldForVibe = { [weak self] in self?.carryOn(after: ep, mine) }
+            return
+        }
+        carryOn(after: ep, mine)
+    }
+
+    /// What comes after an episode's end (`carryOn`): the playlist's next,
+    /// else the Queue's, else What's next on the full player.
+    private func carryOn(after ep: Episode, _ mine: Int) {
         // A playlist's episode, or a Go Deeper detour off it, plays the
         // playlist's next instead of offering What's next (`fromMix`, §519).
         if onEnded?(ep) == true { return }
@@ -323,8 +342,19 @@ final class NowPlayingModel: ObservableObject {
         Task { await offerNextUp(mine) }
     }
 
+    /// The VIBE! editor closed (`closeVibeComposer`, §550): what an
+    /// episode's end held while it was open goes on now - after a post or a
+    /// back alike.
+    func vibeEditorClosed() {
+        let held = heldForVibe
+        heldForVibe = nil
+        held?()
+    }
+
     /// The mini player's X, or a new episode replacing this one.
     func stopped() {
+        // Nothing held for the vibe editor outlives the episode (§550).
+        heldForVibe = nil
         reportSkipIfAbandoned()
         stopCaptions()
         captionsOn = false

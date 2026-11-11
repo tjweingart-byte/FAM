@@ -334,6 +334,14 @@ final class AppModel: ObservableObject {
         }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
         nowPlaying.playerShowing = { [weak self] in self?.showPlayer ?? false }
+        // The myFAM screen on show is the dot looked at (§550,
+        // `#screen-playfam.active`): its tab, with no mix pushed over it.
+        mixes.screenShowing = { [weak self] in
+            guard let self else { return false }
+            return self.shownTab == .myfam && self.mixPath.isEmpty
+        }
+        // An episode ending under the VIBE! editor holds what comes next (§550).
+        nowPlaying.vibeEditorOpen = { [weak self] in self?.storyEditing ?? false }
         social.say = { [weak self] text in self?.nowPlaying.say(text) }
         you.say = { [weak self] text, action, perform in
             self?.nowPlaying.say(text, action: action, perform: perform)
@@ -1565,6 +1573,9 @@ final class AppModel: ObservableObject {
 
     private func startPlaying(_ ep: Episode, resumeAt: Double = 0, cachedOnly: Bool = false,
                               glide: LoadingModel.Glide? = nil, dial: LoadingModel.Dial? = nil) {
+        // Something started on its own: whatever an ended episode held for
+        // the vibe editor is not "next" any more (§550, `generate`).
+        nowPlaying.heldForVibe = nil
         // A playlist's own episode, and a Go Deeper detour off it, keep the
         // playlist; anything else started on the player ends it - a search,
         // a tile, What's next, a shared episode, the Queue, a category (§519).
@@ -1822,7 +1833,11 @@ extension AppModel {
                                        first: list.pos == 0)
         // Any mix played - somebody else's public one too - keeps it out of
         // dormancy (`playMixItem`: `noteMixOpen(mixPlay.id, true)`).
-        if !list.mixID.isEmpty { Task { await api.noteMixOpen(list.mixID, played: true) } }
+        if !list.mixID.isEmpty {
+            // Played is no longer new (§550).
+            mixes.notePlayed(list.mixID)
+            Task { await api.noteMixOpen(list.mixID, played: true) }
+        }
         startPlaying(ep, glide: glide)
     }
 
@@ -1933,6 +1948,26 @@ extension AppModel {
         // skip of that follow-up.
         let moved = (playingDetour || askingDetour) ? resumeMix() : advanceMix()
         if !moved { nowPlaying.playQueueNext() }
+    }
+
+    /// The player's back while a mix plays (`prevMixItem`, §550, the owner:
+    /// "a way to go backwards an episode too, not just forward"): the
+    /// episode before this one in the playlist, asked by the same dated
+    /// prompt so it replays from what is kept; on the first, this one again
+    /// from the start. Off a Go Deeper follow-up, back is the playlist's
+    /// episode it came off, as skip is. Only a playlist has a "before".
+    func prevMixItem() {
+        guard var list = mixPlay else { return }
+        list.failures = 0
+        mixPlay = list
+        if playingDetour || askingDetour {
+            _ = resumeMix()
+            return
+        }
+        list.interrupted = nil
+        list.pos = max(0, list.pos - 1)
+        mixPlay = list
+        playMixItem()
     }
 
     /// After the last item: the listener's Queue carries on, else the

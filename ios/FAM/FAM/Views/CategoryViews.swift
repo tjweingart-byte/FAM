@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Where the myFAM tab's category chips stand (§229, §500): All, inside a
-/// category (its root and a chosen sub), or finding one.
+/// Where the myFAM tab's category chips stand (§229, §500, §550): at rest
+/// (the Categories tab's list), inside a category (its root and a chosen
+/// sub), or finding one.
 struct CategoryState: Equatable {
     var root: String?
     var node: String?
@@ -68,7 +69,7 @@ struct CategoryChipsRow: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
                     if state.atRest {
-                        CategoryChip(label: "All", on: true) {}
+                        // No "All" (§550): the mixes are their own tab now.
                         if page.saved {
                             ForEach(page.mine) { c in
                                 CategoryChip(label: c.label, starred: true) { pick(c.id) }
@@ -87,7 +88,8 @@ struct CategoryChipsRow: View {
                                 .overlay(Capsule().stroke(FAMColor.borderStrong))
                         }
                         .buttonStyle(.press)
-                        .accessibilityLabel("All of myFAM")
+                        // Back to the list of categories (§550).
+                        .accessibilityLabel("All categories")
                         if state.finding {
                             Text("Find a category")
                                 .font(FAMFont.body(12.5))
@@ -433,7 +435,7 @@ struct CategoryFind: View {
         let q = words.trimmingCharacters(in: .whitespaces).lowercased()
         let facets = page.facets
             .filter { Self.starts($0.label, q) }
-            .map { CategoryNode(id: $0.id, label: $0.label, facet: $0.id, path: []) }
+            .map { CategoryNode(id: $0.id, label: $0.label, facet: $0.id, path: [], children: nil, today: nil) }
         if q.isEmpty { return facets }
         let nodes = page.all.filter { Self.starts($0.label, q) }
         return Array((facets + nodes).prefix(60))
@@ -457,5 +459,186 @@ struct ExplicitBadge: View {
             .frame(minWidth: 14, minHeight: 14)
             .background(FAMColor.textMuted, in: RoundedRectangle(cornerRadius: 3))
             .accessibilityLabel("Explicit")
+    }
+}
+
+// MARK: - Mixes | Categories (§550)
+
+/// Two equal tabs under the wordmark, a copper rule under the one that is
+/// on, as Groups | Messages (`.pf-tabs`, `showPlayfamTab`): the listener's
+/// mixes, and the categories that used to be a chip row over them.
+struct PlayfamTabs: View {
+    let tab: PlayfamTab
+    let pick: (PlayfamTab) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            button(.mixes, "Mixes")
+            button(.categories, "Categories")
+        }
+        // The hairline under both; the copper rule of the one on is drawn
+        // over it (`margin-bottom:-1px`).
+        .background(alignment: .bottom) {
+            Rectangle().fill(FAMColor.border).frame(height: 1)
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 12)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("myFAM")
+    }
+
+    private func button(_ which: PlayfamTab, _ label: String) -> some View {
+        let on = tab == which
+        return Button { pick(which) } label: {
+            Text(label)
+                .font(FAMFont.body(15, .semibold))
+                .foregroundStyle(on ? FAMColor.text : FAMColor.textMuted)
+                .lineLimit(1)
+                .padding(.top, 8)
+                .padding(.bottom, 9 + 2.5)
+                .frame(maxWidth: .infinity, minHeight: 42)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(on ? FAMColor.copper : Color.clear)
+                        .frame(height: 2.5)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// The Categories tab with none picked (`#catHome`, `renderCategoryHome`):
+/// the ones this listener follows, each with how many episodes it has
+/// today (else what is under it), then every other facet and the first of
+/// what is under it. A row opens that category in place, as a chip does.
+struct CategoryHome: View {
+    @EnvironmentObject private var mixes: MixesModel
+    @Binding var state: CategoryState
+
+    /// `CAT_FACET_ICONS`: each facet's glyph, "news" for anything else.
+    static let facetIcons: [String: String] = [
+        "sports": "ball", "business": "briefcase", "money": "chart", "tech": "chip",
+        "science": "atom", "health": "pulse", "culture": "palette", "world": "news",
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let page = mixes.categories {
+                content(page)
+            } else {
+                empty("Loading categories\u{2026}")
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 24)
+    }
+
+    @ViewBuilder
+    private func content(_ page: CategoriesPage) -> some View {
+        let mine: [CategoryNode] = page.saved ? page.mine : []
+        let followedIDs: Set<String> = Set(mine.map { $0.id })
+        let rest: [CategoryFacet] = page.facets.filter { !followedIDs.contains($0.id) }
+        if mine.isEmpty && rest.isEmpty {
+            empty("No categories yet.")
+        }
+        if !mine.isEmpty {
+            heading("Your categories")
+            ForEach(mine) { c in
+                row(id: c.id, label: c.label, facet: c.facet ?? "", sub: mineSub(c), followed: true)
+            }
+        }
+        if !rest.isEmpty {
+            heading(mine.isEmpty ? "All categories" : "More categories")
+            ForEach(rest) { f in
+                row(id: f.id, label: f.label, facet: f.id, sub: facetSub(f), followed: false)
+            }
+        }
+    }
+
+    /// "3 episodes today", else what is under it.
+    private func mineSub(_ c: CategoryNode) -> String {
+        let n = c.today ?? 0
+        if n > 0 { return n == 1 ? "1 episode today" : "\(n) episodes today" }
+        return (c.children ?? []).joined(separator: " \u{00B7} ")
+    }
+
+    /// The first four under a facet.
+    private func facetSub(_ f: CategoryFacet) -> String {
+        let names: [String] = (f.children ?? []).prefix(4).map { $0.label }
+        return names.joined(separator: " \u{00B7} ")
+    }
+
+    /// `.cath-h`: Geist Mono 10, 0.14 em, uppercase, faint.
+    private func heading(_ text: String) -> some View {
+        Text(text)
+            .font(FAMFont.mono(10))
+            .tracking(1.4)
+            .textCase(.uppercase)
+            .foregroundStyle(FAMColor.textFaint)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// `.sv-empty`.
+    private func empty(_ text: String) -> some View {
+        Text(text)
+            .font(FAMFont.body(11))
+            .foregroundStyle(FAMColor.textFaint)
+            .multilineTextAlignment(.center)
+            .lineSpacing(4)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 30)
+            .padding(.horizontal, 18)
+    }
+
+    /// `.cath-row`: the facet's tile, the name (starred when followed),
+    /// the line under it, the chevron.
+    private func row(id: String, label: String, facet: String, sub: String, followed: Bool) -> some View {
+        let tone: Color = CategoryPanel.tones[facet] ?? FAMColor.surface2
+        let icon: String = Self.facetIcons[facet] ?? "news"
+        let shape = RoundedRectangle(cornerRadius: 12)
+        return Button { state = CategoryState(root: id, node: id) } label: {
+            HStack(spacing: 12) {
+                SubjectIcon(name: icon, size: 20)
+                    .foregroundStyle(Color(hex: 0xF4EFE4))
+                    .frame(width: 38, height: 38)
+                    .background(tone, in: RoundedRectangle(cornerRadius: 10))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        if followed {
+                            StarShape().fill(FAMColor.copper).frame(width: 11, height: 11)
+                                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
+                                .accessibilityLabel("Following")
+                        }
+                        Text(label)
+                            .font(FAMFont.body(14.5, .semibold))
+                            .foregroundStyle(FAMColor.text)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !sub.isEmpty {
+                        Text(sub)
+                            .font(FAMFont.body(12))
+                            .foregroundStyle(FAMColor.textMuted)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                WebIcon(path: Icons.chevron, size: 16, line: 2.2)
+                    .foregroundStyle(FAMColor.textFaint)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(FAMColor.surface, in: shape)
+            .overlay(shape.stroke(FAMColor.border))
+            .contentShape(shape)
+        }
+        .buttonStyle(.press)
+        .padding(.bottom, 8)
     }
 }

@@ -287,6 +287,8 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # The category chips and panel on the myFAM tab (§500).
                    "CategoriesPage", "CategoryFacet", "CategoryNode", "CategoryEpisodes",
                    "CategorySub", "CategoryEpisode",
+                   # Mixes | Categories' list and the morning dot (§550).
+                   "CategoryChild", "FreshMixes",
                    # Messages, friends and a friend's profile (§213, §282, §285).
                    "InboxPage", "InboxThread", "ChatMember", "ChatMessage", "ChatSender",
                    "NoticeGroup", "ChatPage", "ChatWith", "SentMessage", "GroupAnswer",

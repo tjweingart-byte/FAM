@@ -1244,6 +1244,9 @@ struct StoryEditor: View {
         .onDisappear {
             ed.stopDictation()
             model.storyEditing = false
+            // What an episode's end held while the editor was up goes on
+            // now, posted or backed out of (`closeVibeComposer`, §550).
+            model.nowPlaying.vibeEditorClosed()
         }
         .onChange(of: ed.focusAsk) { _, _ in boxFocused = true }
         .onChange(of: ed.blurAsk) { _, _ in
