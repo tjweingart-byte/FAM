@@ -33756,3 +33756,11 @@ while this branch was open, so this branch's two sections, written as §537
 and §538, are §544 and §545, and every reference in its code, tests and
 notes was renumbered with them; `tests/test_signals_538.py` is
 `tests/test_signals_545.py`.
+
+**Two fixes from reviewing the branch before its pull request.** The list
+read the listening history once per mix when the signals moved into
+`_mix_out`; it reads it once per request now (`_mix_history`, passed down),
+and a test counts the reads. And a story held from before `status_at` existed
+would have taken the first sweep after the deploy as its status time,
+reporting last night's result as new to somebody who listened this morning;
+it takes its last known time (`live_as_of`, else `first_seen`) instead.

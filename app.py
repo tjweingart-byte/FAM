@@ -6621,10 +6621,12 @@ async def list_mixes(request: Request):
     shown = list(own) + ([m for m in MIXES.joined(user)
                           if not MODERATION.is_apart(m.user_id, user)]
                          if wants_joint else [])
+    # One read of the listening history for every mix's signals (§545).
+    history = _mix_history(user)
     return {
         # Each with its pictures and what changed since this listener last
         # heard it (§545), via `_mix_out`.
-        "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user)
+        "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user, history)
                   for m in shown],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
@@ -6816,13 +6818,16 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
     return out
 
 
-def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
+def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None) -> dict:
     """One mix as this viewer sees it, with each topic's picture and what
     changed since they last heard it (§545) - on every route that answers
-    with a mix, so adding or reordering a topic never drops either."""
+    with a mix, so adding or reordering a topic never drops either.
+
+    `history` is the viewer's listening history when the caller has already
+    read it (the list reads it once for every mix); None reads it here."""
     body = _mix_body(mix, viewer, people, joint)
     _mix_pictures(mix, body)
-    _mix_signals(viewer, [(mix, body)])
+    _mix_signals(viewer, [(mix, body)], history)
     return body
 
 
@@ -6873,7 +6878,17 @@ def _mix_body(mix, viewer: str, people: dict, joint: bool) -> dict:
     return body
 
 
-def _mix_signals(user: str, pairs: list) -> None:
+def _mix_history(user: str) -> list:
+    """The listening history `_mix_signals` reads; [] when it cannot be read
+    (a signal is never worth an error)."""
+    try:
+        return SAVED.history(user, limit=400) if user else []
+    except Exception:  # noqa: BLE001
+        log.exception("could not read the history for mix signals")
+        return []
+
+
+def _mix_signals(user: str, pairs: list, history=None) -> None:
     """Mark what changed in each mix since this listener last heard it (§545).
 
     `pairs` is `[(Mix, served dict), ...]`; each served dict gains `signal`
@@ -6890,7 +6905,7 @@ def _mix_signals(user: str, pairs: list) -> None:
 
     try:
         now = time.time()
-        rows = SAVED.history(user, limit=400) if user else []
+        rows = _mix_history(user) if history is None else history
         heard_by_query: dict = {}
         for row in rows:                       # newest first: keep the first
             heard_by_query.setdefault(normalize_query(row.get("query") or ""), row)

@@ -276,3 +276,27 @@ def test_the_row_draws_its_picture_or_its_icon():
     pic = INDEX.split("function mixTopicPicHTML(t){", 1)[1].split("\n  }\n", 1)[0]
     assert "t.picture" in pic and "catIcon(t.icon)" in pic
     assert "+ mixTopicPicHTML(t)" in INDEX
+
+
+def test_a_story_from_before_the_clock_is_not_new_after_a_deploy():
+    """Held before `status_at` existed (0): it takes its last known time, so a
+    result from last night is not news to a listener who heard this morning."""
+    signal = stories.Signal(subject="Eagles at Cowboys", observation="score",
+                            domain=stories.SPORTS, live_line="PHI 24 DAL 17",
+                            live_status="final")
+    held = replace(stories.Story(subject="Eagles at Cowboys", title="Eagles at Cowboys",
+                                 angle="", query="q", domain=stories.SPORTS,
+                                 source="test", tags=(), first_seen=NOW - 86400,
+                                 last_seen=NOW - 3600, shelf_life=2 * 86400.0),
+                   live_status="final", live_as_of=NOW - 40000, status_at=0.0)
+    again = stories._seen_again(held, signal, NOW)
+    assert again.status_at == NOW - 40000
+
+
+def test_the_list_reads_the_history_once(client, monkeypatch):
+    client.post("/api/mixes", json={"name": "Second", "topic_ids": ["f:nfl"]})
+    reads = []
+    real = appmod.SAVED.history
+    monkeypatch.setattr(appmod.SAVED, "history", lambda *a, **k: reads.append(1) or real(*a, **k))
+    assert len(client.get("/api/mixes").json()["mixes"]) == 2
+    assert len(reads) == 1

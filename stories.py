@@ -1879,8 +1879,13 @@ def _seen_again(previous: Story, signal, now: float,
         live_line=live_line,
         live_status=live_status,
         live_as_of=now if signal.live_line else previous.live_as_of,
+        # A story held from before `status_at` existed takes its last known
+        # time, not this sweep's, so a result that came in last night is not
+        # reported as new to somebody who listened this morning.
         status_at=(now if signal.live_status and signal.live_status != previous.live_status
-                   else (previous.status_at or (now if live_status else 0.0))),
+                   else (previous.status_at
+                         or ((previous.live_as_of or previous.first_seen)
+                             if live_status else 0.0))),
         outcome_pending=(bool(signal.outcome_pending) if signal.live_status
                          else previous.outcome_pending),
         query=query,
