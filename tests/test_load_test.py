@@ -190,5 +190,38 @@ def test_shared_links_open_the_app_once_it_exists():
     body = resp.json()
     detail = body["applinks"]["details"][0]
     assert detail["appIDs"] == ["ABCDE12345.net.familiarize.fam"]
-    assert {c["/"] for c in detail["components"]} == {"/s/*", "/m/*"}
+    assert {c["/"] for c in detail["components"]} == {"/s/*", "/m/*", "/j/*"}
     assert body["webcredentials"]["apps"] == ["ABCDE12345.net.familiarize.fam"]
+
+
+def test_the_file_is_answered_where_apple_asks_with_no_redirect():
+    """Apple's CDN follows no redirect and reads only application/json at the
+    exact path: `/.well-known/apple-app-site-association`, no `.json`."""
+    from fastapi.testclient import TestClient
+    settings = appmod.settings
+    before = (settings.apple_team_id, settings.ios_bundle_id)
+    object.__setattr__(settings, "apple_team_id", "484A7YD2S3")
+    object.__setattr__(settings, "ios_bundle_id", "net.familiarize.fam")
+    try:
+        resp = TestClient(appmod.app).get("/.well-known/apple-app-site-association",
+                                          follow_redirects=False)
+    finally:
+        object.__setattr__(settings, "apple_team_id", before[0])
+        object.__setattr__(settings, "ios_bundle_id", before[1])
+    assert resp.status_code == 200 and not resp.history
+    assert resp.headers["content-type"].split(";")[0] == "application/json"
+    detail = resp.json()["applinks"]["details"][0]
+    assert detail["appIDs"] == ["484A7YD2S3.net.familiarize.fam"]
+    assert {"/": "/j/*"} in detail["components"]
+
+
+def test_production_names_the_real_app():
+    """render.yaml carries the app's ids for `fam` (neither is a secret: the
+    file above publishes both); staging names none, so a staging link never
+    opens the App Store build."""
+    text = open(os.path.join(ROOT, "render.yaml"), encoding="utf-8").read()
+    prod = text[text.index("    name: fam\n"):]
+    staging = text[:text.index("    name: fam\n")]
+    assert "- key: APPLE_TEAM_ID\n        value: 484A7YD2S3" in prod
+    assert "- key: IOS_BUNDLE_ID\n        value: net.familiarize.fam" in prod
+    assert "484A7YD2S3" not in staging

@@ -1,6 +1,16 @@
 {
   "releases": [
     {
+      "platform": "ios",
+      "version": "1.0.0",
+      "status": "supported",
+      "released": "2026-11-10",
+      "commit": "efe421fa4f80436a3ccbcf7e612f404cb1ffb718",
+      "contract": "releases/contracts/ios-1.0.0.json",
+      "build": "2",
+      "notes": "The first App Store submission (\u00a7537). The header is ios/1.0.0+<build>; the registry matches on the version alone, so raising CURRENT_PROJECT_VERSION per upload changes nothing here - set build to the one Apple approves. Recut with --force from the submitted commit if the app's routes change before it ships."
+    },
+    {
       "platform": "web",
       "version": "2026.09.29",
       "status": "supported",
