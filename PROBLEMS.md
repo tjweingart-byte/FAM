@@ -33827,8 +33827,6 @@ the tile's own faces (`AppModel.noteTileFaces`), anything else asks
 `/api/v1/listened` (`ListenedPage`), never for a private search or an
 attached episode; a tap opens the same "N friends listened" card, whose
 profile rows take the player down first. Unbuilt here (no Swift compiler).
-<<<<<<< HEAD
-=======
 
 ## 547. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11)
 
@@ -34047,4 +34045,3 @@ on a fixture with hundreds of candidates), the batched draw equal to the one
 a key at a time and the snapshot draw equal to fresh reads, a play here and
 another worker's play both seen, prefetch handed the page, the page drawn
 where no loop runs, health's 15 s and its client built once.
->>>>>>> origin/Main
