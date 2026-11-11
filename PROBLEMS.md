@@ -33731,4 +33731,25 @@ request):
   a vibe's replies have their own paths, `/api/vibe/replies/{id}/like` and
   `DELETE /api/vibe/replies/{id}`, each asking `_visible_vibe` first.
 
+**A second review** (the whole branch against Main, at the owner's request):
+
+- The line chip on a post whose episode was not the one loaded usually
+  played from 0:00: the previous episode's mini-bar ticker saw a seek for
+  another episode and dropped it before the new bar was up. The chip now
+  brings the old bar down before it starts (`hideNowBar`).
+- A reply's author lost the way to delete their own reply once the vibe's
+  owner blocked them; `DELETE /api/vibe/replies/{id}` lets the author through.
+- `SocialStore.comment` said `int(minutes)` too (a reported reply under a
+  1.5 vibe showed 1 minute); it is `as_minutes` now.
+- Deleting or reporting from a post's menu could remove the last post if
+  the list had been reloaded meanwhile; it removes only the post itself.
+- Preview mocks: a friend's posts have ids of their own, and the live
+  preview's vibe delete takes its likes and replies.
+
+Known and left as they are: a post's episode ending with something in the
+Queue plays the Queue in the full player, as every episode does; and where
+the server never measured an episode's sentences, a line's time is the
+captions' estimate against the episode's length ceiling, so on an episode
+that ended early it can land late (the seek never passes the end).
+
 Tests: `tests/test_vibe_posts.py`.

@@ -1846,7 +1846,11 @@ __PREVIEW_PICTURE__
                               explicit: false },
                     mine: !vph, more: false,
                     posts: (vsrc.vibes || []).map(function (v, i) {
-        var pid = vph ? 5000 + i : (v.id || i + 1);
+        // A friend's posts get ids of their own, apart from each other
+        // friend's and from yours (yours are under 5000).
+        var pid = vph ? 5000 + (PEOPLE.all.concat(PEOPLE.others).map(function (x) {
+                          return x.handle; }).indexOf(vph) + 1) * 100 + i
+                      : (v.id || i + 1);
         var st = VIBE_POSTS[pid] || (VIBE_POSTS[pid] = { likes: (i * 5 + 3) % 9, liked: false });
         var rows = COMMENTS.filter(function (c) { return c.echo_id === pid; });
         var tops = vibeReplyBody(pid);

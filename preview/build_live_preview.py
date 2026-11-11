@@ -1753,7 +1753,15 @@ __WRITING_SIM__
       var found = rows("echoes").filter(function (e) {
         return e.user_id === UID && e.query === q && e.minutes === mins;
       })[0];
-      if (found) return del("echoes", found.id).then(function () { paint(); return json({ ok: true }); });
+      if (found) {
+        // A vibe deleted takes its post's likes and replies (§547).
+        var postJobs = [del("echoes", found.id)];
+        rows("vibe_likes").forEach(function (l) {
+          if (l.echo_id === found.id) postJobs.push(del("vibe_likes", l.id)); });
+        rows("comments").forEach(function (c) {
+          if (c.echo_id === found.id) postJobs.push(del("comments", c.id)); });
+        return Promise.all(postJobs).then(function () { paint(); return json({ ok: true }); });
+      }
       return json({ ok: false });
     }
     if (path === "/api/echo") {

@@ -18575,6 +18575,10 @@
         return;
       }
     }
+    // The last episode's bar comes down first: its ticker would otherwise
+    // see a seek for another episode and drop it before this one's bar is up,
+    // and the line would play from 0:00 (caught in review).
+    hideNowBar();
     pendingResumeSeek = { query: p.query, minutes: p.minutes, at: at };
     playVibePost(i, at);
   }
@@ -18636,15 +18640,15 @@
     if(vp.mine){
       items.push({ label: menuLabel("remove", "Delete vibe"), danger: true, action: function(){
         deleteMyVibe(p, function(){
-          vp.posts.splice(vp.posts.indexOf(p), 1);
-          renderVibePosts();
+          var at = vp.posts.indexOf(p);
+          if(at !== -1){ vp.posts.splice(at, 1); renderVibePosts(); }
         });
       } });
     } else {
       items.push({ label: menuLabel("report", "Report vibe"), danger: true, action: function(){
         reportContent({ kind: "vibe", target: p.id }, function(){
-          vp.posts.splice(vp.posts.indexOf(p), 1);
-          renderVibePosts();
+          var at = vp.posts.indexOf(p);
+          if(at !== -1){ vp.posts.splice(at, 1); renderVibePosts(); }
         });
       } });
     }

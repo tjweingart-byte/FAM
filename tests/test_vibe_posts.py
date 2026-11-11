@@ -224,6 +224,24 @@ def test_the_app_reaches_vibe_replies_by_their_own_paths():
     assert "/api/vibe/replies/" in _fn("openVibeReplyMenu")
 
 
+def test_a_reply_stays_its_authors_to_delete_after_the_vibe_is_hidden(client):
+    me = signed_in(client, "vp9@b.com", "Ian", "ianvp9")
+    eid = client.post("/api/vibe", json={"query": "open one", "minutes": 2}).json()["id"]
+    other = TestClient(appmod.app)
+    with other:
+        them = signed_in(other, "vp10@b.com", "Zed", "zedvp10")
+        rid = other.post(f"/api/vibe/{eid}/replies", json={"text": "hi"}).json()["id"]
+        client.post("/api/block", json={"handle": "zedvp10"})
+        assert other.post(f"/api/vibe/replies/{rid}/like", json={"on": True}).status_code == 404
+        assert other.delete(f"/api/vibe/replies/{rid}").json() == {"ok": True}
+    assert me
+
+
+def test_the_line_chip_brings_the_old_bar_down_first():
+    body = _fn("playVibePostLine")
+    assert body.index("hideNowBar()") < body.index("pendingResumeSeek =")
+
+
 def test_no_post_for_a_handle_nobody_has_or_a_vibe_that_is_gone(client):
     signed_in(client, "vp4@b.com", "Ian", "ianvp4")
     assert client.get("/api/vibe/posts", params={"handle": "nobody_here"}).status_code == 404

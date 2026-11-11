@@ -1363,7 +1363,7 @@ class SocialStore:
         if not row:
             return None
         return {"id": int(row[0]), "user_id": row[1], "query": row[2],
-                "minutes": int(row[3]), "text": row[4], "at": float(row[5]),
+                "minutes": as_minutes(row[3]), "text": row[4], "at": float(row[5]),
                 "echo_id": int(row[6] or 0)}
 
     def delete_comment(self, user_id: str, comment_id: int,

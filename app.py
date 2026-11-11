@@ -9639,11 +9639,16 @@ async def post_vibe_reply(echo_id: int, req: VibeReplyRequest, request: Request)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def _vibe_reply(request: Request, comment_id: int) -> dict:
-    """A reply under a vibe this listener may see, else 404."""
+def _vibe_reply(request: Request, comment_id: int, own_ok: bool = False) -> dict:
+    """A reply under a vibe this listener may see, else 404. `own_ok`: the
+    reply's author may reach their own words even if the vibe has since
+    gone out of their sight (blocked, off a close-friends list) - to delete
+    them."""
     found = SOCIAL.comment(comment_id)
     if not found or not found.get("echo_id"):
         raise HTTPException(status_code=404, detail="That reply is not here any more.")
+    if own_ok and found.get("user_id") == _listener(request):
+        return found
     try:
         _visible_vibe(request, found["echo_id"])
     except HTTPException:
@@ -9670,7 +9675,7 @@ async def like_vibe_reply(comment_id: int, req: VibeLikeRequest,
 async def delete_vibe_reply(comment_id: int, request: Request) -> dict:
     """Your own reply, or any reply on your own vibe."""
     _read_limit(request)
-    _vibe_reply(request, comment_id)
+    _vibe_reply(request, comment_id, own_ok=True)
     return {"ok": SOCIAL.delete_comment(_listener(request), comment_id)}
 
 
