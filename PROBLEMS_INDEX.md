@@ -539,4 +539,5 @@ and `limit` = Lines.
 | 33670 | 98 | 545. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11) |
 | 33768 | 63 | 546. The app starts dark, and draws itself before the server answers (2026-11-11) |
 | 33831 | 120 | 547. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11) |
-| 33951 | 61 | 548. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11) |
+| 33951 | 98 | 548. myFAM in a handful of statements, off the event loop (2026-11-11) |
+| 34049 | 61 | 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11) |
