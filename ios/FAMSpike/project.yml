@@ -1,0 +1,50 @@
+# The audio spike (IOS_APP.md stage 2) as an XcodeGen spec.
+#
+#   brew install xcodegen
+#   cd ios/FAMSpike && xcodegen
+#   open FAMSpike.xcodeproj
+#
+# The .xcodeproj is generated, so it is not committed: this file is the
+# project. Set your team once in Xcode (Signing & Capabilities), or put it in
+# DEVELOPMENT_TEAM below.
+name: FAMSpike
+options:
+  bundleIdPrefix: net.familiarize
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+    # Apali, LLC (developer.apple.com > Membership), so a regenerated
+    # project keeps its team.
+    DEVELOPMENT_TEAM: 484A7YD2S3
+targets:
+  FAMSpike:
+    type: application
+    platform: iOS
+    sources:
+      - path: FAMSpike
+    info:
+      path: FAMSpike/Info.plist
+      properties:
+        CFBundleDisplayName: FAM
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
+        LSRequiresIPhoneOS: true
+    settings:
+      base:
+        # The bundle id of the app record in App Store Connect, so the spike
+        # can go to internal TestFlight. Build numbers only go up: the real
+        # app's first build must be higher than the last spike's.
+        PRODUCT_BUNDLE_IDENTIFIER: net.familiarize.fam
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: false

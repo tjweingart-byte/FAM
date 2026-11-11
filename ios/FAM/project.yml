@@ -1,0 +1,151 @@
+# The FAM iOS app (IOS_APP.md stage 4) as an XcodeGen spec.
+#
+#   cd ios/FAM && xcodegen && open FAM.xcodeproj
+#
+# The .xcodeproj is generated, so it is not committed: this file is the
+# project. The team is chosen once in Xcode (Signing & Capabilities).
+name: FAM
+options:
+  bundleIdPrefix: net.familiarize
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+# Debug and Release as Xcode makes them, and Staging: a Release build that
+# talks to the staging service (decision 6). The "FAM Staging" scheme runs
+# and archives it; the "FAM" scheme stays production - the owner chooses
+# per archive.
+configs:
+  Debug: debug
+  Release: release
+  Staging: release
+packages:
+  FAMSafety:
+    path: ../FAMSafety
+  # Google's own sign-in for iOS: the system browser sheet and the token.
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 8.0.0
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    # Every upload needs a higher number; the spike used 1.
+    CURRENT_PROJECT_VERSION: "2"
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+    # Apali, LLC (developer.apple.com > Membership), so a regenerated
+    # project keeps its team.
+    DEVELOPMENT_TEAM: 484A7YD2S3
+    # Google sign-in: the iOS OAuth client made in Google Cloud for
+    # net.familiarize.fam, and the same id reversed (its URL scheme). Until
+    # they are set the Google button is not drawn (`no-dead-controls`).
+    # The client id also belongs in the server's GOOGLE_CLIENT_IDS.
+    GOOGLE_IOS_CLIENT_ID: 1051916637197-u6bh2tjrdt38p8t3d5f2tmq3o3rii5co.apps.googleusercontent.com
+    GOOGLE_REVERSED_CLIENT_ID: com.googleusercontent.apps.1051916637197-u6bh2tjrdt38p8t3d5f2tmq3o3rii5co
+    # The server this build talks to (Info.plist `FAMAPIBase`, read by
+    # `FAMAPI.configuredBase`): production unless the Staging configuration
+    # says otherwise. An address, never a secret.
+    FAM_API_BASE: https://familiarize.net
+  configs:
+    # The staging service (`fam-staging` in render.yaml, zero spend,
+    # STAGING.md): Render's address for that service name (DEPLOY.md). If
+    # staging is given a domain of its own, change it here.
+    Staging:
+      FAM_API_BASE: https://fam-staging.onrender.com
+targets:
+  FAM:
+    type: application
+    platform: iOS
+    sources:
+      - path: FAM
+    dependencies:
+      - package: FAMSafety
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: GoogleSignIn
+        product: GoogleSignInSwift
+    # Sign in with Apple (App Store 4.8), and shared links that open the
+    # app (decision 5): /s/ (an episode), /m/ (a mix) and /j/ (a joint-mix
+    # invite) on familiarize.net, routed by `AppModel.openLink`. The server
+    # lists the paths in /.well-known/apple-app-site-association.
+    entitlements:
+      path: FAM/FAM.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
+        com.apple.developer.associated-domains: ["applinks:familiarize.net"]
+    info:
+      path: FAM/Info.plist
+      properties:
+        CFBundleDisplayName: FAM
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # The launch screen is the default theme's page (`--bg` #FFFFFF,
+        # §250) whatever the phone's own appearance: it is drawn before the
+        # app can read the device's "Dark mode" (`fam.theme`).
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIBackgroundModes: [audio]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
+        LSRequiresIPhoneOS: true
+        GIDClientID: $(GOOGLE_IOS_CLIENT_ID)
+        FAMAPIBase: $(FAM_API_BASE)
+        # A group chat's "Take a photo" (the web's camera source).
+        NSCameraUsageDescription: FAM uses the camera only when you take a photo for your profile or a group chat.
+        # searchFAM's mic (§151) while voice search is open, a story's Speak
+        # while it is pressed (§297), and "Hey FAM" (§158, opt-in in
+        # Settings) while FAM is open on screen - never in the background.
+        NSMicrophoneUsageDescription: FAM listens while voice search is open, to turn what you say into a search, and while you press Speak on a story, to write what you say - and, only if you turn on "Hey FAM" in Settings, while FAM is open on your screen, for "Hey FAM".
+        NSSpeechRecognitionUsageDescription: FAM turns what you say into the words of your search or your story, and listens for "Hey FAM" if you turn it on. On phones that can, this happens on the phone; otherwise Apple's speech recognition does it. Only the finished words are sent to FAM.
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]
+        # The web's three typefaces (`typefaces`), as static instances of
+        # the Google Fonts variable files (OFL; licences in FAM/Fonts).
+        UIAppFonts:
+          - BricolageGrotesque-Regular.ttf
+          - BricolageGrotesque-Medium.ttf
+          - BricolageGrotesque-SemiBold.ttf
+          - BricolageGrotesque-Bold.ttf
+          - Geist-Regular.ttf
+          - Geist-Medium.ttf
+          - Geist-SemiBold.ttf
+          - Geist-Bold.ttf
+          - GeistMono-Regular.ttf
+          - GeistMono-Bold.ttf
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.familiarize.fam
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: false
+schemes:
+  # Production: what the App Store gets.
+  FAM:
+    build:
+      targets:
+        FAM: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+  # TestFlight on staging (decision 6): the same app against the staging
+  # service, run and archived from the Staging configuration.
+  FAM Staging:
+    build:
+      targets:
+        FAM: all
+    run:
+      config: Staging
+    test:
+      config: Staging
+    profile:
+      config: Staging
+    analyze:
+      config: Staging
+    archive:
+      config: Staging

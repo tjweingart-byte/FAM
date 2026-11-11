@@ -1,4 +1,4 @@
-"""Two wording fixes on the web page (PROBLEMS.md §537, decision 7).
+"""Two wording fixes on the web page (PROBLEMS.md §541, decision 7).
 
 A count says "1 friend" and "1 follower", never "1 friends"; and the View
 more Refresh button's label names the number it deals, pinned to the variable

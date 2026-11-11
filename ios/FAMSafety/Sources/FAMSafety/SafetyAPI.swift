@@ -73,7 +73,8 @@ public enum ReportSubject: Equatable, Sendable {
     case note(id: Int)
     case person(handle: String)
     case group(id: String)
-    case episode(query: String, minutes: Int)
+    /// An episode, by its question and length (1.5 is a length, §147).
+    case episode(query: String, minutes: Double)
 
     var kind: String {
         switch self {
@@ -202,10 +203,26 @@ public final class SafetyAPI: @unchecked Sendable {
         return d
     }()
 
+    /// The app's pinned zone (`fam.prefs.time_zone`, Settings), else the
+    /// device's - the same rule as the app's `FAMAPI.listenerZone`.
+    static var listenerZone: String {
+        if let pinned = UserDefaults.standard.string(forKey: "fam.prefs.time_zone"), !pinned.isEmpty,
+           TimeZone(identifier: pinned) != nil {
+            return pinned
+        }
+        return TimeZone.current.identifier
+    }
+
     func request(_ method: String, _ path: String) -> URLRequest {
         var req = URLRequest(url: URL(string: path, relativeTo: base)!)
         req.httpMethod = method
+        // The bearer token is the only identity: no session cookie is
+        // stored or sent beside it (`listener-header`).
+        req.httpShouldHandleCookies = false
         req.setValue(client, forHTTPHeaderField: Self.clientHeader)
+        // The listener's clock (`listener-clock`), as the app's own requests
+        // name it: the zone pinned in Settings, else the device's.
+        req.setValue(Self.listenerZone, forHTTPHeaderField: "X-FAM-TZ")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token = token() {
             req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")

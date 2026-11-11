@@ -528,4 +528,8 @@ and `limit` = Lines.
 | 33194 | 17 | 534. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10) |
 | 33211 | 25 | 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10) |
 | 33236 | 21 | 536. Go Deeper in a mix resumes the interrupted episode (2026-11-10) |
-| 33257 | 38 | 537. Ready for the iOS launch, on the server: universal links for invites, the iOS 1.0.0 release, two web wordings (2026-11-10) |
+| 33257 | 85 | 537. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
+| 33342 | 128 | 538. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 33470 | 32 | 539. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
+| 33502 | 42 | 540. The iOS app, stage 2: myFAM (2026-11-10) |
+| 33544 | 38 | 541. Ready for the iOS launch, on the server: universal links for invites, the iOS 1.0.0 release, two web wordings (2026-11-10) |
