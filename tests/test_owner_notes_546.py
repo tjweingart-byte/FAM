@@ -147,13 +147,23 @@ def test_a_written_mix_not_played_since_is_new(client, monkeypatch):
     assert client.post("/api/auth/signup", json={"email": "dot@fam.test",
                                                   "password": PASSWORD}).status_code == 200
     mix = client.post("/api/mixes", json={"name": "Morning", "topic_ids": ["f:nfl"]}).json()
-    _edition(monkeypatch, daily_edition.READY, time.time() - 60)
+    stored = [m for m in appmod.MIXES.all_mixes() if m.id == mix["id"]][0]
+    # The edition ran after the mix was made...
+    _edition(monkeypatch, daily_edition.READY, stored.created_at + 0.05)
+    time.sleep(0.1)
     got = client.get("/api/mixes/fresh").json()
     assert got["fresh"] == [mix["id"]] and got["edition"]
-    # Played after the edition: not new any more.
-    stored = [m for m in appmod.MIXES.all_mixes() if m.id == mix["id"]][0]
+    # ...and a play after it means it is not new any more.
     appmod.MIXES.note_played(stored.user_id, mix["id"])
     assert client.get("/api/mixes/fresh").json() == {"fresh": [], "edition": ""}
+
+
+def test_a_mix_made_after_the_edition_is_not_new(client, monkeypatch):
+    """The edition never wrote it: a dot would invite a wait."""
+    client.post("/api/auth/signup", json={"email": "dot4@fam.test", "password": PASSWORD})
+    client.post("/api/mixes", json={"name": "Morning", "topic_ids": ["f:nfl"]})
+    _edition(monkeypatch, daily_edition.READY, time.time() - 3600)
+    assert client.get("/api/mixes/fresh").json()["fresh"] == []
 
 
 def test_no_finished_edition_no_dot(client, monkeypatch):

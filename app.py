@@ -6640,9 +6640,10 @@ def _fresh_mix_ids(mixes: list, now: Optional[float] = None) -> list:
     played since (§546): what the dot on the myFAM tab invites a tap on.
 
     Only an edition that finished counts - a dot for a mix nobody wrote
-    would be an invitation to a wait - and a dormant mix is never in it,
-    because the edition did not write it. A read of what is stored; [] on
-    any failure (a dot is never worth an error)."""
+    would be an invitation to a wait - and neither a mix made after it ran
+    nor one dormant when it ran is in it, because the edition wrote neither.
+    A read of what is stored; [] on any failure (a dot is never worth an
+    error)."""
     now = time.time() if now is None else now
     try:
         slot = daily_edition.last_slot(now)
@@ -6651,7 +6652,9 @@ def _fresh_mix_ids(mixes: list, now: Optional[float] = None) -> list:
             return []
         built = float(status.get("built_at") or slot.timestamp())
         return [m.id for m in mixes
-                if getattr(m, "items", None) and daily_edition.is_active(m, now)
+                if getattr(m, "items", None)
+                and float(getattr(m, "created_at", 0.0) or 0.0) < built
+                and daily_edition.is_active(m, built)
                 and float(getattr(m, "played_at", 0.0) or 0.0) < built]
     except Exception:  # noqa: BLE001
         log.exception("could not read which mixes are new this morning")
