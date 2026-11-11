@@ -33633,3 +33633,34 @@ The owner's 11.11 note, two ideas, with a mock-up of "PLAY ALL" beside
    unchanged, their questions being FAM's own.
 
 Tests: `tests/test_play_all_and_player_faces.py`.
+
+## 544. The app starts dark, and draws itself before the server answers (2026-11-11)
+
+**What was asked.** The owner, after build 3 reached TestFlight: "I want to
+make dark mode the standard version that new users have, with the option to
+change to light mode", and "It still takes way too long to load the app when
+you first open it. Please think of more ways to help this, and make sure the
+fixes from yesterday are in."
+
+**Dark by default, in the app.** `FAMTheme.standard` is dark: a phone with no
+`fam.theme` is drawn dark, "light" is the only stored value that draws light,
+and Settings' "Dark mode" reads On for anything else (`FAMTheme.isDark`). The
+launch screen (`LaunchBackground`) is the dark `--bg`, #2A2733. A phone that
+never touched the switch turns dark with this build. The web keeps light
+(§250); the rule's note says so (`docs/claude/constraints.md`, typefaces).
+
+**Yesterday's start-up work is in build 3**: the remembered page, rails
+first, tabs that load on first look, warming behind the feed, the poll after
+it, the 429 retry and the picture cache.
+
+**What still waited.** Every open showed the wordmark until `/api/auth/me`
+answered, then played the 1.8 s intro, then drew the app. Now a phone whose
+account was last let in (`fam.lastReady`, set by `arrive`, cleared on any
+sign-out) with its first run done draws the app at once, the remembered
+page on it and the intro over it, and asks `/api/auth/me` behind it; the
+answer still decides - signed out or waiting replaces the app the moment it
+lands. The first feed still waits on that answer (`firstFeed` awaits
+`whoTask`), so the two are still never asked together (the owner's earlier
+call), and the first-run steps and the Terms check run after it without
+holding the feed. The first open after updating behaves as before, once.
+

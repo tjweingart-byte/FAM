@@ -78,8 +78,8 @@ targets:
         CFBundleDisplayName: FAM
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        # The launch screen is the default theme's page (`--bg` #FFFFFF,
-        # §250) whatever the phone's own appearance: it is drawn before the
+        # The launch screen is the default theme's page (dark `--bg` #2A2733,
+        # §544) whatever the phone's own appearance: it is drawn before the
         # app can read the device's "Dark mode" (`fam.theme`).
         UILaunchScreen:
           UIColorName: LaunchBackground

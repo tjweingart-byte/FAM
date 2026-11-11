@@ -121,6 +121,13 @@ final class AppModel: ObservableObject {
     static let referralKey = "fam.referral"
     /// This phone finished the first run (`fam.prefs` `entry: "done"`).
     static let entryKey = "fam.entryDone"
+    /// The account on this phone was last let in (`stage == .ready`): the
+    /// next open draws the app at once, the remembered page on it, while
+    /// `/api/auth/me` is asked behind it (§544, a faster start).
+    static let readyKey = "fam.lastReady"
+    /// This open's `/api/auth/me`: the first feed waits on it, so the two
+    /// are still never asked together (the owner's call).
+    private var whoTask: Task<Bool, Never>?
     let mixes: MixesModel
     /// YourFAM: the profile, Settings and the shelves.
     let you: YouModel
@@ -403,31 +410,57 @@ final class AppModel: ObservableObject {
         // The last page drawn on this phone, at once, so the tab opens on
         // cards rather than LOADING; the fresh page replaces it on arrival.
         showRememberedFeed()
+        // An account this phone last saw let in, with its first run done:
+        // the app is drawn now and the intro plays over it, rather than
+        // the wordmark waiting on the server (§544). The answer below
+        // corrects it - signed out, or waiting - the moment it lands.
+        let drawnAhead = UserDefaults.standard.bool(forKey: Self.readyKey)
+            && UserDefaults.standard.bool(forKey: Self.entryKey)
+        if drawnAhead {
+            stage = .ready
+            playIntro()
+        }
         // Who this is first; the feed after it, asked by the DailyFAM tab as
-        // it opens (the owner's call: never the two together). Nothing else
-        // is asked until the feed is on screen.
+        // it opens and waiting on this answer (the owner's call: never the
+        // two together). Nothing else is asked until the feed is on screen.
+        let ask = Task { [weak self] () -> Bool in
+            guard let self else { return false }
+            return await self.askWho(introPlayed: drawnAhead)
+        }
+        whoTask = ask
+        guard await ask.value else { return }
+        // Signed in on a phone that never finished the first run (most
+        // often somebody let in off the waitlist): the steps a new account
+        // gets (`routeFirstScreen` → `afterAccount({fromBoot})`). The feed
+        // is already on its way: it waits on the answer alone.
+        if stage == .ready && !UserDefaults.standard.bool(forKey: Self.entryKey) {
+            await beginEntry(handoff: false)
+        }
+        await checkTerms()
+    }
+
+    /// `/api/auth/me` at launch, and what its answer decides: true when
+    /// the server answered with this account.
+    private func askWho(introPlayed: Bool) async -> Bool {
         do {
             let who = try await api.me()
             arrive(who)
-            playIntro()
+            if !introPlayed { playIntro() }
             noteActivation(who)
-            // Signed in on a phone that never finished the first run (most
-            // often somebody let in off the waitlist): the steps a new
-            // account gets (`routeFirstScreen` → `afterAccount({fromBoot})`).
-            if stage == .ready && !UserDefaults.standard.bool(forKey: Self.entryKey) {
-                await beginEntry(handoff: false)
-            }
-            await checkTerms()
+            return who.authenticated
         } catch FAMError.signedOut {
             api.token = nil
+            UserDefaults.standard.removeObject(forKey: Self.readyKey)
             dropFirstFeed()
             stage = .signedOut
-            playIntro()
+            if !introPlayed { playIntro() }
+            return false
         } catch {
             // Offline or the server is away: keep the account, show what
             // can be shown, and let the rails say why they are empty.
             stage = .ready
-            playIntro()
+            if !introPlayed { playIntro() }
+            return false
         }
     }
 
@@ -735,6 +768,7 @@ final class AppModel: ObservableObject {
     private func arrive(_ who: Listener) {
         guard who.authenticated else {
             api.token = nil
+            UserDefaults.standard.removeObject(forKey: Self.readyKey)
             stage = .signedOut
             return
         }
@@ -747,6 +781,7 @@ final class AppModel: ObservableObject {
         // stands until `/api/auth/me` is asked again.
         let held = who.waitlisted && (waitlistOn ?? true)
         stage = held ? .waiting : .ready
+        UserDefaults.standard.set(!held, forKey: Self.readyKey)
         if !held { stopSample() }
         // At launch the AI question's answer and the search settings are
         // asked behind the feed (`warmBehindFeed`); once the app is running
@@ -807,6 +842,7 @@ final class AppModel: ObservableObject {
         voicePicked = false
         attachments.clear()
         if voiceSearch.isOpen { voiceSearch.close(sending: true) }
+        UserDefaults.standard.removeObject(forKey: Self.readyKey)
         stage = .signedOut
     }
 
@@ -908,6 +944,11 @@ final class AppModel: ObservableObject {
     /// (after a sign-in, which has no launch feed).
     func firstFeed() async {
         if rails.isEmpty { showRememberedFeed() }
+        // Drawn ahead of `/api/auth/me` (§544): the feed still waits for
+        // its answer, and is not asked at all if it says signed out or
+        // waiting.
+        if let whoTask { _ = await whoTask.value }
+        guard stage == .ready, api.token != nil else { return }
         await startFirstFeed().value
     }
 

@@ -6,8 +6,8 @@ import SwiftUI
 struct FAMApp: App {
     @StateObject private var model = AppModel()
     /// Settings' "Dark mode", on this device only (the web's `fam.theme`):
-    /// light unless it says dark (§250).
-    @AppStorage(FAMTheme.key) private var theme = FAMTheme.light
+    /// dark unless it says light (§544).
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
     init() {
         // A proper picture cache (a faster start): the cards' pictures
