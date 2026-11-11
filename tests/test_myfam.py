@@ -868,7 +868,7 @@ def test_the_page_schedules_a_warm_and_never_waits_for_one(client, monkeypatch):
 
     scheduled: list = []
     monkeypatch.setattr(prefetch, "schedule_cycle",
-                        lambda listener="", minutes=0: scheduled.append(
+                        lambda listener="", minutes=0, feed=None: scheduled.append(
                             (listener, minutes)) or True)
 
     # A guest's page warms nothing - see the test below - so an account.

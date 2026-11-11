@@ -61,6 +61,7 @@ anybody's friends.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import logging
 import math
@@ -148,6 +149,58 @@ MISSED_QUIET = 3 * 86400
 #: listening to"; before that `TRENDING_WINDOW`, three days. The sign-up
 #: screen's three samples are the top of this same ranking.
 MOST_PLAYED_WINDOW = 24 * 3600
+
+#: **The crowd's listens are read once and shared** (§544). Every crowd rail
+#: - Most played (24 h), What you missed (3-7 days), the friends rail and the
+#: friends' faces (14 days) - is a window over the same plays and heard
+#: listens, identical for every listener, and each draw used to read them
+#: four times. One snapshot of the widest window now serves every rail and
+#: every listener, filtered in memory by exactly the bounds each read asked
+#: for, so the answer is the one a fresh read gives. It is read again when
+#: anything in this process writes a play, a completion or a heard listen
+#: (`_crowd_changed`), when the newest play or heard listen in the database
+#: is not the one it saw (another worker's write; asked at most once every
+#: `CROWD_CHECK_SECONDS`, so another worker's play reaches this one's rails
+#: within a second), and at least every `CROWD_REFRESH_SECONDS` - which is
+#: the only longer staleness left: a row another worker *deleted* or
+#: back-dated (an account deletion) can stay on the crowd rails that long.
+CROWD_REFRESH_SECONDS = 30.0
+#: How often the snapshot asks the database whether another worker wrote
+#: (`_crowd_mark`): once a second, not once per read - one draw makes eight.
+CROWD_CHECK_SECONDS = 1.0
+#: How far back the snapshot reads: the widest crowd window. A read reaching
+#: further back than this (a tool, a test with an old clock) goes straight
+#: to the database, as every read used to.
+CROWD_SPAN = max(FRIENDS_WINDOW, MISSED_WINDOW, MOST_PLAYED_WINDOW)
+
+_CROWD_LOCK = threading.Lock()
+#: database path -> how many crowd-changing writes this process has made.
+_CROWD_GEN: dict[str, int] = {}
+#: database path -> _CrowdSnapshot.
+_CROWD: dict[str, "_CrowdSnapshot"] = {}
+
+
+@dataclass
+class _CrowdSnapshot:
+    lo: float
+    taken: float
+    gen: int
+    mark: tuple
+    rows: list
+    heard: list
+    checked: float = 0.0
+
+
+def _crowd_changed(path: str) -> None:
+    with _CROWD_LOCK:
+        _CROWD_GEN[path] = _CROWD_GEN.get(path, 0) + 1
+        _CROWD.pop(path, None)
+
+
+def reset_crowd() -> None:
+    """Forget every crowd snapshot (tests; a wipe calls `_crowd_changed`)."""
+    with _CROWD_LOCK:
+        _CROWD.clear()
 
 #: **A listen is something heard, not a tap** (§433, at the owner's
 #: direction). The server writes a `play` the moment it starts sending
@@ -2522,6 +2575,8 @@ class EventStore:
                  ",".join(event.tags), event.at, event.thread[:200],
                  event.section[:40], event.algo[:40]),
             )
+            if event.kind in ("play", "complete"):
+                _crowd_changed(self.path)
             return cur.lastrowid
         except Exception:
             # A feed is a nicety. Losing an event must never break playback.
@@ -2791,6 +2846,14 @@ class EventStore:
         a listen to that episode.
         """
         until = float("inf") if until is None else until
+        snap = self._crowd(since)
+        if snap is not None:
+            # The same rows in the same order a fresh read returns (§544):
+            # the snapshot is that read over a wider window.
+            return [r for r in snap.rows if since <= r[3] < until]
+        return self._listens_sql(since, until)
+
+    def _listens_sql(self, since: float, until: float) -> list:
         try:
             rows = self._conn().execute(
                 "SELECT user_id, topic_id, text, at, kind FROM events"
@@ -2800,6 +2863,65 @@ class EventStore:
         except Exception:
             log.exception("could not read listens")
             return []
+        return [(r[0], r[1] or "", r[2] or "", float(r[3]), r[4])
+                for r in rows]
+
+    def _crowd_mark(self) -> tuple:
+        """The newest play, completion and heard listen in the database: what
+        tells this process another worker has written since its snapshot."""
+        row = self._conn().execute(
+            "SELECT (SELECT MAX(at) FROM events WHERE kind = 'play'),"
+            " (SELECT MAX(at) FROM events WHERE kind = 'complete'),"
+            " (SELECT MAX(at) FROM heard_listens)").fetchone()
+        return tuple(float(v) if v is not None else None for v in row)
+
+    def _crowd(self, since: float) -> Optional["_CrowdSnapshot"]:
+        """The shared snapshot of the crowd's listens, current as of now, or
+        None when it cannot answer a read reaching back to `since` - which is
+        then read from the database as it always was (§544)."""
+        clock = time.monotonic()
+        with _CROWD_LOCK:
+            gen = _CROWD_GEN.get(self.path, 0)
+            snap = _CROWD.get(self.path)
+        if snap is not None and (snap.gen != gen
+                                 or clock - snap.taken >= CROWD_REFRESH_SECONDS):
+            snap = None
+        if snap is not None and clock - snap.checked < CROWD_CHECK_SECONDS:
+            return snap if since >= snap.lo else None
+        try:
+            mark = self._crowd_mark()
+        except Exception:
+            log.exception("could not check the crowd snapshot; reading directly")
+            return None
+        if snap is not None and snap.mark == mark:
+            snap.checked = clock
+            return snap if since >= snap.lo else None
+        lo = time.time() - CROWD_SPAN
+        if since < lo:
+            return None
+        try:
+            rows = self._listens_sql_raising(lo)
+            heard = [(r[0], r[1], float(r[2])) for r in self._conn().execute(
+                "SELECT user_id, question, at FROM heard_listens WHERE at >= ?",
+                (lo,)).fetchall()]
+        except Exception:
+            log.exception("could not read the crowd snapshot; reading directly")
+            return None
+        snap = _CrowdSnapshot(lo=lo, taken=clock, gen=gen, mark=mark,
+                              rows=rows, heard=heard, checked=clock)
+        with _CROWD_LOCK:
+            # Kept only if nothing here wrote while it was being read; this
+            # read still answers the caller, which asked before that write.
+            if _CROWD_GEN.get(self.path, 0) == gen:
+                _CROWD[self.path] = snap
+        return snap
+
+    def _listens_sql_raising(self, since: float) -> list:
+        rows = self._conn().execute(
+            "SELECT user_id, topic_id, text, at, kind FROM events"
+            " WHERE at >= ? AND at < ? AND kind IN ('play', 'complete')",
+            (since, float("inf")),
+        ).fetchall()
         return [(r[0], r[1] or "", r[2] or "", float(r[3]), r[4])
                 for r in rows]
 
@@ -2860,11 +2982,16 @@ class EventStore:
         except Exception:
             log.exception("could not keep a heard listen")
             return False
+        finally:
+            _crowd_changed(self.path)
         return True
 
     def heard_since(self, since: float) -> set[tuple[str, str]]:
         """(user_id, normalised question) for every listen heard past its
         threshold since then (§433). Completions are read from `events`."""
+        snap = self._crowd(since)
+        if snap is not None:
+            return {(u, q) for u, q, at in snap.heard if at >= since}
         try:
             rows = self._conn().execute(
                 "SELECT user_id, question FROM heard_listens WHERE at >= ?",
@@ -3129,12 +3256,16 @@ class EventStore:
         except Exception:
             log.exception("could not clear the event log")
             return 0
+        finally:
+            _crowd_changed(self.path)
         # Derived from the plays it empties (§124, [wipe-derived]): who heard
         # what goes with the log it was measured against.
         try:
             self._conn().execute("DELETE FROM heard_listens")
         except Exception:
             log.exception("could not clear the heard listens")
+        finally:
+            _crowd_changed(self.path)
         # The fitted order goes with the log it was fitted to (§124's rule:
         # a wipe takes what is derived from what it empties).
         try:
@@ -3163,6 +3294,7 @@ class EventStore:
                 removed += cur.rowcount or 0
             except Exception:
                 log.exception("could not erase %s for %r", table, user_id)
+        _crowd_changed(self.path)
         return removed
 
 
@@ -3638,7 +3770,10 @@ REMAKE_AFTER = 86400.0
 REMAKE_MARGIN = 3600.0
 
 
+@functools.lru_cache(maxsize=65536)
 def _norm_question(text: str) -> str:
+    # Memoised (§544): every crowd tally normalises every listen's question,
+    # tens of thousands a draw, over a few thousand distinct questions.
     return " ".join(_WORD.findall((text or "").lower()))
 
 
@@ -3756,6 +3891,11 @@ def repeats(topics: Iterable["Topic"], heard: Heard, now: float,
     could actually offer, which is what lets a remade one back in.
     """
     blocked = set(heard.by_id)
+    topics = list(topics)
+    if written_at is not None:
+        # Only a heard tile is ever dated, so only those are read, together.
+        _prime(written_at, [t.query for t in topics
+                            if not t.follows and heard.last(t)])
     for topic in topics:
         if topic.follows:
             # A follow-up was already judged by `trending_for`, which is the
@@ -3860,6 +4000,8 @@ def _ready_set(topics: Iterable[Topic], written=None) -> set[str]:
     """
     if written is None:
         return set()
+    topics = list(topics)
+    _prime(written, [t.query for t in topics])
     ready = set()
     for topic in topics:
         try:
@@ -3923,10 +4065,15 @@ def episode_tile(query: str, topic_id: str = "", title: str = "") -> Topic:
     construction: every rail that builds one of these has checked that first.
     """
     tags = tags_for_text(query)
-    tid = topic_id or "ep-" + hashlib.sha1(
-        _norm_question(query).encode("utf-8")).hexdigest()[:12]
+    tid = _episode_tile_id(query, topic_id)
     return Topic(id=tid, title=title or _question_title(query), subtitle="",
                  query=query, tags=tags, icon=_icon_for_tags(tags))
+
+
+def _episode_tile_id(query: str, topic_id: str = "") -> str:
+    """`episode_tile`'s id, without the tags it costs to build the tile."""
+    return topic_id or "ep-" + hashlib.sha1(
+        _norm_question(query).encode("utf-8")).hexdigest()[:12]
 
 
 @dataclass
@@ -4049,14 +4196,46 @@ def listen_report(store: EventStore, now: Optional[float] = None,
 def _tile_for(entry: _Tally, known: dict, by_question: dict) -> Topic:
     """The tile that plays this episode: the inventory's own when it has one
     (hand-written title and hook), otherwise one built from the cache."""
+    topic, ident = _tile_ref(entry, known, by_question)
+    return topic if topic is not None else episode_tile(entry.query, ident)
+
+
+def _tile_ref(entry: _Tally, known: dict, by_question: dict
+              ) -> tuple[Optional[Topic], str]:
+    """`_tile_for` without building a tile from the cache: (the inventory's
+    tile, "") when there is one, else (None, the topic id `episode_tile`
+    would be given). A crowd rail drops most of what it visits before it
+    draws anything, so the tags are worked out only for what it keeps
+    (§544)."""
     ids = sorted(entry.ids, key=lambda i: (-entry.ids[i], i))
     for topic_id in ids:
         if topic_id in known:
-            return known[topic_id]
+            return known[topic_id], ""
     norm = _norm_question(entry.query)
     if norm in by_question:
-        return by_question[norm]
-    return episode_tile(entry.query, ids[0] if ids else "")
+        return by_question[norm], ""
+    return None, ids[0] if ids else ""
+
+
+def _prime(probe, queries) -> None:
+    """Tell a cache probe which questions are about to be asked, so it can
+    read them in one statement (§544). A probe without `prime` - a test's
+    lambda - is asked one question at a time, as it always was. Never
+    raises: priming only ever saves reads."""
+    prime = getattr(probe, "prime", None)
+    if prime is None:
+        return
+    try:
+        prime(queries)
+    except Exception:  # noqa: BLE001 - each question is still asked on its own
+        log.exception("could not prime the cache probe")
+
+
+#: How many crowd candidates `_crowd_tiles` reads in its first batch, and how
+#: much each later batch grows (§544). A rail usually fills from the first;
+#: one whose candidates are mostly not cached reads two or three.
+CROWD_PROBE_BATCH = 64
+CROWD_PROBE_GROWTH = 4
 
 
 def _cached_info(episode_info, query: str) -> Optional[CachedEpisode]:
@@ -4096,30 +4275,67 @@ def _crowd_tiles(tallies: dict, known: dict, exclude: set,
     by_question = {_norm_question(t.query): t for t in known.values()}
     out: list = []
     seen: set[str] = set()
-    for entry in sorted(tallies.values(), key=order):
+    entries = sorted(tallies.values(), key=order)
+    # (inventory tile or None, id, question) per entry, worked out once: the
+    # id and question are all the filters below read.
+    refs: list = [None] * len(entries)
+
+    def ref(i: int):
+        if refs[i] is None:
+            topic, ident = _tile_ref(entries[i], known, by_question)
+            if topic is None:
+                refs[i] = (None, _episode_tile_id(entries[i].query, ident),
+                           entries[i].query, ident)
+            else:
+                refs[i] = (topic, topic.id, topic.query, "")
+        return refs[i]
+
+    def wanted(i: int) -> bool:
+        _topic, tid, query, _ident = ref(i)
+        return not (tid in exclude or tid in seen
+                    or (heard is not None and heard.last(_Ref(tid, query))))
+
+    # Read the cache for the candidates ahead in batches (§544) rather than
+    # one statement each: the first batch is what a rail usually fills from.
+    primed = 0
+    batch = CROWD_PROBE_BATCH
+    for i, entry in enumerate(entries):
         if limit is not None and len(out) >= limit:
             break
-        topic = _tile_for(entry, known, by_question)
-        if (topic.id in exclude or topic.id in seen
-                or (heard is not None and heard.last(topic))):
+        if not wanted(i):
             continue
+        topic, tid, query, ident = ref(i)
         if episode_info is None:
-            if topic.id not in known:
+            if tid not in known:
                 continue
         else:
+            if i >= primed:
+                ahead = range(i, min(len(entries), i + batch))
+                _prime(episode_info, [ref(j)[2] for j in ahead if wanted(j)])
+                primed = i + batch
+                batch *= CROWD_PROBE_GROWTH
             # Asked about the question the *tile* plays, which is not always
             # the one a listener typed: a tile it resolved to is what the tap
             # sends, and "cached" means that tap replays.
-            info = _cached_info(episode_info, topic.query)
+            info = _cached_info(episode_info, query)
             if info is None:
                 continue
             if info.live_feeds and not allow_live:
                 continue
-            if topic.id not in known and info.title:
-                topic = replace(topic, title=info.title)
+        if topic is None:
+            topic = episode_tile(entry.query, ident)
+        if episode_info is not None and tid not in known and info.title:
+            topic = replace(topic, title=info.title)
         seen.add(topic.id)
         out.append((topic, entry))
     return out
+
+
+@dataclass(frozen=True)
+class _Ref:
+    """Just enough of a tile for `Heard.last`: its id and its question."""
+    id: str
+    query: str
 
 
 def rank_from_history(profile: dict[str, float], exclude: set[str],

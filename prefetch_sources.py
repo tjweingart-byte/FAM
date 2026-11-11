@@ -261,15 +261,26 @@ class FeedSource:
         #: thing the page actually draws.
         self.sections = tuple(sections)
 
+    #: `Prefetcher.plan` hands this source the page the listener was just
+    #: shown (`feed=`), when a myFAM draw scheduled the cycle (§544).
+    takes_feed = True
+
     def candidates(self, listener: str = "", limit: int = 4,
-                   interests: Iterable[str] = ()) -> list:
+                   interests: Iterable[str] = (), feed: Optional[dict] = None) -> list:
+        """`feed` is the page `/api/myfam` just drew for this listener, when
+        that is what scheduled the cycle: the tiles they were actually shown,
+        and no second `build_feed` (§544) - which stalled the event loop for
+        a whole draw right after every first open. Without one (a tool, a
+        test, a cycle nobody's page started) the feed is built here as it
+        always was."""
         if not listener:
             return []
-        import topics
+        if feed is None:
+            import topics
 
-        circle = self.circle_of(listener) if self.circle_of else ()
-        feed = topics.build_feed(self.store, listener, interests=interests,
-                                 circle=circle)
+            circle = self.circle_of(listener) if self.circle_of else ()
+            feed = topics.build_feed(self.store, listener, interests=interests,
+                                     circle=circle)
         by_key = {s["key"]: s for s in feed.get("sections", [])}
         out: list = []
         for key in self.sections:

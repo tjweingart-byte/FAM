@@ -707,6 +707,47 @@ _CURRENT_UNTIL = "(CASE WHEN fresh_until > 0 THEN fresh_until ELSE expires END)"
 _SOURCED = "(CASE WHEN sourced_at > 0 THEN sourced_at ELSE created END)"
 
 
+#: How many keys one `rows_many` statement asks about. Under SQLite's
+#: oldest bound-variable limit (999) with room to spare; Postgres has none
+#: worth reaching.
+ROWS_MANY_CHUNK = 500
+
+
+@dataclass(frozen=True)
+class ProbeRow:
+    """What a browse page asks of one cache row, read once (§544).
+
+    myFAM asked `holds`, `written_at`, `title` and `sources` of every
+    candidate tile one statement at a time - about a thousand round trips a
+    draw. `rows_many` reads the four for a whole batch in one, and each
+    method here answers exactly what the single-key read of the same name
+    answers for the same row at `now`: `SqliteScriptCache.holds` itself is
+    `ProbeRow.holds`, so the two cannot drift.
+    """
+    expires: float
+    fresh_until: float = 0.0
+    created: float = 0.0
+    title: str = ""
+    sources: str = ""
+
+    def holds(self, now: float, current: bool = True) -> bool:
+        if self.expires < now:
+            return False
+        return not current or (self.fresh_until or self.expires) >= now
+
+    def written_at(self, now: float) -> Optional[float]:
+        until = self.fresh_until if self.fresh_until > 0 else self.expires
+        return None if until < now else float(self.created)
+
+    def title_text(self, now: float) -> str:
+        if self.expires < now:
+            return ""
+        return content_filter.scrub(self.title or "")
+
+    def sources_text(self, now: float) -> str:
+        return "" if self.expires < now else (self.sources or "")
+
+
 #: The `origin` of a row that is an earlier episode under a re-written key
 #: (§173). Never current, never near-matched, never on Explore or a rail - it
 #: exists so the listener who heard it can hear it again from their history.
@@ -886,6 +927,10 @@ class MemoryScriptCache:
         entry = self._data.get(key)
         return bool(entry and entry[0] >= time.time()
                     and (not current or self._current(key)))
+
+    def holds_many(self, keys, current: bool = True) -> set:
+        """See `SqliteScriptCache.holds_many`."""
+        return {k for k in dict.fromkeys(keys) if k and self.holds(k, current)}
 
     def get(self, key: str, current: bool = True) -> Optional[list[str]]:
         entry = self._data.get(key)
@@ -1483,10 +1528,40 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache probe failed; treating as unwritten")
             return False
-        now = time.time()
-        if not row or row[0] < now:
+        if not row:
             return False
-        return not current or (row[1] or row[0]) >= now
+        return ProbeRow(row[0], row[1] or 0.0).holds(time.time(), current)
+
+    def rows_many(self, keys) -> dict:
+        """`ProbeRow` for each of `keys` that has a row, in one statement per
+        `ROWS_MANY_CHUNK` keys (§544). A key with no row is absent. Raises on
+        a broken database, like `written_at`: the caller decides what an
+        unknown reads as."""
+        wanted = list(dict.fromkeys(k for k in keys if k))
+        out: dict = {}
+        conn = self._conn()
+        for at in range(0, len(wanted), ROWS_MANY_CHUNK):
+            chunk = wanted[at:at + ROWS_MANY_CHUNK]
+            rows = conn.execute(
+                "SELECT key, expires, fresh_until, created, title, sources"
+                " FROM scripts WHERE key IN (" + ",".join("?" * len(chunk)) + ")",
+                tuple(chunk),
+            ).fetchall()
+            for r in rows:
+                out[r[0]] = ProbeRow(float(r[1]), float(r[2] or 0.0),
+                                     float(r[3] or 0.0), r[4] or "", r[5] or "")
+        return out
+
+    def holds_many(self, keys, current: bool = True) -> set:
+        """The keys of `keys` that `holds(key, current)` is True for, in one
+        statement per chunk. A failed read holds nothing, as `holds` does."""
+        try:
+            rows = self.rows_many(keys)
+        except Exception:
+            log.exception("script cache probe failed; treating as unwritten")
+            return set()
+        now = time.time()
+        return {k for k, row in rows.items() if row.holds(now, current)}
 
     def get(self, key: str, current: bool = True) -> Optional[list[str]]:
         """The script under `key`, or None.
