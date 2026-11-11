@@ -1,4 +1,4 @@
-"""Vibes as Posts (PROBLEMS.md §544, the owner's option C, "Compact Trio").
+"""Vibes as Posts (PROBLEMS.md §547, the owner's option C, "Compact Trio").
 
 A vibe tapped on your own YourFAM grid or a friend's opens as a post: the
 day it was vibed, the line the poster picked over the picture, a player

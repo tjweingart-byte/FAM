@@ -16,7 +16,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Adding or changing a rule:** reasoning in a `docs/claude/` file under a
   new `<!-- rule:ID -->` marker, one line here citing `[ID]`.
   `tests/test_claude_md.py` fails if the IDs disagree or this file passes its
-  budget - history goes in the topic files and `PROBLEMS.md`, never here.
+  budget - history goes in topic files and `PROBLEMS.md`, never here.
 - **History:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section and line
   (`tools/problems_index.py`; a test fails if stale). Read by offset.
 - "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`.
@@ -102,7 +102,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
   Your story only (§250); holding pauses; your story rings your face; (+)
   posts a note, no episode (§297); a vibe is deleted whole (story ⋯ or grid
-  hold, §499); grid taps open posts (§544). [vibe-caption] [vibe-posts]
+  hold, §499); a grid tap: posts (§547). [vibe-caption] [vibe-posts]
 - **A friend's vibe** has a reply / heart / share-to-your-story row (§282); a
   reply or like is a message carrying the episode. [story-reply]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
@@ -447,7 +447,7 @@ Accounts, tiers, sharing
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
-  (§204); daily/my/your one rule, centred (§363); light (§250). [typefaces]
+  (§204); daily/my/your one rule, centred (§363), web light, app dark (§546). [typefaces]
 - **Larger phone text never breaks a screen** (§499): heights are floors,
   headings never share a squeezed row. [large-text]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
@@ -539,7 +539,7 @@ Every change ends the same way, without being asked [ship-loop]:
 - Reading order and the reference docs are listed in `workflow.md`; recent
   history is in `PROBLEMS_INDEX.md`. [reading-order]
 - Setup: `pip install -r requirements.txt` and `pip install playwright`. [setup-deps]
-- Run `./dev.sh check` first; it ends `all checks passed` twice with the smoke
+- Run `./dev.sh check` first; it ends `all checks passed` twice, smoke
   count from `grep -c '^        check(' tools/smoke_preview.py`. [baseline-check-counts]
 - The share landing page has its own smoke run (`tools/smoke_landing.py`); CI
   runs all three; a check added to `dev.sh` must be added to

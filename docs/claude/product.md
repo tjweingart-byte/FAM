@@ -209,7 +209,7 @@ replaced when the same episode is vibed again.
 > no episode menu; a reply or heart is a text message quoting it.
 
 <!-- rule:vibe-posts -->
-**A vibe tapped on a YourFAM grid opens as posts** *(PROBLEMS.md §544, the
+**A vibe tapped on a YourFAM grid opens as posts** *(PROBLEMS.md §547, the
 owner's "Vibes as Posts", option C of two rounds of ten and six)*. Only
 from the two grids - your own and a friend's; a story, My Vibe's list and
 everything else still play the episode as before, and pressing and holding

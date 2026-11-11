@@ -149,7 +149,7 @@ def clean_caption(caption: str) -> str:
     return _clean_words(caption, MAX_CAPTION)
 
 
-#: How long a vibe's line may be (§544): one sentence of the episode, picked
+#: How long a vibe's line may be (§547): one sentence of the episode, picked
 #: from its captions when it is vibed. A long sentence is cut, never refused.
 MAX_LINE = 300
 #: The latest a line may start, in seconds: past the longest episode (ten
@@ -158,7 +158,7 @@ MAX_LINE_AT = 15 * 60
 
 
 def clean_line(line) -> str:
-    """The sentence a vibe carries (§544): words as the episode spoke them,
+    """The sentence a vibe carries (§547): words as the episode spoke them,
     folded and cut like a caption, slurs out as everywhere (`slurs-only`)."""
     return _clean_words(str(line or ""), MAX_LINE)
 
@@ -491,7 +491,7 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS comment_likes_comment"
                          " ON comment_likes(comment_id)")
-            # A vibe as a post (§544, the owner's "Vibes as Posts", option C):
+            # A vibe as a post (§547, the owner's "Vibes as Posts", option C):
             # the sentence the poster picked from the episode's captions and
             # where it starts ("" and -1 for none, as every older vibe has).
             for column in ("line TEXT NOT NULL DEFAULT ''",
@@ -500,7 +500,7 @@ class SocialStore:
                     conn.execute(f"ALTER TABLE echoes ADD COLUMN {column}")
                 except sqlite3.OperationalError:
                     pass  # already there
-            # Replies on a vibe (§544) are comments filed under the vibe's row
+            # Replies on a vibe (§547) are comments filed under the vibe's row
             # rather than under the episode: `echo_id` 0 is an episode's own
             # thread (Explore's, §203) and anything else is one vibe's, so a
             # reply to Ian's post is read with Ian's post and never shows up
@@ -513,7 +513,7 @@ class SocialStore:
                 pass  # already there
             conn.execute("CREATE INDEX IF NOT EXISTS comments_echo"
                          " ON comments(echo_id, at)")
-            # A like on a vibe (§544): one row per person per post, so the
+            # A like on a vibe (§547): one row per person per post, so the
             # count under it is `COUNT(*)`, like a comment's. Keyed on the
             # vibe's row, not the episode: liking Ian's post is not liking
             # Maya's post of the same episode.
@@ -738,7 +738,7 @@ class SocialStore:
              None if tagged is None else (json.dumps(tagged) if tagged else ""),
              audience),
         )
-        # The line (§544). None is "not sent" - every client before posts,
+        # The line (§547). None is "not sent" - every client before posts,
         # and a re-vibe whose editor picked nothing - and keeps the row's.
         if line is not None:
             words = clean_line(line)
@@ -905,7 +905,7 @@ class SocialStore:
             "DELETE FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
             (user_id, query, as_minutes(minutes)),
         )
-        # A vibe deleted whole (§499) takes its post with it (§544): the
+        # A vibe deleted whole (§499) takes its post with it (§547): the
         # likes on it and the replies under it, which hung from nothing else.
         if row:
             self._drop_post(conn, int(row[0]))
@@ -1373,7 +1373,7 @@ class SocialStore:
         conn = self._conn()
         row = conn.execute("SELECT user_id, echo_id FROM comments WHERE id = ?",
                            (int(comment_id),)).fetchone()
-        # A reply on somebody's vibe is also theirs to take down (§544), as a
+        # A reply on somebody's vibe is also theirs to take down (§547), as a
         # post's owner can on Instagram: it sits under their name.
         on_own_post = bool(row and row[1] and user_id and conn.execute(
             "SELECT 1 FROM echoes WHERE id = ? AND user_id = ?",
@@ -1387,7 +1387,7 @@ class SocialStore:
         conn.execute(f"DELETE FROM comments WHERE id IN ({marks})", ids)
         return True
 
-    # --- a vibe as a post (§544) --------------------------------------------
+    # --- a vibe as a post (§547) --------------------------------------------
 
     def like_vibe(self, user_id: str, echo_id: int, on: bool = True) -> dict:
         """Like somebody's vibe, or take the like back. Its count and state."""
@@ -1408,7 +1408,7 @@ class SocialStore:
 
     def vibe_posts(self, owner: str, viewer: str = "", limit: int = 12,
                    before: float = 0.0, exclude_users=(), exclude_ids=()) -> list[dict]:
-        """One listener's vibes as posts (§544), newest first: the vibe, its
+        """One listener's vibes as posts (§547), newest first: the vibe, its
         caption and line, its likes and replies, and the reply shown under it.
 
         `viewer` is whoever is looking - the owner, or somebody whose look a
@@ -1797,7 +1797,7 @@ class SocialStore:
         except Exception:
             log.exception("could not erase comments for %r", user_id)
         # Their likes on vibes, and their vibes' posts - the likes and the
-        # replies other people left under them (§544) - before the rows go.
+        # replies other people left under them (§547) - before the rows go.
         try:
             conn = self._conn()
             cur = conn.execute("DELETE FROM vibe_likes WHERE user_id = ?", (user_id,))

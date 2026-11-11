@@ -274,14 +274,18 @@ struct MixCard: View {
                     .font(FAMFont.heading(14, .semibold))
                     .foregroundStyle(FAMColor.text)
                     .multilineTextAlignment(.leading)
-                meta
-                    .font(FAMFont.mono(8.5))
-                    .tracking(0.425)
-                    .textCase(.uppercase)
-                Text(mix.items.isEmpty ? "Nothing in it yet" : mix.items.map(\.title).joined(separator: " · "))
-                    .font(FAMFont.body(10))
-                    .foregroundStyle(FAMColor.textMuted)
-                    .lineLimit(1)
+                // Your own mixes are a picture, a name and an arrow (§544, the
+                // owner 11.10); a public mix found in search keeps whose it is.
+                if trailing != .chevron {
+                    meta
+                        .font(FAMFont.mono(8.5))
+                        .tracking(0.425)
+                        .textCase(.uppercase)
+                    Text(mix.items.isEmpty ? "Nothing in it yet" : mix.items.map(\.title).joined(separator: " · "))
+                        .font(FAMFont.body(10))
+                        .foregroundStyle(FAMColor.textMuted)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 4)
             switch trailing {

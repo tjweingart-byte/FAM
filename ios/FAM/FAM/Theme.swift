@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// The web app's look, as one place every screen reads from. The values are
-/// `static/index.html`'s two themes: light (`html[data-theme="light"]`, the
-/// default since §250) and dark (the `:root` block, the listener's choice in
-/// Settings, "Dark mode", kept on this device under `fam.theme`). Every
+/// `static/index.html`'s two themes: dark (the `:root` block, the app's
+/// default since §546) and light (`html[data-theme="light"]`, the listener's
+/// choice in Settings, "Dark mode" Off, kept on this device under `fam.theme`). Every
 /// token resolves by the trait it is drawn in (`Color(light:dark:)`), so the
 /// root's colour scheme (`FAMApp`, `FAMTheme`) is the only switch. Its type
 /// rule (`typefaces`): Bricolage Grotesque for headings, Geist for body,
@@ -38,14 +38,22 @@ enum FAMColor {
 
 /// The theme this device chose (Settings, "Dark mode"): the web's
 /// `fam.theme`, its own key rather than the preferences, so signing out
-/// never changes the colours. Light unless it says "dark" (§250).
+/// never changes the colours. Dark unless it says "light": dark is what a
+/// new listener sees on the iPhone, light the choice in Settings (§546, the
+/// owner 11.11, reversing §250's light default for the app).
 enum FAMTheme {
     static let key = "fam.theme"
     static let light = "light"
     static let dark = "dark"
+    /// What a phone that never chose is drawn in.
+    static let standard = dark
+
+    static func isDark(_ stored: String) -> Bool {
+        stored != light
+    }
 
     static func scheme(_ stored: String) -> ColorScheme {
-        stored == dark ? .dark : .light
+        isDark(stored) ? .dark : .light
     }
 }
 
@@ -55,7 +63,7 @@ enum FAMTheme {
 /// presentation takes its scheme from the window rather than the view that
 /// presents it.
 struct FAMThemed: ViewModifier {
-    @AppStorage(FAMTheme.key) private var theme = FAMTheme.light
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
     func body(content: Content) -> some View {
         content.environment(\.colorScheme, FAMTheme.scheme(theme))

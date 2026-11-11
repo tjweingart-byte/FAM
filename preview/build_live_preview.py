@@ -1043,7 +1043,7 @@ __MIX_ITEMS__
                return l.comment_id === c.cid && l.user_id === UID; }),
              mine: c.user_id === UID };
   }
-  // A vibe's replies (§544), the same shape, by the vibe.
+  // A vibe's replies (§547), the same shape, by the vibe.
   function vibeRepliesBody(echoId) {
     var all = rows("comments").filter(function (c) { return c.echo_id === echoId; })
       .sort(function (a, b) { return a.at - b.at; });
@@ -1460,7 +1460,7 @@ __WRITING_SIM__
     if (path === "/api/messages/typing") return json({ ok: true });
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
 
-    // ---- a vibe as a post (§544). This database has one listener, so the
+    // ---- a vibe as a post (§547). This database has one listener, so the
     // posts are your own; likes are `vibe_likes` and replies are `comments`
     // filed under the vibe (`echo_id`), shared with everyone who opens the
     // page, as the server shares them with everyone who may see the vibe.
@@ -1779,7 +1779,7 @@ __WRITING_SIM__
         // as the server drops a handle outside the graph.
         style: body.style || {}, audience: body.audience === "close" ? "close" : "",
         unstoried: false,
-        // The line (§544): kept when none is sent, as the server keeps it.
+        // The line (§547): kept when none is sent, as the server keeps it.
         line: body.line != null ? String(body.line).replace(/\s+/g, " ").trim().slice(0, 300)
                                 : (already && already.line) || "",
         line_at: body.line != null ? (body.line && body.line_at >= 0 ? Number(body.line_at) : -1)
