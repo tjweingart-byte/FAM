@@ -210,8 +210,18 @@ def test_a_reply_on_a_hidden_vibe_cannot_be_liked(client):
     other = TestClient(appmod.app)
     with other:
         signed_in(other, "vp8@b.com", "Zed", "zedvp8")
-        assert other.post(f"/api/comments/{rid}/like", json={"on": True}).status_code == 404
-    assert client.post(f"/api/comments/{rid}/like", json={"on": True}).json()["likes"] == 1
+        for path in (f"/api/comments/{rid}/like", f"/api/vibe/replies/{rid}/like"):
+            assert other.post(path, json={"on": True}).status_code == 404, path
+        assert other.delete(f"/api/vibe/replies/{rid}").status_code == 404
+    assert client.post(f"/api/vibe/replies/{rid}/like", json={"on": True}).json()["likes"] == 1
+    assert client.delete(f"/api/vibe/replies/{rid}").json() == {"ok": True}
+
+
+def test_the_app_reaches_vibe_replies_by_their_own_paths():
+    # Explore's comment paths stay for installed clients only (§499).
+    assert "/api/comments" not in INDEX
+    assert "/api/vibe/replies/" in _fn("likeVibeReply")
+    assert "/api/vibe/replies/" in _fn("openVibeReplyMenu")
 
 
 def test_no_post_for_a_handle_nobody_has_or_a_vibe_that_is_gone(client):
@@ -272,3 +282,4 @@ def test_both_previews_answer_the_posts():
     for builder in ("build_preview.py", "build_live_preview.py"):
         src = (ROOT / "preview" / builder).read_text()
         assert '"/api/vibe/posts"' in src, builder
+        assert "replies\\/(\\d+)\\/like" in src, builder

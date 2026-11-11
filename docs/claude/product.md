@@ -239,7 +239,9 @@ and "View all n replies".
   They are comments filed under the vibe (`comments.echo_id`; 0 is an
   episode's own thread, which never shows them), so posting takes an
   account and not a suspended one, likes, report (`comment`) and delete are
-  the comment code; the poster may also delete any reply on their own post.
+  the comment code under their own paths (`/api/vibe/replies/{id}`, never
+  the `/api/comments` the app left in §499); the poster may also delete any
+  reply on their own post.
   Deleting a vibe or an account takes its likes and replies.
 - **Who heard it** is the player's faces (§543), friends only and a friend's
   own search only if their searches are public.

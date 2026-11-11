@@ -9639,6 +9639,41 @@ async def post_vibe_reply(echo_id: int, req: VibeReplyRequest, request: Request)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _vibe_reply(request: Request, comment_id: int) -> dict:
+    """A reply under a vibe this listener may see, else 404."""
+    found = SOCIAL.comment(comment_id)
+    if not found or not found.get("echo_id"):
+        raise HTTPException(status_code=404, detail="That reply is not here any more.")
+    try:
+        _visible_vibe(request, found["echo_id"])
+    except HTTPException:
+        raise HTTPException(status_code=404, detail="That reply is not here any more.") from None
+    return found
+
+
+# A vibe's replies have their own paths (§544) rather than Explore's
+# `/api/comments/...`, which the app no longer reaches (§499) and which stay
+# for installed clients (`old-clients`).
+@app.post("/api/vibe/replies/{comment_id}/like")
+async def like_vibe_reply(comment_id: int, req: VibeLikeRequest,
+                          request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    _vibe_reply(request, comment_id)
+    try:
+        return SOCIAL.like_comment(user, comment_id, on=req.on)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/api/vibe/replies/{comment_id}")
+async def delete_vibe_reply(comment_id: int, request: Request) -> dict:
+    """Your own reply, or any reply on your own vibe."""
+    _read_limit(request)
+    _vibe_reply(request, comment_id)
+    return {"ok": SOCIAL.delete_comment(_listener(request), comment_id)}
+
+
 # --- comments (10.5 packet #8) ---------------------------------------------
 #
 # Explore's comments sheet. A comment is about an episode - `(query,

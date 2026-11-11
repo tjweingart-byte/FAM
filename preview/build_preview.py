@@ -1871,6 +1871,23 @@ __PREVIEW_PICTURE__
       vps.liked = von;
       return json({ id: Number(vplike[1]), likes: vps.likes, liked: von });
     }
+    var vrl = /^\/api\/vibe\/replies\/(\d+)\/like$/.exec(path);
+    if (vrl) {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var vrlb = JSON.parse((init && init.body) || "{}");
+      var vrlr = COMMENTS.filter(function (c) { return c.id === Number(vrl[1]) && c.echo_id; })[0];
+      if (!vrlr) return json({ detail: "That reply is not here any more." }, 404);
+      if (vrlb.on === false) delete vrlr.likers.me; else vrlr.likers.me = 1;
+      return json({ id: vrlr.id, likes: likeCount(vrlr), liked: vrlb.on !== false });
+    }
+    var vrd = /^\/api\/vibe\/replies\/(\d+)$/.exec(path);
+    if (vrd && method === "DELETE") {
+      var vrdId = Number(vrd[1]);
+      var vrdRow = COMMENTS.filter(function (c) { return c.id === vrdId && c.echo_id; })[0];
+      if (!vrdRow || (vrdRow.user_id !== "me" && vrdRow.echo_id >= 5000)) return json({ ok: false });
+      COMMENTS = COMMENTS.filter(function (c) { return c.id !== vrdId && c.parent_id !== vrdId; });
+      return json({ ok: true });
+    }
     var vprep = /^\/api\/vibe\/(\d+)\/replies$/.exec(path);
     if (vprep && method === "GET") {
       var vrid = Number(vprep[1]);

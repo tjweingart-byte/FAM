@@ -1498,6 +1498,33 @@ __WRITING_SIM__
                       likes: rows("vibe_likes").filter(function (l) { return l.echo_id === vpId; }).length });
       });
     }
+    var vrLike = /^\/api\/vibe\/replies\/(\d+)\/like$/.exec(path);
+    if (vrLike) {
+      if (!EMAIL) return json({ detail: ACCOUNT_REQUIRED }, 401);
+      var vrl = Number(vrLike[1]), vrlDoc = UID + "_" + vrl;
+      var vrlJob = body.on === false ? del("comment_likes", vrlDoc)
+        : put("comment_likes", vrlDoc, { user_id: UID, comment_id: vrl, at: now() });
+      return vrlJob.then(function () {
+        return json({ id: vrl, likes: likesOf(vrl), liked: body.on !== false });
+      });
+    }
+    var vrDel = /^\/api\/vibe\/replies\/(\d+)$/.exec(path);
+    if (vrDel && method === "DELETE") {
+      var vrdId = Number(vrDel[1]);
+      var vrdRow = rows("comments").filter(function (c) { return c.cid === vrdId && c.echo_id; })[0];
+      var vrdPost = vrdRow && rows("echoes").some(function (e) {
+        return e.id === vrdRow.echo_id && e.user_id === UID; });
+      if (!vrdRow || (vrdRow.user_id !== UID && !vrdPost)) return json({ ok: false });
+      var vrdJobs = [];
+      rows("comments").forEach(function (c) {
+        if (c.cid === vrdId || c.parent_id === vrdId) {
+          rows("comment_likes").forEach(function (l) {
+            if (l.comment_id === c.cid) vrdJobs.push(del("comment_likes", l.id)); });
+          vrdJobs.push(del("comments", c.id));
+        }
+      });
+      return Promise.all(vrdJobs).then(function () { return json({ ok: true }); });
+    }
     var vpRep = /^\/api\/vibe\/([^\/]+)\/replies$/.exec(path);
     if (vpRep && method === "GET") {
       var vrId = decodeURIComponent(vpRep[1]);

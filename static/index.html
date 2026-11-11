@@ -18760,7 +18760,7 @@
     if(!c) return;
     if(!AUTH.authenticated){ showGuestGate("Create a free account to like replies."); return; }
     var on = !c.liked;
-    fetch("/api/comments/" + id + "/like", { method: "POST",
+    fetch("/api/vibe/replies/" + id + "/like", { method: "POST",
       headers: {"Content-Type": "application/json"}, body: JSON.stringify({ on: on }) })
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){ c.likes = d.likes; c.liked = d.liked; paintVibeReplies(); })
@@ -18772,7 +18772,7 @@
     var items = [];
     if(c.mine || vpr.mine){
       items.push({ label: menuLabel("remove", "Delete reply"), danger: true, action: function(){
-        fetch("/api/comments/" + id, { method: "DELETE" })
+        fetch("/api/vibe/replies/" + id, { method: "DELETE" })
           .then(function(r){ return r.json(); })
           .then(function(d){ if(!d.ok) throw new Error(); loadVibeReplies(); })
           .catch(function(){ toast("Could not delete that"); });

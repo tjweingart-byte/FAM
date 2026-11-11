@@ -535,4 +535,4 @@ and `limit` = Lines.
 | 33544 | 38 | 541. Ready for the iOS launch, on the server: universal links for invites, the iOS 1.0.0 release, two web wordings (2026-11-10) |
 | 33582 | 13 | 542. The FAM mark above the dial and the glide (2026-11-10) |
 | 33595 | 42 | 543. Play all on a rail; friends' faces on the player (2026-11-11) |
-| 33637 | 95 | 544. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11) |
+| 33637 | 99 | 544. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11) |

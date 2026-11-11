@@ -33699,8 +33699,8 @@ gave and the posts of its vibes.
 post, the player's faces (§543) with the same caution.
 
 Endpoints: `GET /api/vibe/posts` (`handle`, `before`, `limit`),
-`POST /api/vibe/{id}/like`, `GET`/`POST /api/vibe/{id}/replies`; deleting a
-reply is `DELETE /api/comments/{id}`. No person ids in any response. Both
+`POST /api/vibe/{id}/like`, `GET`/`POST /api/vibe/{id}/replies`,
+`POST /api/vibe/replies/{reply}/like` and `DELETE /api/vibe/replies/{reply}`. No person ids in any response. Both
 previews answer them. Not built: the iOS client's posts screen, and a
 notice to the poster when someone replies (a reply is not a message).
 
@@ -33726,5 +33726,9 @@ request):
   index after a delete had moved the list: posts are found again by id.
 - "No line" sent nothing, so a re-vibe kept the old line; it now sends "",
   and is always offered.
+- The sheet liked and deleted replies through `/api/comments/...`, which
+  §499 keeps out of the page (`test_explorefam_is_gone_from_the_app`):
+  a vibe's replies have their own paths, `/api/vibe/replies/{id}/like` and
+  `DELETE /api/vibe/replies/{id}`, each asking `_visible_vibe` first.
 
 Tests: `tests/test_vibe_posts.py`.
