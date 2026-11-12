@@ -664,6 +664,11 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
+> **Current (PROBLEMS.md §570, the owner 11.12):** on a mix's page each row
+> is called by today's episode (`episode_title`, the writer's title, read from
+> the cache), the topic under it; the topic alone until today's is written.
+> `title` stays the topic's, so a reorder never renames it.
+
 > **Current (PROBLEMS.md §545, the owner 11.11):** a mix whose followed topic
 > is trending or has a major update since the listener last heard it shows R5
 > on its card (the story's picture, the mix's cover in its corner, one line,

@@ -12830,9 +12830,10 @@
           + '<div class="mix-topic-body">'
           + (sig ? '<div class="mix-sig-tag">' + sigIconSVG(sig, 11) + escapeHtml(t.signal.label)
                    + ' \u00b7 since you last listened</div>' : '')
-          + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
-          + '<div class="mix-topic-sub">' + escapeHtml(by ? "Added by " + (by.you ? "you" : (by.name || "@" + by.handle))
-                                                          : (t.subtitle || "")) + '</div>'
+          // Today's episode by its own title (§570), the topic it came
+          // from under it; the topic's name alone until it is written.
+          + '<div class="mix-topic-title">' + escapeHtml(t.episode_title || t.title) + '</div>'
+          + '<div class="mix-topic-sub">' + escapeHtml(mixTopicSub(t, by)) + '</div>'
           + (sig ? mixBubblesHTML(t.since) : '')
           + '</div>'
           // By data attribute, not inside the handler: a followed item's id
@@ -13187,6 +13188,14 @@
   // not change what plays next.
   var mixPlay = null;   // { name, order: [items], pos, key, failures }
 
+  // The line under a mix row: the topic, when the row shows today's
+  // episode title (§570), then who added it on a joint mix.
+  function mixTopicSub(t, by){
+    var who = by ? "Added by " + (by.you ? "you" : (by.name || "@" + by.handle)) : "";
+    if(t.episode_title) return t.title + (who ? " \u00b7 " + who : "");
+    return who || t.subtitle || "";
+  }
+
   function playMix(){
     var m = mixById(currentMixId);
     if(!m || !m.items.length){ toast("Add a topic first"); return; }
@@ -13441,7 +13450,8 @@
     // a tap is a cache hit. The local fill is only for a server older than it.
     if(item.prompt && item.daily_prompt) daily = item.prompt;
     TOPICS[key] = {
-      title: daily ? item.title + " \u00b7 today" : item.title,
+      // Today's episode by its own name once it is written (§570).
+      title: item.episode_title || (daily ? item.title + " \u00b7 today" : item.title),
       source: "myFAM",
       caption: "Live captions will appear here as this plays\u2014",
       prompt: daily || item.query,
