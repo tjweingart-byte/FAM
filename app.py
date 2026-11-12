@@ -2430,6 +2430,11 @@ def _health_report(request: Request) -> dict:
             # iOS app (INSTAGRAM_APP_ID, SNAPCHAT_CLIENT_ID); the rest take
             # iOS's share sheet. Settable only here, so said here.
             "story_handoffs": sorted(_story_handoffs()),
+            # An id that is set but not the shape the platform issues: the
+            # story goes through the share sheet, and this says why.
+            "story_handoff_problems": sharing.story_handoff_problems(
+                instagram_app_id=settings.instagram_app_id,
+                snapchat_client_id=settings.snapchat_client_id),
         },
         # "Your mix is ready" (push.py): whether this server can deliver, and
         # if not, the sentence the mix page shows.
@@ -4498,11 +4503,13 @@ def _preview_url(share_id: str, request: Request | None = None) -> str:
     return f"{base}/api/share/{quote(share_id)}/preview.jpg" if base else ""
 
 
-#: Drawn previews, newest last: (share id, picture row, title) -> JPEG. A
+#: Drawn previews, newest last: (share id, title) -> (drawn at, JPEG). A
 #: link is previewed once per app it is pasted into, all within minutes, so
-#: a small memory is enough; nothing is stored.
-_PREVIEWS: "OrderedDict[tuple, bytes]" = OrderedDict()
-PREVIEW_MEMORY = 128
+#: a few, briefly, are enough (each is a few hundred KB); nothing is stored.
+#: A hit skips the picture read as well as the drawing.
+_PREVIEWS: "OrderedDict[tuple, tuple[float, bytes]]" = OrderedDict()
+PREVIEW_MEMORY = 32
+PREVIEW_SECONDS = 600
 
 
 def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
@@ -4513,7 +4520,7 @@ def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
 
         found = _player_picture(record.get("query") or "",
                                 record.get("title") or "",
-                                int(record.get("minutes") or 0))
+                                as_minutes(record.get("minutes")))
         row = found.get("picture") or found.get("node") or ""
         if not row or not thumbnails._exists():
             return "", None
@@ -4536,24 +4543,29 @@ async def share_preview(share_id: str, request: Request) -> Response:
     record = SHARES.get(share_id)
     if not record:
         raise HTTPException(status_code=404, detail="No such share.")
-    row, picture = await asyncio.to_thread(_preview_picture, record)
-    key = (share_id, row, record.get("title") or "")
-    data = _PREVIEWS.get(key)
-    if data is None:
+    key = (share_id, record.get("title") or "")
+    now = time.time()
+    kept = _PREVIEWS.get(key)
+    if kept and now - kept[0] < PREVIEW_SECONDS:
+        _PREVIEWS.move_to_end(key)
+        data = kept[1]
+    else:
         import link_preview
 
+        _row, picture = await asyncio.to_thread(_preview_picture, record)
         data = await asyncio.to_thread(
             link_preview.draw, picture, record.get("title") or "",
-            int(record.get("minutes") or 1))
+            as_minutes(record.get("minutes"), 1))
         if data is None:
             raise HTTPException(status_code=404, detail="No preview.")
-        _PREVIEWS[key] = data
+        _PREVIEWS[key] = (now, data)
+        _PREVIEWS.move_to_end(key)
         while len(_PREVIEWS) > PREVIEW_MEMORY:
             _PREVIEWS.popitem(last=False)
-    else:
-        _PREVIEWS.move_to_end(key)
+    # As briefly as the page that names it: a re-written title is a new
+    # picture within minutes, not an hour.
     return Response(content=data, media_type="image/jpeg",
-                    headers={"Cache-Control": "public, max-age=3600"})
+                    headers={"Cache-Control": "public, max-age=300"})
 
 
 #: Read once. The landing page is one small file and re-reading it per request

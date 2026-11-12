@@ -409,6 +409,18 @@ def story_handoffs(*, instagram_app_id: str = "",
     return out
 
 
+def story_handoff_problems(*, instagram_app_id: str = "",
+                           snapchat_client_id: str = "") -> list[str]:
+    """The ids that are set but malformed, as sentences for `/api/health`:
+    without this a mistyped id looked exactly like an unset one."""
+    out = []
+    if instagram_app_id and not _INSTAGRAM_APP_ID.match(instagram_app_id):
+        out.append("INSTAGRAM_APP_ID is set but is not a Facebook App ID (digits only)")
+    if snapchat_client_id and not _SNAPCHAT_CLIENT_ID.match(snapchat_client_id):
+        out.append("SNAPCHAT_CLIENT_ID is set but is not a Snap Kit client id")
+    return out
+
+
 def is_public_link(url: str) -> bool:
     """Whether this URL means anything to somebody who is not on this network.
 

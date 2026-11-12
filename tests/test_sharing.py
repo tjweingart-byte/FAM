@@ -431,3 +431,20 @@ def test_a_long_title_on_the_cover_is_cut_rather_than_run_off_the_picture():
     data = link_preview.draw(None, "why " * 80, 3)
     assert Image.open(io.BytesIO(data)).size == (1200, 1200)
     assert link_preview.draw(b"not a picture", "Title", 3)  # the cover instead
+
+
+def test_a_half_minute_episode_keeps_its_half_on_the_cover():
+    """The standard episode is a minute and a half (§332); the cover must
+    not round it to one."""
+    import link_preview
+    from PIL import ImageDraw, Image
+
+    assert f"{1.5:g} MIN EPISODE" == "1.5 MIN EPISODE"
+    assert link_preview.draw(None, "Title", 1.5)
+
+
+def test_a_malformed_id_is_said_in_health_rather_than_looking_unset():
+    assert sharing.story_handoff_problems() == []
+    said = sharing.story_handoff_problems(instagram_app_id="abc",
+                                          snapchat_client_id="no way")
+    assert len(said) == 2 and "INSTAGRAM_APP_ID" in said[0]

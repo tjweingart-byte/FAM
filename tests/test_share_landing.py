@@ -223,3 +223,19 @@ def test_the_link_preview_wears_the_episodes_picture(client, shared, monkeypatch
 
 def test_an_unknown_share_has_no_preview(client):
     assert client.get("/api/share/nope/preview.jpg").status_code == 404
+
+
+def test_a_half_minute_share_asks_for_its_picture_at_its_own_length(
+        client, monkeypatch):
+    """A 1.5-minute share looked its picture up as a 1-minute episode, so it
+    missed the written episode's category and could wear another picture."""
+    import app as appmod
+
+    made = client.post("/api/share", json={
+        "query": "why bonds move", "minutes": 1.5, "title": "Bonds"}).json()
+    asked = []
+    monkeypatch.setattr(appmod, "_player_picture",
+                        lambda q, t, m, *a, **k: asked.append(m) or {})
+    appmod._PREVIEWS.clear()
+    assert client.get(f"/api/share/{made['share']['id']}/preview.jpg").status_code == 200
+    assert asked == [1.5]

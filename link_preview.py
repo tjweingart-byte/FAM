@@ -110,7 +110,7 @@ def _wrap(d, text: str, font, width: int, most: int) -> list[str]:
     return lines
 
 
-def _cover(title: str, minutes: int):
+def _cover(title: str, minutes: float):
     """No picture: the title on FAM's dark ground, a copper glow behind it."""
     from PIL import Image, ImageDraw, ImageFilter
 
@@ -126,7 +126,12 @@ def _cover(title: str, minutes: int):
     for line in _wrap(d, title or "A FAM episode", font, 1000, 5):
         d.text((96, y), line, font=font, fill=PAPER)
         y += 124
-    pill = f"{max(1, int(minutes or 1))} MIN EPISODE"
+    # A half minute stays a half minute (§332): "1.5 MIN EPISODE".
+    try:
+        length = max(0.5, float(minutes or 1))
+    except (TypeError, ValueError):
+        length = 1.0
+    pill = f"{length:g} MIN EPISODE"
     small = _font("GeistMono-Bold.ttf", 34)
     w = d.textlength(pill, font=small)
     d.rounded_rectangle((96, y + 50, 96 + w + 54, y + 50 + 72), radius=36,
@@ -135,7 +140,7 @@ def _cover(title: str, minutes: int):
     return im
 
 
-def draw(picture: Optional[bytes], title: str, minutes: int) -> Optional[bytes]:
+def draw(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes]:
     """The preview as JPEG bytes; `None` only if Pillow itself fails."""
     try:
         from PIL import ImageDraw
