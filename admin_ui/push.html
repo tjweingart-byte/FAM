@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>FAM notifications</title>
+<style>
+  /* The tracker's palette, so the admin pages read as one tool. */
+  :root {
+    --ground:#14111C; --panel:#1C1926; --surface:#262233; --raised:#302A40;
+    --line:#3A3348; --ink:#F1EEF7; --muted:#A79EBA; --faint:#7C7391;
+    --amber:#E9BC63; --green:#6BC2A8; --green-bg:#17322C;
+    --rose:#DE8FA8; --rose-bg:#33202A;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.5 var(--sans); }
+  button, input { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+  a { color:var(--amber); }
+  :focus-visible { outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+  .wrap { max-width:960px; margin:0 auto; padding:22px 16px 60px; }
+  .eyebrow { font:11px var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:6px; }
+  .eyebrow a { color:inherit; }
+  h1 { font-family:var(--serif); font-size:clamp(1.6rem,4vw,2.2rem); font-weight:600; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; max-width:760px; }
+  .note { font-size:12.5px; color:var(--muted); }
+  .note.err { color:var(--rose); }
+  .list { display:flex; flex-direction:column; gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .card h3 { margin:4px 0 6px; font-family:var(--serif); font-size:18px; font-weight:600; overflow-wrap:anywhere; }
+  .tag { display:inline-block; font:10.5px var(--mono); letter-spacing:.08em; text-transform:uppercase; padding:2px 7px; border-radius:6px; background:var(--surface); color:var(--muted); margin-right:6px; }
+  .tag.proposed { background:var(--rose-bg); color:var(--rose); }
+  .tag.approved { background:var(--green-bg); color:var(--green); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .go { background:var(--amber); color:#1b1408; border:0; border-radius:8px; padding:7px 14px; font-weight:600; }
+  .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
+  .go:disabled, .ghost:disabled { opacity:.5; cursor:default; }
+  .gate { max-width:380px; margin:12vh auto; padding:0 16px; }
+  .gate form { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .gate input { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="gate" id="gate" hidden>
+  <div class="eyebrow">FAM admin</div>
+  <h1>Notifications</h1>
+  <p class="sub">Sign in with an admin account.</p>
+  <form id="loginForm" autocomplete="on">
+    <input id="email" type="email" placeholder="Email" autocomplete="username" required>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="go" id="loginBtn" type="submit">Sign in</button>
+    <p class="note err" id="loginErr" hidden></p>
+  </form>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <div class="eyebrow"><a href="/admin">FAM admin</a> · Notifications</div>
+  <h1>Big stories</h1>
+  <p class="sub">What the detector found in GDELT's export files in the last day. People who follow a
+    subject a story names are told on their own. <b>Nothing goes to everybody until you press Send to
+    everyone</b>, and then only once its episode is written. Quiet hours (22:00 to 08:00 where each
+    listener is) still apply.</p>
+  <p class="note" id="state"></p>
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var LABEL = { watching: "Followers only", proposed: "Waiting for you",
+                approved: "Sent to everyone", dismissed: "Dismissed" };
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function api(path, body) {
+    var headers = { "Accept": "application/json" };
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+                         body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) {
+            var e = new Error(j.error || (typeof j.detail === "string" ? j.detail : "") || ("HTTP " + r.status));
+            e.status = r.status; throw e;
+          }
+          return j;
+        });
+      });
+  }
+  function ago(at) {
+    var m = Math.max(0, Math.round((Date.now() / 1000 - at) / 60));
+    return m < 60 ? m + " min ago" : Math.round(m / 60) + " h ago";
+  }
+  function card(s) {
+    var kind = s.kind === "final" ? "Final" : "Big story";
+    var buttons = "";
+    if (s.kind === "breaking" && s.live && (s.status === "proposed" || s.status === "watching")) {
+      buttons = '<div class="row"><button class="go" data-id="' + esc(s.id) + '" data-act="approved">Send to everyone</button>'
+        + '<button class="ghost" data-id="' + esc(s.id) + '" data-act="dismissed">Dismiss</button></div>';
+    }
+    return '<div class="card"><span class="tag">' + kind + '</span>'
+      + '<span class="tag ' + esc(s.status) + '">' + esc(LABEL[s.status] || s.status) + '</span>'
+      + '<h3>' + esc(s.title || s.subject) + '</h3>'
+      + '<div class="note">' + (s.kind === "final" ? esc(s.line) : esc(s.coverage) + ' outlets now, ' + esc(s.peak) + ' at the peak')
+      + ' · first seen ' + ago(s.first_seen) + ' · told ' + esc(s.told) + ' people'
+      + (s.written_at ? ' · episode written' : ' · episode not written yet')
+      + (s.detail ? ' · <span class="err">' + esc(s.detail) + '</span>' : '') + '</div>'
+      + buttons + '</div>';
+  }
+  function load() {
+    return api("/api/admin/push").then(function (d) {
+      $("gate").hidden = true; $("app").hidden = false;
+      $("state").textContent = d.available ? "" : "This server sends no notifications: " + d.reason;
+      $("list").innerHTML = (d.stories || []).map(card).join("")
+        || '<p class="note">No big story in the last day.</p>';
+    }).catch(function (e) {
+      if (e.status === 401 || e.status === 403) { $("gate").hidden = false; $("app").hidden = true; return; }
+      $("state").className = "note err"; $("state").textContent = e.message;
+    });
+  }
+  $("list").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button[data-id]");
+    if (!b) return;
+    if (b.dataset.act === "approved"
+        && !confirm("Send this to every listener with big-story notifications on?")) return;
+    b.disabled = true;
+    api("/api/admin/push/decide", { id: b.dataset.id, status: b.dataset.act }).then(load)
+      .catch(function (e) { alert(e.message); b.disabled = false; });
+  });
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").hidden = true; $("loginBtn").disabled = true;
+    api("/api/admin/login", { email: $("email").value.trim(), password: $("password").value })
+      .then(load)
+      .catch(function (e) { $("loginErr").textContent = e.message; $("loginErr").hidden = false; })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+  load();
+  setInterval(function () { if (!document.hidden) load(); }, 30000);
+})();
+</script>
+<script src="/admin/keith-alerts.js" defer></script>
+</body>
+</html>

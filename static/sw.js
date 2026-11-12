@@ -50,9 +50,10 @@ self.addEventListener("fetch", function (event) {
   );
 });
 
-/* "Your mix is ready" (push.py, the 10.1 packet). The server sends one at a
-   mix's listen time, once that day's edition is written. A tap opens the app
-   on the mix, focusing a FAM window that is already open rather than a second. */
+/* Notifications (push.py, push_stories.py; §552): "Your myFAM is ready" once
+   a day per person, a big story, a followed team's final - each sent only
+   once what it opens is written. A tap opens the app on it, focusing a FAM
+   window that is already open rather than a second. */
 self.addEventListener("push", function (event) {
   var data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }

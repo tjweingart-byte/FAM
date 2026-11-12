@@ -110,6 +110,7 @@ import mixes as mixes_mod
 import topic_title
 import mail as mail_mod
 import push as push_mod
+import push_stories
 import listener_clock
 import preferences as prefs_mod
 import social as social_mod
@@ -846,15 +847,18 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(rails_edition.run_forever(
             generator=_EDITION_WRITER, cache=SCRIPT_CACHE,
             initial_delay=3 * settings.boot_stagger_seconds)))
-    # "Your mix is ready" at each mix's listen time, once its edition is
+    # "Your myFAM is ready" once a day per person, once the edition is
     # written (`push.py`). Started only where it can deliver; a server
-    # without keys logs why once and keeps every listen time for later.
+    # without keys logs why once and keeps every choice for later.
     push_ready = push_mod.status()
     if push_ready["available"]:
+        # §552: one daily reminder per person, and big stories and followed
+        # finals (`push_stories.py`), each written before it is told.
         _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(
-            MIXES, PUSH, allowed=_may_be_notified)))
+            MIXES, PUSH, allowed=_may_be_notified, plays=_push_plays,
+            stories=_push_stories_pass)))
     else:
-        log.info("mix notifications: off - %s", push_ready["reason"])
+        log.info("notifications: off - %s", push_ready["reason"])
     # How the voice is found, and a loop that keeps that answer fresh. Both
     # are no-ops unless VOICE_BACKEND=remote: an in-process card is not
     # somewhere that can move.
@@ -7220,27 +7224,92 @@ def _may_be_notified(user_id: str) -> bool:
         return False
 
 
-# ---------------- "Your mix is ready" (the 10.1 packet, third set) ----------------
+# ---------------- Notifications (the 10.1 packet, third set; §552) ----------------
 #
-# A mix's listen time is when this server tells the listener's phone the mix
-# is ready; it never moves when the episodes are written. `push.py` has the
-# rules. These three let a page (or, later, the native app) say whether this
-# server can deliver at all, and hand over or take back where to deliver.
+# One daily reminder per person ("Your myFAM is ready"), big stories, and
+# followed finals. `push.py` and `push_stories.py` have the rules. These let
+# a page (or the native app) say whether this server can deliver at all,
+# hand over or take back where to deliver, and keep the listener's choices.
 
 class PushSubscription(BaseModel):
     #: The browser's PushSubscription.toJSON(): {endpoint, keys: {p256dh, auth}}.
     subscription: dict = Field(default_factory=dict)
+    #: The listener's IANA zone (§552), kept with their choices so the daily
+    #: time and quiet hours are on their clock. Unreadable reads as unset.
+    tz: Optional[str] = Field(None, max_length=64)
+
+
+class PushPrefs(BaseModel):
+    daily: Optional[bool] = None
+    #: "HH:MM", or "" to go back to the learned time.
+    daily_at: Optional[str] = Field(None, max_length=8)
+    breaking: Optional[bool] = None
+    finals: Optional[bool] = None
+    tz: Optional[str] = Field(None, max_length=64)
+
+
+def _push_plays(user_id: str) -> list:
+    """When this person played anything, newest first: what the daily
+    reminder learns its time from, and how it knows it was ignored."""
+    return [e.at for e in EVENTS.for_user(user_id, 400)
+            if e.kind in ("play", "complete")]
+
+
+def _push_follows(user_id: str) -> list:
+    """What this person chose to follow (§552): the subjects in their mixes
+    and their chosen interests that name one. Never what they were inferred
+    to like - a phone is told only about what they asked to hear about."""
+    names: list = []
+    for mix in MIXES.list_for_user(user_id):
+        for item in mix.items:
+            names.extend(push_stories.names_of_item(item))
+    try:
+        names.extend(push_stories.names_of_interests(PREFS.get(user_id).interests))
+    except Exception:  # noqa: BLE001 - the mixes still count
+        log.exception("push: could not read the interests of %r", user_id)
+    return names
+
+
+async def _push_stories_pass() -> None:
+    await push_stories.tick(PUSH, _push_follows, allowed=_may_be_notified,
+                            generator=_EDITION_WRITER, cache=SCRIPT_CACHE)
+
+
+def _push_choices(user_id: str) -> dict:
+    """Their switches, and when the daily reminder goes and why."""
+    prefs = PUSH.prefs(user_id)
+    mixes = [m for m in MIXES.list_for_user(user_id) if m.items]
+    at, _zone, source = push_mod.daily_time(prefs, mixes, _push_plays(user_id), time.time())
+    return {"daily": prefs["daily"], "daily_at": prefs["daily_at"],
+            "breaking": prefs["breaking"], "finals": prefs["finals"],
+            "daily_time": at, "daily_source": source}
 
 
 @app.get("/api/push")
 async def push_status(request: Request):
-    """Whether this server sends notifications, its public key if so, and
-    whether this listener has anywhere to receive one."""
+    """Whether this server sends notifications, its public key if so,
+    whether this listener has anywhere to receive one, and their choices."""
     _read_limit(request)
     body = push_mod.status()
     user = _listener(request)
-    body["subscribed"] = bool(user) and _has_account(request) and bool(PUSH.subscriptions(user))
+    account = bool(user) and _has_account(request)
+    body["subscribed"] = account and bool(PUSH.subscriptions(user))
+    if account:
+        body["prefs"] = await asyncio.to_thread(_push_choices, user)
     return body
+
+
+@app.post("/api/push/prefs")
+async def push_prefs(req: PushPrefs, request: Request):
+    """Change what this listener is told and when (§552)."""
+    _read_limit(request)
+    account = _require_account(request)
+    try:
+        PUSH.set_prefs(account, daily=req.daily, daily_at=req.daily_at,
+                       breaking=req.breaking, finals=req.finals, tz=req.tz)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "prefs": await asyncio.to_thread(_push_choices, account)}
 
 
 @app.post("/api/push/subscribe")
@@ -7251,6 +7320,8 @@ async def push_subscribe(req: PushSubscription, request: Request):
         raise HTTPException(status_code=409, detail=push_mod.status()["reason"])
     try:
         PUSH.subscribe(account, req.subscription)
+        if req.tz:
+            PUSH.set_prefs(account, tz=req.tz)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True}
@@ -12925,6 +12996,43 @@ async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
 #: One search at a time: a second press while one runs would spend X's
 #: per-read billing twice on the same threads.
 _X_RUNNING: list = []
+
+
+@app.get("/admin/push", include_in_schema=False)
+async def admin_push_page(request: Request):
+    """Big stories (§552): what the detector found, and the one button that
+    sends a story to everybody. A shell; the endpoints check who is asking."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "push.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+@app.get("/api/admin/push")
+async def admin_push(request: Request) -> dict:
+    _require_admin(request)
+    state = push_mod.status()
+    stories = await asyncio.to_thread(push_stories.admin_list, PUSH)
+    return {"available": state["available"], "reason": state["reason"],
+            "stories": stories}
+
+
+class PushDecision(BaseModel):
+    id: str = Field(..., min_length=1, max_length=80)
+    status: str = Field(..., pattern=r"^(approved|dismissed)$")
+
+
+@app.post("/api/admin/push/decide")
+async def admin_push_decide(req: PushDecision, request: Request) -> dict:
+    """Send a big story to everybody, or dismiss it. Sending happens on the
+    next pass, once its episode is written - never from this request."""
+    _require_admin(request)
+    row = push_stories.store().get(req.id)
+    if row is None or row["kind"] != push_stories.BREAKING:
+        raise HTTPException(status_code=404, detail="No such story.")
+    return {"ok": True, "story": push_stories.store().decide(req.id, req.status, time.time())}
 
 
 @app.get("/admin/x", include_in_schema=False)

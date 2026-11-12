@@ -543,3 +543,4 @@ and `limit` = Lines.
 | 34049 | 61 | 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11) |
 | 34110 | 71 | 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes / Categories, the morning dot, the pop-ups (2026-11-11) |
 | 34181 | 48 | 551. The app catches up with #247, #249 and #252 (2026-11-11) |
+| 34229 | 78 | 552. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12) |

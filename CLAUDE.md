@@ -214,9 +214,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **A mix is made by naming it** (§498), then filled from its page; no
   picker. [mix-made-by-naming] Long typed topics are named short.
   [mix-topic-title] Joint: members edit topics only. [joint-mixes]
-- A mix's **listen time** is when its "ready" push is sent, 0-15 min after (§448;
-  own zone, once the edition is written), never when written; kept where push is
-  off; never shown to others; no suggested names. [mix-listen-time]
+- **Push** (§552): one "myFAM is ready" a day per person, at their time or a
+  learnt one, after the edition, backs off; big stories to followers, all
+  once admin-approved; followed finals; written first; quiet 22-8. [mix-listen-time]
 - Faces on DailyFAM only, Instagram's, yours first (§297); vibes first; a
   swipe goes to the next friend's, the picture to the profile; Friends has
   "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]

@@ -34225,3 +34225,81 @@ writes it, and `ios/FAM/PARITY.md` says so.
 
 Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
 and every new name resolves.
+
+## 552. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12)
+
+**What the owner asked.** "Push notifications to people's phones when they
+have the app and notifications on": a reminder of their daily playlists, **one
+per user, not per playlist**, and one "when a massive story drops". After a
+brainstorm the owner chose: the reminder's time **learned, with an override**;
+its words **headline first**; big stories **mixed** (automatic to people who
+follow a subject the story names, everyone only after the owner approves);
+and **quiet hours 22-08, followed game finals, and backing off when ignored**.
+Not chosen: a per-person cap on story pushes.
+
+**What changed.** `push.py` no longer sends one notification per mix at each
+mix's listen time (§184, §448). It sends one per person:
+
+* *When* - `daily_time`: the time chosen (Settings' Daily reminder, or the row
+  under any mix, which is now the same one); else an installed client's
+  per-mix `listen_at` (the earliest) until they choose here (`push_prefs.
+  daily_chosen`); else `learned_time` - the median minute of the day's first
+  play over `LEARN_DAYS` (14), once `LEARN_MIN_DAYS` (3) days have one; else
+  `DEFAULT_DAILY_AT` (07:30). §448's 0-15 minute spread keys on the person.
+* *Whether* - not on a day they already played something before it; after
+  `BACKOFF_AFTER` (3) reminders in a row with no play after them, every other
+  day; after `GIVE_UP_AFTER` (8), not until they play (`ignored_streak`).
+  Still only once the edition is written; a person whose mixes are all
+  dormant (§359) has nothing written, so theirs says "Your myFAM is waiting",
+  never "ready", and does not wait for the edition.
+* *What* - `message_for`: "Your myFAM is ready" (names swapped, §185) and the
+  title the edition's report holds for the first item of their most recently
+  played mix, "and N more across M mixes"; with no written title, a count.
+
+`push_stories.py` is new:
+
+* **Big stories.** Every 15 minutes (GDELT's clock) `GdeltSignals`' own
+  clustering runs over the last three hours of the export copy on disk - no
+  model, no request (§211). `judge`: every cluster past
+  `PUSH_BREAKING_FOLLOWED_OUTLETS` (15) is held as `watching`; the biggest is
+  `proposed` only past `PUSH_BREAKING_EVERYONE_OUTLETS` (40) **and**
+  `PUSH_BREAKING_RATIO` (2.0) times the next - a busy day is not one massive
+  story. Sweeps' clusters are one story when their keywords overlap by half.
+  A follower is told automatically; everybody only once `/admin/push`'s Send
+  to everyone marks it `approved`; Dismiss stops it.
+* **Followed finals.** A sports story the sweep marked `final` is noted once
+  and told to whoever follows a team in it, "Eagles 27–24 Cowboys · Final" /
+  "The recap is ready". It rides §191's sweep unchanged: if nobody drew myFAM
+  while the game was on, the sweep did not run and the final is not told.
+  Widening the sweep for followers with push on is the owner's call, not
+  made here.
+* **Follows are chosen, never inferred** (`app._push_follows`): subjects in
+  their mixes (`f:nfl~Eagles` follows "Eagles", `f:nfl` "NFL"; typed questions
+  and bank topics follow nothing) and chosen interests that name a subject.
+  Matched as whole in-order phrases against the headline and keywords; a
+  field's own words ("football") never vouch.
+* **Written first.** Before anyone is told, the story's query is written at
+  `BROWSE_MINUTES` into the shared cache through `daily_edition.run_slot`
+  (slot `push@<id>`), so the tap (`/?listen=<query>&title=...`,
+  `openNotificationLink` -> `playNotifiedStory`) is a cache hit. No writer, or
+  a failed write: nothing is sent, and `/admin/push` shows why.
+* **Quiet hours** (`push.in_quiet_hours`, 22-08 in the listener's zone) hold
+  both story kinds; a breaking story still seen by the detector in the last
+  three hours goes at 08:00, otherwise not at all.
+
+**Choices.** `push_prefs` (one row per person: daily, daily_at, breaking,
+finals, tz) and `push_log` (person, kind, thing) live beside the
+subscriptions in `mixes.db`; an erased account takes all three. `/api/push`
+returns `prefs` with the resolved `daily_time` and its `daily_source`;
+`POST /api/push/prefs` changes them; a subscription carries the zone.
+Settings gains a Notifications group: Daily reminder (a sheet: when I usually
+listen, eight times, off), Big stories, Your teams' final scores.
+
+**Kept for installed clients.** The mix `listen_at` / `listen_tz` fields and
+`PATCH /api/mixes` accept and return them as before; the iOS app's per-mix
+row still saves, and its time stands for the person until they choose one on
+the web. The APNs kind is still not built.
+
+**Unverified here.** No VAPID keys or GDELT copy in this container: the
+outlet bars (15 / 40 / 2x) are first guesses to be read off `/admin/push`
+against a real day's clusters.

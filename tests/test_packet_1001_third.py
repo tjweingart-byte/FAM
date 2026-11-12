@@ -151,9 +151,9 @@ def test_due_at_the_listen_time_once_the_edition_is_written(tmp_path, monkeypatc
     pushes = push.PushStore(str(tmp_path / "m.db"))
     monkeypatch.setattr(push, "_edition_ready", lambda now: True)
     assert push.due(store, pushes, _local(2026, 10, 2, 7, 29)) == []
-    # §448: within fifteen minutes of the listen time, never later.
-    assert [(m.id, d) for m, d in push.due(store, pushes, _local(2026, 10, 2, 7, 45))] \
-        == [(mix.id, "2026-10-02")]
+    # §448: within fifteen minutes of the listen time, never later. §552: one
+    # per person - the old client's mix listen time stands for its owner.
+    assert push.due(store, pushes, _local(2026, 10, 2, 7, 45)) == [("u", "2026-10-02")]
     # Past the grace window, a "ready" is noise.
     assert push.due(store, pushes, _local(2026, 10, 2, 7, 30) + push.GRACE_SECONDS + 1) == []
 
@@ -183,7 +183,7 @@ def test_the_listen_time_is_the_listeners_own_clock(tmp_path, monkeypatch):
     pushes = push.PushStore(str(tmp_path / "m.db"))
     monkeypatch.setattr(push, "_edition_ready", lambda now: True)
     due = push.due(store, pushes, _local(2026, 10, 2, 8, 15, "Asia/Tokyo"))
-    assert [(m.id, d) for m, d in due] == [(mix.id, "2026-10-02")]
+    assert due == [("u", "2026-10-02")]
 
 
 def test_sent_once_a_day_and_only_where_it_can_be_delivered(tmp_path, monkeypatch, keys):
@@ -198,12 +198,13 @@ def test_sent_once_a_day_and_only_where_it_can_be_delivered(tmp_path, monkeypatc
     assert push.tick(store, pushes, now) == []
     pushes.subscribe("u", {"endpoint": "https://push.example/1",
                            "keys": {"p256dh": "k", "auth": "a"}})
-    assert push.tick(store, pushes, now) == [(mix.id, "2026-10-02", 1)]
-    assert sent[0][1]["title"] == "Your Gym mix is ready"
-    assert sent[0][1]["url"] == f"/?mix={mix.id}"
+    assert push.tick(store, pushes, now) == [("u", "2026-10-02", 1)]
+    # §552: one reminder for all their mixes, "myFAM" on the listener's screen.
+    assert sent[0][1]["title"] == "Your myFAM is ready"
+    assert sent[0][1]["url"] == "/?mixes=1"
     assert push.tick(store, pushes, now + 120) == []
     # The next day is a new day.
-    assert push.tick(store, pushes, now + 86400) == [(mix.id, "2026-10-03", 1)]
+    assert push.tick(store, pushes, now + 86400) == [("u", "2026-10-03", 1)]
 
 
 def test_without_keys_nothing_is_sent_and_it_says_why(monkeypatch):
@@ -251,10 +252,12 @@ def test_deleting_an_account_forgets_its_phones(client, monkeypatch):
 
 
 def test_the_page_offers_a_listen_time_and_the_worker_shows_it():
+    """Superseded (§552): the row under a mix is the one daily reminder for
+    all of the person's mixes, saved with their zone."""
     body = _fn("renderMixBody")
-    assert "mixWhenHTML(m)" in body
+    assert "mixWhenHTML()" in body
     assert 'type="time"' in _fn("mixWhenHTML")
-    assert "listen_tz: listenerZone()" in _fn("setMixListenTime")
+    assert "changes.tz = listenerZone()" in _fn("savePushPrefs")
     # The server's own sentence when it cannot deliver.
     assert "pushState.reason" in _fn("mixWhenNote")
     assert 'addEventListener("push"' in SW
@@ -353,7 +356,7 @@ def test_nobody_outside_the_waitlist_is_notified(tmp_path, monkeypatch, keys):
     assert push.tick(store, pushes, now, allowed=lambda uid: False) == []
     # Not claimed, so once they are let in the same day's still goes out.
     assert push.tick(store, pushes, now + 60, allowed=lambda uid: True) \
-        == [(mix.id, "2026-10-02", 1)]
+        == [("u", "2026-10-02", 1)]
 
 
 def test_the_app_asks_the_waitlist_who_may_be_notified(monkeypatch):
@@ -364,14 +367,15 @@ def test_the_app_asks_the_waitlist_who_may_be_notified(monkeypatch):
 
 
 def test_the_permission_prompt_is_asked_inside_the_tap():
-    body = _fn("setMixListenTime")
-    assert body.index("askNotificationPermission()") < body.index("saveMix(")
+    body = _fn("setDailyTime")
+    assert body.index("askIfNeeded()") < body.index("savePushPrefs(")
+    assert "askNotificationPermission()" in _fn("askIfNeeded")
     # And a service worker that never becomes ready cannot hang it.
     assert "setTimeout(function(){ finish(false); }" in _fn("subscribeToPush")
 
 
 def test_an_empty_time_field_never_clears_the_listen_time():
-    assert 'onchange="if(this.value) setMixListenTime(this.value)"' in INDEX
+    assert 'onchange="if(this.value) setDailyTime(this.value)"' in INDEX
 
 
 def test_a_notification_tap_only_hands_off_to_the_app_itself():
@@ -398,7 +402,7 @@ def test_the_push_store_closes_its_connections():
 def test_pushes_spread_over_fifteen_minutes_and_no_more(tmp_path, monkeypatch):
     """§448: listen times cluster on the hour; their pushes do not."""
     assert push.SPREAD_SECONDS == 15 * 60
-    offsets = {push.spread_offset(f"mix-{i}", "2026-10-02") for i in range(400)}
+    offsets = {push.spread_offset(f"user-{i}", "2026-10-02") for i in range(400)}
     assert min(offsets) >= 0 and max(offsets) <= 15 * 60
     assert max(offsets) - min(offsets) > 12 * 60, "pushes still land together"
     # Fixed for a mix and a day (a restart does not move it), new each day.
@@ -409,10 +413,10 @@ def test_pushes_spread_over_fifteen_minutes_and_no_more(tmp_path, monkeypatch):
     pushes = push.PushStore(str(tmp_path / "m.db"))
     monkeypatch.setattr(push, "_edition_ready", lambda now: True)
     at = _local(2026, 10, 2, 7, 30)
-    offset = push.spread_offset(mix.id, "2026-10-02")
+    offset = push.spread_offset("u", "2026-10-02")
     if offset:
         assert push.due(store, pushes, at + offset - 1) == []
-    assert [m.id for m, _ in push.due(store, pushes, at + offset)] == [mix.id]
+    assert [u for u, _ in push.due(store, pushes, at + offset)] == ["u"]
 
 
 def test_a_late_evening_listen_time_still_pushes_after_midnight(tmp_path, monkeypatch):
@@ -424,10 +428,9 @@ def test_a_late_evening_listen_time_still_pushes_after_midnight(tmp_path, monkey
     monkeypatch.setattr(push, "_edition_ready", lambda now: True)
     at = _local(2026, 10, 2, 23, 55)
     # Force the spread past midnight for this mix and day.
-    monkeypatch.setattr(push, "spread_offset", lambda mix_id, day: 12 * 60)
+    monkeypatch.setattr(push, "spread_offset", lambda key, day: 12 * 60)
     assert push.due(store, pushes, at + 5 * 60) == []
     after_midnight = at + 13 * 60  # 00:08 on 10-03
-    assert [(m.id, d) for m, d in push.due(store, pushes, after_midnight)] \
-        == [(mix.id, "2026-10-02")]
-    pushes.mark_sent(mix.id, "2026-10-02", 1)
+    assert push.due(store, pushes, after_midnight) == [("u", "2026-10-02")]
+    pushes.mark_sent("u", push.DAILY, "2026-10-02", 1)
     assert push.due(store, pushes, after_midnight + 60) == []
