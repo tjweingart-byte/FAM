@@ -664,7 +664,7 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
-> **Current (PROBLEMS.md §571, the owner 11.12):** on a mix's page each row
+> **Current (PROBLEMS.md §570, the owner 11.12):** on a mix's page each row
 > is called by today's episode (`episode_title`, the writer's title, read from
 > the cache), the topic under it; the topic alone until today's is written.
 > `title` stays the topic's, so a reorder never renames it.
