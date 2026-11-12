@@ -37,6 +37,9 @@ final class SurveysModel: ObservableObject {
     @Published private(set) var sending = false
 
     private let api: FAMAPI
+    /// The toast (`toast`), wired by `AppModel`: a sent app survey says
+    /// "Thanks — that helps" as the web's `sendSurvey` does.
+    var say: (String) -> Void = { _ in }
     private var episodeID = ""
     private var episodeTitle = ""
     /// Once in half an hour from this device; the server keeps the real
@@ -59,6 +62,9 @@ final class SurveysModel: ObservableObject {
         guard signedIn, pulse == nil, sheet == nil, invite == nil else { return }
         guard let survey = try? await api.offerSurvey(moment: "episode_end"),
               survey.id == "episode" else { return }
+        // The card went while the server answered (the web checks that
+        // What's next is still up), or an app survey arrived meanwhile.
+        guard !Task.isCancelled, pulse == nil, sheet == nil, invite == nil else { return }
         episodeID = id
         episodeTitle = title
         answers = [:]
@@ -158,6 +164,12 @@ final class SurveysModel: ObservableObject {
     func tapOther(_ q: SurveyQuestion) {
         var a = answer(q.id)
         a.other.toggle()
+        // Other off with no option's own box showing: its words go too
+        // (`surveyTap`).
+        if !a.other {
+            let picked = q.kind == "multi" ? a.picks : (a.pick.map { [$0] } ?? [])
+            if !picked.contains(where: { q.detail?[$0] != nil }) { a.text = "" }
+        }
         if q.kind == "single" && a.other { a.pick = nil }
         answers[q.id] = a
         problem = ""
@@ -214,6 +226,7 @@ final class SurveysModel: ObservableObject {
                 pulseThanked = true
             } else {
                 sheet = nil
+                say("Thanks \u{2014} that helps")
             }
             answers = [:]
         } catch FAMError.refused(_, let message) where !message.isEmpty {

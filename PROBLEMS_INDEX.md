@@ -555,3 +555,4 @@ and `limit` = Lines.
 | 34534 | 39 | 561. The iOS app catches up with §560: the surveys (2026-11-12) |
 | 34573 | 77 | 562. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12) |
 | 34650 | 58 | 563. The sports sweep runs for people with finals on (2026-11-12) |
+| 34708 | 78 | 564. The app before build 4: #256 and #257 reviewed, #258's notifications on the iPhone (2026-11-12) |

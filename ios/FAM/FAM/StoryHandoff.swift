@@ -18,8 +18,10 @@ extension StoryHandoff {
     /// its clipboard replaced for nothing (`LSApplicationQueriesSchemes`).
     @MainActor
     var available: Bool {
-        guard let url = URL(string: url) else { return false }
-        return UIApplication.shared.canOpenURL(url)
+        // A local name of its own, not `url` again: `let url = URL(string: url)`
+        // reads the binding inside its own initialiser in some Swift modes.
+        guard let target = URL(string: self.url) else { return false }
+        return UIApplication.shared.canOpenURL(target)
     }
 
     /// Puts the card on the pasteboard and opens the platform's app. True
@@ -43,7 +45,7 @@ extension StoryHandoff {
     /// `instagram-stories://share?source_application=<Facebook App ID>`.
     @MainActor
     private func instagram(png: Data) async -> Bool {
-        guard let link = URL(string: url) else { return false }
+        guard let link = URL(string: self.url) else { return false }
         let items: [[String: Any]] = [[
             "com.instagram.sharedSticker.backgroundImage": png,
         ]]
@@ -59,7 +61,7 @@ extension StoryHandoff {
     @MainActor
     private func snapchat(png: Data, caption: String) async -> Bool {
         guard let clientId, !clientId.isEmpty,
-              var parts = URLComponents(string: url) else { return false }
+              var parts = URLComponents(string: self.url) else { return false }
         // Snap's sample hands over a JPEG; the card is opaque, so nothing
         // is lost by converting it.
         let picture = UIImage(data: png)?.jpegData(compressionQuality: 0.92) ?? png

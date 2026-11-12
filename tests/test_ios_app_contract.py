@@ -280,6 +280,9 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # myFAM: mixes, the catalogue, sharing, push, the episode's topic.
                    "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",
                    "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic",
+                   # A story card handed to Instagram or Snapchat (§558), and the
+                   # notification choices on /api/push and /api/push/prefs (§562).
+                   "StoryHandoff", "PushPrefs", "PushPrefsAnswer",
                    "ProfileSummary", "ProfileInterest",
                    # What changed since you last listened (§545): R5 on the
                    # card, Q5's bubbles inside the mix.
@@ -527,3 +530,39 @@ def test_the_surveys_decode_what_the_server_sends(monkeypatch):
     api = _api()
     for path in ("api/v1/surveys/offer", "api/v1/surveys/answer", "api/v1/surveys/dismiss"):
         assert f'"POST", "{path}"' in api, path
+
+
+def test_the_notification_choices_decode_what_the_server_sends(monkeypatch):
+    """§562 on iOS: `/api/v1/push` carries `prefs` for an account, POST
+    `/api/v1/push/prefs` answers with them, and every key the app decodes is
+    one the server sends. iPhone delivery (APNs) comes after 1.0, so the app
+    says so wherever a choice only reaches a browser (`iPhoneLater`)."""
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    c = TestClient(appmod.app)
+    headers = {"X-FAM-Client": "ios/1.0.0+2", "X-FAM-TZ": "America/New_York"}
+    token = c.post("/api/v1/auth/signup", headers=headers, json={
+        "email": "ios-push@example.com", "password": "password12",
+        "accept_terms": True, "want_token": True}).json()["session_token"]
+    auth = {**headers, "Authorization": "Bearer " + token}
+    status = c.get("/api/v1/push", headers=auth).json()
+    assert _fields("PushStatus") <= set(status) | {"subscribed"}, status
+    assert _fields("PushPrefs") == set(status["prefs"]), status["prefs"]
+    r = c.post("/api/v1/push/prefs", headers=auth, json={
+        "daily": True, "daily_at": "07:00", "tz": "America/New_York"})
+    assert r.status_code == 200, r.text
+    answer = r.json()
+    assert _fields("PushPrefsAnswer") <= set(answer)
+    assert answer["prefs"]["daily_at"] == "07:00"
+    assert answer["prefs"]["daily_source"] == "chosen"
+    for name in ("breaking", "finals", "daily"):
+        r = c.post("/api/v1/push/prefs", headers=auth, json={name: False})
+        assert r.status_code == 200 and r.json()["prefs"][name] is False, r.text
+    assert ("POST", "api/v1/push/prefs") in _calls()
+    mixes = (SWIFT / "Mixes.swift").read_text()
+    assert 'static let iPhoneLater = "Notifications on iPhone come in a later version."' in mixes
+    settings = (SWIFT / "Views" / "SettingsView.swift").read_text()
+    web = (ROOT / "static" / "index.html").read_text()
+    times = re.search(r'\[("06:30"[^\]]*)\]\.forEach', web).group(1)
+    assert "static let times = [" + times + "]" in settings
+    assert "MixesModel.iPhoneLater" in settings

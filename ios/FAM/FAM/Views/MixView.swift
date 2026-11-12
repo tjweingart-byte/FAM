@@ -160,8 +160,10 @@ struct MixView: View {
         .sheet(isPresented: $pickingTime) {
             ListenTimeSheet(time: $draftTime) { chosen in
                 pickingTime = false
+                // The one daily reminder (§562, `setDailyTime`): the web's
+                // field saves any time it is given, so this does too.
                 let hhmm = Self.hhmm(chosen)
-                if hhmm != (mix?.listenAt ?? "") { Task { await setListenTime(hhmm) } }
+                Task { await mixes.setDailyTime(hhmm) }
             }
         }
     }
@@ -571,24 +573,33 @@ struct MixView: View {
         seen.formUnion(next)
     }
 
-    // MARK: - Listen time and visibility (the owner's)
+    // MARK: - The daily reminder and visibility (the owner's)
+
+    /// The reminder's time as the field shows it (`mixWhenHTML`): the one
+    /// chosen, else when it goes (learned or the default), else none.
+    private var reminderTime: String {
+        guard let p = mixes.pushPrefs else { return "" }
+        return p.dailyAt.isEmpty ? p.dailyTime : p.dailyAt
+    }
 
     /// Bell, what it does, then the time - a pill that opens the picker,
-    /// "--:--" when none is set - and Clear (shot 06c).
+    /// "--:--" when none is known - and Auto (§562: one daily reminder for
+    /// all of a person's mixes, never one per mix; the row is that one).
     private func listenRow(_ mix: Mix) -> some View {
         HStack(alignment: .center, spacing: 12) {
             WebIcon(path: Icons.bell, size: 17, line: 2).foregroundStyle(FAMColor.copper)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Listen time").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
+                Text("Daily reminder").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
                 Text(listenNote(mix))
                     .font(FAMFont.body(10))
                     .foregroundStyle(FAMColor.textMuted)
                     .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
             Button { openTimePicker(mix) } label: {
                 HStack(spacing: 8) {
-                    Text(Self.pillLabel(mix.listenAt))
+                    Text(Self.pillLabel(reminderTime))
                         .font(FAMFont.body(12, .bold))
                         .monospacedDigit()
                     WebIcon(path: Icons.clock, size: 12, line: 2)
@@ -600,16 +611,16 @@ struct MixView: View {
             }
             .buttonStyle(.press)
             .fixedSize()
-            .accessibilityLabel("Listen time")
-            .accessibilityValue(mix.listenAt.isEmpty ? "Not set" : MixesModel.timeLabel(mix.listenAt))
-            if !mix.listenAt.isEmpty {
-                Button("Clear") { Task { await setListenTime("") } }
+            .accessibilityLabel("Daily reminder time")
+            .accessibilityValue(reminderTime.isEmpty ? "Not set" : MixesModel.timeLabel(reminderTime))
+            if !(mixes.pushPrefs?.dailyAt ?? "").isEmpty {
+                Button("Auto") { Task { await mixes.setDailyTime("") } }
                     .font(.system(size: 11))
                     .foregroundStyle(FAMColor.textMuted)
                     .padding(4)
                     .buttonStyle(.press)
                     .fixedSize()
-                    .accessibilityLabel("Remove listen time")
+                    .accessibilityLabel("Use the time you usually listen")
             }
         }
         .padding(.horizontal, 14)
@@ -619,9 +630,9 @@ struct MixView: View {
         .padding(.top, 14)
     }
 
-    /// The wheel starts on the set time, else on the next whole hour.
+    /// The wheel starts on the reminder's time, else on the next whole hour.
     private func openTimePicker(_ mix: Mix) {
-        if let set = Self.date(mix.listenAt) {
+        if let set = Self.date(reminderTime) {
             draftTime = set
         } else {
             let hour = (Calendar.current.component(.hour, from: Date()) + 1) % 24
@@ -630,24 +641,12 @@ struct MixView: View {
         pickingTime = true
     }
 
-    /// What the row says (`mixWhenNote`). Notifications reach a phone through
-    /// Apple's push service, which the server does not send yet, so a set
-    /// time says only when it is.
+    /// What the row says (`mixWhenNote`): the server's reason where it
+    /// cannot deliver, the reminder's state, and - since iPhone
+    /// notifications need Apple's push service, which comes after 1.0 -
+    /// that this phone is not told yet (`MixesModel.reminderNote`).
     private func listenNote(_ mix: Mix) -> String {
-        if mix.listenAt.isEmpty {
-            return "Pick when you listen and we’ll tell you it’s ready. Episodes are still written each morning."
-        }
-        let time = MixesModel.timeLabel(mix.listenAt)
-        if let push = mixes.push, !push.available, let reason = push.reason, !reason.isEmpty { return reason }
-        return "Listening at \(time). Notifications on iPhone come in a later version."
-    }
-
-    private func setListenTime(_ hhmm: String) async {
-        // The listener's clock: the zone pinned in Settings, else the
-        // phone's (`listenerZone`), so "ready" is sent at their hour.
-        let zone = FAMAPI.listenerZone
-        guard await mixes.update(id, ["listen_at": hhmm, "listen_tz": zone]) != nil else { return }
-        model.nowPlaying.say(hhmm.isEmpty ? "Listen time removed" : "Listen time set for \(MixesModel.timeLabel(hhmm))")
+        mixes.reminderNote
     }
 
     private func visibilityRow(_ mix: Mix) -> some View {
@@ -928,7 +927,7 @@ struct ListenTimeSheet: View {
             DatePicker("", selection: $time, displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel)
                 .labelsHidden()
-                .accessibilityLabel("Listen time")
+                .accessibilityLabel("Daily reminder time")
             Spacer(minLength: 0)
         }
         .background(FAMColor.surface)
@@ -949,7 +948,7 @@ struct ListenTimeSheet: View {
     }
 
     private var heading: some View {
-        Text("Listen time")
+        Text("Daily reminder")
             .font(FAMFont.heading(16, .semibold))
             .foregroundStyle(FAMColor.text)
             .multilineTextAlignment(.center)

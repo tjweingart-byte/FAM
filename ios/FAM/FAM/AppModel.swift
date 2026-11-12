@@ -346,6 +346,7 @@ final class AppModel: ObservableObject {
         // An episode ending under the VIBE! editor holds what comes next (§550).
         nowPlaying.vibeEditorOpen = { [weak self] in self?.storyEditing ?? false }
         social.say = { [weak self] text in self?.nowPlaying.say(text) }
+        surveys.say = { [weak self] text in self?.nowPlaying.say(text) }
         you.say = { [weak self] text, action, perform in
             self?.nowPlaying.say(text, action: action, perform: perform)
         }

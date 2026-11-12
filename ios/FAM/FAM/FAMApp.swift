@@ -271,12 +271,20 @@ struct MainTabs: View {
 
     /// Nothing playing, nothing open, a signed-in listener on one of the
     /// tabs (`surveyMomentFree`): the only time an app survey is asked for.
+    /// One question a line: a single twelve-term expression of optionals
+    /// and `==` is the kind Swift's type checker can give up on.
     private var surveyMomentFree: Bool {
-        model.listener?.authenticated == true && scenePhase == .active
-            && !model.showPlayer && !sectionOpen && tab != .search
-            && player.phase != .playing && player.phase != .buffering && player.phase != .connecting
-            && social.follower == nil && social.cover == nil && !now.showQueue
-            && model.mixDone == nil
+        guard model.listener?.authenticated == true else { return false }
+        guard scenePhase == .active else { return false }
+        if model.showPlayer || sectionOpen || tab == .search { return false }
+        switch player.phase {
+        case .playing, .buffering, .connecting: return false
+        default: break
+        }
+        if social.follower != nil || social.cover != nil { return false }
+        if now.showQueue { return false }
+        if model.mixDone != nil { return false }
+        return true
     }
 
     /// "Added to Queue · Open" with the player down.

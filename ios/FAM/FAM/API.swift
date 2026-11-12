@@ -1645,6 +1645,13 @@ extension FAMAPI {
         try await get("api/v1/push", [], as: PushStatus.self)
     }
 
+    /// Changes what this listener is told and when (§562, `savePushPrefs`):
+    /// any of `daily`, `daily_at` ("HH:MM", or "" for the learned time),
+    /// `breaking`, `finals`, and `tz`. Answers with the choices as kept.
+    func savePushPrefs(_ changes: [String: Any]) async throws -> PushPrefsAnswer {
+        try await send("POST", "api/v1/push/prefs", body: changes, as: PushPrefsAnswer.self)
+    }
+
     /// Your own profile (`/api/profile`): the name, handle and picture a
     /// solo mix's people line shows, and the interests the local
     /// recommendation order starts from (`profileNow`).
@@ -1964,6 +1971,42 @@ struct PushStatus: Decodable {
     let available: Bool
     let reason: String?
     let subscribed: Bool?
+    /// The listener's notification choices (§562), for an account only;
+    /// nil from a server before them.
+    let prefs: PushPrefs?
+}
+
+/// `prefs` on `/api/push` and `/api/push/prefs` (`app._push_choices`): the
+/// three switches, the chosen time ("" = learned), and when the daily
+/// reminder goes (`daily_time`, "HH:MM") and why (`daily_source`: chosen,
+/// mix, learned or default). Every field decoded tolerantly.
+struct PushPrefs: Decodable, Equatable {
+    let daily: Bool
+    let dailyAt: String
+    let breaking: Bool
+    let finals: Bool
+    let dailyTime: String
+    let dailySource: String
+
+    private enum CodingKeys: String, CodingKey {
+        case daily, dailyAt, breaking, finals, dailyTime, dailySource
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        daily = (try? c.decode(Bool.self, forKey: .daily)) ?? true
+        dailyAt = (try? c.decode(String.self, forKey: .dailyAt)) ?? ""
+        breaking = (try? c.decode(Bool.self, forKey: .breaking)) ?? true
+        finals = (try? c.decode(Bool.self, forKey: .finals)) ?? true
+        dailyTime = (try? c.decode(String.self, forKey: .dailyTime)) ?? ""
+        dailySource = (try? c.decode(String.self, forKey: .dailySource)) ?? ""
+    }
+}
+
+/// `POST /api/push/prefs`.
+struct PushPrefsAnswer: Decodable {
+    let ok: Bool?
+    let prefs: PushPrefs?
 }
 
 /// `GET /api/interest`: the cards, whether there are more, and - for an
