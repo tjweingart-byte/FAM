@@ -1687,7 +1687,7 @@ __WRITING_SIM__
       }
       return json({ ok: true });
     }
-
+    if (path === "/api/report" && method === "POST") {
       return json({ ok: true, id: "preview", hidden: true,
                     message: "Thanks for telling us. We review every report within "
                              + FIXTURES["/api/report"].review_hours + " hours." });

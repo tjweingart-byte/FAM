@@ -2726,6 +2726,8 @@
   .svy-pulse{ margin:0 0 12px; padding:11px 12px 12px; border-radius:14px;
     background:var(--bg); border:1px solid var(--border); }
   .svy-pulse[hidden]{ display:none; }
+  /* With the follow-up open the card outgrows a small phone: it scrolls. */
+  #nextUpOverlay .nextup-card{ max-height:calc(100% - 24px); overflow-y:auto; }
   .svy-head{ display:flex; align-items:center; gap:8px; }
   .svy-head .svy-title{ flex:1; min-width:0; font-family:'Bricolage Grotesque', sans-serif;
     font-weight:600; font-size:14px; color:var(--text); }
