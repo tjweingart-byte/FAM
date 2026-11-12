@@ -34282,10 +34282,49 @@ typed line (with the episode's title for the episode check).
 `/api/admin/surveys/<id>.csv` gives one row per response with `user_id`, so
 answers can be joined to what that listener did (Ask the database).
 
-`GET /api/surveys` returns every definition for a client that caches them
-(iOS). The Swift screens are not built yet. The preview offers the episode
+`GET /api/surveys` returns every definition for a client that caches them.
+The iOS screens are §553. The preview offers the episode
 check on every What's next card and the check-in once per page, except under
 the smoke run (`navigator.webdriver`).
 
 Not yet: the push alert that brings a lapsed tester back to answer. That
 waits for push notifications on the phone (the meeting's other task).
+
+## 553. The iOS app catches up with §552: the surveys (2026-11-12)
+
+The three surveys on the iPhone, drawn as the web draws them (`ios/FAM/PARITY.md`,
+"Surveys").
+
+- **`Surveys.swift`.** `SurveysModel` (owned by `AppModel`, `model.surveys`)
+  holds what is offered, the answers and the one send; `SurveyQuestionView`
+  draws a question (chips that wrap in `FlowRow`, the 1-10 row with its end
+  labels, the Other box and an option's own box, a free line);
+  `SurveyPulse` is the episode check; `SurveyInvite` the card above the bars;
+  `SurveySheet` the day-3 / two-week survey. The answer shape and what is
+  sent are the web's (`surveyPayload`): only questions showing, only boxes
+  showing.
+- **The episode check** sits above the What's next grid (`NextUpOverlay`),
+  asked for when the card appears with the player's `X-FAM-Episode` and
+  title, cleared when it goes. Touching it, or any answer changing, pauses
+  the countdown. "Loved it" sends itself. The card is wrapped in
+  `ViewThatFits`, so it scrolls only when the check makes it taller than the
+  phone.
+- **The app surveys** are asked for from `MainTabs` on the same clock as the
+  notifications (`scenePhase == .active && feedDrawn`): six seconds after the
+  app settles, then each minute up to fifteen times while
+  `surveyMomentFree` is false (signed in, on a tab other than search, nothing
+  playing, connecting or buffering, no player, View more, follower card,
+  social cover, queue or playlist-end card). A device asks at most once in 30
+  minutes; the server keeps the real limit. The sheet is carried by
+  `SurveySheetHost`, because `MainTabs` does not observe the survey model.
+  Swiping the sheet away is Not now, as the X is.
+- **API.swift**: `offerSurvey`, `answerSurvey`, `dismissSurvey` on
+  `/api/v1/surveys/...`; `SurveyOffer`, `Survey`, `SurveyQuestion`,
+  `SurveyOption` and `SurveyShowIf` decode the definitions. The decoder's
+  snake-case conversion would rename a `detail` key containing an underscore;
+  none has one, and `test_ios_app_contract` fails if one is added. That test
+  also checks that every question key the server sends is one the app decodes,
+  and that the answers the app sends are kept.
+
+Not built here (no Swift compiler). Every changed file parses with tree-sitter.
+Nobody has seen these screens on a phone yet.

@@ -544,3 +544,4 @@ and `limit` = Lines.
 | 34110 | 71 | 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes / Categories, the morning dot, the pop-ups (2026-11-11) |
 | 34181 | 48 | 551. The app catches up with #247, #249 and #252 (2026-11-11) |
 | 34229 | 64 | 552. Optional surveys: the episode check, the day-3 check-in and the two-week wrap-up (2026-11-12) |
+| 34293 | 39 | 553. The iOS app catches up with §552: the surveys (2026-11-12) |

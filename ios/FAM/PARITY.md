@@ -255,6 +255,14 @@ or guest rows are built.
 | My Vibe: folders, cards ("2 MIN · VIBED · BEST OF THE WEEK"), play, file, take back | Done | the same act as the grid's hold, in the web's words for this list: "Vibe taken back" / "Could not take that back" (the grid says "Vibe deleted"); listed at the server's default (40), as the web's `loadMyVibe` asks |
 | Feedback report | n/a | the web's "Instant feedback" is demo chrome outside the phone frame, not a YourFAM control |
 
+## Surveys (§552)
+
+| Web | iOS | Note |
+|---|---|---|
+| The episode check on What's next (`#surveyPulse`): offered by `/api/surveys/offer` (`episode_end`) when the card comes up, accounts only; "How was that episode?" Loved it / Good / Meh / Didn't work, "Loved it" sending itself; anything else opens "What was off?" (pick any, "Mispronounced a name" asking "Which name?", Other with a box) and Send; touching it pauses the countdown; the X is Not now; "Thanks - that helps." in its place once sent | Done | `Surveys.swift` `SurveyPulse`, above the grid in `NextUpOverlay`; the episode is `X-FAM-Episode` and the player's title, as the web sends. The card scrolls only when the check makes it taller than the phone (`ViewThatFits`), as the web's `max-height` does |
+| The day-3 check-in and two-week wrap-up: asked for (`open`) a few seconds after the app settles in front, then each minute while the moment is not free, and again on every return, at most once in 30 minutes from this device - only signed in, on a tab, nothing playing or loading, no player, View more, follower card, queue or playlist-end card up (`surveyMomentFree`); offered as a small invite above the bars (Not now / Start), never opened on its own | Done, closest equivalent | `SurveyInvite` at the toast's place (`toastLift`); `MainTabs.surveyMomentFree`. The web excludes its search page by screen; iOS excludes the searchFAM tab |
+| The survey itself (`#surveyOverlay`): title, intro, every question in order - chips that wrap, multi-pick where the question is, a 1-10 row with its two end labels, Other and an option's own box, a free line - Not now and Send; a refusal says the server's sentence | Done | `SurveySheet`, a sheet at full height; swiping it away is Not now, as the X is. The age question is left out by the server when the account has a date of birth |
+
 ## Sharing
 
 | Web | iOS | Note |

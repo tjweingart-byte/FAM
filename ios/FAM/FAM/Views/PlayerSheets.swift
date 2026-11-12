@@ -907,6 +907,11 @@ struct NextUpOverlay: View {
         .onAppear {
             withAnimation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36)) { shown = true }
         }
+        .task {
+            await model.surveys.offerEpisode(id: model.player.episodeID, title: now.title,
+                                             signedIn: model.listener?.authenticated == true)
+        }
+        .onDisappear { model.surveys.clearPulse() }
     }
 
     private var subline: String {
@@ -914,7 +919,22 @@ struct NextUpOverlay: View {
         return now.nextUpLeft > 0 ? "First one starts in \(now.nextUpLeft)" : "Starting\u{2026}"
     }
 
+    /// With the episode check open the card can outgrow a small phone:
+    /// it scrolls then, and only then.
     private var card: some View {
+        ViewThatFits(in: .vertical) {
+            cardContent
+            ScrollView { cardContent }
+                .scrollBounceBehavior(.basedOnSize)
+        }
+        .padding(18)
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong))
+        .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
+        .padding(.horizontal, 27)
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("What\u{2019}s next")
                 .font(FAMFont.heading(16, .semibold))
@@ -923,6 +943,9 @@ struct NextUpOverlay: View {
             Text(subline)
                 .monoLabel(9, color: FAMColor.textFaint, tracking: 0.63)
                 .padding(.bottom, 14)
+            // The episode check (`#surveyPulse`): only when the server offers
+            // it; touching it pauses the countdown, as the search box does.
+            SurveyPulse(surveys: model.surveys, onTouch: { now.pauseNextUp() })
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible())], spacing: 9) {
                 ForEach(Array(now.nextUp.enumerated()), id: \.element.id) { index, tile in
                     tileView(tile, index: index)
@@ -941,11 +964,6 @@ struct NextUpOverlay: View {
             .buttonStyle(.press)
             .padding(.top, 14)
         }
-        .padding(18)
-        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong))
-        .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
-        .padding(.horizontal, 27)
     }
 
     private func tileView(_ tile: NextUpTile, index: Int) -> some View {
