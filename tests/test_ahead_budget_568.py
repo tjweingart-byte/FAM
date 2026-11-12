@@ -1,4 +1,4 @@
-"""§566: one budget a day for everything written ahead, and seeing it.
+"""§568: one budget a day for everything written ahead, and seeing it.
 
 * `AHEAD_DAILY_DOLLARS` stops each of the three writers - the mixes' edition
   (myFAM on the listener's screen), the rails edition and prefetch (DailyFAM)

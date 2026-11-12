@@ -875,7 +875,7 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
 
     `writer` (`ahead_budget.WRITERS`: "dailyfam" or "rails") puts the
     edition under the shared daily budget for everything written ahead
-    (§566): its spend is counted there as it happens, and it stops at
+    (§568): its spend is counted there as it happens, and it stops at
     `AHEAD_DAILY_DOLLARS` as at its own ceilings, saying which. Empty (a
     push story) is outside it.
     """
@@ -897,7 +897,7 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
                     "episodes": {}, "skipped_for_ceiling": 0,
                     "skipped_for_shared_budget": 0, "detail": ""}
     spent = {"n": 0, "usd": 0.0}
-    # The day's figures for the shared budget (§566), kept as `spent` moves.
+    # The day's figures for the shared budget (§568), kept as `spent` moves.
     tally = ahead_budget.Tally(writer, spent) if writer else None
     stopped: list = []
 
@@ -1181,7 +1181,7 @@ def schedule_mix(mix, generator=None, cache=None,
                          "tap", query)
                 ahead_budget.note_stopped("dailyfam", "own_episodes")
                 continue
-            # The day's shared budget for everything written ahead (§566).
+            # The day's shared budget for everything written ahead (§568).
             ok, why = ahead_budget.allows("dailyfam")
             if not ok:
                 log.info("daily edition: the shared budget is spent; %r is "

@@ -539,7 +539,7 @@ def snapshot(now: Optional[float] = None) -> dict:
             # it (§481) - the figure Claude's limit is measured against.
             "claude_spend": provider_usage.spend_report(now),
             # Written ahead today, per writer, against its own ceilings and
-            # the one budget they share (§566).
+            # the one budget they share (§568).
             "written_ahead": _written_ahead(now),
             # Each service's own usage, read hourly by Keith (§483).
             "usage_monitors": _usage_monitors(now),

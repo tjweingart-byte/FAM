@@ -41,7 +41,7 @@
   /* Keith's figures (§494): a share of a limit as a bar. */
   .sharebar { height:6px; width:110px; background:var(--surface); border-radius:4px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px; }
   .sharebar i { display:block; height:100%; background:var(--green); }
-  /* Written ahead today (§566): the card's two sub-headings. */
+  /* Written ahead today (§568): the card's two sub-headings. */
   .ah { margin:16px 0 6px; font:600 14px var(--sans); color:var(--ink); }
   #aheadSpend td.ahwrap { white-space:normal; max-width:none; min-width:220px; }
   .sharebar i.warn { background:var(--amber); } .sharebar i.urgent { background:var(--rose); }
@@ -233,7 +233,11 @@
   .reviewrow .conf.low { opacity:.7; }
   .reviewrow.done { opacity:.55; }
   .go.tiny { padding:3px 10px; font-size:11.5px; border-radius:8px; }
-  .ways { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px; margin:6px 0; }
+  .capsform { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .capsform input[type=text], #capsWord { width:130px; text-transform:uppercase; }
+  .capssent { font-size:12.5px; color:var(--muted); display:flex; gap:4px; align-items:center; }
+  .way.today { border-color:var(--amber); }
+  .ways { grid-column:1 / -1; display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px; margin:6px 0; }
   .ways .way { border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:12.5px; }
   .ways audio { width:100%; height:32px; margin-top:4px; }
   .formrow { display:flex; gap:8px; justify-content:flex-end; }
@@ -652,7 +656,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     </section>
     <section class="card section" id="aheadCard">
       <h2>Written ahead today</h2>
-      <p class="sub">Episodes written before anybody taps (§566), by the three writers, named as listeners see them: the mixes are <b>myFAM</b> on the screen (DailyFAM in the code), the cards and news are <b>DailyFAM</b> (myFAM in the code). Each stops at its own ceilings or the shared daily budget, whichever comes first. The day runs from the 05:00 edition to the next. Read-only: every figure is a setting in Render, named beside it.</p>
+      <p class="sub">Episodes written before anybody taps (§568), by the three writers, named as listeners see them: the mixes are <b>myFAM</b> on the screen (DailyFAM in the code), the cards and news are <b>DailyFAM</b> (myFAM in the code). Each stops at its own ceilings or the shared daily budget, whichever comes first. The day runs from the 05:00 edition to the next. Read-only: every figure is a setting in Render, named beside it.</p>
       <div id="aheadSpend"></div>
     </section>
     <section class="card section" id="listensCard">
@@ -754,6 +758,15 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         <div><b>Heard back from the voice</b><span id="hearState">Hear sends a name through the production voice exactly as an episode would, and a phoneme recogniser on the same card writes down what it heard. The match is an estimate - listen to the audio before changing anything.</span></div>
         <button class="go" id="hearAll" type="button">Hear every name</button>
       </div>
+      <div class="wikibar" id="capsBar">
+        <div><b>Words in capitals</b><span id="capsState">NASCAR, NVIDIA, FBI: type one and hear it five ways - letters apart, dotted, the letters' names, as written and in ordinary case. The one the voice is handed today is marked. Which sounds smoothest decides how every word in capitals is said.</span></div>
+        <form id="capsForm" class="capsform">
+          <input id="capsWord" placeholder="NASCAR" maxlength="12" autocomplete="off" autocapitalize="characters" required>
+          <label class="capssent"><input id="capsSentence" type="checkbox"> in a sentence</label>
+          <button class="go" id="capsBtn" type="submit">Hear 5 ways</button>
+        </form>
+      </div>
+      <div id="capsOut"></div>
       <div class="wikibar" id="reviewBar">
         <div><b>Checked by another reader</b><span id="reviewState">Download every name with Wikipedia's reading and a sentence it was heard in, give it to another reader (a Claude chat, with the prompt) and upload what comes back. An upload changes nothing: each correction is listed beside the respelling it would replace, and only the ones you accept are saved - as yours, which nothing replaces.</span></div>
         <button class="ghost" id="reviewDownload" type="button">Download list</button>
@@ -2549,6 +2562,36 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       .catch(function (e) { alert(e.message); })
       .then(function () { btn.disabled = false; btn.textContent = was; });
   }
+  // Words in capitals (§567): one word five ways, today's marked.
+  var CAPS_WORDS = { spaced: "Letters apart", dotted: "Dotted", named: "Letter names",
+                     upper: "As written", title: "Ordinary case" };
+  var capsRuns = [];
+  function drawCaps() {
+    $("capsOut").innerHTML = capsRuns.map(function (r) {
+      return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(r.word) + '</b>' +
+        (r.sentence ? ' <span class="faint">in a sentence</span>' : '') + '</div><div class="ways">' +
+        r.variants.map(function (w) {
+          var today = w.variant === r.today;
+          return '<div class="way' + (today ? ' today' : '') + '"><b>' + esc(CAPS_WORDS[w.variant] || w.variant) + '</b>' +
+            (today ? ' <span class="faint">(today)</span>' : '') + '<br><code>' + esc(w.sent) + '</code>' +
+            (w.heard_say ? '<br><span class="faint">heard <code>' + esc(w.heard_say) + '</code>' + (w.score != null ? " · " + Math.round(w.score * 100) + "% alike" : "") + '</span>' : '') +
+            '<audio controls src="' + esc(w.audio) + '"></audio></div>';
+        }).join("") + '</div></div>';
+    }).join("");
+  }
+  $("capsForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var word = $("capsWord").value.trim().toUpperCase();
+    if (!/^[A-Z]{2,12}$/.test(word)) { $("capsState").textContent = "Letters only, two to twelve of them."; return; }
+    var sentence = $("capsSentence").checked;
+    $("capsBtn").disabled = true; $("capsBtn").textContent = "Hearing 5 ways…";
+    api("/api/admin/pronunciations/hear-caps", { word: word, sentence: sentence }).then(function (r) {
+      capsRuns.unshift({ word: r.word, today: r.today, sentence: sentence, variants: r.variants });
+      capsRuns = capsRuns.slice(0, 6);
+      drawCaps();
+    }).catch(function (e) { $("capsState").textContent = e.message; })
+      .then(function () { $("capsBtn").disabled = false; $("capsBtn").textContent = "Hear 5 ways"; });
+  });
   // Checked by another reader (§549): out as a CSV, back as proposals.
   var reviewRows = [], reviewDone = {}, reviewErr = {};
   function drawReview(r) {

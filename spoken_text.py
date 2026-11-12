@@ -104,14 +104,50 @@ def decimal(text: str) -> str:
 # ---------------------------------------------------------------------------
 # Abbreviations
 # ---------------------------------------------------------------------------
-#: Capitals people say as a word rather than as letters. Anything in capitals
-#: not listed here is spelled out, because a made-up word is far more
-#: confusing to hear than a spelled one that should have been a word.
+#: Capitals people say as a word rather than as letters, whatever the
+#: dictionary says. Since §567 most are found in the CMU dictionary instead
+#: (`_said_as_word`); this list is for the ones it lacks or gets wrong, and
+#: for the short ones (two or three letters) it is never asked about.
 SAID_AS_WORDS = frozenset("""
 NASA NATO FIFA UEFA OPEC COVID UNESCO UNICEF NAFTA SWAT NASDAQ LASIK SCOTUS
 AIDS ASAP PIN RAM ROM LAN WAN GIF JPEG IKEA LEGO SARS MERS NIMBY FOMO YOLO
 OK NOAA DARPA ASEAN CERN INTERPOL NORAD ICE FEMA OSHA MAGA LOL
+LIV EBITDA CAPTCHA SPAC DACA FAFSA HIPAA UTEP FAANG CONCACAF CONMEBOL
+NVIDIA NASCAR DOGE FOX ARM PAC ZIP AXIOS
 """.split())
+
+#: Capitals with a spoken form of their own, part word and part letters, or
+#: a word that reads wrongly in ordinary case ("Ok").
+SAID_AS = {"OK": "okay", "OPENAI": "Open A I", "USAID": "U S Aid",
+           "CSPAN": "C Span"}
+
+#: Capitals spelled out although the dictionary has them as an ordinary word:
+#: initialisms that collide with one ("WHO" the agency, "SAT" the test).
+#: Only words of four letters or more are asked of the dictionary, so a
+#: two- or three-letter one needs no entry here.
+SAID_AS_LETTERS = frozenset("""
+AARP ACLU WNBA NCAA NHRA UNLV USMNT USWNT NYSE NVDA AAPL TSLA GOOGL MSFT AMZN
+""".split())
+
+#: How a capitalised word said as a word is handed to the voice: "title"
+#: ("Nascar") or as written ("upper", "NASCAR"). Title since §567, at the
+#: owner's direction to make the changes known to be right: a voice learned
+#: from ordinary text, where capitals mean letters or shouting, so "NASCAR"
+#: is the form most likely to come out choppy. Captions keep the capitals.
+WORD_CASE = "title"
+
+#: Each letter's name in ARPAbet without stress, the way the CMU dictionary
+#: writes an initialism ("ESPN" = IY EH S P IY EH N). An entry that is
+#: exactly its letters' names is said as letters.
+_LETTER_PHONES = {
+    "A": ("EY",), "B": ("B IY",), "C": ("S IY",), "D": ("D IY",), "E": ("IY",),
+    "F": ("EH F",), "G": ("JH IY",), "H": ("EY CH",), "I": ("AY",),
+    "J": ("JH EY",), "K": ("K EY",), "L": ("EH L",), "M": ("EH M",),
+    "N": ("EH N",), "O": ("OW",), "P": ("P IY",), "Q": ("K Y UW",),
+    "R": ("AA R",), "S": ("EH S",), "T": ("T IY",), "U": ("Y UW",),
+    "V": ("V IY",), "W": ("D AH B AH L Y UW", "D AH B AH Y UW"),
+    "X": ("EH K S",), "Y": ("W AY",), "Z": ("Z IY", "Z EH D"),
+}
 
 #: Short words that appear in capitals in ordinary sentences and must not be
 #: spelled ("I", "A" at the start of one).
@@ -142,7 +178,7 @@ _ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50}
 _ROMAN_COUNTED = frozenset("""War Bowl Part Chapter Book Round Phase Title Act
 Volume Episode Season Stage Level Grade Class Category Type Apollo Rocky Mark
 Gemini Vatican Olympiad Wrestlemania WrestleMania Rule Article Section Tier""".split())
-_CAPS = re.compile(r"\b([A-Z]{2,6})(s|'s|’s)?\b")
+_CAPS = re.compile(r"\b([A-Z]{2,12})(s|'s|’s)?\b")
 
 
 def _spell(letters: str) -> str:
@@ -187,10 +223,58 @@ def _ampersand(m: re.Match) -> str:
     return _spell(m.group(1)) + " and " + _spell(m.group(2))
 
 
+def _spelled_as_letters(word: str, phones: str) -> bool:
+    """Whether a dictionary entry is only the word's letters, named."""
+    said = re.sub(r"\d", "", phones).split()
+    i = 0
+    for letter in word:
+        for option in _LETTER_PHONES.get(letter, ()):
+            part = option.split()
+            if said[i:i + len(part)] == part:
+                i += len(part)
+                break
+        else:
+            return False
+    return i == len(said)
+
+
+def _said_as_word(word: str) -> bool:
+    """Whether a word in capitals is said as a word ("NASCAR") rather than
+    letter by letter ("ESPN") - §567.
+
+    Up to §567 only `SAID_AS_WORDS` was a word and everything else of two to
+    six capitals was spelled, so NASCAR and NVIDIA reached the voice as
+    "N A S C A R" and "N V I D I A". Now, from four letters, the CMU
+    dictionary decides: an entry that is the letters' names is spelled, any
+    other entry is a word. Not in it: spelled up to six letters (UCLA,
+    MSNBC), a word from seven (as the voice always had them). Two or three
+    letters are spelled unless listed - the dictionary would make "AI",
+    "WHO" and "SEC" into "eye", "who" and "sec".
+    """
+    if word in SAID_AS_LETTERS:
+        return False
+    if word in SAID_AS_WORDS:
+        return True
+    if len(word) < 4:
+        return False
+    import hard_words
+
+    found = hard_words.peek()
+    phones = found.get(word.lower()) if found else None
+    if phones:
+        return not _spelled_as_letters(word, phones)
+    # Unknown, or the dictionary not loaded yet: what the voice did before.
+    return len(word) > 6
+
+
 def _caps(m: re.Match) -> str:
     word, tail = m.group(1), m.group(2) or ""
-    if word in SAID_AS_WORDS or word in _NOT_ABBREVIATIONS:
+    if word in _NOT_ABBREVIATIONS:
         return m.group(0)
+    if word in SAID_AS:
+        return SAID_AS[word] + tail
+    if _said_as_word(word):
+        return (word.capitalize() if WORD_CASE == "title" else word) + tail
     return _spell(word) + tail
 
 

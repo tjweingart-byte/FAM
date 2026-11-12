@@ -1275,7 +1275,7 @@ class Settings:
             "RAILS_EDITION_HOURS", "5,17").strip())
     rails_edition_max_episodes: int = _env_int("RAILS_EDITION_MAX_EPISODES", 0)
     rails_edition_max_dollars: float = _env_float("RAILS_EDITION_MAX_DOLLARS", 0.0)
-    # --- one budget for everything written ahead (§566, `ahead_budget.py`) --
+    # --- one budget for everything written ahead (§568, `ahead_budget.py`) --
     # Dollars a day, shared by the mixes' edition (myFAM on the listener's
     # screen), the rails edition and prefetch (DailyFAM on the screen). Each
     # stops at its own ceilings above or this one, whichever comes first, and

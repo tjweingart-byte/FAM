@@ -655,7 +655,7 @@ class Prefetcher:
         if not self.budget.allows(level=level):
             _note_stopped(self.budget.why_not(level))
             return "budget"
-        # And the day's shared budget for everything written ahead (§566).
+        # And the day's shared budget for everything written ahead (§568).
         import ahead_budget
 
         ok, why = ahead_budget.allows("prefetch")
@@ -856,7 +856,7 @@ class Prefetcher:
 
     def _charge(self, dollars: float, level: str = "") -> None:
         """Spend from this prefetcher's own budget and, in the same breath,
-        count it in the day's figure for everything written ahead (§566)."""
+        count it in the day's figure for everything written ahead (§568)."""
         self.budget.spend(dollars, level=level)
         import ahead_budget
 
@@ -922,7 +922,7 @@ class Prefetcher:
 
 
 def _note_stopped(why: str) -> None:
-    """Say on /admin that prefetch stopped for today, and why (§566)."""
+    """Say on /admin that prefetch stopped for today, and why (§568)."""
     try:
         import ahead_budget
 

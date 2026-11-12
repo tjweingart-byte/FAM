@@ -1,4 +1,4 @@
-"""What is written ahead each day, and the one budget all of it shares (§566).
+"""What is written ahead each day, and the one budget all of it shares (§568).
 
 Three writers write episodes before anybody taps, each with ceilings of its
 own (kept exactly as they were):

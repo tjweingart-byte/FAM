@@ -148,7 +148,7 @@ FAM_ENVIRONMENT = (
     "DAILY_EDITION_ACTIVE_HOURS", "EDITION_CONCURRENCY",
     "EDITION_IN_PROGRESS_SECONDS", "RAILS_EDITION", "RAILS_EDITION_HOURS",
     "RAILS_EDITION_MAX_EPISODES", "RAILS_EDITION_MAX_DOLLARS",
-    # §566: the one daily budget for everything written ahead.
+    # §568: the one daily budget for everything written ahead.
     "AHEAD_DAILY_DOLLARS", "AHEAD_DAILYFAM_SHARE",
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
@@ -620,7 +620,7 @@ def isolated_provider_usage(tmp_path, monkeypatch):
     monkeypatch.setenv("PROVIDER_USAGE_DB",
                        str(tmp_path / "stores" / "provider_usage.db"))
     provider_usage.reset()
-    # The day's spend written ahead (§566) lives in the same store.
+    # The day's spend written ahead (§568) lives in the same store.
     import ahead_budget
 
     ahead_budget.reset()
@@ -912,3 +912,15 @@ def everyone_friends(monkeypatch):
     import app as appmod
 
     monkeypatch.setattr(appmod, "_mutual", lambda me, other: True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _pronouncing_dictionary_loaded():
+    """`spoken_text` asks the CMU dictionary whether capitals are a word
+    (§567), and answers the old way until it has loaded - in a thread, so
+    the voice never waits. Loaded before any test here, so no test's result
+    depends on whether a background load happened to finish first."""
+    import hard_words
+
+    hard_words.warm()
+    yield

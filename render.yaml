@@ -388,7 +388,7 @@ services:
       # from-knowledge cover it switched on was deleted in §108 (see DEPLOY.md
       # and Dockerfile.gpu). Setting it does nothing.
       #
-      # What is written ahead, and the one budget it shares (§566,
+      # What is written ahead, and the one budget it shares (§568,
       # ahead_budget.py). Asked for in the dashboard, never set here: the
       # owner chooses them. PREFETCH_LEVEL=script writes DailyFAM's other
       # cards whole (the code's default is brief); AHEAD_DAILY_DOLLARS is one

@@ -319,8 +319,8 @@ Research and truth
   reports (§275) by the scoreboard; unlisted≠fit. [player-facts]
   Code routes named teams/listings (§265); it only asks. [live-route]
 - **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
-- **Sports are BALLDONTLIE's (ALL-ACCESS, §419), markets Tiingo's** (§277,
-  §280, §418); API-Sports and Finnhub are gone. [sports-balldontlie]
+- **Sports BALLDONTLIE's (§419), markets Tiingo's** (§418) [sports-balldontlie]
+  Tiingo: ends "Market data powered by Tiingo.", 1st source (§566). [tiingo-credit]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one
   of their games is on, only if myFAM was drawn recently or (§563) names
@@ -507,7 +507,7 @@ Operations and honesty
 - Order: hear the production voice -> deploy with a GPU -> Swift lock-screen spike. [ios-order]
 - Open decisions: where to deploy (bandwidth) [dec-deploy]; accounts - answered
   [dec-accounts]; local vs hosted voices [dec-voices]; warming scripts - answered,
-  capped (§566) [dec-prefetch]; embeddings help the ranker, not the
+  capped (§568) [dec-prefetch]; embeddings help the ranker, not the
   cache, and `learned_rank` may reorder what cleared the floor, never admit
   below it [dec-embedding].
 
@@ -524,8 +524,8 @@ Every change ends the same way, without being asked [ship-loop]:
 3. Reply with a short summary and the preview URL.
 4. If something cannot be automated, give the exact command.
 
-- Previews (the fixture `fam-artifact.html` and the live-DB build) show
-  layout and flow, never writing quality or latency. [preview-fixtures]
+- Previews (fixture `fam-artifact.html`, live-DB build) show layout
+  and flow, never writing quality or latency. [preview-fixtures]
 - **The algorithm documents itself**: `tools/algorithm_docs.py` writes the
   PDF, deck and `ALGORITHM.md` in `docs/algorithm/` from the code; a test fails
   when they are stale; `dev.sh check` rebuilds them. Never hand-edit. [algorithm-docs]
@@ -555,4 +555,4 @@ Every change ends the same way, without being asked [ship-loop]:
   with `config.py`; interface literals pinned to their variable. [settings-copied]
 - `PROBLEMS.md` is the engineering log - add to it rather than starting new notes. [problems-log]
 - Tests run with no API key or speech engine. [tests-no-key]
-- `diagnose_api.py` for connection failures, `compare_models.py` for models. [diag-tools]
+- `diagnose_api.py` for connections, `compare_models.py` for models. [diag-tools]

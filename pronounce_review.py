@@ -315,35 +315,91 @@ def stress_variants(say: str) -> dict:
 CARRIER = "Tonight's story starts with {}, and it ends there too."
 
 
-async def hear_variants(name: str, say: Optional[str] = None,
-                        sentence: bool = False) -> list[dict]:
-    """Say each of `stress_variants` with the production voice and hear it
-    back (`voice_check.say_and_hear`). Keeps nothing - not in the lexicon,
-    not in the voice checks. Raises `voice_check.VoiceCheckUnavailable`."""
+async def _hear(texts: dict, meant: str, sentence: bool, raw: bool) -> list[dict]:
+    """Say each text with the production voice and hear it back. `raw`
+    hands the voice the text as written, past `spoken_text` - for spellings
+    that `speakable` would rewrite. Keeps nothing."""
     import base64
 
     import voice_check
     import wiki_pronounce
     from spoken_text import speakable
 
-    if say is None:
-        entry = pronunciation.lexicon().entries().get(name)
-        if not entry:
-            raise ValueError(f"{name} has no respelling on file.")
-        say = entry[0]
     out = []
-    for label, text in stress_variants(say).items():
-        sent = speakable(CARRIER.format(text) if sentence else text).strip()
+    for label, text in texts.items():
+        said = CARRIER.format(text) if sentence else text
+        sent = (said if raw else speakable(said)).strip()
         reply = await voice_check.say_and_hear(sent)
         heard = reply.get("heard") or ""
         heard_say = wiki_pronounce.ipa_to_respelling(heard.replace(" ", ""))
         out.append({"variant": label, "sent": sent, "heard": heard,
                     "heard_say": heard_say,
                     # In a sentence the recogniser hears the whole sentence,
-                    # so only the bare name is scored.
-                    "score": (voice_check.similarity(say, heard_say)
-                              if heard_say and not sentence else None),
+                    # so only the bare word is scored.
+                    "score": (voice_check.similarity(meant, heard_say)
+                              if meant and heard_say and not sentence else None),
                     "wav": voice_check.wav(reply["pcm"], reply.get("rate") or 24000)})
     for row in out:
         row["audio"] = "data:audio/wav;base64," + base64.b64encode(row["wav"]).decode("ascii")
     return out
+
+
+async def hear_variants(name: str, say: Optional[str] = None,
+                        sentence: bool = False) -> list[dict]:
+    """Say each of `stress_variants` with the production voice and hear it
+    back (`voice_check.say_and_hear`). Keeps nothing - not in the lexicon,
+    not in the voice checks. Raises `voice_check.VoiceCheckUnavailable`."""
+    if say is None:
+        entry = pronunciation.lexicon().entries().get(name)
+        if not entry:
+            raise ValueError(f"{name} has no respelling on file.")
+        say = entry[0]
+    return await _hear(stress_variants(say), say, sentence, raw=False)
+
+
+# --------------------------------------------------------------------------
+# Capitals: five ways to hand the voice "NASCAR" or "FBI" (§567)
+# --------------------------------------------------------------------------
+
+#: Each letter's name as the voice would read it as a word.
+LETTER_NAMES = {
+    "A": "ay", "B": "bee", "C": "see", "D": "dee", "E": "ee", "F": "eff",
+    "G": "jee", "H": "aitch", "I": "eye", "J": "jay", "K": "kay", "L": "el",
+    "M": "em", "N": "en", "O": "oh", "P": "pee", "Q": "cue", "R": "ar",
+    "S": "ess", "T": "tee", "U": "you", "V": "vee", "W": "double you",
+    "X": "ex", "Y": "why", "Z": "zee"}
+
+
+def caps_variants(word: str) -> dict:
+    """Five spellings of one word in capitals, by name:
+
+    * `spaced`: letters apart, "F B I" - what `spoken_text` hands the voice
+      for an initialism
+    * `dotted`: "F.B.I."
+    * `named`: the letters' names as words, "eff bee eye"
+    * `upper`: as written, "NASCAR" - what it hands the voice for a word
+    * `title`: "Nascar" (`spoken_text.WORD_CASE = "title"`)
+    """
+    word = word.strip().upper()
+    return {"spaced": " ".join(word), "dotted": ".".join(word) + ".",
+            "named": " ".join(LETTER_NAMES.get(c, c) for c in word),
+            "upper": word, "title": word.capitalize()}
+
+
+def caps_choice(word: str) -> str:
+    """Which of `caps_variants` the voice is handed today (`spoken_text`)."""
+    from spoken_text import speakable
+
+    said = speakable(word.strip().upper())
+    return next((k for k, v in caps_variants(word).items() if v == said), "")
+
+
+async def hear_caps(word: str, sentence: bool = False) -> list[dict]:
+    """Say each of `caps_variants` and hear it back, as written - past
+    `spoken_text`, which would rewrite every one of them. Keeps nothing."""
+    import hard_words
+
+    word = word.strip().upper()
+    meant = hard_words.expected(word.lower()) or " ".join(
+        LETTER_NAMES.get(c, c) for c in word)
+    return await _hear(caps_variants(word), meant, sentence, raw=True)
