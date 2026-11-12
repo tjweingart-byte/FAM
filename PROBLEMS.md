@@ -34861,7 +34861,7 @@ would make AI, WHO, SEC and SAT into "eye", "who", "sec" and "sat".
 `SAID_AS_LETTERS` holds the four-letter-plus ones it has as ordinary words
 (WNBA, AARP, tickers); `SAID_AS_WORDS` gains what it lacks or misses (LIV,
 EBITDA, CAPTCHA, SPAC, DACA, FAFSA, HIPAA, FAANG, FOX, ARM, PAC, ZIP, AXIOS,
-OPENAI, and NVIDIA, NASCAR and DOGE by name). `tests/test_caps_said_567.py`
+and NVIDIA, NASCAR and DOGE by name). `tests/test_caps_said_567.py`
 pins 42 words either way.
 
 **Never in front of a sentence.** The dictionary is about 0.6 s and 17 MB to
