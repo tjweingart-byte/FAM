@@ -33,8 +33,10 @@ CASES = (
     ("Power Rangers game", ("", "video games", "tech", "culture")),
     ("Power Rangers video game review", ("", "video games", "tech", "culture")),
     ("park rangers rescue hikers near the stadium", ("",)),
-    ("Black Panthers history", ("",)),
-    ("Black Panthers history game", ("",)),
+    # The Black Panther Party: a history subject, never the team (11.12,
+    # once the tree had `history`, §553).
+    ("Black Panthers history", ("", "history", "culture")),
+    ("Black Panthers history game", ("", "history", "culture")),
     ("Giants Causeway", ("",)),
     ("giants of jazz", ("", "music industry", "culture")),
     ("Texas Rangers arrest suspect", ("",)),
