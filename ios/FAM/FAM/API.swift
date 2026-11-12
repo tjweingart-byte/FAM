@@ -263,9 +263,13 @@ final class FAMAPI: @unchecked Sendable {
     /// (§296), the terms box ticked (§228) and the invite code a link
     /// carried. The account is put on the list; the token comes back
     /// because it is asked for.
-    func joinWaitlist(email: String, referral: String) async throws -> Listener {
+    /// The join (§571): the email and a password, set on the account as it
+    /// is made. A server from before §571 already took `password` (it was
+    /// §296's "old join"), so nothing breaks against one.
+    func joinWaitlist(email: String, password: String, referral: String) async throws -> Listener {
         let who = try await send("POST", "api/v1/waitlist/join",
-                                 body: ["email": email, "referral_code": String(referral.prefix(64)),
+                                 body: ["email": email, "password": password,
+                                        "referral_code": String(referral.prefix(64)),
                                         "accept_terms": true, "want_token": true],
                                  as: Listener.self)
         if let fresh = who.sessionToken { token = fresh }
@@ -979,7 +983,8 @@ struct WaitlistFamPerson: Decodable, Hashable {
 }
 
 /// The status page's own details: `has_password` false for an email-only
-/// join (§296), whose sign-out is warned about first.
+/// join (§296), which is shown "Set a password so you can sign back in"
+/// (§571) and whose sign-out is warned about first.
 struct WaitlistDetails: Decodable, Hashable {
     let email: String?
     let hasPassword: Bool?
@@ -1816,10 +1821,14 @@ struct MixItem: Decodable, Identifiable, Equatable {
     let signal: MixSignal?
     /// Q5's two bubbles: what was last heard, and what is true today.
     let since: MixSince?
+    /// Today's episode's own title once the edition has written it (§570,
+    /// `_mix_episode_titles`); "" until then, and from an older server.
+    /// `title` stays the topic's name: a whole-list write sends it back.
+    let episodeTitle: String
 
     enum CodingKeys: String, CodingKey {
         case id, title, query, custom, subtitle, dailyPrompt, prompt, minutes, follow, addedBy
-        case icon, picture, signal, since
+        case icon, picture, signal, since, episodeTitle
     }
 
     init(from decoder: Decoder) throws {
@@ -1838,7 +1847,12 @@ struct MixItem: Decodable, Identifiable, Equatable {
         picture = (try? c.decode(String.self, forKey: .picture)) ?? ""
         signal = try? c.decode(MixSignal.self, forKey: .signal)
         since = try? c.decode(MixSince.self, forKey: .since)
+        episodeTitle = (try? c.decode(String.self, forKey: .episodeTitle)) ?? ""
     }
+
+    /// What a row and the player call it (§570): today's episode by its
+    /// own title, else the topic.
+    var shownTitle: String { episodeTitle.isEmpty ? title : episodeTitle }
 
     /// What the server is asked to keep for this entry in a whole-list
     /// write: the id, or a typed topic's words and title (so it is never

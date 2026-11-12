@@ -498,8 +498,8 @@ final class AppModel: ObservableObject {
     /// (§296), the terms ticked, the invite code a link carried - then
     /// straight on to the profile with a way to skip it (`?setup=1`), and
     /// the status page after. With the waitlist off the account goes in.
-    func joinWaitlist(email: String) async throws {
-        let who = try await api.joinWaitlist(email: email, referral: pendingReferral)
+    func joinWaitlist(email: String, password: String) async throws {
+        let who = try await api.joinWaitlist(email: email, password: password, referral: pendingReferral)
         UserDefaults.standard.removeObject(forKey: Self.referralKey)
         arrive(who)
         await refreshWho()
@@ -1829,7 +1829,9 @@ extension AppModel {
         mixPlay = list
         let (words, dated) = MixPlaylist.prompt(item)
         var ep = Episode(key: EpisodeKey(query: words, minutes: item.minutes),
-                         title: dated ? item.title + " · today" : item.title,
+                         // Today's episode by its own name once written (§570).
+                         title: !item.episodeTitle.isEmpty ? item.episodeTitle
+                             : (dated ? item.title + " · today" : item.title),
                          surface: "dailyfam",
                          topicID: (item.custom || item.follow) ? "" : item.id)
         ep.mixKey = list.key

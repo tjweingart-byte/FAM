@@ -35106,3 +35106,31 @@ without one still works for an installed client and is offered the first,
 a registered address is still refused, the status-page card, the Settings
 row, the tracker's tile); `tools/smoke_preview.py` checks the Settings row
 for an account with no password.
+
+## 572. Build 6: the iPhone catches up with §570 and §571 (2026-11-12)
+
+**What was asked.** The owner, after #268 and the other branches merged:
+"get the build ready for that." Build 5 (1.0.0) is with App Review; it was
+archived after #262, so this build carries what has merged since.
+
+**Since build 5.** #263 (the ahead budget, §568) and #264 (NVIDIA, §569)
+are server-only. #265 (the web's animations) was already iOS work. #268
+(§571, a password at sign-up) has its iPhone half on this branch (the join's
+password, the status page's card, "Set a password" in Settings and Edit
+profile). #266 (§570) was web-only and is ported here:
+
+- `MixItem.episodeTitle` decodes `episode_title`, "" from an older server.
+  `shownTitle` is what a row draws: today's episode, else the topic.
+- `MixView.subLine` is the web's `mixTopicSub`: the topic under an episode
+  title, then " · Added by ..." on a joint mix; unchanged when no title.
+- `playMixItem` opens the player on the episode's title instead of
+  "{topic} · today".
+- `title` stays the topic's name, so a whole-list write (`entry`) never
+  renames a topic after one day's story.
+
+`CURRENT_PROJECT_VERSION` is 6. The version stays 1.0.0: if build 5 is
+released first, this upload needs 1.0.1 and a recut release record.
+
+**Tests:** `test_mix_rows_show_todays_episode_title_570` in
+`tests/test_ios_app_contract.py`; tree-sitter finds no ERROR or MISSING node
+in the 56 Swift files. Not compiled here.

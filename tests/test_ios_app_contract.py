@@ -463,7 +463,15 @@ def test_the_front_door_decodes_what_the_server_sends(monkeypatch, tmp_path):
     body = re.search(r"func joinWaitlist.*?\n    \}", _api(), re.S).group(0)
     sent = set(re.findall(r'"(\w+)":', body))
     assert sent <= set(appmod.WaitlistJoinRequest.model_fields), sorted(sent)
-    assert {"email", "referral_code", "accept_terms", "want_token"} <= sent
+    assert {"email", "password", "referral_code", "accept_terms", "want_token"} <= sent
+    # §571: the join asks for a password by the server's own minimum, the
+    # same number and sentence the web's page uses.
+    import accounts as accounts_mod
+    auth_view = (SWIFT / "Views" / "AuthView.swift").read_text(encoding="utf-8")
+    card = (SWIFT / "Views" / "FrontDoor.swift").read_text(encoding="utf-8")
+    for swift in (auth_view, card):
+        assert f"password.count >= {accounts_mod.MIN_PASSWORD}" in swift
+        assert f"Use at least {accounts_mod.MIN_PASSWORD} characters for your password." in swift
     c = TestClient(appmod.app)
     headers = {"X-FAM-Client": "ios/1.0.0+2"}
     joined = c.post("/api/v1/waitlist/join", headers=headers, json={
@@ -566,3 +574,20 @@ def test_the_notification_choices_decode_what_the_server_sends(monkeypatch):
     times = re.search(r'\[("06:30"[^\]]*)\]\.forEach', web).group(1)
     assert "static let times = [" + times + "]" in settings
     assert "MixesModel.iPhoneLater" in settings
+
+
+def test_mix_rows_show_todays_episode_title_570():
+    """§570 on the iPhone: a mix row reads the server's `episode_title`
+    (today's episode) with the topic under it, and the player opens on it;
+    the topic's `title` is still what a whole-list write sends back."""
+    import inspect
+    assert '"episode_title"' in inspect.getsource(appmod._mix_episode_titles)
+    api = (SWIFT / "API.swift").read_text()
+    assert "let episodeTitle: String" in api
+    assert "episodeTitle.isEmpty ? title : episodeTitle" in api
+    assert '["query": query, "title": title]' in api
+    view = (SWIFT / "Views" / "MixView.swift").read_text()
+    assert "Text(item.shownTitle)" in view
+    assert 'item.title + (who.isEmpty ? "" : " \\u{00B7} " + who)' in view
+    model = (SWIFT / "AppModel.swift").read_text()
+    assert "!item.episodeTitle.isEmpty ? item.episodeTitle" in model

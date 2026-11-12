@@ -625,8 +625,8 @@ struct IdentityView: View {
                 .padding(.top, 22)
                 .padding(.bottom, 8)
             SetRow(label: "Signed in as", value: model.listener?.email ?? "")
-            SetRow(label: "Change password") {
-                PasswordChange.start(model: model, ask: $textAsk)
+            SetRow(label: PasswordChange.label(you.account)) {
+                PasswordChange.open(model: model, account: you.account, ask: $textAsk)
             }
         }
     }
@@ -859,6 +859,31 @@ struct RequiredPopup: View {
 
 @MainActor
 enum PasswordChange {
+    /// The row's words (§571, the web's `passwordSettingsRow`): "Set a
+    /// password" whenever `/api/account` says there is none; otherwise, or
+    /// before the answer is in, "Change password".
+    static func label(_ account: AccountInfo?) -> String {
+        account?.hasPassword == false ? "Set a password" : "Change password"
+    }
+
+    /// The row's tap: the first-password flow directly when there is none,
+    /// else `start`, which asks the server before choosing.
+    static func open(model: AppModel, account: AccountInfo?, ask: Binding<TextAsk?>) {
+        if account?.hasPassword == false {
+            askFirst(model: model, ask: ask)
+        } else {
+            start(model: model, ask: ask)
+        }
+    }
+
+    /// "Set a password" (`setFirstPassword`).
+    static func askFirst(model: AppModel, ask: Binding<TextAsk?>) {
+        ask.wrappedValue = TextAsk(title: "Set a password", placeholder: "at least 8 characters",
+                                   button: "Set", secure: true) { new in
+            PasswordChange.setFirst(model: model, new)
+        }
+    }
+
     /// An account with no password sets a first one; otherwise the current
     /// one, then the new - and every device is signed out, this one too,
     /// as on the web.
@@ -866,10 +891,7 @@ enum PasswordChange {
         Task {
             let info = try? await model.api.account()
             if info?.hasPassword == false {
-                ask.wrappedValue = TextAsk(title: "Set a password", placeholder: "at least 8 characters",
-                                           button: "Set", secure: true) { new in
-                    PasswordChange.setFirst(model: model, new)
-                }
+                askFirst(model: model, ask: ask)
             } else {
                 ask.wrappedValue = TextAsk(title: "Current password", placeholder: "",
                                            button: "Next", secure: true) { current in
@@ -883,6 +905,14 @@ enum PasswordChange {
     }
 
     private static func setFirst(model: AppModel, _ new: String) {
+        guard new.count >= 8 else {
+            model.nowPlaying.say("Use at least 8 characters for your password.")
+            return
+        }
+        guard new.count <= 1024 else {
+            model.nowPlaying.say("That password is too long.")
+            return
+        }
         Task {
             do {
                 try await model.api.setPassword(new)
