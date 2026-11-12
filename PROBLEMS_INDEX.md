@@ -553,3 +553,5 @@ and `limit` = Lines.
 | 34437 | 24 | 559. A shared link previews with the episode's picture, like a Spotify link (2026-11-12) |
 | 34461 | 73 | 560. Optional surveys: the episode check, the day-3 check-in and the two-week wrap-up (2026-11-12) |
 | 34534 | 39 | 561. The iOS app catches up with §560: the surveys (2026-11-12) |
+| 34573 | 77 | 562. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12) |
+| 34650 | 58 | 563. The sports sweep runs for people with finals on (2026-11-12) |

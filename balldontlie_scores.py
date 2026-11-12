@@ -953,6 +953,23 @@ def watching(rows: list, now: float) -> bool:
     return False
 
 
+def followed_game(row: dict, names, catalogue: Optional[dict] = None) -> bool:
+    """§562: whether this game names a team somebody with finals on follows.
+    A row whose teams cannot be named yet (soccer before its catalogue is
+    read) counts, so a followed club's final is never missed for want of a
+    name."""
+    home, away = sides(row, catalogue)
+    said = []
+    for team in (home, away):
+        said += [str(team.get(k) or "") for k in
+                 ("full_name", "display_name", "name", "city", "location", "short_name")]
+    text = " ".join(x for x in said if x)
+    if not text.strip():
+        return True
+    import stories
+    return stories.names_a_followed(text, names)
+
+
 def _keep_finals(league: League, rows: list, catalogue: dict, source: str) -> None:
     """The finished games in one league's sweep, to the history archive
     (§315). Only a **final**: a score mid-game is a moment, not history.
@@ -1071,6 +1088,17 @@ def make_signals():
             if today.isoformat() in held and not any(
                     watching(held.get(d, (0, []))[1], now) for d in days):
                 return []
+            if (today.isoformat() in held and not stories.recent_demand(now)
+                    and stories.finals_followed(now)):
+                # §562: nobody drew myFAM, so the only demand is people with
+                # finals on - and only for a game naming a team they follow.
+                # Swept until the sweep sees it final (`watching` stops then).
+                names = stories.finals_followed(now)
+                catalogue = TEAMS.get(key, (0, {}))[1]
+                if not any(followed_game(row, names, catalogue)
+                           for d in days for row in held.get(d, (0, []))[1]
+                           if watching([row], now)):
+                    return []
             last = SWEPT_AT.get(key)
             if last is not None and now - last < 0.9 * float(
                     settings.stories_sports_interval_seconds):
@@ -1081,9 +1109,10 @@ def make_signals():
             if not any(sweepable(k) for k in SWEPT):
                 return (f"BALLDONTLIE's {settings.balldontlie_tier} plan cannot "
                         "carry the sweep; sports are looked up on demand")
-            if not stories.recent_demand(now):
+            if not stories.recent_demand(now) and not stories.finals_followed(now):
                 return ("nobody has drawn myFAM in the last "
-                        f"{settings.stories_demand_seconds / 60:.0f} min; "
+                        f"{settings.stories_demand_seconds / 60:.0f} min and "
+                        "nobody with finals notifications on follows a team; "
                         "sports are swept on demand")
             if not any(self.due(k, now) for k in SWEPT):
                 return "nothing to watch: no followed league has a game on"
