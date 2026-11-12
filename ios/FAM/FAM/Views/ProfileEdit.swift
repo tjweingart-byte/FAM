@@ -859,7 +859,7 @@ struct RequiredPopup: View {
 
 @MainActor
 enum PasswordChange {
-    /// The row's words (§569, the web's `passwordSettingsRow`): "Set a
+    /// The row's words (§570, the web's `passwordSettingsRow`): "Set a
     /// password" whenever `/api/account` says there is none; otherwise, or
     /// before the answer is in, "Change password".
     static func label(_ account: AccountInfo?) -> String {
