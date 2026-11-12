@@ -843,6 +843,10 @@ struct WaitlistPasswordCard: View {
             problem = "Use at least 8 characters for your password."
             return
         }
+        guard password.count <= 1024 else {
+            problem = "That password is too long."
+            return
+        }
         problem = ""
         working = true
         defer { working = false }

@@ -321,6 +321,10 @@ struct AuthView: View {
             problem = "Use at least 8 characters for your password."
             return
         }
+        guard password.count <= 1024 else {
+            problem = "That password is too long."
+            return
+        }
         guard agreed else {
             problem = "Tick the box to agree to the Terms and conditions."
             return

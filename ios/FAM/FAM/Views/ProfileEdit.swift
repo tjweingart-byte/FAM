@@ -859,9 +859,6 @@ struct RequiredPopup: View {
 
 @MainActor
 enum PasswordChange {
-    /// An account with no password sets a first one; otherwise the current
-    /// one, then the new - and every device is signed out, this one too,
-    /// as on the web.
     /// The row's words (§569, the web's `passwordSettingsRow`): "Set a
     /// password" whenever `/api/account` says there is none; otherwise, or
     /// before the answer is in, "Change password".
@@ -887,6 +884,9 @@ enum PasswordChange {
         }
     }
 
+    /// An account with no password sets a first one; otherwise the current
+    /// one, then the new - and every device is signed out, this one too,
+    /// as on the web.
     static func start(model: AppModel, ask: Binding<TextAsk?>) {
         Task {
             let info = try? await model.api.account()
@@ -907,6 +907,10 @@ enum PasswordChange {
     private static func setFirst(model: AppModel, _ new: String) {
         guard new.count >= 8 else {
             model.nowPlaying.say("Use at least 8 characters for your password.")
+            return
+        }
+        guard new.count <= 1024 else {
+            model.nowPlaying.say("That password is too long.")
             return
         }
         Task {

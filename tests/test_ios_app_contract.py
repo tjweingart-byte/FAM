@@ -463,7 +463,15 @@ def test_the_front_door_decodes_what_the_server_sends(monkeypatch, tmp_path):
     body = re.search(r"func joinWaitlist.*?\n    \}", _api(), re.S).group(0)
     sent = set(re.findall(r'"(\w+)":', body))
     assert sent <= set(appmod.WaitlistJoinRequest.model_fields), sorted(sent)
-    assert {"email", "referral_code", "accept_terms", "want_token"} <= sent
+    assert {"email", "password", "referral_code", "accept_terms", "want_token"} <= sent
+    # §569: the join asks for a password by the server's own minimum, the
+    # same number and sentence the web's page uses.
+    import accounts as accounts_mod
+    auth_view = (SWIFT / "Views" / "AuthView.swift").read_text(encoding="utf-8")
+    card = (SWIFT / "Views" / "FrontDoor.swift").read_text(encoding="utf-8")
+    for swift in (auth_view, card):
+        assert f"password.count >= {accounts_mod.MIN_PASSWORD}" in swift
+        assert f"Use at least {accounts_mod.MIN_PASSWORD} characters for your password." in swift
     c = TestClient(appmod.app)
     headers = {"X-FAM-Client": "ios/1.0.0+2"}
     joined = c.post("/api/v1/waitlist/join", headers=headers, json={
