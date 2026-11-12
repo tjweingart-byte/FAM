@@ -18,6 +18,15 @@ voice that speaks here: the remote worker (REMOTE_VOICE_URL and its token
 from the credential chain) or Chatterbox in this process. Keeps nothing in
 the lexicon or the voice checks.
 
+Capitals (§566): `--caps` says words in capitals five ways instead - letters
+apart ("F B I"), dotted, the letters' names ("eff bee eye"), as written
+("NASCAR") and in ordinary case ("Nascar") - and marks the one the voice is
+handed today. Which way an initialism and a word each sound smoothest
+decides `spoken_text`'s spelling and `WORD_CASE`.
+
+    python tools/stress_trial.py --caps
+    python tools/stress_trial.py --caps "NASCAR,NVIDIA,FBI,ESPN"
+
 Writes <out>/index.html (open it and listen), <out>/results.csv and the WAVs.
 """
 from __future__ import annotations
@@ -36,6 +45,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pronounce_review  # noqa: E402
 import pronunciation  # noqa: E402
+
+#: `--caps` with no list: words said as words and initialisms, from the news.
+CAPS_DEFAULT = "NASCAR,NVIDIA,NATO,DOGE,EBITDA,FBI,ESPN,NCAA,NFL,UCLA"
+
+_STRESS_HEADS = {"now": "As now (no stress)", "joined": "Run together",
+                 "accent": "Accent on the stress",
+                 "spaced": "Syllables apart, stress capitalised"}
+_CAPS_HEADS = {"spaced": "Letters apart (F B I)", "dotted": "Dotted (F.B.I.)",
+               "named": "Letter names (eff bee eye)", "upper": "As written (NASCAR)",
+               "title": "Ordinary case (Nascar)"}
 
 
 def _syllables(say: str) -> int:
@@ -56,43 +75,53 @@ def _from_csv(path: str) -> list[tuple[str, str]]:
                 for r in csv.DictReader(fh) if r.get("name")]
 
 
-def _page(results: list[dict]) -> str:
+def _page(results: list[dict], caps: bool = False) -> str:
     rows = []
     for r in results:
         cells = []
         for v in r["variants"]:
             score = "" if v["score"] is None else f" · {round(v['score'] * 100)}% alike"
+            today = " <b>(today)</b>" if v["variant"] == r.get("today") else ""
             cells.append(
-                f"<td><code>{html.escape(v['sent'])}</code><br>"
+                f"<td{' style=background:#fff6d6' if today else ''}>"
+                f"<code>{html.escape(v['sent'])}</code>{today}<br>"
                 f"<audio controls src='{html.escape(v['file'])}'></audio><br>"
                 f"<small>heard <code>{html.escape(v['heard_say'] or '-')}</code>{score}</small></td>")
         rows.append(f"<tr><th>{html.escape(r['name'])}<br><small>{html.escape(r['say'])}"
                     f"{' · in a sentence' if r['sentence'] else ''}</small></th>{''.join(cells)}</tr>")
     heads = "".join(f"<th>{html.escape(h)}</th>" for h in (
-        "As now (no stress)", "Run together", "Accent on the stress",
-        "Syllables apart, stress capitalised"))
-    return ("<!doctype html><meta charset=utf-8><title>Stress trial</title>"
+        _CAPS_HEADS if caps else _STRESS_HEADS).values())
+    title, ask = (("Capitals trial", "Which column says each word smoothly, the way a "
+                   "broadcaster would? <b>(today)</b> marks what the voice is handed now. "
+                   "Note the best column for the words and the best for the initialisms.")
+                  if caps else
+                  ("Stress trial", "Which column says the stressed syllable (the capitals "
+                   "in the respelling) where it belongs?"))
+    return (f"<!doctype html><meta charset=utf-8><title>{title}</title>"
             "<style>body{font:14px system-ui;margin:16px}td,th{border:1px solid #ccc;"
             "padding:6px;vertical-align:top;text-align:left}table{border-collapse:collapse}"
-            "audio{width:220px}</style><h1>Stress trial</h1>"
-            "<p>Which column says the stressed syllable (the capitals in the respelling) "
-            "where it belongs? The % is a phoneme recogniser's guess; trust your ears.</p>"
-            f"<table><tr><th>Name</th>{heads}</tr>{''.join(rows)}</table>")
+            f"audio{{width:220px}}</style><h1>{title}</h1>"
+            f"<p>{ask} The % is a phoneme recogniser's guess; trust your ears.</p>"
+            f"<table><tr><th>{'Word' if caps else 'Name'}</th>{heads}</tr>{''.join(rows)}</table>")
 
 
-async def run(names: list[tuple[str, str]], out: pathlib.Path, sentences: bool) -> list[dict]:
+async def run(names: list[tuple[str, str]], out: pathlib.Path, sentences: bool,
+              caps: bool = False) -> list[dict]:
     out.mkdir(parents=True, exist_ok=True)
     results = []
     for i, (name, say) in enumerate(names, 1):
         for sentence in ((False, True) if sentences else (False,)):
-            print(f"  [{i}/{len(names)}] {name} = {say}{' (sentence)' if sentence else ''}", flush=True)
-            variants = await pronounce_review.hear_variants(name, say=say, sentence=sentence)
+            print(f"  [{i}/{len(names)}] {name}{'' if caps else ' = ' + say}"
+                  f"{' (sentence)' if sentence else ''}", flush=True)
+            variants = (await pronounce_review.hear_caps(name, sentence=sentence) if caps
+                        else await pronounce_review.hear_variants(name, say=say, sentence=sentence))
             slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
             for v in variants:
                 v["file"] = f"{slug}{'-sentence' if sentence else ''}-{v['variant']}.wav"
                 (out / v["file"]).write_bytes(v.pop("wav"))
                 v.pop("audio", None)
-            results.append({"name": name, "say": say, "sentence": sentence, "variants": variants})
+            results.append({"name": name, "say": say, "sentence": sentence, "variants": variants,
+                            "today": pronounce_review.caps_choice(name) if caps else ""})
     return results
 
 
@@ -104,8 +133,23 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--no-sentence", action="store_true",
                     help="bare names only (half the calls)")
+    ap.add_argument("--caps", nargs="?", const=CAPS_DEFAULT,
+                    help="say words in capitals five ways instead (comma-separated; "
+                    f"default {CAPS_DEFAULT})")
     ap.add_argument("--out", default=f"stress-trial/{time.strftime('%Y%m%d-%H%M')}")
     args = ap.parse_args()
+
+    if args.caps:
+        import hard_words
+
+        hard_words.warm()       # so "today" is what a warm server hands the voice
+        words = [w.strip().upper() for w in args.caps.split(",")
+                 if re.fullmatch(r"\s*[A-Za-z]{2,12}\s*", w)]
+        if not words:
+            print("No words to try: give --caps letters only, comma-separated.")
+            return 1
+        return _finish(pathlib.Path(args.out),
+                       [(w, "") for w in words[:args.limit]], not args.no_sentence, caps=True)
 
     if args.csv:
         rows = _from_csv(args.csv)
@@ -139,10 +183,13 @@ def main() -> int:
             "none on the list marks a stressed syllable in capitals."))
         return 1
 
-    out = pathlib.Path(args.out)
+    return _finish(pathlib.Path(args.out), names, not args.no_sentence)
+
+
+def _finish(out: pathlib.Path, names: list, sentences: bool, caps: bool = False) -> int:
     import voice_check
     try:
-        results = asyncio.run(run(names, out, not args.no_sentence))
+        results = asyncio.run(run(names, out, sentences, caps=caps))
     except voice_check.VoiceCheckUnavailable as exc:
         print(f"No voice here: {exc}")
         return 2
@@ -150,7 +197,7 @@ def main() -> int:
         print(f"The voice could not be heard: {type(exc).__name__}: {exc}")
         print("Check the worker answers: python tools/probe_remote_voice.py")
         return 2
-    (out / "index.html").write_text(_page(results), encoding="utf-8")
+    (out / "index.html").write_text(_page(results, caps=caps), encoding="utf-8")
     with open(out / "results.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["name", "say", "sentence", "variant", "sent", "heard_say", "score", "file"])

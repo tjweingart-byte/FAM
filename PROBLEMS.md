@@ -34809,3 +34809,54 @@ on Other User Content (survey answers), so the manifest agrees with the App
 Privacy answers drafted in `APP_STORE.md` Part C, rewritten with the listing,
 age rating and review notes as the app now is (no Explore, no phone number on
 sign-up, vibes as posts, surveys).
+
+## 566. Words in capitals: NASCAR and NVIDIA said as words, not letters (2026-11-12)
+
+**What was asked.** The owner: "THe main pronunciation problem seems to be
+with words that are in all caps(NASCAR, NVIDIA). It really doesn't get the
+timing right on all of these and the words are very choppy and sound like
+acronyms. WHat is the best way to fix this", then "yes build 1-4".
+
+**Why.** Not the lexicon: `spoken_text._caps` spelled every word of two to
+six capitals that was not in `SAID_AS_WORDS` (about 50 words), so the voice
+was handed "N A S C A R drivers" and "N V I D I A stock" - six letters, each
+said on its own. DOGE, LIV and EBITDA the same. Seven or more capitals were
+passed as written.
+
+**1. The CMU dictionary decides** (`spoken_text._said_as_word`), from four
+letters: an entry that is exactly its letters' names (ESPN, HBO, CNN, NFL,
+NAACP - `_LETTER_PHONES`, `_spelled_as_letters`) is spelled; any other entry
+is a word (NASCAR, NVIDIA, DOGE, UNESCO, AWOL, HIPAA); a word not in it is
+spelled up to six letters (UCLA, NCAA, TSMC, MSNBC) and a word from seven, as
+before. Two or three letters stay spelled unless listed: the dictionary
+would make AI, WHO, SEC and SAT into "eye", "who", "sec" and "sat".
+`SAID_AS_LETTERS` holds the four-letter-plus ones it has as ordinary words
+(WNBA, AARP, tickers); `SAID_AS_WORDS` gains what it lacks or misses (LIV,
+EBITDA, CAPTCHA, SPAC, DACA, FAFSA, HIPAA, FAANG, FOX, ARM, PAC, ZIP, AXIOS,
+OPENAI, and NVIDIA, NASCAR and DOGE by name). `tests/test_caps_said_566.py`
+pins 42 words either way.
+
+**Never in front of a sentence.** The dictionary is about 0.6 s and 17 MB to
+load. The server loads it at boot in a thread (`hard_words.warm`, beside the
+autocorrect list); `spoken_text` only asks `hard_words.peek()`, which answers
+None until it is loaded - the old rule holds until then - and starts the
+load in a thread in any process that never warmed it (write.py, a pod's
+tools). The tests load it first (`tests/conftest.py`) so no result depends
+on when a background load finished.
+
+**2.** The list additions above.
+
+**3. Ordinary case is for the ear.** `spoken_text.WORD_CASE` hands a word
+said as a word to the voice as written ("NASCAR", as before) or, set to
+"title", in ordinary case ("Nascar"). Unchanged until heard.
+
+**4. The trial.** `python tools/stress_trial.py --caps` says each word five
+ways - letters apart ("F B I", today's for an initialism), dotted, the
+letters' names ("eff bee eye"), as written (today's for a word) and ordinary
+case - past `spoken_text`, bare and in a sentence, and marks today's.
+`pronounce_review.caps_variants`, `caps_choice`, `hear_caps`. Whichever
+column wins for words sets `WORD_CASE`; whichever wins for initialisms
+replaces `_spell`'s spacing. Unheard: this container has no voice.
+
+**Today, without a deploy:** a respelling on /admin (`NVIDIA = en-VID-ee-uh`)
+is applied before `spoken_text` and already overrides any of this.

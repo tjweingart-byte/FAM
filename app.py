@@ -684,6 +684,11 @@ async def lifespan(_: FastAPI):
     # The autocorrect word list, likewise (§142) - in a thread and not
     # awaited, so it costs startup nothing and the first word typed nothing.
     asyncio.get_running_loop().run_in_executor(None, autocorrect_mod.warm)
+    # The pronouncing dictionary `spoken_text` asks whether capitals are a
+    # word (§566): about half a second, never spent before a sentence.
+    import hard_words as _hard_words
+
+    asyncio.get_running_loop().run_in_executor(None, _hard_words.warm)
     # Before a listener finds out the hard way.
     await _verify_credentials()
     await _verify_small_models()

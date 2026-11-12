@@ -43,6 +43,10 @@ KEEP = 300
 
 _WORD = re.compile(r"[A-Za-z][A-Za-z'’]*(?:-[A-Za-z][A-Za-z'’]*)*")
 _LOCK = threading.Lock()
+#: Set once `_load` has finished, whatever it found (`peek`).
+_READY = threading.Event()
+_KICK_LOCK = threading.Lock()
+_KICKED = False
 _DICT: dict = {}
 
 # ARPAbet (the dictionary's alphabet) as IPA, for `wiki_pronounce`'s
@@ -77,7 +81,32 @@ def _load() -> dict:
         except OSError as exc:
             log.warning("hard_words: the pronouncing dictionary could not be "
                         "read (%s); every word will look unknown", exc)
+        _READY.set()
         return _DICT
+
+
+def warm() -> None:
+    """Load the dictionary now - at boot, in a thread, so the voice's path
+    (`peek`) never pays for it (§566)."""
+    _load()
+
+
+def peek() -> Optional[dict]:
+    """The dictionary if it has finished loading, else None - never waits.
+
+    For `spoken_text`, which runs on every sentence the voice says: the first
+    load takes about half a second, and that is never spent in front of a
+    listener. Asked before the load, it starts one in a thread and answers
+    None, so a process that never warmed it (write.py, a pod's tools) uses
+    it from a moment later on."""
+    if _READY.is_set():
+        return _DICT
+    global _KICKED
+    with _KICK_LOCK:
+        if not _KICKED:
+            _KICKED = True
+            threading.Thread(target=_load, name="cmudict-load", daemon=True).start()
+    return None
 
 
 def available() -> bool:
