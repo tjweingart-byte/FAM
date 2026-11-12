@@ -34382,3 +34382,78 @@ coverage: `_trace(conn, seen)` uses SQLite's hook or wraps `db.Connection.execut
 the same store with `db.connect(path)` - the file in SQLite, its schema in
 Postgres. Run against a local Postgres 16 and against SQLite: 14 of 14 on
 both. This branch's own category tests also pass on Postgres (72).
+
+## 558. Instagram and Snapchat stories go straight into the platform's app (2026-11-12)
+
+**The report.** With the app in TestFlight, the owner: sharing an episode only
+works as a link; Instagram, Snapchat and the rest do not. The two story tiles
+drew the server's card to a PNG and handed it to iOS's share sheet, hoping
+Instagram's and Snapchat's share extensions would take it for a story. That is
+two extra choices at best, and not a story editor at all at worst. Instagram's
+own route, `instagram-stories://share`, has needed a Facebook App ID since
+January 2023, and FAM had none (PARITY.md said so); Snapchat's needs a Snap Kit
+client id.
+
+**What changed.** The server owns the hand-off, as every other destination's
+(`api-before-screen`): `sharing.story_handoffs` turns `INSTAGRAM_APP_ID` and
+`SNAPCHAT_CLIENT_ID` into a `handoff` on the `instagram_story` and
+`snapchat_story` targets of `/api/share` and a mix's share (`platform`, `url`,
+and the id); `/api/share/targets` says `has_handoff` and `/api/health` lists
+which are on (`sharing.story_handoffs`). Both ids are public identifiers that
+ship inside any app, so they are settings, not credentials; an id of the wrong
+shape (Meta's are digits, Snap's letters, digits and dashes) gives no hand-off
+and a warning, rather than a URL that fails inside the other app with no word
+about why. The iOS app (`StoryHandoff.swift`) asks `canOpenURL` (the two
+schemes are now in `LSApplicationQueriesSchemes`), puts the card on the
+pasteboard under the platform's keys - Meta's
+`com.instagram.sharedSticker.backgroundImage`; Snap's Creative Kit Lite keys
+with the client id and the caption, opened at
+`snapchat://creativekit/preview/1` with the pasteboard's change count - and
+opens the scheme. No SDK. Nothing unset, no app on the phone, or a refused
+open: the share sheet as before. A new optional field, so installed builds are
+unchanged and a TestFlight build with this code turns on when the server's
+settings do.
+
+**What it still needs from the owner.** A Meta app (its Facebook App ID) and a
+Snap Kit app registered with `net.familiarize.fam`; Snap's Development id posts
+only from Demo Users until Snap approves the app. Neither platform lets a
+third-party app pre-attach a tappable link any more, so the person adds the
+link sticker themselves.
+
+Unbuilt here (no Swift compiler); every changed Swift file parses with
+tree-sitter. Not tried on a phone.
+
+**Reddit and Threads** (the owner, the same day). Two more `link`
+destinations, both URL hand-offs needing no id: Reddit's submit page
+(`reddit.com/submit?url=&title=`; the words are the post's title, 300 at
+most, with no address in them because the link is its own field) and
+Threads' web intent (`threads.net/intent/post?text=`, 500, the link in the
+words as on X). Each opens the platform's app where it is installed. The
+trim in `_rendered` now re-attaches the link only where it was in the words
+to begin with - otherwise a long Reddit title would have had the URL glued
+onto it. Both clients draw the two tiles (`r/`, `Th`); an installed build
+already shows any key it does not know, with the arrow glyph.
+
+## 559. A shared link previews with the episode's picture, like a Spotify link (2026-11-12)
+
+**The report.** The owner, with a Spotify link in a group chat beside it: a
+FAM link should look like that - a picture with the title under it - rather
+than a line of words. Four options were drawn (a deck: episode art, a cover
+card, the picture with a play button, the sharer's face on top) and the
+owner chose the first with the third's play button.
+
+**Why it was words.** The share page's `og:image` was the Instagram story
+card (`/api/share/card`): SVG, 1080x1920. Messages and most link previewers
+draw only JPEG or PNG and want a square or wide picture, so they skipped it.
+
+**What changed.** `link_preview.draw` makes a 1200x1200 JPEG: the episode's
+picture (`_player_picture`, the one the player shows), cropped square, the
+FAM badge top left and a copper play button bottom right; with no picture,
+the title on FAM's dark ground with the length and the same button.
+`GET /api/share/{id}/preview.jpg` serves it, drawn on request and kept in a
+small memory (`PREVIEW_MEMORY`), nothing stored; `landing_head` names it as
+`og:image` (with type and size) ahead of the card, still only when absolute.
+Fonts are the iOS bundle's copies; a machine without them draws in Pillow's
+default face. Server-only, so every installed build and every app the link
+is pasted into gets it at once. Whether Messages prints the description
+line under the title for this site is still to be seen on a phone.

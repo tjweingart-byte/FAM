@@ -3005,7 +3005,9 @@ def main() -> int:
             page.wait_for_selector("#shareOverlay.active #shareTargets .sh-target",
                                    timeout=8000)
             assert page.text_content("#shareTitle").strip() == "Share this mix"
-            assert len(page.query_selector_all("#shareTargets .sh-target")) == 9
+            # Every destination the server has: eleven since Reddit and
+            # Threads joined (§558).
+            assert len(page.query_selector_all("#shareTargets .sh-target")) == 11
             assert page.evaluate("mixById(currentMixId).public"), \
                 "the shared mix is still private"
             page.evaluate("closeShareModal(); openPlayFAM()")

@@ -213,7 +213,7 @@ FAM_ENVIRONMENT = (
     # Where a share recipient goes when they press anything but play. Unset
     # in a test, or a machine with a real one would draw doors the assertions
     # about the empty state do not expect.
-    "APP_STORE_URL", "APP_HOME_URL", "APPLE_TEAM_ID", "APPLE_KEY_ID", "MODERATION_EMAIL", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
+    "APP_STORE_URL", "INSTAGRAM_APP_ID", "SNAPCHAT_CLIENT_ID", "APP_HOME_URL", "APPLE_TEAM_ID", "APPLE_KEY_ID", "MODERATION_EMAIL", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
     "IMAGE_CHECK_MAX_TOKENS", "IMAGE_CHECK_TIMEOUT_SECONDS",
     "TOPIC_TITLE", "TOPIC_TITLE_MODEL", "TOPIC_TITLE_MAX_TOKENS", "TOPIC_TITLE_TIMEOUT_SECONDS",
     # Which machine speaks, and how it is reached. A developer with a real
