@@ -335,8 +335,7 @@ struct PlayerView: View {
     /// most 330 wide: the play stays dead centre whether next shows or not.
     private var transportRow: some View {
         HStack(spacing: 0) {
-            Color.clear
-                .frame(width: 48, height: 48)
+            prevSlot
                 .frame(maxWidth: .infinity)
             seekButton(back: true)
                 .frame(maxWidth: .infinity)
@@ -361,6 +360,23 @@ struct PlayerView: View {
         }
         .buttonStyle(.press)
         .accessibilityLabel(player.playing ? "Pause" : "Play")
+    }
+
+    /// Back one (§550, `#mixPrevBtn`), in the slot that balances next:
+    /// only while a myFAM playlist plays - the queue has no "before".
+    @ViewBuilder private var prevSlot: some View {
+        if model.mixPlay != nil {
+            Button { model.prevMixItem() } label: {
+                PrevGlyph()
+                    .foregroundStyle(FAMColor.text)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(BareCircleStyle())
+            .accessibilityLabel("Back to the previous episode in this playlist")
+        } else {
+            Color.clear.frame(width: 48, height: 48)
+        }
     }
 
     @ViewBuilder private var nextSlot: some View {
@@ -1082,21 +1098,17 @@ struct MiniPlayer: View {
     }
 }
 
-/// What an action did, as a plain line (§299, `.toast` / `.snack`): a
-/// short copper rule over centred words, no box, on the page's own colour
-/// fading up into whatever is behind; an action (Undo, Open) in copper
-/// beside the words.
-/// The toast's 22 x 2 copper rule, growing from its middle as the line
-/// comes up (`.toast::before`: scaleX 0 to 1, .26 s after .06 s); whole
-/// with reduced motion.
-private struct ToastRule: View {
+/// The card's 7 pt copper dot, growing from its middle as the card comes up
+/// (`.toast::before`: scale 0 to 1, .26 s after .06 s); whole with reduced
+/// motion.
+private struct ToastDot: View {
     @State private var grown = UIAccessibility.isReduceMotionEnabled
 
     var body: some View {
-        Capsule()
+        Circle()
             .fill(FAMColor.copper)
-            .frame(width: 22, height: 2)
-            .scaleEffect(x: grown ? 1 : 0, y: 1)
+            .frame(width: 7, height: 7)
+            .scaleEffect(grown ? 1 : 0)
             .onAppear {
                 guard !grown else { return }
                 withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26).delay(0.06)) { grown = true }
@@ -1104,48 +1116,65 @@ private struct ToastRule: View {
     }
 }
 
+/// What an action did, as a card that floats (§550, `.toast` / `.snack`;
+/// was §299's plain line on a fade of the page's colour, which over a dark
+/// screen - a friend's vibe, the story viewer - was a white band across the
+/// picture). The surface colour, a hairline, a shadow and a copper dot,
+/// sized to its words and centred, so it reads the same over any screen
+/// and covers nothing but itself; an action (Undo, Open) in copper to the
+/// right of the words. Where it sits is unchanged (`placeAboveBars`).
 struct ToastView: View {
     @EnvironmentObject private var now: NowPlayingModel
 
     var body: some View {
         ZStack {
             if let toast = now.toast {
-                band(toast)
+                card(toast)
                     .id(toast.id)
-                    .transition(.opacity.combined(with: .offset(y: 6)))
+                    // In: up 8 pt from 0.98 (`translateY(8px) scale(0.98)`).
+                    .transition(.opacity.combined(with: .offset(y: 8)).combined(with: .scale(scale: 0.98)))
             }
         }
-        .animation(.easeOut(duration: 0.2), value: now.toast)
+        .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.22), value: now.toast)
     }
 
-    private func band(_ toast: NowPlayingModel.Toast) -> some View {
-        VStack(spacing: 7) {
-            ToastRule()
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+    private func card(_ toast: NowPlayingModel.Toast) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return HStack(alignment: .center, spacing: 10) {
+            ToastDot()
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
                 Text(toast.text)
                     .font(FAMFont.body(13.5, .medium))
                     .foregroundStyle(FAMColor.text)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(13.5 * 0.35 - 4)
                     .lineLimit(toast.action == nil ? 3 : 1)
+                    .truncationMode(.tail)
                 if let action = toast.action {
                     Button(action) { now.toastTapped() }
                         .font(FAMFont.body(13.5, .bold))
                         .foregroundStyle(FAMColor.copper)
                         .buttonStyle(.press)
+                        .fixedSize()
                 }
             }
         }
-        .padding(.top, 26)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 9)
-        .frame(maxWidth: .infinity)
-        .background(
-            LinearGradient(stops: [
-                .init(color: FAMColor.background.opacity(0), location: 0),
-                .init(color: FAMColor.background.opacity(0.98), location: 0.45),
-            ], startPoint: .top, endPoint: .bottom)
-        )
-        // Only the action takes a tap; the line leaves what is under it
+        .padding(.top, 11)
+        .padding(.bottom, 11)
+        .padding(.leading, 14)
+        .padding(.trailing, 16)
+        .background(FAMColor.surface, in: shape)
+        .overlay(shape.stroke(FAMColor.borderStrong, lineWidth: 1))
+        // `0 16px 34px -14px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.12)`:
+        // SwiftUI has no spread, so the deep one is fainter and tighter.
+        .shadow(color: Color.black.opacity(0.3), radius: 11, x: 0, y: 12)
+        .shadow(color: Color.black.opacity(0.12), radius: 3, x: 0, y: 2)
+        // Sized to its words, never wider than the screen less 16 a side
+        // (`max-width:calc(100% - 32px)` on a phone), centred.
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, alignment: .center)
+        // Only the action takes a tap; the card leaves what is under it
         // pressable.
         .allowsHitTesting(toast.action != nil)
         .accessibilityElement(children: .combine)

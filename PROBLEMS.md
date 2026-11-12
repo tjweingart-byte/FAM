@@ -34177,3 +34177,51 @@ stylesheet; both are kept.
 a mix made after the morning's edition ran - active, never played - as new,
 a dot for a mix nobody wrote. It now takes only mixes made before the
 edition's `built_at`, active as of then.
+
+## 551. The app catches up with #247, #249 and #252 (2026-11-11)
+
+**What was asked.** The owner merged #247 (mix cards and what changed since
+you last listened, §544-§545), #249 (vibes as posts, §547) and #250 (the feed
+off the event loop, §548), then: update the app from those changes before the
+next build. #250 is server-only.
+
+**#247 on iOS.** A mix with a `signal` draws as R5 (`MixSignalCard`,
+`Views/MixSignals.swift`): the story's picture ringed in the signal's colour
+with the mix cover in its corner, one line naming the topic and the story,
+and the Trending / Major update pill where the arrow was. Inside the mix
+(Q5) a changed topic's row is outlined with its tag and the two bubbles
+(`MixBubbles`), "Start with what changed" plays the changed topics first
+(`AppModel.playMixChangedFirst`, the web's `playWhatChanged`), and "or play
+all N from the top" plays in order. Every topic row carries its picture
+(`MixTopicPic`). The minimal card's name now fills its row as the web's
+`flex:1`. The guest's example card has no counterpart: the app requires an
+account.
+
+**#249 on iOS.** A tap on a vibe in yourFAM's grid or a friend's profile opens
+the posts screen (`Views/VibePosts.swift`, the web's `screen-vibeposts`) at
+that vibe: its line across the picture's foot, the post's own player and
+the chip that plays from the line, likes, replies (a sheet with answers,
+likes, Delete and Report), save and share, More vibes. The VIBE! editor gains
+the Line tool (sent as `line` / `line_at`). Where iOS differs it is named in
+`ios/FAM/PARITY.md`: an E mark sits before a caption rather than inside it,
+and the posts screen inside a social cover draws its own loading screen.
+
+**#252 on iOS (§550).** Back an episode: the player's first slot holds
+next's glyph mirrored while a myFAM playlist plays (`AppModel.prevMixItem`:
+the item before, by the same dated prompt, so a replay; the first again from
+the start; off a Go Deeper detour, the interrupted episode, as skip does). A
+vibe holds the playlist: an episode ending while the story editor is up keeps
+its carry-on (`NowPlayingModel.heldForVibe`), run when the editor goes and
+dropped by anything else starting. Mixes | Categories: `PlayfamTabs` under the
+wordmark; Categories is the chip row without All over `CategoryHome` (followed
+with today's count, then the facets with what is under them), and every
+arrival opens on Mixes. The morning dot: `GET /api/v1/mixes/fresh`
+(`FreshMixes`) asked beside the notifications, on return and every quarter
+hour; a copper dot on the myFAM tab until the screen is looked at that
+edition (`fam.mixDotSeen`), "New today" on the card until played. The toast is
+the floating card. The web's "New today" chip also matches an older
+`.mix-new` rule and stretches across the card; the app draws it as §550's rule
+writes it, and `ios/FAM/PARITY.md` says so.
+
+Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
+and every new name resolves.

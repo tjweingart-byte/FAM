@@ -171,6 +171,8 @@ struct NewMixView: View {
     private func cancel() {
         path.removeAll()
         mixes.categoryState = CategoryState()
+        // Back on Mixes, and the tab looked at (`openPlayFAM`, §550).
+        mixes.arrived()
         Task { await mixes.load() }
     }
 

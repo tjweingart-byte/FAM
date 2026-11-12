@@ -397,7 +397,7 @@ struct YouView: View {
                 .padding(.top, 8)
         } else {
             LazyVGrid(columns: columns, spacing: 3) {
-                ForEach(vibes) { v in vibeTile(v) }
+                ForEach(vibes) { v in vibeTile(v, at: vibes.firstIndex(of: v) ?? 0) }
                 if total > vibes.count {
                     Button { model.youPath.append(.myVibe) } label: {
                         Color.clear
@@ -418,13 +418,14 @@ struct YouView: View {
         }
     }
 
-    /// A tap plays it; held still for half a second (a move of more than
-    /// 10 pt cancels) it offers "Remove vibe from profile" (`armVibeHolds`).
-    private func vibeTile(_ v: MyVibe) -> some View {
+    /// A tap opens your vibes as posts at this one (§547, `playProfileVibe`);
+    /// held still for half a second (a move of more than 10 pt cancels) it
+    /// offers "Remove vibe from profile" (`armVibeHolds`).
+    private func vibeTile(_ v: MyVibe, at index: Int) -> some View {
         PicTile(thumb: v.thumb ?? "", title: v.title ?? v.query, titleLines: nil)
             .contentShape(Rectangle())
             .onTapGesture {
-                model.playOwnVibe(query: v.query, minutes: v.minutes, title: v.title)
+                model.youPath.append(.vibePosts(VibePostsOpen(handle: "", index: index, fromYou: true)))
             }
             .onLongPressGesture(minimumDuration: 0.5, maximumDistance: 10) {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -523,6 +524,7 @@ struct YouScreen: View {
         case .myVibe: MyVibeView()
         case .signInMethods: SignInMethodsView()
         case .topic(let open): TopicView(open: open)
+        case .vibePosts(let open): VibePostsView(open: open)
         }
     }
 }

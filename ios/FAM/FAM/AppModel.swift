@@ -73,6 +73,10 @@ final class AppModel: ObservableObject {
     /// The YourFAM tab's stack (Settings, the shelves), and the first-run
     /// step after an account is made or signed in (`afterAccount`).
     @Published var youPath: [YouRoute] = []
+    /// How many vibe-posts screens are on screen (§547): while one is, a
+    /// post's episode (`Episode.inPlace`) plays where it sits and the full
+    /// player does not open (`onGenerationStarted`'s `screen-vibeposts`).
+    var vibePostsShowing = 0
     /// The first-run step; when it ends, an activation step held through it
     /// opens (`releaseActivation`, §414).
     @Published var entry: EntryStep? {
@@ -274,6 +278,9 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.player.release()
+                // A vibe's post plays where it sits (§547): the posts
+                // screen's own bar carries it, so no full player over it.
+                let inPlace = (self.pending?.inPlace ?? false) && self.vibePostsShowing > 0
                 if let ep = self.pending { self.nowPlaying.begin(ep) }
                 // The glide marks the playlist's own episode Played only now:
                 // a skip before a word, or a failure, is not something that
@@ -284,7 +291,7 @@ final class AppModel: ObservableObject {
                     self.mixPlay = list
                 }
                 self.pending = nil
-                self.showPlayer = true
+                if !inPlace { self.showPlayer = true }
                 self.seekWhenArrived()
                 // A stream arrived, so there is a connection whatever was
                 // said before.
@@ -327,6 +334,14 @@ final class AppModel: ObservableObject {
         }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
         nowPlaying.playerShowing = { [weak self] in self?.showPlayer ?? false }
+        // The myFAM screen on show is the dot looked at (§550,
+        // `#screen-playfam.active`): its tab, with no mix pushed over it.
+        mixes.screenShowing = { [weak self] in
+            guard let self else { return false }
+            return self.shownTab == .myfam && self.mixPath.isEmpty
+        }
+        // An episode ending under the VIBE! editor holds what comes next (§550).
+        nowPlaying.vibeEditorOpen = { [weak self] in self?.storyEditing ?? false }
         social.say = { [weak self] text in self?.nowPlaying.say(text) }
         you.say = { [weak self] text, action, perform in
             self?.nowPlaying.say(text, action: action, perform: perform)
@@ -1558,6 +1573,9 @@ final class AppModel: ObservableObject {
 
     private func startPlaying(_ ep: Episode, resumeAt: Double = 0, cachedOnly: Bool = false,
                               glide: LoadingModel.Glide? = nil, dial: LoadingModel.Dial? = nil) {
+        // Something started on its own: whatever an ended episode held for
+        // the vibe editor is not "next" any more (§550, `generate`).
+        nowPlaying.heldForVibe = nil
         // A playlist's own episode, and a Go Deeper detour off it, keep the
         // playlist; anything else started on the player ends it - a search,
         // a tile, What's next, a shared episode, the Queue, a category (§519).
@@ -1776,6 +1794,26 @@ extension AppModel {
         playMixItem()
     }
 
+    /// "Start with what changed" (Q5, §545, `playWhatChanged`): the items
+    /// that changed since this listener last heard them first, in the mix's
+    /// own order, then the rest in theirs. Nothing changed: from the top.
+    func playMixChangedFirst(_ mix: Mix) {
+        guard !mix.items.isEmpty else { nowPlaying.say("Add a topic first"); return }
+        var first: [Int] = []
+        var rest: [Int] = []
+        for (index, item) in mix.items.enumerated() {
+            if item.since != nil {
+                first.append(index)
+            } else {
+                rest.append(index)
+            }
+        }
+        guard !first.isEmpty else { playMix(mix); return }
+        mixPlay = MixPlaylist(mixID: mix.id, name: mix.name, items: mix.items, order: first + rest, pos: 0,
+                              mine: mixes.mix(mix.id) != nil)
+        playMixItem()
+    }
+
     /// One item, as today's edition, behind the glide (`playMixItem`). Each
     /// play gets a key of its own (`mixPlay.key`): an end, a skip or a
     /// failure arriving for anything else moves nothing.
@@ -1795,7 +1833,11 @@ extension AppModel {
                                        first: list.pos == 0)
         // Any mix played - somebody else's public one too - keeps it out of
         // dormancy (`playMixItem`: `noteMixOpen(mixPlay.id, true)`).
-        if !list.mixID.isEmpty { Task { await api.noteMixOpen(list.mixID, played: true) } }
+        if !list.mixID.isEmpty {
+            // Played is no longer new (§550).
+            mixes.notePlayed(list.mixID)
+            Task { await api.noteMixOpen(list.mixID, played: true) }
+        }
         startPlaying(ep, glide: glide)
     }
 
@@ -1906,6 +1948,26 @@ extension AppModel {
         // skip of that follow-up.
         let moved = (playingDetour || askingDetour) ? resumeMix() : advanceMix()
         if !moved { nowPlaying.playQueueNext() }
+    }
+
+    /// The player's back while a mix plays (`prevMixItem`, §550, the owner:
+    /// "a way to go backwards an episode too, not just forward"): the
+    /// episode before this one in the playlist, asked by the same dated
+    /// prompt so it replays from what is kept; on the first, this one again
+    /// from the start. Off a Go Deeper follow-up, back is the playlist's
+    /// episode it came off, as skip is. Only a playlist has a "before".
+    func prevMixItem() {
+        guard var list = mixPlay else { return }
+        list.failures = 0
+        mixPlay = list
+        if playingDetour || askingDetour {
+            _ = resumeMix()
+            return
+        }
+        list.interrupted = nil
+        list.pos = max(0, list.pos - 1)
+        mixPlay = list
+        playMixItem()
     }
 
     /// After the last item: the listener's Queue carries on, else the

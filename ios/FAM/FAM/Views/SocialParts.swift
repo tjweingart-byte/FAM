@@ -707,6 +707,8 @@ struct SocialScreen: View {
             FriendsView()
         case .topic(let open):
             TopicView(open: open)
+        case .vibePosts(let open):
+            VibePostsView(open: open)
         }
     }
 }

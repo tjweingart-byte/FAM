@@ -12,6 +12,8 @@ enum YouRoute: Hashable {
     case settings, saved, history, myVibe, signInMethods
     /// One of the hub's interest chips (`openInterestAt`).
     case topic(TopicOpen)
+    /// A vibe tapped on your own grid: your vibes as posts (§547).
+    case vibePosts(VibePostsOpen)
 }
 
 /// The steps after an account is made or signed in (`afterAccount`): who

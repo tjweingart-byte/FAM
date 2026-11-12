@@ -33,6 +33,25 @@ final class MixesModel: ObservableObject {
     /// Which chip is on; every arrival on the tab opens on All.
     @Published var categoryState = CategoryState()
     @Published var categorySubs: [CategorySub] = []
+    /// Which of myFAM's two tabs is on (§550, `playfamTab`): every arrival
+    /// on the screen opens on Mixes.
+    @Published var playfamTab: PlayfamTab = .mixes
+    /// The morning's new mixes (§550, `freshMixes`): the server's word
+    /// (`/api/mixes/fresh`) on which mixes this morning's edition wrote and
+    /// nobody has played since, and the edition it is.
+    @Published private(set) var freshIDs: [String] = []
+    @Published private(set) var freshEdition = ""
+    /// The edition whose dot was looked at (`fam.mixDotSeen`, the web's own
+    /// key): kept on the phone, so the dot is back tomorrow and never twice
+    /// today.
+    @Published private(set) var mixDotSeen: String = UserDefaults.standard.string(forKey: "fam.mixDotSeen") ?? ""
+    /// The myFAM screen itself is on show (`#screen-playfam.active`):
+    /// looking at it is looking at the dot.
+    var screenShowing: () -> Bool = { false }
+
+    static let mixDotSeenKey = "fam.mixDotSeen"
+    /// Asked every quarter hour while the app is in front (`startFreshMixChecks`).
+    static let freshEvery: UInt64 = 15 * 60 * 1_000_000_000
 
     let api: FAMAPI
     var say: (String, String?, (() -> Void)?) -> Void = { _, _, _ in }
@@ -56,6 +75,66 @@ final class MixesModel: ObservableObject {
         categories = nil
         categoryState = CategoryState()
         categorySubs = []
+        playfamTab = .mixes
+        // The previous listener's new mix is not this one's.
+        freshIDs = []
+        freshEdition = ""
+    }
+
+    // MARK: - The morning's new mix (§550)
+
+    /// The dot on the myFAM tab (`drawMixDot`): signed in, a mix new this
+    /// morning, and this edition's dot not yet looked at.
+    func showsMixDot(signedIn: Bool) -> Bool {
+        signedIn && !freshIDs.isEmpty && !freshEdition.isEmpty && mixDotSeen != freshEdition
+    }
+
+    /// A mix's card says "New today" until it is played (`isFreshMix`).
+    func isFresh(_ id: String) -> Bool { freshIDs.contains(id) }
+
+    /// The tab was looked at (`clearMixDot`): this edition's dot is gone.
+    func clearMixDot() {
+        guard !freshEdition.isEmpty else { return }
+        mixDotSeen = freshEdition
+        UserDefaults.standard.set(freshEdition, forKey: Self.mixDotSeenKey)
+    }
+
+    /// Played is no longer new (`noteMixOpen(id, true)`).
+    func notePlayed(_ id: String) {
+        freshIDs.removeAll { $0 == id }
+    }
+
+    /// One ask (`checkFreshMixes`): a guest has none; any failure keeps
+    /// what was drawn (a dot is never worth an error).
+    func checkFreshMixes(signedIn: Bool) async {
+        guard signedIn else {
+            freshIDs = []
+            freshEdition = ""
+            return
+        }
+        guard let answer = try? await api.freshMixes() else { return }
+        freshIDs = answer.fresh
+        freshEdition = answer.edition
+        // Looking at the tab right now is looking at it.
+        if screenShowing() { clearMixDot() }
+    }
+
+    /// Asked when the app is in front - so on coming back to it too - and
+    /// every quarter hour; the edition lands once a morning
+    /// (`startFreshMixChecks`). Ends when the task is cancelled.
+    func runFreshMixChecks(signedIn: @escaping @MainActor () -> Bool) async {
+        while !Task.isCancelled {
+            await checkFreshMixes(signedIn: signedIn())
+            try? await Task.sleep(nanoseconds: Self.freshEvery)
+        }
+    }
+
+    /// Every arrival on the screen (`openPlayFAM`): Mixes, no category
+    /// left open, and the dot looked at.
+    func arrived() {
+        categoryState = CategoryState()
+        playfamTab = .mixes
+        clearMixDot()
     }
 
     /// Arriving on the tab (`loadMixes`): a failure looks like one - the
@@ -342,6 +421,13 @@ final class MixesModel: ObservableObject {
         let h = parts[0] % 12 == 0 ? 12 : parts[0] % 12
         return String(format: "%d:%02d %@", h, parts[1], parts[0] < 12 ? "AM" : "PM")
     }
+}
+
+/// myFAM's two tabs (§550, `showPlayfamTab`): the mixes, and the
+/// categories that used to be a chip row over them.
+enum PlayfamTab: Equatable {
+    case mixes
+    case categories
 }
 
 /// A mix playing as a playlist (`mixPlay`): which item, which have played.

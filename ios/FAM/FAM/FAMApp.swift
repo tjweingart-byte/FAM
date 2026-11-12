@@ -213,6 +213,8 @@ struct MainTabs: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var social: SocialModel
+    /// Observed for the myFAM tab's morning dot (§550).
+    @EnvironmentObject private var mixes: MixesModel
     @EnvironmentObject private var now: NowPlayingModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: Tab = .daily
@@ -249,6 +251,8 @@ struct MainTabs: View {
     /// conversation, a profile, Friends), have no tab bar or mini player.
     private var sectionOpen: Bool {
         (tab == .daily && !model.dailyPath.isEmpty) || (tab == .messages && !social.messagesPath.isEmpty)
+            // Your vibes as posts (§547): a screen with no tab bar on the web.
+            || (tab == .you && (model.youPath.last?.isVibePosts ?? false))
     }
 
     /// The mini bar is there from the first word until the episode ends or
@@ -317,7 +321,9 @@ struct MainTabs: View {
                         .padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                TabBar(tab: tabSelection, unread: social.unread, onDaily: {
+                TabBar(tab: tabSelection, unread: social.unread,
+                       mixDot: mixes.showsMixDot(signedIn: model.listener?.authenticated == true),
+                       onDaily: {
                     // DailyFAM again while on it: back to the rails from View
                     // more, to the top when scrolled, else the page afresh;
                     // arriving from another tab fetches it too (`openMyFamTab`).
@@ -328,10 +334,12 @@ struct MainTabs: View {
                         Task { await model.loadRails() }
                     }
                 }, onMyFAM: {
-                    // Every arrival opens on the list and asks for it afresh
-                    // (`openPlayFAM`).
+                    // Every arrival opens on Mixes and asks for the list
+                    // afresh; looking at the tab clears its dot
+                    // (`openPlayFAM`, §550).
                     model.mixPath = []
                     model.mixes.categoryState = CategoryState()
+                    model.mixes.arrived()
                     Task { await model.mixes.load() }
                 }, onMessages: {
                     // Every arrival opens on the list, read afresh (`openMessages`);
@@ -405,6 +413,13 @@ struct MainTabs: View {
             guard scenePhase == .active, model.feedDrawn else { return }
             await social.runNotifications()
         }
+        // The morning's new mix (§550): asked with the notifications - so
+        // again on every return to the app - and every quarter hour.
+        .task(id: scenePhase == .active && model.feedDrawn) {
+            guard scenePhase == .active, model.feedDrawn else { return }
+            let app: AppModel = model
+            await mixes.runFreshMixChecks(signedIn: { app.listener?.authenticated == true })
+        }
         // New message: the web's centred card over every tab and the bar.
         .overlay { NewMessageLayer() }
         .overlay(alignment: .bottom) {
@@ -428,6 +443,8 @@ struct MainTabs: View {
                     model.mixDone = nil
                     show(.myfam)
                     model.mixPath = []
+                    // `closeMixDone(true)` → `openPlayFAM` (§550).
+                    model.mixes.arrived()
                     Task { await model.mixes.load() }
                 }
             }
@@ -466,6 +483,8 @@ struct TabBar: View {
     @Binding var tab: Tab
     /// The Messages badge (`[data-msg-badge]`): unread messages.
     var unread: Int = 0
+    /// The morning's new mix (§550, `[data-mix-dot]`): a copper dot on myFAM.
+    var mixDot: Bool = false
     var onDaily: () -> Void = {}
     var onMyFAM: () -> Void = {}
     var onMessages: () -> Void = {}
@@ -485,7 +504,7 @@ struct TabBar: View {
             // The 11.9 packet's labels (§519); the screens' meanings stay
             // swapped (§185).
             item(.daily, "dailyFAM", Icons.daily, tone: Icons.dailyTone)
-            item(.myfam, "myFAM", Icons.myfam, tone: Icons.myfamTone)
+            item(.myfam, "myFAM", Icons.myfam, tone: Icons.myfamTone, dot: mixDot)
             centre
             item(.messages, "Messages", Icons.messages, tone: Icons.messages, badge: unread)
             item(.you, "yourFAM", Icons.you, tone: Icons.youTone)
@@ -498,7 +517,7 @@ struct TabBar: View {
     }
 
     private func item(_ which: Tab, _ label: String, _ icon: Path, tone: Path? = nil,
-                      badge: Int = 0) -> some View {
+                      badge: Int = 0, dot: Bool = false) -> some View {
         let on = tab == which
         let color = on ? palette.copper : palette.textMuted
         return Button {
@@ -537,6 +556,19 @@ struct TabBar: View {
                     .offset(x: 7, y: -4)
                     .animation(reduceMotion ? nil : .easeIn(duration: 0.16), value: badge > 0)
                 }
+                .overlay(alignment: .topTrailing) {
+                    // `.tab-badge.tab-new`: a plain 9 pt copper dot, no
+                    // number, ringed 2 pt in the bar's colour, top -2 right -4.
+                    if dot {
+                        Circle()
+                            .fill(palette.copper)
+                            .frame(width: 9, height: 9)
+                            .padding(2)
+                            .background(palette.background, in: Circle())
+                            .offset(x: 4 + 2, y: -2 - 2)
+                            .accessibilityHidden(true)
+                    }
+                }
                 // The labels stop growing at the largest standard size, as
                 // Apple's own tab bar does - five slots cannot hold
                 // "Messages" at the accessibility sizes - and a long press
@@ -554,7 +586,8 @@ struct TabBar: View {
             WebIcon(path: icon, size: 20)
             Text(label)
         }
-        .accessibilityLabel(badge > 0 ? "\(label), \(badge) unread" : label)
+        .accessibilityLabel(badge > 0 ? "\(label), \(badge) unread"
+                            : (dot ? "\(label), A new mix is ready" : label))
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
