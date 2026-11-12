@@ -2625,7 +2625,7 @@ async def auth_me(request: Request) -> dict:
             # ignores it and keeps working.
             "activation_needed": _activation_needed(listener),
             # Whether Settings offers "Set a password" or "Change password"
-            # (§569): an account made with none - a §296 join, Google, Apple -
+            # (§570): an account made with none - a §296 join, Google, Apple -
             # is offered the first one directly.
             "has_password": bool(listener.is_authenticated
                                  and _has_password(listener.user_id))}
@@ -3003,7 +3003,7 @@ async def auth_password_set(req: NewPasswordRequest, request: Request) -> dict:
         await asyncio.to_thread(ACCOUNTS.set_password, user, req.new)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    # Told, as a reset is (§569): a password set by somebody holding this
+    # Told, as a reset is (§570): a password set by somebody holding this
     # session is not a silent one. Only where mail can be sent.
     account = ACCOUNTS.account(user) or {}
     if account.get("email") and mail_mod.status().get("available"):
@@ -13851,7 +13851,7 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    #: Asked for again since §569 (the owner, reversing §296's email alone):
+    #: Asked for again since §570 (the owner, reversing §296's email alone):
     #: the join form is the email, a password and the Terms box, and the
     #: password is set on the account in the same INSERT that makes it. Still
     #: optional here: an installed client that sends none (`old-clients`)
@@ -13912,7 +13912,7 @@ def _admin_previewing_join(req, request: Request):
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own sign-up, then the waitlist half.
 
-    **The email and a password** (the owner, PROBLEMS.md §569, reversing
+    **The email and a password** (the owner, PROBLEMS.md §570, reversing
     §296's email alone): the password is checked by the same rule as every
     other (`accounts.check_password`) and stored in the INSERT that makes
     the account, so a join never leaves an account half made. A join with

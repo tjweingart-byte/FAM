@@ -33,13 +33,13 @@ struct YouView: View {
                         .toolbar(.hidden, for: .navigationBar)
                 }
         }
-        .fullScreenCover(isPresented: $editing) {
+        .screenCover(isPresented: $editing) {
             IdentityView(mode: .edit).famObjects(model)
         }
-        .sheet(item: $held) { v in holdSheet(v) }
+        .famSheet(item: $held) { v in holdSheet(v) }
         .fullScreenCover(item: $story) { reel in
             StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
-                        openMine: { showMine() })
+                        openMine: { showMine() }, origin: reel.origin)
                 .environmentObject(model)
         }
         .fullScreenCover(item: $composing) { subject in
@@ -219,7 +219,8 @@ struct YouView: View {
             await model.loadCircle()
             await you.loadProfile()
             try? await Task.sleep(nanoseconds: 350_000_000)
-            if let p = you.profile { openMyStory(p) }
+            // Not out of a face: nothing to grow from (`growStory` needs one pressed).
+            if let p = you.profile { openMyStory(p, grows: false) }
         }
     }
 
@@ -503,12 +504,17 @@ struct YouView: View {
         if let data = try? JSONEncoder().encode(map) { seenJSON = String(decoding: data, as: UTF8.self) }
     }
 
-    private func openMyStory(_ p: MyProfile) {
+    private func openMyStory(_ p: MyProfile, grows: Bool = true) {
         let mine = p.stories ?? []
         guard !mine.isEmpty else { return }
-        story = StoryReel(people: [StoryPerson(id: "me", name: "Your story", handle: p.handle ?? "",
-                                               avatar: p.avatar ?? "", stories: mine, mine: true)],
-                          start: 0)
+        var reel = StoryReel(people: [StoryPerson(id: "me", name: "Your story", handle: p.handle ?? "",
+                                                  avatar: p.avatar ?? "", stories: mine, mine: true)],
+                             start: 0)
+        if grows {
+            presentGrowing(reel: &reel) { story = $0 }
+        } else {
+            story = reel
+        }
     }
 }
 

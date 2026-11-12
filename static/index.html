@@ -16373,7 +16373,7 @@
       });
   }
 
-  // Settings' password row (§569): "Set a password" whenever the account
+  // Settings' password row (§570): "Set a password" whenever the account
   // has none (`/api/auth/me` `has_password`, as `/api/account` says it),
   // opening the first-password flow directly; otherwise "Change password".
   // An answer that never said (an older server) keeps "Change password",
@@ -16384,7 +16384,7 @@
       : settingsRow("Change password", "", "changePassword()");
   }
 
-  // The note under the account rows (§569): with no password, why to set
+  // The note under the account rows (§570): with no password, why to set
   // one; with no reset mail (`RESET_READY`), to keep it safe; else nothing.
   function passwordSettingsNote(){
     if(AUTH.has_password === false){
@@ -17813,7 +17813,7 @@
     loadPlan().then(function(plan){ if(plan) renderSettings(); });
     loadAiConsent().then(renderSettings);
     if(AUTH.authenticated){
-      // Whether reset mail exists decides the note under the password row (§569).
+      // Whether reset mail exists decides the note under the password row (§570).
       checkResetReady().then(renderSettings);
       loadBlocked().then(renderSettings);
       loadActivation().then(renderSettings);

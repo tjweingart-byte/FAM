@@ -477,7 +477,7 @@ struct SurveySheetHost: View {
 
     var body: some View {
         Color.clear
-            .sheet(item: Binding(get: { surveys.sheet },
+            .famSheet(item: Binding(get: { surveys.sheet },
                                  set: { if $0 == nil && surveys.sheet != nil { surveys.notNow() } })) { survey in
                 SurveySheet(surveys: surveys, survey: survey)
                     .famThemed()
@@ -553,6 +553,5 @@ struct SurveySheet: View {
             .padding(.vertical, 12)
         }
         .background(FAMColor.surface.ignoresSafeArea())
-        .presentationDetents([.large])
     }
 }

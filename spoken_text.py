@@ -113,13 +113,20 @@ NASA NATO FIFA UEFA OPEC COVID UNESCO UNICEF NAFTA SWAT NASDAQ LASIK SCOTUS
 AIDS ASAP PIN RAM ROM LAN WAN GIF JPEG IKEA LEGO SARS MERS NIMBY FOMO YOLO
 OK NOAA DARPA ASEAN CERN INTERPOL NORAD ICE FEMA OSHA MAGA LOL
 LIV EBITDA CAPTCHA SPAC DACA FAFSA HIPAA UTEP FAANG CONCACAF CONMEBOL
-NVIDIA NASCAR DOGE FOX ARM PAC ZIP AXIOS
+NASCAR DOGE FOX ARM PAC ZIP AXIOS
 """.split())
 
 #: Capitals with a spoken form of their own, part word and part letters, or
 #: a word that reads wrongly in ordinary case ("Ok").
 SAID_AS = {"OK": "okay", "OPENAI": "Open A I", "USAID": "U S Aid",
            "CSPAN": "C Span"}
+
+#: Names the voice stumbles on however they are cased, spelled as they sound
+#: (§569). "Nvidia" came out choppy after §567 handed it over in ordinary
+#: case: no English word opens "Nv". News style writes "Nvidia", so the
+#: capitals rule alone never reached most of them.
+SPELLED_AS_SOUNDED = {"nvidia": "Envidia"}
+_SOUNDED = re.compile(r"\b(" + "|".join(SPELLED_AS_SOUNDED) + r")\b", re.I)
 
 #: Capitals spelled out although the dictionary has them as an ordinary word:
 #: initialisms that collide with one ("WHO" the agency, "SAT" the test).
@@ -517,6 +524,7 @@ def speakable(text: str) -> str:
         # Abbreviations last, so the "A M" and "P M" written above, and any
         # letters a number rule produced, are not re-read.
         out = _DOTTED.sub(_dotted, out)
+        out = _SOUNDED.sub(lambda m: SPELLED_AS_SOUNDED[m.group(1).lower()], out)
         out = _CAPS.sub(_caps, out)
         return out
     except Exception:  # noqa: BLE001 - the voice still gets words

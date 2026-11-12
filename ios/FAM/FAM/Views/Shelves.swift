@@ -133,8 +133,8 @@ struct SavedView: View {
             }
         }
         .background(FAMColor.background)
-        .sheet(item: $filing) { item in folderSheet(item) }
-        .sheet(item: $deleting) { f in deleteSheet(f) }
+        .famSheet(item: $filing) { item in folderSheet(item) }
+        .famSheet(item: $deleting) { f in deleteSheet(f) }
         .textModal($textAsk)
         .task { await load() }
     }
@@ -541,8 +541,8 @@ struct MyVibeView: View {
             }
         }
         .background(FAMColor.background)
-        .sheet(item: $filing) { v in folderSheet(v) }
-        .sheet(item: $deleting) { f in deleteSheet(f) }
+        .famSheet(item: $filing) { v in folderSheet(v) }
+        .famSheet(item: $deleting) { f in deleteSheet(f) }
         .textModal($textAsk)
         .task { await load() }
     }

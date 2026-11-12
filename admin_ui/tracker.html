@@ -863,7 +863,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     return '<div class="kpi"><span>' + esc(label) + '</span><b>' + value + '</b>' +
       (note ? '<em>' + note + '</em>' : '') + '</div>';
   }
-  // "Forgot password?" (§569): drawn only where the server can email a code
+  // "Forgot password?" (§570): drawn only where the server can email a code
   // (`mail.status()`), so the owner sees here when it is off, and why.
   function resetKpi(r) {
     if (!r) return "";

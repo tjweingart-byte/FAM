@@ -953,7 +953,7 @@ friends and get none.
    cannot reach another listener or Explore. Only PDF needs a package (pypdf,
    optional); .docx is read with `zipfile`.
 <!-- rule:op-identity -->
-> **Current (PROBLEMS.md §569):** a waitlist join asks for a password again (email, password, Terms, one step), so a member is not locked out when mail is not configured; an account with no password is offered "Set a password" on the waitlist status page and in Settings (web and iOS), and `/admin` says whether "Forgot password?" is on (`mail.status()`).
+> **Current (PROBLEMS.md §570):** a waitlist join asks for a password again (email, password, Terms, one step), so a member is not locked out when mail is not configured; an account with no password is offered "Set a password" on the waitlist status page and in Settings (web and iOS), and `/admin` says whether "Forgot password?" is on (`mail.status()`).
 > **Current (PROBLEMS.md §297):** every log-in offers "Forgot password?" -
 > the app's and the waitlist's as before, and the three admin pages now link
 > to `/reset`, the reset password page (email, then the emailed code and a

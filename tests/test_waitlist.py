@@ -735,7 +735,7 @@ def test_the_profile_keeps_birth_date_phone_and_location(world):
 
 
 def test_the_waitlist_page_asks_for_the_email_a_password_and_says_the_place():
-    """§569 (reversing §296's email alone): the join form is the email, then
+    """§570 (reversing §296's email alone): the join form is the email, then
     one password with the log-in's show/hide eye, then the Terms box - one
     step - and the join sends the password, checked first with the app's
     own rule and sentences."""
@@ -1109,11 +1109,11 @@ def test_signing_out_without_a_password_is_said_first():
     assert '"/api/auth/password/set"' in app_page
 
 
-# ---------------------------------------------------------------- §569
+# ---------------------------------------------------------------- §570
 
 
 def test_joining_with_a_password_sets_it_with_the_account(world):
-    """§569: the join's password is on the account from the first moment -
+    """§570: the join's password is on the account from the first moment -
     another device signs in with it, and nothing offers to set one."""
     member, body = _join("pw@fam.test", password=PASSWORD)
     assert body["status"] == "waitlisted"
@@ -1171,7 +1171,7 @@ def test_a_registered_email_with_a_password_is_still_refused(world):
 
 
 def test_the_status_page_offers_a_password_to_an_account_with_none():
-    """§569: "Set a password so you can sign back in", drawn from
+    """§570: "Set a password so you can sign back in", drawn from
     `details.has_password === false`, sets one with `/api/auth/password/set`."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     card = page.split('id="passwordCard"', 1)[1].split("</section>", 1)[0]
@@ -1188,7 +1188,7 @@ def test_the_status_page_offers_a_password_to_an_account_with_none():
 
 
 def test_settings_says_set_a_password_when_there_is_none():
-    """§569: every password row in the app reads "Set a password" and opens
+    """§570: every password row in the app reads "Set a password" and opens
     the first-password flow directly when `/api/auth/me` says there is none."""
     page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     row = page.split("function passwordSettingsRow(){", 1)[1].split("\n  }", 1)[0]
@@ -1201,7 +1201,7 @@ def test_settings_says_set_a_password_when_there_is_none():
 
 
 def test_the_tracker_says_whether_forgot_password_is_on(monkeypatch):
-    """§569: /admin shows `mail.status()` - on, or off and why."""
+    """§570: /admin shows `mail.status()` - on, or off and why."""
     import admin_tracker
     import mail
 
@@ -1222,7 +1222,7 @@ def test_the_tracker_says_whether_forgot_password_is_on(monkeypatch):
 
 
 def test_a_first_password_is_set_once_and_the_owner_is_told(world, monkeypatch):
-    """§569: `set_password` is one conditional UPDATE - a second "first"
+    """§570: `set_password` is one conditional UPDATE - a second "first"
     password is refused, never written over the first - and setting one
     emails the address when mail can be sent."""
     import mail
@@ -1246,7 +1246,7 @@ def test_a_first_password_is_set_once_and_the_owner_is_told(world, monkeypatch):
 
 
 def test_refusals_never_read_object_object():
-    """§569: a 422's list-shaped `detail` is said as a sentence."""
+    """§570: a 422's list-shaped `detail` is said as a sentence."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     assert "new Error(errorSentence(data))" in page
     assert "Array.isArray(said)" in page.split("function errorSentence(data){", 1)[1]

@@ -50,8 +50,6 @@ struct GoDeeperSheet: View {
             form
                 .padding(20)
                 .background(FAMColor.surface)
-                .presentationDetents([.medium, .large])
-                .presentationBackground(FAMColor.surface)
         } else {
             form
         }
@@ -221,8 +219,6 @@ struct PlayerMenu: View {
             .padding(.bottom, 12)
         }
         .background(FAMColor.surface)
-        .presentationDetents([.large])
-        .presentationBackground(FAMColor.surface)
     }
 
     private var header: some View {
@@ -581,8 +577,6 @@ struct QueueSheet: View {
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
     }
 
     private func group(_ text: String) -> some View {
@@ -802,7 +796,6 @@ struct ShareSheet: View {
             ModalButton(label: "Cancel", wide: true) { dismiss() }
                 .padding(.top, 16)
         }
-        .presentationDetents([.large])
         .environmentObject(model.social)
         // The toast over the sheet: a send's refusal in the server's words
         // ("You can message people who follow you back.") would be under it.

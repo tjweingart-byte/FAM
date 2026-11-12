@@ -30,6 +30,8 @@ struct Picture: View {
             }
         }
         .clipped()
+        // Inside a button, the player can grow out of it.
+        .tapSpot(url)
         .accessibilityHidden(true)
     }
 
