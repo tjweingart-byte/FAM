@@ -1127,7 +1127,7 @@ def main() -> int:
                 "the editor's own rows are hidden in the editor"
             rows = page.text_content("#identityAccountRows") or ""
             assert "Change password" in rows, "no way to change a password"
-            # §570: an account with no password is offered the first one.
+            # §571: an account with no password is offered the first one.
             first = page.evaluate("""() => { var had = AUTH.has_password;
                 AUTH.has_password = false; var row = passwordSettingsRow();
                 AUTH.has_password = had; return row; }""")

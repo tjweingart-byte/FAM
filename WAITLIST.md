@@ -59,7 +59,7 @@ section when a decision changes, including why.
    `WAITLIST=1` - see `docs/claude/constraints.md`, rule `waitlist-gate`.
    Guests are closed out too: a guest door would make the waitlist optional.
 3. **Sign-up is the email and a password, then the Terms box, in one step**
-   (the owner, 12/11, PROBLEMS.md §570, reversing §296): the password is set
+   (the owner, 12/11, PROBLEMS.md §571, reversing §296): the password is set
    on the account as it is made. A join with no password (an installed
    client) still works as §296 made it; such an account is offered "Set a
    password so you can sign back in" on the status page and "Set a password"

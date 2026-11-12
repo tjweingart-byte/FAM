@@ -35014,7 +35014,35 @@ If that entry was saved, it must be removed (or set to `envidia`) for this
 to apply to the capitalised form. Whether hyphens make every respelled name
 choppy is the stress trial's "Run together" column (§549), still unheard.
 
-## 570. Sign-up asks for a password again (2026-11-12)
+## 570. A mix's rows are called by today's episode, not the topic (2026-11-12)
+
+**The owner, 11.12:** "the episodes in peoples myFAM mixes should have
+episode titles, not the category names, that are new with each story every
+day." A mix's page listed each row by its topic ("Eagles", "Stocks &
+Economy") every day, although every day is a new episode with its own title
+from the writer's `<<TITLE:>>`.
+
+**Now** every mix response (`_mix_out` - list, create, PATCH, join - and the
+single public mix) gives each row `episode_title`: today's episode's title,
+read from the cache by the same dated prompt and length a tap sends
+(`_today_title`, which the §545 bubbles already used). The row draws it,
+with the topic on the line under it ("Eagles", or "Eagles · Added by you" on
+a joint mix), and the player opens on it instead of "Eagles · today". Until
+the edition has written today's episode the row shows the topic as before -
+never a guessed title. The title changes every day because the prompt is
+dated, so each day is a different cache key and a different episode.
+
+`title` stays the topic's name on purpose: a reorder sends the items back
+(`_merged_topics`), and a row renamed after one day's story would rename the
+topic for good. Old clients read `title` and see what they always did.
+
+A cache read per row (a hash and `holds`), never a write or a model call; a
+failure leaves the row on its topic. Not added to `/api/mixes/public` search
+results, which draw no rows.
+
+**Tests:** `tests/test_mix_episode_titles_570.py`.
+
+## 571. Sign-up asks for a password again (2026-11-12)
 
 The owner tried the waitlist join and called it very confusing. §296 made it
 the email alone: the account was made with no password, so once its owner

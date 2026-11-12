@@ -1176,7 +1176,7 @@ class AccountStore:
         adding a second way in. Separate from `change_password`, which requires
         the current one and would be impossible to satisfy here."""
         stored = hash_password(check_password(new))
-        # One conditional UPDATE (§570): two "first" passwords sent at once
+        # One conditional UPDATE (§571): two "first" passwords sent at once
         # cannot both land, because only the one that finds '' writes.
         cur = self._conn().execute(
             "UPDATE accounts SET password = ? WHERE user_id = ? AND password = ''",

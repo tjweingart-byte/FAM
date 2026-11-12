@@ -18,7 +18,7 @@
   The pre-launch waitlist (WAITLIST.md). One page, two views:
 
   * /waitlist     - the landing page: the email and a password, then the
-                    Terms box, in one step (§570; §296 had made it the email
+                    Terms box, in one step (§571; §296 had made it the email
                     alone, which left a signed-out member no way back without
                     mail). Signing up here is the app's own sign-up, so the
                     account made here is the one the app opens with later,
@@ -570,7 +570,7 @@
     <form id="joinForm" novalidate>
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
              placeholder="Enter your email" aria-label="Email" required>
-      <!-- A password, in the same step (§570, reversing §296's email alone):
+      <!-- A password, in the same step (§571, reversing §296's email alone):
            the way back in from any device, with no email needed. -->
       <div class="pw-row"><input class="field" id="joinPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Choose a password (at least 8 characters)" aria-label="Password"><button class="pw-eye" type="button" data-pw="joinPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
       <button class="cta label" id="joinBtn" type="submit">
@@ -898,7 +898,7 @@
   </div>
 
   <!-- An account with no password - joined with the email alone (§296) -
-       sets one here (§570), since "Forgot password?" needs mail. -->
+       sets one here (§571), since "Forgot password?" needs mail. -->
   <section class="card hidden" id="passwordCard">
     <h2>Set a password so you can sign back in</h2>
     <p>You joined with just your email. Choose a password and you can sign in from any device.</p>
@@ -1065,7 +1065,7 @@
     });
   }
   // A refusal's words. FastAPI's 422 carries `detail` as a list of
-  // objects; that is said as a sentence, never "[object Object]" (§570).
+  // objects; that is said as a sentence, never "[object Object]" (§571).
   function errorSentence(data){
     var said = data && (data.error || data.detail);
     if(Array.isArray(said)){
@@ -1263,7 +1263,7 @@
     loadSamples();
     showAbout();
     if(referral) $("invited").classList.remove("hidden");
-    // The email and a password (§570): the account the app opens with
+    // The email and a password (§571): the account the app opens with
     // later, made here with its password in the same step and put on the
     // list. The password is the app's own rule and the app's own sentences.
     $("joinForm").addEventListener("submit", function(ev){
@@ -1982,7 +1982,7 @@
   };
   window.signOut = function(){
     // Joined with the email alone (§296): this browser is the only way in
-    // until a password is set (the card on this page, §570), so signing out
+    // until a password is set (the card on this page, §571), so signing out
     // is said before it is done.
     if(STATE && STATE.details && STATE.details.has_password === false &&
        !window.confirm("You have no password yet, so you couldn’t sign back in. Set one on this page first. Sign out anyway?")) return;
@@ -1991,7 +1991,7 @@
   $("meBtn").addEventListener("click", function(ev){ ev.stopPropagation(); $("menu").classList.toggle("hidden"); });
   document.addEventListener("click", function(){ $("menu").classList.add("hidden"); });
 
-  // "Set a password so you can sign back in" (§570): drawn while the
+  // "Set a password so you can sign back in" (§571): drawn while the
   // account has none, and gone once it does.
   function drawPasswordCard(d){
     var none = !!(d && d.details && d.details.has_password === false);

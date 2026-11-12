@@ -553,7 +553,7 @@ def snapshot(now: Optional[float] = None) -> dict:
             "cost_per_episode": _cost_per_episode(now),
             "routing": live_routing.report(now),
             "pipeline_errors": pipeline_errors.report(now),
-            # Whether "Forgot password?" is drawn anywhere (§570): it needs
+            # Whether "Forgot password?" is drawn anywhere (§571): it needs
             # mail, and without it an account with no password has only the
             # status page's and Settings' "Set a password" as a way back.
             "password_reset": _password_reset()}

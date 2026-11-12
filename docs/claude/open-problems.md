@@ -664,6 +664,11 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
+> **Current (PROBLEMS.md §571, the owner 11.12):** on a mix's page each row
+> is called by today's episode (`episode_title`, the writer's title, read from
+> the cache), the topic under it; the topic alone until today's is written.
+> `title` stays the topic's, so a reorder never renames it.
+
 > **Current (PROBLEMS.md §545, the owner 11.11):** a mix whose followed topic
 > is trending or has a major update since the listener last heard it shows R5
 > on its card (the story's picture, the mix's cover in its corner, one line,
@@ -953,7 +958,7 @@ friends and get none.
    cannot reach another listener or Explore. Only PDF needs a package (pypdf,
    optional); .docx is read with `zipfile`.
 <!-- rule:op-identity -->
-> **Current (PROBLEMS.md §570):** a waitlist join asks for a password again (email, password, Terms, one step), so a member is not locked out when mail is not configured; an account with no password is offered "Set a password" on the waitlist status page and in Settings (web and iOS), and `/admin` says whether "Forgot password?" is on (`mail.status()`).
+> **Current (PROBLEMS.md §571):** a waitlist join asks for a password again (email, password, Terms, one step), so a member is not locked out when mail is not configured; an account with no password is offered "Set a password" on the waitlist status page and in Settings (web and iOS), and `/admin` says whether "Forgot password?" is on (`mail.status()`).
 > **Current (PROBLEMS.md §297):** every log-in offers "Forgot password?" -
 > the app's and the waitlist's as before, and the three admin pages now link
 > to `/reset`, the reset password page (email, then the emailed code and a

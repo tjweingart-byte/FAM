@@ -2625,7 +2625,7 @@ async def auth_me(request: Request) -> dict:
             # ignores it and keeps working.
             "activation_needed": _activation_needed(listener),
             # Whether Settings offers "Set a password" or "Change password"
-            # (§570): an account made with none - a §296 join, Google, Apple -
+            # (§571): an account made with none - a §296 join, Google, Apple -
             # is offered the first one directly.
             "has_password": bool(listener.is_authenticated
                                  and _has_password(listener.user_id))}
@@ -3003,7 +3003,7 @@ async def auth_password_set(req: NewPasswordRequest, request: Request) -> dict:
         await asyncio.to_thread(ACCOUNTS.set_password, user, req.new)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    # Told, as a reset is (§570): a password set by somebody holding this
+    # Told, as a reset is (§571): a password set by somebody holding this
     # session is not a silent one. Only where mail can be sent.
     account = ACCOUNTS.account(user) or {}
     if account.get("email") and mail_mod.status().get("available"):
@@ -7298,8 +7298,27 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None) -> dict:
     read it (the list reads it once for every mix); None reads it here."""
     body = _mix_body(mix, viewer, people, joint)
     _mix_pictures(mix, body)
+    _mix_episode_titles(body)
     _mix_signals(viewer, [(mix, body)], history)
     return body
+
+
+def _mix_episode_titles(body: dict) -> None:
+    """Each row called by today's episode, not its topic (§571, the owner
+    11.12): once the edition has written a topic's episode for today, the row
+    carries that episode's own title as `episode_title` - a new one every
+    day, because every day is a new episode. The topic's name stays in
+    `title`, because a reorder sends it back as the item (`_merged_topics`)
+    and must never rename the topic after one day's story. Absent when
+    today's episode is not written yet; the client then shows the topic.
+    A cache read per row, never a write or a model call; never fails the mix."""
+    for out in body.get("items") or ():
+        try:
+            title = _today_title(out.get("prompt") or "", out.get("minutes"))
+        except Exception:  # noqa: BLE001 - a missing title is no title
+            title = ""
+        if title:
+            out["episode_title"] = title
 
 
 def _mix_pictures(mix, body: dict) -> None:
@@ -7827,7 +7846,9 @@ async def public_mix(mix_id: str, request: Request) -> dict:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
     added = MIXES.added_from(viewer) if viewer and _has_account(request) else set()
-    return _public_mix(mix, viewer, added)
+    body = _public_mix(mix, viewer, added)
+    _mix_episode_titles(body)
+    return body
 
 
 @app.post("/api/mixes/{mix_id}/add")
@@ -13851,7 +13872,7 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    #: Asked for again since §570 (the owner, reversing §296's email alone):
+    #: Asked for again since §571 (the owner, reversing §296's email alone):
     #: the join form is the email, a password and the Terms box, and the
     #: password is set on the account in the same INSERT that makes it. Still
     #: optional here: an installed client that sends none (`old-clients`)
@@ -13912,7 +13933,7 @@ def _admin_previewing_join(req, request: Request):
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own sign-up, then the waitlist half.
 
-    **The email and a password** (the owner, PROBLEMS.md §570, reversing
+    **The email and a password** (the owner, PROBLEMS.md §571, reversing
     §296's email alone): the password is checked by the same rule as every
     other (`accounts.check_password`) and stored in the INSERT that makes
     the account, so a join never leaves an account half made. A join with
