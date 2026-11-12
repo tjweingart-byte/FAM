@@ -448,10 +448,13 @@ struct MainTabs: View {
         // A survey is due (`#surveyInvite`, §552): asked, never opened on
         // its own; just above the bars, where the toast sits.
         .overlay(alignment: .bottom) {
-            GeometryReader { geo in
-                SurveyInvite(surveys: model.surveys)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, toastLift(geo.frame(in: .global).maxY))
+            // Waits off searchFAM and View more, and comes back with them.
+            if tab != .search && !sectionOpen {
+                GeometryReader { geo in
+                    SurveyInvite(surveys: model.surveys)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, toastLift(geo.frame(in: .global).maxY))
+                }
             }
         }
         .background(SurveySheetHost(surveys: model.surveys))

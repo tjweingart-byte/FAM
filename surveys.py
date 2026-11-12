@@ -233,16 +233,20 @@ def clean_answers(survey_id: str, raw: object) -> dict:
         if not isinstance(value, dict):
             raise SurveyError(f"The answer to {qid!r} was not readable.")
         pick = value.get("pick")
-        text = str(value.get("text") or "").strip()[:MAX_TEXT]
+        raw_text = value.get("text")
+        if raw_text is not None and not isinstance(raw_text, str):
+            raise SurveyError(f"The words for {qid!r} were not readable.")
+        text = (raw_text or "").strip()[:MAX_TEXT]
         ids = {o["id"] for o in q.get("options", [])}
         kind = q["kind"]
         if kind == "single":
-            if pick is not None and pick not in ids:
+            if pick is not None and (not isinstance(pick, str) or pick not in ids):
                 raise SurveyError(f"{pick!r} is not an answer to {qid!r}.")
         elif kind == "multi":
             if pick is None:
                 pick = []
-            if not isinstance(pick, list) or any(p not in ids for p in pick):
+            if not isinstance(pick, list) or any(
+                    not isinstance(p, str) or p not in ids for p in pick):
                 raise SurveyError(f"One of the answers to {qid!r} is not on the list.")
             pick = list(dict.fromkeys(pick))
         elif kind == "scale":
@@ -491,6 +495,14 @@ class SurveyStore:
                         "questions": questions})
         return out
 
+    @staticmethod
+    def _cell(value: str) -> str:
+        """A typed line as a spreadsheet will read it: one starting with
+        = + - @ (or a tab or return) is a formula to Sheets and Excel, so it
+        is kept as text with a leading apostrophe."""
+        value = str(value or "")
+        return "'" + value if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+
     def csv(self, survey: str) -> str:
         """One row per response, one column per question (and its box), with
         the listener id so a row can be joined to what that listener did."""
@@ -507,17 +519,17 @@ class SurveyStore:
         out.writerow(head)
         for r in reversed(self.responses(survey)):
             row = [r["id"], time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(r["created"])),
-                   r["user_id"], r["episode_id"], r["episode_title"], r["build"]]
+                   r["user_id"], r["episode_id"], self._cell(r["episode_title"]), r["build"]]
             for q in spec["questions"]:
                 a = r["answers"].get(q["id"]) or {}
                 pick = a.get("pick")
                 if q["kind"] == "text":
-                    row.append(a.get("text", ""))
+                    row.append(self._cell(a.get("text", "")))
                     continue
                 row.append(";".join(pick) if isinstance(pick, list)
                            else ("" if pick is None else str(pick)))
                 if q.get("other") or q.get("detail"):
-                    row.append(a.get("text", ""))
+                    row.append(self._cell(a.get("text", "")))
             out.writerow(row)
         return buf.getvalue()
 

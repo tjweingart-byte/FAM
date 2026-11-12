@@ -6411,6 +6411,7 @@
     document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
     next.classList.add("active");
     placeNowBar(next);
+    followSurveyInvite(id);
     // How it moves (§292) - after the bar is placed, so a player closing
     // into the mini player knows where the mini player is.
     Motion.screen(prev, next, how);
@@ -23544,10 +23545,13 @@
 
   // The episode check, on the What's next card.
   function offerEpisodeSurvey(episode){
-    if(!AUTH.authenticated) return;
+    // An app survey offered and not yet answered keeps its place: the
+    // episode check would otherwise replace it under its invite.
+    if(!AUTH.authenticated || (SURVEY.def && SURVEY.where === "sheet")) return;
     surveyPost("/api/surveys/offer", { moment: "episode_end" }).then(function(d){
       var def = d && d.survey;
-      if(!def || !document.getElementById("nextUpOverlay").classList.contains("active")) return;
+      if(!def || (SURVEY.def && SURVEY.where === "sheet")
+         || !document.getElementById("nextUpOverlay").classList.contains("active")) return;
       SURVEY = { def: def, answers: {}, where: "pulse", episode: episode, busy: false };
       var pulse = document.getElementById("surveyPulse");
       pulse.innerHTML = '<div class="svy-head"><div class="svy-title">'
@@ -23598,6 +23602,15 @@
       invite.hidden = false;
       placeAboveBars(invite);
     }).catch(function(){});
+  }
+  // The invite waits off the player and every other screen it may not be
+  // offered on, and comes back with the listener (`showScreen`).
+  function followSurveyInvite(id){
+    if(typeof SURVEY === "undefined" || !SURVEY || !SURVEY.def || SURVEY.where !== "sheet") return;
+    var invite = document.getElementById("surveyInvite");
+    if(!invite || document.getElementById("surveyOverlay").classList.contains("active")) return;
+    invite.hidden = SURVEY_OPEN_SCREENS.indexOf("screen-" + id) === -1;
+    if(!invite.hidden) placeAboveBars(invite);
   }
   function openSurveySheet(){
     if(!SURVEY.def) return;

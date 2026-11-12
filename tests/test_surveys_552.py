@@ -220,3 +220,33 @@ def test_an_app_survey_is_never_offered_over_audio_or_another_card():
     free = INDEX.split("function surveyMomentFree(", 1)[1].split("\n  }\n", 1)[0]
     assert "isPlaying" in free and "modal-overlay.active" in free
     assert "AUTH.authenticated" in free
+
+
+# --- found on review --------------------------------------------------------
+
+def test_an_answer_of_the_wrong_type_is_a_sentence_not_a_crash():
+    for bad in ({"rating": {"pick": {"a": 1}}}, {"rating": {"pick": ["loved"]}},
+                {"rating": {"pick": "meh"}, "off": {"pick": [["facts"]]}},
+                {"rating": {"pick": "meh", "text": {"x": 1}}}):
+        with pytest.raises(S.SurveyError):
+            S.clean_answers("episode", bad)
+    c = listener("svyeve")
+    r = c.post("/api/surveys/answer", json={"survey": "episode",
+                                            "answers": {"rating": {"pick": {"a": 1}}}})
+    assert r.status_code == 400
+
+
+def test_a_typed_line_is_never_a_formula_in_the_csv(store):
+    store.answer("u", "wrap", {"change": {"text": "=HYPERLINK(\"http://x\")"}}, now=DAY)
+    rows = list(csv.DictReader(io.StringIO(store.csv("wrap"))))
+    assert rows[0]["change"] == "'=HYPERLINK(\"http://x\")"
+    assert S.SurveyStore._cell("More sports") == "More sports"
+
+
+def test_the_episode_check_never_replaces_an_app_survey_waiting():
+    offer = INDEX.split("function offerEpisodeSurvey(", 1)[1].split("\n  }\n", 1)[0]
+    assert offer.count('SURVEY.where === "sheet"') == 2
+    show = INDEX.split("function showScreen(", 1)[1].split("\n  }\n", 1)[0]
+    assert "followSurveyInvite(id)" in show
+    swift = (ROOT / "ios" / "FAM" / "FAM" / "Surveys.swift").read_text()
+    assert "pulse == nil, sheet == nil, invite == nil" in swift

@@ -55,7 +55,8 @@ final class SurveysModel: ObservableObject {
 
     /// The What's next card is up: the episode check, if the server says so.
     func offerEpisode(id: String, title: String, signedIn: Bool) async {
-        guard signedIn, pulse == nil, sheet == nil else { return }
+        // An app survey offered and not yet answered keeps its place.
+        guard signedIn, pulse == nil, sheet == nil, invite == nil else { return }
         guard let survey = try? await api.offerSurvey(moment: "episode_end"),
               survey.id == "episode" else { return }
         episodeID = id
