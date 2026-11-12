@@ -1024,6 +1024,67 @@ def apply_seed(store: "CategoryStore", at: float = 0.0) -> int:
     return added
 
 
+def outline(store, episodes: Optional[dict] = None) -> dict:
+    """The whole tree as the admin page draws it (11.12): the eight facets,
+    each with its nodes nested beneath, every node with where it came from
+    and how many kept episodes Nando filed under it (`episodes`, its own)
+    and under it and everything below (`total`). Read-only; never raises.
+
+    A facet is a root, not a row (`mint`), so its own count is episodes
+    filed at the facet itself - Nando's last step - beside its branches'.
+    A node whose parent the tree no longer holds cannot be placed, and is
+    counted under `orphans` rather than silently left out.
+    """
+    import topics
+
+    episodes = dict(episodes or {})
+    try:
+        nodes = store.nodes()
+    except Exception:  # noqa: BLE001 - an admin view, never a broken page
+        log.exception("could not read the category tree for its outline")
+        nodes = {}
+    facets = list(topics.TAG_LABELS)
+    kids: dict[str, list] = {}
+    orphans = 0
+    for node in nodes.values():
+        if node.parent_id in nodes or node.parent_id in facets:
+            kids.setdefault(node.parent_id, []).append(node)
+        else:
+            orphans += 1
+
+    def branch(node_id: str, seen: frozenset) -> list:
+        out = []
+        for node in kids.get(node_id, ()):
+            if node.id in seen:          # a cycle: drawn once, never walked
+                continue
+            children = branch(node.id, seen | {node.id})
+            own = int(episodes.get(node.id, 0))
+            out.append({"id": node.id, "label": node.label, "source": node.source,
+                        "listeners": node.listeners, "uses": node.uses,
+                        "episodes": own,
+                        "total": own + sum(c["total"] for c in children),
+                        "size": 1 + sum(c["size"] for c in children),
+                        "children": children})
+        out.sort(key=lambda c: (-c["total"], -c["size"], c["id"]))
+        return out
+
+    drawn = []
+    for facet in facets:
+        children = branch(facet, frozenset({facet}))
+        own = int(episodes.get(facet, 0))
+        drawn.append({"id": facet, "label": topics.TAG_LABELS[facet],
+                      "episodes": own,
+                      "total": own + sum(c["total"] for c in children),
+                      "size": sum(c["size"] for c in children),
+                      "children": children})
+    sources: dict[str, int] = {}
+    for node in nodes.values():
+        sources[node.source] = sources.get(node.source, 0) + 1
+    return {"facets": drawn, "nodes": len(nodes), "orphans": orphans,
+            "sources": sources, "episodes": sum(f["total"] for f in drawn),
+            "max_depth": max((n.depth for n in nodes.values()), default=0)}
+
+
 def seed_report(store: "CategoryStore") -> dict:
     """How much of the tree was declared and how much was learned.
 

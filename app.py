@@ -12460,6 +12460,21 @@ async def admin_categories(request: Request) -> dict:
     return await asyncio.to_thread(_categories_panel)
 
 
+def _category_outline() -> dict:
+    """The tree for the admin's Categories page (11.12): every node under
+    its facet, with the kept episodes Nando filed there."""
+    counts = SCRIPT_CACHE.node_counts() if hasattr(SCRIPT_CACHE, "node_counts") else {}
+    return categories_mod.outline(topics_mod.category_tree(), counts)
+
+
+@app.get("/api/admin/categories/tree")
+async def admin_categories_tree(request: Request) -> dict:
+    """The whole category tree, drawn on the admin's Categories page
+    (11.12). Read-only; no model is asked."""
+    _require_admin(request)
+    return await asyncio.to_thread(_category_outline)
+
+
 @app.get("/api/admin/categories/queue")
 async def admin_categories_queue(request: Request, limit: int = 20) -> dict:
     """Episodes for the owner to file by hand (§503), disagreements first,

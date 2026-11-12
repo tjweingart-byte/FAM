@@ -34238,3 +34238,74 @@ at a facet read as a dead node. The check now skips `topics.FACETS`; a test
 pins that `science` and `world` are not a breach. The old test's fake tree
 held `markets` as a row, which is why it never showed. Nothing was wrong with
 the episodes; the alert closes on the next whole pass.
+
+## 553. The seed tree doubled: 322 nodes to 677, from outside the bank (2026-11-12)
+
+The owner, reading the categories review page: Nando filed "nothing" for
+magic, a children's hospital raising money, Australian schools, a virus
+study and sexual abuse support - "clear categories to me ... we should start
+this with more nodes on the tree". The seed had been written from the bank
+and the day's news: no religion, history, theatre, education, crime,
+hospitals, infectious disease, psychology, wildlife, hobbies, travel,
+parenting, pets, cricket or rugby.
+
+`category_seed.SEED` gains 355 nodes across all eight facets, each a subject
+a listener asks about by name, read from outside FAM (what a general
+listener's questions cover), never from the bank. The rules kept:
+
+* **No countries.** A country is named in questions on every facet; as a
+  node it outranks the subject (India's cricket, China's carmakers). The
+  Middle East nodes (§187) stay; nothing else joins them.
+* **A one-word node only where the word means the subject.** Left out:
+  "chemistry" (a team's), "evolution" (of anything), "dating" (carbon),
+  "hunting" (jobs, houses), "puzzles" (the verb), "weather" (it would tie
+  with `extreme weather` and move §194's questions), "athletics" (Oakland).
+* **`magic` at depth one**, with `orlando magic` an alias of `nba`: the
+  tree breaks a tie by depth, so a basketball question holding both is
+  `nba`; Nando's facet-first steps keep it there anyway. Not a collision
+  (§373): a collision with nothing deciding it files nothing, and "why are
+  people fascinated by magic" has no cue.
+* **Aliases for number and apostrophes.** The tree does not stem, so
+  `hospitals` is reached by "hospital"; and "women's" tokenises as
+  "women s", so the old `womens health` never matched "women's health" -
+  `women health` is now its alias (the same for men's, children's books,
+  women's rights).
+
+Seeding is still quadratic in the file (`mint` reloads per row): 0.48s for
+322, about 1.9s for 677 at first boot only; the test's bound is 5s.
+Existing deployments take the new nodes on the next boot (`apply_seed`
+adds what is missing and moves nothing).
+
+**Nando's list.** With nothing below a facet in the words, Nando shows the
+model the whole tree while it is at most `WHOLE_TREE_NODES` (§388: 36 of 40
+right, against 20 with the level under the facets). That was 400; at 677
+the whole tree would have dropped off the list and the change would have
+made Nando worse. Raised to 1000. The cost is about 2,000 more input tokens
+on the brief's call in front of a search - unmeasured here (no key); §388
+measured 303 nodes at +0.2 s median; `tools/nando_eval.py` (§388's
+harness) measures it again with a key.
+
+Not done: a company ("Nvidia") is an entity for `category_vocabulary.json`
+(§374), never a node - and that file is still empty in production, its 303
+drafted entries pending review.
+
+## 554. The category tree on /admin (2026-11-12)
+
+The owner: "a categories tree on the admin page ... digestible ... very
+aesthetic". The Categories page now opens on **The tree**: a tile per facet
+(its colour, how many categories, how many kept episodes filed), then a card
+per facet with its subjects in collapsible branches, busiest first, guide
+lines in the facet's colour, a child count, and a bar for the episodes filed
+at a node and below (square-root scaled, so a branch of three still shows
+beside one of eighty). An amber dot marks a node grown from listeners; the
+rest were seeded. A search box shows each match with its branch and the
+words marked; "Filed only" hides what nothing is filed under; "Open all".
+Columns, not a grid, so a short facet never leaves a gap beside Sport.
+
+`GET /api/admin/categories/tree` (admin only, read-only, no model) is
+`categories.outline(tree, counts)`: every node exactly once under its facet;
+a facet's own count is episodes filed at the facet (Nando's last step,
+§552); a node whose parent is gone is counted as `orphans` and said on the
+page, never silently dropped. Counts are one grouped read,
+`ScriptCache.node_counts()`, on both caches. Checked in a browser at desktop
+and phone width: no page errors, no sideways scroll.
