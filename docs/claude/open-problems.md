@@ -93,7 +93,8 @@
    > letters' names or not at all (ESPN, UCLA); two or three letters are
    > spelled unless listed. The dictionary loads at boot in a thread and is
    > never waited for (`hard_words.peek`). `WORD_CASE` and the spacing of
-   > initialisms wait for `tools/stress_trial.py --caps`.
+   > initialisms wait for the ear: /admin's "Words in capitals" box, or
+   > `tools/stress_trial.py --caps` where the voice is reachable.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default

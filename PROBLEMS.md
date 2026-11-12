@@ -34858,5 +34858,14 @@ case - past `spoken_text`, bare and in a sentence, and marks today's.
 column wins for words sets `WORD_CASE`; whichever wins for initialisms
 replaces `_spell`'s spacing. Unheard: this container has no voice.
 
+**On /admin, because the Mac could not.** The owner ran the trial on a Mac
+with no route to the voice worker and got the placeholder tone. The same
+trial is now a box on /admin → How names are said, "Words in capitals":
+type a word, **Hear 5 ways** (`POST /api/admin/pronunciations/hear-caps`,
+optionally in a sentence) says it on the production voice, today's marked,
+nothing kept. Found while drawing it: `.ways` did not span the name row's
+grid, so #251's "Hear 4 ways" results were squeezed into its narrow second
+column; one rule fixes both.
+
 **Today, without a deploy:** a respelling on /admin (`NVIDIA = en-VID-ee-uh`)
 is applied before `spoken_text` and already overrides any of this.

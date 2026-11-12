@@ -5206,6 +5206,33 @@ async def admin_hear_stress_variants(req: StressTrialRequest,
     return {"name": req.name.strip(), "variants": rows}
 
 
+class CapsTrialRequest(BaseModel):
+    word: str = Field(..., min_length=2, max_length=12, pattern=r"^\s*[A-Za-z]{2,12}\s*$")
+    sentence: bool = False
+
+
+@app.post("/api/admin/pronunciations/hear-caps")
+async def admin_hear_caps(req: CapsTrialRequest, request: Request) -> dict:
+    """Say one word in capitals five ways - letters apart, dotted, the
+    letters' names, as written and in ordinary case - and hear each back
+    (§566), marking the one the voice is handed today. Keeps nothing."""
+    _require_admin(request)
+    import pronounce_review
+    import voice_check
+
+    word = req.word.strip().upper()
+    try:
+        rows = await pronounce_review.hear_caps(word, sentence=req.sentence)
+    except voice_check.VoiceCheckUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - the voice's own words
+        raise HTTPException(status_code=502, detail=(
+            f"The voice could not be heard: {exc}")[:400]) from exc
+    for row in rows:
+        row.pop("wav", None)
+    return {"word": word, "today": pronounce_review.caps_choice(word), "variants": rows}
+
+
 # ---------------------------------------------------------------- feedback
 #
 # Instant feedback (`feedback.py`): the button under the phone on the demo

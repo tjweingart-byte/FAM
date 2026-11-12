@@ -124,3 +124,47 @@ def test_the_caps_trial_says_each_as_written_and_writes_a_page(monkeypatch, tmp_
     page = (tmp_path / "index.html").read_text()
     assert "Capitals trial" in page and page.count("</code> <b>(today)</b>") == 2
     assert len(list(tmp_path.glob("*.wav"))) == 10
+
+
+# --- /admin: the same trial on the production voice ------------------------------
+
+def test_admin_hears_a_word_in_capitals_five_ways_and_keeps_nothing(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import app as appmod
+    import voice_bank
+
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "ADMIN_TOKEN", "secret")
+    bank = voice_bank.VoiceBank(str(tmp_path / "voice_bank.db"))
+    voice_bank.reset(bank)
+    sent = []
+
+    async def fake(text):
+        sent.append(text)
+        return {"pcm": b"\0\0" * 10, "rate": 24000, "heard": "næskɑr"}
+
+    monkeypatch.setattr(voice_check, "say_and_hear", fake)
+    client = TestClient(appmod.app)
+    try:
+        assert client.post("/api/admin/pronunciations/hear-caps",
+                           json={"word": "nascar"}).status_code == 404
+        r = client.post("/api/admin/pronunciations/hear-caps", json={"word": "nascar"},
+                        headers={"X-Admin-Token": "secret"}).json()
+        assert r["word"] == "NASCAR" and r["today"] == "upper"
+        assert [v["variant"] for v in r["variants"]] == ["spaced", "dotted", "named", "upper", "title"]
+        assert all(v["audio"].startswith("data:audio/wav;base64,") and "wav" not in v
+                   for v in r["variants"])
+        assert sent == ["N A S C A R", "N.A.S.C.A.R.", "en ay ess see ay ar", "NASCAR", "Nascar"]
+        assert bank.voice_checks() == [] and bank.pronunciations() == []
+        bad = client.post("/api/admin/pronunciations/hear-caps", json={"word": "F.B.I."},
+                          headers={"X-Admin-Token": "secret"})
+        assert bad.status_code == 422
+    finally:
+        voice_bank.reset(None)
+
+
+def test_the_admin_page_has_the_capitals_box():
+    page = (ROOT / "admin_ui" / "tracker.html").read_text()
+    for needle in ('id="capsForm"', "/api/admin/pronunciations/hear-caps", "Hear 5 ways", "(today)"):
+        assert needle in page, needle
