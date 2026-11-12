@@ -35041,3 +35041,68 @@ failure leaves the row on its topic. Not added to `/api/mixes/public` search
 results, which draw no rows.
 
 **Tests:** `tests/test_mix_episode_titles_570.py`.
+
+## 571. Sign-up asks for a password again (2026-11-12)
+
+The owner tried the waitlist join and called it very confusing. §296 made it
+the email alone: the account was made with no password, so once its owner
+signed out the only way back was "Forgot password?" - which is drawn only
+where mail is configured, and production has no SMTP. Signed out was locked
+out. Option A, at the owner's direction, reversing §296's "email alone" for
+the join:
+
+**Sign-up is the email, a password, then the Terms box, in one step** - on
+`/waitlist` (`static/waitlist.html`), on the app's Sign Up (which goes to
+`/waitlist`; a preview with no server keeps its own form, which always had a
+password), and on iOS (`AuthView`'s join form). One password field with the
+log-in's show/hide eye, `autocomplete="new-password"`. The rule is the app's
+own - `accounts.check_password`, `MIN_PASSWORD` 8 - checked on the page first
+with the app's own sentences ("Enter your password.", "Use at least 8
+characters for your password.") and again on the server, before the INSERT,
+which stores the hash in the same statement that makes the account: a refused
+password makes nothing, and there is no moment when the account exists
+without it. An address already registered is refused as before and the page
+opens its sign-in, now with the typed password carried over, so signing in
+is one tap.
+
+**Installed clients keep working** (`old-clients`): `password` was always on
+`WaitlistJoinRequest`, optional since §296. A join that sends none - an iOS
+build from §296's weeks - is made passwordless exactly as before. No contract
+was edited; `/api/auth/me` gains `has_password` (a superset).
+
+**Accounts already made with no password** are offered the first one where
+they look:
+* the waitlist status page (`/waitlist/me`, and iOS's `WaitlistStatusPage` (`FrontDoor.swift`)) shows a
+  card, **Set a password so you can sign back in**, while
+  `/api/waitlist/me` `details.has_password` is false; it posts
+  `/api/auth/password/set` and goes away. The Sign out warning now points at
+  it instead of at "Forgot password?".
+* Settings' row reads **Set a password**, not Change password, whenever the
+  account has none (`/api/auth/me` `has_password` on the web, `/api/account`
+  on iOS), and opens the first-password flow directly. Google and Apple
+  accounts are served by the same row.
+
+**Setting the first password is one conditional UPDATE** (`accounts.
+set_password`: `... WHERE user_id = ? AND password = ''`, refused when it
+changes no row), so two "first" passwords sent at once cannot overwrite each
+other; and `/api/auth/password/set` emails the address "A password was set on
+your FAM account" when mail can be sent, as a reset does. Settings' note under
+the rows says why to set one, and that reset is unavailable only while it is
+(`RESET_READY`). The waitlist page says a 422's list-shaped `detail` as a
+sentence, and its password fields stop at `MAX_PASSWORD` (1024).
+
+**/admin shows whether "Forgot password?" exists.** The tracker's overview
+has a tile, **Forgot password?**, On or Off; off, it says "Forgot password?
+is off: <reason>" from `mail.status()` (`admin_tracker._password_reset`,
+never raising) - so the owner sees that the card above is the only way back
+until `SMTP_HOST` and `MAIL_FROM` are set on `fam`.
+
+Sign in with Apple and Google are unchanged. Still true from §296: nothing
+verifies that the joiner owns the address.
+
+Tests: `tests/test_waitlist.py` (the form's order and sentences, a join with
+a password signs in elsewhere, a short password makes no account, a join
+without one still works for an installed client and is offered the first,
+a registered address is still refused, the status-page card, the Settings
+row, the tracker's tile); `tools/smoke_preview.py` checks the Settings row
+for an account with no password.

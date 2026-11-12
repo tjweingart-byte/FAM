@@ -863,7 +863,16 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     return '<div class="kpi"><span>' + esc(label) + '</span><b>' + value + '</b>' +
       (note ? '<em>' + note + '</em>' : '') + '</div>';
   }
-  function drawKpis(m) {
+  // "Forgot password?" (§571): drawn only where the server can email a code
+  // (`mail.status()`), so the owner sees here when it is off, and why.
+  function resetKpi(r) {
+    if (!r) return "";
+    return r.available
+      ? kpi("Forgot password?", '<span class="lvl-ok">On</span>', "Reset codes are emailed")
+      : kpi("Forgot password?", '<span class="lvl-urgent">Off</span>',
+            esc("Forgot password? is off: " + (r.reason || "email is not set up.")));
+  }
+  function drawKpis(m, reset) {
     var money = function (v) { return v == null ? "—" : "$" + Number(v).toFixed(2); };
     $("kpis").innerHTML = [
       kpi("Accounts", fmt(m.accounts_total),
@@ -886,7 +895,8 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       kpi("Vibes · saves · shares", fmt(m.vibes) + " · " + fmt(m.saved) + " · " + fmt(m.shares),
         fmt(m.share_opens) + " share-link opens"),
       kpi("Spend, 30 days", money(m.cost_30d),
-        money(m.cost_24h) + " today · " + fmt(m.generated_30d) + " episodes metered")
+        money(m.cost_24h) + " today · " + fmt(m.generated_30d) + " episodes metered"),
+      resetKpi(reset)
     ].join("");
   }
 
@@ -1678,7 +1688,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       signedIn(true);
       if (first) showPage();
       lastAt = s.at;
-      drawKpis(s.metrics || {});
+      drawKpis(s.metrics || {}, s.password_reset);
       drawChart(s.signups);
       drawRecent(s.recent_accounts);
       drawProviders(s.providers);

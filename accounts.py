@@ -1175,15 +1175,19 @@ class AccountStore:
         """Set a password where there was none - the Google-or-Apple account
         adding a second way in. Separate from `change_password`, which requires
         the current one and would be impossible to satisfy here."""
+        stored = hash_password(check_password(new))
+        # One conditional UPDATE (§571): two "first" passwords sent at once
+        # cannot both land, because only the one that finds '' writes.
+        cur = self._conn().execute(
+            "UPDATE accounts SET password = ? WHERE user_id = ? AND password = ''",
+            (stored, user_id))
+        if cur.rowcount:
+            return
         row = self._conn().execute(
-            "SELECT password FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
+            "SELECT 1 FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
         if not row:
             raise AuthError("That listener has no account.")
-        if row[0]:
-            raise AuthError("This account already has a password. Change it instead.")
-        self._conn().execute(
-            "UPDATE accounts SET password = ? WHERE user_id = ?",
-            (hash_password(check_password(new)), user_id))
+        raise AuthError("This account already has a password. Change it instead.")
 
     # --- sessions the listener can see ------------------------------------
 

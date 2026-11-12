@@ -58,7 +58,13 @@ section when a decision changes, including why.
    "an account gates what is kept, never what is heard" for as long as
    `WAITLIST=1` - see `docs/claude/constraints.md`, rule `waitlist-gate`.
    Guests are closed out too: a guest door would make the waitlist optional.
-3. **Sign-up is the email alone** (the owner, 21/10, PROBLEMS.md §296; it
+3. **Sign-up is the email and a password, then the Terms box, in one step**
+   (the owner, 12/11, PROBLEMS.md §571, reversing §296): the password is set
+   on the account as it is made. A join with no password (an installed
+   client) still works as §296 made it; such an account is offered "Set a
+   password so you can sign back in" on the status page and "Set a password"
+   in Settings. `/admin` shows whether "Forgot password?" is on.
+   *§296 (superseded):* **Sign-up is the email alone** (the owner, 21/10; it
    was email and password). No password is asked for: the account is made
    with none, signed in on the browser that joined, and another device gets
    in by "Forgot password?", which sets the first one - so SMTP must be
