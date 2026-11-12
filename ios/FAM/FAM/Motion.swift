@@ -511,3 +511,137 @@ extension EnvironmentValues {
         set { self[PlayerPictureHiddenKey.self] = newValue }
     }
 }
+
+// MARK: - Screens push in from the right
+
+/// A screen shown over the app as a cover (`Motion.screen`'s "push" and
+/// "pop"): it comes in from the right over 320 ms and goes back out to it
+/// over 260 ms, as the web's screens and iOS's own pushes do - never up
+/// from the bottom, which is iOS's cover and not a screen. The cover is
+/// shown and hidden without iOS's slide; what is seen moving is drawn
+/// here. A drag from the left edge takes it back, as an iOS push does.
+/// The screen is live from its first frame. Reduce Motion: a 120 ms
+/// crossfade in, gone at once.
+final class PushedState: ObservableObject {
+    @Published var leaving = false
+}
+
+private struct PushedScreen<Content: View>: View {
+    @ObservedObject var state: PushedState
+    let close: () -> Void
+    let content: Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown: CGFloat = 0
+    @State private var drag: CGFloat = 0
+
+    private var width: CGFloat { UIScreen.main.bounds.width }
+
+    var body: some View {
+        content
+            .background(FAMColor.background.ignoresSafeArea())
+            .opacity(reduceMotion ? shown : 1)
+            .offset(x: reduceMotion ? 0 : (1 - shown) * width + drag)
+            .overlay(alignment: .leading) {
+                // The edge a back swipe starts from.
+                if !reduceMotion {
+                    Color.clear
+                        .frame(width: 20)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                            .onChanged { g in drag = max(0, g.translation.width) }
+                            .onEnded { g in
+                                let far = g.translation.width > width / 3
+                                    || g.predictedEndTranslation.width > width / 2
+                                if far {
+                                    close()
+                                } else {
+                                    withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { drag = 0 }
+                                }
+                            })
+                }
+            }
+            .allowsHitTesting(!state.leaving)
+            .onAppear {
+                withAnimation(reduceMotion ? .easeInOut(duration: 0.12)
+                                           : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)) { shown = 1 }
+            }
+            .onChange(of: state.leaving) { _, leaving in
+                guard leaving else {
+                    // Asked for again before it had gone: back in place.
+                    withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) {
+                        shown = 1
+                        drag = 0
+                    }
+                    return
+                }
+                if reduceMotion { return }
+                withAnimation(.easeInOut(duration: 0.26)) {
+                    shown = 0
+                    drag = 0
+                }
+            }
+    }
+}
+
+/// One presented screen's identity, for the `isPresented:` form.
+struct ScreenFlag: Identifiable, Equatable {
+    var id: Int { 0 }
+}
+
+private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
+    @Binding var item: Item?
+    let screen: (Item) -> Screen
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// What the cover shows: the item, held while it slides away.
+    @State private var held: Item?
+    @StateObject private var state = PushedState()
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: item?.id) { _, _ in follow() }
+            .onAppear { if item != nil && held == nil { follow() } }
+            .fullScreenCover(item: Binding(get: { held }, set: { new in
+                // A `dismiss()` inside the screen: it slides away first.
+                if new == nil && item != nil { item = nil }
+            })) { shown in
+                PushedScreen(state: state, close: { item = nil }, content: screen(shown))
+                    .presentationBackground(.clear)
+            }
+    }
+
+    private func follow() {
+        var still = Transaction()
+        still.disablesAnimations = true
+        if let item {
+            state.leaving = false
+            withTransaction(still) { held = item }
+        } else if held != nil, !state.leaving {
+            state.leaving = true
+            let wait = reduceMotion ? 0 : 0.26
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+                guard self.item == nil else { return }
+                withTransaction(still) { held = nil }
+                state.leaving = false
+            }
+        }
+    }
+}
+
+extension View {
+    /// `.fullScreenCover(item:)` for a screen: pushed in from the right.
+    func screenCover<Item: Identifiable, Screen: View>(
+        item: Binding<Item?>, @ViewBuilder content: @escaping (Item) -> Screen
+    ) -> some View {
+        modifier(ScreenCover(item: item, screen: content))
+    }
+
+    /// `.fullScreenCover(isPresented:)` for a screen: pushed in from the right.
+    func screenCover<Screen: View>(
+        isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Screen
+    ) -> some View {
+        let flag = Binding<ScreenFlag?>(get: { isPresented.wrappedValue ? ScreenFlag() : nil },
+                                        set: { isPresented.wrappedValue = $0 != nil })
+        return modifier(ScreenCover(item: flag, screen: { _ in content() }))
+    }
+}

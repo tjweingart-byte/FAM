@@ -110,7 +110,7 @@ struct SearchView: View {
         // or given up (`playMyFamSearch` keeps the list under the player).
         .onChange(of: model.showPlayer) { _, _ in catalogBack() }
         .onChange(of: loading.visible) { _, _ in catalogBack() }
-        .fullScreenCover(isPresented: $library) {
+        .screenCover(isPresented: $library) {
             CatalogView()
                 .environmentObject(model)
                 .famThemed()

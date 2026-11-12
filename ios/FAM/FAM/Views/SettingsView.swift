@@ -521,9 +521,9 @@ private struct SettingsPresentations<Sheet: View>: ViewModifier {
             .textModal($textAsk)
             .sheet(item: $sheet) { kind in sheetView(kind) }
             .sheet(item: $page) { p in SafariView(url: p.url).ignoresSafeArea() }
-            .fullScreenCover(isPresented: $editing) { IdentityView(mode: .edit).famObjects(model) }
-            .fullScreenCover(isPresented: $locating) { LocationView().famObjects(model) }
-            .fullScreenCover(isPresented: $interestsOpen) { InterestsView(mode: .settings).famObjects(model) }
+            .screenCover(isPresented: $editing) { IdentityView(mode: .edit).famObjects(model) }
+            .screenCover(isPresented: $locating) { LocationView().famObjects(model) }
+            .screenCover(isPresented: $interestsOpen) { InterestsView(mode: .settings).famObjects(model) }
             .fullScreenCover(item: $activation) { a in
                 ActivationCard(activation: a).famObjects(model)
             }

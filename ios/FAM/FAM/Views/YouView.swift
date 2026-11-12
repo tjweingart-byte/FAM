@@ -33,7 +33,7 @@ struct YouView: View {
                         .toolbar(.hidden, for: .navigationBar)
                 }
         }
-        .fullScreenCover(isPresented: $editing) {
+        .screenCover(isPresented: $editing) {
             IdentityView(mode: .edit).famObjects(model)
         }
         .sheet(item: $held) { v in holdSheet(v) }

@@ -326,7 +326,7 @@ struct MainTabs: View {
             })
             // A social screen opened from another tab: over it, with a
             // stack of its own (a face, a story's header, Find new friends).
-            .fullScreenCover(item: $social.cover) { cover in
+            .screenCover(item: $social.cover) { cover in
                 SocialCoverView(cover: cover)
                     .environmentObject(model)
                     .environmentObject(player)
