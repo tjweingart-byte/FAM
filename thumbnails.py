@@ -65,11 +65,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import categories
 import hashlib
 import image_store
 import io
 import json
-import categories
 import logging
 import os
 import re

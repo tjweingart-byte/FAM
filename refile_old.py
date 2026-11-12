@@ -32,10 +32,10 @@ for nothing.
 """
 from __future__ import annotations
 
+import categories
 import datetime
 import hashlib
 import json
-import categories
 import logging
 import pathlib
 from typing import Optional

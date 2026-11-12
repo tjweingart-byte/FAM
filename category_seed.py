@@ -636,9 +636,9 @@ ALIASES: dict[str, str] = {
     "viruses": "infectious disease", "pandemic": "pandemics",
     "alzheimer": "dementia", "women health": "womens health",
     "men health": "mens health", "women rights": "womens rights",
-    "children books": "childrens books", "university": "higher education",
-    "universities": "higher education", "teacher": "teachers",
-    # Plural only: "school" alone is in "high school football".
+    "children books": "childrens books", "teacher": "teachers",
+    # Plural only: "school" alone is in "high school football". No
+    # "university": a science story names one in nearly every study.
     "schools": "education",
     "refugee": "refugees", "museum": "museums", "podcast": "podcasts",
     "documentary": "documentaries", "chatbot": "chatbots",
@@ -647,8 +647,11 @@ ALIASES: dict[str, str] = {
     "volcano": "volcanoes", "asteroid": "asteroids", "exoplanet": "exoplanets",
     "math": "mathematics", "maths": "mathematics", "nobel prize": "nobel prizes",
     "nasa": "space science", "soccer": "football", "wildfire": "wildfires",
-    "flood": "floods", "protest": "protests", "protesters": "protests",
-    "theatre show": "theatre", "animal behaviour": "animal behavior",
+    "protest": "protests", "protesters": "protests",
+    # No "flood": "a flood of new apps". "computer virus" is software, and
+    # ties `infectious disease` at depth two, winning by name.
+    "computer virus": "cybersecurity",
+    "animal behaviour": "animal behavior",
     "human behaviour": "human behavior", "labour unions": "labor unions",
     "trade unions": "labor unions", "pope": "catholic church",
     "vatican": "catholic church", "opioid": "opioids",

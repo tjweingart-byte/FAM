@@ -239,9 +239,18 @@ def _dead_node_breach(dead: list, cache, now: float) -> dict:
     """What Keith found, in words (§556): each missing node with its episodes,
     the newest's title and day; then which of two things it is, and the
     plan for that one - never "hold the agent" when the tree moved."""
-    evidence = {n: (_NANDO.get("found") or {}).get(n)
-                or (_NANDO.get("last_found") or {}).get(n)
-                or {"episodes": 0, "newest": 0.0, "key": ""} for n in dead}
+    def merged(node: str) -> dict:
+        # The pass under way may have read only some pages: the count is the
+        # larger of it and the last whole pass, the newest the newer of them.
+        got = [g for g in ((_NANDO.get("found") or {}).get(node),
+                           (_NANDO.get("last_found") or {}).get(node)) if g]
+        if not got:
+            return {"episodes": 0, "newest": 0.0, "key": ""}
+        latest = max(got, key=lambda g: g["newest"])
+        return {"episodes": max(g["episodes"] for g in got),
+                "newest": latest["newest"], "key": latest["key"]}
+
+    evidence = {n: merged(n) for n in dead}
     total = sum(e["episodes"] for e in evidence.values())
 
     def title(key: str) -> str:
@@ -261,8 +270,9 @@ def _dead_node_breach(dead: list, cache, now: float) -> dict:
     newest = max((e["newest"] for e in evidence.values()), default=0.0)
     still = bool(newest) and now - newest < NANDO_STILL_FILING
     if still:
-        why = (f"Nando filed one of these on {_day(newest)}: he is naming nodes the "
-               "tree does not hold, which his rule book forbids (\"only nodes that exist\").")
+        why = (f"An episode was filed under one of these on {_day(newest)}, so Nando may "
+               "still be naming nodes the tree does not hold, which his rule book forbids "
+               "(\"only nodes that exist\") - unless the node was removed since then.")
         plan = {"recommended": "Hold Nando (Keith's hold_agent asks Netenyahu, once switched on) "
                                "and read the newest episode's filing on the Categories page: "
                                "which step chose the node, and where it came from.",
@@ -284,7 +294,8 @@ def _dead_node_breach(dead: list, cache, now: float) -> dict:
         elif dry:
             state = "Consuela runs in dry run, so she records the move and makes none."
         else:
-            state = "Consuela re-files them when her nightly task for each node runs."
+            state = ("Consuela re-files them once a re-file is queued for the node (the "
+                     "nightly tree follower queues one for each node it sees pruned).")
         plan = {"recommended": "Re-file the episodes onto a node the tree holds: Consuela's "
                                "re-file (housekeeper:refile:<node>) moves them. " + state
                                + " Or put the node back in category_seed.py if it was "
