@@ -1,6 +1,6 @@
 {
-  "commit": "efe421fa4f80436a3ccbcf7e612f404cb1ffb718",
-  "cut": "2026-11-10",
+  "commit": "d5dfd919039170500a6f795ebec9432bc38e1efc",
+  "cut": "2026-11-12",
   "platform": "ios",
   "routes": [
     "/api/account",
@@ -9,9 +9,11 @@
     "/api/audio",
     "/api/auth/login",
     "/api/auth/me",
+    "/api/auth/password",
     "/api/auth/provider",
     "/api/auth/reset",
     "/api/auth/signup",
+    "/api/categories",
     "/api/circle",
     "/api/client-status",
     "/api/consent",
@@ -23,9 +25,11 @@
     "/api/godeeper",
     "/api/health",
     "/api/interest",
+    "/api/listened",
     "/api/me",
     "/api/mixes",
     "/api/mixes/",
+    "/api/mixes/fresh",
     "/api/myfam",
     "/api/myfam/catalog",
     "/api/myfam/search",
@@ -39,6 +43,8 @@
     "/api/preferences",
     "/api/profile",
     "/api/progress",
+    "/api/push",
+    "/api/push/prefs",
     "/api/saved",
     "/api/searches/trending",
     "/api/share/",
@@ -46,6 +52,7 @@
     "/api/sources",
     "/api/spell",
     "/api/story/note",
+    "/api/surveys/offer",
     "/api/thumb/",
     "/api/topics",
     "/api/transcript",
@@ -72,6 +79,32 @@
     "/api/auth/reset": {
       "available": "boolean",
       "reason": "string"
+    },
+    "/api/categories": {
+      "all": [
+        {
+          "facet": "string",
+          "id": "string",
+          "label": "string",
+          "path": [
+            "string"
+          ]
+        }
+      ],
+      "facets": [
+        {
+          "children": [
+            {
+              "id": "string",
+              "label": "string"
+            }
+          ],
+          "id": "string",
+          "label": "string"
+        }
+      ],
+      "mine": [],
+      "saved": "boolean"
     },
     "/api/circle": {
       "circle": []
@@ -221,6 +254,14 @@
       "label": "string",
       "more": "boolean",
       "reason": "string"
+    },
+    "/api/listened": {
+      "count": "number",
+      "faces": []
+    },
+    "/api/mixes/fresh": {
+      "edition": "string",
+      "fresh": []
     },
     "/api/myfam": {
       "algo": "string",
@@ -479,6 +520,12 @@
       "subjects": [],
       "taste_tree": []
     },
+    "/api/push": {
+      "available": "boolean",
+      "public_key": "string",
+      "reason": "string",
+      "subscribed": "boolean"
+    },
     "/api/searches/trending": {
       "searches": []
     },
@@ -517,7 +564,8 @@
   },
   "unrouted_at_cut": [
     "/api/image",
-    "/api/v1/"
+    "/api/v1/",
+    "/api/v1/myfam"
   ],
   "version": "1.0.0"
 }

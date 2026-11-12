@@ -34782,3 +34782,30 @@ hand-written decoder (keys in camelCase under `convertFromSnakeCase`, as
 `Mix` does), the `.daily` case added to `SettingsSheet` (one exhaustive
 switch, updated), and `StoryHandoff`'s `@MainActor` async senders called
 from a view's `Task`.
+
+## 565. Build 4 made ready for TestFlight and review (2026-11-12)
+
+**What was asked.** The owner, with #253 and five more merged (#255-#258):
+"take into account those changes. Then, we will get ready to put the new
+build into the testflight/app store app. Also, let me know what else needs to
+be done to officially apply to the app store", then "draft the store text and
+privacy answers".
+
+**The app.** #255 is server-only. #256, #257 and #258 are §564. The build
+number is raised in the code, `CURRENT_PROJECT_VERSION` 4, so a download of
+Main builds as it is.
+
+**The iOS release record.** `releases/contracts/ios-1.0.0.json` was cut
+before most of the app's routes existed; it is recut from `ios/FAM/FAM`
+with `tools/cut_release.py --platform ios --version 1.0.0 --build 4 --source
+ios/FAM/FAM --force` (58 routes, 25 response shapes). 1.0.0 is not on
+anyone's phone, so a recut changes no promise (`old-clients`); once Apple
+approves a build, its number goes into the registry and the contract is
+frozen.
+
+**Privacy.** `PrivacyInfo.xcprivacy` adds Customer Support (feedback
+reports), Other Diagnostic Data (a report's build and device) and Analytics
+on Other User Content (survey answers), so the manifest agrees with the App
+Privacy answers drafted in `APP_STORE.md` Part C, rewritten with the listing,
+age rating and review notes as the app now is (no Explore, no phone number on
+sign-up, vibes as posts, surveys).
