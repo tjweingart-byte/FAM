@@ -2426,6 +2426,10 @@ def _health_report(request: Request) -> dict:
             # state, not a misconfiguration - see `sharing.landing_doors`.
             "landing_doors": sharing.landing_doors(settings.app_store_url),
             "targets": list(sharing.TARGET_KEYS),
+            # Which stories go straight into Instagram / Snapchat from the
+            # iOS app (INSTAGRAM_APP_ID, SNAPCHAT_CLIENT_ID); the rest take
+            # iOS's share sheet. Settable only here, so said here.
+            "story_handoffs": sorted(_story_handoffs()),
         },
         # "Your mix is ready" (push.py): whether this server can deliver, and
         # if not, the sentence the mix page shows.
@@ -4323,6 +4327,24 @@ def _share_url(share_id: str, request: Request | None = None) -> tuple[str, bool
     return (f"{base}/s/{share_id}" if base else f"/s/{share_id}"), bool(base)
 
 
+def _story_handoffs() -> dict[str, dict]:
+    """Instagram's and Snapchat's native hand-offs, from this server's ids."""
+    return sharing.story_handoffs(instagram_app_id=settings.instagram_app_id,
+                                  snapchat_client_id=settings.snapchat_client_id)
+
+
+def _with_handoffs(rendered: dict[str, dict]) -> dict[str, dict]:
+    """Each rendered story destination with its hand-off, where it has one.
+
+    A new optional field: a build that does not know it keeps the share
+    sheet, so no installed client changes (`old-clients`).
+    """
+    for key, handoff in _story_handoffs().items():
+        if key in rendered:
+            rendered[key]["handoff"] = handoff
+    return rendered
+
+
 @app.get("/api/share/targets")
 async def share_targets(request: Request) -> dict:
     """Where an episode can be sent, and what each destination can carry.
@@ -4332,13 +4354,17 @@ async def share_targets(request: Request) -> dict:
     destinations take the card from `/api/share/card` instead of the text.
     """
     _read_limit(request)
+    handoffs = _story_handoffs()
     return {"targets": [
         {"key": t.key, "label": t.label, "kind": t.kind,
          "needs_image": t.needs_image, "max_chars": t.max_chars,
          # Whether this destination has a URL to open at all. The rendered
          # one, with the wording in it, comes back from `/api/share`; this
          # only says which kind of hand-off a client should be ready for.
-         "has_destination": bool(t.destination)}
+         "has_destination": bool(t.destination),
+         # Whether the iOS app can hand a story straight to the platform's
+         # app (`sharing.story_handoffs`) rather than the share sheet.
+         "has_handoff": t.key in handoffs}
         for t in sharing.TARGETS]}
 
 
@@ -4376,7 +4402,7 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # it. The web app fetches either happily.
         "card": _card_url(share["id"], request)
                 or f"/api/share/card?share={quote(share['id'])}",
-        "targets": rendered,
+        "targets": _with_handoffs(rendered),
     }
 
 
@@ -7527,8 +7553,9 @@ async def share_mix(mix_id: str, request: Request) -> dict:
         "url": url,
         "public": public,
         "card": (base + card) if base else card,
-        "targets": {t.key: sharing.render_mix(t.key, name=mix.name, topics=titles, url=url)
-                    for t in sharing.TARGETS},
+        "targets": _with_handoffs(
+            {t.key: sharing.render_mix(t.key, name=mix.name, topics=titles, url=url)
+             for t in sharing.TARGETS}),
     }
 
 

@@ -1603,6 +1603,12 @@
   one; through a `data:` URL rather than a blob URL, because Safari treats an
   SVG from a blob URL as cross-origin and taints the canvas, which is the one
   browser this feature is mostly used from.
+  > **Current:** on iOS a story card goes **straight into Instagram's or
+  > Snapchat's story editor** when the server has the platform's public id
+  > (`INSTAGRAM_APP_ID`, `SNAPCHAT_CLIENT_ID`; `sharing.story_handoffs`,
+  > §552): the PNG on the pasteboard under the platform's keys, then its
+  > scheme. Still a hand-off with the person pressing share, still no token;
+  > unset, or the app not on the phone, it is the share sheet as above.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the

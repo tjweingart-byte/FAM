@@ -2014,6 +2014,18 @@ class Settings:
         default_factory=lambda: os.environ.get("MODERATION_EMAIL", "").strip())
     apple_team_id: str = field(
         default_factory=lambda: os.environ.get("APPLE_TEAM_ID", "").strip())
+    # The two story hand-offs (`sharing.story_handoffs`, SHARING.md). Both
+    # are public identifiers that ship inside the app, not credentials:
+    # Meta's Facebook App ID, which `instagram-stories://share` has required
+    # as `source_application` since January 2023, and the Snap Kit OAuth
+    # client id that Creative Kit Lite's `snapchat://creativekit/preview`
+    # checks against the app's bundle id. Set here rather than built into
+    # the app so a TestFlight build turns them on with no new build. Unset,
+    # the story destinations go through iOS's share sheet as before.
+    instagram_app_id: str = field(
+        default_factory=lambda: os.environ.get("INSTAGRAM_APP_ID", "").strip())
+    snapchat_client_id: str = field(
+        default_factory=lambda: os.environ.get("SNAPCHAT_CLIENT_ID", "").strip())
     # Sign in with Apple's server key (`apple_tokens.py`): the Key ID of a
     # key with "Sign in with Apple" enabled. The key itself is a credential,
     # APPLE_PRIVATE_KEY, read through `credentials` and never from here. With

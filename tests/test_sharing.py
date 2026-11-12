@@ -367,3 +367,16 @@ def test_every_platform_the_packet_named_has_a_target():
     wanted = {"copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
               "instagram_story", "snapchat_story"}
     assert wanted <= set(sharing.TARGET_KEYS)
+
+
+def test_a_malformed_platform_id_gives_no_handoff_rather_than_a_broken_one():
+    """A mistyped id would fail inside Instagram or Snapchat with no word
+    about why; refused here, the card goes through the share sheet."""
+    import sharing as sh
+
+    assert sh.story_handoffs() == {}
+    assert sh.story_handoffs(instagram_app_id="12345&x=1",
+                             snapchat_client_id="not an id") == {}
+    both = sh.story_handoffs(instagram_app_id="987654321",
+                             snapchat_client_id="0f1e2d3c-4b5a")
+    assert set(both) == {"instagram_story", "snapchat_story"}

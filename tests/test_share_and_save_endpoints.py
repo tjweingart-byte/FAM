@@ -253,3 +253,38 @@ def test_deleting_an_account_clears_the_shelf_and_the_shares(client, account):
     removed = client.request("DELETE", "/api/account").json()["removed"]
     assert removed["saved"] >= 1
     assert removed["shares"] >= 1
+
+
+def test_without_platform_ids_a_story_has_no_handoff(client):
+    """Unset, the iOS app keeps iOS's share sheet for both stories - the
+    field is absent, which is what an older build already expects."""
+    body = client.post("/api/share", json={"query": "q", "minutes": 3}).json()
+    assert "handoff" not in body["targets"]["instagram_story"]
+    assert "handoff" not in body["targets"]["snapchat_story"]
+
+
+def test_platform_ids_give_each_story_its_native_handoff(client, monkeypatch):
+    """INSTAGRAM_APP_ID and SNAPCHAT_CLIENT_ID turn on the hand-offs a
+    TestFlight build reads, with no new build: Instagram's scheme carries
+    the Facebook App ID, Snapchat's the client id the phone sends."""
+    import dataclasses
+
+    import config
+
+    monkeypatch.setattr(appmod, "settings", dataclasses.replace(
+        config.settings, instagram_app_id="1234567890",
+        snapchat_client_id="abcd-1234-efgh-5678"))
+    body = client.post("/api/share", json={"query": "q", "minutes": 3}).json()
+    ig = body["targets"]["instagram_story"]["handoff"]
+    assert ig["url"] == "instagram-stories://share?source_application=1234567890"
+    sc = body["targets"]["snapchat_story"]["handoff"]
+    assert sc["url"] == "snapchat://creativekit/preview/1"
+    assert sc["client_id"] == "abcd-1234-efgh-5678"
+    # Only the stories: every other destination is unchanged.
+    assert all("handoff" not in t for k, t in body["targets"].items()
+               if k not in ("instagram_story", "snapchat_story"))
+    catalogue = client.get("/api/share/targets").json()["targets"]
+    assert {t["key"] for t in catalogue if t["has_handoff"]} == {
+        "instagram_story", "snapchat_story"}
+    health = client.get("/api/health").json()
+    assert health["sharing"]["story_handoffs"] == ["instagram_story", "snapchat_story"]
