@@ -374,14 +374,19 @@ struct MixView: View {
         return mix.people[at]
     }
 
-    /// "Added by you" / "Added by {name}" / "Added by @handle" - else the
-    /// item's own line, never "Added by " and nothing.
+    /// The line under a row (`mixTopicSub`, §570): when the row shows
+    /// today's episode title, the topic, then " · Added by ..." on a joint
+    /// mix; else "Added by you" / "Added by {name}" / "Added by @handle",
+    /// else the item's own line - never "Added by " and nothing.
     private func subLine(_ adder: MixPerson?, _ item: MixItem) -> String {
-        guard let adder else { return item.subtitle }
-        if adder.you == true { return "Added by you" }
-        if let name = adder.name, !name.isEmpty { return "Added by " + name }
-        if let handle = adder.handle, !handle.isEmpty { return "Added by @" + handle }
-        return item.subtitle
+        var who = ""
+        if let adder {
+            if adder.you == true { who = "Added by you" }
+            else if let name = adder.name, !name.isEmpty { who = "Added by " + name }
+            else if let handle = adder.handle, !handle.isEmpty { who = "Added by @" + handle }
+        }
+        if !item.episodeTitle.isEmpty { return item.title + (who.isEmpty ? "" : " \u{00B7} " + who) }
+        return who.isEmpty ? item.subtitle : who
     }
 
     /// The signal a row is drawn with (Q5): only a changed item's - one
@@ -426,7 +431,7 @@ struct MixView: View {
                 if let signal {
                     MixSignalTag(signal: signal)
                 }
-                Text(item.title)
+                Text(item.shownTitle)
                     .font(FAMFont.heading(12.5, .semibold))
                     .foregroundStyle(FAMColor.text)
                 Text(subLine(who, item))

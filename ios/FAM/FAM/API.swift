@@ -1821,10 +1821,14 @@ struct MixItem: Decodable, Identifiable, Equatable {
     let signal: MixSignal?
     /// Q5's two bubbles: what was last heard, and what is true today.
     let since: MixSince?
+    /// Today's episode's own title once the edition has written it (§570,
+    /// `_mix_episode_titles`); "" until then, and from an older server.
+    /// `title` stays the topic's name: a whole-list write sends it back.
+    let episodeTitle: String
 
     enum CodingKeys: String, CodingKey {
         case id, title, query, custom, subtitle, dailyPrompt, prompt, minutes, follow, addedBy
-        case icon, picture, signal, since
+        case icon, picture, signal, since, episodeTitle
     }
 
     init(from decoder: Decoder) throws {
@@ -1843,7 +1847,12 @@ struct MixItem: Decodable, Identifiable, Equatable {
         picture = (try? c.decode(String.self, forKey: .picture)) ?? ""
         signal = try? c.decode(MixSignal.self, forKey: .signal)
         since = try? c.decode(MixSince.self, forKey: .since)
+        episodeTitle = (try? c.decode(String.self, forKey: .episodeTitle)) ?? ""
     }
+
+    /// What a row and the player call it (§570): today's episode by its
+    /// own title, else the topic.
+    var shownTitle: String { episodeTitle.isEmpty ? title : episodeTitle }
 
     /// What the server is asked to keep for this entry in a whole-list
     /// write: the id, or a typed topic's words and title (so it is never

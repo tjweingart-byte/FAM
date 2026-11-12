@@ -574,3 +574,20 @@ def test_the_notification_choices_decode_what_the_server_sends(monkeypatch):
     times = re.search(r'\[("06:30"[^\]]*)\]\.forEach', web).group(1)
     assert "static let times = [" + times + "]" in settings
     assert "MixesModel.iPhoneLater" in settings
+
+
+def test_mix_rows_show_todays_episode_title_570():
+    """§570 on the iPhone: a mix row reads the server's `episode_title`
+    (today's episode) with the topic under it, and the player opens on it;
+    the topic's `title` is still what a whole-list write sends back."""
+    import inspect
+    assert '"episode_title"' in inspect.getsource(appmod._mix_episode_titles)
+    api = (SWIFT / "API.swift").read_text()
+    assert "let episodeTitle: String" in api
+    assert "episodeTitle.isEmpty ? title : episodeTitle" in api
+    assert '["query": query, "title": title]' in api
+    view = (SWIFT / "Views" / "MixView.swift").read_text()
+    assert "Text(item.shownTitle)" in view
+    assert 'item.title + (who.isEmpty ? "" : " \\u{00B7} " + who)' in view
+    model = (SWIFT / "AppModel.swift").read_text()
+    assert "!item.episodeTitle.isEmpty ? item.episodeTitle" in model

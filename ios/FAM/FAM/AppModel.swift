@@ -1829,7 +1829,9 @@ extension AppModel {
         mixPlay = list
         let (words, dated) = MixPlaylist.prompt(item)
         var ep = Episode(key: EpisodeKey(query: words, minutes: item.minutes),
-                         title: dated ? item.title + " · today" : item.title,
+                         // Today's episode by its own name once written (§570).
+                         title: !item.episodeTitle.isEmpty ? item.episodeTitle
+                             : (dated ? item.title + " · today" : item.title),
                          surface: "dailyfam",
                          topicID: (item.custom || item.follow) ? "" : item.id)
         ep.mixKey = list.key
