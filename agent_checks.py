@@ -222,8 +222,12 @@ def nando_nodes_exist(cache) -> list:
     if len(rows) < SAMPLE:
         _nando_pass_ended()
     # Every node seen in this pass and the last, against today's tree: a node
-    # put back closes the breach on the next round.
-    dead = sorted(n for n in _NANDO["seen"] | _NANDO["last_pass"] if tree.get(n) is None)
+    # put back closes the breach on the next round. A facet is the tree's
+    # root, not a row in it (`categories.mint`), and Nando's last step files
+    # an episode there ("broader, never wrong"): never a dead node. Counting
+    # facets raised a false URGENT for `science` and `world` (11.12).
+    dead = sorted(n for n in _NANDO["seen"] | _NANDO["last_pass"]
+                  if n not in topics.FACETS and tree.get(n) is None)
     if dead:
         return [_breach("categorizer", "dead-node",
                         f"{len(dead)} node(s) Nando filed episodes under are not in the tree",

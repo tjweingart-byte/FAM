@@ -176,6 +176,17 @@ def test_a_node_nando_filed_under_that_the_tree_lacks_is_a_breach(monkeypatch):
     assert breach["detail"]["examples"] == ["sports/xfl"]
 
 
+def test_an_episode_nando_filed_at_its_facet_is_not_a_dead_node(monkeypatch):
+    """The facets are the tree's roots, never rows in it, and Nando's last
+    step files at the facet: `science` or `world` is never a breach."""
+    import topics
+
+    use(monkeypatch, agents=True, categorizer=True)
+    monkeypatch.setattr(topics, "category_tree", lambda: {"physics": object()})
+    rows = [("a", "science", 1, []), ("b", "world", 1, []), ("c", "physics", 1, [])]
+    assert AC.nando_nodes_exist(Cache(tagged=rows)) == []
+
+
 def test_nando_s_filings_are_read_a_page_at_a_time_and_come_round(monkeypatch):
     """A breach stands until a whole pass is clean (§495): a clean page
     between two bad ones never closes and reopens it."""

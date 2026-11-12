@@ -34225,3 +34225,16 @@ writes it, and `ios/FAM/PARITY.md` says so.
 
 Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
 and every new name resolves.
+
+## 552. Keith's "science, world are not in the tree" was the check, not Nando (2026-11-12)
+
+Keith held an URGENT open since 11.6 (seen 1355 times): "2 node(s) Nando
+filed episodes under are not in the tree: science, world".
+`agent_checks.nando_nodes_exist` asked `tree.get(node)` of every node Nando
+filed, but the eight facets are the tree's roots and never rows in it
+(`categories.mint` refuses them as reserved slugs), and Nando's last step
+files an episode at its facet - "broader, never wrong". Every episode filed
+at a facet read as a dead node. The check now skips `topics.FACETS`; a test
+pins that `science` and `world` are not a breach. The old test's fake tree
+held `markets` as a row, which is why it never showed. Nothing was wrong with
+the episodes; the alert closes on the next whole pass.
