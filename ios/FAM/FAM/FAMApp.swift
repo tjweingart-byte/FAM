@@ -228,6 +228,13 @@ struct MainTabs: View {
     @State private var built: Set<Tab> = [.daily]
     /// YourFAM has been shown once: its own first look reads the graph.
     @State private var youShown = false
+    /// The player's cover, shown and hidden without iOS's slide: the player
+    /// grows out of the tapped picture and shrinks into the mini player's
+    /// (`PlayerEntrance`). Follows `model.showPlayer`, the close a beat
+    /// later so the shrink is seen.
+    @State private var playerCover = false
+    @StateObject private var playerStage = PlayerStage()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The tab bar's binding: a tab never shown before is built first and
     /// shown on the next frame, so it still nudges in from its side.
@@ -506,7 +513,48 @@ struct MainTabs: View {
         .background(FAMColor.background.ignoresSafeArea())
         // Full screen, as the web's player is a screen of its own; the Home
         // mark minimises it and the episode carries on in the mini player.
-        .fullScreenCover(isPresented: $model.showPlayer) {
+        .onChange(of: model.showPlayer) { _, shown in movePlayer(shown) }
+        .fullScreenCover(isPresented: Binding(get: { playerCover }, set: { up in
+            // A `dismiss()` from inside the player lands here: it goes the
+            // way every close does, shrinking first (`movePlayer`).
+            if !up && model.showPlayer { model.showPlayer = false }
+        })) {
+            PlayerEntrance(stage: playerStage) {
+                playerScreen
+            }
+            .presentationBackground(.clear)
+        }
+    }
+
+    /// `Motion.screen(…, "player-open" / "player-close")`: the cover comes
+    /// and goes at once; what is seen moving is drawn inside it. The player
+    /// is up - live, playing - from the first frame either way.
+    private func movePlayer(_ shown: Bool) {
+        var still = Transaction()
+        still.disablesAnimations = true
+        if shown {
+            if playerCover {
+                // Opened again while it was closing: it stays.
+                playerStage.phase = .shown
+                return
+            }
+            playerStage.from = PlayerMotion.shared.growFrom()
+            playerStage.into = nil
+            playerStage.phase = .opening
+            withTransaction(still) { playerCover = true }
+        } else {
+            guard playerCover else { return }
+            playerStage.into = sectionOpen ? nil : PlayerMotion.shared.mini
+            playerStage.phase = .closing
+            let wait = playerStage.closeDuration(reduceMotion: reduceMotion)
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+                guard !model.showPlayer else { return }
+                withTransaction(still) { playerCover = false }
+            }
+        }
+    }
+
+    private var playerScreen: some View {
             PlayerView()
                 .environmentObject(model)
                 .environmentObject(player)
@@ -520,8 +568,8 @@ struct MainTabs: View {
                 .overlay(alignment: .top) { SocialBannerLayer().environmentObject(social) }
                 // A typed Go Deeper asks the AI question over the player.
                 .overlay { ConsentLayer(consent: model.consent, say: { model.nowPlaying.say($0) }) }
+                .environmentObject(playerStage)
                 .famThemed()
-        }
     }
 }
 
@@ -585,6 +633,7 @@ struct TabBar: View {
                     WebIcon(path: icon, size: 20)
                         .foregroundStyle(color)
                 }
+                .tabIconPop(on)
                 .frame(width: 44, height: 28)
                 .background(on ? palette.copper.opacity(0.18) : Color.clear, in: Capsule())
                 .overlay(alignment: .topTrailing) {

@@ -232,6 +232,7 @@ struct CategoryPanel: View {
                 .overlay {
                     if let thumb = first.thumb, let url = model.api.picture(thumb) {
                         AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                            .tapSpot(url, radius: 0)
                     }
                 }
                 .overlay {
@@ -328,6 +329,7 @@ struct CategoryPanel: View {
                         AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: {
                             PlayTriangle().fill(FAMColor.copper).frame(width: 14, height: 14)
                         }
+                        .tapSpot(url)
                     } else {
                         PlayTriangle().fill(FAMColor.copper).frame(width: 14, height: 14)
                     }

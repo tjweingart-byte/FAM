@@ -1513,7 +1513,8 @@ final class AppModel: ObservableObject {
         if showPlayer {
             showPlayer = false
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 350_000_000)
+                // The player's shrink (340 ms) and its cover gone.
+                try? await Task.sleep(nanoseconds: 420_000_000)
                 go()
             }
         } else {

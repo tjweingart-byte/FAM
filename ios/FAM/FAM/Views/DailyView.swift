@@ -830,6 +830,7 @@ private struct CardPress: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .modifier(PressRecording(pressed: configuration.isPressed))
             .onChange(of: configuration.isPressed) { _, down in
                 pressed = down
             }
