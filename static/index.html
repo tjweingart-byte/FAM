@@ -3746,7 +3746,7 @@
                 <div class="auth-label">Password</div>
                 <div class="pw-row">
                   <input class="modal-input" id="authPassword" type="password"
-                         autocomplete="new-password"
+                         autocomplete="new-password" maxlength="1024"
                          placeholder="at least 8 characters" style="margin-bottom:0;"
                          oninput="clearAuthError()">
                   <button class="pw-eye" type="button" id="authPwEye"
@@ -16258,7 +16258,9 @@
       return '<div class="pf-note">Signed in as <b>' + escapeHtml(AUTH.email)
         + '</b>. Your history follows you to any device you sign in on.'
         + '<div class="pf-acts">'
-        + '<button class="pf-btn" onclick="changePassword()">Change password</button>'
+        + (AUTH.has_password === false
+            ? '<button class="pf-btn" onclick="setFirstPassword()">Set a password</button>'
+            : '<button class="pf-btn" onclick="changePassword()">Change password</button>')
         + '<button class="pf-btn" onclick="logOut()">Log out</button>'
         + '</div></div>';
     }
@@ -16381,12 +16383,44 @@
       });
   }
 
+  // Settings' password row (§571): "Set a password" whenever the account
+  // has none (`/api/auth/me` `has_password`, as `/api/account` says it),
+  // opening the first-password flow directly; otherwise "Change password".
+  // An answer that never said (an older server) keeps "Change password",
+  // whose `changePassword` asks `/api/account` before choosing.
+  function passwordSettingsRow(){
+    return AUTH.has_password === false
+      ? settingsRow("Set a password", "", "setFirstPassword()")
+      : settingsRow("Change password", "", "changePassword()");
+  }
+
+  // The note under the account rows (§571): with no password, why to set
+  // one; with no reset mail (`RESET_READY`), to keep it safe; else nothing.
+  function passwordSettingsNote(){
+    if(AUTH.has_password === false){
+      return "Set a password so you can sign back in on any device"
+        + (RESET_READY ? ". " : "; password reset isn\u2019t available yet. ");
+    }
+    return RESET_READY ? ""
+      : "Password reset isn\u2019t available yet, so keep your password somewhere safe. ";
+  }
+
   function setFirstPassword(){
     showModal({
       title: "Set a password", placeholder: "at least 8 characters",
       confirmLabel: "Set", inputType: "password",
       onConfirm: function(next){
-        postAuth("/api/auth/password/set", { "new": next }, "Password set");
+        if(String(next || "").length < 8){
+          toast("Use at least 8 characters for your password."); return;
+        }
+        if(String(next).length > 1024){ toast("That password is too long."); return; }
+        postAuth("/api/auth/password/set", { "new": next }, "Password set")
+          .then(function(){
+            // `postAuth` re-read /api/auth/me; the row now says "Change".
+            var settings = document.getElementById("screen-settings");
+            if(settings && settings.classList.contains("active")) renderSettings();
+            renderIdentityAccountRows();
+          });
       }
     });
   }
@@ -17789,6 +17823,8 @@
     loadPlan().then(function(plan){ if(plan) renderSettings(); });
     loadAiConsent().then(renderSettings);
     if(AUTH.authenticated){
+      // Whether reset mail exists decides the note under the password row (§571).
+      checkResetReady().then(renderSettings);
       loadBlocked().then(renderSettings);
       loadActivation().then(renderSettings);
     }
@@ -17935,10 +17971,11 @@
           "setSearchesPublic(" + (searchesPublic ? "false" : "true") + ")")
         + '<div class="set-note">When it\u2019s on, anyone who opens an episode you searched can see your @handle in the player\u2019s menu.</div>';
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
-        + settingsRow("Change password", "", "changePassword()")
+        + passwordSettingsRow()
         + settingsRow("Log out", "", "logOut()")
         + settingsRow("Delete account", "", "confirmDeleteAccount()", true)
-        + '<div class="set-note">Password reset isn\u2019t available yet, so keep your password somewhere safe. Deleting your account is immediate and can\u2019t be undone.</div>';
+        + '<div class="set-note">' + passwordSettingsNote()
+        + 'Deleting your account is immediate and can\u2019t be undone.</div>';
     } else {
       html += settingsRow("Sign up", "", "openAuth('signup')")
         + settingsRow("Log in", "", "openAuth('login')")
@@ -19665,7 +19702,7 @@
     if(!box) return;
     box.innerHTML = AUTH.authenticated
       ? settingsRow("Signed in as", escapeHtml(AUTH.email), "")
-        + settingsRow("Change password", "", "changePassword()")
+        + passwordSettingsRow()
       : '<div class="set-note">With an account, your name and picture follow you to every device.</div>';
   }
 
