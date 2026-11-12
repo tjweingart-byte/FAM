@@ -409,3 +409,25 @@ def test_threads_opens_its_composer_with_the_link_in_the_words():
 def test_every_target_has_mix_wording():
     for target in sharing.TARGETS:
         assert target.key in sharing.MIX_TEMPLATES, target.key
+
+
+def test_the_head_names_the_square_preview_before_the_story_card():
+    head = sharing.landing_head(sharing.landing_payload(
+        SHARE_ROW, url="https://fam.audio/s/abc123",
+        card_url="https://fam.audio/api/share/card?share=abc123",
+        image_url="https://fam.audio/api/share/abc123/preview.jpg"))
+    assert 'og:image" content="https://fam.audio/api/share/abc123/preview.jpg"' in head
+    assert 'og:image:width" content="1200"' in head
+    assert "/api/share/card" not in head
+
+
+def test_a_long_title_on_the_cover_is_cut_rather_than_run_off_the_picture():
+    import io
+
+    from PIL import Image
+
+    import link_preview
+
+    data = link_preview.draw(None, "why " * 80, 3)
+    assert Image.open(io.BytesIO(data)).size == (1200, 1200)
+    assert link_preview.draw(b"not a picture", "Title", 3)  # the cover instead

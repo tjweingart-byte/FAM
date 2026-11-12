@@ -27,7 +27,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from urllib.parse import quote
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from typing import Annotated, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -4451,6 +4451,7 @@ async def share_read(share_id: str, request: Request) -> dict:
         record,
         url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request),
+        image_url=_preview_url(share_id, request),
         app_store=settings.app_store_url,
     )
 
@@ -4488,6 +4489,71 @@ def _card_url(share_id: str, request: Request | None = None) -> str:
     """
     base = _public_base(request)
     return f"{base}/api/share/card?share={quote(share_id)}" if base else ""
+
+
+def _preview_url(share_id: str, request: Request | None = None) -> str:
+    """The link preview's address, absolute or "" - the same refusal as
+    `_card_url`: a relative Open Graph image is no image at all."""
+    base = _public_base(request)
+    return f"{base}/api/share/{quote(share_id)}/preview.jpg" if base else ""
+
+
+#: Drawn previews, newest last: (share id, picture row, title) -> JPEG. A
+#: link is previewed once per app it is pasted into, all within minutes, so
+#: a small memory is enough; nothing is stored.
+_PREVIEWS: "OrderedDict[tuple, bytes]" = OrderedDict()
+PREVIEW_MEMORY = 128
+
+
+def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
+    """The episode's picture as the player draws it: (row id, bytes), or
+    ("", None) when there is none. Never raises."""
+    try:
+        import thumbnails
+
+        found = _player_picture(record.get("query") or "",
+                                record.get("title") or "",
+                                int(record.get("minutes") or 0))
+        row = found.get("picture") or found.get("node") or ""
+        if not row or not thumbnails._exists():
+            return "", None
+        got = thumbnails.store().image(row)
+        return (row, got[0]) if got else ("", None)
+    except Exception:  # noqa: BLE001 - the cover is always there
+        log.exception("link preview: could not read the episode's picture")
+        return "", None
+
+
+@app.get("/api/share/{share_id}/preview.jpg")
+async def share_preview(share_id: str, request: Request) -> Response:
+    """The picture a shared link previews with (`link_preview`, §553).
+
+    Fetched by Messages, WhatsApp, X and the rest when the link is pasted:
+    the episode's picture, square, with FAM's badge and a play button, or
+    its title on FAM's ground when it has no picture. Public, like the link.
+    """
+    _read_limit(request)
+    record = SHARES.get(share_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="No such share.")
+    row, picture = await asyncio.to_thread(_preview_picture, record)
+    key = (share_id, row, record.get("title") or "")
+    data = _PREVIEWS.get(key)
+    if data is None:
+        import link_preview
+
+        data = await asyncio.to_thread(
+            link_preview.draw, picture, record.get("title") or "",
+            int(record.get("minutes") or 1))
+        if data is None:
+            raise HTTPException(status_code=404, detail="No preview.")
+        _PREVIEWS[key] = data
+        while len(_PREVIEWS) > PREVIEW_MEMORY:
+            _PREVIEWS.popitem(last=False)
+    else:
+        _PREVIEWS.move_to_end(key)
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 #: Read once. The landing page is one small file and re-reading it per request
@@ -4562,6 +4628,7 @@ async def share_open(share_id: str, request: Request):
     payload = sharing.landing_payload(
         record or {}, url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request) if record else "",
+        image_url=_preview_url(share_id, request) if record else "",
         app_store=settings.app_store_url,
     )
     return HTMLResponse(

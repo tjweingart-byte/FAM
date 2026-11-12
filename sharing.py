@@ -682,7 +682,7 @@ JOIN_PATH = "/waitlist"
 
 
 def landing_payload(share: dict, *, url: str, card_url: str = "",
-                    app_store: str = "") -> dict:
+                    app_store: str = "", image_url: str = "") -> dict:
     """Everything the landing page is allowed to know.
 
     Note what is absent: `user_id`. A share link is public by construction -
@@ -702,6 +702,10 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         "minutes": max(1, as_minutes(share.get("minutes") or 0)),
         "url": url or "",
         "card": card_url or "",
+        # The link preview (`link_preview`, §553): the square picture
+        # Messages and the rest draw in the bubble. The story card above is
+        # 9:16 SVG, which they skip.
+        "image": image_url or "",
         "app_store": app_store or "",
         # Whether the App Store is where the doors go. False means there is
         # no app to send anybody to - see `join` for where they go instead.
@@ -770,6 +774,7 @@ def landing_head(payload: dict) -> str:
         else f"A {minutes}-minute FAM episode.")
     url = payload.get("url") or ""
     card = payload.get("card") or ""
+    image = payload.get("image") or ""
 
     tags = [
         f'<title>{title} - FAM</title>',
@@ -781,7 +786,17 @@ def landing_head(payload: dict) -> str:
     ]
     if is_public_link(url):
         tags.append(f'<meta property="og:url" content="{esc(url)}">')
-    if is_public_link(card):
+    if is_public_link(image):
+        # The square JPEG (`link_preview`, §553): what Messages, WhatsApp,
+        # X and Slack draw in the bubble, the way a Spotify link shows its
+        # album art. The story card stays for Instagram and Snapchat.
+        tags.append(f'<meta property="og:image" content="{esc(image)}">')
+        tags.append('<meta property="og:image:type" content="image/jpeg">')
+        tags.append('<meta property="og:image:width" content="1200">')
+        tags.append('<meta property="og:image:height" content="1200">')
+        tags.append('<meta name="twitter:card" content="summary_large_image">')
+        tags.append(f'<meta name="twitter:image" content="{esc(image)}">')
+    elif is_public_link(card):
         tags.append(f'<meta property="og:image" content="{esc(card)}">')
         tags.append('<meta property="og:image:width" content="1080">')
         tags.append('<meta property="og:image:height" content="1920">')

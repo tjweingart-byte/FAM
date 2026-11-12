@@ -34276,3 +34276,27 @@ trim in `_rendered` now re-attaches the link only where it was in the words
 to begin with - otherwise a long Reddit title would have had the URL glued
 onto it. Both clients draw the two tiles (`r/`, `Th`); an installed build
 already shows any key it does not know, with the arrow glyph.
+
+## 553. A shared link previews with the episode's picture, like a Spotify link (2026-11-12)
+
+**The report.** The owner, with a Spotify link in a group chat beside it: a
+FAM link should look like that - a picture with the title under it - rather
+than a line of words. Four options were drawn (a deck: episode art, a cover
+card, the picture with a play button, the sharer's face on top) and the
+owner chose the first with the third's play button.
+
+**Why it was words.** The share page's `og:image` was the Instagram story
+card (`/api/share/card`): SVG, 1080x1920. Messages and most link previewers
+draw only JPEG or PNG and want a square or wide picture, so they skipped it.
+
+**What changed.** `link_preview.draw` makes a 1200x1200 JPEG: the episode's
+picture (`_player_picture`, the one the player shows), cropped square, the
+FAM badge top left and a copper play button bottom right; with no picture,
+the title on FAM's dark ground with the length and the same button.
+`GET /api/share/{id}/preview.jpg` serves it, drawn on request and kept in a
+small memory (`PREVIEW_MEMORY`), nothing stored; `landing_head` names it as
+`og:image` (with type and size) ahead of the card, still only when absolute.
+Fonts are the iOS bundle's copies; a machine without them draws in Pillow's
+default face. Server-only, so every installed build and every app the link
+is pasted into gets it at once. Whether Messages prints the description
+line under the title for this site is still to be seen on a phone.

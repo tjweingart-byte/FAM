@@ -1609,6 +1609,9 @@
   > §552): the PNG on the pasteboard under the platform's keys, then its
   > scheme. Still a hand-off with the person pressing share, still no token;
   > unset, or the app not on the phone, it is the share sheet as above.
+  > A pasted link's preview is no longer the story card (§553): `og:image`
+  > is a square JPEG of the episode's picture with a play button
+  > (`link_preview`), because the SVG card was skipped by Messages.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the

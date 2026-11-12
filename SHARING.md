@@ -95,6 +95,19 @@ with no dependency and nothing stored. The question in it is text a listener
 typed and the card is markup, so everything is escaped; the test for that is
 the one that would otherwise fail in public.
 
+### What a pasted link looks like (§553)
+
+A link pasted into Messages, WhatsApp, X, Slack or Facebook previews with
+**the episode's picture**, square, a small FAM badge and a play button - the
+owner's pick of four drawn options, after Spotify's album-art bubble. The
+page's `og:image` is `/api/share/<id>/preview.jpg` (`link_preview.draw`,
+1200x1200 JPEG): the picture the player shows for that episode, or, when it
+has none, its title on FAM's dark ground. It used to name the story card,
+which is a 9:16 SVG that Messages and most previewers skip, so a FAM link
+arrived as words. The story card is unchanged for Instagram and Snapchat.
+Drawn on request, a few kept in memory, nothing stored; links already sent
+keep the preview they arrived with.
+
 ### Straight into the story editor (iOS, §552)
 
 On the iOS app a story tile can skip the share sheet. `/api/share` (and a
