@@ -557,3 +557,4 @@ and `limit` = Lines.
 | 34650 | 58 | 563. The sports sweep runs for people with finals on (2026-11-12) |
 | 34708 | 78 | 564. The app before build 4: #256 and #257 reviewed, #258's notifications on the iPhone (2026-11-12) |
 | 34786 | 27 | 565. Build 4 made ready for TestFlight and review (2026-11-12) |
+| 34813 | 29 | 566. Tiingo credited in the episode and the sources (2026-11-12) |
