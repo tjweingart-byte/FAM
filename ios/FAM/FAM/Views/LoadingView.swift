@@ -357,13 +357,20 @@ private struct StepRow: View {
                     .fill(done ? FAMColor.copper : Color.clear)
                 Circle()
                     .stroke(done || active ? FAMColor.copper : color, lineWidth: 1.6)
+                // The tick pops in: .25 s fade, .3 s overshooting scale
+                // (`.fam-step-dot svg`).
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .heavy))
                     .foregroundStyle(FAMColor.ink)
                     .opacity(done ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.25), value: done)
                     .scaleEffect(done ? 1 : 0.4)
+                    .animation(.timingCurve(0.3, 1.6, 0.5, 1, duration: 0.3), value: done)
             }
             .frame(width: 20, height: 20)
+            // The dot fills over .3 s (`.fam-step-dot`).
+            .animation(.easeInOut(duration: 0.3), value: done)
+            .animation(.easeInOut(duration: 0.3), value: active)
             .shadow(color: FAMColor.copper.opacity(active && pulse ? 0.45 : 0), radius: active ? 5 : 0)
             Text(label)
                 .font(FAMFont.mono(12))
@@ -371,7 +378,9 @@ private struct StepRow: View {
                 .foregroundStyle(color)
         }
         .opacity(done || active ? 1 : 0.55)
-        .animation(.easeOut(duration: 0.3), value: done)
+        // The words' colour and strength change over .35 s (`.fam-steps li`).
+        .animation(.easeInOut(duration: 0.35), value: done)
+        .animation(.easeInOut(duration: 0.35), value: active)
         .onAppear {
             guard !still else { return }
             withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { pulse = true }

@@ -645,3 +645,265 @@ extension View {
         return modifier(ScreenCover(item: flag, screen: { _ in content() }))
     }
 }
+
+// MARK: - Sheets and modals fade and lift
+
+/// A presented card says it is the web's centred `.modal-card` rather than
+/// a bottom sheet, so the overlay draws no panel around it.
+struct ModalLayoutKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+}
+
+extension View {
+    /// This presented view lays itself out as a centred card.
+    func modalLayout() -> some View { preference(key: ModalLayoutKey.self, value: true) }
+}
+
+final class OverlayState: ObservableObject {
+    @Published var leaving = false
+}
+
+/// The window's own bottom inset (the home indicator), for a panel that
+/// runs down behind it.
+private var windowBottomInset: CGFloat {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let window = scenes.flatMap(\.windows).first { $0.isKeyWindow } ?? scenes.first?.windows.first
+    return window?.safeAreaInsets.bottom ?? 0
+}
+
+/// Every sheet and modal (`.sheet-overlay`, `.modal-overlay` and
+/// `Motion.watchOverlays`): the dim (`rgba(10,9,15,.62)`) fades in over
+/// 200 ms and the card lifts 14 pt into place as it does; closing, both go
+/// over 150 ms, the card dropping 8 pt. A sheet is the web's
+/// `.sheet-card`: the surface, 20 pt top corners and a strong top border,
+/// at most 82 % of the screen, sized to what it holds; a tap on the dim
+/// or a drag down on the card closes it. Reduce Motion: the dim and card
+/// fade in over 120 ms, nothing lifts, closing is at once. The card is
+/// live from its first frame.
+private struct OverlayCard<Content: View>: View {
+    @ObservedObject var state: OverlayState
+    let close: () -> Void
+    let content: Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    @State private var modal = false
+    @State private var drag: CGFloat = 0
+
+    private static var dim: Color { Color(hex: 0x0A090F).opacity(0.62) }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Self.dim
+                .ignoresSafeArea()
+                .opacity(shown ? 1 : 0)
+                .contentShape(Rectangle())
+                .onTapGesture { if !modal { close() } }
+                .accessibilityHidden(true)
+            card
+                .opacity(shown ? 1 : 0)
+                .offset(y: lift + drag)
+        }
+        .ignoresSafeArea(.container, edges: .bottom)
+        .allowsHitTesting(!state.leaving)
+        .onPreferenceChange(ModalLayoutKey.self) { modal = $0 }
+        .onAppear {
+            withAnimation(reduceMotion ? .easeInOut(duration: 0.12)
+                                       : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { shown = true }
+        }
+        .onChange(of: state.leaving) { _, leaving in
+            if !leaving {
+                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) {
+                    shown = true
+                    drag = 0
+                }
+                return
+            }
+            guard !reduceMotion else { return }
+            withAnimation(.timingCurve(0.4, 0, 1, 1, duration: 0.15)) { shown = false }
+        }
+    }
+
+    /// 14 pt low on the way in, 8 pt low on the way out, none still.
+    private var lift: CGFloat {
+        if reduceMotion || shown { return 0 }
+        return state.leaving ? 8 : 14
+    }
+
+    /// One chain for both shapes, so a card that turns out to be a modal
+    /// on its first frame keeps its identity (and its state).
+    private var card: some View {
+        let corners = UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
+        return content
+            .frame(maxWidth: .infinity, maxHeight: modal ? .infinity : UIScreen.main.bounds.height * 0.82)
+            .padding(.bottom, modal ? 0 : windowBottomInset)
+            .background(modal ? Color.clear : FAMColor.surface)
+            .clipShape(modal ? AnyShape(Rectangle()) : AnyShape(corners))
+            .overlay(corners.stroke(FAMColor.borderStrong, lineWidth: 1)
+                .padding(.bottom, -2)
+                .opacity(modal ? 0 : 1)
+                .allowsHitTesting(false))
+            .overlay(alignment: .top) {
+                // The top of a sheet is where a drag down starts, as on an
+                // iOS sheet; the list under it keeps its own scrolling.
+                if !modal {
+                    Color.clear
+                        .frame(height: 28)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 6, coordinateSpace: .global)
+                            .onChanged { g in drag = max(0, g.translation.height) }
+                            .onEnded { g in
+                                if drag > 90 || g.predictedEndTranslation.height > 220 {
+                                    close()
+                                } else {
+                                    withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { drag = 0 }
+                                }
+                            })
+                }
+            }
+    }
+}
+
+private struct OverlayCover<Item: Identifiable, Card: View>: ViewModifier {
+    @Binding var item: Item?
+    let onDismiss: (() -> Void)?
+    let card: (Item) -> Card
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var held: Item?
+    @StateObject private var state = OverlayState()
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: item?.id) { _, _ in follow() }
+            .onAppear { if item != nil && held == nil { follow() } }
+            .fullScreenCover(item: Binding(get: { held }, set: { new in
+                // A `dismiss()` inside the card: it fades and drops first.
+                if new == nil && item != nil { item = nil }
+            }), onDismiss: onDismiss) { shown in
+                OverlayCard(state: state, close: { item = nil }, content: card(shown))
+                    .presentationBackground(.clear)
+            }
+    }
+
+    private func follow() {
+        var still = Transaction()
+        still.disablesAnimations = true
+        if let item {
+            state.leaving = false
+            withTransaction(still) { held = item }
+        } else if held != nil, !state.leaving {
+            state.leaving = true
+            let wait = reduceMotion ? 0 : 0.15
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+                guard self.item == nil else { return }
+                withTransaction(still) { held = nil }
+                state.leaving = false
+            }
+        }
+    }
+}
+
+extension View {
+    /// `.sheet(item:)` drawn as the web's: fades and lifts (`watchOverlays`).
+    func famSheet<Item: Identifiable, Card: View>(
+        item: Binding<Item?>, onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping (Item) -> Card
+    ) -> some View {
+        modifier(OverlayCover(item: item, onDismiss: onDismiss, card: content))
+    }
+
+    /// `.sheet(isPresented:)` drawn as the web's: fades and lifts.
+    func famSheet<Card: View>(
+        isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Card
+    ) -> some View {
+        let flag = Binding<ScreenFlag?>(get: { isPresented.wrappedValue ? ScreenFlag() : nil },
+                                        set: { isPresented.wrappedValue = $0 != nil })
+        return modifier(OverlayCover(item: flag, onDismiss: onDismiss, card: { _ in content() }))
+    }
+}
+
+// MARK: - Small pictures fade in as they land
+
+/// A small picture that is clear until it has loaded, then fades in
+/// (`.src-mark img`, `.src-logo img`: 160 ms; `.mix-face img`: 200 ms),
+/// so a slow or missing one leaves what is drawn under it.
+struct FadeInImage<Shown: View>: View {
+    let url: URL
+    var duration: Double = 0.16
+    @ViewBuilder let shown: (Image) -> Shown
+
+    var body: some View {
+        AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: duration))) { phase in
+            if let image = phase.image {
+                shown(image).transition(.opacity)
+            } else {
+                Color.clear
+            }
+        }
+    }
+}
+
+/// Something that fades in once, as it first appears (a CSS transition on
+/// a class added with it). Still with Reduce Motion, as the web's are.
+struct FadesIn<Content: View>: View {
+    var duration: Double = 0.2
+    @ViewBuilder let content: () -> Content
+    @State private var on = false
+
+    var body: some View {
+        content()
+            .opacity(on ? 1 : 0)
+            .onAppear { withAnimation(.easeInOut(duration: duration)) { on = true } }
+    }
+}
+
+// MARK: - The web's modal timings, for overlays drawn in place
+
+extension AnyTransition {
+    /// A card coming and going as the web's modals do (`mo-lift`, `mo-drop`):
+    /// in over 200 ms, lifting 14 pt as it fades; out over 150 ms, easing
+    /// in, dropping 8 pt. Reduce Motion: a 120 ms fade in, gone at once.
+    static func famCard(reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion {
+            return .asymmetric(insertion: AnyTransition.opacity.animation(.easeInOut(duration: 0.12)),
+                               removal: .identity)
+        }
+        return .asymmetric(
+            insertion: AnyTransition.opacity.combined(with: .offset(y: 14))
+                .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)),
+            removal: AnyTransition.opacity.combined(with: .offset(y: 8))
+                .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15)))
+    }
+
+    /// The dim behind it (`mo-in`, `mo-out`): 200 ms in, 150 ms out.
+    static func famDim(reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion {
+            return .asymmetric(insertion: AnyTransition.opacity.animation(.easeInOut(duration: 0.12)),
+                               removal: .identity)
+        }
+        return .asymmetric(
+            insertion: AnyTransition.opacity.animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)),
+            removal: AnyTransition.opacity.animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15)))
+    }
+}
+
+/// A card lifting 14 pt into place as it first appears (`mo-lift`, 200 ms),
+/// for a card drawn inside its own dim. Still with Reduce Motion.
+struct LiftsIn: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lifted = false
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: lifted || reduceMotion ? 0 : 14)
+            .onAppear {
+                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { lifted = true }
+            }
+    }
+}
+
+extension View {
+    func liftsIn() -> some View { modifier(LiftsIn()) }
+}

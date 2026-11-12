@@ -36,7 +36,7 @@ struct YouView: View {
         .screenCover(isPresented: $editing) {
             IdentityView(mode: .edit).famObjects(model)
         }
-        .sheet(item: $held) { v in holdSheet(v) }
+        .famSheet(item: $held) { v in holdSheet(v) }
         .fullScreenCover(item: $story) { reel in
             StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
                         openMine: { showMine() })

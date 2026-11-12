@@ -115,11 +115,11 @@ struct SearchView: View {
                 .environmentObject(model)
                 .famThemed()
         }
-        .sheet(item: $sheet) { kind in
+        .famSheet(item: $sheet) { kind in
             YouSheet(items: items(for: kind)).environmentObject(model)
                 .famThemed()
         }
-        .fullScreenCover(isPresented: $linkOpen) {
+        .famSheet(isPresented: $linkOpen) {
             LinkModal { url in attach.addLink(url) }
                 .famThemed()
         }

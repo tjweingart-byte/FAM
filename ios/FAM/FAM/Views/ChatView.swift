@@ -93,10 +93,10 @@ struct ChatScreen: View {
     /// The ⋯ sheets, the report and block, Go Deeper and the confirmations.
     private func presentations<V: View>(_ content: V) -> some View {
         content
-            .sheet(item: $sheet) { spec in FAMActionSheet(spec: spec) }
-            .sheet(item: $reporting) { target in reportSheet(target) }
-            .sheet(isPresented: $showMembers) { membersSheet }
-            .sheet(item: $deeper) { base in deeperSheet(base) }
+            .famSheet(item: $sheet) { spec in FAMActionSheet(spec: spec) }
+            .famSheet(item: $reporting) { target in reportSheet(target) }
+            .famSheet(isPresented: $showMembers) { membersSheet }
+            .famSheet(item: $deeper) { base in deeperSheet(base) }
             .alert("Name this group", isPresented: $renaming) {
                 TextField("Group name", text: $newName)
                 Button("Cancel", role: .cancel) {}
@@ -565,7 +565,7 @@ struct ChatScreen: View {
     /// `confirmLeaveGroup`): the sentence as the sheet's group line, then
     /// the one coral row.
     private func askBlock(name: String, handle: String, member: Bool) {
-        sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked(member: member) }
+        sheet = FAMBlock.famSheet(name: name, handle: handle, model: model) { blocked(member: member) }
     }
 
     private func askDelete() {
@@ -1064,8 +1064,6 @@ struct GroupMembersSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
         .confirmationDialog(acting.map { $0.name.isEmpty ? "@" + $0.handle : $0.name } ?? "",
                             isPresented: Binding(get: { acting != nil }, set: { if !$0 { acting = nil } }),
                             titleVisibility: .visible) {

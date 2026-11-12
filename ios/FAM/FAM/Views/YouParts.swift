@@ -452,9 +452,7 @@ struct YouSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.height(min(height * grow, 640))])
-        .presentationBackground(FAMColor.surface)
-        .presentationCornerRadius(20)
+        .frame(height: min(height * grow, 640))
     }
 
     private var height: CGFloat {
@@ -639,7 +637,7 @@ struct TextAsk: Identifiable {
 extension View {
     /// Show a `TextAsk` as the web's centred modal over a dim.
     func textModal(_ ask: Binding<TextAsk?>) -> some View {
-        self.fullScreenCover(item: ask) { a in
+        self.famSheet(item: ask) { a in
             TextModal(title: a.title, placeholder: a.placeholder, button: a.button,
                       initial: a.initial, secure: a.secure, note: a.note, done: a.done)
         }

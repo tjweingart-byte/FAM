@@ -68,7 +68,7 @@ struct PlayerView: View {
         .background(FAMColor.background.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: popup)
         .animation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36), value: now.nextUp.isEmpty)
-        .sheet(item: Binding(get: { sheet == .vibe ? nil : sheet }, set: { sheet = $0 })) { which in
+        .famSheet(item: Binding(get: { sheet == .vibe ? nil : sheet }, set: { sheet = $0 })) { which in
             sheetView(which)
                 .environmentObject(model)
                 .environmentObject(player)
@@ -87,7 +87,7 @@ struct PlayerView: View {
                 .environmentObject(model)
         }
         // The faces' own card (§394), as a DailyFAM card opens it.
-        .fullScreenCover(isPresented: $friendsOpen) {
+        .famSheet(isPresented: $friendsOpen) {
             friendsSheet
         }
         .onChange(of: now.showQueue) { _, wanted in
@@ -492,7 +492,8 @@ struct PlayerView: View {
             OverlayModal(close: { popup = nil }) {
                 popupContent(which)
             }
-            .transition(.opacity)
+            // In over 200 ms (the card lifting, `OverlayModal`), out over 150.
+            .transition(.famDim(reduceMotion: reduceMotion))
             .zIndex(5)
         }
     }
@@ -864,10 +865,10 @@ struct SourceMark: View {
                 .font(FAMFont.body(size * 0.4, .bold))
                 .foregroundStyle(FAMColor.ink)
             if let url = Self.logo(self.url) {
-                AsyncImage(url: url) { image in
+                FadeInImage(url: url) { image in
                     image.resizable().scaledToFit().padding(size * 0.15)
                         .background(Circle().fill(FAMColor.paper))
-                } placeholder: { Color.clear }
+                }
                 .clipShape(Circle())
             }
         }

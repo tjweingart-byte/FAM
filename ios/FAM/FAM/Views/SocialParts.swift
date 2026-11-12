@@ -1,5 +1,6 @@
 import FAMSafety
 import SwiftUI
+import UIKit
 
 // The pieces Messages, a conversation, Friends and a profile share, each
 // measured from the web (`static/index.html`; the shots and Appendix A of
@@ -293,9 +294,7 @@ struct FAMActionSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.height(min(spec.height * grow, 640))])
-        .presentationBackground(FAMColor.surface)
-        .presentationCornerRadius(20)
+        .frame(height: min(spec.height * grow, 640))
     }
 
     private func row(_ action: SheetAction) -> some View {
@@ -344,7 +343,8 @@ struct ModalCard<Content: View>: View {
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
             .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
         }
-        .presentationBackground(Color(hex: 0x0A090F).opacity(0.62))
+        // A centred card over the dim the overlay draws (`famSheet`).
+        .modalLayout()
     }
 }
 
@@ -531,8 +531,9 @@ struct FollowerPopup: View {
                 .accessibilityLabel("Ignore this")
             }
             .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
+            .liftsIn()
         }
-        .transition(.opacity)
+        .transition(.famDim(reduceMotion: UIAccessibility.isReduceMotionEnabled))
     }
 }
 
@@ -622,9 +623,7 @@ struct FAMReportSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.height(min(height * grow, 640))])
-        .presentationBackground(FAMColor.surface)
-        .presentationCornerRadius(20)
+        .frame(height: min(height * grow, 640))
         .task { await loadReasons() }
     }
 

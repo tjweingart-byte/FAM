@@ -440,14 +440,14 @@ struct StoryViewer: View {
         .task(id: "\(person)-\(index)-\(people.count)") { await tick() }
         // `openStoryMenu` / `openNoteMenu`: the web's sheet, its head and
         // an icon on every row.
-        .sheet(isPresented: $storyMenu) {
+        .famSheet(isPresented: $storyMenu) {
             if ready {
                 storyMenuSheet
                     .environmentObject(model)
             }
         }
-        .sheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
-        .sheet(isPresented: $addingTopic) {
+        .famSheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
+        .famSheet(isPresented: $addingTopic) {
             if ready {
                 AddToMixSheet(query: story.query ?? "", title: story.title ?? story.query ?? "")
                     .environmentObject(model)
@@ -460,12 +460,12 @@ struct StoryViewer: View {
             StoryEditor(subject: subject, openMine: openMine)
                 .environmentObject(model)
         }
-        .sheet(item: $sharing) { subject in
+        .famSheet(item: $sharing) { subject in
             ShareSheet(subject: subject)
                 .environmentObject(model)
                 .environmentObject(model.nowPlaying)
         }
-        .sheet(isPresented: $reporting) {
+        .famSheet(isPresented: $reporting) {
             if ready {
                 FAMReportSheet(api: model.safety,
                                subject: isNote ? .note(id: story.id) : .vibe(id: story.id),
@@ -821,7 +821,7 @@ struct StoryViewer: View {
     /// `blockPerson(handle, name, closeStory)`.
     private func askBlock() {
         let app = model
-        confirm = FAMBlock.sheet(name: who.name, handle: who.handle, model: model) {
+        confirm = FAMBlock.famSheet(name: who.name, handle: who.handle, model: model) {
             app.nowPlaying.say("Blocked")
             Task {
                 await app.social.loadGraph()

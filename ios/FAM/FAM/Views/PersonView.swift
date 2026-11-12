@@ -95,12 +95,12 @@ struct PersonView: View {
     /// The ⋯, Report, Block, Unfollow and the story, kept out of `body`.
     private func presentations<V: View>(_ content: V) -> some View {
         content
-        .sheet(isPresented: $menu) { menuSheet }
-        .sheet(isPresented: $reporting) {
+        .famSheet(isPresented: $menu) { menuSheet }
+        .famSheet(isPresented: $reporting) {
             FAMReportSheet(api: model.safety, subject: .person(handle: handle),
                            say: { model.nowPlaying.say($0) }) { _ in }
         }
-        .sheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
+        .famSheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
         // `confirmRemoveMix`: the copy may have been renamed since, so ask.
         .confirmationDialog(removingMix.map { "Remove \($0.name ?? "this mix") from your myFAM?" } ?? "",
                             isPresented: Binding(get: { removingMix != nil },
@@ -589,7 +589,7 @@ struct PersonView: View {
     private func askBlock() {
         let app = model
         let social = self.social
-        confirm = FAMBlock.sheet(name: page?.name ?? open.name, handle: handle, model: model) {
+        confirm = FAMBlock.famSheet(name: page?.name ?? open.name, handle: handle, model: model) {
             app.nowPlaying.say("Blocked")
             Task {
                 await social.loadGraph()

@@ -157,7 +157,7 @@ struct RootView: View {
         .background(FAMColor.background.ignoresSafeArea())
         // The activation step the first time it is owed (§411, §414): the
         // web's card over the app, with no X - the date is required.
-        .fullScreenCover(item: $model.owedActivation) { owed in
+        .famSheet(item: $model.owedActivation) { owed in
             ActivationCard(activation: owed, owed: true)
                 .famObjects(model)
                 .interactiveDismissDisabled(true)
@@ -387,7 +387,7 @@ struct MainTabs: View {
         }
         // The bar rises from behind the tabs (260 ms) and drops (200 ms).
         .animation(.easeOut(duration: 0.26), value: miniShown)
-        .sheet(isPresented: queueOpen) {
+        .famSheet(isPresented: queueOpen) {
             QueueSheet()
                 .environmentObject(model)
                 .environmentObject(now)
@@ -636,6 +636,9 @@ struct TabBar: View {
                 .tabIconPop(on)
                 .frame(width: 44, height: 28)
                 .background(on ? palette.copper.opacity(0.18) : Color.clear, in: Capsule())
+                // The dot's wash and colour change over 200 ms
+                // (`.tabbar .tab .dot`, `.tone`).
+                .animation(.easeInOut(duration: 0.2), value: on)
                 .overlay(alignment: .topTrailing) {
                     // The unread count pops in and shrinks away
                     // (`Motion.badge`).
@@ -671,6 +674,7 @@ struct TabBar: View {
                 Text(label)
                     .font(FAMFont.mono(8.5, bold: on))
                     .foregroundStyle(on ? palette.copper : palette.textMuted)
+                    .animation(.easeInOut(duration: 0.16), value: on)
                     .lineLimit(1)
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
@@ -701,6 +705,8 @@ struct TabBar: View {
                 .frame(width: 50, height: 50)
                 .background(on ? palette.copper : palette.surface, in: Circle())
                 .overlay(Circle().stroke(on ? palette.copper : palette.borderStrong))
+                // `.tabbar .tab.centre .dot`: 140 ms; none with Reduce Motion.
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.14), value: on)
                 .shadow(color: .black.opacity(0.18), radius: 9, y: 6)
                 .offset(y: -14)
                 .padding(.bottom, -14)

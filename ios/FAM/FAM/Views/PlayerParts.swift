@@ -454,7 +454,6 @@ struct CaptionsCard: View {
 struct OverlayModal<Content: View>: View {
     let close: () -> Void
     @ViewBuilder var content: () -> Content
-    @State private var lifted = false
 
     var body: some View {
         ZStack {
@@ -476,10 +475,7 @@ struct OverlayModal<Content: View>: View {
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
         .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
-        .offset(y: lifted ? 0 : 14)
-        .onAppear {
-            withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { lifted = true }
-        }
+        .liftsIn()
     }
 }
 
@@ -662,8 +658,6 @@ struct ActionSheetList: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
     }
 }
 
@@ -697,7 +691,7 @@ struct RefusalLayer: View {
         }
         .animation(.easeOut(duration: 0.2), value: model.readingAsk)
         .animation(.easeOut(duration: 0.2), value: model.limitReached)
-        .sheet(isPresented: $plans) {
+        .famSheet(isPresented: $plans) {
             PlansSheet(page: nil, fetch: true)
                 .environmentObject(model)
                 .famThemed()
