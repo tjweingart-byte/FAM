@@ -565,7 +565,7 @@ struct ChatScreen: View {
     /// `confirmLeaveGroup`): the sentence as the sheet's group line, then
     /// the one coral row.
     private func askBlock(name: String, handle: String, member: Bool) {
-        sheet = FAMBlock.famSheet(name: name, handle: handle, model: model) { blocked(member: member) }
+        sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked(member: member) }
     }
 
     private func askDelete() {

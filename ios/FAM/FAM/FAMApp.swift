@@ -234,6 +234,9 @@ struct MainTabs: View {
     /// later so the shrink is seen.
     @State private var playerCover = false
     @StateObject private var playerStage = PlayerStage()
+    /// Each open or close of the player, so a close's timer that a reopen
+    /// overtook does nothing.
+    @State private var playerRun = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The tab bar's binding: a tab never shown before is built first and
@@ -516,6 +519,8 @@ struct MainTabs: View {
         // Full screen, as the web's player is a screen of its own; the Home
         // mark minimises it and the episode carries on in the mini player.
         .onChange(of: model.showPlayer) { _, shown in movePlayer(shown) }
+        // Rebuilt (a new account) with the player already wanted.
+        .onAppear { if model.showPlayer && !playerCover { movePlayer(true) } }
         .fullScreenCover(isPresented: Binding(get: { playerCover }, set: { up in
             // A `dismiss()` from inside the player lands here: it goes the
             // way every close does, shrinking first (`movePlayer`).
@@ -534,6 +539,8 @@ struct MainTabs: View {
     private func movePlayer(_ shown: Bool) {
         var still = Transaction()
         still.disablesAnimations = true
+        playerRun += 1
+        let mine = playerRun
         if shown {
             if playerCover {
                 // Opened again while it was closing: it stays.
@@ -550,7 +557,7 @@ struct MainTabs: View {
             playerStage.phase = .closing
             let wait = playerStage.closeDuration(reduceMotion: reduceMotion)
             DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-                guard !model.showPlayer else { return }
+                guard !model.showPlayer, mine == playerRun else { return }
                 withTransaction(still) { playerCover = false }
             }
         }

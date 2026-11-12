@@ -456,4 +456,5 @@ struct NewMessageLayer: View {
             }
         }
         .animation(.default, value: social.newChatOpen)
+    }
 }

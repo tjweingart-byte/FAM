@@ -841,7 +841,7 @@ struct StoryViewer: View {
     /// `blockPerson(handle, name, closeStory)`.
     private func askBlock() {
         let app = model
-        confirm = FAMBlock.famSheet(name: who.name, handle: who.handle, model: model) {
+        confirm = FAMBlock.sheet(name: who.name, handle: who.handle, model: model) {
             app.nowPlaying.say("Blocked")
             Task {
                 await app.social.loadGraph()

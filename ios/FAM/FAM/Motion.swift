@@ -400,6 +400,7 @@ struct PlayerEntrance<Content: View>: View {
     /// The copy in flight: 0 at its start, 1 where it lands.
     @State private var flight: CGFloat = 0
     @State private var flying: (from: PictureSpot, to: PictureSpot)?
+    @State private var entered = false
 
     private var width: CGFloat { UIScreen.main.bounds.width }
 
@@ -422,7 +423,13 @@ struct PlayerEntrance<Content: View>: View {
             }
             // Leaving, it takes no more taps: what is under it is next.
             .allowsHitTesting(stage.phase != .closing)
-            .onAppear { open() }
+            // Once: closing a cover the player opened over it (VIBE!, your
+            // story) brings it back on screen, which is not an entrance.
+            .onAppear {
+                guard !entered else { return }
+                entered = true
+                open()
+            }
             .onChange(of: stage.phase) { _, phase in
                 if phase == .closing { close() }
                 if phase == .shown { settle() }
@@ -655,6 +662,9 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
     /// What the cover shows: the item, held while it slides away.
     @State private var held: Item?
     @StateObject private var state = PushedState()
+    /// Each open or close, so a close's timer that a reopen overtook does
+    /// nothing.
+    @State private var run = 0
 
     func body(content: Content) -> some View {
         content
@@ -666,6 +676,7 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
                 if new == nil && item != nil { item = nil }
             })) { shown in
                 PushedScreen(state: state, close: { item = nil }, content: screen(shown))
+                    .famThemed()
                     .presentationBackground(.clear)
             }
     }
@@ -673,6 +684,8 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
     private func follow() {
         var still = Transaction()
         still.disablesAnimations = true
+        run += 1
+        let mine = run
         if let item {
             state.leaving = false
             withTransaction(still) { held = item }
@@ -680,10 +693,11 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
             state.leaving = true
             let wait = reduceMotion ? 0 : 0.26
             DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-                guard self.item == nil else { return }
+                guard self.item == nil, mine == run else { return }
                 withTransaction(still) { held = nil }
-                state.leaving = false
-                // Gone: the screen under is home, whatever was in flight.
+                // `leaving` stays set until the next push (the screen still
+                // alive through its dismissal would read a reset as "asked
+                // for again" and come back). Gone: the screen under is home.
                 var none = Transaction()
                 none.disablesAnimations = true
                 withTransaction(none) { state.shown = 0 }
@@ -794,8 +808,9 @@ private struct OverlayCard<Content: View>: View {
     /// on its first frame keeps its identity (and its state).
     private var card: some View {
         let corners = UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
-        return content
-            .frame(maxWidth: .infinity, maxHeight: modal ? .infinity : UIScreen.main.bounds.height * 0.82)
+        return UpTo(cap: modal ? .infinity : UIScreen.main.bounds.height * 0.82) {
+            content.frame(maxWidth: .infinity)
+        }
             .padding(.bottom, modal ? 0 : windowBottomInset)
             .background(modal ? Color.clear : FAMColor.surface)
             .clipShape(modal ? AnyShape(Rectangle()) : AnyShape(corners))
@@ -813,6 +828,9 @@ private struct OverlayCover<Item: Identifiable, Card: View>: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var held: Item?
     @StateObject private var state = OverlayState()
+    /// Each open or close, so a close's timer that a reopen overtook does
+    /// nothing.
+    @State private var run = 0
 
     func body(content: Content) -> some View {
         content
@@ -823,6 +841,7 @@ private struct OverlayCover<Item: Identifiable, Card: View>: ViewModifier {
                 if new == nil && item != nil { item = nil }
             }), onDismiss: onDismiss) { shown in
                 OverlayCard(state: state, close: { item = nil }, content: card(shown))
+                    .famThemed()
                     .presentationBackground(.clear)
             }
     }
@@ -830,6 +849,8 @@ private struct OverlayCover<Item: Identifiable, Card: View>: ViewModifier {
     private func follow() {
         var still = Transaction()
         still.disablesAnimations = true
+        run += 1
+        let mine = run
         if let item {
             state.leaving = false
             withTransaction(still) { held = item }
@@ -837,9 +858,10 @@ private struct OverlayCover<Item: Identifiable, Card: View>: ViewModifier {
             state.leaving = true
             let wait = reduceMotion ? 0 : 0.15
             DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-                guard self.item == nil else { return }
+                guard self.item == nil, mine == run else { return }
                 withTransaction(still) { held = nil }
-                state.leaving = false
+                // `leaving` stays set until the next one opens, so the card
+                // never fades back in while its dismissal is processed.
             }
         }
     }
@@ -977,4 +999,22 @@ func presentGrowing(reel: inout StoryReel, show: (StoryReel) -> Void) {
     still.disablesAnimations = true
     let shown = reel
     withTransaction(still) { show(shown) }
+}
+
+/// Sizes its one child to the child's own height, never more than `cap`
+/// (`.sheet-card`'s `max-height:82%` with its height from what it holds):
+/// a plain `.frame(maxHeight:)` would take the whole cap instead.
+private struct UpTo: Layout {
+    let cap: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? UIScreen.main.bounds.width
+        let room = min(proposal.height ?? cap, cap)
+        let height = subviews.first?.sizeThatFits(ProposedViewSize(width: width, height: room)).height ?? 0
+        return CGSize(width: width, height: min(height, room))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+    }
 }

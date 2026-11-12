@@ -589,7 +589,7 @@ struct PersonView: View {
     private func askBlock() {
         let app = model
         let social = self.social
-        confirm = FAMBlock.famSheet(name: page?.name ?? open.name, handle: handle, model: model) {
+        confirm = FAMBlock.sheet(name: page?.name ?? open.name, handle: handle, model: model) {
             app.nowPlaying.say("Blocked")
             Task {
                 await social.loadGraph()

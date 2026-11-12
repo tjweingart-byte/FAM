@@ -34,7 +34,8 @@ struct SearchView: View {
     private func catalogBack() {
         guard model.catalogReturn else { return }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            // The player's shrink (340 ms) and its cover gone first.
+            try? await Task.sleep(nanoseconds: 450_000_000)
             guard !library else { return }
             guard tab == .search else {
                 // Somewhere else now: the way back is not this list's.
