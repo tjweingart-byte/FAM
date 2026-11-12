@@ -257,6 +257,13 @@ class Budget:
             return False
         return self.briefs_left(now) > 0 if level == "brief" else episodes > 0
 
+    def why_not(self, level: str = "", now: Optional[float] = None) -> str:
+        """Which of its own ceilings stopped a warm (`ahead_budget.WHY`)."""
+        episodes, dollars = self.remaining(now)
+        if dollars <= 0:
+            return "own_dollars"
+        return "own_briefs" if level == "brief" else "own_episodes"
+
     def spend(self, dollars: float, now: Optional[float] = None,
               level: str = "") -> None:
         self._roll(now)
@@ -646,6 +653,14 @@ class Prefetcher:
         if not self.quiet_enough():
             return "busy"
         if not self.budget.allows(level=level):
+            _note_stopped(self.budget.why_not(level))
+            return "budget"
+        # And the day's shared budget for everything written ahead (§566).
+        import ahead_budget
+
+        ok, why = ahead_budget.allows("prefetch")
+        if not ok:
+            _note_stopped(why)
             return "budget"
 
         async with self._lock:
@@ -712,7 +727,7 @@ class Prefetcher:
 
         if level == "brief":
             spent = _dollars(notes)
-            self.budget.spend(spent, level="brief")
+            self._charge(spent, level="brief")
             # Only a brief that was actually kept counts as warmed. A degraded
             # one is dropped by the store, so counting it would report a
             # saving that no tap can ever collect.
@@ -728,7 +743,7 @@ class Prefetcher:
         import script_generator
 
         if script_generator.ambiguous_readings(plan, notes)[0]:
-            self.budget.spend(_dollars(notes), level="brief")
+            self._charge(_dollars(notes), level="brief")
             log.info("prefetch left %r unwritten: a name in it means more than "
                      "one thing (%s)", candidate.query, candidate.source)
             return "ambiguous"
@@ -756,7 +771,7 @@ class Prefetcher:
                 or getattr(plan.brief, "place", ""):
             # Charged as a brief, because a brief is what it bought: the warm
             # stopped before a word was written.
-            self.budget.spend(_dollars(notes), level="brief")
+            self._charge(_dollars(notes), level="brief")
             self.ledger.skipped_volatile += 1
             log.info("prefetch kept only the brief for %r (%s): the answer is a "
                      "result, so a warmed script would be stale on arrival",
@@ -769,7 +784,7 @@ class Prefetcher:
             return "failed"
 
         spent = _dollars(notes)
-        self.budget.spend(spent)
+        self._charge(spent)
 
         if key and self.cache is not None:
             from cache import ttl_for
@@ -839,6 +854,16 @@ class Prefetcher:
                      candidate.reason, spent)
         return "script"
 
+    def _charge(self, dollars: float, level: str = "") -> None:
+        """Spend from this prefetcher's own budget and, in the same breath,
+        count it in the day's figure for everything written ahead (§566)."""
+        self.budget.spend(dollars, level=level)
+        import ahead_budget
+
+        brief = level == "brief"
+        ahead_budget.record("prefetch", episodes=0 if brief else 1,
+                            briefs=1 if brief else 0, usd=float(dollars or 0.0))
+
     async def _key(self, plan) -> str:
         from pipeline import key_for
 
@@ -894,6 +919,16 @@ class Prefetcher:
             "briefs_held": len(self.briefs),
             **self.ledger.as_dict(),
         }
+
+
+def _note_stopped(why: str) -> None:
+    """Say on /admin that prefetch stopped for today, and why (§566)."""
+    try:
+        import ahead_budget
+
+        ahead_budget.note_stopped("prefetch", why)
+    except Exception:  # noqa: BLE001 - a note never stops anything
+        log.exception("prefetch: could not record why it stopped")
 
 
 def _dollars(notes) -> float:

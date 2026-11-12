@@ -387,6 +387,21 @@ services:
       # ANSWER_FIRST is not here because it no longer exists: the
       # from-knowledge cover it switched on was deleted in §108 (see DEPLOY.md
       # and Dockerfile.gpu). Setting it does nothing.
+      #
+      # What is written ahead, and the one budget it shares (§566,
+      # ahead_budget.py). Asked for in the dashboard, never set here: the
+      # owner chooses them. PREFETCH_LEVEL=script writes DailyFAM's other
+      # cards whole (the code's default is brief); AHEAD_DAILY_DOLLARS is one
+      # daily ceiling on the mixes' edition, the rails edition and prefetch
+      # together (unset or 0 = none); AHEAD_DAILYFAM_SHARE (0-1) holds part of
+      # it for DailyFAM's writers. /admin -> "Written ahead today" shows each.
+      # Staging spends nothing whatever these say (spend_guard: no key).
+      - key: PREFETCH_LEVEL
+        sync: false
+      - key: AHEAD_DAILY_DOLLARS
+        sync: false
+      - key: AHEAD_DAILYFAM_SHARE
+        sync: false
     # No disk (§339): it was deleted once every store was in Postgres. The
     # Dockerfile's /data/*.db paths stay as they are - they no longer name
     # files, but each store's Postgres schema is named from its path

@@ -34809,3 +34809,91 @@ on Other User Content (survey answers), so the manifest agrees with the App
 Privacy answers drafted in `APP_STORE.md` Part C, rewritten with the listing,
 age rating and review notes as the app now is (no Explore, no phone number on
 sign-up, vibes as posts, surveys).
+
+## 566. One daily budget for everything written ahead, and seeing it on /admin (2026-11-12)
+
+**What was asked.** The owner: different maximum numbers of episodes written
+ahead per day for DailyFAM (cards) and myFAM (mixes), one total maximum spend
+a day for everything written ahead, and to see it on the admin page. And a
+decision: `PREFETCH_LEVEL=script` is set in Render - DailyFAM's other cards
+are written whole ahead of the tap, within caps. That closes the question
+`dec-prefetch` left open (Current note there; CLAUDE.md's core line says
+"answered").
+
+**Names.** As everywhere a listener or the owner reads (`names-swapped`):
+the mixes are **myFAM** on the screen and `daily_edition` / "dailyfam" in
+code; the rails and cards are **DailyFAM** on the screen and `rails_edition`
+/ prefetch / "myfam" in code. The admin card uses the screen's names and
+says so.
+
+**Three writers, their own ceilings unchanged.** The mixes' edition
+(`DAILY_EDITION_MAX_EPISODES` / `_DOLLARS`, per edition, once a day), the
+rails edition (`RAILS_EDITION_MAX_EPISODES` / `_DOLLARS`, per edition, at
+05:00 and 17:00 - so twice that a day), prefetch (`PREFETCH_DAILY_EPISODES`
+50, `_BRIEFS` 400, `_DOLLARS` 2.0, a rolling day in the process). The
+per-episode maximums the owner asked for already exist as these; nothing
+about them changed. The card shows each as a per-day maximum (an edition's
+times its editions a day) beside its env var name.
+
+**Built: `ahead_budget.py`.**
+- `AHEAD_DAILY_DOLLARS` (default 0 = no shared ceiling, so nothing changes
+  until it is set): one dollar budget a day for all three. Each writer checks
+  it beside its own ceilings before every episode (`daily_edition.run_slot`
+  for both editions, `schedule_mix` for a saved or opened mix, `Prefetcher.warm`
+  for prefetch) and stops at whichever comes first.
+- **The day is the edition day** (`daily_edition.edition_day`): 05:00 to
+  05:00 on `DAILY_EDITION_TIMEZONE`, never a listener's clock, so both rails
+  editions fall in one day and the budget resets as the morning edition
+  starts.
+- **The dollars are metering's**, the same figures each writer's own dollar
+  ceiling already counted (`prefetch._dollars` -> `metering.price_of`; an
+  edition's `spent`, a batch's reserve swapped for the real price). They are
+  kept as they move (`ahead_budget.Tally`) in a small table, `ahead_spend`,
+  in the provider-usage store beside the day's model spend - so a redeploy
+  mid-day does not hand the budget back and every worker reads one figure.
+  Like metering, never wiped. As with each writer's own dollar ceiling, it can
+  be passed by the episodes already in flight (`EDITION_CONCURRENCY`).
+- **A writer stopped says why** (failures-visible): `stopped` on its row for
+  the day - the shared budget, the reserve, its own episode/dollar/brief
+  ceiling, or "could not be read" (a spending cap fails closed) - a warning
+  logged once a day, and an edition's report carries
+  `skipped_for_shared_budget` and `stopped`.
+- **The reserve, `AHEAD_DAILYFAM_SHARE`** (0-1, default 0 = none): the
+  fraction of the shared budget only DailyFAM's writers (rails edition and
+  prefetch) may spend. The mixes' edition counts DailyFAM's spend as at least
+  the reserve, so the 05:00 mixes' edition cannot spend it before the news is
+  written; DailyFAM's writers may spend the reserve and whatever else is left.
+  Simple enough to be correct, so it is in.
+
+**Seen.** `/api/health` -> `written_ahead` (each writer's day, its ceilings
+and env names, the shared budget; no history). `/api/admin/tracker` ->
+`written_ahead` adds the last 7 days' cost per episode written ahead (per
+writer, from `ahead_spend`) against a searchFAM episode (metering's ledger:
+`surface = 'search'`, not a cache hit, less the voice) and prefetch's hit
+rate (taps that found a ready script, by source - the ledger `dec-prefetch`
+asked for; in-process since the server started). /admin's "Outside service
+requests" page has a new card, **Written ahead today**, under "Claude's
+spend, by what spent it": one row per writer - "myFAM mixes (05:00
+edition)", "DailyFAM news (05:00 and 17:00 editions)", "DailyFAM cards
+(written after a page is drawn)" - with episodes / max, spend / max, a bar,
+and writing or stopped-and-why; the shared total with the reserve; the cost
+per episode tiles; the hit rate. Every setting's value is printed with its
+env var name. Read-only.
+
+**Settings.** `config.py` and `.env.example` agree (`settings-copied`).
+`render.yaml` sets no values for `fam`; `PREFETCH_LEVEL`,
+`AHEAD_DAILY_DOLLARS` and `AHEAD_DAILYFAM_SHARE` are listed with
+`sync: false`, as the other owner-chosen settings are (asked for in the
+dashboard, never in the repo). Staging spends nothing whatever they say: no
+key, so no writer runs, and the budget only counts.
+
+**Not under the shared budget:** the Trending edition (ten stories twice a
+day, `edition:trending`) and push stories (`edition:push`). The owner named
+the three writers above; Trending is small and bounded by its own edition
+size. Both still show in "Claude's spend, by what spent it".
+
+**Tests:** `tests/test_ahead_budget_566.py` - the shared budget stops each
+writer and records why, 0 is no ceiling, each writer's own ceilings work
+alone, the lower of the two binds, one writer's spend counts against the
+others, the reserve, the report's shape, health and the tracker carry it, and
+the card draws on the real page.

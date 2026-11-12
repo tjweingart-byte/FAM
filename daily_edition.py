@@ -838,7 +838,8 @@ async def build(mix_store, generator=None, cache=None,
             until=_current_until(now), length=minutes(), origin="dailyfam",
             max_episodes=s.daily_edition_max_episodes,
             max_dollars=s.daily_edition_max_dollars, force=force,
-            label="daily edition", extra=extra, on_claimed=claimed)
+            label="daily edition", extra=extra, on_claimed=claimed,
+            writer="dailyfam")
         if report is not None:
             _LAST_ATTEMPT.clear()
         return report
@@ -860,7 +861,8 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
                    max_episodes: int = 0, max_dollars: float = 0.0,
                    force: bool = False, label: str = "edition",
                    extra=None, on_written=None, on_claimed=None,
-                   failures: Optional[dict] = None) -> Optional[dict]:
+                   failures: Optional[dict] = None,
+                   writer: str = "") -> Optional[dict]:
     """Claim `sid` and write every subject `wanted()` returns into the cache.
 
     The one edition loop, shared by the mixes' edition and the rails' (§359):
@@ -870,7 +872,15 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
     `on_claimed` once the claim is won, before anything is spent.
     Returns the report, or None when another builder has the slot (or the
     build failed - `failures`, when given, then holds why). Never raises.
+
+    `writer` (`ahead_budget.WRITERS`: "dailyfam" or "rails") puts the
+    edition under the shared daily budget for everything written ahead
+    (§566): its spend is counted there as it happens, and it stops at
+    `AHEAD_DAILY_DOLLARS` as at its own ceilings, saying which. Empty (a
+    push story) is outside it.
     """
+    import ahead_budget
+
     failures = _LAST_ATTEMPT if failures is None else failures
     s = _settings()
     try:
@@ -884,7 +894,22 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
 
     started = time.monotonic()
     report: dict = {"slot": sid, "minutes": length, "subjects": 0,
-                    "episodes": {}, "skipped_for_ceiling": 0, "detail": ""}
+                    "episodes": {}, "skipped_for_ceiling": 0,
+                    "skipped_for_shared_budget": 0, "detail": ""}
+    spent = {"n": 0, "usd": 0.0}
+    # The day's figures for the shared budget (§566), kept as `spent` moves.
+    tally = ahead_budget.Tally(writer, spent) if writer else None
+    stopped: list = []
+
+    def charge() -> None:
+        if tally is not None:
+            tally.sync()
+
+    def stop(why: str) -> None:
+        if why not in stopped:
+            stopped.append(why)
+            if writer:
+                ahead_budget.note_stopped(writer, why)
     try:
         subjects_now = list(wanted())
         report["subjects"] = len(subjects_now)
@@ -899,7 +924,6 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
         # writer is not paid until the batch returns, so each prepared
         # episode reserves `BATCH_WRITER_RESERVE_USD` for it up front and the
         # reservation is swapped for the real figure when its answer lands.
-        spent = {"n": 0, "usd": 0.0}
         gate = asyncio.Semaphore(concurrency())
         # Batched (§179): each episode is prepared here as it always was,
         # under the same gate and ceilings, and its writer waits in
@@ -914,10 +938,23 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
         async def one(subject: dict) -> None:
             query = subject["query"]
             async with gate:
-                if ((ceiling_n and spent["n"] >= ceiling_n)
-                        or (ceiling_usd and spent["usd"] >= ceiling_usd)):
+                charge()
+                own = ("own_episodes" if ceiling_n and spent["n"] >= ceiling_n
+                       else "own_dollars" if ceiling_usd
+                       and spent["usd"] >= ceiling_usd else "")
+                if own:
                     report["skipped_for_ceiling"] += 1
                     report["episodes"][query] = {"status": "ceiling"}
+                    stop(own)
+                    return
+                # And the day's shared budget for everything written ahead.
+                ok, why = ahead_budget.allows(writer) if writer else (True, "")
+                if not ok:
+                    report["skipped_for_ceiling"] += 1
+                    report["skipped_for_shared_budget"] += 1
+                    report["episodes"][query] = {"status": "ceiling",
+                                                 "why": why}
+                    stop(why)
                     return
                 # Reserved before the write, not counted after it: with
                 # several writing at once, counting afterwards lets every one
@@ -948,9 +985,11 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
                 report["episodes"][query] = result
 
         await asyncio.gather(*(one(subject) for subject in subjects_now))
+        charge()
         if pending:
             await _write_batch(pending, generator, cache, length, until,
                                report, spent, alive)
+            charge()
         if on_written is not None:
             for query, result in report["episodes"].items():
                 # `in_flight`: the other edition is writing the same words.
@@ -964,6 +1003,8 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
                                       label, query)
         report.update(_summarise(report["episodes"]))
         report["dollars"] = round(spent["usd"], 4)
+        if stopped:
+            report["stopped"] = [ahead_budget.WHY.get(w, w) for w in stopped]
         store().finish(sid, now, report)
         log.info("%s %s: %d subjects, %d written, %d already cached, "
                  "%d past the ceiling, EI ok on %d, $%.4f", label, sid,
@@ -972,6 +1013,7 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
                  report["dollars"])
         return report
     except asyncio.CancelledError:
+        charge()
         try:
             store().fail(sid, INTERRUPTED)
         except Exception:  # noqa: BLE001
@@ -979,6 +1021,7 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
         raise
     except Exception as exc:  # noqa: BLE001 - a build never takes the server down
         log.exception("%s: the build for %s failed", label, sid)
+        charge()
         try:
             store().fail(sid, f"{type(exc).__name__}: {exc}")
         except Exception:  # noqa: BLE001
@@ -1126,6 +1169,8 @@ def schedule_mix(mix, generator=None, cache=None,
     since = last_slot(now).timestamp()
 
     async def _write() -> None:
+        import ahead_budget
+
         until = _current_until(time.time())
         for query in queries:
             ceiling = max(0, int(s.daily_edition_max_episodes or 0))
@@ -1134,10 +1179,21 @@ def schedule_mix(mix, generator=None, cache=None,
             if ceiling and built + _EXTRA.get(sid, 0) >= ceiling:
                 log.info("daily edition: ceiling reached; %r is written on the "
                          "tap", query)
+                ahead_budget.note_stopped("dailyfam", "own_episodes")
+                continue
+            # The day's shared budget for everything written ahead (§566).
+            ok, why = ahead_budget.allows("dailyfam")
+            if not ok:
+                log.info("daily edition: the shared budget is spent; %r is "
+                         "written on the tap", query)
+                ahead_budget.note_stopped("dailyfam", why)
                 continue
             result = await write_episode(query, generator, cache, minutes(),
                                          until, since=since)
-            if result.get("status") in ("written", "volatile"):
+            written = result.get("status") in ("written", "volatile")
+            ahead_budget.record("dailyfam", episodes=1 if written else 0,
+                                usd=float(result.get("dollars") or 0.0))
+            if written:
                 _EXTRA[sid] = _EXTRA.get(sid, 0) + 1
             log.info("daily edition: %s for newly saved subject %r (EI %s)",
                      result.get("status"), query, result.get("ei", "-"))
