@@ -34334,3 +34334,30 @@ team plays. No new endpoint and no request per listener.
 
 **Rule changed.** rule:sweep-on-demand carries a Current note; the CLAUDE.md
 line says it.
+
+**Review of §552-§553 (2026-11-12).** A read of the branch's whole diff found
+four faults, each fixed with a test in `tests/test_push_552.py`:
+
+* *The learned time crept later.* A first play that answered the reminder
+  was read as habit, so every answered reminder moved the next one later by
+  its own 0-15 minute spread. `learned_time` now counts a first play within
+  `PROMPTED_SECONDS` (an hour) of a sent reminder at the time that reminder
+  was due (`reminders_for`: sent time less its spread).
+* *A story still running after twelve hours told its followers again.*
+  Sweeps were matched against stories *first* seen in the last twelve hours,
+  so a long-running one became a new row. `note_breaking` matches on when a
+  story was last seen (`seen_since`, three hours); the twelve hours only
+  limit how long it may be sent.
+* *Every subscriber's plays were read every minute.* The learned time is
+  kept once per person per local day (`_LEARNED`), and plays are read only
+  when a reminder is due or a time must be learned.
+* *Subscribers from before zones were kept had quiet hours on New York's
+  clock.* `/api/push` fills an empty zone from the request's `X-FAM-TZ`
+  (never overwriting); a zone pinned in Settings is sent to the push
+  choices; an unreadable zone never erases a kept one.
+
+Also: a final whose pool story has no query is not noted (nothing could be
+written for it), and the boot chain calls `openNotificationLink()` with no
+argument rather than the previous step's result. Not changed: on the day this
+deploys, someone already sent a per-mix "ready" that morning may get the new
+daily one too - the old `push_sent` log is keyed by mix, the new one by person.

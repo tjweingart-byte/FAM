@@ -7279,7 +7279,8 @@ def _push_choices(user_id: str) -> dict:
     """Their switches, and when the daily reminder goes and why."""
     prefs = PUSH.prefs(user_id)
     mixes = [m for m in MIXES.list_for_user(user_id) if m.items]
-    at, _zone, source = push_mod.daily_time(prefs, mixes, _push_plays(user_id), time.time())
+    at, _zone, source = push_mod.daily_time(prefs, mixes, _push_plays(user_id), time.time(),
+                                            push_mod.reminders_for(user_id, PUSH))
     return {"daily": prefs["daily"], "daily_at": prefs["daily_at"],
             "breaking": prefs["breaking"], "finals": prefs["finals"],
             "daily_time": at, "daily_source": source}
@@ -7295,6 +7296,13 @@ async def push_status(request: Request):
     account = bool(user) and _has_account(request)
     body["subscribed"] = account and bool(PUSH.subscriptions(user))
     if account:
+        # Somebody who subscribed before their zone was kept with their
+        # choices (§552) gets it from the clock every request carries, so
+        # their quiet hours and daily time are on their own clock, not the
+        # edition's. Only filled, never overwritten: Settings can pin one.
+        zone = push_mod.clean_zone(request.headers.get(listener_clock.HEADER, ""))
+        if zone and not PUSH.prefs(user)["tz"]:
+            PUSH.set_prefs(user, tz=zone)
         body["prefs"] = await asyncio.to_thread(_push_choices, user)
     return body
 
@@ -7306,7 +7314,8 @@ async def push_prefs(req: PushPrefs, request: Request):
     account = _require_account(request)
     try:
         PUSH.set_prefs(account, daily=req.daily, daily_at=req.daily_at,
-                       breaking=req.breaking, finals=req.finals, tz=req.tz)
+                       breaking=req.breaking, finals=req.finals,
+                       tz=req.tz if push_mod.clean_zone(req.tz) else None)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "prefs": await asyncio.to_thread(_push_choices, account)}
@@ -7320,7 +7329,7 @@ async def push_subscribe(req: PushSubscription, request: Request):
         raise HTTPException(status_code=409, detail=push_mod.status()["reason"])
     try:
         PUSH.subscribe(account, req.subscription)
-        if req.tz:
+        if push_mod.clean_zone(req.tz):  # unreadable never erases a kept zone
             PUSH.set_prefs(account, tz=req.tz)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

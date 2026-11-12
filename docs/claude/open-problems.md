@@ -998,7 +998,9 @@ friends and get none.
 >   across M mixes". *When*: the time they chose (Settings, or the row under
 >   any mix - it is the same one); else an old client's per-mix listen time
 >   (the earliest) until they choose here; else **learned** - the median time
->   of their first play of the day over 14 days, once 3 days have one; else
+>   of their first play of the day over 14 days, once 3 days have one (a
+>   first play within an hour of a reminder counts at the reminder's due
+>   time, so answering it never drifts the time later); else
 >   07:30. Skipped on a day they already listened. **Backs off**: 3 ignored
 >   reminders in a row (no play after) and it goes every other day; 8 and it
 >   stops until they play. All mixes dormant: "Your myFAM is waiting", never

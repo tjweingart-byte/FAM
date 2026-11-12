@@ -99,6 +99,8 @@ DEFAULT_DAILY_AT = "07:30"
 #: a first play must exist before it is trusted over the default.
 LEARN_DAYS = 14
 LEARN_MIN_DAYS = 3
+#: A first play this soon after a daily reminder answered it (`learned_time`).
+PROMPTED_SECONDS = 3600
 #: §552 "back off when ignored": this many daily reminders in a row with no
 #: play after them, and it goes every other day; this many, and it stops
 #: until they play again.
@@ -396,10 +398,17 @@ def _edition_report(now: float) -> dict:
 # --------------------------------------------------------------------------
 # When: chosen, an old client's listen time, learned, or the default (§552)
 # --------------------------------------------------------------------------
-def learned_time(plays, zone_name: str, now: float) -> str:
+def learned_time(plays, zone_name: str, now: float, reminders=()) -> str:
     """'HH:MM': the median time of their first play of the day, over the last
     `LEARN_DAYS`, rounded to five minutes - or '' with fewer than
-    `LEARN_MIN_DAYS` days to read. `plays` is play timestamps, any order."""
+    `LEARN_MIN_DAYS` days to read. `plays` is play timestamps, any order.
+
+    `reminders` is [(when it was due, when it was sent)] for the daily
+    reminders already sent. A first play within `PROMPTED_SECONDS` of one is
+    the reminder being answered, not a habit: that day counts at the time the
+    reminder was due. Read as a habit, every answered reminder pushed the
+    next one later by its own spread and the time crept forward a few
+    minutes a day."""
     zone = _zone(zone_name)
     since = now - LEARN_DAYS * 86400
     first: dict = {}
@@ -409,9 +418,15 @@ def learned_time(plays, zone_name: str, now: float) -> str:
             continue
         local = datetime.fromtimestamp(at, zone)
         day = local.date().isoformat()
-        minute = local.hour * 60 + local.minute
-        if day not in first or minute < first[day]:
-            first[day] = minute
+        if day not in first or at < first[day]:
+            first[day] = at
+    for day, at in list(first.items()):
+        for due_at, sent_at in reminders or ():
+            if sent_at <= at <= sent_at + PROMPTED_SECONDS:
+                first[day] = min(at, float(due_at))
+                break
+    first = {day: (lambda l: l.hour * 60 + l.minute)(datetime.fromtimestamp(at, zone))
+             for day, at in first.items()}
     if len(first) < LEARN_MIN_DAYS:
         return ""
     minutes = sorted(first.values())
@@ -421,9 +436,11 @@ def learned_time(plays, zone_name: str, now: float) -> str:
     return f"{median // 60:02d}:{median % 60:02d}"
 
 
-def daily_time(prefs: dict, mixes: list, plays, now: float) -> tuple:
+def daily_time(prefs: dict, mixes: list, plays, now: float, reminders=()) -> tuple:
     """(HH:MM, zone name, where it came from: chosen / mix / learned /
-    default) for this person's daily reminder."""
+    default) for this person's daily reminder. `plays` is a list of play
+    timestamps, or a callable returning one - asked only when the time is
+    to be learned."""
     zone = prefs.get("tz") or next((m.listen_tz for m in mixes
                                     if getattr(m, "listen_tz", "")), "")
     if prefs.get("daily_at"):
@@ -433,7 +450,9 @@ def daily_time(prefs: dict, mixes: list, plays, now: float) -> tuple:
     old = sorted((m.listen_at, m.listen_tz) for m in mixes if getattr(m, "listen_at", ""))
     if old and not prefs.get("chosen"):
         return old[0][0], zone or old[0][1], "mix"
-    learned = learned_time(plays, zone, now)
+    if callable(plays):
+        plays = plays()
+    learned = learned_time(plays, zone, now, reminders)
     if learned:
         return learned, zone, "learned"
     return DEFAULT_DAILY_AT, zone, "default"
@@ -516,8 +535,17 @@ def due(mix_store, push_store: PushStore, now: Optional[float] = None,
         prefs = push_store.prefs(user_id)
         if not prefs["daily"]:
             continue
-        heard = list(plays(user_id)) if plays is not None else []
-        hhmm, zone, _why = daily_time(prefs, mixes, heard, now)
+        cache: dict = {}
+
+        def heard(uid=user_id, cache=cache) -> list:
+            # Read once per person per pass, and only when needed: to learn
+            # a time (at most once a day, `_LEARNED`) or once one is due.
+            if "plays" not in cache:
+                cache["plays"] = list(plays(uid)) if plays is not None else []
+            return cache["plays"]
+
+        hhmm, zone, _why = _daily_time_cached(user_id, prefs, mixes, heard, now,
+                                              push_store)
         moment = None
         for at, day in moments(hhmm, zone, now):
             if (at + spread_offset(user_id, day) <= now < at + GRACE_SECONDS
@@ -527,9 +555,9 @@ def due(mix_store, push_store: PushStore, now: Optional[float] = None,
         if moment is None:
             continue
         at, day = moment
-        if _played_on(heard, zone, day, now):
+        if _played_on(heard(), zone, day, now):
             continue  # they already listened today; nothing to remind
-        streak = ignored_streak(push_store.sent(user_id, DAILY, GIVE_UP_AFTER + 1), heard)
+        streak = ignored_streak(push_store.sent(user_id, DAILY, GIVE_UP_AFTER + 1), heard())
         if streak >= GIVE_UP_AFTER:
             continue
         if streak >= BACKOFF_AFTER:
@@ -544,6 +572,32 @@ def due(mix_store, push_store: PushStore, now: Optional[float] = None,
                 continue  # still being written; the next tick asks again
         out.append((user_id, day))
     return out
+
+
+#: (person, local date) -> the daily_time answer, so the per-minute pass
+#: reads somebody's plays to learn their time once a day, not every minute.
+_LEARNED: dict = {}
+_LEARNED_MAX = 50000
+
+
+def reminders_for(user_id: str, push_store: PushStore) -> list:
+    """[(when due, when sent)] for this person's recent daily reminders."""
+    return [(at - spread_offset(user_id, ref), at)
+            for ref, at in push_store.sent(user_id, DAILY, LEARN_DAYS + 2)]
+
+
+def _daily_time_cached(user_id: str, prefs: dict, mixes: list, heard, now: float,
+                       push_store: PushStore) -> tuple:
+    hhmm, zone, why = daily_time(prefs, mixes, (), now)
+    if why != "default" or prefs.get("daily_at"):
+        return hhmm, zone, why  # chosen, or an old mix time: no plays needed
+    key = (user_id, datetime.fromtimestamp(now, _zone(zone)).date().isoformat(), zone)
+    if key not in _LEARNED:
+        if len(_LEARNED) > _LEARNED_MAX:
+            _LEARNED.clear()
+        _LEARNED[key] = daily_time(prefs, mixes, heard, now,
+                                   reminders_for(user_id, push_store))
+    return _LEARNED[key]
 
 
 def _count(n: int, one: str, many: str) -> str:

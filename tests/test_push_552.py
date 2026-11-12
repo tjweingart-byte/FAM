@@ -444,7 +444,7 @@ def test_a_notification_tap_opens_what_it_names():
     assert 'params.get("listen")' in body and 'setTab("playfam")' in body
     play = _fn("playNotifiedStory")
     assert "exploreMinutes: BROWSE_MINUTES" in play and "prompt: query" in play
-    assert ".then(openNotificationLink)" in INDEX
+    assert "openNotificationLink(); })" in INDEX
 
 
 def test_the_env_example_documents_the_new_settings():
@@ -476,3 +476,57 @@ def test_the_push_loop_hands_the_sweep_only_finals_followers_teams(tmp_path, mon
                                                 lambda u: follows[u], later) == ()
     stories_mod.reset()
     push_stories.reset(None)
+
+
+# --- Review fixes -----------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _fresh_learned():
+    push._LEARNED.clear()
+    yield
+    push._LEARNED.clear()
+
+
+def test_answering_the_reminder_does_not_creep_the_learned_time_later():
+    now = _local(2026, 11, 20, 12, 0)
+    due_at = [_local(2026, 11, d, 7, 30) for d in range(13, 20)]
+    sent = [at + 14 * 60 for at in due_at]           # the spread, worst case
+    plays = [at + 6 * 60 for at in sent]             # answered a few minutes later
+    assert push.learned_time(plays, NY, now) == "07:50", "the drift this fixes"
+    assert push.learned_time(plays, NY, now, list(zip(due_at, sent))) == "07:30"
+    # A play hours after the reminder is a habit, not an answer.
+    late = [at + 3 * 3600 for at in sent]
+    assert push.learned_time(late, NY, now, list(zip(due_at, sent))) == "10:45"
+
+
+def test_plays_are_read_only_when_needed(tmp_path, monkeypatch):
+    store, _ = _store(tmp_path)
+    pushes = push.PushStore(str(tmp_path / "m.db"))
+    pushes.set_prefs("u", daily_at="09:00", tz=NY)
+    asked = []
+    monkeypatch.setattr(push, "_edition_ready", lambda now: True)
+    push.due(store, pushes, _local(2026, 11, 12, 6, 0), plays=lambda u: asked.append(u) or [])
+    assert asked == [], "read the event log with no reminder due"
+
+
+def test_a_story_still_running_past_twelve_hours_is_not_new(tmp_path):
+    stories = push_stories.StoryStore(str(tmp_path / "m.db"))
+    now = _local(2026, 11, 12, 6, 0)
+    first = stories.note_breaking("Fed cuts rates", "q", ["fed", "rates"], 20, False, now)
+    for hours in range(1, 15):  # seen on every sweep for fourteen hours
+        again = stories.note_breaking("Fed cuts rates again", "q", ["fed", "rates"], 20,
+                                      False, now + hours * 3600)
+        assert again["id"] == first["id"]
+
+
+def test_an_old_subscriber_gets_their_zone_from_the_request(client):
+    client.post("/api/auth/signup", json={"email": "z@b.com", "password": "password12"})
+    me = client.get("/api/auth/me").json()["user_id"]
+    client.get("/api/push", headers={"X-FAM-TZ": "Asia/Tokyo"})
+    assert appmod.PUSH.prefs(me)["tz"] == "Asia/Tokyo"
+    # Filled, never overwritten.
+    client.get("/api/push", headers={"X-FAM-TZ": "Europe/Paris"})
+    assert appmod.PUSH.prefs(me)["tz"] == "Asia/Tokyo"
+    # An unreadable zone never erases a kept one.
+    client.post("/api/push/prefs", json={"tz": "Mars/Olympus"})
+    assert appmod.PUSH.prefs(me)["tz"] == "Asia/Tokyo"

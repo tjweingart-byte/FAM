@@ -17884,6 +17884,11 @@
   }
   function setTimeZone(name){
     saveLocalPrefs({ time_zone: name || "" });
+    // The daily reminder and quiet hours keep the same clock (§552).
+    if(AUTH.authenticated && pushPrefs()){
+      fetch("/api/push/prefs", { method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ tz: listenerZone() }) }).catch(function(){});
+    }
     refreshSettingsIfOpen();
     toast(name ? "Episodes use " + zoneLabel(name) + " time"
                : "Episodes use this device’s time");
@@ -23774,7 +23779,7 @@
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.
-  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(openNotificationLink).then(openLinkedJoin).then(checkTerms)
+  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(function(){ openNotificationLink(); }).then(openLinkedJoin).then(checkTerms)
     // The activation step, when it is owed (§414) - after the Terms.
     .then(checkActivation);
 </script>

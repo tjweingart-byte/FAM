@@ -233,6 +233,14 @@ class StoryStore:
                                   (since,)).fetchall()
         return [self._row(r) for r in rows]
 
+    def seen_since(self, since: float, kind: str) -> list:
+        """Stories of this kind the detector or sweep saw after `since`."""
+        with self._connect() as db:
+            rows = db.execute(f"SELECT {self._COLUMNS} FROM push_stories WHERE "
+                              "last_seen >= ? AND kind = ? ORDER BY last_seen DESC",
+                              (since, kind)).fetchall()
+        return [self._row(r) for r in rows]
+
     def note_breaking(self, subject: str, query: str, keywords, coverage: int,
                       everyone: bool, now: float) -> dict:
         """A cluster past the followed bar: the same story as one already
@@ -241,7 +249,10 @@ class StoryStore:
         keywords = sorted({k.lower() for k in keywords or () if k})
         mine = set(keywords)
         match = None
-        for row in self.recent(now - LIVE_SECONDS, BREAKING):
+        # Matched on when it was last *seen*, not first: a story still being
+        # run past `LIVE_SECONDS` is the same story, never a new one that
+        # tells its followers again. (It stops being sent; it stays matched.)
+        for row in self.seen_since(now - FRESH_SECONDS, BREAKING):
             theirs = set(row["keywords"])
             union = mine | theirs
             if union and len(mine & theirs) / len(union) >= SAME_STORY:
@@ -389,7 +400,7 @@ def note_finals(now: Optional[float] = None, pool=None) -> int:
         return 0
     n = 0
     for story in held:
-        if (story.domain != stories.SPORTS
+        if (story.domain != stories.SPORTS or not (story.query or "").strip()
                 or story.live_status != live_facts.FINAL or not story.live_line):
             continue
         seen = float(story.status_at or story.live_as_of or story.last_seen or now)

@@ -544,4 +544,4 @@ and `limit` = Lines.
 | 34110 | 71 | 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes / Categories, the morning dot, the pop-ups (2026-11-11) |
 | 34181 | 48 | 551. The app catches up with #247, #249 and #252 (2026-11-11) |
 | 34229 | 77 | 552. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12) |
-| 34306 | 32 | 553. The sports sweep runs for people with finals on (2026-11-12) |
+| 34306 | 59 | 553. The sports sweep runs for people with finals on (2026-11-12) |
