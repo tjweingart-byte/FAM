@@ -542,6 +542,12 @@ struct WaitlistStatusPage: View {
                 .buttonStyle(.press)
                 .padding(.top, 14)
                 hello.padding(.top, 18)
+                // An account with no password (§296's email alone) sets one
+                // here (§569, `#passwordCard`): the web's order, above the
+                // samples and the place.
+                if page?.details?.hasPassword == false {
+                    WaitlistPasswordCard { await load() }.padding(.top, 18)
+                }
                 SampleCarousel().padding(.top, 18)
                 if let page {
                     placeOrGranted(page).padding(.top, 18)
@@ -587,7 +593,7 @@ struct WaitlistStatusPage: View {
             Button("Sign out") { Task { await model.signOut() } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("You joined with just your email, so you have no password yet. To sign back in you\u{2019}ll set one with Forgot password? on the sign-in.")
+            Text("You have no password yet, so you couldn\u{2019}t sign back in. Set one on this page first. Sign out anyway?")
         }
         .fullScreenCover(isPresented: $editing) {
             IdentityView(mode: .edit)
@@ -724,7 +730,8 @@ struct WaitlistStatusPage: View {
     }
 
     /// Joined with the email alone (§296): this phone is the only way in
-    /// until a password is set, so signing out is said first.
+    /// until a password is set (the card above, §569), so signing out is
+    /// said first.
     private func signOut() {
         if page?.details?.hasPassword == false {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { confirmSignOut = true }
@@ -753,6 +760,101 @@ struct WaitlistStatusPage: View {
         f.numberStyle = .decimal
         f.locale = Locale(identifier: "en_US")
         return f.string(from: NSNumber(value: n)) ?? String(n)
+    }
+}
+
+/// "Set a password so you can sign back in" (§569, the web's
+/// `#passwordCard`): drawn while `/api/waitlist/me` says the account has no
+/// password, it sets the first with `/api/auth/password/set` - the way back
+/// in from any device where "Forgot password?" needs mail this server may
+/// not have. The app's own rule and sentences; the log-in's show/hide eye.
+struct WaitlistPasswordCard: View {
+    @EnvironmentObject private var model: AppModel
+    /// Reload the page, which then draws no card.
+    let done: () async -> Void
+
+    @State private var password = ""
+    @State private var showPassword = false
+    @State private var working = false
+    @State private var problem = ""
+
+    var body: some View {
+        WaitlistCard {
+            Text("Set a password so you can sign back in")
+                .font(FAMFont.heading(18, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("You joined with just your email. Choose a password and you can sign in from any device.")
+                .font(FAMFont.body(13))
+                .foregroundStyle(FAMColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
+            HStack {
+                Group {
+                    if showPassword {
+                        TextField("", text: $password,
+                                  prompt: Text("Choose a password (at least 8 characters)")
+                                    .foregroundColor(FAMColor.textFaint))
+                    } else {
+                        SecureField("", text: $password,
+                                    prompt: Text("Choose a password (at least 8 characters)")
+                                        .foregroundColor(FAMColor.textFaint))
+                    }
+                }
+                .textContentType(.newPassword)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.go)
+                .onSubmit { Task { await set() } }
+                Button { showPassword.toggle() } label: {
+                    Image(systemName: showPassword ? "eye.slash" : "eye")
+                        .foregroundStyle(FAMColor.textMuted)
+                }
+                .accessibilityLabel(showPassword ? "Hide password" : "Show password")
+                .accessibilityAddTraits(showPassword ? .isSelected : [])
+            }
+            .modifier(FieldBox())
+            .padding(.top, 12)
+            if !problem.isEmpty {
+                Text(problem)
+                    .font(FAMFont.body(12.5))
+                    .foregroundStyle(FAMColor.coral)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
+            }
+            Button {
+                Task { await set() }
+            } label: {
+                Text(working ? "Saving\u{2026}" : "Set password")
+            }
+            .buttonStyle(EntryButtonStyle(primary: true))
+            .disabled(working)
+            .padding(.top, 12)
+        }
+    }
+
+    private func set() async {
+        guard !working else { return }
+        guard !password.isEmpty else {
+            problem = "Enter your password."
+            return
+        }
+        guard password.count >= 8 else {
+            problem = "Use at least 8 characters for your password."
+            return
+        }
+        problem = ""
+        working = true
+        defer { working = false }
+        do {
+            try await model.api.setPassword(password)
+            password = ""
+            showPassword = false
+            model.nowPlaying.say("Password set. Sign in with it on any device.")
+            await done()
+        } catch {
+            problem = SocialModel.sentence(error, else: "That did not work")
+        }
     }
 }
 

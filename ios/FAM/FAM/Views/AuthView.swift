@@ -7,10 +7,11 @@ import UIKit
 /// button, and the line that switches between the two.
 ///
 /// **Sign up is the web's waitlist join** (decision 1, `signupGoesToWaitlist`):
-/// every web sign-up goes to `/waitlist`, whose form asks for the email
-/// alone (§296), the terms box (§228) and carries the invite code a link
-/// brought (`referral_code`). The account is put on the list, then the
-/// profile is offered with a way past it, then the status page. Log in is
+/// every web sign-up goes to `/waitlist`, whose form asks for the email,
+/// then a password (§569, reversing §296's email alone), then the terms
+/// box (§228), and carries the invite code a link brought (`referral_code`).
+/// The account is put on the list, then the profile is offered with a way
+/// past it, then the status page. Log in is
 /// the app's own form (`submitAuthForm`): its sentences are said before any
 /// request, and the button is never greyed out.
 struct AuthView: View {
@@ -118,12 +119,16 @@ struct AuthView: View {
         }
     }
 
-    // MARK: Sign up: the waitlist join (email first, §296)
+    // MARK: Sign up: the waitlist join (email, password, terms; §569)
 
     private var joinFields: some View {
         VStack(alignment: .leading, spacing: 0) {
             label("Email").padding(.top, 18)
             emailField(prompt: "Enter your email")
+            // A password in the same step (§569): the way back in from any
+            // device, with no email needed (`#joinPassword`).
+            label("Password").padding(.top, 18)
+            passwordField
             if !problem.isEmpty { problemLine }
             Button {
                 Task { await join() }
@@ -193,10 +198,8 @@ struct AuthView: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .focused($field, equals: .email)
-            .submitLabel(making ? .go : .next)
-            .onSubmit {
-                if making { Task { await join() } } else { field = .password }
-            }
+            .submitLabel(.next)
+            .onSubmit { field = .password }
             .modifier(FieldBox())
     }
 
@@ -205,18 +208,21 @@ struct AuthView: View {
             Group {
                 if showPassword {
                     TextField("", text: $password,
-                              prompt: Text("Your password").foregroundColor(FAMColor.textFaint))
+                              prompt: Text(passwordPrompt).foregroundColor(FAMColor.textFaint))
                 } else {
                     SecureField("", text: $password,
-                                prompt: Text("Your password").foregroundColor(FAMColor.textFaint))
+                                prompt: Text(passwordPrompt).foregroundColor(FAMColor.textFaint))
                 }
             }
-            .textContentType(.password)
+            // A new password on Sign up, so iOS offers a strong one.
+            .textContentType(making ? .newPassword : .password)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .focused($field, equals: .password)
             .submitLabel(.go)
-            .onSubmit { Task { await logIn() } }
+            .onSubmit {
+                if making { Task { await join() } } else { Task { await logIn() } }
+            }
             Button { showPassword.toggle() } label: {
                 Image(systemName: showPassword ? "eye.slash" : "eye")
                     .foregroundStyle(FAMColor.textMuted)
@@ -225,6 +231,10 @@ struct AuthView: View {
             .accessibilityAddTraits(showPassword ? .isSelected : [])
         }
         .modifier(FieldBox())
+    }
+
+    private var passwordPrompt: String {
+        making ? "Choose a password (at least 8 characters)" : "Your password"
     }
 
     private var problemLine: some View {
@@ -302,6 +312,15 @@ struct AuthView: View {
             problem = "That doesn\u{2019}t look like an email address."
             return
         }
+        // The app's own rule and sentences (`submitAuthForm`, §569).
+        guard !password.isEmpty else {
+            problem = "Enter your password."
+            return
+        }
+        guard password.count >= 8 else {
+            problem = "Use at least 8 characters for your password."
+            return
+        }
         guard agreed else {
             problem = "Tick the box to agree to the Terms and conditions."
             return
@@ -309,17 +328,19 @@ struct AuthView: View {
         working = true
         defer { working = false }
         do {
-            try await model.joinWaitlist(email: address)
+            try await model.joinWaitlist(email: address, password: password)
+            password = ""
         } catch {
             let words = error.localizedDescription
             problem = words
             // Already on FAM (joined before, on another device): the
-            // sign-in, with the address carried over, is the way back.
+            // sign-in, with the address and the password carried over,
+            // is the way back.
             if words.contains("already registered") {
                 switchMode()
                 note = resetAvailable
                     ? "That email is already on FAM. Sign in, or use Forgot password? if you never set one."
-                    : "That email is already on FAM. Sign in on the device you joined from."
+                    : "That email is already on FAM. Sign in with its password, or on the device you joined from."
             }
         }
     }

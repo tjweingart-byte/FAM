@@ -181,7 +181,11 @@ struct SettingsView: View {
             SetNote(text: "When it\u{2019}s on, anyone who opens an episode you searched can see your @handle in the player\u{2019}s menu.")
             SetRow(label: "Signed in as", value: model.listener?.email ?? "")
             SetRow(label: "Sign-in methods", value: methodsValue) { model.youPath.append(.signInMethods) }
-            SetRow(label: "Change password") { PasswordChange.start(model: model, ask: $textAsk) }
+            // "Set a password" whenever the account has none (§569), opening
+            // the first-password flow directly (`passwordSettingsRow`).
+            SetRow(label: PasswordChange.label(you.account)) {
+                PasswordChange.open(model: model, account: you.account, ask: $textAsk)
+            }
             SetRow(label: "Log out") { Task { await model.signOut() } }
             SetRow(label: "Delete account", danger: true) { sheet = .delete }
             // The web's note, word for word (the owner's call).
