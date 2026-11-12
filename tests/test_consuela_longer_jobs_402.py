@@ -135,11 +135,24 @@ def test_a_dry_run_re_file_reports_and_changes_nothing(archive, monkeypatch):
     assert hk.store().refiles()[0]["mode"] == "dry_run"
 
 
-def test_with_no_surviving_ancestor_a_fact_is_unfiled_never_left_on_a_dead_node(archive):
+def test_a_fact_whose_branch_is_gone_falls_to_its_facet_never_a_dead_node(archive):
+    """§555: a facet is a root and never goes, so it is the nearest
+    surviving ancestor of any fact whose branch was pruned - before, the
+    facet failed the same test and the fact was unfiled."""
     fid = _add(archive, *_fact("The Eagles won."))
     for node in ("eagles", "nfl", "sports"):
         del archive.parents[node]
-    assert hj.refile("eagles", now=NOW)["unfiled"] == 1
+    assert hj.refile("eagles", now=NOW)["unfiled"] == 0
+    assert _rows(archive, "SELECT node_id FROM facts WHERE id = ?", fid) == [("sports",)]
+
+
+def test_with_no_surviving_ancestor_a_fact_is_unfiled_never_left_on_a_dead_node(archive):
+    archive.parents["club"] = ""
+    archive.parents["squad"] = "club"
+    fid = _add(archive, *_fact("The squad won.", node="squad"))
+    for node in ("squad", "club"):
+        del archive.parents[node]
+    assert hj.refile("squad", now=NOW)["unfiled"] == 1
     assert _rows(archive, "SELECT node_id, node_path FROM facts WHERE id = ?", fid) == [
         ("", "[]")]
 

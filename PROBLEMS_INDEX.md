@@ -543,5 +543,11 @@ and `limit` = Lines.
 | 34049 | 61 | 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11) |
 | 34110 | 71 | 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes / Categories, the morning dot, the pop-ups (2026-11-11) |
 | 34181 | 48 | 551. The app catches up with #247, #249 and #252 (2026-11-11) |
-| 34229 | 51 | 552. Instagram and Snapchat stories go straight into the platform's app (2026-11-12) |
-| 34280 | 24 | 553. A shared link previews with the episode's picture, like a Spotify link (2026-11-12) |
+| 34229 | 13 | 552. Keith's "science, world are not in the tree" was the check, not Nando (2026-11-12) |
+| 34242 | 50 | 553. The seed tree doubled: 322 nodes to 677, from outside the bank (2026-11-12) |
+| 34292 | 21 | 554. The category tree on /admin (2026-11-12) |
+| 34313 | 30 | 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12) |
+| 34343 | 27 | 556. Keith's dead-node alert explains itself (2026-11-12) |
+| 34370 | 16 | 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12) |
+| 34386 | 51 | 558. Instagram and Snapchat stories go straight into the platform's app (2026-11-12) |
+| 34437 | 24 | 559. A shared link previews with the episode's picture, like a Spotify link (2026-11-12) |

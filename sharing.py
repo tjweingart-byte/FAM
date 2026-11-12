@@ -714,7 +714,7 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         "minutes": max(1, as_minutes(share.get("minutes") or 0)),
         "url": url or "",
         "card": card_url or "",
-        # The link preview (`link_preview`, §553): the square picture
+        # The link preview (`link_preview`, §559): the square picture
         # Messages and the rest draw in the bubble. The story card above is
         # 9:16 SVG, which they skip.
         "image": image_url or "",
@@ -799,7 +799,7 @@ def landing_head(payload: dict) -> str:
     if is_public_link(url):
         tags.append(f'<meta property="og:url" content="{esc(url)}">')
     if is_public_link(image):
-        # The square JPEG (`link_preview`, §553): what Messages, WhatsApp,
+        # The square JPEG (`link_preview`, §559): what Messages, WhatsApp,
         # X and Slack draw in the bubble, the way a Spotify link shows its
         # album art. The story card stays for Instagram and Snapchat.
         tags.append(f'<meta property="og:image" content="{esc(image)}">')

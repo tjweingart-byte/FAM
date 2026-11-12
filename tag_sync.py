@@ -32,6 +32,7 @@ time from the tool. Never raises; staging has no bucket and checks the rest.
 """
 from __future__ import annotations
 
+import categories
 import logging
 import threading
 import time
@@ -60,7 +61,9 @@ def check_episode(key: str, node: str, sourced, objects: list, *, bucket, archiv
 
     out = []
     episode = cache_mod.episode_id(key, sourced)
-    if tree is not None and tree.get(node) is None:
+    # A facet is a root, never a row: Nando files there, and it is never
+    # dead (§552, §555).
+    if tree is not None and not categories.holds(tree, node):
         out.append(("dead node", node))
     if bucket is not None:
         for name in objects:

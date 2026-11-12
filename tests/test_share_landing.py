@@ -162,7 +162,7 @@ def test_the_page_carries_the_preview_facebook_and_linkedin_read(
     assert 'property="og:title"' in page
     assert "Who Makes the Chips" in page
     assert 'property="og:image"' in page
-    # The square JPEG Messages draws (§553), not the 9:16 SVG story card.
+    # The square JPEG Messages draws (§559), not the 9:16 SVG story card.
     assert f"/api/share/{shared}/preview.jpg" in page
 
 
@@ -188,7 +188,7 @@ def test_health_says_whether_a_share_can_leave_this_machine(client):
 
 
 def test_the_link_preview_is_a_square_jpeg(client, shared):
-    """What Messages draws in the bubble (§553): a JPEG, 1200 square. With
+    """What Messages draws in the bubble (§559): a JPEG, 1200 square. With
     no approved picture in a test deployment it is the cover - never
     nothing."""
     import io

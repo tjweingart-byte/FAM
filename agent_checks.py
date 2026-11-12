@@ -77,19 +77,24 @@ def _settings():
     return settings
 
 
-def _breach(role: str, check: str, title: str, problem: str, **detail) -> dict:
+def _breach(role: str, check: str, title: str, problem: str, *,
+            plan: Optional[dict] = None, **detail) -> dict:
+    """An agent broke a rule. `plan` replaces any of the generic plan's
+    fields (`heard`, `recommended`, `cost_risk`, `needs`) where the check
+    knows better than "hold the agent" (§556)."""
     import incidents as INC
 
+    said = {"heard": "Nothing yet: the episode was made as it is, and the agent's "
+                     "rule book is what keeps it so.",
+            "recommended": "Hold the agent (Keith's hold_agent asks Netenyahu, once "
+                           "switched on) and look at what it did.",
+            "cost_risk": "A held agent's work is skipped; FAM carries on without it.",
+            "needs": "Your look at the agent; releasing a hold is yours.",
+            **(plan or {})}
     return INC.finding(
         f"breach:{role}:{check}", "agents", INC.URGENT, title,
         detail={"role": role, "check": check, **detail},
-        problem=problem,
-        heard="Nothing yet: the episode was made as it is, and the agent's "
-              "rule book is what keeps it so.",
-        recommended="Hold the agent (Keith's hold_agent asks Netenyahu, once "
-                    "switched on) and look at what it did.",
-        cost_risk="A held agent's work is skipped; FAM carries on without it.",
-        needs="Your look at the agent; releasing a hold is yours.")
+        problem=problem, **said)
 
 
 # ------------------------------------------------------------------ the checks
@@ -192,18 +197,130 @@ def c3p0_titles_carry_no_results(now: float) -> list:
 #: this pass, and those of the last whole pass. A breach stands until a
 #: whole pass is clean, so a clean page between two bad ones never closes
 #: and reopens it.
-_NANDO: dict = {"after": "", "seen": set(), "last_pass": set()}
+#: Beside each pass's nodes, what was filed under each (§556): how many
+#: episodes, the newest one's key and when it was written - so the alert can
+#: say what it found, not only that it found something.
+_NANDO: dict = {"after": "", "seen": set(), "last_pass": set(),
+                "found": {}, "last_found": {}}
+
+#: Filed under a missing node this recently means Nando is still doing it:
+#: he names nodes the tree does not hold. Only older filings means the tree
+#: changed under them (a prune, a rename, a re-seed) and Nando did nothing.
+NANDO_STILL_FILING = 2 * 86400
 
 
 def _nando_pass_ended() -> None:
-    _NANDO.update(after="", last_pass=set(_NANDO["seen"]), seen=set())
+    _NANDO.update(after="", last_pass=set(_NANDO["seen"]), seen=set(),
+                  last_found=dict(_NANDO.get("found") or {}), found={})
 
 
-def nando_nodes_exist(cache) -> list:
+def _nando_saw(rows) -> None:
+    found = _NANDO.setdefault("found", {})
+    for key, node, sourced, *_rest in rows:
+        if not node:
+            continue
+        node = str(node)
+        got = found.setdefault(node, {"episodes": 0, "newest": 0.0, "key": ""})
+        got["episodes"] += 1
+        if float(sourced or 0) >= got["newest"]:
+            got["newest"], got["key"] = float(sourced or 0), str(key)
+
+
+def _day(at: float) -> str:
+    import datetime
+
+    if not at:
+        return "an unknown day"
+    day = datetime.datetime.fromtimestamp(at)
+    return f"{day:%b} {day.day}"
+
+
+def _dead_node_breach(dead: list, cache, now: float) -> dict:
+    """What Keith found, in words (§556): each missing node with its episodes,
+    the newest's title and day; then which of two things it is, and the
+    plan for that one - never "hold the agent" when the tree moved."""
+    def merged(node: str) -> dict:
+        # The pass under way may have read only some pages: the count is the
+        # larger of it and the last whole pass, the newest the newer of them.
+        got = [g for g in ((_NANDO.get("found") or {}).get(node),
+                           (_NANDO.get("last_found") or {}).get(node)) if g]
+        if not got:
+            return {"episodes": 0, "newest": 0.0, "key": ""}
+        latest = max(got, key=lambda g: g["newest"])
+        return {"episodes": max(g["episodes"] for g in got),
+                "newest": latest["newest"], "key": latest["key"]}
+
+    evidence = {n: merged(n) for n in dead}
+    total = sum(e["episodes"] for e in evidence.values())
+
+    def title(key: str) -> str:
+        try:
+            return (cache.title(key) or "").strip() if key and hasattr(cache, "title") else ""
+        except Exception:  # noqa: BLE001 - a title is colour, never the finding
+            return ""
+
+    lines = []
+    for node in dead[:5]:
+        e = evidence[node]
+        said = title(e["key"])
+        lines.append(f"\"{node}\" ({e['episodes']} episode{'s' if e['episodes'] != 1 else ''}, "
+                     f"newest written {_day(e['newest'])}"
+                     + (f": \"{said[:70]}\"" if said else "") + ")")
+    more = f", and {len(dead) - 5} more" if len(dead) > 5 else ""
+    newest = max((e["newest"] for e in evidence.values()), default=0.0)
+    still = bool(newest) and now - newest < NANDO_STILL_FILING
+    if still:
+        why = (f"An episode was filed under one of these on {_day(newest)}, so Nando may "
+               "still be naming nodes the tree does not hold, which his rule book forbids "
+               "(\"only nodes that exist\") - unless the node was removed since then.")
+        plan = {"recommended": "Hold Nando (Keith's hold_agent asks Netenyahu, once switched on) "
+                               "and read the newest episode's filing on the Categories page: "
+                               "which step chose the node, and where it came from.",
+                "needs": "Your look at Nando's filing; releasing a hold is yours."}
+    else:
+        try:
+            import history_archive as ha
+
+            consuela = ha.consuela_runs()
+        except Exception:  # noqa: BLE001
+            consuela = False
+        dry = bool(getattr(_settings(), "housekeeper_dry_run", True))
+        why = (f"Nothing has been filed under them since {_day(newest)}: the tree changed "
+               "under these episodes (a node pruned, renamed or re-seeded). Nando did "
+               "nothing wrong, and holding him would not help.")
+        if not consuela:
+            state = ("Consuela is not running (she needs AGENTS, HOUSEKEEPER and her "
+                     "rule book signed), so nothing moves them yet.")
+        elif dry:
+            state = "Consuela runs in dry run, so she records the move and makes none."
+        else:
+            state = ("Consuela re-files them once a re-file is queued for the node (the "
+                     "nightly tree follower queues one for each node it sees pruned).")
+        plan = {"recommended": "Re-file the episodes onto a node the tree holds: Consuela's "
+                               "re-file (housekeeper:refile:<node>) moves them. " + state
+                               + " Or put the node back in category_seed.py if it was "
+                               "dropped by mistake.",
+                "needs": "Whether these subjects should be nodes again, or move."}
+    problem = ("Episodes are filed under nodes the tree does not hold: " + "; ".join(lines)
+               + more + ". " + why)
+    plan["heard"] = ("Little: an episode whose node is gone is read by the writer's own "
+                     "category words instead (§371), so its picture and ranking fall back "
+                     "to those. It is not counted under the node it was filed at.")
+    plan["cost_risk"] = ("None from leaving it a while; the episodes still play. A re-file "
+                         "rewrites their category, never their audio or script.")
+    return _breach("categorizer", "dead-node",
+                   f"{len(dead)} node(s) Nando filed {total} episode(s) under are not in the tree",
+                   problem, plan=plan, examples=dead[:10],
+                   episodes={n: evidence[n]["episodes"] for n in dead[:10]},
+                   still_filing=still)
+
+
+def nando_nodes_exist(cache, now: Optional[float] = None) -> list:
     s = _settings()
     if cache is None or not (s.agents and getattr(s, "categorizer", False)) \
             or not hasattr(cache, "tagged"):
         return []
+    import categories
     import topics
 
     # A failed read, or no tree to read against, raises (§496): `findings`
@@ -218,17 +335,19 @@ def nando_nodes_exist(cache) -> list:
     if not rows:
         return []
     _NANDO["seen"] |= {str(node) for _key, node, *_rest in rows if node}
+    _nando_saw(rows)
     _NANDO["after"] = rows[-1][0]
     if len(rows) < SAMPLE:
         _nando_pass_ended()
     # Every node seen in this pass and the last, against today's tree: a node
-    # put back closes the breach on the next round.
-    dead = sorted(n for n in _NANDO["seen"] | _NANDO["last_pass"] if tree.get(n) is None)
+    # put back closes the breach on the next round. A facet is the tree's
+    # root, not a row in it (`categories.mint`), and Nando's last step files
+    # an episode there ("broader, never wrong"): never a dead node. Counting
+    # facets raised a false URGENT for `science` and `world` (11.12).
+    dead = sorted(n for n in _NANDO["seen"] | _NANDO["last_pass"]
+                  if not categories.holds(tree, n))
     if dead:
-        return [_breach("categorizer", "dead-node",
-                        f"{len(dead)} node(s) Nando filed episodes under are not in the tree",
-                        f"The newest filed episodes name nodes the tree no "
-                        f"longer holds: {', '.join(dead[:5])}.", examples=dead[:10])]
+        return [_dead_node_breach(dead, cache, now or time.time())]
     return []
 
 

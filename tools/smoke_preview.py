@@ -3006,7 +3006,7 @@ def main() -> int:
                                    timeout=8000)
             assert page.text_content("#shareTitle").strip() == "Share this mix"
             # Every destination the server has: eleven since Reddit and
-            # Threads joined (§552).
+            # Threads joined (§558).
             assert len(page.query_selector_all("#shareTargets .sh-target")) == 11
             assert page.evaluate("mixById(currentMixId).public"), \
                 "the shared mix is still private"

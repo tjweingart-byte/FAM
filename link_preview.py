@@ -4,7 +4,7 @@ A FAM link used to arrive as words: the page named the Instagram story card
 as its `og:image`, and that card is an SVG at 9:16. Messages and most link
 previewers draw only JPEG or PNG, and want a square or wide picture, so they
 skipped it and showed the title and the site. Spotify's link arrives as its
-album art with the song under it; this is FAM's version of that (§553, the
+album art with the song under it; this is FAM's version of that (§559, the
 owner's pick from four drawn options: the episode's art, with a play button).
 
 `draw` makes a 1200x1200 JPEG:

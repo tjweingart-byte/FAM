@@ -95,7 +95,7 @@ with no dependency and nothing stored. The question in it is text a listener
 typed and the card is markup, so everything is escaped; the test for that is
 the one that would otherwise fail in public.
 
-### What a pasted link looks like (§553)
+### What a pasted link looks like (§559)
 
 A link pasted into Messages, WhatsApp, X, Slack or Facebook previews with
 **the episode's picture**, square, a small FAM badge and a play button - the
@@ -108,7 +108,7 @@ arrived as words. The story card is unchanged for Instagram and Snapchat.
 Drawn on request, a few kept in memory, nothing stored; links already sent
 keep the preview they arrived with.
 
-### Straight into the story editor (iOS, §552)
+### Straight into the story editor (iOS, §558)
 
 On the iOS app a story tile can skip the share sheet. `/api/share` (and a
 mix's share) puts a `handoff` on `instagram_story` and `snapchat_story` when

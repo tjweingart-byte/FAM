@@ -254,9 +254,10 @@ def test_the_category_facet_leads_the_fallback(tree):
 
 
 def test_nothing_placed_wears_nothing(tree):
+    # "hobbies" became a node on 11.12; "pastimes" is still nothing.
     for facet in T.FACETS:
         _put(facet, facet=facet)
-    assert th.pick_for_player("why gen z took up grandma hobbies") is None
+    assert th.pick_for_player("why gen z took up grandma pastimes") is None
 
 
 # --- short names reach the tree ---------------------------------------------
