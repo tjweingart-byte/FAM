@@ -439,8 +439,8 @@ Accounts, tiers, sharing
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
   counted by the page; its join note always goes to `/waitlist` (§319) -
   other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
-  `X-Forwarded-Proto`, loopback refused); story cards are PNGs to the share
-  sheet, or straight to Instagram/Snapchat given their ids (§552). [share-link]
+  `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
+  sheet. [share-link]
 - FAM never posts, holds no posting token; /admin/x drafts. [no-social-posting] [x-threads]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
