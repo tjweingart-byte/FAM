@@ -146,6 +146,8 @@ final class AppModel: ObservableObject {
     let player = StreamPlayer()
     let loading = LoadingModel()
     let nowPlaying: NowPlayingModel
+    /// The optional surveys (`surveys.py`, §560).
+    let surveys: SurveysModel
     /// The episode behind the loading screen, until its audio is released.
     private var pending: Episode?
 
@@ -236,6 +238,7 @@ final class AppModel: ObservableObject {
         consent = ConsentModel(api: safety)
         nowPlaying = NowPlayingModel(api: api, player: player)
         mixes = MixesModel(api: api)
+        surveys = SurveysModel(api: api)
         social = SocialModel(api: api)
         you = YouModel(api: api, safety: safety)
         speller = Speller(api: api)
@@ -343,6 +346,7 @@ final class AppModel: ObservableObject {
         // An episode ending under the VIBE! editor holds what comes next (§550).
         nowPlaying.vibeEditorOpen = { [weak self] in self?.storyEditing ?? false }
         social.say = { [weak self] text in self?.nowPlaying.say(text) }
+        surveys.say = { [weak self] text in self?.nowPlaying.say(text) }
         you.say = { [weak self] text, action, perform in
             self?.nowPlaying.say(text, action: action, perform: perform)
         }

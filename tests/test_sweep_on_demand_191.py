@@ -257,3 +257,48 @@ def test_a_failed_first_read_waits_the_interval_not_every_tick(provider, monkeyp
     gap = config.settings.stories_sports_interval_seconds
     assert source.due("nfl", NOON + 60) == []
     assert source.due("nfl", NOON + gap) == [TODAY, YESTERDAY]
+
+
+# --------------------------------------------------------------------------
+# §562: people with finals on are demand too, for their own teams' games
+# --------------------------------------------------------------------------
+def test_a_finals_follower_wakes_the_sweep_with_nobody_looking(provider):
+    stories.reset()
+    source = signals()
+    assert "on demand" in source.idle(NOON)
+    stories.note_finals_followed(["Chiefs"], NOON)
+    assert source.idle(NOON) == ""
+    # Stale once the push loop stops handing the list over.
+    assert "on demand" in source.idle(NOON + stories.FINALS_FOLLOWED_SECONDS + 1)
+    stories.reset()
+
+
+def test_only_games_naming_a_followed_team_are_swept_for_finals(provider):
+    stories.reset()
+    provider.card = [game("in_progress", NOON - 3600)]
+    source = signals()
+    stories.note_finals_followed(["Eagles"], NOON)
+    run(source.collect(8))  # the day's first read happens either way
+    gap = config.settings.stories_sports_interval_seconds
+    later = NOON + gap
+    stories.note_finals_followed(["Eagles"], later)
+    assert source.due("nfl", later) == [], "swept a game nobody follows"
+    stories.note_finals_followed(["Chiefs"], later)
+    assert TODAY in source.due("nfl", later)
+    # Once the sweep has seen it final, nothing more is asked.
+    bs.CARDS["nfl"][TODAY] = (later, [game("final", NOON - 3600)])
+    assert source.due("nfl", later + gap) == []
+    # myFAM demand keeps the old rule: every game on is watched.
+    stories.note_finals_followed(["Eagles"], later)
+    stories.note_demand(later)
+    bs.CARDS["nfl"][TODAY] = (later, [game("in_progress", NOON - 3600)])
+    assert TODAY in source.due("nfl", later + gap)
+    stories.reset()
+
+
+def test_a_game_whose_teams_cannot_be_named_yet_counts():
+    row = {"id": 9, "status_state": "in_progress", "home_team_id": 5, "away_team_id": 6}
+    assert bs.followed_game(row, ["Arsenal"], {})
+    named = {5: {"id": 5, "name": "Arsenal"}, 6: {"id": 6, "name": "Chelsea"}}
+    assert bs.followed_game(row, ["Arsenal"], named)
+    assert not bs.followed_game(row, ["Liverpool"], named)

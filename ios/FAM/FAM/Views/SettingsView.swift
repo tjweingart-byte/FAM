@@ -38,6 +38,10 @@ struct SettingsView: View {
                     youGroup
                     appearanceGroup
                     listeningGroup
+                    // Notifications (§562): an account's stored choices.
+                    if model.listener?.authenticated == true {
+                        NotificationRows(mixes: model.mixes) { sheet = .daily }
+                    }
                     PrivacyRows(consent: model.consent, open: open)
                     accountGroup
                 }
@@ -51,7 +55,10 @@ struct SettingsView: View {
                                         interestsOpen: $interestsOpen, activation: $activation,
                                         sheet: $sheet, textAsk: $textAsk, page: $page,
                                         sheetView: sheetView, savePicture: savePicture))
-        .task { await you.loadSettings() }
+        .task {
+            await you.loadSettings()
+            if model.listener?.authenticated == true { await model.mixes.loadPushState() }
+        }
     }
 
     private func back() {
@@ -215,6 +222,11 @@ struct SettingsView: View {
 
     private func setZone(_ id: String) {
         pinnedZone = id
+        // The daily reminder and quiet hours keep the same clock (§562).
+        if model.listener?.authenticated == true {
+            let mixes = model.mixes
+            Task { await mixes.sendZone() }
+        }
         model.nowPlaying.say(id.isEmpty ? "Episodes use this device\u{2019}s time"
                                         : "Episodes use " + Self.zoneLabel(id) + " time")
     }
@@ -230,6 +242,7 @@ struct SettingsView: View {
         case .blocked: YouSheet(items: blockedItems).environmentObject(model)
         case .delete: YouSheet(items: deleteItems).environmentObject(model)
         case .plans: PlansSheet(page: plans, fetch: true).environmentObject(model)
+        case .daily: YouSheet(items: dailyItems).environmentObject(model)
         }
     }
 
@@ -242,6 +255,29 @@ struct SettingsView: View {
             let id = z.0
             items.append(YouSheetItem(label: z.1 + (pinnedZone == id ? tick : "")) { setZone(id) })
         }
+        return items
+    }
+
+    /// `openDailyTimeMenu` (§562): when I usually listen, eight times, Off -
+    /// the current choice ticked.
+    private var dailyItems: [YouSheetItem] {
+        let tick = "  \u{2713}"
+        let mixes = model.mixes
+        let p = mixes.pushPrefs
+        let daily = p?.daily ?? false
+        let chosen = p?.dailyAt ?? ""
+        var items = [YouSheetItem(label: "Daily reminder", group: true)]
+        items.append(YouSheetItem(label: "When I usually listen" + (chosen.isEmpty && daily ? tick : "")) {
+            Task { await mixes.setDailyTime("") }
+        })
+        for t in NotificationRows.times {
+            items.append(YouSheetItem(label: MixesModel.timeLabel(t) + (daily && chosen == t ? tick : "")) {
+                Task { await mixes.setDailyTime(t) }
+            })
+        }
+        items.append(YouSheetItem(label: "Off" + (p?.daily == false ? tick : "")) {
+            Task { await mixes.setPushSwitch("daily", on: false) }
+        })
         return items
     }
 
@@ -420,8 +456,44 @@ struct SettingsView: View {
 
 /// Which bottom sheet Settings has up.
 enum SettingsSheet: String, Identifiable {
-    case zone, speed, voice, aiOff, blocked, delete, plans
+    case zone, speed, voice, aiOff, blocked, delete, plans, daily
     var id: String { rawValue }
+}
+
+/// Settings' Notifications group (§562, `renderSettings`): the daily
+/// reminder, big stories and your teams' final scores, kept on the server
+/// for the account. Where the server cannot deliver at all, its reason
+/// alone, as the web says it. iPhone notifications need Apple's push
+/// service, which comes after 1.0, so the group says plainly that this
+/// phone is not told yet (`no-dead-controls`): the choices are kept, and
+/// govern any browser where the listener allowed FAM's notifications.
+struct NotificationRows: View {
+    @ObservedObject var mixes: MixesModel
+    let openDaily: () -> Void
+
+    /// `openDailyTimeMenu`'s times.
+    static let times = ["06:30", "07:00", "07:30", "08:00", "08:30", "12:00", "17:30", "21:00"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SetGroup(text: "Notifications")
+            if let push = mixes.push, !push.available {
+                SetNote(text: push.reason ?? MixesModel.iPhoneLater)
+            } else if let p = mixes.pushPrefs {
+                SetRow(label: "Daily reminder", value: mixes.dailyTimeSummary) { openDaily() }
+                SetRow(label: "Big stories", value: p.breaking ? "On" : "Off") {
+                    let on = !p.breaking
+                    Task { await mixes.setPushSwitch("breaking", on: on) }
+                }
+                SetRow(label: "Your teams\u{2019} final scores", value: p.finals ? "On" : "Off") {
+                    let on = !p.finals
+                    Task { await mixes.setPushSwitch("finals", on: on) }
+                }
+                SetNote(text: "One reminder a day when all your mixes are ready. Big stories reach you on their own when they name something you follow; a story for everyone is checked by a person first. Nothing arrives between 10 PM and 8 AM except your daily reminder.")
+                SetNote(text: MixesModel.iPhoneLater + " Your choices here are kept, and reach any browser where you allowed FAM\u{2019}s notifications.")
+            }
+        }
+    }
 }
 
 /// What a privacy row asks Settings to do.

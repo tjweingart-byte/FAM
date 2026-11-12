@@ -1181,8 +1181,8 @@ class Settings:
     daily_edition_hours: str = field(
         default_factory=lambda: os.environ.get(
             "DAILY_EDITION_HOURS", "5").strip())
-    # "Your mix is ready" (`push.py`, the 10.1 packet): a mix's listen time
-    # is when the listener's phone is told, never when episodes are written.
+    # "Your myFAM is ready" (`push.py`, §562): one a day per person, at their
+    # chosen or learned time, never when episodes are written.
     # Web Push needs a VAPID key pair (`python tools/vapid_keys.py` makes
     # one) and `requirements-push.txt`; without them every listen time is
     # kept and the interface says notifications are not set up yet.
@@ -1196,6 +1196,20 @@ class Settings:
     # Who a push service contacts about this server's notifications.
     vapid_subject: str = field(
         default_factory=lambda: os.environ.get("VAPID_SUBJECT", "").strip())
+    # Big stories and followed finals on the phone (`push_stories.py`, §562).
+    # A story that names a subject somebody follows is told to them once
+    # this many distinct outlets run it; a story for everybody is proposed in
+    # /admin/push past the second bar and the ratio over the next-biggest,
+    # and goes only once the owner approves it. 0 turns a kind off.
+    push_breaking: bool = field(
+        default_factory=lambda: os.environ.get("PUSH_BREAKING", "1")
+        not in ("0", "false", "False", ""))
+    push_breaking_followed_outlets: int = _env_int("PUSH_BREAKING_FOLLOWED_OUTLETS", 15)
+    push_breaking_everyone_outlets: int = _env_int("PUSH_BREAKING_EVERYONE_OUTLETS", 40)
+    push_breaking_ratio: float = _env_float("PUSH_BREAKING_RATIO", 2.0)
+    push_finals: bool = field(
+        default_factory=lambda: os.environ.get("PUSH_FINALS", "1")
+        not in ("0", "false", "False", ""))
     # Email (`mail.py`, §244): the delivery password reset needs. Any SMTP
     # provider (Resend, Postmark, SES, Gmail); SMTP_PASSWORD is a credential
     # and is read through `credentials`, never from here. Without a host and
@@ -2014,6 +2028,18 @@ class Settings:
         default_factory=lambda: os.environ.get("MODERATION_EMAIL", "").strip())
     apple_team_id: str = field(
         default_factory=lambda: os.environ.get("APPLE_TEAM_ID", "").strip())
+    # The two story hand-offs (`sharing.story_handoffs`, SHARING.md). Both
+    # are public identifiers that ship inside the app, not credentials:
+    # Meta's Facebook App ID, which `instagram-stories://share` has required
+    # as `source_application` since January 2023, and the Snap Kit OAuth
+    # client id that Creative Kit Lite's `snapchat://creativekit/preview`
+    # checks against the app's bundle id. Set here rather than built into
+    # the app so a TestFlight build turns them on with no new build. Unset,
+    # the story destinations go through iOS's share sheet as before.
+    instagram_app_id: str = field(
+        default_factory=lambda: os.environ.get("INSTAGRAM_APP_ID", "").strip())
+    snapchat_client_id: str = field(
+        default_factory=lambda: os.environ.get("SNAPCHAT_CLIENT_ID", "").strip())
     # Sign in with Apple's server key (`apple_tokens.py`): the Key ID of a
     # key with "Sign in with Apple" enabled. The key itself is a credential,
     # APPLE_PRIVATE_KEY, read through `credentials` and never from here. With

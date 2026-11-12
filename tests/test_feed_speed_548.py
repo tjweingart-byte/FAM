@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sqlite3
 import sys
 import threading
 import time
@@ -28,6 +27,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import app as appmod  # noqa: E402
+import db as store_db  # noqa: E402
 import cache as cache_mod  # noqa: E402
 import topics as T  # noqa: E402
 from config import BROWSE_MINUTES  # noqa: E402
@@ -74,12 +74,30 @@ def test_rows_many_answers_what_each_single_key_read_answers(tmp_path):
         k for k in keys if cache.holds(k, current=False)}
 
 
+def _trace(conn, seen: list):
+    """Every statement `conn` runs, into `seen`; returns the undo. SQLite's
+    own trace hook, or - on Postgres (CI's second job, §243), where a store's
+    connection is `db.Connection` - its `execute` wrapped. Either way what
+    is counted is the statements the store issued."""
+    if hasattr(conn, "set_trace_callback"):
+        conn.set_trace_callback(seen.append)
+        return lambda: conn.set_trace_callback(None)
+    run = conn.execute
+
+    def execute(sql, params=()):
+        seen.append(sql)
+        return run(sql, params)
+
+    conn.execute = execute
+    return lambda: conn.__dict__.pop("execute", None)
+
+
 def test_rows_many_reads_in_chunks(tmp_path, monkeypatch):
     cache = cache_mod.SqliteScriptCache(str(tmp_path / "scripts.db"))
     keys = [_put(cache, f"Question number {i}?", 3600) for i in range(7)]
     monkeypatch.setattr(cache_mod, "ROWS_MANY_CHUNK", 3)
     seen: list = []
-    cache._conn().set_trace_callback(seen.append)
+    _trace(cache._conn(), seen)
     assert set(cache.rows_many(keys)) == set(keys)
     assert sum("WHERE key IN" in s for s in seen) == 3
 
@@ -147,9 +165,9 @@ class _OneKeyAtATime:
 def test_a_draw_reads_the_cache_a_handful_of_times(world):
     cache, store, now = world
     seen: list = []
-    cache._conn().set_trace_callback(seen.append)
+    undo = _trace(cache._conn(), seen)
     feed = _draw(store, now)
-    cache._conn().set_trace_callback(None)
+    undo()
     probes = [s for s in seen if "FROM scripts" in s]
     assert any(t for sec in feed["sections"] for t in sec["topics"])
     # A probe per candidate was hundreds of statements here.
@@ -195,7 +213,9 @@ def test_another_workers_play_is_seen(tmp_path, monkeypatch):
     store.record(T.Event("a", "play", "", "Who won the league?", (), now - 60))
     assert len(store.listens_between(now - DAY, now + 1)) == 1
     monkeypatch.setattr(T, "CROWD_CHECK_SECONDS", 0.0)
-    other = sqlite3.connect(path)
+    # Another connection to the same store: the file in SQLite, its schema
+    # in Postgres (`db.connect`, §243).
+    other = store_db.connect(path)
     other.execute("INSERT INTO events (user_id, kind, topic_id, text, tags, at)"
                   " VALUES ('b', 'play', '', 'Who won the league?', '', ?)", (now - 10,))
     other.commit()

@@ -1,4 +1,4 @@
-"""Tiingo's credit, spoken and shown, whenever its data went in (§552).
+"""Tiingo's credit, spoken and shown, whenever its data went in (§566).
 
 At the owner's direction: an episode that used Tiingo's market data ends
 "Market data powered by Tiingo." - the very last sentence, composed in code,

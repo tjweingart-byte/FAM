@@ -3355,7 +3355,7 @@ class ScriptGenerator:
                 yield sentence
         finally:
             await written.aclose()
-        # Tiingo's credit, last (§552): after every sentence the writer
+        # Tiingo's credit, last (§566): after every sentence the writer
         # said, a refusal included, on every path that streams.
         credit = market_credit(plan, notes)
         if credit:
@@ -3778,7 +3778,7 @@ class ScriptGenerator:
                 or writer_for(notes)[0], "ahead", plan.query, message,
                 spoken=max(0, len(out) - opened))
             out.append(refused)
-        credit = market_credit(plan, notes)     # last, as a stream ends (§552)
+        credit = market_credit(plan, notes)     # last, as a stream ends (§566)
         if credit:
             out.append(credit)
         return out
@@ -3889,7 +3889,7 @@ def _publish_title(notes: "ScriptNotes | None", brief) -> None:
 
 
 def market_credit(plan: EpisodePlan, notes: "ScriptNotes | None") -> str:
-    """The closing credit Tiingo's licence asks for, or "" (§552).
+    """The closing credit Tiingo's licence asks for, or "" (§566).
 
     Spoken when Tiingo's data went into the episode: the sources panel's
     record says so (`provenance.credits_tiingo`), or - with no notes to

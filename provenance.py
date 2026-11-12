@@ -113,7 +113,7 @@ class Provenance:
             self.items.append(item)
 
     def as_dict(self) -> dict:
-        # Tiingo first (§552): its licence asks for the credit, and the
+        # Tiingo first (§566): its licence asks for the credit, and the
         # player's corner shows only the first three marks, so it is never
         # hidden behind "+N". Otherwise the order sources were found in.
         ordered = ([i for i in self.items if is_tiingo(i.label)]
@@ -275,7 +275,7 @@ def from_attachments(attachments) -> list:
 
 #: The words Tiingo's licence asks for, spoken as the episode's last
 #: sentence whenever its market data went into the episode (owner's
-#: direction, §552). Added in code after everything the writer said -
+#: direction, §566). Added in code after everything the writer said -
 #: a refusal included - and never written by the model.
 TIINGO_CREDIT = "Market data powered by Tiingo."
 

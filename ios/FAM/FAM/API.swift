@@ -616,6 +616,35 @@ final class FAMAPI: @unchecked Sendable {
         value == value.rounded() ? String(Int(value)) : String(value)
     }
 
+    // MARK: - Optional surveys (`surveys.py`, PROBLEMS.md §560)
+
+    /// The survey to show at this moment, or nil. Asked only when one can be
+    /// shown - the server counts an answer here as offered and does not
+    /// offer the same survey again for a day. `moment` is `open` or
+    /// `episode_end`.
+    func offerSurvey(moment: String) async throws -> Survey? {
+        try await send("POST", "api/v1/surveys/offer", body: ["moment": moment],
+                       as: SurveyOffer.self).survey
+    }
+
+    /// One response: `{question: {"pick": ..., "text": ...}}`, as the web
+    /// sends it. A refusal is the server's own sentence.
+    func answerSurvey(_ survey: String, answers: [String: Any],
+                      episodeID: String = "", episodeTitle: String = "") async throws {
+        var body: [String: Any] = ["survey": survey, "answers": answers, "build": Self.client]
+        if survey == "episode" {
+            body["episode"] = ["id": String(episodeID.prefix(200)),
+                               "title": String(episodeTitle.prefix(300))]
+        }
+        _ = try await send("POST", "api/v1/surveys/answer", body: body, as: Ignored.self)
+    }
+
+    /// "Not now": offered again a day later, never after the third.
+    func dismissSurvey(_ survey: String) async {
+        _ = try? await send("POST", "api/v1/surveys/dismiss", body: ["survey": survey],
+                            as: Ignored.self)
+    }
+
     // MARK: - Plumbing
 
     func request(_ method: String, _ path: String, query: [URLQueryItem] = []) -> URLRequest {
@@ -1331,10 +1360,69 @@ struct ShareTarget: Decodable {
     let needsImage: Bool?
     let subject: String?
     let destination: String?
+    /// Instagram's or Snapchat's own hand-off (`sharing.story_handoffs`),
+    /// on a story destination when the server has the platform's id; nil
+    /// keeps iOS's share sheet.
+    let handoff: StoryHandoff?
+}
+
+/// A story destination's native hand-off: the card goes on the pasteboard
+/// under the platform's keys and `url` opens its app (`StoryHandoff.swift`).
+struct StoryHandoff: Decodable {
+    let platform: String
+    let url: String
+    /// Instagram: the Facebook App ID (already in `url`).
+    let appId: String?
+    /// Snapchat: the Snap Kit client id.
+    let clientId: String?
 }
 
 /// An answer whose body nothing reads.
 struct Ignored: Decodable {}
+
+/// `/api/surveys/offer` (`surveys.definition`): the survey to show, or null.
+struct SurveyOffer: Decodable {
+    let survey: Survey?
+}
+
+/// One survey as the client draws it (`surveys.SURVEYS`).
+struct Survey: Decodable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let intro: String
+    let questions: [SurveyQuestion]
+}
+
+/// A question: `single`, `multi`, `scale` (1-10) or `text`.
+struct SurveyQuestion: Decodable, Identifiable, Equatable {
+    let id: String
+    let kind: String
+    let text: String
+    let options: [SurveyOption]?
+    /// Shown only when another question's answer is one of these.
+    let showIf: SurveyShowIf?
+    /// An option whose own box asks a question ("name" -> "Which name?").
+    /// Its keys are option ids with no underscore, so the decoder's
+    /// snake-case conversion leaves them as they are.
+    let detail: [String: String]?
+    /// An "Other" chip with a box.
+    let other: Bool?
+    let min: Int?
+    let max: Int?
+    let low: String?
+    let high: String?
+    let placeholder: String?
+}
+
+struct SurveyOption: Decodable, Identifiable, Equatable {
+    let id: String
+    let label: String
+}
+
+struct SurveyShowIf: Decodable, Equatable {
+    let question: String
+    let `in`: [String]
+}
 
 
 enum FAMError: LocalizedError, Equatable {
@@ -1555,6 +1643,13 @@ extension FAMAPI {
 
     func pushStatus() async throws -> PushStatus {
         try await get("api/v1/push", [], as: PushStatus.self)
+    }
+
+    /// Changes what this listener is told and when (§562, `savePushPrefs`):
+    /// any of `daily`, `daily_at` ("HH:MM", or "" for the learned time),
+    /// `breaking`, `finals`, and `tz`. Answers with the choices as kept.
+    func savePushPrefs(_ changes: [String: Any]) async throws -> PushPrefsAnswer {
+        try await send("POST", "api/v1/push/prefs", body: changes, as: PushPrefsAnswer.self)
     }
 
     /// Your own profile (`/api/profile`): the name, handle and picture a
@@ -1876,6 +1971,42 @@ struct PushStatus: Decodable {
     let available: Bool
     let reason: String?
     let subscribed: Bool?
+    /// The listener's notification choices (§562), for an account only;
+    /// nil from a server before them.
+    let prefs: PushPrefs?
+}
+
+/// `prefs` on `/api/push` and `/api/push/prefs` (`app._push_choices`): the
+/// three switches, the chosen time ("" = learned), and when the daily
+/// reminder goes (`daily_time`, "HH:MM") and why (`daily_source`: chosen,
+/// mix, learned or default). Every field decoded tolerantly.
+struct PushPrefs: Decodable, Equatable {
+    let daily: Bool
+    let dailyAt: String
+    let breaking: Bool
+    let finals: Bool
+    let dailyTime: String
+    let dailySource: String
+
+    private enum CodingKeys: String, CodingKey {
+        case daily, dailyAt, breaking, finals, dailyTime, dailySource
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        daily = (try? c.decode(Bool.self, forKey: .daily)) ?? true
+        dailyAt = (try? c.decode(String.self, forKey: .dailyAt)) ?? ""
+        breaking = (try? c.decode(Bool.self, forKey: .breaking)) ?? true
+        finals = (try? c.decode(Bool.self, forKey: .finals)) ?? true
+        dailyTime = (try? c.decode(String.self, forKey: .dailyTime)) ?? ""
+        dailySource = (try? c.decode(String.self, forKey: .dailySource)) ?? ""
+    }
+}
+
+/// `POST /api/push/prefs`.
+struct PushPrefsAnswer: Decodable {
+    let ok: Bool?
+    let prefs: PushPrefs?
 }
 
 /// `GET /api/interest`: the cards, whether there are more, and - for an

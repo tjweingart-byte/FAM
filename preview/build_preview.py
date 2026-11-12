@@ -382,7 +382,11 @@ def load_fixtures() -> dict:
         for t in (topics_mod.BANK_BY_ID[i] for i in sample_ids)])
 
     import time as _time
+    import surveys as surveys_mod
     return {
+        # The optional surveys (surveys.py), drawn from the real definitions.
+        "/api/surveys": {"surveys": [surveys_mod.definition(sid)
+                                     for sid in surveys_mod.SURVEYS]},
         "/api/interest": interest,
         "/api/myfam": myfam,
         "/api/myfam:guest": guest_myfam,
@@ -1440,6 +1444,29 @@ __PREVIEW_PICTURE__
       cAi.given = !!cAsk.allow;
       cAi.answered_version = cAi.version;
       return json({ ai: cAi, terms: cAll.terms });
+    }
+    // The optional surveys (surveys.py). The preview offers the episode check
+    // on every What's next card and the day-3 check-in once per page, so both
+    // can be seen - but not under the smoke run (navigator.webdriver), whose
+    // checks press tiles the invite would sit over, unless a check asks.
+    if (path.indexOf("/api/surveys/") === 0) {
+      var svBody = (typeof body === "object" && body) ? body
+        : JSON.parse((init && init.body) || "{}");
+      if (path === "/api/surveys/offer") {
+        var svWant = svBody.moment === "episode_end" ? "episode" : "day3";
+        var svOk = PREVIEW_AUTHED() && (!navigator.webdriver || window.FAM_PREVIEW_SURVEYS)
+          && !(svWant === "day3" && window.__famSurveyOpened);
+        if (svOk && svWant === "day3") window.__famSurveyOpened = true;
+        return json({ survey: svOk ? FIXTURES["/api/surveys"].surveys.filter(function (x) {
+          return x.id === svWant; })[0] : null });
+      }
+      if (path === "/api/surveys/answer") {
+        if (!svBody.answers || !Object.keys(svBody.answers).length)
+          return json({ error: "Pick at least one answer, or tap Not now." }, 400);
+        (window.__famSurveyAnswers = window.__famSurveyAnswers || []).push(svBody);
+        return json({ ok: true, id: "preview" });
+      }
+      return json({ ok: true });
     }
     if (path === "/api/report" && method === "POST") {
       return json({ ok: true, id: "preview", hidden: true,

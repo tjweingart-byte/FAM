@@ -280,6 +280,9 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # myFAM: mixes, the catalogue, sharing, push, the episode's topic.
                    "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",
                    "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic",
+                   # A story card handed to Instagram or Snapchat (§558), and the
+                   # notification choices on /api/push and /api/push/prefs (§562).
+                   "StoryHandoff", "PushPrefs", "PushPrefsAnswer",
                    "ProfileSummary", "ProfileInterest",
                    # What changed since you last listened (§545): R5 on the
                    # card, Q5's bubbles inside the mix.
@@ -479,3 +482,87 @@ def test_the_front_door_decodes_what_the_server_sends(monkeypatch, tmp_path):
     assert _fields("TermsState") <= set(terms), terms
     who = c.get("/api/v1/auth/me", headers=auth).json()
     assert {"waitlist", "home"} <= set(who)
+
+
+def test_the_surveys_decode_what_the_server_sends(monkeypatch):
+    """§560 on iOS: the offer, every survey's questions, and the answer the
+    app sends (`Surveys.swift` `payload`) is one the server keeps."""
+    import surveys as surveys_mod
+
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    c = TestClient(appmod.app)
+    headers = {"X-FAM-Client": "ios/1.0.0+2"}
+    token = c.post("/api/v1/auth/signup", headers=headers, json={
+        "email": "ios-survey@example.com", "password": "password12",
+        "accept_terms": True, "want_token": True}).json()["session_token"]
+    auth = {**headers, "Authorization": "Bearer " + token}
+    offer = c.post("/api/v1/surveys/offer", headers=auth, json={"moment": "episode_end"}).json()
+    assert _fields("SurveyOffer") <= set(offer)
+    survey = offer["survey"]
+    assert _fields("Survey") <= set(survey), sorted(_fields("Survey") - set(survey))
+    # Every key a question carries is one the app decodes (the rest would be
+    # silently lost), and every field the app requires is sent.
+    question_fields = _fields("SurveyQuestion")
+    for sid in surveys_mod.SURVEYS:
+        for q in surveys_mod.definition(sid)["questions"]:
+            assert set(q) <= question_fields, (sid, sorted(set(q) - question_fields))
+            assert {"id", "kind", "text"} <= set(q)
+            for o in q.get("options", []):
+                assert _fields("SurveyOption") == set(o)
+            if "show_if" in q:
+                assert set(q["show_if"]) == {"question", "in"}
+            # The decoder's snake-case conversion would rename a detail key
+            # with an underscore; none has one.
+            assert all("_" not in k for k in q.get("detail", {}))
+    # What `payload` sends: option ids, a list, a number, a box.
+    r = c.post("/api/v1/surveys/answer", headers=auth, json={
+        "survey": "episode", "build": "ios/1.0.0+2",
+        "answers": {"rating": {"pick": "meh"}, "off": {"pick": ["name"], "text": "Saquon"}},
+        "episode": {"id": "abc", "title": "Why the Eagles lost"}})
+    assert r.status_code == 200, r.text
+    r = c.post("/api/v1/surveys/answer", headers=auth, json={
+        "survey": "day3", "answers": {"routine": {"pick": 7}, "role": {"text": "Coach"}}})
+    assert r.status_code == 200, r.text
+    assert c.post("/api/v1/surveys/dismiss", headers=auth,
+                  json={"survey": "wrap"}).status_code == 200
+    # The app's calls are the routes it names.
+    api = _api()
+    for path in ("api/v1/surveys/offer", "api/v1/surveys/answer", "api/v1/surveys/dismiss"):
+        assert f'"POST", "{path}"' in api, path
+
+
+def test_the_notification_choices_decode_what_the_server_sends(monkeypatch):
+    """§562 on iOS: `/api/v1/push` carries `prefs` for an account, POST
+    `/api/v1/push/prefs` answers with them, and every key the app decodes is
+    one the server sends. iPhone delivery (APNs) comes after 1.0, so the app
+    says so wherever a choice only reaches a browser (`iPhoneLater`)."""
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    c = TestClient(appmod.app)
+    headers = {"X-FAM-Client": "ios/1.0.0+2", "X-FAM-TZ": "America/New_York"}
+    token = c.post("/api/v1/auth/signup", headers=headers, json={
+        "email": "ios-push@example.com", "password": "password12",
+        "accept_terms": True, "want_token": True}).json()["session_token"]
+    auth = {**headers, "Authorization": "Bearer " + token}
+    status = c.get("/api/v1/push", headers=auth).json()
+    assert _fields("PushStatus") <= set(status) | {"subscribed"}, status
+    assert _fields("PushPrefs") == set(status["prefs"]), status["prefs"]
+    r = c.post("/api/v1/push/prefs", headers=auth, json={
+        "daily": True, "daily_at": "07:00", "tz": "America/New_York"})
+    assert r.status_code == 200, r.text
+    answer = r.json()
+    assert _fields("PushPrefsAnswer") <= set(answer)
+    assert answer["prefs"]["daily_at"] == "07:00"
+    assert answer["prefs"]["daily_source"] == "chosen"
+    for name in ("breaking", "finals", "daily"):
+        r = c.post("/api/v1/push/prefs", headers=auth, json={name: False})
+        assert r.status_code == 200 and r.json()["prefs"][name] is False, r.text
+    assert ("POST", "api/v1/push/prefs") in _calls()
+    mixes = (SWIFT / "Mixes.swift").read_text()
+    assert 'static let iPhoneLater = "Notifications on iPhone come in a later version."' in mixes
+    settings = (SWIFT / "Views" / "SettingsView.swift").read_text()
+    web = (ROOT / "static" / "index.html").read_text()
+    times = re.search(r'\[("06:30"[^\]]*)\]\.forEach', web).group(1)
+    assert "static let times = [" + times + "]" in settings
+    assert "MixesModel.iPhoneLater" in settings

@@ -543,4 +543,18 @@ and `limit` = Lines.
 | 34049 | 61 | 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11) |
 | 34110 | 71 | 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes / Categories, the morning dot, the pop-ups (2026-11-11) |
 | 34181 | 48 | 551. The app catches up with #247, #249 and #252 (2026-11-11) |
-| 34229 | 29 | 552. Tiingo credited in the episode and the sources (2026-11-12) |
+| 34229 | 13 | 552. Keith's "science, world are not in the tree" was the check, not Nando (2026-11-12) |
+| 34242 | 50 | 553. The seed tree doubled: 322 nodes to 677, from outside the bank (2026-11-12) |
+| 34292 | 21 | 554. The category tree on /admin (2026-11-12) |
+| 34313 | 30 | 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12) |
+| 34343 | 27 | 556. Keith's dead-node alert explains itself (2026-11-12) |
+| 34370 | 16 | 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12) |
+| 34386 | 51 | 558. Instagram and Snapchat stories go straight into the platform's app (2026-11-12) |
+| 34437 | 24 | 559. A shared link previews with the episode's picture, like a Spotify link (2026-11-12) |
+| 34461 | 73 | 560. Optional surveys: the episode check, the day-3 check-in and the two-week wrap-up (2026-11-12) |
+| 34534 | 39 | 561. The iOS app catches up with §560: the surveys (2026-11-12) |
+| 34573 | 77 | 562. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12) |
+| 34650 | 58 | 563. The sports sweep runs for people with finals on (2026-11-12) |
+| 34708 | 78 | 564. The app before build 4: #256 and #257 reviewed, #258's notifications on the iPhone (2026-11-12) |
+| 34786 | 27 | 565. Build 4 made ready for TestFlight and review (2026-11-12) |
+| 34813 | 29 | 566. Tiingo credited in the episode and the sources (2026-11-12) |

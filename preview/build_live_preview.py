@@ -1661,6 +1661,32 @@ __WRITING_SIM__
       cAi.answered_version = cAi.version;
       return json({ ai: cAi, terms: cAll.terms });
     }
+    // The optional surveys (surveys.py). The preview offers the episode check
+    // on every What's next card and the day-3 check-in once per page, so both
+    // can be seen - but not under the smoke run (navigator.webdriver), whose
+    // checks press tiles the invite would sit over, unless a check asks.
+    if (path.indexOf("/api/surveys/") === 0) {
+      var svBody = (typeof body === "object" && body) ? body
+        : JSON.parse((init && init.body) || "{}");
+      if (path === "/api/surveys/offer") {
+        var svWant = svBody.moment === "episode_end" ? "episode" : "day3";
+        var svOk = !!EMAIL && (!navigator.webdriver || window.FAM_PREVIEW_SURVEYS)
+          && !(svWant === "day3" && window.__famSurveyOpened);
+        if (svOk && svWant === "day3") window.__famSurveyOpened = true;
+        return json({ survey: svOk ? FIXTURES["/api/surveys"].surveys.filter(function (x) {
+          return x.id === svWant; })[0] : null });
+      }
+      if (path === "/api/surveys/answer") {
+        if (!svBody.answers || !Object.keys(svBody.answers).length)
+          return json({ error: "Pick at least one answer, or tap Not now." }, 400);
+        var svId = rid();
+        return put("surveys", svId, {
+          user_id: UID, survey: svBody.survey, answers: svBody.answers,
+          episode: svBody.episode || null, created: now()
+        }).then(function () { paint(); return json({ ok: true, id: svId }); });
+      }
+      return json({ ok: true });
+    }
     if (path === "/api/report" && method === "POST") {
       return json({ ok: true, id: "preview", hidden: true,
                     message: "Thanks for telling us. We review every report within "

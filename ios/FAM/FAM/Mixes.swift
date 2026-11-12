@@ -25,6 +25,9 @@ final class MixesModel: ObservableObject {
     /// episode in a mix ranks Recommended topics by them (`itemTags`).
     @Published private(set) var bankTags: [String: [String]] = [:]
     @Published private(set) var push: PushStatus?
+    /// The listener's notification choices (§562, `pushPrefs()`): from
+    /// `/api/push`'s `prefs`, then from every save's answer.
+    @Published private(set) var pushPrefs: PushPrefs?
     /// Your own profile: the face on a mix that is yours alone, and the
     /// interests the local recommendation order starts from.
     @Published private(set) var me: ProfileSummary?
@@ -69,6 +72,7 @@ final class MixesModel: ObservableObject {
         // The push state and the recommendations are the last account's
         // (`pushState = null`, 10.1 third set).
         push = nil
+        pushPrefs = nil
         recommended = nil
         bankTags = [:]
         me = nil
@@ -216,7 +220,7 @@ final class MixesModel: ObservableObject {
             for t in bank { tags[t.id] = t.tags ?? [] }
             bankTags = tags
         }
-        if push == nil { push = try? await api.pushStatus() }
+        await loadPushState()
         if me == nil, let found = try? await api.profile() { me = found }
     }
 
@@ -256,6 +260,95 @@ final class MixesModel: ObservableObject {
         if case let FAMError.refused(_, message) = error, !message.isEmpty { return message }
         if case let FAMError.signedOut(message) = error, !message.isEmpty { return message }
         return fallback
+    }
+
+    // MARK: - Notifications (§562)
+
+    /// `/api/push`, asked once (`loadPushState`; Settings and a mix page).
+    func loadPushState() async {
+        guard push == nil, let found = try? await api.pushStatus() else { return }
+        push = found
+        pushPrefs = found.prefs
+    }
+
+    /// `dailyTimeSummary`: when the daily reminder goes and where that came
+    /// from, in one phrase ("" before the choices are known).
+    var dailyTimeSummary: String {
+        guard let p = pushPrefs else { return "" }
+        if !p.daily { return "Off" }
+        let when = Self.timeLabel(p.dailyTime)
+        if p.dailySource == "learned" { return when + " (when you usually listen)" }
+        if p.dailySource == "default" { return when + " (until we learn when you listen)" }
+        return when
+    }
+
+    /// The honest sentence wherever a choice only reaches a phone through
+    /// Apple's push service, which the server does not send yet (APNs
+    /// comes after 1.0): the choice is kept, and governs any browser where
+    /// the listener allowed FAM's notifications.
+    static let iPhoneLater = "Notifications on iPhone come in a later version."
+
+    /// `mixWhenNote`, for this phone: the server's reason where it cannot
+    /// deliver at all, the reminder's state, and the sentence above.
+    var reminderNote: String {
+        guard let push = push else { return "One reminder a day for all your mixes." }
+        if !push.available {
+            let reason = push.reason ?? ""
+            return reason.isEmpty ? Self.iPhoneLater : reason
+        }
+        guard let p = pushPrefs else {
+            return "One reminder a day for all your mixes. " + Self.iPhoneLater
+        }
+        if !p.daily { return "Your daily reminder is off. Turn it on in Settings." }
+        if push.subscribed == true {
+            return "We\u{2019}ll tell you in your browser at " + dailyTimeSummary
+                + ", once a day for all your mixes. " + Self.iPhoneLater
+        }
+        return "One reminder a day for all your mixes, at " + dailyTimeSummary + ". " + Self.iPhoneLater
+    }
+
+    /// `savePushPrefs`: one or more choices, with the listener's clock
+    /// (`listenerZone`); the server's sentence on a refusal.
+    @discardableResult
+    func savePushPrefs(_ changes: [String: Any]) async -> Bool {
+        var body = changes
+        body["tz"] = FAMAPI.listenerZone
+        do {
+            let answer = try await api.savePushPrefs(body)
+            if let prefs = answer.prefs { pushPrefs = prefs }
+            return true
+        } catch {
+            say(Self.sentence(error, else: "That could not be saved."), nil, nil)
+            return false
+        }
+    }
+
+    /// `setDailyTime`: "HH:MM", or "" for when they usually listen. This
+    /// phone cannot be told yet, so the toast says so unless a browser of
+    /// theirs is (`afterPushChoice`).
+    func setDailyTime(_ hhmm: String) async {
+        guard await savePushPrefs(["daily": true, "daily_at": hhmm]) else { return }
+        if push?.subscribed == true {
+            say("We\u{2019}ll tell you at " + dailyTimeSummary, nil, nil)
+        } else {
+            say("Saved \u{2014} notifications on iPhone come in a later version", nil, nil)
+        }
+    }
+
+    /// `setPushSwitch`: `daily`, `breaking` or `finals`, On or Off.
+    func setPushSwitch(_ name: String, on: Bool) async {
+        guard await savePushPrefs([name: on]) else { return }
+        say(on ? "On" : "Off", nil, nil)
+    }
+
+    /// Settings pinned another zone (`setTimeZone`): the reminder and the
+    /// quiet hours keep the same clock. Quiet, as the web's is.
+    func sendZone() async {
+        guard pushPrefs != nil else { return }
+        if let answer = try? await api.savePushPrefs(["tz": FAMAPI.listenerZone]),
+           let prefs = answer.prefs {
+            pushPrefs = prefs
+        }
     }
 
     // MARK: - Subjects

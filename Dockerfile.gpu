@@ -80,6 +80,7 @@ ENV FAM_STATE=/state \
     SAVED_DB=/state/data/saved.db \
     SHARES_DB=/state/data/shares.db \
     FEEDBACK_DB=/state/data/feedback.db \
+    SURVEYS_DB=/state/data/surveys.db \
     CONSENT_DB=/state/data/consent.db \
     MODERATION_DB=/state/data/moderation.db \
     QUOTAS_DB=/state/data/quotas.db \

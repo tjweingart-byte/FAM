@@ -2719,6 +2719,57 @@
     font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.07em;
     text-transform:uppercase; cursor:pointer; }
   .nextup-back:active{ opacity:0.6; }
+  /* -------- optional surveys (surveys.py, §560) --------
+     One drawing for all three: the episode check rides on the What's next
+     card, the day-3 and two-week surveys open in their own card from a small
+     invite above the bars. Chips are the answers; nothing here is required. */
+  .svy-pulse{ margin:0 0 12px; padding:11px 12px 12px; border-radius:14px;
+    background:var(--bg); border:1px solid var(--border); }
+  .svy-pulse[hidden]{ display:none; }
+  /* With the follow-up open the card outgrows a small phone: it scrolls. */
+  #nextUpOverlay .nextup-card{ max-height:calc(100% - 24px); overflow-y:auto; }
+  .svy-head{ display:flex; align-items:center; gap:8px; }
+  .svy-head .svy-title{ flex:1; min-width:0; font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:14px; color:var(--text); }
+  .svy-x{ flex:none; width:44px; height:44px; margin:-12px -12px -12px 0; border:0; background:none;
+    color:var(--text-faint); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .svy-q{ margin-top:12px; }
+  .svy-q:first-child{ margin-top:0; }
+  .svy-qt{ font-size:13px; font-weight:600; line-height:1.35; color:var(--text); margin:0 0 7px; }
+  .svy-pulse .svy-q:first-child .svy-qt{ display:none; }
+  .svy-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .svy-chip{ min-height:32px; padding:6px 12px; border-radius:16px; background:var(--surface);
+    border:1px solid var(--border-strong); color:var(--text); font-family:'Geist', sans-serif;
+    font-size:12px; font-weight:500; line-height:1.3; cursor:pointer; text-align:left; }
+  .svy-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); font-weight:700; }
+  .svy-scale{ display:grid; grid-template-columns:repeat(10, minmax(0, 1fr)); gap:4px; }
+  .svy-scale .svy-chip{ padding:6px 0; text-align:center; font-family:'Geist Mono', monospace; }
+  .svy-ends{ display:flex; justify-content:space-between; gap:8px; margin-top:4px;
+    font-family:'Geist Mono', monospace; font-size:9px; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--text-faint); }
+  .svy-text{ width:100%; margin-top:7px; padding:10px 12px; border-radius:10px;
+    background:var(--bg); border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Geist', sans-serif; font-size:16px; outline:none; box-sizing:border-box; }
+  .svy-text:focus{ border-color:var(--copper); }
+  .svy-text::placeholder{ color:var(--text-faint); }
+  .svy-err{ margin-top:10px; font-size:12px; color:var(--copper); }
+  .svy-err[hidden]{ display:none; }
+  .svy-acts{ display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+  .svy-acts[hidden]{ display:none; }
+  .svy-thanks{ font-size:13px; color:var(--text-muted); padding:2px 0; }
+  .svy-card{ width:90%; max-height:86%; display:flex; flex-direction:column; padding:18px 18px 14px; }
+  .svy-card .svy-body{ flex:1; min-height:0; overflow-y:auto; margin:0 -4px; padding:0 4px; }
+  .svy-card .svy-title{ font-size:17px; }
+  .svy-intro{ font-size:12.5px; line-height:1.5; color:var(--text-muted); margin:4px 0 14px; }
+  .svy-card .svy-q{ margin-top:18px; }
+  .svy-invite{ position:absolute; left:14px; right:14px; bottom:96px; z-index:900;
+    margin:0 auto; max-width:360px; box-sizing:border-box; padding:13px 14px 12px;
+    border-radius:16px; background:var(--surface); border:1px solid var(--border-strong);
+    box-shadow:0 16px 34px -14px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.12); }
+  .svy-invite[hidden]{ display:none; }
+  .svy-invite .svy-intro{ margin:3px 0 10px; }
+  .svy-invite .svy-acts{ margin-top:0; }
+
   /* The end of a DailyFAM playlist (§134): the same card as What's next, and
      deliberately nothing in it that plays anything. */
   .mixdone-card{ text-align:center; padding:24px 20px 14px; }
@@ -4794,6 +4845,10 @@
         <div class="nextup-card">
           <div class="nextup-h">What&rsquo;s next</div>
           <div class="nextup-sub" id="nextUpSub">First one starts in 15</div>
+          <!-- The episode check (surveys.py): only when the server offers it.
+               Touching it pauses the countdown, as the search box does. -->
+          <div class="svy-pulse" id="surveyPulse" hidden
+               onpointerdown="pauseNextUp()"></div>
           <div class="nextup-grid" id="nextUpGrid"></div>
           <!-- Your own prompt (9.30 #2). Touching it stops the countdown, so
                the lead tile never starts under somebody's typing. -->
@@ -4811,6 +4866,25 @@
         </div>
       </div>
 
+
+      <!-- The day-3 check-in and the two-week wrap-up (surveys.py, §560). -->
+      <div class="modal-overlay" id="surveyOverlay">
+        <div class="modal-card svy-card" role="dialog" aria-modal="true" aria-labelledby="surveyTitle">
+          <div class="svy-head">
+            <div class="svy-title" id="surveyTitle"></div>
+            <button class="svy-x" type="button" aria-label="Not now" onclick="surveyNotNow()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+          <div class="svy-intro" id="surveyIntro"></div>
+          <div class="svy-body" id="surveyBody"></div>
+          <div class="svy-err" id="surveyErr" role="alert" hidden></div>
+          <div class="svy-acts">
+            <button class="modal-btn ghost" type="button" onclick="surveyNotNow()">Not now</button>
+            <button class="modal-btn primary" type="button" id="surveySend" onclick="sendSurvey('sheet')">Send</button>
+          </div>
+        </div>
+      </div>
 
       <div class="sheet-overlay" id="sheetOverlay" onclick="if(event.target===this) closeSheet()">
         <div class="sheet-card" id="sheetCard"></div>
@@ -5299,6 +5373,15 @@
     </div>
 
     <div class="toast" id="toast"></div>
+    <!-- A survey is due (surveys.py): asked, never opened on its own. -->
+    <div class="svy-invite" id="surveyInvite" role="dialog" aria-labelledby="surveyInviteTitle" hidden>
+      <div class="svy-head"><div class="svy-title" id="surveyInviteTitle"></div></div>
+      <div class="svy-intro" id="surveyInviteIntro"></div>
+      <div class="svy-acts">
+        <button class="modal-btn ghost" type="button" onclick="surveyNotNow()">Not now</button>
+        <button class="modal-btn primary" type="button" onclick="openSurveySheet()">Start</button>
+      </div>
+    </div>
     <!-- What an action did, Spotify's way (10.8 packet): a bar above the
          mini player, the words on the left and where to go on the right. -->
     <div class="snack" id="snack" role="status" aria-live="polite">
@@ -6328,6 +6411,7 @@
     document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
     next.classList.add("active");
     placeNowBar(next);
+    followSurveyInvite(id);
     // How it moves (§292) - after the bar is placed, so a player closing
     // into the mini player knows where the mini player is.
     Motion.screen(prev, next, how);
@@ -10163,6 +10247,7 @@
     // endpoint on the push service's 410 the next time it sends.
     inviteLink = "";
     pushState = null;
+    pushStateAsked = false;
     try {
       if("serviceWorker" in navigator && navigator.serviceWorker.getRegistration){
         navigator.serviceWorker.getRegistration().then(function(reg){
@@ -12764,7 +12849,7 @@
     }
     html += recommendedHTML(m);
     if(owner){
-      html += mixWhenHTML(m);
+      html += mixWhenHTML();
       // Public mixes appear on the profile and in DailyFAM search, and a new
       // mix is public by default (at the owner's direction).
       //
@@ -13527,14 +13612,17 @@
     }).catch(function(e){ toast(e.message); });
   }
 
-  // ---- A mix's listen time (10.1 packet, third set) ----
-  // When the listener means to hear this mix. It never moves when the
-  // episodes are written (the 05:00 edition writes every mix); it is when the
-  // server tells their phone the mix is ready (`push.py`). Where this server
-  // cannot deliver, the row says so in the server's words, and the time is
-  // kept for when it can.
-  //: `/api/push`, asked once: {available, public_key, reason, subscribed}.
+  // ---- The daily reminder: one per person (§562) ----
+  // "Your myFAM is ready", once a day for all of a person's mixes - never one
+  // per mix. It goes at the time they chose; else one an old client set on a
+  // mix; else the time they usually start listening (learned); else 7:30.
+  // It never moves when the episodes are written (the 05:00 edition writes
+  // every mix). Where this server cannot deliver, the row says so in the
+  // server's words, and the choice is kept for when it can.
+  //: `/api/push`, asked once: {available, public_key, reason, subscribed,
+  //: prefs: {daily, daily_at, breaking, finals, daily_time, daily_source}}.
   var pushState = null;
+  var pushStateAsked = false;
   function loadPushState(done){
     fetch("/api/push").then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ pushState = d; if(done) done(); })
@@ -13550,39 +13638,51 @@
     try { return typeof Notification !== "undefined" && Notification.permission === "denied"; }
     catch(e){ return false; }
   }
-  function mixWhenNote(m){
-    if(!m.listen_at) return "Pick when you listen and we\u2019ll tell you it\u2019s ready. Episodes are still written each morning.";
-    var when = listenTimeLabel(m.listen_at);
-    if(!pushState) return "Listening at " + when + ".";
-    if(!pushState.available) return pushState.reason;
-    if(notificationsBlocked()) return "Notifications are blocked for FAM in this browser\u2019s settings.";
-    if(!pushState.subscribed) return "Listening at " + when + ". Allow notifications to hear when it\u2019s ready.";
-    return "We\u2019ll tell you it\u2019s ready at " + when + ".";
+  function pushPrefs(){ return (pushState && pushState.prefs) || null; }
+  // What the reminder's time is and where it came from, in one phrase.
+  function dailyTimeSummary(){
+    var p = pushPrefs();
+    if(!p) return "";
+    if(!p.daily) return "Off";
+    var when = listenTimeLabel(p.daily_time);
+    if(p.daily_source === "learned") return when + " (when you usually listen)";
+    if(p.daily_source === "default") return when + " (until we learn when you listen)";
+    return when;
   }
-  // Clearing is the Clear button only: a desktop time field fires an empty
-  // change while one half of it is being retyped.
-  function mixWhenHTML(m){
+  function mixWhenNote(){
+    if(!pushState) return "One reminder a day for all your mixes.";
+    if(!pushState.available) return pushState.reason;
+    if(notificationsBlocked()) return "Notifications are blocked for FAM in this browser’s settings.";
+    var p = pushPrefs();
+    if(p && !p.daily) return "Your daily reminder is off. Turn it on in Settings.";
+    if(!pushState.subscribed) return "Allow notifications and we’ll tell you once a day when all your mixes are ready.";
+    return "We’ll tell you at " + dailyTimeSummary() + ", once a day for all your mixes.";
+  }
+  // Clearing is the Automatic button only: a desktop time field fires an
+  // empty change while one half of it is being retyped.
+  function mixWhenHTML(){
+    var p = pushPrefs() || {};
     return '<div class="mix-when" id="mixWhen">'
       + '<span class="mix-when-i" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" '
       + 'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
       + '<path d="M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 003.4 0"/></svg></span>'
-      + '<div class="mix-when-b"><div class="mix-when-t">Listen time</div>'
-      + '<div class="mix-when-s" id="mixWhenNote">' + escapeHtml(mixWhenNote(m)) + '</div></div>'
-      + '<input class="mix-when-in" id="mixWhenIn" type="time" aria-label="Listen time" value="'
-      + escapeHtml(m.listen_at || "") + '" onchange="if(this.value) setMixListenTime(this.value)">'
-      + (m.listen_at ? '<button class="mix-when-x" onclick="setMixListenTime(\'\')" aria-label="Remove listen time">Clear</button>' : '')
+      + '<div class="mix-when-b"><div class="mix-when-t">Daily reminder</div>'
+      + '<div class="mix-when-s" id="mixWhenNote">' + escapeHtml(mixWhenNote()) + '</div></div>'
+      + '<input class="mix-when-in" id="mixWhenIn" type="time" aria-label="Daily reminder time" value="'
+      + escapeHtml(p.daily_at || p.daily_time || "") + '" onchange="if(this.value) setDailyTime(this.value)">'
+      + (p.daily_at ? '<button class="mix-when-x" onclick="setDailyTime(\'\')" aria-label="Use the time you usually listen">Auto</button>' : '')
       + '</div>';
   }
   function repaintMixWhen(){
-    var m = mixById(currentMixId), el = document.getElementById("mixWhen");
-    if(!m || !el) return;
-    el.outerHTML = mixWhenHTML(m);
+    var el = document.getElementById("mixWhen");
+    if(el) el.outerHTML = mixWhenHTML();
+    if(document.getElementById("screen-settings").classList.contains("active")) renderSettings();
   }
   // **The listener's clock** (the owner's 10.1 packet). The device's own
   // zone - which a browser and a phone know without asking for a location -
   // unless Settings pinned another (`fam.prefs.time_zone`). Sent on every API
   // call as `X-FAM-TZ`, so "tonight" and "yesterday" in an episode are this
-  // listener's (`listener_clock.py`), and used for a mix's listen time.
+  // listener's (`listener_clock.py`), and with the reminder's choices.
   function deviceZone(){
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch(e){ return ""; }
   }
@@ -13591,30 +13691,73 @@
     try { pinned = localPrefs().time_zone || ""; } catch(e){}
     return pinned || deviceZone();
   }
-  function setMixListenTime(value){
-    var m = mixById(currentMixId);
-    if(!m) return;
-    // Asked here, inside the tap, before anything waits on the network:
-    // Safari only shows the permission prompt from the gesture itself.
-    var asking = (value && pushState && pushState.available && !pushState.subscribed)
-      ? askNotificationPermission() : null;
-    saveMix("PATCH", "/api/mixes/" + m.id, { listen_at: value || "", listen_tz: listenerZone() }, function(saved){
-      repaintMixWhen();
-      if(!saved.listen_at){ toast("Listen time removed"); return; }
-      var go = function(){
-        if(pushState && pushState.available && !pushState.subscribed){
-          subscribeToPush(asking, function(ok){
-            repaintMixWhen();
-            toast(ok ? "We\u2019ll tell you at " + listenTimeLabel(saved.listen_at)
-                     : "Listen time saved \u2014 notifications are off");
-          });
-        } else {
+  // Saves one or more of the person's choices; `done(ok)` after.
+  function savePushPrefs(changes, done){
+    changes.tz = listenerZone();
+    fetch("/api/push/prefs", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(changes) })
+      .then(function(r){ return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "That could not be saved.");
+        return d;
+      }); })
+      .then(function(d){
+        if(!pushState) pushState = {};
+        pushState.prefs = d.prefs;
+        repaintMixWhen();
+        if(done) done(true);
+      })
+      .catch(function(e){ toast(e.message); if(done) done(false); });
+  }
+  // Turning anything on asks for permission inside the tap, before anything
+  // waits on the network: Safari only shows the prompt from the gesture.
+  function afterPushChoice(asking, said){
+    var go = function(){
+      if(pushState && pushState.available && !pushState.subscribed){
+        subscribeToPush(asking, function(ok){
           repaintMixWhen();
-          toast("Listen time set for " + listenTimeLabel(saved.listen_at));
-        }
-      };
-      if(pushState) go(); else loadPushState(go);
+          toast(ok ? said : "Saved — notifications are off in this browser");
+        });
+      } else {
+        toast(said);
+      }
+    };
+    if(pushState) go(); else loadPushState(go);
+  }
+  function askIfNeeded(){
+    return (pushState && pushState.available && !pushState.subscribed)
+      ? askNotificationPermission() : null;
+  }
+  function setDailyTime(value){
+    if(!AUTH.authenticated){ showGuestGate(); return; }
+    var asking = askIfNeeded();
+    savePushPrefs({ daily: true, daily_at: value || "" }, function(ok){
+      if(!ok) return;
+      afterPushChoice(asking, "We’ll tell you at " + dailyTimeSummary());
     });
+  }
+  // The three switches in Settings.
+  function setPushSwitch(name, on){
+    if(!AUTH.authenticated){ showGuestGate(); return; }
+    var asking = on ? askIfNeeded() : null;
+    var changes = {}; changes[name] = !!on;
+    savePushPrefs(changes, function(ok){
+      if(!ok) return;
+      if(on) afterPushChoice(asking, "On");
+      else toast("Off");
+    });
+  }
+  function openDailyTimeMenu(){
+    var p = pushPrefs() || {};
+    var items = [{ group: "Daily reminder" },
+      { label: "When I usually listen" + (!p.daily_at && p.daily ? "  ✓" : ""),
+        action: function(){ setDailyTime(""); } }];
+    ["06:30", "07:00", "07:30", "08:00", "08:30", "12:00", "17:30", "21:00"].forEach(function(t){
+      items.push({ label: listenTimeLabel(t) + (p.daily && p.daily_at === t ? "  ✓" : ""),
+                   action: function(){ setDailyTime(t); } });
+    });
+    items.push({ label: "Off" + (p.daily === false ? "  ✓" : ""),
+                 action: function(){ setPushSwitch("daily", false); } });
+    showActionSheet(items);
   }
   function pushKeyBytes(b64){
     var pad = "=".repeat((4 - b64.length % 4) % 4);
@@ -13654,7 +13797,7 @@
     }).then(function(sub){
       return fetch("/api/push/subscribe", { method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ subscription: sub.toJSON() }) });
+        body: JSON.stringify({ subscription: sub.toJSON(), tz: listenerZone() }) });
     }).then(function(r){
       if(!r.ok) throw new Error("refused");
       pushState.subscribed = true;
@@ -14009,6 +14152,40 @@
       })
       .catch(function(e){ toast(e.message); });
   }
+  // A notification tapped (§562): `/?mixes=1` opens the mixes (the daily
+  // reminder); `/?listen=<query>&title=<title>` plays the episode a big story
+  // or a final was written as before it was sent - the same query at the
+  // browse length a rail tap sends, so it is a cache hit. Taken out of the
+  // address so a reload does not do it again.
+  function openNotificationLink(url){
+    var params;
+    try { params = new URL(url || location.href, location.href).searchParams; } catch(e){ return; }
+    var listen = params.get("listen") || "", mixesTab = params.get("mixes");
+    if(!listen && !mixesTab) return;
+    if(!url){
+      try {
+        var u = new URL(location.href);
+        ["listen", "title", "mixes"].forEach(function(k){ u.searchParams.delete(k); });
+        history.replaceState(null, "", u.pathname + u.search + u.hash);
+      } catch(e){}
+    }
+    if(mixesTab && !listen){ setTab("playfam"); return; }
+    playNotifiedStory(listen.slice(0, 400), (params.get("title") || listen).slice(0, 200));
+  }
+  function playNotifiedStory(query, title){
+    if(!AUTH.authenticated){ showGuestGate(); return; }
+    var key = "notified_" + Date.now();
+    TOPICS[key] = {
+      title: title,
+      source: "FAM",
+      caption: "Live captions will appear here as this plays—",
+      prompt: query,
+      exploreMinutes: BROWSE_MINUTES,
+      titleOverridden: true,
+      loader: "dial"
+    };
+    generate(key);
+  }
   function openOwnMix(id){
     setTab("playfam");
     fetch(MIXES_URL).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
@@ -14028,6 +14205,7 @@
         try {
           var id = new URL(d.url, location.href).searchParams.get("mix");
           if(id) openOwnMix(id);
+          else openNotificationLink(d.url);
         } catch(e){}
       });
     }
@@ -17675,6 +17853,27 @@
       // what it governs.
       + settingsRow("Voice for your searches", escapeHtml(voiceLabel(selectedVoice)),
           "openVoiceMenu('settings')");
+    // Notifications (§562): one daily reminder for all their mixes, big
+    // stories, and their teams' finals. Account-gated like every stored
+    // choice; where this server cannot deliver, it says why instead.
+    if(AUTH.authenticated){
+      if(!pushState && !pushStateAsked){
+        pushStateAsked = true;
+        loadPushState(function(){ if(pushState) renderSettings(); });
+      }
+      var pp = pushPrefs();
+      html += '<div class="set-group">Notifications</div>';
+      if(pushState && !pushState.available){
+        html += '<div class="set-note">' + escapeHtml(pushState.reason) + '</div>';
+      } else if(pp){
+        html += settingsRow("Daily reminder", escapeHtml(dailyTimeSummary()), "openDailyTimeMenu()")
+          + settingsRow("Big stories", pp.breaking ? "On" : "Off",
+              "setPushSwitch('breaking', " + (pp.breaking ? "false" : "true") + ")")
+          + settingsRow("Your teams\u2019 final scores", pp.finals ? "On" : "Off",
+              "setPushSwitch('finals', " + (pp.finals ? "false" : "true") + ")")
+          + '<div class="set-note">One reminder a day when all your mixes are ready. Big stories reach you on their own when they name something you follow; a story for everyone is checked by a person first. Nothing arrives between 10 PM and 8 AM except your daily reminder.</div>';
+      }
+    }
     // "Hey FAM" (§158), only where the browser can recognise speech at all.
     if(speechRecognitionCtor()){
       html += settingsRow("Say \u201cHey FAM\u201d to search", wakeOn ? "On" : "Off",
@@ -17769,6 +17968,11 @@
   }
   function setTimeZone(name){
     saveLocalPrefs({ time_zone: name || "" });
+    // The daily reminder and quiet hours keep the same clock (§562).
+    if(AUTH.authenticated && pushPrefs()){
+      fetch("/api/push/prefs", { method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ tz: listenerZone() }) }).catch(function(){});
+    }
     refreshSettingsIfOpen();
     toast(name ? "Episodes use " + zoneLabel(name) + " time"
                : "Episodes use this device’s time");
@@ -21483,6 +21687,7 @@
   function shareGlyph(key){
     var glyphs = { copy: "\u29c9", sms: "\u2709", email: "@", whatsapp: "W",
                    x: "X", facebook: "f", linkedin: "in",
+                   reddit: "r/", threads: "Th",
                    instagram_story: "IG", snapchat_story: "SC" };
     return glyphs[key] || "\u2197";
   }
@@ -23070,8 +23275,11 @@
     return active.id === "screen-player" || active.id === "screen-playall";
   }
 
+  // The episode that just ended, for the episode check (surveys.py).
+  var nextUpEpisode = null;
   function maybeOfferNextUp(query, topicId){
     if(!nextUpAllowedHere()) return;
+    nextUpEpisode = { id: FamAudio.episode() || "", title: String(query || "").slice(0, 300) };
     // A guest on the sample pages can play only episodes already made, and
     // every tile here would be refused into the sign-up sheet - which the
     // countdown would then raise by itself, fifteen seconds after an episode
@@ -23179,7 +23387,9 @@
       nextUpFromSearch ? "Back to search" : "Back to DailyFAM";
     document.getElementById("nextUpSearchInput").value = "";
     nextUpPaused = false;
+    hideSurveyPulse();
     document.getElementById("nextUpOverlay").classList.add("active");
+    offerEpisodeSurvey(nextUpEpisode);
 
     // The countdown, shown rather than described: the bar empties over the
     // same five seconds the timer runs for, so what is about to happen is
@@ -23246,6 +23456,7 @@
 
   function closeNextUp(){
     stopNextUpTimer();
+    hideSurveyPulse();
     document.getElementById("nextUpOverlay").classList.remove("active");
   }
 
@@ -23271,6 +23482,286 @@
   function dismissNextUp(){
     closeNextUp();
     if(nextUpFromSearch){ openSearchFAM(); } else { openMyFamTab(); }
+  }
+
+  // ---------------- Optional surveys (surveys.py, §560) ----------------
+  // The server decides which survey, if any, and when: `/api/surveys/offer`
+  // is asked only at a moment one *can* be shown (an answer there counts as
+  // offered), and only for an account. Every survey has Not now; nothing
+  // waits on one; an answer is never a taste signal.
+  //
+  // One drawing for all three. Answers are `{question: {pick, text}}`: `pick`
+  // an option id, a list of them, or a number; `text` the "Other" box or an
+  // option's own box ("Which name?").
+  var SURVEY = { def: null, answers: {}, where: "", episode: null, busy: false };
+  var SURVEY_OTHER = "__other";
+
+  function surveyVisible(q){
+    var c = q.show_if;
+    if(!c) return true;
+    var a = SURVEY.answers[c.question];
+    return !!a && c["in"].indexOf(a.pick) !== -1;
+  }
+  function surveyTextWanted(q){
+    var a = SURVEY.answers[q.id] || {};
+    if(q.kind === "text") return true;
+    var picks = Array.isArray(a.pick) ? a.pick : (a.pick != null ? [a.pick] : []);
+    if(a.other) return true;
+    return !!q.detail && picks.some(function(p){ return q.detail[p]; });
+  }
+  function surveyTextPlaceholder(q){
+    var a = SURVEY.answers[q.id] || {};
+    if(q.kind === "text") return q.placeholder || "";
+    var picks = Array.isArray(a.pick) ? a.pick : [a.pick];
+    var asked = q.detail ? picks.filter(function(p){ return q.detail[p]; })
+                                 .map(function(p){ return q.detail[p]; }) : [];
+    if(a.other) asked.push(asked.length ? "Anything else?" : "Tell us more");
+    return asked.join(" ");
+  }
+  function surveyQuestionHTML(q){
+    var a = SURVEY.answers[q.id] || {};
+    var html = '<div class="svy-q" data-sq="' + escapeHtml(q.id) + '">'
+      + '<div class="svy-qt">' + escapeHtml(q.text) + '</div>';
+    if(q.kind === "scale"){
+      html += '<div class="svy-scale">';
+      for(var n = q.min; n <= q.max; n++){
+        html += '<button type="button" class="svy-chip' + (a.pick === n ? " on" : "")
+          + '" data-sv="' + n + '" aria-pressed="' + (a.pick === n) + '">' + n + '</button>';
+      }
+      html += '</div><div class="svy-ends"><span>' + escapeHtml(q.low || "")
+        + '</span><span>' + escapeHtml(q.high || "") + '</span></div>';
+    } else if(q.kind !== "text"){
+      var opts = (q.options || []).slice();
+      if(q.other) opts.push({ id: SURVEY_OTHER, label: "Other" });
+      html += '<div class="svy-chips" role="group">' + opts.map(function(o){
+        var on = o.id === SURVEY_OTHER ? !!a.other
+          : (Array.isArray(a.pick) ? a.pick.indexOf(o.id) !== -1 : a.pick === o.id);
+        return '<button type="button" class="svy-chip' + (on ? " on" : "")
+          + '" data-so="' + escapeHtml(o.id) + '" aria-pressed="' + on + '">'
+          + escapeHtml(o.label) + '</button>';
+      }).join("") + '</div>';
+    }
+    if(surveyTextWanted(q)){
+      html += '<input class="svy-text" type="text" maxlength="500" data-st="'
+        + escapeHtml(q.id) + '" placeholder="' + escapeHtml(surveyTextPlaceholder(q))
+        + '" value="' + escapeHtml(a.text || "") + '" autocomplete="off">';
+    }
+    return html + '</div>';
+  }
+  function drawSurvey(box){
+    var def = SURVEY.def;
+    if(!def || !box) return;
+    box.innerHTML = def.questions.filter(surveyVisible).map(surveyQuestionHTML).join("");
+  }
+  function surveyBox(){
+    return SURVEY.where === "pulse" ? document.getElementById("surveyPulseBody")
+                                    : document.getElementById("surveyBody");
+  }
+  // One listener for every chip and box, wherever the survey is drawn.
+  function surveyTap(ev){
+    var chip = ev.target.closest(".svy-chip");
+    if(!chip || !SURVEY.def) return;
+    var qid = chip.closest("[data-sq]").getAttribute("data-sq");
+    var q = SURVEY.def.questions.filter(function(x){ return x.id === qid; })[0];
+    if(!q) return;
+    var a = SURVEY.answers[qid] || (SURVEY.answers[qid] = {});
+    if(chip.hasAttribute("data-sv")){
+      var n = +chip.getAttribute("data-sv");
+      a.pick = a.pick === n ? null : n;
+    } else {
+      var id = chip.getAttribute("data-so");
+      if(id === SURVEY_OTHER){
+        a.other = !a.other;
+        if(!a.other && !(q.detail && [].concat(a.pick || []).some(function(p){ return q.detail[p]; }))) a.text = "";
+        if(q.kind === "single" && a.other) a.pick = null;
+      } else if(q.kind === "multi"){
+        var list = Array.isArray(a.pick) ? a.pick : [];
+        var at = list.indexOf(id);
+        if(at === -1) list.push(id); else list.splice(at, 1);
+        a.pick = list;
+      } else {
+        a.pick = a.pick === id ? null : id;
+        if(a.pick) a.other = false;
+      }
+    }
+    var box = surveyBox();
+    drawSurvey(box);
+    // The episode check's first tap: "Loved it" is the whole answer.
+    if(SURVEY.where === "pulse"){
+      var more = SURVEY.def.questions.filter(surveyVisible).length > 1;
+      document.getElementById("surveyPulseActs").hidden = !more;
+      if(!more && a.pick) sendSurvey("pulse");
+    }
+    var input = box && box.querySelector('[data-st="' + qid + '"]');
+    if(input && chip.getAttribute("data-so") === SURVEY_OTHER && a.other) input.focus();
+  }
+  function surveyType(ev){
+    var input = ev.target.closest("[data-st]");
+    if(!input) return;
+    var qid = input.getAttribute("data-st");
+    (SURVEY.answers[qid] || (SURVEY.answers[qid] = {})).text = input.value;
+  }
+  function surveyPayload(){
+    var out = {};
+    SURVEY.def.questions.filter(surveyVisible).forEach(function(q){
+      var a = SURVEY.answers[q.id];
+      if(!a) return;
+      var e = {};
+      if(a.pick != null && !(Array.isArray(a.pick) && !a.pick.length)) e.pick = a.pick;
+      var text = String(a.text || "").trim();
+      if(text && surveyTextWanted(q)) e.text = text;
+      if(e.pick != null || e.text) out[q.id] = e;
+    });
+    return out;
+  }
+  function surveyPost(path, body){
+    return fetch(path, { method: "POST", credentials: "same-origin",
+                         headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify(body) })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(j){
+          if(!r.ok) throw new Error(j.error || (typeof j.detail === "string" && j.detail)
+                                    || "That did not send - try again.");
+          return j;
+        });
+      });
+  }
+  function sendSurvey(where){
+    if(!SURVEY.def || SURVEY.busy) return;
+    var answers = surveyPayload();
+    var err = document.getElementById(where === "pulse" ? "surveyPulseErr" : "surveyErr");
+    if(!Object.keys(answers).length){
+      err.textContent = "Pick at least one answer, or tap Not now.";
+      err.hidden = false;
+      return;
+    }
+    SURVEY.busy = true;
+    err.hidden = true;
+    var body = { survey: SURVEY.def.id, answers: answers, build: FAM_CLIENT };
+    if(SURVEY.episode) body.episode = SURVEY.episode;
+    surveyPost("/api/surveys/answer", body).then(function(){
+      SURVEY.busy = false;
+      if(where === "pulse"){
+        document.getElementById("surveyPulse").innerHTML =
+          '<div class="svy-thanks">Thanks — that helps.</div>';
+      } else {
+        closeSurveySheet();
+        toast("Thanks — that helps");
+      }
+      SURVEY.def = null;
+    }, function(e){
+      SURVEY.busy = false;
+      err.textContent = e.message;
+      err.hidden = false;
+    });
+  }
+  function surveyNotNow(){
+    var def = SURVEY.def;
+    hideSurveyPulse();
+    document.getElementById("surveyInvite").hidden = true;
+    closeSurveySheet();
+    SURVEY.def = null;
+    if(def) surveyPost("/api/surveys/dismiss", { survey: def.id }).catch(function(){});
+  }
+
+  // The episode check, on the What's next card.
+  function offerEpisodeSurvey(episode){
+    // An app survey offered and not yet answered keeps its place: the
+    // episode check would otherwise replace it under its invite.
+    if(!AUTH.authenticated || (SURVEY.def && SURVEY.where === "sheet")) return;
+    surveyPost("/api/surveys/offer", { moment: "episode_end" }).then(function(d){
+      var def = d && d.survey;
+      if(!def || (SURVEY.def && SURVEY.where === "sheet")
+         || !document.getElementById("nextUpOverlay").classList.contains("active")) return;
+      SURVEY = { def: def, answers: {}, where: "pulse", episode: episode, busy: false };
+      var pulse = document.getElementById("surveyPulse");
+      pulse.innerHTML = '<div class="svy-head"><div class="svy-title">'
+        + escapeHtml(def.title) + '</div><button class="svy-x" type="button" aria-label="Not now"'
+        + ' onclick="surveyNotNow()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"'
+        + ' stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+        + '</button></div><div id="surveyPulseBody" style="margin-top:9px"></div>'
+        + '<div class="svy-err" id="surveyPulseErr" role="alert" hidden></div>'
+        + '<div class="svy-acts" id="surveyPulseActs" hidden>'
+        + '<button class="modal-btn primary" type="button" onclick="sendSurvey(\'pulse\')">Send</button></div>';
+      pulse.hidden = false;
+      drawSurvey(document.getElementById("surveyPulseBody"));
+    }).catch(function(){});
+  }
+  function hideSurveyPulse(){
+    var pulse = document.getElementById("surveyPulse");
+    if(pulse){ pulse.hidden = true; pulse.innerHTML = ""; }
+    if(SURVEY.where === "pulse") SURVEY.def = null;
+  }
+
+  // The day-3 check-in and the two-week wrap-up: asked only when the app is
+  // in front, nothing is playing, and nothing else is open - and then as a
+  // small invite, never the survey itself.
+  var SURVEY_OPEN_SCREENS = ["screen-home", "screen-myfam", "screen-playfam",
+                             "screen-profile", "screen-friends", "screen-messages",
+                             "screen-saved", "screen-history", "screen-mixdetail"];
+  var surveyAskedAt = 0;
+  function surveyMomentFree(){
+    if(!AUTH.authenticated || document.visibilityState === "hidden") return false;
+    if(nowBarState && isPlaying) return false;
+    var active = document.querySelector(".screen.active");
+    if(!active || SURVEY_OPEN_SCREENS.indexOf(active.id) === -1) return false;
+    if(document.querySelector(".modal-overlay.active, .sheet-overlay.active")) return false;
+    return !SURVEY.def;
+  }
+  function maybeOfferAppSurvey(){
+    // Once in half an hour from this page; the server keeps the real limit.
+    if(Date.now() - surveyAskedAt < 30 * 60 * 1000) return;
+    if(!surveyMomentFree()) return;
+    surveyAskedAt = Date.now();
+    surveyPost("/api/surveys/offer", { moment: "open" }).then(function(d){
+      var def = d && d.survey;
+      if(!def || SURVEY.def) return;
+      SURVEY = { def: def, answers: {}, where: "sheet", episode: null, busy: false };
+      document.getElementById("surveyInviteTitle").textContent = def.title;
+      document.getElementById("surveyInviteIntro").textContent = def.intro || "";
+      var invite = document.getElementById("surveyInvite");
+      invite.hidden = false;
+      placeAboveBars(invite);
+    }).catch(function(){});
+  }
+  // The invite waits off the player and every other screen it may not be
+  // offered on, and comes back with the listener (`showScreen`).
+  function followSurveyInvite(id){
+    if(typeof SURVEY === "undefined" || !SURVEY || !SURVEY.def || SURVEY.where !== "sheet") return;
+    var invite = document.getElementById("surveyInvite");
+    if(!invite || document.getElementById("surveyOverlay").classList.contains("active")) return;
+    invite.hidden = SURVEY_OPEN_SCREENS.indexOf("screen-" + id) === -1;
+    if(!invite.hidden) placeAboveBars(invite);
+  }
+  function openSurveySheet(){
+    if(!SURVEY.def) return;
+    document.getElementById("surveyInvite").hidden = true;
+    document.getElementById("surveyTitle").textContent = SURVEY.def.title;
+    document.getElementById("surveyIntro").textContent = SURVEY.def.intro || "";
+    document.getElementById("surveyErr").hidden = true;
+    drawSurvey(document.getElementById("surveyBody"));
+    document.getElementById("surveyOverlay").classList.add("active");
+  }
+  function closeSurveySheet(){
+    document.getElementById("surveyOverlay").classList.remove("active");
+  }
+  function startSurveyChecks(){
+    ["surveyPulse", "surveyBody"].forEach(function(id){
+      var el = document.getElementById(id);
+      el.addEventListener("click", surveyTap);
+      el.addEventListener("input", surveyType);
+    });
+    // A few seconds after the app settles, then every minute for a while
+    // (the moment may not be free at first), and again on coming back.
+    setTimeout(maybeOfferAppSurvey, 6000);
+    var tries = 0;
+    var every = setInterval(function(){
+      if(++tries > 15 || SURVEY.def){ clearInterval(every); return; }
+      if(surveyAskedAt === 0) maybeOfferAppSurvey();
+    }, 60000);
+    document.addEventListener("visibilitychange", function(){
+      if(document.visibilityState === "visible") setTimeout(maybeOfferAppSurvey, 3000);
+    });
   }
 
   // ---------------- Splash screen ----------------
@@ -23659,9 +24150,11 @@
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.
-  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(openLinkedJoin).then(checkTerms)
+  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(function(){ openNotificationLink(); }).then(openLinkedJoin).then(checkTerms)
     // The activation step, when it is owed (§414) - after the Terms.
-    .then(checkActivation);
+    .then(checkActivation)
+    // Optional surveys (surveys.py): asked for only once the app has settled.
+    .then(startSurveyChecks, startSurveyChecks);
 </script>
 </body>
 </html>

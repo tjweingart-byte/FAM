@@ -269,6 +269,24 @@ struct MainTabs: View {
         return max(16, bottom - pageBottom + 2)
     }
 
+    /// Nothing playing, nothing open, a signed-in listener on one of the
+    /// tabs (`surveyMomentFree`): the only time an app survey is asked for.
+    /// One question a line: a single twelve-term expression of optionals
+    /// and `==` is the kind Swift's type checker can give up on.
+    private var surveyMomentFree: Bool {
+        guard model.listener?.authenticated == true else { return false }
+        guard scenePhase == .active else { return false }
+        if model.showPlayer || sectionOpen || tab == .search { return false }
+        switch player.phase {
+        case .playing, .buffering, .connecting: return false
+        default: break
+        }
+        if social.follower != nil || social.cover != nil { return false }
+        if now.showQueue { return false }
+        if model.mixDone != nil { return false }
+        return true
+    }
+
     /// "Added to Queue · Open" with the player down.
     private var queueOpen: Binding<Bool> {
         Binding(get: { now.showQueue && !model.showPlayer },
@@ -434,6 +452,34 @@ struct MainTabs: View {
             // Only an action takes a tap; the line leaves the page under it
             // pressable (`.snack.show .snack-act{ pointer-events:auto }`).
             .allowsHitTesting(now.toast?.action != nil)
+        }
+        // A survey is due (`#surveyInvite`, §560): asked, never opened on
+        // its own; just above the bars, where the toast sits.
+        .overlay(alignment: .bottom) {
+            // Waits off searchFAM and View more, and comes back with them.
+            if tab != .search && !sectionOpen {
+                GeometryReader { geo in
+                    SurveyInvite(surveys: model.surveys)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, toastLift(geo.frame(in: .global).maxY))
+                }
+            }
+        }
+        .background(SurveySheetHost(surveys: model.surveys))
+        // The day-3 check-in and the two-week wrap-up: a few seconds after
+        // the app settles in front, then every minute for a while if the
+        // moment is not free, and again on every return (`startSurveyChecks`).
+        .task(id: scenePhase == .active && model.feedDrawn) {
+            guard scenePhase == .active, model.feedDrawn else { return }
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            for _ in 0..<15 {
+                if Task.isCancelled { return }
+                if surveyMomentFree {
+                    await model.surveys.offerOnOpen(free: true)
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
         }
         // Voice search (§151): full screen over the tabs and the mini player.
         .overlay { VoiceSearchLayer(voice: model.voiceSearch) }

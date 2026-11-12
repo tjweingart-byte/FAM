@@ -989,6 +989,42 @@ friends and get none.
   active again. The edition's ceilings are lifted (0, settable), and its
   report counts `dormant_mixes`. `0` hours writes every mix, as before.
 <!-- rule:mix-listen-time -->
+> **Current (PROBLEMS.md §562, at the owner's direction, 11.12):** the phone
+> is told three things, each once, and each only once what it opens is
+> written (`push.py`, `push_stories.py`):
+> - **One daily reminder per person, never one per mix** - "Your myFAM is
+>   ready" (names swapped, §185), headline first: the title of an episode
+>   the edition wrote for their most recently played mix, then "and N more
+>   across M mixes". *When*: the time they chose (Settings, or the row under
+>   any mix - it is the same one); else an old client's per-mix listen time
+>   (the earliest) until they choose here; else **learned** - the median time
+>   of their first play of the day over 14 days, once 3 days have one (a
+>   first play within an hour of a reminder counts at the reminder's due
+>   time, so answering it never drifts the time later); else
+>   07:30. Skipped on a day they already listened. **Backs off**: 3 ignored
+>   reminders in a row (no play after) and it goes every other day; 8 and it
+>   stops until they play. All mixes dormant: "Your myFAM is waiting", never
+>   "ready". The §448 spread now keys on the person.
+> - **Big stories** - GDELT's export copy (§211) clustered every 15 minutes
+>   over 3 hours by Trending's own clustering, no model, no request. **Mixed**:
+>   someone who *chose* to follow a subject the story names (a mix subject,
+>   `f:nfl~Eagles` is "Eagles", or a chosen interest that names a subject;
+>   never inferred taste) is told automatically past
+>   `PUSH_BREAKING_FOLLOWED_OUTLETS`; **everyone only after the owner presses
+>   Send in `/admin/push`**, offered only for the one story past
+>   `PUSH_BREAKING_EVERYONE_OUTLETS` and `PUSH_BREAKING_RATIO` times the next.
+> - **Followed finals** - a game the sports sweep saw end, to whoever follows
+>   a team in it, "<score> · Final - the recap is ready". Since §563 the sweep
+>   also runs for those followers' own teams' games with nobody drawing myFAM
+>   (rule:sweep-on-demand); nothing in the push path asks BALLDONTLIE itself.
+> - **Quiet hours 22:00-08:00** in the listener's zone hold the two story
+>   kinds; a breaking story goes at 08:00 only if the detector still saw it in
+>   the last 3 hours. The daily reminder is not held: its time is theirs.
+> - Every kind has its own switch in Settings. No per-person daily cap on
+>   stories (the owner chose quiet hours and back-off, not caps); a story is
+>   told to each person once. A story whose episode cannot be written is never
+>   sent. The per-mix `listen_at` field stays for installed clients.
+>
 > **Current (PROBLEMS.md §448, at the owner's direction, 11.04):** each
 > mix's "ready" push goes out a fixed 0-15 minutes after its listen time
 > (`push.spread_offset`, from the mix and the day), **never more than
