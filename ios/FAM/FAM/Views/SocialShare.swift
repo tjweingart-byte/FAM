@@ -178,8 +178,9 @@ struct SendInsideFAM: View {
 /// opens its app with the words (Facebook and LinkedIn drop them, so they
 /// go to the clipboard too); Instagram and Snapchat get the story card
 /// (`shareStoryCard`) - the server's SVG drawn to a 1080x1920 PNG here and
-/// handed to iOS's share sheet with the words, which is where those apps
-/// take a picture for a story; anything else goes to iOS's share sheet.
+/// handed straight to that app's story editor when the server sends its
+/// hand-off (`StoryHandoff`), else to iOS's share sheet with the words;
+/// anything else goes to iOS's share sheet.
 /// Then the note when the server has no public address.
 struct ShareTargetRows: View {
     @EnvironmentObject private var model: AppModel
@@ -197,7 +198,7 @@ struct ShareTargetRows: View {
 
     /// The server's order (`sharing.TARGETS`).
     static let order = ["copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
-                        "instagram_story", "snapchat_story"]
+                        "reddit", "threads", "instagram_story", "snapchat_story"]
 
     /// `shareGlyph`.
     static func glyph(_ key: String) -> String {
@@ -209,6 +210,8 @@ struct ShareTargetRows: View {
         case "x": return "X"
         case "facebook": return "f"
         case "linkedin": return "in"
+        case "reddit": return "r/"
+        case "threads": return "Th"
         case "instagram_story": return "IG"
         case "snapchat_story": return "SC"
         default: return "\u{2197}"
@@ -295,7 +298,7 @@ struct ShareTargetRows: View {
         let text = t.text ?? url
         // A story is a picture with a link on it, not a sentence with a URL.
         if t.needsImage == true {
-            shareCard(text: text)
+            shareCard(text: text, handoff: t.handoff)
             return
         }
         if key == "copy" {
@@ -324,9 +327,11 @@ struct ShareTargetRows: View {
     }
 
     /// `shareStoryCard`: "Making your card…", the card fetched and drawn to
-    /// a PNG, then the share sheet with the picture as a file and the words.
-    /// A failure is said, never silent.
-    private func shareCard(text: String) {
+    /// a PNG, then - where the server sent the platform's hand-off and the
+    /// app is on this phone - straight into Instagram's or Snapchat's story
+    /// editor (`StoryHandoff`), else the share sheet with the picture as a
+    /// file and the words. A failure is said, never silent.
+    private func shareCard(text: String, handoff: StoryHandoff? = nil) {
         guard !making else { return }
         guard !card.isEmpty else {
             model.nowPlaying.say("The card could not be made")
@@ -343,6 +348,10 @@ struct ShareTargetRows: View {
                 let svg = try await api.storyCardSVG(address)
                 guard let png = StoryCardRenderer.png(svg: svg) else {
                     model.nowPlaying.say("The card could not be drawn")
+                    return
+                }
+                if let handoff, await handoff.send(png: png, caption: text) {
+                    done()
                     return
                 }
                 let file = FileManager.default.temporaryDirectory.appendingPathComponent(name)

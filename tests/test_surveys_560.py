@@ -1,4 +1,4 @@
-"""Optional surveys (surveys.py, PROBLEMS.md §552): the episode check, the
+"""Optional surveys (surveys.py, PROBLEMS.md §560): the episode check, the
 day-3 check-in and the two-week wrap-up."""
 from __future__ import annotations
 

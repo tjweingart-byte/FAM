@@ -146,7 +146,7 @@ final class AppModel: ObservableObject {
     let player = StreamPlayer()
     let loading = LoadingModel()
     let nowPlaying: NowPlayingModel
-    /// The optional surveys (`surveys.py`, §552).
+    /// The optional surveys (`surveys.py`, §560).
     let surveys: SurveysModel
     /// The episode behind the loading screen, until its audio is released.
     private var pending: Episode?

@@ -445,7 +445,7 @@ struct MainTabs: View {
             // pressable (`.snack.show .snack-act{ pointer-events:auto }`).
             .allowsHitTesting(now.toast?.action != nil)
         }
-        // A survey is due (`#surveyInvite`, §552): asked, never opened on
+        // A survey is due (`#surveyInvite`, §560): asked, never opened on
         // its own; just above the bars, where the toast sits.
         .overlay(alignment: .bottom) {
             // Waits off searchFAM and View more, and comes back with them.

@@ -82,7 +82,8 @@ class Target:
 
     `kind` is the thing that actually differs:
 
-    * `link` - a URL with text around it. Facebook, LinkedIn, X.
+    * `link` - a URL with text around it. Facebook, LinkedIn, X, Reddit,
+      Threads.
     * `message` - a private message to somebody. SMS, email, WhatsApp.
     * `story` - an image with a link attached. Instagram, Snapchat.
     * `copy` - the link on its own, for everywhere not listed.
@@ -175,6 +176,18 @@ TARGETS: tuple[Target, ...] = (
            "\"{question}\"\n\nFAM turned that into a {minutes}-minute briefing. "
            "Worth a listen if you have been wondering the same thing.\n\n{url}",
            destination="https://www.linkedin.com/feed/?shareActive=true&shareUrl={url}"),
+    # Reddit's submit page takes the link and a title as separate fields,
+    # so the words here are the post's title and carry no URL - Reddit draws
+    # the link card itself. 300 is Reddit's title limit. On a phone
+    # reddit.com opens the Reddit app where it is installed.
+    Target("reddit", "Reddit", "link", 300, False,
+           "{question} - a {minutes}-minute FAM episode",
+           destination="https://www.reddit.com/submit?url={url}&title={text}"),
+    # Threads' web intent fills the composer the way X's does, link in the
+    # words; 500 is its post limit. Opens the Threads app where installed.
+    Target("threads", "Threads", "link", 500, False,
+           "{question}\n\nFAM made me a {minutes}-minute episode on it. {url}",
+           destination="https://www.threads.net/intent/post?text={text}"),
     # No `destination` for either, and that is not an omission. A story is an
     # image handed to the platform's own SDK - `instagram-stories://share` and
     # Snapchat's Creative Kit - which takes the picture and the sticker link
@@ -232,6 +245,8 @@ MIX_TEMPLATES: dict[str, tuple[str, str]] = {
     "facebook": ("My daily FAM mix, {name} - a fresh briefing every day on {topics}. {url}", ""),
     "linkedin": ("\"{name}\" is my daily FAM mix - a fresh briefing every morning on "
                  "{topics}.\n\n{url}", ""),
+    "reddit": ("{name} - a daily FAM mix on {topics}", ""),
+    "threads": ("My daily FAM mix, {name}: {topics}. {url}", ""),
     "instagram_story": ("{name}", ""),
     "snapchat_story": ("{name}", ""),
 }
@@ -275,7 +290,10 @@ def _rendered(chosen: Target, template: str, subject_template: str,
         # Never cut the URL off: a share whose link is truncated is worse than
         # a share with a shorter sentence, so the trim is taken out of the text
         # and the link is re-attached.
-        if values["url"] and values["url"] not in keep:
+        # Only where the link was in the words to begin with: Reddit's title
+        # carries no URL (the link is its own field), and gluing one on
+        # would put the address in the title.
+        if values["url"] and values["url"] in text and values["url"] not in keep:
             room = chosen.max_chars - len(values["url"]) - 4
             keep = text.split(values["url"])[0][:max(0, room)]
             keep = keep.rsplit(" ", 1)[0] + "… " + values["url"]
@@ -325,6 +343,82 @@ def destination_for(chosen: Target, *, text: str, subject: str,
         subject=quote(subject, safe=""),
         url=quote(url, safe=""),
     )
+
+
+#: The shapes the two platforms issue: Meta's App ID is digits, a Snap Kit
+#: client id letters, digits and dashes. Anything else is refused rather
+#: than percent-encoded into a URL a phone will open, because a mistyped id
+#: fails inside Instagram or Snapchat with no word about why.
+_INSTAGRAM_APP_ID = re.compile(r"^\d{5,20}$")
+_SNAPCHAT_CLIENT_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
+#: Said once per process: this runs on every share and every health check.
+_WARNED: set[str] = set()
+
+
+def _warn_once(key: str, message: str) -> None:
+    if key not in _WARNED:
+        _WARNED.add(key)
+        log.warning(message)
+
+
+def story_handoffs(*, instagram_app_id: str = "",
+                   snapchat_client_id: str = "") -> dict[str, dict]:
+    """The native hand-off for each story destination that has one.
+
+    Neither is a URL with words in it, so neither lives in `destination`:
+    each is a picture put on the phone's pasteboard under the platform's own
+    keys, then a scheme opened that tells the platform's app to read it.
+
+    * **Instagram** - `instagram-stories://share?source_application=<id>`,
+      the card under `com.instagram.sharedSticker.backgroundImage`. Instagram
+      has refused a share without a Facebook App ID since January 2023, which
+      is why the story tiles used to fall back to the share sheet.
+    * **Snapchat** - Creative Kit Lite (no SDK): the card under
+      `com.snapchat.creativekit.backgroundImage` with the client id, then
+      `snapchat://creativekit/preview/1?checkcount=..&clientId=..`. The
+      `checkcount` is the pasteboard's change count, which only the phone
+      knows, so the client finishes that URL.
+
+    A destination whose id is unset or malformed has no hand-off and the
+    client keeps the share sheet - the card still reaches either app, one
+    step longer. Nothing here posts anything: the person still sees the story
+    in Instagram or Snapchat and presses share themselves.
+    """
+    out: dict[str, dict] = {}
+    if instagram_app_id:
+        if _INSTAGRAM_APP_ID.match(instagram_app_id):
+            out["instagram_story"] = {
+                "platform": "instagram",
+                "url": "instagram-stories://share?source_application="
+                       + quote(instagram_app_id, safe=""),
+                "app_id": instagram_app_id,
+            }
+        else:
+            _warn_once("instagram", "INSTAGRAM_APP_ID is not a Facebook App ID "
+                       "(digits); Instagram stories go through the share sheet")
+    if snapchat_client_id:
+        if _SNAPCHAT_CLIENT_ID.match(snapchat_client_id):
+            out["snapchat_story"] = {
+                "platform": "snapchat",
+                "url": "snapchat://creativekit/preview/1",
+                "client_id": snapchat_client_id,
+            }
+        else:
+            _warn_once("snapchat", "SNAPCHAT_CLIENT_ID is not a Snap Kit client "
+                       "id; Snapchat stories go through the share sheet")
+    return out
+
+
+def story_handoff_problems(*, instagram_app_id: str = "",
+                           snapchat_client_id: str = "") -> list[str]:
+    """The ids that are set but malformed, as sentences for `/api/health`:
+    without this a mistyped id looked exactly like an unset one."""
+    out = []
+    if instagram_app_id and not _INSTAGRAM_APP_ID.match(instagram_app_id):
+        out.append("INSTAGRAM_APP_ID is set but is not a Facebook App ID (digits only)")
+    if snapchat_client_id and not _SNAPCHAT_CLIENT_ID.match(snapchat_client_id):
+        out.append("SNAPCHAT_CLIENT_ID is set but is not a Snap Kit client id")
+    return out
 
 
 def is_public_link(url: str) -> bool:
@@ -600,7 +694,7 @@ JOIN_PATH = "/waitlist"
 
 
 def landing_payload(share: dict, *, url: str, card_url: str = "",
-                    app_store: str = "") -> dict:
+                    app_store: str = "", image_url: str = "") -> dict:
     """Everything the landing page is allowed to know.
 
     Note what is absent: `user_id`. A share link is public by construction -
@@ -620,6 +714,10 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         "minutes": max(1, as_minutes(share.get("minutes") or 0)),
         "url": url or "",
         "card": card_url or "",
+        # The link preview (`link_preview`, §559): the square picture
+        # Messages and the rest draw in the bubble. The story card above is
+        # 9:16 SVG, which they skip.
+        "image": image_url or "",
         "app_store": app_store or "",
         # Whether the App Store is where the doors go. False means there is
         # no app to send anybody to - see `join` for where they go instead.
@@ -688,6 +786,7 @@ def landing_head(payload: dict) -> str:
         else f"A {minutes}-minute FAM episode.")
     url = payload.get("url") or ""
     card = payload.get("card") or ""
+    image = payload.get("image") or ""
 
     tags = [
         f'<title>{title} - FAM</title>',
@@ -699,7 +798,17 @@ def landing_head(payload: dict) -> str:
     ]
     if is_public_link(url):
         tags.append(f'<meta property="og:url" content="{esc(url)}">')
-    if is_public_link(card):
+    if is_public_link(image):
+        # The square JPEG (`link_preview`, §559): what Messages, WhatsApp,
+        # X and Slack draw in the bubble, the way a Spotify link shows its
+        # album art. The story card stays for Instagram and Snapchat.
+        tags.append(f'<meta property="og:image" content="{esc(image)}">')
+        tags.append('<meta property="og:image:type" content="image/jpeg">')
+        tags.append('<meta property="og:image:width" content="1200">')
+        tags.append('<meta property="og:image:height" content="1200">')
+        tags.append('<meta name="twitter:card" content="summary_large_image">')
+        tags.append(f'<meta name="twitter:image" content="{esc(image)}">')
+    elif is_public_link(card):
         tags.append(f'<meta property="og:image" content="{esc(card)}">')
         tags.append('<meta property="og:image:width" content="1080">')
         tags.append('<meta property="og:image:height" content="1920">')

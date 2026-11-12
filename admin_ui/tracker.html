@@ -275,6 +275,54 @@
   .q-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
   .q-bar select { width:auto; margin:0; }
   .q-rubric { font-size:11.5px; color:var(--faint); margin-top:3px; }
+  /* The category tree (11.12): eight facets, each its own colour, the
+     subjects beneath in collapsible branches with guide lines. A bar is the
+     kept episodes filed at a node and below; an amber dot a grown node. */
+  .ct-head { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:flex-end; justify-content:space-between; }
+  .ct-head > div:first-child { flex:1 1 320px; min-width:0; }
+  .ct-tools { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:10px; }
+  .ct-tools input { background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:6px 12px; width:210px; max-width:100%; font-size:12.5px; }
+  .ct-tools .ghost[aria-pressed="true"] { color:var(--ink); border-color:var(--amber-dk); }
+  .ct-summary { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px; margin:4px 0 14px; }
+  .ct-sum { text-align:left; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 11px 10px; position:relative; overflow:hidden; }
+  .ct-sum::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--c); }
+  .ct-sum:hover { border-color:var(--c); }
+  .ct-sum b { display:block; font-family:var(--serif); font-size:22px; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .ct-sum span { display:block; font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--c); }
+  .ct-sum em { display:block; font-style:normal; font-size:11px; color:var(--faint); }
+  /* Columns, not a grid: a short facet sits under a short one, never in
+     a gap beside Sport. */
+  .ct-grid { column-gap:12px; }
+  @media (min-width:900px) { .ct-grid { columns:2; } }
+  .ct-grid > * { break-inside:avoid; margin:0 0 12px; display:block; }
+  .ct-facet { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 12px 10px; min-width:0;
+              background-image:linear-gradient(180deg, color-mix(in srgb, var(--c) 9%, transparent), transparent 90px); }
+  .ct-facet > header { display:flex; align-items:baseline; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .ct-facet h3 { margin:0; font:600 17px var(--serif); color:var(--ink); }
+  .ct-swatch { width:10px; height:10px; border-radius:3px; background:var(--c); align-self:center; box-shadow:0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
+  .ct-meta { font:11px var(--mono); color:var(--faint); margin-left:auto; }
+  .ct-tree, .ct-tree ul { list-style:none; margin:0; padding:0; }
+  .ct-tree ul { margin-left:9px; padding-left:10px; border-left:1px solid color-mix(in srgb, var(--c) 28%, transparent); }
+  .ct-row { display:grid; grid-template-columns:14px minmax(0,1fr) auto 58px 26px; align-items:center; gap:6px; padding:3px 4px; border-radius:6px; font-size:13px; color:var(--ink); min-height:26px; }
+  summary.ct-row { list-style:none; margin:0; font:inherit; color:var(--ink); }
+  summary.ct-row::-webkit-details-marker { display:none; }
+  summary.ct-row:hover, .ct-row.leaf:hover { background:color-mix(in srgb, var(--c) 10%, transparent); }
+  .ct-chev { width:14px; height:14px; color:var(--faint); transition:transform .15s ease; }
+  details[open] > summary .ct-chev { transform:rotate(90deg); color:var(--c); }
+  .ct-row.leaf .ct-chev { visibility:hidden; }
+  .ct-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ct-row.top .ct-name { font-weight:600; }
+  .ct-name mark { background:color-mix(in srgb, var(--amber) 35%, transparent); color:inherit; border-radius:3px; padding:0 1px; }
+  .ct-kids { font:10.5px var(--mono); color:var(--faint); border:1px solid var(--line); border-radius:999px; padding:0 6px; }
+  .ct-kids:empty { visibility:hidden; }
+  .ct-grown { width:6px; height:6px; border-radius:50%; background:var(--amber); display:inline-block; margin-left:6px; vertical-align:middle; }
+  .ct-bar { height:5px; background:color-mix(in srgb, var(--line) 70%, transparent); border-radius:3px; overflow:hidden; }
+  .ct-bar i { display:block; height:100%; background:var(--c); border-radius:3px; }
+  .ct-n { font:11px var(--mono); color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; }
+  .ct-n.zero { color:var(--faint); opacity:.6; }
+  .ct-facet .ct-empty { font-size:12px; color:var(--faint); padding:4px; }
+  .ct-legend { display:flex; flex-wrap:wrap; gap:14px; font:11px var(--mono); color:var(--faint); margin-top:12px; }
+  .ct-legend .ct-bar { width:40px; display:inline-block; vertical-align:middle; margin-right:5px; --c:var(--muted); }
 </style>
 </head>
 <body>
@@ -424,7 +472,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 
     </div>
 
-    <!-- Optional surveys (surveys.py, PROBLEMS.md §552): what testers said,
+    <!-- Optional surveys (surveys.py, PROBLEMS.md §560): what testers said,
          tallied per question, with every free line and a CSV per survey. -->
     <div class="page" data-page="surveys" data-title="Surveys" hidden>
     <section class="card section" id="surveysCard">
@@ -435,6 +483,27 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     </div>
 
     <div class="page" data-page="categories" data-title="Categories (Nando)" hidden>
+    <section class="card section" id="treeCard">
+      <div class="ct-head">
+        <div>
+          <h2>The tree <small id="ctCount"></small></h2>
+          <p class="sub">Every category Nando can file an episode under, beneath the eight facets. Open a branch to see
+            what sits below it; the bar is how many kept episodes are filed there and below.</p>
+        </div>
+        <div class="ct-tools">
+          <input id="ctFind" type="search" placeholder="Find a category" aria-label="Find a category">
+          <button class="ghost" type="button" id="ctFiled" aria-pressed="false">Filed only</button>
+          <button class="ghost" type="button" id="ctToggle">Open all</button>
+        </div>
+      </div>
+      <div class="ct-summary" id="ctSummary"></div>
+      <div class="ct-grid" id="ctGrid"><p class="sub">Loading the tree...</p></div>
+      <div class="ct-legend">
+        <span><span class="ct-bar"><i style="width:60%"></i></span>episodes filed there and below</span>
+        <span><span class="ct-grown"></span> grown from listeners; the rest were seeded</span>
+        <span id="ctOrphans"></span>
+      </div>
+    </section>
     <section class="card section">
       <h2>How Nando is graded</h2>
       <p class="sub">The answer key grades a few of Nando's filings each night, only where Nando, the writer and the
@@ -1782,7 +1851,99 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (!parts[0]) return "-";
     return parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + (parts.length > 1 ? " " + parts.slice(1).join(".") : "");
   }
+  // ----------------------------------------------------- the category tree
+  // 11.12: the whole tree, a card per facet. Drawn from /api/admin/categories/tree;
+  // searching and "Filed only" redraw from the copy kept here, never refetch.
+  var CT_COLOURS = { sports: "#6BC2A8", business: "#D4A373", money: "#E9BC63", tech: "#7FA8E8",
+                     science: "#A493EA", health: "#8FD39A", culture: "#DE8FA8", world: "#6FC3D6" };
+  var ctData = null, ctAllOpen = false;
+  var CT_CHEV = '<svg class="ct-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" '
+    + 'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function ctMark(label, q) {
+    if (!q) return esc(label);
+    var i = label.toLowerCase().indexOf(q);
+    if (i < 0) return esc(label);
+    return esc(label.slice(0, i)) + "<mark>" + esc(label.slice(i, i + q.length)) + "</mark>" + esc(label.slice(i + q.length));
+  }
+  // What survives the filters: a node that matches, or holds one that does.
+  function ctPrune(nodes, q, filed) {
+    var out = [];
+    (nodes || []).forEach(function (n) {
+      if (filed && !n.total) return;
+      var kids = ctPrune(n.children, q, filed);
+      var hit = !q || String(n.label || n.id).toLowerCase().indexOf(q) >= 0;
+      if (hit || kids.length) out.push({ n: n, kids: q && !hit ? kids : ctPrune(n.children, "", filed), hit: hit });
+    });
+    return out;
+  }
+  function ctRows(items, max, q, depth) {
+    return items.map(function (it) {
+      var n = it.n, width = n.total ? Math.max(4, Math.round(Math.sqrt(n.total / max) * 100)) : 0;
+      var grown = n.source && n.source !== "seed"
+        ? '<span class="ct-grown" title="grown from listeners (' + esc(n.source) + ')"></span>' : "";
+      var title = n.label + " - " + n.total + " episode" + (n.total === 1 ? "" : "s")
+        + (n.episodes !== n.total ? " (" + n.episodes + " filed here)" : "");
+      var cells = CT_CHEV + '<span class="ct-name">' + ctMark(n.label || n.id, q) + grown + '</span>'
+        + '<span class="ct-kids">' + (it.kids.length ? it.kids.length : "") + '</span>'
+        + '<span class="ct-bar"><i style="width:' + width + '%"></i></span>'
+        + '<span class="ct-n' + (n.total ? "" : " zero") + '">' + n.total + '</span>';
+      var cls = "ct-row" + (depth === 0 ? " top" : "");
+      if (!it.kids.length) return '<li><div class="' + cls + ' leaf" title="' + esc(title) + '">' + cells + '</div></li>';
+      var open = q || ctAllOpen ? " open" : "";
+      return '<li><details' + open + '><summary class="' + cls + '" title="' + esc(title) + '">' + cells + '</summary>'
+        + '<ul>' + ctRows(it.kids, max, q, depth + 1) + '</ul></details></li>';
+    }).join("");
+  }
+  function drawTree() {
+    if (!ctData) return;
+    var q = String($("ctFind").value || "").trim().toLowerCase();
+    var filed = $("ctFiled").getAttribute("aria-pressed") === "true";
+    var facets = ctData.facets || [];
+    $("ctCount").textContent = "· " + fmt(ctData.nodes) + " categories, " + ctData.max_depth + " levels deep";
+    $("ctSummary").innerHTML = facets.map(function (f) {
+      return '<button type="button" class="ct-sum" data-ct="' + esc(f.id) + '" style="--c:' + (CT_COLOURS[f.id] || "#A79EBA") + '">'
+        + '<span>' + esc(f.label) + '</span><b>' + fmt(f.size) + '</b><em>' + fmt(f.total) + ' episodes filed</em></button>';
+    }).join("");
+    var shown = 0;
+    var cards = facets.map(function (f) {
+      var items = ctPrune(f.children, q, filed);
+      var facetHit = q && String(f.label).toLowerCase().indexOf(q) >= 0;
+      if (facetHit && !items.length) items = ctPrune(f.children, "", filed);
+      if ((q || filed) && !items.length && !facetHit) return "";
+      shown++;
+      var max = Math.max(1, (f.children || []).reduce(function (m, c) { return Math.max(m, c.total); }, 0));
+      var here = f.episodes ? ' · ' + fmt(f.episodes) + ' at the facet itself' : "";
+      return '<article class="ct-facet" id="ct-' + esc(f.id) + '" style="--c:' + (CT_COLOURS[f.id] || "#A79EBA") + '">'
+        + '<header><span class="ct-swatch"></span><h3>' + ctMark(f.label, q) + '</h3>'
+        + '<span class="ct-meta">' + fmt(f.size) + ' categories · ' + fmt(f.total) + ' episodes' + here + '</span></header>'
+        + (items.length ? '<ul class="ct-tree">' + ctRows(items, max, q, 0) + '</ul>'
+                        : '<p class="ct-empty">Nothing beneath it yet.</p>')
+        + '</article>';
+    }).join("");
+    $("ctGrid").innerHTML = shown ? cards
+      : '<p class="empty">' + (q ? 'No category matches "' + esc(q) + '".' : "Nothing filed yet.") + '</p>';
+    $("ctOrphans").textContent = ctData.orphans ? ctData.orphans + " node(s) whose parent the tree no longer holds are not shown" : "";
+    $("ctToggle").textContent = ctAllOpen ? "Close all" : "Open all";
+  }
+  function loadTree() {
+    return api("/api/admin/categories/tree").then(function (d) { ctData = d; drawTree(); })
+      .catch(function (e) { $("ctGrid").innerHTML = '<p class="sub">Could not load the tree: ' + esc(e.message) + '</p>'; });
+  }
+  $("ctFind").addEventListener("input", drawTree);
+  $("ctFiled").addEventListener("click", function () {
+    var on = this.getAttribute("aria-pressed") !== "true";
+    this.setAttribute("aria-pressed", on ? "true" : "false");
+    drawTree();
+  });
+  $("ctToggle").addEventListener("click", function () { ctAllOpen = !ctAllOpen; drawTree(); });
+  $("ctSummary").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-ct]");
+    var card = b && document.getElementById("ct-" + b.getAttribute("data-ct"));
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
   function loadCategories() {
+    loadTree();
     return Promise.all([api("/api/admin/categories"), api("/api/admin/categories/queue?limit=20")])
       .then(function (got) { drawCategories(got[0]); drawCatQueue(got[1].episodes || []); })
       .catch(function (e) { $("catKpis").innerHTML = '<p class="sub">Could not load: ' + esc(e.message) + '</p>'; });

@@ -2719,7 +2719,7 @@
     font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.07em;
     text-transform:uppercase; cursor:pointer; }
   .nextup-back:active{ opacity:0.6; }
-  /* -------- optional surveys (surveys.py, §552) --------
+  /* -------- optional surveys (surveys.py, §560) --------
      One drawing for all three: the episode check rides on the What's next
      card, the day-3 and two-week surveys open in their own card from a small
      invite above the bars. Chips are the answers; nothing here is required. */
@@ -4867,7 +4867,7 @@
       </div>
 
 
-      <!-- The day-3 check-in and the two-week wrap-up (surveys.py, §552). -->
+      <!-- The day-3 check-in and the two-week wrap-up (surveys.py, §560). -->
       <div class="modal-overlay" id="surveyOverlay">
         <div class="modal-card svy-card" role="dialog" aria-modal="true" aria-labelledby="surveyTitle">
           <div class="svy-head">
@@ -21567,6 +21567,7 @@
   function shareGlyph(key){
     var glyphs = { copy: "\u29c9", sms: "\u2709", email: "@", whatsapp: "W",
                    x: "X", facebook: "f", linkedin: "in",
+                   reddit: "r/", threads: "Th",
                    instagram_story: "IG", snapchat_story: "SC" };
     return glyphs[key] || "\u2197";
   }
@@ -23363,7 +23364,7 @@
     if(nextUpFromSearch){ openSearchFAM(); } else { openMyFamTab(); }
   }
 
-  // ---------------- Optional surveys (surveys.py, §552) ----------------
+  // ---------------- Optional surveys (surveys.py, §560) ----------------
   // The server decides which survey, if any, and when: `/api/surveys/offer`
   // is asked only at a moment one *can* be shown (an answer there counts as
   // offered), and only for an account. Every survey has Not now; nothing

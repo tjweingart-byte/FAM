@@ -482,7 +482,7 @@ def test_the_front_door_decodes_what_the_server_sends(monkeypatch, tmp_path):
 
 
 def test_the_surveys_decode_what_the_server_sends(monkeypatch):
-    """§552 on iOS: the offer, every survey's questions, and the answer the
+    """§560 on iOS: the offer, every survey's questions, and the answer the
     app sends (`Surveys.swift` `payload`) is one the server keeps."""
     import surveys as surveys_mod
 

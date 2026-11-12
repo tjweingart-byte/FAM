@@ -616,7 +616,7 @@ final class FAMAPI: @unchecked Sendable {
         value == value.rounded() ? String(Int(value)) : String(value)
     }
 
-    // MARK: - Optional surveys (`surveys.py`, PROBLEMS.md §552)
+    // MARK: - Optional surveys (`surveys.py`, PROBLEMS.md §560)
 
     /// The survey to show at this moment, or nil. Asked only when one can be
     /// shown - the server counts an answer here as offered and does not
@@ -1360,6 +1360,21 @@ struct ShareTarget: Decodable {
     let needsImage: Bool?
     let subject: String?
     let destination: String?
+    /// Instagram's or Snapchat's own hand-off (`sharing.story_handoffs`),
+    /// on a story destination when the server has the platform's id; nil
+    /// keeps iOS's share sheet.
+    let handoff: StoryHandoff?
+}
+
+/// A story destination's native hand-off: the card goes on the pasteboard
+/// under the platform's keys and `url` opens its app (`StoryHandoff.swift`).
+struct StoryHandoff: Decodable {
+    let platform: String
+    let url: String
+    /// Instagram: the Facebook App ID (already in `url`).
+    let appId: String?
+    /// Snapchat: the Snap Kit client id.
+    let clientId: String?
 }
 
 /// An answer whose body nothing reads.

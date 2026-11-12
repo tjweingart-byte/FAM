@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The optional surveys (`surveys.py`, PROBLEMS.md §552), as the web draws
+/// The optional surveys (`surveys.py`, PROBLEMS.md §560), as the web draws
 /// them (`static/index.html`: `offerEpisodeSurvey`, `maybeOfferAppSurvey`,
 /// `drawSurvey`, `sendSurvey`, `surveyNotNow`).
 ///

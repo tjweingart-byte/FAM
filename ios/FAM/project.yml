@@ -102,6 +102,10 @@ targets:
         NSSpeechRecognitionUsageDescription: FAM turns what you say into the words of your search or your story, and listens for "Hey FAM" if you turn it on. On phones that can, this happens on the phone; otherwise Apple's speech recognition does it. Only the finished words are sent to FAM.
         CFBundleURLTypes:
           - CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]
+        # The two story hand-offs (`StoryHandoff.swift`): asked with
+        # `canOpenURL` before the card goes on the pasteboard, which iOS
+        # answers only for schemes listed here.
+        LSApplicationQueriesSchemes: [instagram-stories, snapchat]
         # The web's three typefaces (`typefaces`), as static instances of
         # the Google Fonts variable files (OFL; licences in FAM/Fonts).
         UIAppFonts:

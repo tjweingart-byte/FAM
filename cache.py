@@ -1179,6 +1179,13 @@ class MemoryScriptCache:
     def keys_with_node(self, node: str, limit: int = 5000) -> list:
         return [k for k, n in self._category_nodes.items() if n == node][:limit]
 
+    def node_counts(self) -> dict:
+        counts: dict = {}
+        for n in self._category_nodes.values():
+            if n:
+                counts[n] = counts.get(n, 0) + 1
+        return counts
+
     def tagged(self, after: str = "", limit: int = 500) -> list:
         return [(k, n, self.sourced_at(k), []) for k, n in
                 sorted(self._category_nodes.items()) if k > after][:limit]
@@ -2450,6 +2457,17 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache audio read failed")
             return []
+
+    def node_counts(self) -> dict:
+        """{node: kept episodes Nando filed under it} - the admin's tree
+        (11.12). One grouped read; {} when it cannot be read."""
+        try:
+            return {n: int(c) for n, c in self._conn().execute(
+                "SELECT category_node, COUNT(*) FROM scripts WHERE category_node != '' "
+                "GROUP BY category_node").fetchall()}
+        except Exception:
+            log.exception("script cache node count failed")
+            return {}
 
     def keys_with_node(self, node: str, limit: int = 5000) -> list:
         """Written episodes Nando filed under `node`."""

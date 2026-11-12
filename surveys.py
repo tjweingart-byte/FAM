@@ -1,6 +1,6 @@
 """Optional surveys: what the beta testers (and later everyone) think of FAM.
 
-Three surveys, decided at the 11.11 beta meeting (PROBLEMS.md §552):
+Three surveys, decided at the 11.11 beta meeting (PROBLEMS.md §560):
 
 * **episode** - "How was that episode?", one tap on the What's next card, two
   if something was off. Offered after a listener's first finished episode,

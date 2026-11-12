@@ -162,7 +162,8 @@ def test_the_page_carries_the_preview_facebook_and_linkedin_read(
     assert 'property="og:title"' in page
     assert "Who Makes the Chips" in page
     assert 'property="og:image"' in page
-    assert "/api/share/card" in page
+    # The square JPEG Messages draws (§559), not the 9:16 SVG story card.
+    assert f"/api/share/{shared}/preview.jpg" in page
 
 
 def test_no_public_host_means_no_image_is_promised(client, shared, monkeypatch):
@@ -184,3 +185,57 @@ def test_health_says_whether_a_share_can_leave_this_machine(client):
     assert set(body) >= {"public_base_url", "app_store_url", "landing_doors",
                          "targets"}
     assert len(body["targets"]) == len(sharing.TARGETS)
+
+
+def test_the_link_preview_is_a_square_jpeg(client, shared):
+    """What Messages draws in the bubble (§559): a JPEG, 1200 square. With
+    no approved picture in a test deployment it is the cover - never
+    nothing."""
+    import io
+
+    from PIL import Image
+
+    got = client.get(f"/api/share/{shared}/preview.jpg")
+    assert got.status_code == 200
+    assert got.headers["content-type"] == "image/jpeg"
+    im = Image.open(io.BytesIO(got.content))
+    assert im.format == "JPEG" and im.size == (1200, 1200)
+
+
+def test_the_link_preview_wears_the_episodes_picture(client, shared, monkeypatch):
+    """With a picture, the preview is that picture: its colour survives in
+    the middle, where neither the badge nor the play button is drawn."""
+    import io
+
+    from PIL import Image
+
+    import app as appmod
+
+    red = io.BytesIO()
+    Image.new("RGB", (800, 600), (200, 30, 30)).save(red, format="PNG")
+    monkeypatch.setattr(appmod, "_preview_picture",
+                        lambda record: ("row-red", red.getvalue()))
+    got = client.get(f"/api/share/{shared}/preview.jpg")
+    im = Image.open(io.BytesIO(got.content)).convert("RGB")
+    r, g, b = im.getpixel((600, 600))
+    assert r > 150 and g < 80 and b < 80
+
+
+def test_an_unknown_share_has_no_preview(client):
+    assert client.get("/api/share/nope/preview.jpg").status_code == 404
+
+
+def test_a_half_minute_share_asks_for_its_picture_at_its_own_length(
+        client, monkeypatch):
+    """A 1.5-minute share looked its picture up as a 1-minute episode, so it
+    missed the written episode's category and could wear another picture."""
+    import app as appmod
+
+    made = client.post("/api/share", json={
+        "query": "why bonds move", "minutes": 1.5, "title": "Bonds"}).json()
+    asked = []
+    monkeypatch.setattr(appmod, "_player_picture",
+                        lambda q, t, m, *a, **k: asked.append(m) or {})
+    appmod._PREVIEWS.clear()
+    assert client.get(f"/api/share/{made['share']['id']}/preview.jpg").status_code == 200
+    assert asked == [1.5]

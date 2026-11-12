@@ -79,13 +79,13 @@ So the server's job is to produce the payload and a share is something the
 listener completes. No OAuth to maintain, no tokens to leak, no scope reviews
 with four companies, and nothing that can post while somebody is asleep.
 
-Nine destinations, and `kind` is what actually differs:
+Eleven destinations, and `kind` is what actually differs:
 
 | kind | destinations | what it takes |
 |---|---|---|
 | `copy` | Copy link | the URL |
 | `message` | SMS, email, WhatsApp | text, and a subject for email |
-| `link` | X, Facebook, LinkedIn | text with the URL in it |
+| `link` | X, Facebook, LinkedIn, Threads, Reddit | text with the URL in it (Reddit: a title, the link in its own field) |
 | `story` | Instagram, Snapchat | **an image**, with a link sticker |
 
 **Stories cannot take a link.** They are pictures. Without a card the listener
@@ -94,6 +94,47 @@ shares a screenshot of a player UI, which is not an invitation to anything — s
 with no dependency and nothing stored. The question in it is text a listener
 typed and the card is markup, so everything is escaped; the test for that is
 the one that would otherwise fail in public.
+
+### What a pasted link looks like (§559)
+
+A link pasted into Messages, WhatsApp, X, Slack or Facebook previews with
+**the episode's picture**, square, a small FAM badge and a play button - the
+owner's pick of four drawn options, after Spotify's album-art bubble. The
+page's `og:image` is `/api/share/<id>/preview.jpg` (`link_preview.draw`,
+1200x1200 JPEG): the picture the player shows for that episode, or, when it
+has none, its title on FAM's dark ground. It used to name the story card,
+which is a 9:16 SVG that Messages and most previewers skip, so a FAM link
+arrived as words. The story card is unchanged for Instagram and Snapchat.
+Drawn on request, a few kept in memory, nothing stored; links already sent
+keep the preview they arrived with.
+
+### Straight into the story editor (iOS, §558)
+
+On the iOS app a story tile can skip the share sheet. `/api/share` (and a
+mix's share) puts a `handoff` on `instagram_story` and `snapchat_story` when
+the server has that platform's id - both public identifiers that ship in
+any app, not credentials, so they are settings rather than secrets:
+
+| setting | where it comes from | what the phone does |
+|---|---|---|
+| `INSTAGRAM_APP_ID` | a Meta app at developers.facebook.com (its Facebook App ID) | the card under `com.instagram.sharedSticker.backgroundImage`, then `instagram-stories://share?source_application=<id>` |
+| `SNAPCHAT_CLIENT_ID` | an app at kit.snapchat.com registered with bundle id `net.familiarize.fam` | Creative Kit Lite: the card, client id and caption under `com.snapchat.creativekit.*`, then `snapchat://creativekit/preview/1?checkcount=..&clientId=..&appDisplayName=FAM` |
+
+Instagram has refused a story share without a Facebook App ID since January
+2023, which is why the two tiles ended in the share sheet. Snap's
+Development client id posts only from the Snap accounts listed as Demo
+Users until Snap approves the app; the Production id needs that approval.
+Neither needs an SDK in the app (`ios/FAM/FAM/StoryHandoff.swift`).
+
+The phone asks `canOpenURL` first (`LSApplicationQueriesSchemes`), so a phone
+without the app never has its clipboard replaced; any id unset or malformed,
+the app missing, or the open refused, and the card goes to the share sheet as
+before. Being on the server means a TestFlight build turns them on with no new
+build. `/api/health` lists which are on (`sharing.story_handoffs`). Neither
+platform lets another app pre-attach a tappable link to a story any more
+(the pasteboard holds the picture, so the link cannot ride there either): the
+card names FAM, and the person adds Instagram's link sticker or Snapchat's
+paperclip themselves.
 
 The templates are **defaults the listener edits**, not copy that gets posted
 unseen — which is why they are written to be finished by somebody. Each says

@@ -176,6 +176,17 @@ def test_a_node_nando_filed_under_that_the_tree_lacks_is_a_breach(monkeypatch):
     assert breach["detail"]["examples"] == ["sports/xfl"]
 
 
+def test_an_episode_nando_filed_at_its_facet_is_not_a_dead_node(monkeypatch):
+    """The facets are the tree's roots, never rows in it, and Nando's last
+    step files at the facet: `science` or `world` is never a breach."""
+    import topics
+
+    use(monkeypatch, agents=True, categorizer=True)
+    monkeypatch.setattr(topics, "category_tree", lambda: {"physics": object()})
+    rows = [("a", "science", 1, []), ("b", "world", 1, []), ("c", "physics", 1, [])]
+    assert AC.nando_nodes_exist(Cache(tagged=rows)) == []
+
+
 def test_nando_s_filings_are_read_a_page_at_a_time_and_come_round(monkeypatch):
     """A breach stands until a whole pass is clean (§495): a clean page
     between two bad ones never closes and reopens it."""
@@ -259,3 +270,72 @@ def test_the_report_has_the_trial_and_the_watches(stores, monkeypatch):
     assert out["trial"] == {"with": {"episodes": 41, "listens": 120},
                             "without": {"episodes": 39, "listens": 101}}
     assert "tandem" in out and "mclovin_unchecked" in out
+
+
+# ------------------------------------------------ the alert explains itself (§556)
+class _Titled(Cache):
+    def __init__(self, tagged, titles):
+        super().__init__(tagged=tagged)
+        self._titles = titles
+
+    def title(self, key):
+        return self._titles.get(key, "")
+
+
+def _fresh_nando(monkeypatch):
+    monkeypatch.setattr(AC, "_NANDO", {"after": "", "seen": set(), "last_pass": set(),
+                                       "found": {}, "last_found": {}})
+
+
+def test_a_node_the_tree_lost_says_so_and_asks_for_a_re_file(monkeypatch):
+    """Old filings only: the tree changed under them. The alert names the
+    node, its episodes, the newest's title and day - and never asks to hold
+    an agent who did nothing."""
+    import topics
+
+    use(monkeypatch, agents=True, categorizer=True)
+    _fresh_nando(monkeypatch)
+    monkeypatch.setattr(topics, "category_tree", lambda: {"nfl": object()})
+    now = 1_800_000_000.0
+    rows = [("a", "nfl", now, []), ("b", "pruned thing", now - 9 * 86400, []),
+            ("c", "pruned thing", now - 8 * 86400, [])]
+    [breach] = AC.nando_nodes_exist(_Titled(rows, {"c": "Why it mattered"}), now)
+    plan = breach["plan"]
+    assert "pruned thing" in plan["problem"] and "2 episodes" in plan["problem"]
+    assert "Why it mattered" in plan["problem"]
+    assert "tree changed" in plan["problem"]
+    assert "Re-file" in plan["recommended"] and "Hold" not in plan["recommended"]
+    assert breach["detail"]["episodes"] == {"pruned thing": 2}
+    assert breach["detail"]["still_filing"] is False
+    assert breach["cause"] == "breach:categorizer:dead-node"
+
+
+def test_a_node_nando_is_still_filing_under_asks_to_hold_him(monkeypatch):
+    import topics
+
+    use(monkeypatch, agents=True, categorizer=True)
+    _fresh_nando(monkeypatch)
+    monkeypatch.setattr(topics, "category_tree", lambda: {})
+    now = 1_800_000_000.0
+    [breach] = AC.nando_nodes_exist(Cache(tagged=[("e", "made up", now - 3600, [])]), now)
+    assert "Hold Nando" in breach["plan"]["recommended"]
+    assert "only nodes that exist" in breach["plan"]["problem"]
+    assert breach["detail"]["still_filing"] is True
+
+
+def test_the_alert_keeps_its_evidence_across_a_pass(monkeypatch):
+    """The breach stands until a whole pass is clean (§495), and its words
+    must not go blank on the round after the pass that found it."""
+    import topics
+
+    use(monkeypatch, agents=True, categorizer=True)
+    _fresh_nando(monkeypatch)
+    monkeypatch.setattr(topics, "category_tree", lambda: {"n": object()})
+    monkeypatch.setattr(AC, "SAMPLE", 2)
+    now = 1_800_000_000.0
+    cache = Cache(tagged=[("a", "n", now, []), ("b", "n", now, []),
+                          ("c", "gone", now - 30 * 86400, [])])
+    AC.nando_nodes_exist(cache, now)                      # a, b
+    AC.nando_nodes_exist(cache, now)                      # c: the pass ends
+    [breach] = AC.nando_nodes_exist(cache, now)           # a, b again
+    assert '"gone" (1 episode' in breach["plan"]["problem"]
