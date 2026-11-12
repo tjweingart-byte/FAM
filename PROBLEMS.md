@@ -34269,10 +34269,9 @@ mix's listen time (§184, §448). It sends one per person:
   to everyone marks it `approved`; Dismiss stops it.
 * **Followed finals.** A sports story the sweep marked `final` is noted once
   and told to whoever follows a team in it, "Eagles 27–24 Cowboys · Final" /
-  "The recap is ready". It rides §191's sweep unchanged: if nobody drew myFAM
-  while the game was on, the sweep did not run and the final is not told.
-  Widening the sweep for followers with push on is the owner's call, not
-  made here.
+  "The recap is ready". It rode §191's sweep unchanged: if nobody drew myFAM
+  while the game was on, the sweep did not run and the final was not told.
+  (The owner widened the sweep for these followers the same day: §553.)
 * **Follows are chosen, never inferred** (`app._push_follows`): subjects in
   their mixes (`f:nfl~Eagles` follows "Eagles", `f:nfl` "NFL"; typed questions
   and bank topics follow nothing) and chosen interests that name a subject.
@@ -34303,3 +34302,35 @@ the web. The APNs kind is still not built.
 **Unverified here.** No VAPID keys or GDELT copy in this container: the
 outlet bars (15 / 40 / 2x) are first guesses to be read off `/admin/push`
 against a real day's clusters.
+
+## 553. The sports sweep runs for people with finals on (2026-11-12)
+
+**What the owner asked.** "Sweep scores for followers with finals on" - the
+follow-up §552 left open: a final was told only if somebody happened to draw
+myFAM while the game was on, because only then did §191's sweep run.
+
+**What changed.** A person who has finals notifications on and somewhere to
+receive them is demand for the sweep, **for their own teams' games only**:
+
+* `push_stories.publish_finals_followed` (in the push loop, every 5 minutes)
+  hands `stories.note_finals_followed` the names those people chose to follow
+  - mix subjects and named interests, as §552 matches finals - and nothing
+  when `PUSH_FINALS=0`. `stories.finals_followed` forgets the list after
+  `FINALS_FOLLOWED_SECONDS` (15 min), so a server whose push loop stopped (no
+  VAPID keys, staging) stops sweeping for it.
+* `balldontlie_scores.Signals.idle` lets the sweep run with nobody drawing
+  myFAM while that list is non-empty. `Signals.due`, in that case, reads a
+  league only while a game on or about to start names a followed team
+  (`followed_game`, matched as whole words against the teams' names; a soccer
+  row whose teams the catalogue has not named yet counts, rather than missing
+  a club's final). `watching` already stops once the sweep sees the game
+  final - that last read is the one that raises the notification.
+* With myFAM demand nothing changes: every game on is watched.
+
+**Cost.** Each swept league's card is still read once per UTC day to know what
+is on (about a dozen requests a day with nobody looking, where it was zero),
+then one league read per `STORIES_SPORTS_INTERVAL_SECONDS` while a followed
+team plays. No new endpoint and no request per listener.
+
+**Rule changed.** rule:sweep-on-demand carries a Current note; the CLAUDE.md
+line says it.

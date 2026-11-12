@@ -1012,9 +1012,9 @@ friends and get none.
 >   Send in `/admin/push`**, offered only for the one story past
 >   `PUSH_BREAKING_EVERYONE_OUTLETS` and `PUSH_BREAKING_RATIO` times the next.
 > - **Followed finals** - a game the sports sweep saw end, to whoever follows
->   a team in it, "<score> · Final - the recap is ready". It rides the sweep
->   as §191 left it (only while a game is on and myFAM was drawn recently), so
->   a final no sweep saw is not told; nothing asks BALLDONTLIE for a push.
+>   a team in it, "<score> · Final - the recap is ready". Since §553 the sweep
+>   also runs for those followers' own teams' games with nobody drawing myFAM
+>   (rule:sweep-on-demand); nothing in the push path asks BALLDONTLIE itself.
 > - **Quiet hours 22:00-08:00** in the listener's zone hold the two story
 >   kinds; a breaking story goes at 08:00 only if the detector still saw it in
 >   the last 3 hours. The daily reminder is not held: its time is theirs.

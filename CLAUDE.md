@@ -216,7 +216,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   [mix-topic-title] Joint: members edit topics only. [joint-mixes]
 - **Push** (§552): one "myFAM is ready" a day per person, at their time or a
   learnt one, after the edition, backs off; big stories to followers, all
-  once admin-approved; followed finals; written first; quiet 22-8. [mix-listen-time]
+  once admin-approved; team finals; written first; quiet 22-8. [mix-listen-time]
 - Faces on DailyFAM only, Instagram's, yours first (§297); vibes first; a
   swipe goes to the next friend's, the picture to the profile; Friends has
   "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
@@ -323,9 +323,9 @@ Research and truth
   §280, §418); API-Sports and Finnhub are gone. [sports-balldontlie]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one
-  of their games is on, only if myFAM was drawn recently; other leagues are
-  looked up on demand; Tiingo every 2h, round the clock; a refused
-  endpoint is not re-asked that day. [sweep-on-demand]
+  of their games is on, only if myFAM was drawn recently or (§553) names
+  a finals follower's team; others on demand; Tiingo every 2h;
+  a refused endpoint is not re-asked that day. [sweep-on-demand]
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]

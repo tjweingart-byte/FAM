@@ -33,9 +33,10 @@ A followed final (`final`)
 A game in a followed team's league that the sports sweep saw end
 (`balldontlie_scores`, a `stories` story with `live_status == final`): the
 people who follow a team in it are told "<score> · Final - the recap is
-ready". It rides the sweep as it is (§191): sports are swept only while a
-game is on and somebody drew myFAM recently, so a final nobody's sweep saw is
-not told. Nothing here asks BALLDONTLIE anything.
+ready". The sweep (§191) runs while somebody drew myFAM recently **or**, at
+the owner's direction (§552), while a game naming a team followed by somebody
+with finals on is under way: `publish_finals_followed` hands it those names.
+Nothing here asks BALLDONTLIE anything itself.
 
 Both kinds wait out the listener's quiet hours (`push.in_quiet_hours`) and go
 in the morning if still current: a breaking story while the detector saw it
@@ -312,6 +313,7 @@ def reset(story_store: Optional[StoryStore] = None) -> None:
     global _STORE, _LAST_DETECT
     _STORE = story_store
     _LAST_DETECT = 0.0
+    _LAST_FOLLOWED[0] = 0.0
 
 
 # --------------------------------------------------------------------------
@@ -496,8 +498,6 @@ async def tick(push_store, follows_of, allowed=None, generator=None, cache=None,
             log.exception("push: breaking detector failed")
     note_finals(now)
     users = [u for u in push_store.subscribers() if allowed is None or allowed(u)]
-    if not users:
-        return []
     names: dict = {}
 
     def named(user_id: str) -> list:
@@ -507,6 +507,10 @@ async def tick(push_store, follows_of, allowed=None, generator=None, cache=None,
             except Exception:  # noqa: BLE001
                 names[user_id] = []
         return names[user_id]
+
+    publish_finals_followed(users, push_store, named, now)
+    if not users:
+        return []
 
     sent = []
     for row in store().recent(now - LIVE_SECONDS):
@@ -528,6 +532,30 @@ async def tick(push_store, follows_of, allowed=None, generator=None, cache=None,
     if sent:
         log.info("push: story notifications sent: %s", sent)
     return sent
+
+
+#: How often the names followed by people with finals on are handed to the
+#: sports sweep (§552). Well inside `stories.FINALS_FOLLOWED_SECONDS`.
+FOLLOWED_SECONDS = 5 * 60
+_LAST_FOLLOWED = [0.0]
+
+
+def publish_finals_followed(users: list, push_store, named, now: float) -> tuple:
+    """§552, the owner: "sweep scores for followers with finals on". The
+    teams followed by everybody here who can be told and has finals on,
+    handed to `stories` for the sports sweep to count as demand. Only what
+    they chose (`named`), and nothing when finals are off on the server."""
+    import stories
+    if now - _LAST_FOLLOWED[0] < FOLLOWED_SECONDS and _LAST_FOLLOWED[0] <= now:
+        return stories.finals_followed(now)
+    _LAST_FOLLOWED[0] = now
+    wanted: set = set()
+    if _settings().push_finals:
+        for user_id in users:
+            if push_store.prefs(user_id)["finals"]:
+                wanted.update(named(user_id))
+    stories.note_finals_followed(wanted, now)
+    return stories.finals_followed(now)
 
 
 def admin_list(push_store, now: Optional[float] = None) -> list:

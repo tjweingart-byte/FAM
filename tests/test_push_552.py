@@ -453,3 +453,26 @@ def test_the_env_example_documents_the_new_settings():
                  "PUSH_BREAKING_EVERYONE_OUTLETS=40", "PUSH_BREAKING_RATIO=2.0",
                  "PUSH_FINALS=1"):
         assert line in example
+
+
+# --- §552 follow-up: the sweep runs for people with finals on ----------------
+
+def test_the_push_loop_hands_the_sweep_only_finals_followers_teams(tmp_path, monkeypatch):
+    import stories as stories_mod
+    stories_mod.reset()
+    push_stories.reset(None)
+    pushes = push.PushStore(str(tmp_path / "m.db"))
+    pushes.set_prefs("off", finals=False)
+    follows = {"fan": ["Eagles"], "off": ["Cowboys"]}
+    now = _local(2026, 11, 12, 14, 0)
+    got = push_stories.publish_finals_followed(["fan", "off"], pushes,
+                                               lambda u: follows[u], now)
+    assert got == ("Eagles",)
+    # Finals off on the server: nobody's teams are swept for it.
+    patched = dataclasses.replace(settings, push_finals=False)
+    monkeypatch.setattr(push_stories, "_settings", lambda: patched)
+    later = now + push_stories.FOLLOWED_SECONDS
+    assert push_stories.publish_finals_followed(["fan"], pushes,
+                                                lambda u: follows[u], later) == ()
+    stories_mod.reset()
+    push_stories.reset(None)
