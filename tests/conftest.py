@@ -909,7 +909,7 @@ def everyone_friends(monkeypatch):
 @pytest.fixture(scope="session", autouse=True)
 def _pronouncing_dictionary_loaded():
     """`spoken_text` asks the CMU dictionary whether capitals are a word
-    (§566), and answers the old way until it has loaded - in a thread, so
+    (§567), and answers the old way until it has loaded - in a thread, so
     the voice never waits. Loaded before any test here, so no test's result
     depends on whether a background load happened to finish first."""
     import hard_words

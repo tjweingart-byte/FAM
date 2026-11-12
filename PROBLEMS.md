@@ -34810,7 +34810,35 @@ Privacy answers drafted in `APP_STORE.md` Part C, rewritten with the listing,
 age rating and review notes as the app now is (no Explore, no phone number on
 sign-up, vibes as posts, surveys).
 
-## 566. Words in capitals: NASCAR and NVIDIA said as words, not letters (2026-11-12)
+## 566. Tiingo credited in the episode and the sources (2026-11-12)
+
+**What was asked.** When Tiingo is used in an episode, say "market data
+powered by Tiingo" at the very end of the script, and list Tiingo in the
+sources at the bottom right.
+
+**What was already true.** A Tiingo lookup that answered was already in the
+episode's provenance (`provenance.from_live`, label "Tiingo", tier "live
+feed"), as was Tiingo data recalled from the archive (§313). But the
+player's corner draws only the first three marks, in the order sources were
+found, so on a markets episode with three articles Tiingo sat behind "+N".
+
+**What changed.** One record decides both: `provenance.credits_tiingo`.
+`Provenance.as_dict` (what `/api/sources` serves) puts Tiingo first, so it is
+always one of the corner's marks. `script_generator.market_credit` returns
+`provenance.TIINGO_CREDIT` ("Market data powered by Tiingo.") when the
+record names Tiingo - or, with no notes, when the plan's own lookup Tiingo
+answered - and both write paths append it last: `stream_prepared` (after a
+refusal too) and `sentences_from_message`. Composed in code, never by the
+writer, so it is the same words every time and stored with the script.
+Rule `tiingo-credit` in `docs/claude/constraints.md`;
+`tests/test_tiingo_credit_566.py`.
+
+**Not done.** Episodes already cached keep their scripts without the credit
+until rewritten. The voice reads "Tiingo" as spelled; if it is mispronounced
+when heard, an admin lexicon fix is the remedy (§165). With `ALLOW_TOPUPS=1`
+a top-up would come after the credit.
+
+## 567. Words in capitals: NASCAR and NVIDIA said as words, not letters (2026-11-12)
 
 **What was asked.** The owner: "THe main pronunciation problem seems to be
 with words that are in all caps(NASCAR, NVIDIA). It really doesn't get the
@@ -34833,7 +34861,7 @@ would make AI, WHO, SEC and SAT into "eye", "who", "sec" and "sat".
 `SAID_AS_LETTERS` holds the four-letter-plus ones it has as ordinary words
 (WNBA, AARP, tickers); `SAID_AS_WORDS` gains what it lacks or misses (LIV,
 EBITDA, CAPTCHA, SPAC, DACA, FAFSA, HIPAA, FAANG, FOX, ARM, PAC, ZIP, AXIOS,
-OPENAI, and NVIDIA, NASCAR and DOGE by name). `tests/test_caps_said_566.py`
+OPENAI, and NVIDIA, NASCAR and DOGE by name). `tests/test_caps_said_567.py`
 pins 42 words either way.
 
 **Never in front of a sentence.** The dictionary is about 0.6 s and 17 MB to

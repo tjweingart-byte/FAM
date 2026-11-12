@@ -18,7 +18,7 @@ voice that speaks here: the remote worker (REMOTE_VOICE_URL and its token
 from the credential chain) or Chatterbox in this process. Keeps nothing in
 the lexicon or the voice checks.
 
-Capitals (§566): `--caps` says words in capitals five ways instead - letters
+Capitals (§567): `--caps` says words in capitals five ways instead - letters
 apart ("F B I"), dotted, the letters' names ("eff bee eye"), as written
 ("NASCAR") and in ordinary case ("Nascar") - and marks the one the voice is
 handed today. Which way an initialism and a word each sound smoothest

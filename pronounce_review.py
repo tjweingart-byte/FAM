@@ -358,7 +358,7 @@ async def hear_variants(name: str, say: Optional[str] = None,
 
 
 # --------------------------------------------------------------------------
-# Capitals: five ways to hand the voice "NASCAR" or "FBI" (§566)
+# Capitals: five ways to hand the voice "NASCAR" or "FBI" (§567)
 # --------------------------------------------------------------------------
 
 #: Each letter's name as the voice would read it as a word.

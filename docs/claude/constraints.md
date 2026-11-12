@@ -533,6 +533,25 @@
   sport is `unknown` and says nothing, so an unverified mapping costs a silent
   game, never a wrong one.
 
+<!-- rule:tiingo-credit -->
+- **Tiingo is credited wherever its data was used.** *(PROBLEMS.md §566, at the
+  owner's direction, 11.12.)* An episode whose provenance names Tiingo - a
+  live lookup Tiingo answered (`provenance.from_live` credits a provider only
+  on facts), or Tiingo's figures recalled from FAM's archive - ends with the
+  sentence `provenance.TIINGO_CREDIT`, "Market data powered by Tiingo.", the
+  very last thing spoken. It is composed in code (`script_generator.market_credit`),
+  never written by the model, and added after everything the writer said, a
+  refusal included, on both write paths: `stream_prepared` (so every stream:
+  searchFAM, prefetch, the editions' live fallback, `write.py`) and
+  `sentences_from_message` (the batched editions). It is stored with the
+  script, so replays and captions carry it. It is the one sentence after
+  "land it and stop" [speak-from-inside]: a licence credit, not a summary or
+  a tease. Tiingo is also listed in the player's sources, and first:
+  `Provenance.as_dict` puts it ahead of every other source, so it is one of
+  the three marks the corner draws rather than hidden behind "+N". Both read
+  the same record, so the voice and the panel cannot disagree; a failed
+  Tiingo lookup is in neither. With `ALLOW_TOPUPS=1` (off by default) a
+  top-up would follow the credit.
 <!-- rule:sweep-on-demand -->
 > **Current (PROBLEMS.md §563, at the owner's direction, 11.12: "sweep scores for followers with finals on"):** somebody with finals notifications on (and somewhere to receive them) is demand too, **for their own teams' games only**. The push loop hands the sweep the team names those people *chose* to follow (`push_stories.publish_finals_followed`, every 5 min; stale after 15, so a stopped loop stops the sweep it asked for). With nobody drawing myFAM, `Signals.idle` lets the sweep run while that list is non-empty, and `Signals.due` reads a league only for a game on or about to start that names one of those teams (`balldontlie_scores.followed_game`; a soccer row whose teams are not named yet counts), until the sweep sees it final. Each league's card is still read once per UTC day to know what is on - about a dozen requests a day with nobody looking - and myFAM demand keeps the old rule (every game on is watched). "Only if myFAM was drawn recently" below is history.
 > **Current (PROBLEMS.md §418):** the markets sweep is Tiingo's alone (`story_sources.TiingoSignals`): the watchlist (`MARKETS_WATCHLIST`, was `FINNHUB_WATCHLIST`) in one request every two hours, swept only while Tiingo is the markets provider. Read "Finnhub" below as the markets sweep.

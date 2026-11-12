@@ -105,7 +105,7 @@ def decimal(text: str) -> str:
 # Abbreviations
 # ---------------------------------------------------------------------------
 #: Capitals people say as a word rather than as letters, whatever the
-#: dictionary says. Since §566 most are found in the CMU dictionary instead
+#: dictionary says. Since §567 most are found in the CMU dictionary instead
 #: (`_said_as_word`); this list is for the ones it lacks or gets wrong, and
 #: for the short ones (two or three letters) it is never asked about.
 SAID_AS_WORDS = frozenset("""
@@ -130,7 +130,7 @@ AARP ACLU WNBA NCAA NHRA UNLV USMNT USWNT NYSE NVDA AAPL TSLA GOOGL MSFT AMZN
 """.split())
 
 #: How a capitalised word said as a word is handed to the voice: "title"
-#: ("Nascar") or as written ("upper", "NASCAR"). Title since §566, at the
+#: ("Nascar") or as written ("upper", "NASCAR"). Title since §567, at the
 #: owner's direction to make the changes known to be right: a voice learned
 #: from ordinary text, where capitals mean letters or shouting, so "NASCAR"
 #: is the form most likely to come out choppy. Captions keep the capitals.
@@ -240,9 +240,9 @@ def _spelled_as_letters(word: str, phones: str) -> bool:
 
 def _said_as_word(word: str) -> bool:
     """Whether a word in capitals is said as a word ("NASCAR") rather than
-    letter by letter ("ESPN") - §566.
+    letter by letter ("ESPN") - §567.
 
-    Up to §566 only `SAID_AS_WORDS` was a word and everything else of two to
+    Up to §567 only `SAID_AS_WORDS` was a word and everything else of two to
     six capitals was spelled, so NASCAR and NVIDIA reached the voice as
     "N A S C A R" and "N V I D I A". Now, from four letters, the CMU
     dictionary decides: an entry that is the letters' names is spelled, any

@@ -1,4 +1,4 @@
-"""Words in capitals said as words or as letters (PROBLEMS.md §566).
+"""Words in capitals said as words or as letters (PROBLEMS.md §567).
 
 NASCAR and NVIDIA reached the voice as "N A S C A R" and "N V I D I A":
 `spoken_text` spelled every two-to-six-capital word not on a short list.

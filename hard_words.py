@@ -87,7 +87,7 @@ def _load() -> dict:
 
 def warm() -> None:
     """Load the dictionary now - at boot, in a thread, so the voice's path
-    (`peek`) never pays for it (§566)."""
+    (`peek`) never pays for it (§567)."""
     _load()
 
 

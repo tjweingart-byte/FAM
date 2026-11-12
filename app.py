@@ -685,7 +685,7 @@ async def lifespan(_: FastAPI):
     # awaited, so it costs startup nothing and the first word typed nothing.
     asyncio.get_running_loop().run_in_executor(None, autocorrect_mod.warm)
     # The pronouncing dictionary `spoken_text` asks whether capitals are a
-    # word (§566): about half a second, never spent before a sentence.
+    # word (§567): about half a second, never spent before a sentence.
     import hard_words as _hard_words
 
     asyncio.get_running_loop().run_in_executor(None, _hard_words.warm)
@@ -5215,7 +5215,7 @@ class CapsTrialRequest(BaseModel):
 async def admin_hear_caps(req: CapsTrialRequest, request: Request) -> dict:
     """Say one word in capitals five ways - letters apart, dotted, the
     letters' names, as written and in ordinary case - and hear each back
-    (§566), marking the one the voice is handed today. Keeps nothing."""
+    (§567), marking the one the voice is handed today. Keeps nothing."""
     _require_admin(request)
     import pronounce_review
     import voice_check

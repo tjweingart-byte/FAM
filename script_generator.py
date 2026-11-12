@@ -3349,6 +3349,22 @@ class ScriptGenerator:
         live (§179) does so from the brief and evidence it already paid for,
         rather than asking for them again.
         """
+        written = self._written(plan, notes)
+        try:
+            async for sentence in written:
+                yield sentence
+        finally:
+            await written.aclose()
+        # Tiingo's credit, last (§566): after every sentence the writer
+        # said, a refusal included, on every path that streams.
+        credit = market_credit(plan, notes)
+        if credit:
+            yield credit
+
+    async def _written(
+        self, plan: EpisodePlan, notes: ScriptNotes | None = None
+    ) -> AsyncIterator[str]:
+        """`stream_prepared`'s sentences before the closing credit."""
         reader = _ScriptReader(plan, notes)
         opened = reader.opening()
         for sentence in opened:
@@ -3762,6 +3778,9 @@ class ScriptGenerator:
                 or writer_for(notes)[0], "ahead", plan.query, message,
                 spoken=max(0, len(out) - opened))
             out.append(refused)
+        credit = market_credit(plan, notes)     # last, as a stream ends (§566)
+        if credit:
+            out.append(credit)
         return out
 
     async def top_up(
@@ -3867,6 +3886,29 @@ def _publish_title(notes: "ScriptNotes | None", brief) -> None:
             live_captions.publish_category(notes.caption_key, category)
     except Exception:
         log.exception("could not publish a title; the episode is unaffected")
+
+
+def market_credit(plan: EpisodePlan, notes: "ScriptNotes | None") -> str:
+    """The closing credit Tiingo's licence asks for, or "" (§566).
+
+    Spoken when Tiingo's data went into the episode: the sources panel's
+    record says so (`provenance.credits_tiingo`), or - with no notes to
+    hold that record - the plan's own live lookup Tiingo answered. Composed
+    here, never by the writer, so it is the same words every time and the
+    panel and the voice agree. Never raises.
+    """
+    import provenance as provenance_mod
+
+    try:
+        if notes is not None and notes.provenance is not None:
+            used = provenance_mod.credits_tiingo(notes.provenance)
+        else:
+            source = provenance_mod.from_live(getattr(plan, "live", None))
+            used = source is not None and provenance_mod.is_tiingo(source.label)
+    except Exception:  # noqa: BLE001 - a credit never costs an episode
+        log.warning("could not tell whether Tiingo's data was used", exc_info=True)
+        return ""
+    return provenance_mod.TIINGO_CREDIT if used else ""
 
 
 def _publish_sources(notes: "ScriptNotes") -> None:
