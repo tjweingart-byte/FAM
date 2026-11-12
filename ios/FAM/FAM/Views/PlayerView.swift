@@ -25,7 +25,6 @@ struct PlayerView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
-    @Environment(\.dismiss) private var dismiss
 
     @State private var sheet: PlayerSheet?
     /// Your story, opened from "Vibed to your story · View".
@@ -40,6 +39,10 @@ struct PlayerView: View {
     @State private var queueBump: CGFloat = 1
     /// "N friends listened", from the faces on the picture (§543).
     @State private var friendsOpen = false
+    /// How the player comes and goes (`PlayerEntrance`): where its picture
+    /// is, and whether a copy flying to or from it covers it now.
+    @EnvironmentObject private var stage: PlayerStage
+    @Environment(\.playerPictureHidden) private var pictureHidden
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -65,7 +68,7 @@ struct PlayerView: View {
         .background(FAMColor.background.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: popup)
         .animation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36), value: now.nextUp.isEmpty)
-        .sheet(item: Binding(get: { sheet == .vibe ? nil : sheet }, set: { sheet = $0 })) { which in
+        .famSheet(item: Binding(get: { sheet == .vibe ? nil : sheet }, set: { sheet = $0 })) { which in
             sheetView(which)
                 .environmentObject(model)
                 .environmentObject(player)
@@ -84,7 +87,7 @@ struct PlayerView: View {
                 .environmentObject(model)
         }
         // The faces' own card (§394), as a DailyFAM card opens it.
-        .fullScreenCover(isPresented: $friendsOpen) {
+        .famSheet(isPresented: $friendsOpen) {
             friendsSheet
         }
         .onChange(of: now.showQueue) { _, wanted in
@@ -132,7 +135,7 @@ struct PlayerView: View {
     private func backFromNextUp() {
         let fromSearch = now.episode?.surface == "search"
         model.tabRequest = fromSearch ? .search : .daily
-        dismiss()
+        model.showPlayer = false
     }
 
     /// `viewMyNewStory`: your story read again, once the editor has gone.
@@ -158,7 +161,7 @@ struct PlayerView: View {
 
     private var topRow: some View {
         HStack(spacing: 0) {
-            Button { dismiss() } label: {
+            Button { model.showPlayer = false } label: {
                 WebIcon(path: Icons.daily, size: 22, line: 2)
                     .foregroundStyle(FAMColor.text)
                     .frame(width: 44, height: 44)
@@ -203,6 +206,13 @@ struct PlayerView: View {
                 PlayerPicture(url: now.picture ?? player.picture)
                     .frame(width: wide, height: wide * 3 / 4)
                     .background(FrameReporter(space: Self.space) { pictureFrame = $0 })
+                    .background(GeometryReader { pic in
+                        let frame = pic.frame(in: .global)
+                        Color.clear
+                            .onAppear { stage.pictureFrame = frame }
+                            .onChange(of: frame) { _, now in stage.pictureFrame = now }
+                    })
+                    .opacity(pictureHidden ? 0 : 1)
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
                 // Who of your friends listened (§543): top left of the
                 // picture, under the captions.
@@ -482,7 +492,8 @@ struct PlayerView: View {
             OverlayModal(close: { popup = nil }) {
                 popupContent(which)
             }
-            .transition(.opacity)
+            // In over 200 ms (the card lifting, `OverlayModal`), out over 150.
+            .transition(.famDim(reduceMotion: reduceMotion))
             .zIndex(5)
         }
     }
@@ -854,10 +865,10 @@ struct SourceMark: View {
                 .font(FAMFont.body(size * 0.4, .bold))
                 .foregroundStyle(FAMColor.ink)
             if let url = Self.logo(self.url) {
-                AsyncImage(url: url) { image in
+                FadeInImage(url: url) { image in
                     image.resizable().scaledToFit().padding(size * 0.15)
                         .background(Circle().fill(FAMColor.paper))
-                } placeholder: { Color.clear }
+                }
                 .clipShape(Circle())
             }
         }
@@ -988,7 +999,10 @@ struct MiniPlayer: View {
     @ViewBuilder private var flightLayer: some View {
         if let flight = flying {
             let screen = UIScreen.main.bounds
-            let start = CGPoint(x: screen.midX - barFrame.minX, y: screen.midY - barFrame.minY)
+            // From the card that queued it, else the middle of the page.
+            let card = flight.from.flatMap { $0.intersects(screen) ? $0 : nil }
+            let origin = card.map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: screen.midX, y: screen.midY)
+            let start = CGPoint(x: origin.x - barFrame.minX, y: origin.y - barFrame.minY)
             let end = CGPoint(x: thumbFrame.midX, y: thumbFrame.midY)
             QueueGhost(picture: flight.picture, from: start, to: end) {
                 flying = nil
@@ -1048,7 +1062,12 @@ struct MiniPlayer: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.borderStrong))
         .contentShape(Rectangle())
-        .onTapGesture { model.showPlayer = true }
+        .onTapGesture {
+            // The player grows out of this picture (`pictured` finds
+            // `#nowThumb` inside the bar).
+            PlayerMotion.shared.pressed(PlayerMotion.shared.mini)
+            model.showPlayer = true
+        }
     }
 
     /// The length the bar counts against: the minutes asked for
@@ -1082,7 +1101,20 @@ struct MiniPlayer: View {
         }
         .frame(width: 38, height: 38)
         .clipShape(RoundedRectangle(cornerRadius: 9))
+        .background(GeometryReader { geo in
+            // Where the player shrinks into (`#nowThumb`).
+            let frame = geo.frame(in: .global)
+            Color.clear
+                .onAppear { reportThumb(frame) }
+                .onChange(of: frame) { _, now in reportThumb(now) }
+                .onChange(of: now.picture ?? player.picture) { _, _ in reportThumb(frame) }
+                .onDisappear { PlayerMotion.shared.mini = nil }
+        })
         .accessibilityHidden(true)
+    }
+
+    private func reportThumb(_ frame: CGRect) {
+        PlayerMotion.shared.mini = PictureSpot(url: now.picture ?? player.picture, frame: frame, radius: 9)
     }
 
     private var progress: some View {

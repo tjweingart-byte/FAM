@@ -416,10 +416,10 @@ struct VibePostsView: View {
     /// The ⋯ sheets, Report and Share, kept out of `body`.
     private func presentations<V: View>(_ content: V) -> some View {
         content
-            .sheet(item: $menuFor) { p in postMenu(p) }
-            .sheet(item: $replyMenuFor) { c in replyMenu(c) }
-            .sheet(item: $reporting) { ask in reportSheet(ask) }
-            .sheet(item: $sharing) { subject in
+            .famSheet(item: $menuFor) { p in postMenu(p) }
+            .famSheet(item: $replyMenuFor) { c in replyMenu(c) }
+            .famSheet(item: $reporting) { ask in reportSheet(ask) }
+            .famSheet(item: $sharing) { subject in
                 ShareSheet(subject: subject)
                     .environmentObject(model)
                     .environmentObject(model.nowPlaying)

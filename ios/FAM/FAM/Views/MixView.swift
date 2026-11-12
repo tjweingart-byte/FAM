@@ -91,7 +91,7 @@ struct MixView: View {
         // and the next takes its place.
         .onChange(of: mix?.items.count ?? 0) { _, _ in refill() }
         .confirmationDialog(mix?.name ?? "", isPresented: $menu, titleVisibility: .hidden) { menuButtons }
-        .sheet(isPresented: $people) {
+        .famSheet(isPresented: $people) {
             if let mix {
                 MixPeopleSheet(mix: mix)
                     .environmentObject(model)
@@ -145,7 +145,7 @@ struct MixView: View {
                 later { coverEditing = EditingPhoto(image: image) }
             }
         }
-        .fullScreenCover(item: $coverEditing) { e in
+        .famSheet(item: $coverEditing) { e in
             PhotoEditor(image: e.image, save: { cover in applyCover(cover) },
                         square: true, title: "Position your cover", pixels: 360)
                 .famThemed()
@@ -153,11 +153,11 @@ struct MixView: View {
         .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
             ActivityView(items: shareItems ?? []) { shareItems = nil }
         }
-        .sheet(isPresented: $sharing) {
+        .famSheet(isPresented: $sharing) {
             MixShareSheet(id: id)
                 .environmentObject(model)
         }
-        .sheet(isPresented: $pickingTime) {
+        .famSheet(isPresented: $pickingTime) {
             ListenTimeSheet(time: $draftTime) { chosen in
                 pickingTime = false
                 // The one daily reminder (§562, `setDailyTime`): the web's
@@ -931,8 +931,6 @@ struct ListenTimeSheet: View {
             Spacer(minLength: 0)
         }
         .background(FAMColor.surface)
-        .presentationDetents([.height(300), .large])
-        .presentationBackground(FAMColor.surface)
     }
 
     private var cancelButton: some View {
@@ -991,8 +989,6 @@ struct MixPeopleSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
     }
 
     private func name(_ p: MixPerson) -> String {
@@ -1075,8 +1071,6 @@ struct MixShareSheet: View {
         }
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.large])
-        .presentationBackground(FAMColor.surface)
         .environmentObject(model.social)
         // The toast over the sheet: a send's refusal in the server's words
         // ("You can message people who follow you back.") would be under it.
@@ -1162,7 +1156,7 @@ struct PersonFace: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             if let avatar = person.avatar, !avatar.isEmpty, let url = model.api.picture(avatar) {
-                AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                FadeInImage(url: url, duration: 0.2) { $0.resizable().scaledToFill() }
             }
         }
         .frame(width: size, height: size)

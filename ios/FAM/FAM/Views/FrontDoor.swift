@@ -589,7 +589,7 @@ struct WaitlistStatusPage: View {
         } message: {
             Text("You joined with just your email, so you have no password yet. To sign back in you\u{2019}ll set one with Forgot password? on the sign-in.")
         }
-        .fullScreenCover(isPresented: $editing) {
+        .screenCover(isPresented: $editing) {
             IdentityView(mode: .edit)
                 .famObjects(model)
                 .famThemed()

@@ -656,9 +656,13 @@ struct VoiceSearchView: View {
             .padding(.vertical, 6)
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .top)
-            .background(FAMColor.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+            // The wash and the copper line come up over 200 ms as editing
+            // starts (`.vs-words`' transition); the words stay where they are.
+            .background(FadesIn(duration: 0.2) {
+                RoundedRectangle(cornerRadius: 12).fill(FAMColor.text.opacity(0.06))
+            })
             .overlay(alignment: .bottom) {
-                Rectangle().fill(FAMColor.copper).frame(height: 2)
+                FadesIn(duration: 0.2) { Rectangle().fill(FAMColor.copper).frame(height: 2) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .accessibilityLabel("Your search - tap to correct it")

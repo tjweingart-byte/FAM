@@ -519,12 +519,12 @@ private struct SettingsPresentations<Sheet: View>: ViewModifier {
         content
             .avatarFlow(flow, model: model, save: savePicture)
             .textModal($textAsk)
-            .sheet(item: $sheet) { kind in sheetView(kind) }
+            .famSheet(item: $sheet) { kind in sheetView(kind) }
             .sheet(item: $page) { p in SafariView(url: p.url).ignoresSafeArea() }
-            .fullScreenCover(isPresented: $editing) { IdentityView(mode: .edit).famObjects(model) }
-            .fullScreenCover(isPresented: $locating) { LocationView().famObjects(model) }
-            .fullScreenCover(isPresented: $interestsOpen) { InterestsView(mode: .settings).famObjects(model) }
-            .fullScreenCover(item: $activation) { a in
+            .screenCover(isPresented: $editing) { IdentityView(mode: .edit).famObjects(model) }
+            .screenCover(isPresented: $locating) { LocationView().famObjects(model) }
+            .screenCover(isPresented: $interestsOpen) { InterestsView(mode: .settings).famObjects(model) }
+            .famSheet(item: $activation) { a in
                 ActivationCard(activation: a).famObjects(model)
             }
     }
@@ -859,9 +859,6 @@ struct PlansSheet: View {
         }
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.large])
-        .presentationBackground(FAMColor.surface)
-        .presentationCornerRadius(20)
         .task {
             guard fetch, page == nil, fetched == nil else { return }
             fetched = try? await model.api.plans()

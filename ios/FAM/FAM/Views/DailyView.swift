@@ -458,6 +458,14 @@ struct TileCard: View {
             card(faded: faded)
         }
         .buttonStyle(CardPress(pressed: $pressed))
+        .background(GeometryReader { geo in
+            // Where a queued tile flies from (`Motion.toQueue`'s `from`).
+            let frame = geo.frame(in: .global)
+            Color.clear
+                .onAppear { PlayerMotion.shared.tiles[tile.id] = frame }
+                .onChange(of: frame) { _, now in PlayerMotion.shared.tiles[tile.id] = now }
+                .onDisappear { PlayerMotion.shared.tiles[tile.id] = nil }
+        })
         .accessibilityHint("Plays the episode")
         .overlay(alignment: .top) {
             thumbControls
@@ -468,21 +476,21 @@ struct TileCard: View {
             content.scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
         }
         .accessibilityElement(children: .contain)
-        .sheet(isPresented: $menu) { TileMenu(tile: tile, then: { next in menuThen(next) }) }
+        .famSheet(isPresented: $menu) { TileMenu(tile: tile, then: { next in menuThen(next) }) }
         // What a menu row opens, once the menu has gone (`showActionSheet`:
         // every row closes the sheet, then acts).
-        .sheet(item: $menuShare) { subject in
+        .famSheet(item: $menuShare) { subject in
             ShareSheet(subject: subject)
                 .environmentObject(model)
                 .environmentObject(model.nowPlaying)
         }
-        .sheet(isPresented: $menuAddToMix) {
+        .famSheet(isPresented: $menuAddToMix) {
             AddToMixSheet(query: tile.query, title: tile.title)
                 .environmentObject(model)
                 .environmentObject(model.mixes)
                 .environmentObject(model.nowPlaying)
         }
-        .fullScreenCover(isPresented: $friends) {
+        .famSheet(isPresented: $friends) {
             FriendsListened(count: tile.friendsListened, faces: shownFaces(limit: nil))
         }
     }
@@ -830,6 +838,7 @@ private struct CardPress: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .modifier(PressRecording(pressed: configuration.isPressed))
             .onChange(of: configuration.isPressed) { _, down in
                 pressed = down
             }
@@ -910,19 +919,17 @@ struct TileMenu: View {
         }
         .background(FAMColor.surface)
         // Room to grow at the larger text sizes (`large-text`).
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
-        .sheet(item: $sharing, onDismiss: { dismiss() }) { subject in
+        .famSheet(item: $sharing, onDismiss: { dismiss() }) { subject in
             ShareSheet(subject: subject)
                 .environmentObject(model)
                 .environmentObject(model.nowPlaying)
         }
-        .sheet(isPresented: $queue) {
+        .famSheet(isPresented: $queue) {
             QueueSheet()
                 .environmentObject(model)
                 .environmentObject(model.nowPlaying)
         }
-        .sheet(isPresented: $addToMix, onDismiss: { dismiss() }) {
+        .famSheet(isPresented: $addToMix, onDismiss: { dismiss() }) {
             AddToMixSheet(query: tile.query, title: tile.title)
                 .environmentObject(model)
                 .environmentObject(model.mixes)
@@ -997,7 +1004,8 @@ struct FriendsListened: View {
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
             .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
         }
-        .presentationBackground(Color(hex: 0x0A090F).opacity(0.62))
+        // A centred card over the dim the overlay draws (`famSheet`).
+        .modalLayout()
     }
 
     /// `f.name || f.handle || "A friend"`.

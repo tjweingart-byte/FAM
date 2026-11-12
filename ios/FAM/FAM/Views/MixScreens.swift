@@ -116,7 +116,7 @@ struct NewMixView: View {
                 }
             }
         }
-        .fullScreenCover(item: $coverEditing) { e in
+        .famSheet(item: $coverEditing) { e in
             PhotoEditor(image: e.image, save: { chosen in cover = chosen },
                         square: true, title: "Position your cover", pixels: 360)
                 .famThemed()
@@ -491,8 +491,6 @@ struct AddToMixSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .presentationDetents([.medium, .large])
-        .presentationBackground(FAMColor.surface)
         .task { await load() }
         .alert("Name your new playlist", isPresented: $naming) {
             TextField("e.g. Morning commute", text: $newName)
