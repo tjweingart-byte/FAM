@@ -148,6 +148,8 @@ FAM_ENVIRONMENT = (
     "DAILY_EDITION_ACTIVE_HOURS", "EDITION_CONCURRENCY",
     "EDITION_IN_PROGRESS_SECONDS", "RAILS_EDITION", "RAILS_EDITION_HOURS",
     "RAILS_EDITION_MAX_EPISODES", "RAILS_EDITION_MAX_DOLLARS",
+    # §568: the one daily budget for everything written ahead.
+    "AHEAD_DAILY_DOLLARS", "AHEAD_DAILYFAM_SHARE",
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
@@ -618,8 +620,14 @@ def isolated_provider_usage(tmp_path, monkeypatch):
     monkeypatch.setenv("PROVIDER_USAGE_DB",
                        str(tmp_path / "stores" / "provider_usage.db"))
     provider_usage.reset()
+    # The day's spend written ahead (§568) lives in the same store.
+    import ahead_budget
+
+    ahead_budget.reset()
+    ahead_budget._ANNOUNCED.clear()
     yield
     provider_usage.reset()
+    ahead_budget.reset()
 
 
 @pytest.fixture(autouse=True)

@@ -635,6 +635,17 @@ def _rails_edition_report() -> dict:
         return {"enabled": bool(settings.rails_edition), "error": str(exc)}
 
 
+def _written_ahead_report() -> dict:
+    """`ahead_budget.report()` without its history, never able to break the
+    health page."""
+    try:
+        import ahead_budget
+
+        return ahead_budget.report(history=False)
+    except Exception as exc:  # noqa: BLE001 - health must always answer
+        return {"error": str(exc)}
+
+
 def _write_mix_on_open(mix) -> bool:
     """A dormant mix was opened: write its episodes now, in the background
     (§359). A mix the edition is keeping (played in the last 48 hours) is
@@ -2225,6 +2236,9 @@ def _health_report(request: Request) -> dict:
         "thumbnails": thumbnails_mod.health(),
         "daily_edition": _daily_edition_report(),
         "rails_edition": _rails_edition_report(),
+        # Everything written ahead today, per writer, against its own
+        # ceilings and the shared budget (§568); /admin has the history.
+        "written_ahead": _written_ahead_report(),
         # The ranking vocabulary, and how much of it this deployment grew
         # rather than inherited. Worth reporting for the reason every other
         # optional layer here is: a tree that had stopped growing, or one

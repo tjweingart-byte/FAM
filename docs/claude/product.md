@@ -447,6 +447,7 @@ speculative brief costs a fraction of a cent and a speculative episode costs an
 episode. See the settled constraint below.
 
 <!-- rule:rails-edition -->
+> **Current (PROBLEMS.md §568):** "No ceiling by default" below is still true of the rails edition's own ceilings, and they still apply per edition. On top of them, `AHEAD_DAILY_DOLLARS` (0 = none) is one daily budget the rails edition shares with the mixes' edition and prefetch (`ahead_budget.py`); whichever ceiling comes first stops it, and /admin says which.
 **The rails edition** *(PROBLEMS.md §359, at the owner's direction).* The
 rails (myFAM in code, "DailyFAM" on the listener's screen) are written whole
 before anybody taps, so a rail tap pays only for the voice:

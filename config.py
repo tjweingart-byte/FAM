@@ -1275,6 +1275,17 @@ class Settings:
             "RAILS_EDITION_HOURS", "5,17").strip())
     rails_edition_max_episodes: int = _env_int("RAILS_EDITION_MAX_EPISODES", 0)
     rails_edition_max_dollars: float = _env_float("RAILS_EDITION_MAX_DOLLARS", 0.0)
+    # --- one budget for everything written ahead (§568, `ahead_budget.py`) --
+    # Dollars a day, shared by the mixes' edition (myFAM on the listener's
+    # screen), the rails edition and prefetch (DailyFAM on the screen). Each
+    # stops at its own ceilings above or this one, whichever comes first, and
+    # /admin says which. The day is the edition day (05:00 to 05:00 on
+    # `DAILY_EDITION_TIMEZONE`). 0 is no shared ceiling: nothing changes.
+    ahead_daily_dollars: float = _env_float("AHEAD_DAILY_DOLLARS", 0.0)
+    # The fraction of it (0-1) only DailyFAM's writers - the rails edition
+    # and prefetch - may spend, so the 05:00 mixes' edition cannot spend it
+    # all first. 0 holds nothing back.
+    ahead_dailyfam_share: float = _env_float("AHEAD_DAILYFAM_SHARE", 0.0)
     # How long to wait before trying a failed edition again.
     daily_edition_retry_seconds: float = _env_float(
         "DAILY_EDITION_RETRY_SECONDS", 1800.0)

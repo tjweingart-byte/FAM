@@ -538,6 +538,9 @@ def snapshot(now: Optional[float] = None) -> dict:
             # What the model calls cost, today and this month, by what spent
             # it (§481) - the figure Claude's limit is measured against.
             "claude_spend": provider_usage.spend_report(now),
+            # Written ahead today, per writer, against its own ceilings and
+            # the one budget they share (§568).
+            "written_ahead": _written_ahead(now),
             # Each service's own usage, read hourly by Keith (§483).
             "usage_monitors": _usage_monitors(now),
             # Keith's incidents, open and recently closed (§488).
@@ -550,6 +553,12 @@ def snapshot(now: Optional[float] = None) -> dict:
             "cost_per_episode": _cost_per_episode(now),
             "routing": live_routing.report(now),
             "pipeline_errors": pipeline_errors.report(now)}
+
+
+def _written_ahead(now: float) -> dict:
+    import ahead_budget
+
+    return ahead_budget.report(now)
 
 
 def _cost_per_episode(now: float) -> dict:

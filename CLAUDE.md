@@ -506,8 +506,8 @@ Operations and honesty
 - Server side built (`ACCOUNTS.md`); payment and delivery are not. [ios-server-built]
 - Order: hear the production voice -> deploy with a GPU -> Swift lock-screen spike. [ios-order]
 - Open decisions: where to deploy (bandwidth) [dec-deploy]; accounts - answered
-  [dec-accounts]; local vs hosted voices [dec-voices]; whether to warm scripts -
-  measure hit rates first [dec-prefetch]; embeddings help the ranker, not the
+  [dec-accounts]; local vs hosted voices [dec-voices]; warming scripts - answered,
+  capped (§568) [dec-prefetch]; embeddings help the ranker, not the
   cache, and `learned_rank` may reorder what cleared the floor, never admit
   below it [dec-embedding].
 

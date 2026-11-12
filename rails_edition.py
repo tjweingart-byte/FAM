@@ -161,7 +161,7 @@ async def build(generator=None, cache=None, now: Optional[float] = None,
             max_episodes=s.rails_edition_max_episodes,
             max_dollars=s.rails_edition_max_dollars, force=force,
             label="rails edition", on_written=_hold(until), on_claimed=claimed,
-            failures=_LAST_ATTEMPT)
+            failures=_LAST_ATTEMPT, writer="rails")
         if report is not None:
             _LAST_ATTEMPT.clear()
             _save_pool(now)

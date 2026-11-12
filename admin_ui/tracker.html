@@ -41,6 +41,9 @@
   /* Keith's figures (§494): a share of a limit as a bar. */
   .sharebar { height:6px; width:110px; background:var(--surface); border-radius:4px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px; }
   .sharebar i { display:block; height:100%; background:var(--green); }
+  /* Written ahead today (§568): the card's two sub-headings. */
+  .ah { margin:16px 0 6px; font:600 14px var(--sans); color:var(--ink); }
+  #aheadSpend td.ahwrap { white-space:normal; max-width:none; min-width:220px; }
   .sharebar i.warn { background:var(--amber); } .sharebar i.urgent { background:var(--rose); }
   .lvl-warn { color:var(--amber); } .lvl-urgent { color:var(--rose); } .lvl-ok { color:var(--green); }
   .kgrid { display:grid; grid-template-columns:1fr; gap:14px; margin-bottom:14px; }
@@ -651,6 +654,11 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <p class="sub">Every Claude answer is counted once (§481), priced at metering's list prices - listeners' episodes, each edition, prefetch, each agent. Paid searches, live data and tile pictures are counted beside it, not in Claude's total.</p>
       <div id="claudeSpend"></div>
     </section>
+    <section class="card section" id="aheadCard">
+      <h2>Written ahead today</h2>
+      <p class="sub">Episodes written before anybody taps (§568), by the three writers, named as listeners see them: the mixes are <b>myFAM</b> on the screen (DailyFAM in the code), the cards and news are <b>DailyFAM</b> (myFAM in the code). Each stops at its own ceilings or the shared daily budget, whichever comes first. The day runs from the 05:00 edition to the next. Read-only: every figure is a setting in Render, named beside it.</p>
+      <div id="aheadSpend"></div>
+    </section>
     <section class="card section" id="listensCard">
       <h2>Tapped against heard, last 24 hours</h2>
       <p class="sub">The server starts a <b>play</b> the moment it begins sending audio, before a word is heard. <b>What FAM can't stop playing</b>, <b>What your friends are listening to</b>, the friends' faces on a card and <b>What you missed last week</b> count only a <b>heard</b> listen: past 30 seconds, or 30% of a shorter episode, held to the time since the play began at the player's fastest speed - or finished. A big gap between tapped and heard on a question is people leaving early. Accounts only; nobody is named.</p>
@@ -1114,6 +1122,65 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       ' &nbsp;·&nbsp; <b>everything counted</b> this month ' + num(all.month, "USD") + '</p>' +
       '<div class="tbl"><table><thead><tr><th>What spent it</th><th class="n">Today</th><th class="n">This month</th>' +
       '<th class="n">Calls today</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+  function drawAhead(a) {
+    var el = $("aheadSpend");
+    if (!el) return;
+    if (!a || !a.writers) { el.innerHTML = '<p class="sub">Nothing written ahead yet.</p>'; return; }
+    function env(name) { return '<code>' + esc(name) + '</code>'; }
+    function cap(v, unit) { return v == null ? 'no ceiling' : num(v, unit); }
+    function ceilingNote(w) {
+      var o = w.own || {}, e = o.env || {}, per = o.per === "edition"
+        ? ' an edition' + (o.editions_per_day > 1 ? ' × ' + o.editions_per_day + ' a day' : '')
+        : ' a day';
+      var parts = [env(e.episodes) + ' = ' + (o.episodes || 0) + (o.episodes ? per : ' (none)'),
+                   env(e.dollars) + ' = ' + (o.dollars || 0) + (o.dollars ? per : ' (none)')];
+      if (e.briefs) parts.push(env(e.briefs) + ' = ' + (o.briefs || 0) + ' briefs a day');
+      if (e.level) parts.push(env(e.level) + ' = ' + esc(o.level || ""));
+      return '<small style="color:var(--muted)">' + parts.join(' · ') + '</small>';
+    }
+    var sh = a.shared || {};
+    var rows = a.writers.map(function (w) {
+      var limit = w.max_dollars_per_day, share = limit ? w.usd / limit : (sh.ceiling ? w.usd / sh.ceiling : null);
+      var stopped = w.stopped ? '<span class="lvl-urgent">stopped ' +
+        (w.stopped.at ? esc(new Date(w.stopped.at * 1000).toLocaleTimeString()) + ': ' : '') + esc(w.stopped.sentence) + '</span>'
+        : '<span class="lvl-ok">writing</span>';
+      return '<tr><td class="ahwrap"><b>' + esc(w.label) + '</b><br>' + ceilingNote(w) + '</td>' +
+        '<td class="n">' + Number(w.episodes || 0).toLocaleString() + ' / ' + cap(w.max_episodes_per_day) +
+        (w.briefs ? '<br><small>' + Number(w.briefs).toLocaleString() + ' briefs</small>' : '') + '</td>' +
+        '<td class="n">' + num(w.usd, "USD") + ' / ' + cap(w.max_dollars_per_day, "USD") + '</td>' +
+        '<td>' + shareBar(share, levelOf(share)) + '</td><td class="ahwrap">' + stopped + '</td></tr>';
+    }).join("");
+    var shareTotal = sh.ceiling ? sh.used / sh.ceiling : null;
+    var total = '<tr><td class="ahwrap"><b>All three, shared</b><br><small style="color:var(--muted)">' + env(sh.env.ceiling) + ' = ' +
+      (sh.ceiling || 0) + (sh.ceiling ? ' a day' : ' (no shared ceiling)') + ' · ' + env(sh.env.reserve) + ' = ' +
+      (sh.reserve_share || 0) + (sh.reserve_usd != null ? ' (' + num(sh.reserve_usd, "USD") + ' held for DailyFAM)' : ' (nothing held back)') +
+      '</small></td><td class="n">' + Number(a.writers.reduce(function (n, w) { return n + (w.episodes || 0); }, 0)).toLocaleString() +
+      '</td><td class="n">' + num(sh.used, "USD") + ' / ' + cap(sh.ceiling, "USD") + '</td><td>' + shareBar(shareTotal, levelOf(shareTotal)) +
+      '</td><td>' + (sh.left != null ? num(sh.left, "USD") + ' left' : '') + '</td></tr>';
+    var cpe = a.cost_per_episode, costHtml = "";
+    if (cpe) {
+      var ah = cpe.ahead || {}, se = cpe.search || {}, bw = cpe.by_writer || {};
+      function cents(v) { return v == null ? '—' : (v * 100).toFixed(2) + '¢'; }
+      costHtml = '<h3 class="ah">Cost per episode, last ' + cpe.days + ' days</h3><div class="kpis">' +
+        '<div class="kpi"><span>Written ahead</span><b>' + cents(ah.per_episode) + '</b><em>' + Number(ah.episodes || 0).toLocaleString() + ' episodes · ' + num(ah.usd, "USD") + '</em></div>' +
+        a.writers.map(function (w) { var b = bw[w.writer] || {}; return '<div class="kpi"><span>' + esc(w.label) + '</span><b>' + cents(b.per_episode) +
+          '</b><em>' + Number(b.episodes || 0).toLocaleString() + ' episodes · ' + num(b.usd, "USD") + '</em></div>'; }).join("") +
+        '<div class="kpi"><span>A searchFAM episode</span><b>' + cents(se && se.per_episode) + '</b><em>' + Number((se && se.episodes) || 0).toLocaleString() + ' searches written</em></div>' +
+        '</div><p class="sub">' + esc(cpe.note || "") + '</p>';
+    }
+    var hr = a.hit_rate || {}, src = hr.by_source || {}, names = Object.keys(src);
+    var rate = function (v) { return v == null ? 'no data yet' : Math.round(v * 100) + '%'; };
+    var hitHtml = '<h3 class="ah">Taps that found a ready script</h3><p class="sub">Scripts prefetch wrote and a tap then played: ' +
+      Number(hr.taken || 0).toLocaleString() + ' of ' + Number(hr.warmed || 0).toLocaleString() + ' (' + rate(hr.hit_rate) +
+      '); briefs used ' + Number(hr.briefs_taken || 0).toLocaleString() + ' of ' + Number(hr.briefs_warmed || 0).toLocaleString() +
+      ' (' + rate(hr.brief_hit_rate) + '). Since this server started.</p>' +
+      (names.length ? '<div class="tbl"><table><thead><tr><th>Source</th><th class="n">Scripts written</th><th class="n">Taken</th><th class="n">Briefs</th><th class="n">Briefs used</th></tr></thead><tbody>' +
+        names.map(function (k) { var r = src[k]; return '<tr><td>' + esc(k) + '</td><td class="n">' + (r.warmed || 0) + '</td><td class="n">' + (r.taken || 0) +
+          '</td><td class="n">' + (r.briefs_warmed || 0) + '</td><td class="n">' + (r.briefs_taken || 0) + '</td></tr>'; }).join("") + '</tbody></table></div>' : '');
+    el.innerHTML = '<p class="sub">Day ' + esc(a.day) + ' (' + esc(a.day_note || "") + ')</p>' +
+      '<div class="tbl"><table><thead><tr><th>Writer</th><th class="n">Episodes / max</th><th class="n">Spend / max</th><th></th><th>Now</th></tr></thead><tbody>' +
+      rows + total + '</tbody></table></div>' + costHtml + hitHtml;
   }
   function drawCost(c) {
     var old = document.querySelectorAll("#kpis .kpi.cost");
@@ -1620,6 +1687,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       drawCost(s.cost_per_episode);
       drawUsage(s.usage_monitors);
       drawClaudeSpend(s.claude_spend);
+      drawAhead(s.written_ahead);
       drawAgentsWatch(s.agents_watch);
       keithData.inc = s.incidents;
       drawKeith(keithData.inc, keithData.fixes);
