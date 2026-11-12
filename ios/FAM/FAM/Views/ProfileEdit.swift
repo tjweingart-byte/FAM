@@ -54,8 +54,8 @@ struct AvatarFlowModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .sheet(isPresented: $flow.menu) { menuSheet }
-            .sheet(isPresented: $flow.sources) { sourcesSheet }
+            .famSheet(isPresented: $flow.menu) { menuSheet }
+            .famSheet(isPresented: $flow.sources) { sourcesSheet }
             .photosPicker(isPresented: $flow.library, selection: $flow.item, matching: .images)
             .fileImporter(isPresented: $flow.files, allowedContentTypes: [.image]) { result in
                 picked(file: result)
@@ -69,7 +69,7 @@ struct AvatarFlowModifier: ViewModifier {
                 }
                 .ignoresSafeArea()
             }
-            .fullScreenCover(item: $flow.editing) { e in
+            .famSheet(item: $flow.editing) { e in
                 PhotoEditor(image: e.image, save: save)
             }
             .onChange(of: flow.item) { _, item in

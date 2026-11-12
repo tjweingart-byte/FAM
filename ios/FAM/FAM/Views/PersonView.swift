@@ -95,12 +95,12 @@ struct PersonView: View {
     /// The ⋯, Report, Block, Unfollow and the story, kept out of `body`.
     private func presentations<V: View>(_ content: V) -> some View {
         content
-        .sheet(isPresented: $menu) { menuSheet }
-        .sheet(isPresented: $reporting) {
+        .famSheet(isPresented: $menu) { menuSheet }
+        .famSheet(isPresented: $reporting) {
             FAMReportSheet(api: model.safety, subject: .person(handle: handle),
                            say: { model.nowPlaying.say($0) }) { _ in }
         }
-        .sheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
+        .famSheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
         // `confirmRemoveMix`: the copy may have been renamed since, so ask.
         .confirmationDialog(removingMix.map { "Remove \($0.name ?? "this mix") from your myFAM?" } ?? "",
                             isPresented: Binding(get: { removingMix != nil },
@@ -119,7 +119,7 @@ struct PersonView: View {
                     try? await Task.sleep(nanoseconds: 350_000_000)
                     if let mine = StoryReel.mine(model) { story = mine }
                 }
-            })
+            }, origin: reel.origin)
                 .environmentObject(model)
         }
     }
@@ -674,8 +674,9 @@ struct PersonView: View {
     }
 
     private func openStory(_ p: CirclePerson) {
-        story = StoryReel(people: [StoryPerson(id: p.userId, name: p.name, handle: p.handle, avatar: p.avatar,
-                                               stories: p.stories, mine: false)], start: 0)
+        var reel = StoryReel(people: [StoryPerson(id: p.userId, name: p.name, handle: p.handle, avatar: p.avatar,
+                                                  stories: p.stories, mine: false)], start: 0)
+        presentGrowing(reel: &reel) { story = $0 }
     }
 }
 

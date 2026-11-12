@@ -595,7 +595,7 @@ struct WaitlistStatusPage: View {
         } message: {
             Text("You have no password yet, so you couldn\u{2019}t sign back in. Set one on this page first. Sign out anyway?")
         }
-        .fullScreenCover(isPresented: $editing) {
+        .screenCover(isPresented: $editing) {
             IdentityView(mode: .edit)
                 .famObjects(model)
                 .famThemed()

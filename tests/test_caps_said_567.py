@@ -22,7 +22,7 @@ from spoken_text import speakable
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 #: Said as words: from the dictionary, or listed where it lacks them.
-WORDS = ["NASCAR", "NVIDIA", "NATO", "NASA", "DOGE", "EBITDA", "UNESCO",
+WORDS = ["NASCAR", "NATO", "NASA", "DOGE", "EBITDA", "UNESCO",
          "AWOL", "HIPAA", "DACA", "FAANG", "LIV", "FOX", "OPEC", "IKEA",
          "CAPTCHA", "INTEL", "NEVER"]
 #: Said as letters: the dictionary has them as their letters' names, they
@@ -43,7 +43,7 @@ def test_said_as_letters(word):
 
 
 def test_the_reported_cases_and_their_endings():
-    assert speakable("NASCAR drivers and NVIDIA's chips") == "Nascar drivers and Nvidia's chips"
+    assert speakable("NASCAR drivers and NVIDIA's chips") == "Nascar drivers and Envidia's chips"
     assert speakable("two NFLs") == "two N F Ls"     # as before: the s stays a word ending
 
 
@@ -81,7 +81,7 @@ def test_peek_never_waits_and_starts_one_load(monkeypatch):
 def test_word_case_upper_hands_the_voice_capitals(monkeypatch):
     monkeypatch.setattr(spoken_text, "WORD_CASE", "upper")
     assert speakable("NASCAR and NVIDIA's chips, by the FBI") == \
-        "NASCAR and NVIDIA's chips, by the F B I"
+        "NASCAR and Envidia's chips, by the F B I"
 
 
 def test_words_with_a_spoken_form_of_their_own():
@@ -174,3 +174,10 @@ def test_the_admin_page_has_the_capitals_box():
     page = (ROOT / "admin_ui" / "tracker.html").read_text()
     for needle in ('id="capsForm"', "/api/admin/pronunciations/hear-caps", "Hear 5 ways", "(today)"):
         assert needle in page, needle
+
+
+def test_nvidia_is_spelled_as_it_sounds():
+    """§569: "Nvidia" was still choppy - no English word opens "Nv"."""
+    for written in ("NVIDIA", "Nvidia", "nVidia", "nvidia"):
+        assert speakable(f"{written}'s chips") == "Envidia's chips", written
+    assert speakable("Nvidias") == "Nvidias"        # whole words only

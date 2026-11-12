@@ -448,18 +448,13 @@ struct NewMessageLayer: View {
             if social.newChatOpen {
                 Color(hex: 0x0A090F).opacity(0.62)
                     .ignoresSafeArea()
-                    .transition(.opacity)
+                    .transition(.famDim(reduceMotion: reduceMotion))
                     .accessibilityHidden(true)
                 NewMessageCard()
                     .accessibilityAddTraits(.isModal)
-                    .transition(cardTransition)
+                    .transition(.famCard(reduceMotion: reduceMotion))
             }
         }
-        .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.22), value: social.newChatOpen)
-    }
-
-    private var cardTransition: AnyTransition {
-        if reduceMotion { return AnyTransition.opacity }
-        return AnyTransition.opacity.combined(with: AnyTransition.offset(x: 0, y: 12))
+        .animation(.default, value: social.newChatOpen)
     }
 }

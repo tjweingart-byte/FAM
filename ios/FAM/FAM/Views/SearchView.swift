@@ -34,7 +34,8 @@ struct SearchView: View {
     private func catalogBack() {
         guard model.catalogReturn else { return }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            // The player's shrink (340 ms) and its cover gone first.
+            try? await Task.sleep(nanoseconds: 450_000_000)
             guard !library else { return }
             guard tab == .search else {
                 // Somewhere else now: the way back is not this list's.
@@ -110,16 +111,16 @@ struct SearchView: View {
         // or given up (`playMyFamSearch` keeps the list under the player).
         .onChange(of: model.showPlayer) { _, _ in catalogBack() }
         .onChange(of: loading.visible) { _, _ in catalogBack() }
-        .fullScreenCover(isPresented: $library) {
+        .screenCover(isPresented: $library) {
             CatalogView()
                 .environmentObject(model)
                 .famThemed()
         }
-        .sheet(item: $sheet) { kind in
+        .famSheet(item: $sheet) { kind in
             YouSheet(items: items(for: kind)).environmentObject(model)
                 .famThemed()
         }
-        .fullScreenCover(isPresented: $linkOpen) {
+        .famSheet(isPresented: $linkOpen) {
             LinkModal { url in attach.addLink(url) }
                 .famThemed()
         }
