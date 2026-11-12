@@ -1,4 +1,4 @@
-"""A mix's rows are called by today's episode, not the topic (§569).
+"""A mix's rows are called by today's episode, not the topic (§570).
 
 The owner, 11.12: the episodes in somebody's mix should show episode titles,
 new with each story every day, not the category names. Today's episode, once

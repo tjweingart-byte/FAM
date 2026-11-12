@@ -7290,7 +7290,7 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None) -> dict:
 
 
 def _mix_episode_titles(body: dict) -> None:
-    """Each row called by today's episode, not its topic (§569, the owner
+    """Each row called by today's episode, not its topic (§570, the owner
     11.12): once the edition has written a topic's episode for today, the row
     carries that episode's own title as `episode_title` - a new one every
     day, because every day is a new episode. The topic's name stays in

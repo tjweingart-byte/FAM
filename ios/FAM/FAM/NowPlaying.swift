@@ -63,6 +63,8 @@ struct QueueEntry: Identifiable, Equatable {
 struct QueueFlight: Identifiable, Equatable {
     let id = UUID()
     var picture: URL?
+    /// The card it was queued from, in the window, when it is on screen.
+    var from: CGRect? = nil
 }
 
 /// One tile of the What's next grid.
@@ -713,7 +715,7 @@ final class NowPlayingModel: ObservableObject {
     /// `mixDetourFor`), "" when none.
     var detourFor: ((Episode) -> String)?
 
-    func addToQueue(_ ep: Episode) {
+    func addToQueue(_ ep: Episode, from: CGRect? = nil) {
         // Never stored, so there is nothing to play later (`queueable`).
         guard ep.attach.isEmpty else {
             say("An episode about an attachment can\u{2019}t be queued")
@@ -721,7 +723,7 @@ final class NowPlayingModel: ObservableObject {
         }
         queue.append(QueueEntry(episode: ep))
         // It flies from wherever it was to the Queue (`Motion.toQueue`).
-        queueFlight = QueueFlight(picture: ep.picture)
+        queueFlight = QueueFlight(picture: ep.picture, from: from)
         say("Added to Queue", action: "Open") { [weak self] in self?.showQueue = true }
     }
 
