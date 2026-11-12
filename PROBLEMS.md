@@ -34225,3 +34225,160 @@ writes it, and `ios/FAM/PARITY.md` says so.
 
 Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
 and every new name resolves.
+
+## 552. Keith's "science, world are not in the tree" was the check, not Nando (2026-11-12)
+
+Keith held an URGENT open since 11.6 (seen 1355 times): "2 node(s) Nando
+filed episodes under are not in the tree: science, world".
+`agent_checks.nando_nodes_exist` asked `tree.get(node)` of every node Nando
+filed, but the eight facets are the tree's roots and never rows in it
+(`categories.mint` refuses them as reserved slugs), and Nando's last step
+files an episode at its facet - "broader, never wrong". Every episode filed
+at a facet read as a dead node. The check now skips `topics.FACETS`; a test
+pins that `science` and `world` are not a breach. The old test's fake tree
+held `markets` as a row, which is why it never showed. Nothing was wrong with
+the episodes; the alert closes on the next whole pass.
+
+## 553. The seed tree doubled: 322 nodes to 677, from outside the bank (2026-11-12)
+
+The owner, reading the categories review page: Nando filed "nothing" for
+magic, a children's hospital raising money, Australian schools, a virus
+study and sexual abuse support - "clear categories to me ... we should start
+this with more nodes on the tree". The seed had been written from the bank
+and the day's news: no religion, history, theatre, education, crime,
+hospitals, infectious disease, psychology, wildlife, hobbies, travel,
+parenting, pets, cricket or rugby.
+
+`category_seed.SEED` gains 355 nodes across all eight facets, each a subject
+a listener asks about by name, read from outside FAM (what a general
+listener's questions cover), never from the bank. The rules kept:
+
+* **No countries.** A country is named in questions on every facet; as a
+  node it outranks the subject (India's cricket, China's carmakers). The
+  Middle East nodes (§187) stay; nothing else joins them.
+* **A one-word node only where the word means the subject.** Left out:
+  "chemistry" (a team's), "evolution" (of anything), "dating" (carbon),
+  "hunting" (jobs, houses), "puzzles" (the verb), "weather" (it would tie
+  with `extreme weather` and move §194's questions), "athletics" (Oakland).
+* **`magic` at depth one**, with `orlando magic` an alias of `nba`: the
+  tree breaks a tie by depth, so a basketball question holding both is
+  `nba`; Nando's facet-first steps keep it there anyway. Not a collision
+  (§373): a collision with nothing deciding it files nothing, and "why are
+  people fascinated by magic" has no cue.
+* **Aliases for number and apostrophes.** The tree does not stem, so
+  `hospitals` is reached by "hospital"; and "women's" tokenises as
+  "women s", so the old `womens health` never matched "women's health" -
+  `women health` is now its alias (the same for men's, children's books,
+  women's rights).
+
+Seeding is still quadratic in the file (`mint` reloads per row): 0.48s for
+322, about 1.9s for 677 at first boot only; the test's bound is 5s.
+Existing deployments take the new nodes on the next boot (`apply_seed`
+adds what is missing and moves nothing).
+
+**Nando's list.** With nothing below a facet in the words, Nando shows the
+model the whole tree while it is at most `WHOLE_TREE_NODES` (§388: 36 of 40
+right, against 20 with the level under the facets). That was 400; at 677
+the whole tree would have dropped off the list and the change would have
+made Nando worse. Raised to 1000. The cost is about 2,000 more input tokens
+on the brief's call in front of a search - unmeasured here (no key); §388
+measured 303 nodes at +0.2 s median; `tools/nando_eval.py` (§388's
+harness) measures it again with a key.
+
+Not done: a company ("Nvidia") is an entity for `category_vocabulary.json`
+(§374), never a node - and that file is still empty in production, its 303
+drafted entries pending review.
+
+## 554. The category tree on /admin (2026-11-12)
+
+The owner: "a categories tree on the admin page ... digestible ... very
+aesthetic". The Categories page now opens on **The tree**: a tile per facet
+(its colour, how many categories, how many kept episodes filed), then a card
+per facet with its subjects in collapsible branches, busiest first, guide
+lines in the facet's colour, a child count, and a bar for the episodes filed
+at a node and below (square-root scaled, so a branch of three still shows
+beside one of eighty). An amber dot marks a node grown from listeners; the
+rest were seeded. A search box shows each match with its branch and the
+words marked; "Filed only" hides what nothing is filed under; "Open all".
+Columns, not a grid, so a short facet never leaves a gap beside Sport.
+
+`GET /api/admin/categories/tree` (admin only, read-only, no model) is
+`categories.outline(tree, counts)`: every node exactly once under its facet;
+a facet's own count is episodes filed at the facet (Nando's last step,
+§552); a node whose parent is gone is counted as `orphans` and said on the
+page, never silently dropped. Counts are one grouped read,
+`ScriptCache.node_counts()`, on both caches. Checked in a browser at desktop
+and phone width: no page errors, no sideways scroll.
+
+## 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12)
+
+§552 fixed Keith's dead-node check for the facets. The same question -
+"is this node somewhere an episode can be filed?" - was asked in twelve
+places, half with `node in FACETS or tree.get(node)` and half with
+`tree.get(node)` alone. Two of the second half were live bugs:
+
+* **`tag_sync.check_episode`**: every episode filed at a facet was a
+  "dead node" in Keith's nightly sync, and `repair` skips dead nodes, so
+  its storage tags were never pushed.
+* **`housekeeping.where_now` / `surviving`**: a fact kept at a facet "was
+  not in the tree", so its nearest surviving ancestor was looked for - and
+  the facet itself failed the same test, so the fact was unfiled (node "").
+  A fact whose branch was pruned to the facet was unfiled too. Live once the
+  housekeeper runs out of dry run.
+
+Now `categories.holds(tree, node)` is the one answer: a facet, or a node the
+tree holds; takes anything with `get` (the tests' dicts); never raises. Every
+site uses it: Keith (§552), the tag sync, the housekeeper (three places),
+Nando's candidate list, the answer key's judgement, the old-episode re-file
+report, both picture lookups, and `app._category_known` / the browse filing.
+`training._nearest_surviving` already counted facets and reads its own dict.
+
+**Why the tests never showed it:** every one handed in a fake tree that held
+the facets as ordinary rows, which the real tree never does.
+`tests/test_category_holds_555.py` runs on the real seeded tree and checks
+every checker against everything Nando can file - every facet, every node,
+and what `categorizer.suggest`/`place` return for `tools/nando_eval.py`'s
+questions. With the old code put back, four of its eight tests fail.
+
+## 556. Keith's dead-node alert explains itself (2026-11-12)
+
+The §552 alert stood six days, seen 1355 times, and told the owner to hold
+a healthy agent: it named two nodes and nothing else, and every agent
+breach carried the same plan ("Hold the agent ... and look at what it
+did"). Nothing on it said the nodes were facets, how many episodes, or
+whether Nando was still doing it.
+
+Now the finding carries what Keith read. `nando_nodes_exist` keeps, beside
+each pass's nodes, how many episodes are filed under each, the newest's key
+and the day it was written (`_NANDO["found"]`, kept a pass over like the
+nodes, so the words never go blank on the round after). The alert names
+each missing node with its episodes, the newest episode's title and day,
+and says which of two things it is:
+
+* **Nando filed one in the last two days** (`NANDO_STILL_FILING`): he is
+  naming nodes the tree does not hold. Plan: hold Nando and read his filing.
+* **Only older filings**: the tree changed under them (a prune, rename or
+  re-seed); Nando did nothing and holding him would not help. Plan:
+  Consuela's re-file, with whether she is off, in dry run or will move them
+  - or put the node back in the seed if it was dropped by mistake.
+
+"A listener notices" now says what happens - the writer's category words
+place the episode instead (§371). `_breach(..., plan=)` lets any check
+replace the generic plan's fields where it knows better. Tests in
+`tests/test_agent_checks_491.py`.
+
+## 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12)
+
+CI's `postgres` job (§243) has failed on Main since #250: 3 failed, 7057
+passed, all in `tests/test_feed_speed_548.py`. Two counted the statements a
+draw issues with `sqlite3.Connection.set_trace_callback`, which `db.Connection`
+does not have; one played another worker by opening the store's file with
+`sqlite3.connect(path)`, which under Postgres is an empty file with no
+`events` table. None was a fault in the code they test.
+
+Made portable rather than marked `sqlite_file`, so Postgres keeps the
+coverage: `_trace(conn, seen)` uses SQLite's hook or wraps `db.Connection.execute`
+(either way, the statements the store issued), and the other worker opens
+the same store with `db.connect(path)` - the file in SQLite, its schema in
+Postgres. Run against a local Postgres 16 and against SQLite: 14 of 14 on
+both. This branch's own category tests also pass on Postgres (72).
