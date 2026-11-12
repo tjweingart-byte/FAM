@@ -560,3 +560,4 @@ and `limit` = Lines.
 | 34813 | 28 | 566. Tiingo credited in the episode and the sources (2026-11-12) |
 | 34841 | 67 | 567. Words in capitals: NASCAR and NVIDIA said as words, not letters (2026-11-12) |
 | 34908 | 88 | 568. One daily budget for everything written ahead, and seeing it on /admin (2026-11-12) |
+| 34996 | 28 | 569. A mix's rows are called by today's episode, not the topic (2026-11-12) |

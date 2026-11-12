@@ -7284,8 +7284,27 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None) -> dict:
     read it (the list reads it once for every mix); None reads it here."""
     body = _mix_body(mix, viewer, people, joint)
     _mix_pictures(mix, body)
+    _mix_episode_titles(body)
     _mix_signals(viewer, [(mix, body)], history)
     return body
+
+
+def _mix_episode_titles(body: dict) -> None:
+    """Each row called by today's episode, not its topic (§569, the owner
+    11.12): once the edition has written a topic's episode for today, the row
+    carries that episode's own title as `episode_title` - a new one every
+    day, because every day is a new episode. The topic's name stays in
+    `title`, because a reorder sends it back as the item (`_merged_topics`)
+    and must never rename the topic after one day's story. Absent when
+    today's episode is not written yet; the client then shows the topic.
+    A cache read per row, never a write or a model call; never fails the mix."""
+    for out in body.get("items") or ():
+        try:
+            title = _today_title(out.get("prompt") or "", out.get("minutes"))
+        except Exception:  # noqa: BLE001 - a missing title is no title
+            title = ""
+        if title:
+            out["episode_title"] = title
 
 
 def _mix_pictures(mix, body: dict) -> None:
@@ -7813,7 +7832,9 @@ async def public_mix(mix_id: str, request: Request) -> dict:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
     added = MIXES.added_from(viewer) if viewer and _has_account(request) else set()
-    return _public_mix(mix, viewer, added)
+    body = _public_mix(mix, viewer, added)
+    _mix_episode_titles(body)
+    return body
 
 
 @app.post("/api/mixes/{mix_id}/add")
