@@ -551,3 +551,5 @@ and `limit` = Lines.
 | 34370 | 16 | 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12) |
 | 34386 | 51 | 558. Instagram and Snapchat stories go straight into the platform's app (2026-11-12) |
 | 34437 | 24 | 559. A shared link previews with the episode's picture, like a Spotify link (2026-11-12) |
+| 34461 | 73 | 560. Optional surveys: the episode check, the day-3 check-in and the two-week wrap-up (2026-11-12) |
+| 34534 | 39 | 561. The iOS app catches up with §560: the surveys (2026-11-12) |

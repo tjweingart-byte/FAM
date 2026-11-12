@@ -96,6 +96,7 @@ ENV CACHE_PATH=/data/scripts.db \
     SAVED_DB=/data/saved.db \
     SHARES_DB=/data/shares.db \
     FEEDBACK_DB=/data/feedback.db \
+    SURVEYS_DB=/data/surveys.db \
     CONSENT_DB=/data/consent.db \
     MODERATION_DB=/data/moderation.db \
     QUOTAS_DB=/data/quotas.db \

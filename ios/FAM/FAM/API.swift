@@ -616,6 +616,35 @@ final class FAMAPI: @unchecked Sendable {
         value == value.rounded() ? String(Int(value)) : String(value)
     }
 
+    // MARK: - Optional surveys (`surveys.py`, PROBLEMS.md §560)
+
+    /// The survey to show at this moment, or nil. Asked only when one can be
+    /// shown - the server counts an answer here as offered and does not
+    /// offer the same survey again for a day. `moment` is `open` or
+    /// `episode_end`.
+    func offerSurvey(moment: String) async throws -> Survey? {
+        try await send("POST", "api/v1/surveys/offer", body: ["moment": moment],
+                       as: SurveyOffer.self).survey
+    }
+
+    /// One response: `{question: {"pick": ..., "text": ...}}`, as the web
+    /// sends it. A refusal is the server's own sentence.
+    func answerSurvey(_ survey: String, answers: [String: Any],
+                      episodeID: String = "", episodeTitle: String = "") async throws {
+        var body: [String: Any] = ["survey": survey, "answers": answers, "build": Self.client]
+        if survey == "episode" {
+            body["episode"] = ["id": String(episodeID.prefix(200)),
+                               "title": String(episodeTitle.prefix(300))]
+        }
+        _ = try await send("POST", "api/v1/surveys/answer", body: body, as: Ignored.self)
+    }
+
+    /// "Not now": offered again a day later, never after the third.
+    func dismissSurvey(_ survey: String) async {
+        _ = try? await send("POST", "api/v1/surveys/dismiss", body: ["survey": survey],
+                            as: Ignored.self)
+    }
+
     // MARK: - Plumbing
 
     func request(_ method: String, _ path: String, query: [URLQueryItem] = []) -> URLRequest {
@@ -1350,6 +1379,50 @@ struct StoryHandoff: Decodable {
 
 /// An answer whose body nothing reads.
 struct Ignored: Decodable {}
+
+/// `/api/surveys/offer` (`surveys.definition`): the survey to show, or null.
+struct SurveyOffer: Decodable {
+    let survey: Survey?
+}
+
+/// One survey as the client draws it (`surveys.SURVEYS`).
+struct Survey: Decodable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let intro: String
+    let questions: [SurveyQuestion]
+}
+
+/// A question: `single`, `multi`, `scale` (1-10) or `text`.
+struct SurveyQuestion: Decodable, Identifiable, Equatable {
+    let id: String
+    let kind: String
+    let text: String
+    let options: [SurveyOption]?
+    /// Shown only when another question's answer is one of these.
+    let showIf: SurveyShowIf?
+    /// An option whose own box asks a question ("name" -> "Which name?").
+    /// Its keys are option ids with no underscore, so the decoder's
+    /// snake-case conversion leaves them as they are.
+    let detail: [String: String]?
+    /// An "Other" chip with a box.
+    let other: Bool?
+    let min: Int?
+    let max: Int?
+    let low: String?
+    let high: String?
+    let placeholder: String?
+}
+
+struct SurveyOption: Decodable, Identifiable, Equatable {
+    let id: String
+    let label: String
+}
+
+struct SurveyShowIf: Decodable, Equatable {
+    let question: String
+    let `in`: [String]
+}
 
 
 enum FAMError: LocalizedError, Equatable {

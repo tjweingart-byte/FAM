@@ -67,6 +67,7 @@ import oauth
 import apple_tokens
 import quotas
 import feedback as feedback_mod
+import surveys as surveys_mod
 import consent as consent_mod
 import activation as activation_mod
 import image_check
@@ -1188,6 +1189,7 @@ def _database_report() -> list[dict]:
         ("quotas", "QUOTAS_DB", QUOTAS.path),
         ("metering", "METERING_DB", METER.path),
         ("feedback", "FEEDBACK_DB", FEEDBACK.path),
+        ("surveys", "SURVEYS_DB", SURVEY_STORE.path),
         ("consent", "CONSENT_DB", CONSENT.path),
         ("moderation", "MODERATION_DB", MODERATION.path),
         # The grown ranking vocabulary. Reported like the rest rather than
@@ -1834,6 +1836,12 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not anonymise feedback for %r", user_id)
         removed["feedback_anonymised"] = -1
+    # Survey answers stay in the totals, unnamed (`surveys.py`).
+    try:
+        removed["survey_answers_anonymised"] = SURVEY_STORE.forget(user_id)
+    except Exception:
+        log.exception("could not anonymise survey answers for %r", user_id)
+        removed["survey_answers_anonymised"] = -1
     try:
         removed["usage_rows_anonymised"] = METER.anonymise(user_id)
     except Exception:
@@ -5472,6 +5480,116 @@ async def admin_resolve_feedback(report_id: str, req: FeedbackResolve,
     return {"ok": True, "report": report, "counts": FEEDBACK.counts()}
 
 
+# ---------------------------------------------------------------- surveys
+# Optional surveys (`surveys.py`, PROBLEMS.md §560): the episode check on the
+# What's next card, the day-3 check-in and the two-week wrap-up. Accounts
+# only; the server decides which one, if any, and when.
+
+class SurveyOffer(BaseModel):
+    moment: str = Field("open", max_length=20)
+
+
+class SurveyEpisode(BaseModel):
+    id: str = Field("", max_length=200)
+    title: str = Field("", max_length=300)
+
+
+class SurveyAnswer(BaseModel):
+    survey: str = Field(..., max_length=20)
+    answers: dict = Field(default_factory=dict)
+    episode: Optional[SurveyEpisode] = None
+    build: str = Field("", max_length=200)
+
+
+class SurveyDismiss(BaseModel):
+    survey: str = Field(..., max_length=20)
+
+
+def _survey_account(request: Request) -> Optional[dict]:
+    """The asker's account, or None for a guest - who is never surveyed."""
+    if not _has_account(request):
+        return None
+    return ACCOUNTS.account(_listener(request))
+
+
+@app.get("/api/surveys")
+async def list_surveys(request: Request) -> dict:
+    """Every survey as the client draws it, for a client that wants to cache
+    them (iOS). Which one to show is `/api/surveys/offer`'s answer."""
+    account = _survey_account(request) or {}
+    return {"surveys": [surveys_mod.definition(sid, known=account)
+                        for sid in surveys_mod.SURVEYS]}
+
+
+@app.post("/api/surveys/offer")
+async def offer_survey(req: SurveyOffer, request: Request) -> dict:
+    """The survey to show at this moment, or `survey: null`.
+
+    Asked by the client when it *can* show one - the app came to the front
+    with nothing playing (`open`), or the What's next card is up
+    (`episode_end`) - because an answer here is recorded as offered, and the
+    same survey is not offered again for a day.
+    """
+    account = _survey_account(request)
+    if account is None or req.moment not in surveys_mod.MOMENTS:
+        return {"survey": None}
+    try:
+        created = account.get("created")
+        sid = SURVEY_STORE.offer(_listener(request), req.moment,
+                                 account_created=float(created) if created else None)
+    except Exception:
+        log.exception("could not decide a survey; offering none")
+        return {"survey": None}
+    return {"survey": surveys_mod.definition(sid, known=account) if sid else None}
+
+
+@app.post("/api/surveys/answer")
+async def answer_survey(req: SurveyAnswer, request: Request) -> dict:
+    """Keep one response. Every answer is optional; an empty one is refused
+    with a sentence saying so."""
+    user = _require_account(request)
+    ep = req.episode or SurveyEpisode()
+    try:
+        row = SURVEY_STORE.answer(
+            user, req.survey, req.answers, episode_id=ep.id,
+            episode_title=ep.title,
+            build=" @ ".join(x for x in (req.build.strip(),
+                                         _build_report()["short"]) if x))
+    except surveys_mod.SurveyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "id": row["id"]}
+
+
+@app.post("/api/surveys/dismiss")
+async def dismiss_survey(req: SurveyDismiss, request: Request) -> dict:
+    """'Not now': offered again in a day, and never after the third."""
+    user = _require_account(request)
+    if not SURVEY_STORE.dismiss(user, req.survey):
+        raise HTTPException(status_code=400, detail="There is no such survey.")
+    return {"ok": True}
+
+
+@app.get("/api/admin/surveys")
+async def admin_surveys(request: Request) -> dict:
+    """Each survey's tallies: offered, put off, answered, and per question."""
+    _require_admin(request)
+    return {"surveys": SURVEY_STORE.summary()}
+
+
+@app.get("/api/admin/surveys/{survey_id}.csv")
+async def admin_surveys_csv(survey_id: str, request: Request) -> Response:
+    """Every response to one survey, one row each, with the listener id so it
+    can be joined to what they did (Ask the database)."""
+    _require_admin(request)
+    try:
+        body = SURVEY_STORE.csv(survey_id)
+    except surveys_mod.SurveyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-survey-{survey_id}.csv"',
+        "Cache-Control": "no-store"})
+
+
 # ---------------- Reporting and blocking (App Store 1.2) ----------------
 # `moderation.py` says what each record means. Reporting is open to anybody
 # who can see the content - Explore and comments are read without an
@@ -5936,6 +6054,7 @@ MESSAGES = messages_mod.MessageStore()
 SAVED = saved_mod.SavedStore()
 SHARES = sharing.ShareStore()
 FEEDBACK = feedback_mod.FeedbackStore()
+SURVEY_STORE = surveys_mod.SurveyStore()
 CONSENT = consent_mod.ConsentStore()
 MODERATION = moderation_mod.ModerationStore()
 REPORT_ALERTS = moderation_mod.ReportAlerts()

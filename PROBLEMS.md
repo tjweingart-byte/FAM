@@ -34457,3 +34457,115 @@ Fonts are the iOS bundle's copies; a machine without them draws in Pillow's
 default face. Server-only, so every installed build and every app the link
 is pasted into gets it at once. Whether Messages prints the description
 line under the title for this site is still to be seen on a phone.
+
+## 560. Optional surveys: the episode check, the day-3 check-in and the two-week wrap-up (2026-11-12)
+
+The 11.11 beta meeting asked for surveys inside the app, for the beta and
+after it. It agreed on the format (multiple choice with an optional "Other:
+___" box), on what to ask about first (episode quality, what frustrates
+people, whether FAM sticks), on Quinn's 1-10 "part of your daily routine"
+question, and on asking about single episodes first and the whole app
+later. It left open whether the app survey comes at three days or two weeks.
+This build asks at both: a short check-in at day 3 and a wrap-up at day 13.
+
+**Three surveys, one module** (`surveys.py`):
+
+- **episode** - "How was that episode?" (Loved it / Good / Meh / Didn't
+  work), and when it was not loved, "What was off?" (pick any, including
+  "Mispronounced a name" with its own "Which name?" box and "Took too long
+  to start"). It rides on the What's next card, after a listener's first
+  finished episode, then every fifth (`EPISODE_EVERY`), never twice in
+  `ONCE_A_DAY`. Touching it pauses the countdown, as the search box there
+  does. "Loved it" is the whole answer and sends itself.
+- **day3** - age (skipped when the account already holds a date of birth),
+  what describes you, where you keep up now, what you have used, what has
+  frustrated you, the 1-10, and when you would listen.
+- **wrap** - "How would you feel if you could no longer use FAM?", the 1-10
+  again (to compare with day 3), whether FAM gave you something to bring up
+  with people (the social-information claim, §199, tested directly), what you
+  would miss, what you would pay a month (for the margin work), and one thing
+  to change. Somebody past day 13 who never answered the check-in is offered
+  this one instead, never both.
+
+**The server decides which survey, if any, and when.** `POST
+/api/surveys/offer {moment}` is asked only at a moment the client *can* show
+one: `episode_end` while the What's next card is up, or `open` when the app
+is in front on a main screen with nothing playing and nothing else open. An
+offer counts as offered, so the same survey is not offered again for a day.
+The app surveys open as a small invite above the bars (Start / Not now),
+never as the survey itself. "Not now" (`/api/surveys/dismiss`) offers it again
+a day later; after the third it is never offered again.
+
+**Accounts only.** A guest's events are never logged (`app._remembers`), and
+an answer is the most personal event there is. Answers are not taste signals
+and nothing ranks on them. Free text stays in `surveys.db` and is never sent
+to a model. Deleting an account anonymises its answers: they stay in the
+totals and lose the link to the person (as `feedback.py` does).
+
+**Answers are checked against the survey.** An unknown question or option is
+refused, not dropped: a client sending one is drawing a different survey,
+and that should fail where people can see it. A follow-up question that
+should not have been shown is not kept. Text is kept only where the question
+has a box.
+
+**Reading them:** /admin -> Surveys shows, per survey, how often it was offered
+and put off, a bar per answer, the mean and spread of each 1-10, and every
+typed line (with the episode's title for the episode check).
+`/api/admin/surveys/<id>.csv` gives one row per response with `user_id`, so
+answers can be joined to what that listener did (Ask the database).
+
+`GET /api/surveys` returns every definition for a client that caches them.
+The iOS screens are §561. The preview offers the episode
+check on every What's next card and the check-in once per page, except under
+the smoke run (`navigator.webdriver`).
+
+**Found on reviewing the branch, and fixed:** an answer of the wrong type
+(an object where an option id belongs) raised inside the validator and came
+back as a 500; it is a 400 with a sentence now. A typed line starting
+= + - @ would have been a formula in the CSV when opened in a spreadsheet;
+it is kept as text. The episode check could replace an app survey whose
+invite was still waiting, so Start would have opened the wrong survey; it
+now waits its turn (web and iOS). The web invite stayed over the player;
+it now waits off any screen it may not be offered on and comes back.
+
+Not yet: the push alert that brings a lapsed tester back to answer. That
+waits for push notifications on the phone (the meeting's other task).
+
+## 561. The iOS app catches up with §560: the surveys (2026-11-12)
+
+The three surveys on the iPhone, drawn as the web draws them (`ios/FAM/PARITY.md`,
+"Surveys").
+
+- **`Surveys.swift`.** `SurveysModel` (owned by `AppModel`, `model.surveys`)
+  holds what is offered, the answers and the one send; `SurveyQuestionView`
+  draws a question (chips that wrap in `FlowRow`, the 1-10 row with its end
+  labels, the Other box and an option's own box, a free line);
+  `SurveyPulse` is the episode check; `SurveyInvite` the card above the bars;
+  `SurveySheet` the day-3 / two-week survey. The answer shape and what is
+  sent are the web's (`surveyPayload`): only questions showing, only boxes
+  showing.
+- **The episode check** sits above the What's next grid (`NextUpOverlay`),
+  asked for when the card appears with the player's `X-FAM-Episode` and
+  title, cleared when it goes. Touching it, or any answer changing, pauses
+  the countdown. "Loved it" sends itself. The card is wrapped in
+  `ViewThatFits`, so it scrolls only when the check makes it taller than the
+  phone.
+- **The app surveys** are asked for from `MainTabs` on the same clock as the
+  notifications (`scenePhase == .active && feedDrawn`): six seconds after the
+  app settles, then each minute up to fifteen times while
+  `surveyMomentFree` is false (signed in, on a tab other than search, nothing
+  playing, connecting or buffering, no player, View more, follower card,
+  social cover, queue or playlist-end card). A device asks at most once in 30
+  minutes; the server keeps the real limit. The sheet is carried by
+  `SurveySheetHost`, because `MainTabs` does not observe the survey model.
+  Swiping the sheet away is Not now, as the X is.
+- **API.swift**: `offerSurvey`, `answerSurvey`, `dismissSurvey` on
+  `/api/v1/surveys/...`; `SurveyOffer`, `Survey`, `SurveyQuestion`,
+  `SurveyOption` and `SurveyShowIf` decode the definitions. The decoder's
+  snake-case conversion would rename a `detail` key containing an underscore;
+  none has one, and `test_ios_app_contract` fails if one is added. That test
+  also checks that every question key the server sends is one the app decodes,
+  and that the answers the app sends are kept.
+
+Not built here (no Swift compiler). Every changed file parses with tree-sitter.
+Nobody has seen these screens on a phone yet.
