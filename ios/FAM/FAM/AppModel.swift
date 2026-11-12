@@ -1108,7 +1108,7 @@ final class AppModel: ObservableObject {
                 do {
                     try await api.saveTile(query: tile.query, title: tile.title, source: "myfam")
                     savedTiles.insert(key)
-                    nowPlaying.say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
+                    nowPlaying.say("Saved for Later", action: "Open") { self.openSaved() }
                     await api.event("save", topicID: tile.id, text: tile.query)
                 } catch {
                     nowPlaying.say("Could not save that")
@@ -1135,7 +1135,7 @@ final class AppModel: ObservableObject {
                     nowPlaying.snack("Removed from Saved for Later")
                 } else {
                     try await api.saveShared(query: query, minutes: minutes, title: title)
-                    nowPlaying.say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
+                    nowPlaying.say("Saved for Later", action: "Open") { self.openSaved() }
                 }
             } catch {
                 if on { savedTiles.insert(key) } else { savedTiles.remove(key) }

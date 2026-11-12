@@ -549,8 +549,10 @@ final class NowPlayingModel: ObservableObject {
                 do {
                     try await api.unsave(ep.key)
                     if self.episode == ep { self.saved = false }
-                    say("Removed from Saved for Later", action: "Undo") { [weak self] in
-                        self?.resave(ep, title: heard)
+                    // The Task already holds self; the Undo holds it too (no weak
+                    // capture inside a strong one).
+                    say("Removed from Saved for Later", action: "Undo") {
+                        self.resave(ep, title: heard)
                     }
                 } catch {
                     say("Could not take that off")
@@ -564,7 +566,7 @@ final class NowPlayingModel: ObservableObject {
                         self.saved = true
                         self.savedBurst += 1
                     }
-                    say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
+                    say("Saved for Later", action: "Open") { self.openSaved() }
                 } catch {
                     say((error as? FAMError)?.errorDescription ?? "Could not save that")
                 }
