@@ -34705,3 +34705,107 @@ written for it), and the boot chain calls `openNotificationLink()` with no
 argument rather than the previous step's result. Not changed: on the day this
 deploys, someone already sent a per-mix "ready" that morning may get the new
 daily one too - the old `push_sent` log is keyed by mix, the new one by person.
+## 564. The app before build 4: #256 and #257 reviewed, #258's notifications on the iPhone (2026-11-12)
+
+**Why.** Three PRs merged since the iOS app was last checked, and the owner
+is about to build it for TestFlight / App Store. #256 (story hand-offs,
+Reddit, Threads) and #257 (the surveys) were written by other sessions that
+also changed the app; #258 (§562-§563) changed only the web and the server.
+There is no Swift compiler in this container, so the review is by reading and
+by tree-sitter (every file under `ios/FAM/FAM` parses with no ERROR or
+MISSING node), and the bar is compile-safety first.
+
+**#256 reviewed.** `StoryHandoff.swift`, the `handoff` on `ShareTarget`, the
+two new tiles and `LSApplicationQueriesSchemes: [instagram-stories,
+snapchat]` are sound and match the web (`shareGlyph` r/ and Th, the server's
+order, Reddit and Threads opening their `destination` as X does). One
+compile risk taken out: `available` read `guard let url = URL(string: url)`,
+a local shadowing the property inside its own initialiser - now `target`
+from `self.url` (and `self.url` in the two senders). project.yml is still
+valid XcodeGen and nothing regressed: two schemes (FAM, FAM Staging), the
+Staging config, `applinks:familiarize.net`, `UIBackgroundModes: [audio,
+fetch]`, `BGTaskSchedulerPermittedIdentifiers`. `StoryHandoff` joins the
+contract test's decoded structs.
+
+**#257 reviewed.** `Surveys.swift` and its wiring compile on reading (every
+name resolves; `ViewThatFits`, `scrollBounceBehavior` and the two-argument
+`onChange` are iOS 17). Fixed:
+
+* `MainTabs.surveyMomentFree` was one twelve-term `&&` of optionals and `==`
+  - the shape Swift's type checker gives up on ("unable to type-check this
+  expression in reasonable time"). Now one test a line, same meaning.
+* The web toasts "Thanks — that helps" when an app survey is sent from its
+  sheet; iOS closed the sheet silently. `SurveysModel.say`, wired by
+  `AppModel`, says it.
+* The episode check could arrive after What's next had gone (the web checks
+  the card is still up): the offer is dropped when the task was cancelled or
+  another survey arrived meanwhile.
+* Other turned off with no option's own box showing clears its words, as
+  `surveyTap` does.
+
+**#258 on the iPhone.** iPhone notifications (APNs) come after 1.0 - the
+owner's decision - so nothing #258 sends reaches this phone. What is ported
+is the server-side choices, which are the listener's and govern any browser
+where they allowed FAM's notifications:
+
+* `/api/v1/push` decodes `prefs` (`PushPrefs`: daily, daily_at, breaking,
+  finals, daily_time, daily_source; every field tolerant) and
+  `POST /api/v1/push/prefs` saves them with the listener's zone
+  (`PushPrefsAnswer`). Both structs are in the contract test, with a live
+  test that the server sends exactly the keys the app decodes.
+* The mix page's bell row is the web's **Daily reminder** (`mixWhenHTML`):
+  the pill shows the chosen time, else when it goes; **Auto** returns to the
+  learned time; a pick saves `daily: true, daily_at` - no longer a mix's
+  `listen_at`, as the web stopped writing it.
+* Settings gets **Notifications** (accounts only, after Listening): Daily
+  reminder (the web's menu - When I usually listen, the eight times, Off,
+  ticked), Big stories, Your teams' final scores, and the web's note; the
+  server's reason alone where it cannot deliver. Pinning a time zone sends
+  it to the choices, as `setTimeZone` does.
+* `no-dead-controls`: each of these is real server state, but none reaches
+  this phone. So the existing honest sentence - "Notifications on iPhone come
+  in a later version." - is on the mix row's note, after the Settings
+  group's note (with "Your choices here are kept, and reach any browser
+  where you allowed FAM's notifications."), and in the toast after a time is
+  saved unless a browser of theirs is subscribed. The web's notification
+  taps (`/?mixes=1`, `/?listen=`) are not universal links, so the app has
+  nothing to open.
+
+**Left as it is, on purpose.** The web draws "Hey FAM" after the
+Notifications group, under its heading; iOS keeps it under Listening. If the
+owner would rather the Notifications rows not appear on the iPhone until APNs
+exists, removing `NotificationRows` from `SettingsView.body` is one line;
+the mix row's note keeps the honest sentence either way.
+
+**Riskiest for the first Xcode build** (no compiler here): `PushPrefs`'
+hand-written decoder (keys in camelCase under `convertFromSnakeCase`, as
+`Mix` does), the `.daily` case added to `SettingsSheet` (one exhaustive
+switch, updated), and `StoryHandoff`'s `@MainActor` async senders called
+from a view's `Task`.
+
+## 565. Build 4 made ready for TestFlight and review (2026-11-12)
+
+**What was asked.** The owner, with #253 and five more merged (#255-#258):
+"take into account those changes. Then, we will get ready to put the new
+build into the testflight/app store app. Also, let me know what else needs to
+be done to officially apply to the app store", then "draft the store text and
+privacy answers".
+
+**The app.** #255 is server-only. #256, #257 and #258 are §564. The build
+number is raised in the code, `CURRENT_PROJECT_VERSION` 4, so a download of
+Main builds as it is.
+
+**The iOS release record.** `releases/contracts/ios-1.0.0.json` was cut
+before most of the app's routes existed; it is recut from `ios/FAM/FAM`
+with `tools/cut_release.py --platform ios --version 1.0.0 --build 4 --source
+ios/FAM/FAM --force` (58 routes, 25 response shapes). 1.0.0 is not on
+anyone's phone, so a recut changes no promise (`old-clients`); once Apple
+approves a build, its number goes into the registry and the contract is
+frozen.
+
+**Privacy.** `PrivacyInfo.xcprivacy` adds Customer Support (feedback
+reports), Other Diagnostic Data (a report's build and device) and Analytics
+on Other User Content (survey answers), so the manifest agrees with the App
+Privacy answers drafted in `APP_STORE.md` Part C, rewritten with the listing,
+age rating and review notes as the app now is (no Explore, no phone number on
+sign-up, vibes as posts, surveys).
