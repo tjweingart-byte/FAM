@@ -17,11 +17,12 @@
 <!--
   The pre-launch waitlist (WAITLIST.md). One page, two views:
 
-  * /waitlist     - the landing page: the email alone (§296; it was a
-                    password typed twice, 10.2 packet). Signing up here is
-                    the app's own sign-up with no password, so the account
-                    made here is the one the app opens with later, and it
-                    always starts on the waitlist.
+  * /waitlist     - the landing page: the email and a password, then the
+                    Terms box, in one step (§569; §296 had made it the email
+                    alone, which left a signed-out member no way back without
+                    mail). Signing up here is the app's own sign-up, so the
+                    account made here is the one the app opens with later,
+                    and it always starts on the waitlist.
   * /waitlist/me?setup=1 - straight after joining, the profile, the app's
                     sign-up fields: name, handle, photo, date of birth,
                     location, phone and interests, with "Skip for now" at the
@@ -569,6 +570,9 @@
     <form id="joinForm" novalidate>
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
              placeholder="Enter your email" aria-label="Email" required>
+      <!-- A password, in the same step (§569, reversing §296's email alone):
+           the way back in from any device, with no email needed. -->
+      <div class="pw-row"><input class="field" id="joinPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Choose a password (at least 8 characters)" aria-label="Password"><button class="pw-eye" type="button" data-pw="joinPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
       <button class="cta label" id="joinBtn" type="submit">
         <span id="joinLabel">Join the waitlist</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -893,6 +897,18 @@
     <div class="line2">Founding FAM member <span id="placeTag"></span></div>
   </div>
 
+  <!-- An account with no password - joined with the email alone (§296) -
+       sets one here (§569), since "Forgot password?" needs mail. -->
+  <section class="card hidden" id="passwordCard">
+    <h2>Set a password so you can sign back in</h2>
+    <p>You joined with just your email. Choose a password and you can sign in from any device.</p>
+    <form id="firstPasswordForm" novalidate>
+      <div class="pw-row" style="margin-top:18px"><input class="field" id="firstPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Choose a password (at least 8 characters)" aria-label="New password"><button class="pw-eye" type="button" data-pw="firstPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
+      <button class="cta label" type="submit" id="firstPasswordBtn">Set password</button>
+      <div class="form-note" id="firstPasswordNote" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
   <section class="card" id="placeCard">
     <!-- Their exact place in line (10.2 packet), counted by the server. -->
     <div class="count-row">
@@ -1041,12 +1057,22 @@
     return fetch(path, init).then(function(res){
       return res.json().catch(function(){ return {}; }).then(function(data){
         if(!res.ok){
-          var err = new Error(data.error || data.detail || "Something went wrong. Try again.");
+          var err = new Error(errorSentence(data));
           err.status = res.status; throw err;
         }
         return data;
       });
     });
+  }
+  // A refusal's words. FastAPI's 422 carries `detail` as a list of
+  // objects; that is said as a sentence, never "[object Object]" (§569).
+  function errorSentence(data){
+    var said = data && (data.error || data.detail);
+    if(Array.isArray(said)){
+      var tooLong = said.some(function(d){ return d && /too_long|at most/.test((d.type || "") + " " + (d.msg || "")); });
+      said = tooLong ? "That is too long." : "Check what you typed and try again.";
+    }
+    return typeof said === "string" && said ? said : "Something went wrong. Try again.";
   }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -1237,21 +1263,28 @@
     loadSamples();
     showAbout();
     if(referral) $("invited").classList.remove("hidden");
-    // The email alone (§296): the account the app opens with later, made
-    // here with no password and put on the list. This browser's session is
-    // the way back in; another device uses "Forgot password?" to set one.
+    // The email and a password (§569): the account the app opens with
+    // later, made here with its password in the same step and put on the
+    // list. The password is the app's own rule and the app's own sentences.
     $("joinForm").addEventListener("submit", function(ev){
       ev.preventDefault();
       var note = $("joinNote"); note.className = "form-note"; note.textContent = "";
       var email = $("email").value.trim();
+      var password = $("joinPassword").value;
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
         note.className = "form-note err"; note.textContent = "That doesn’t look like an email address."; return;
+      }
+      if(!password){
+        note.className = "form-note err"; note.textContent = "Enter your password."; return;
+      }
+      if(password.length < 8){
+        note.className = "form-note err"; note.textContent = "Use at least 8 characters for your password."; return;
       }
       if(!$("acceptTerms").checked){
         note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and conditions."; return;
       }
       $("joinBtn").disabled = true;
-      api("/api/waitlist/join", { email: email, referral_code: referral, accept_terms: true })
+      api("/api/waitlist/join", { email: email, password: password, referral_code: referral, accept_terms: true })
         .then(function(d){
           try { sessionStorage.removeItem("famReferral"); } catch(e){}
           // Straight on to the profile - the app's sign-up fields - with a
@@ -1266,10 +1299,13 @@
           // the sign-in, with the address carried over, is the way back.
           if(/already registered/.test(e.message || "")){
             $("toggleLogin").click();
+            // The password typed here is very likely theirs: carried over
+            // with the address, so signing in is one tap.
+            $("loginPassword").value = password;
             $("loginNote").className = "form-note";
             $("loginNote").textContent = canReset
               ? "That email is already on FAM. Sign in, or use Forgot password? if you never set one."
-              : "That email is already on FAM. Sign in on the device you joined from.";
+              : "That email is already on FAM. Sign in with its password, or on the device you joined from.";
           }
         });
     });
@@ -1946,13 +1982,47 @@
   };
   window.signOut = function(){
     // Joined with the email alone (§296): this browser is the only way in
-    // until a password is set, so signing out is said before it is done.
+    // until a password is set (the card on this page, §569), so signing out
+    // is said before it is done.
     if(STATE && STATE.details && STATE.details.has_password === false &&
-       !window.confirm("You joined with just your email, so you have no password yet. To sign back in you’ll set one with Forgot password? on the sign-in. Sign out?")) return;
+       !window.confirm("You have no password yet, so you couldn’t sign back in. Set one on this page first. Sign out anyway?")) return;
     api("/api/auth/logout", {}).catch(function(){}).then(function(){ location.replace("/waitlist"); });
   };
   $("meBtn").addEventListener("click", function(ev){ ev.stopPropagation(); $("menu").classList.toggle("hidden"); });
   document.addEventListener("click", function(){ $("menu").classList.add("hidden"); });
+
+  // "Set a password so you can sign back in" (§569): drawn while the
+  // account has none, and gone once it does.
+  function drawPasswordCard(d){
+    var none = !!(d && d.details && d.details.has_password === false);
+    $("passwordCard").classList.toggle("hidden", !none);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#passwordCard .pw-eye[data-pw]'), function(eye){
+    eye.addEventListener("click", function(){
+      var input = $(eye.getAttribute("data-pw"));
+      var show = input.type === "password";
+      input.type = show ? "text" : "password";
+      eye.setAttribute("aria-pressed", show ? "true" : "false");
+      eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    });
+  });
+  $("firstPasswordForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var note = $("firstPasswordNote"); note.className = "form-note"; note.textContent = "";
+    var pw = $("firstPassword").value;
+    if(!pw){ note.className = "form-note err"; note.textContent = "Enter your password."; return; }
+    if(pw.length < 8){ note.className = "form-note err"; note.textContent = "Use at least 8 characters for your password."; return; }
+    $("firstPasswordBtn").disabled = true;
+    api("/api/auth/password/set", { "new": pw })
+      .then(function(){
+        $("firstPassword").value = "";
+        if(STATE && STATE.details) STATE.details.has_password = true;
+        drawPasswordCard(STATE);
+        toast("Password set. Sign in with it on any device.");
+      })
+      .catch(function(e){ note.className = "form-note err"; note.textContent = e.message; })
+      .then(function(){ $("firstPasswordBtn").disabled = false; });
+  });
 
   function load(){
     return Promise.all([
@@ -1961,7 +2031,7 @@
       api("/api/preferences")
     ]).then(function(r){
       STATE = r[0];
-      drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]);
+      drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]); drawPasswordCard(STATE);
       $("shareLink").value = link();
     });
   }

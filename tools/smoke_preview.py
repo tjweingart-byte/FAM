@@ -1127,6 +1127,12 @@ def main() -> int:
                 "the editor's own rows are hidden in the editor"
             rows = page.text_content("#identityAccountRows") or ""
             assert "Change password" in rows, "no way to change a password"
+            # §569: an account with no password is offered the first one.
+            first = page.evaluate("""() => { var had = AUTH.has_password;
+                AUTH.has_password = false; var row = passwordSettingsRow();
+                AUTH.has_password = had; return row; }""")
+            assert "Set a password" in first and "setFirstPassword()" in first, \
+                "an account with no password is not offered one"
             assert not page.query_selector("#identityShared"), \
                 "the old shared-interests block came back"
             assert not page.eval_on_selector("#identityInterests", "e => e.hidden"), \

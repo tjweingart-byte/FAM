@@ -552,7 +552,25 @@ def snapshot(now: Optional[float] = None) -> dict:
             # Claude (§492, decided items 21 and 27).
             "cost_per_episode": _cost_per_episode(now),
             "routing": live_routing.report(now),
-            "pipeline_errors": pipeline_errors.report(now)}
+            "pipeline_errors": pipeline_errors.report(now),
+            # Whether "Forgot password?" is drawn anywhere (§569): it needs
+            # mail, and without it an account with no password has only the
+            # status page's and Settings' "Set a password" as a way back.
+            "password_reset": _password_reset()}
+
+
+def _password_reset() -> dict:
+    """`mail.status()`: available, and the reason when it is not. Never
+    raises - a report is never load-bearing."""
+    try:
+        import mail
+
+        state = mail.status()
+        return {"available": bool(state.get("available")),
+                "reason": str(state.get("reason") or "")}
+    except Exception as exc:  # noqa: BLE001 - said on the card instead
+        return {"available": False,
+                "reason": f"Could not tell whether email is set up ({type(exc).__name__})."}
 
 
 def _written_ahead(now: float) -> dict:

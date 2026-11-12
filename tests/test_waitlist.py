@@ -734,15 +734,25 @@ def test_the_profile_keeps_birth_date_phone_and_location(world):
     assert member.get("/api/waitlist/me").json()["details"]["birth_date"] == ""
 
 
-def test_the_waitlist_page_asks_only_for_the_email_and_says_the_place():
-    """§296: the join form is the email alone - no password, typed once or
-    twice - and the join sends none."""
+def test_the_waitlist_page_asks_for_the_email_a_password_and_says_the_place():
+    """§569 (reversing §296's email alone): the join form is the email, then
+    one password with the log-in's show/hide eye, then the Terms box - one
+    step - and the join sends the password, checked first with the app's
+    own rule and sentences."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     form = page.split('<form id="joinForm"', 1)[1].split("</form>", 1)[0]
-    assert 'id="email"' in form and 'type="password"' not in form
-    assert 'id="password"' not in page and 'id="password2"' not in page
+    assert form.index('id="email"') < form.index('id="joinPassword"') < form.index('id="acceptTerms"')
+    assert form.count('type="password"') == 1 and 'data-pw="joinPassword"' in form
+    assert 'autocomplete="new-password"' in form
+    assert 'id="password2"' not in page
     join = page.split('api("/api/waitlist/join", ', 1)[1].split(")", 1)[0]
-    assert "password" not in join
+    assert "password: password" in join
+    submit = page.split('$("joinForm").addEventListener("submit"', 1)[1].split('api("/api/waitlist/join"', 1)[0]
+    assert "Enter your password." in submit
+    assert "Use at least 8 characters for your password." in submit
+    assert f"password.length < {accounts_mod.MIN_PASSWORD}" in submit
+    app_page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert "Use at least 8 characters for your password." in app_page
     assert 'id="placeBig"' in page and '"#" + fmt(d.place)' in page
     assert 'id="shareLink"' in page
     for field in ("pBirth", "pCountry", "pRegion", "pCity", "pPhone"):
@@ -1097,3 +1107,156 @@ def test_signing_out_without_a_password_is_said_first():
     change = app_page.split("function changePassword(){", 1)[1].split("\n  }\n", 1)[0]
     assert "has_password === false" in change and "setFirstPassword()" in change
     assert '"/api/auth/password/set"' in app_page
+
+
+# ---------------------------------------------------------------- §569
+
+
+def test_joining_with_a_password_sets_it_with_the_account(world):
+    """§569: the join's password is on the account from the first moment -
+    another device signs in with it, and nothing offers to set one."""
+    member, body = _join("pw@fam.test", password=PASSWORD)
+    assert body["status"] == "waitlisted"
+    assert member.get("/api/waitlist/me").json()["details"]["has_password"] is True
+    assert member.get("/api/account").json()["has_password"] is True
+    assert member.get("/api/auth/me").json()["has_password"] is True
+    door = TestClient(appmod.app)
+    r = door.post("/api/auth/login", json={"email": "pw@fam.test", "password": PASSWORD})
+    assert r.status_code == 200 and r.json()["user_id"] == body["user_id"]
+    # Setting a "first" password on it is refused: it has one.
+    r = member.post("/api/auth/password/set", json={"new": "another-password"})
+    assert r.status_code == 400
+
+
+def test_a_join_with_a_short_password_makes_no_account(world):
+    """The app's own rule and sentence (`accounts.check_password`), checked
+    before the INSERT, so a refused join leaves nothing half made."""
+    c = TestClient(appmod.app)
+    r = c.post("/api/waitlist/join", json={"email": "short@fam.test", "password": "short",
+                                           "accept_terms": True})
+    assert r.status_code == 400
+    assert f"Use at least {accounts_mod.MIN_PASSWORD} characters." in r.text
+    assert c.get("/api/auth/me").json().get("authenticated") is not True
+    # Nothing was made: the same address can then join properly.
+    _join("short@fam.test", password=PASSWORD)
+
+
+def test_a_join_without_a_password_still_works_for_installed_clients(world):
+    """`old-clients`: an app from §296's weeks sends no password and is
+    joined exactly as before - an account with none, offered the first."""
+    c = TestClient(appmod.app)
+    r = c.post("/api/v1/waitlist/join", headers={"X-FAM-Client": "ios/1.0.0+2"},
+               json={"email": "oldapp@fam.test", "accept_terms": True,
+                     "want_token": True})
+    assert r.status_code == 200, r.text
+    auth = {"Authorization": "Bearer " + r.json()["session_token"]}
+    assert c.get("/api/v1/waitlist/me", headers=auth).json()["details"]["has_password"] is False
+    assert c.get("/api/v1/auth/me", headers=auth).json()["has_password"] is False
+    r = c.post("/api/v1/auth/password/set", headers=auth, json={"new": PASSWORD})
+    assert r.status_code == 200
+    assert c.get("/api/v1/auth/me", headers=auth).json()["has_password"] is True
+
+
+def test_a_registered_email_with_a_password_is_still_refused(world):
+    _join("again@fam.test", password=PASSWORD)
+    stranger = TestClient(appmod.app)
+    r = stranger.post("/api/waitlist/join", json={"email": "again@fam.test",
+                                                  "password": PASSWORD,
+                                                  "accept_terms": True})
+    assert r.status_code == 400 and "already registered" in r.text
+    # The page opens its sign-in with the address and the password carried.
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    join = page.split('api("/api/waitlist/join"', 1)[1].split("\n    });", 1)[0]
+    assert '$("loginPassword").value = password' in join
+
+
+def test_the_status_page_offers_a_password_to_an_account_with_none():
+    """§569: "Set a password so you can sign back in", drawn from
+    `details.has_password === false`, sets one with `/api/auth/password/set`."""
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    card = page.split('id="passwordCard"', 1)[1].split("</section>", 1)[0]
+    assert "Set a password so you can sign back in" in card
+    assert 'id="firstPassword"' in card and 'data-pw="firstPassword"' in card
+    draw = page.split("function drawPasswordCard(d){", 1)[1].split("\n  }", 1)[0]
+    assert "has_password === false" in draw
+    submit = page.split('$("firstPasswordForm").addEventListener("submit"', 1)[1].split("\n  });", 1)[0]
+    assert 'api("/api/auth/password/set", { "new": pw })' in submit
+    assert "Use at least 8 characters for your password." in submit
+    assert "drawPasswordCard(STATE);" in page.split("function load(){", 1)[1]
+    # Hidden until the answer says there is no password.
+    assert '<section class="card hidden" id="passwordCard">' in page
+
+
+def test_settings_says_set_a_password_when_there_is_none():
+    """§569: every password row in the app reads "Set a password" and opens
+    the first-password flow directly when `/api/auth/me` says there is none."""
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    row = page.split("function passwordSettingsRow(){", 1)[1].split("\n  }", 1)[0]
+    assert "AUTH.has_password === false" in row
+    assert 'settingsRow("Set a password", "", "setFirstPassword()")' in row
+    assert 'settingsRow("Change password", "", "changePassword()")' in row
+    assert 'settingsRow("Change password"' not in page.replace(row, "")
+    block = page.split("function accountBlock(){", 1)[1].split("\n  }", 1)[0]
+    assert "setFirstPassword()" in block and "Set a password" in block
+
+
+def test_the_tracker_says_whether_forgot_password_is_on(monkeypatch):
+    """§569: /admin shows `mail.status()` - on, or off and why."""
+    import admin_tracker
+    import mail
+
+    monkeypatch.setattr(mail, "status", lambda: {"available": False,
+                                                 "reason": "no SMTP_HOST"})
+    assert admin_tracker._password_reset() == {"available": False,
+                                               "reason": "no SMTP_HOST"}
+
+    def broken():
+        raise RuntimeError("x")
+    monkeypatch.setattr(mail, "status", broken)
+    assert admin_tracker._password_reset()["available"] is False
+    tracker = (ROOT / "admin_ui" / "tracker.html").read_text(encoding="utf-8")
+    assert "Forgot password? is off: " in tracker
+    assert "drawKpis(s.metrics || {}, s.password_reset)" in tracker
+    source = (ROOT / "admin_tracker.py").read_text(encoding="utf-8")
+    assert '"password_reset": _password_reset()' in source
+
+
+def test_a_first_password_is_set_once_and_the_owner_is_told(world, monkeypatch):
+    """§569: `set_password` is one conditional UPDATE - a second "first"
+    password is refused, never written over the first - and setting one
+    emails the address when mail can be sent."""
+    import mail
+
+    sent = []
+    monkeypatch.setattr(mail, "status", lambda: {"available": True, "reason": ""})
+    monkeypatch.setattr(mail, "send_later", lambda to, subject, body: sent.append((to, subject)))
+    member, body = _join("first@fam.test", password="")
+    assert member.post("/api/auth/password/set", json={"new": PASSWORD}).status_code == 200
+    assert sent == [("first@fam.test", "A password was set on your FAM account")]
+    with pytest.raises(accounts_mod.AuthError):
+        appmod.ACCOUNTS.set_password(body["user_id"], "someone-elses-password")
+    assert appmod.ACCOUNTS.log_in("first@fam.test", PASSWORD).user_id == body["user_id"]
+    with pytest.raises(accounts_mod.AuthError):
+        appmod.ACCOUNTS.set_password("nobody-at-all", PASSWORD)
+    # No mail, no message.
+    monkeypatch.setattr(mail, "status", lambda: {"available": False, "reason": "off"})
+    other, _ = _join("quiet@fam.test", password="")
+    assert other.post("/api/auth/password/set", json={"new": PASSWORD}).status_code == 200
+    assert len(sent) == 1
+
+
+def test_refusals_never_read_object_object():
+    """§569: a 422's list-shaped `detail` is said as a sentence."""
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    assert "new Error(errorSentence(data))" in page
+    assert "Array.isArray(said)" in page.split("function errorSentence(data){", 1)[1]
+    for field in ("joinPassword", "firstPassword"):
+        tag = page.split(f'id="{field}"', 1)[1].split(">", 1)[0]
+        assert f'maxlength="{accounts_mod.MAX_PASSWORD}"' in tag
+
+
+def test_the_settings_note_follows_the_password_and_reset():
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    note = page.split("function passwordSettingsNote(){", 1)[1].split("\n  }", 1)[0]
+    assert "AUTH.has_password === false" in note and "RESET_READY" in note
+    assert "passwordSettingsNote()" in page.split("function renderSettings(){", 1)[1]

@@ -2623,7 +2623,12 @@ async def auth_me(request: Request) -> dict:
             # Whether the activation step is still to do (§411): read here,
             # because this is what every open asks first. An old client
             # ignores it and keeps working.
-            "activation_needed": _activation_needed(listener)}
+            "activation_needed": _activation_needed(listener),
+            # Whether Settings offers "Set a password" or "Change password"
+            # (§569): an account made with none - a §296 join, Google, Apple -
+            # is offered the first one directly.
+            "has_password": bool(listener.is_authenticated
+                                 and _has_password(listener.user_id))}
 
 
 def _activation_needed(listener) -> bool:
@@ -2993,11 +2998,20 @@ async def auth_password_set(req: NewPasswordRequest, request: Request) -> dict:
     legitimate first set and sometimes an attempt to skip the check.
     """
     _rate_limit(request)
+    user = _require_account(request)
     try:
-        await asyncio.to_thread(ACCOUNTS.set_password,
-                                _require_account(request), req.new)
+        await asyncio.to_thread(ACCOUNTS.set_password, user, req.new)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Told, as a reset is (§569): a password set by somebody holding this
+    # session is not a silent one. Only where mail can be sent.
+    account = ACCOUNTS.account(user) or {}
+    if account.get("email") and mail_mod.status().get("available"):
+        mail_mod.send_later(
+            account["email"], "A password was set on your FAM account",
+            "A password was just set on your FAM account, so you can now sign "
+            "in with this address and that password on any device.\n\n"
+            "If that was not you, reset it from the log-in screen now.\n")
     return {"ok": True}
 
 
@@ -13837,8 +13851,11 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    #: Not asked for since §296: joining is the email alone. A page or client
-    #: that still sends one makes the account with it, as before.
+    #: Asked for again since §569 (the owner, reversing §296's email alone):
+    #: the join form is the email, a password and the Terms box, and the
+    #: password is set on the account in the same INSERT that makes it. Still
+    #: optional here: an installed client that sends none (`old-clients`)
+    #: gets §296's passwordless join, unchanged.
     password: str = Field("", max_length=accounts_mod.MAX_PASSWORD)
     referral_code: str = Field("", max_length=64)
     want_token: bool = False
@@ -13895,11 +13912,14 @@ def _admin_previewing_join(req, request: Request):
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own sign-up, then the waitlist half.
 
-    **The email alone** (the owner, PROBLEMS.md §296): no password is asked
-    for, so the account is made with none (`passwordless`), exactly as a
-    Google-or-Apple one is. This browser's session is the way in; another
-    device gets in by "Forgot password?" (§244), which sets the first one.
-    A request that still carries a password is the old join, unchanged.
+    **The email and a password** (the owner, PROBLEMS.md §569, reversing
+    §296's email alone): the password is checked by the same rule as every
+    other (`accounts.check_password`) and stored in the INSERT that makes
+    the account, so a join never leaves an account half made. A join with
+    no password - an installed client from §296's weeks - is still made
+    with none (`passwordless`), as a Google-or-Apple one is; its way back in
+    is setting one (`/api/auth/password/set`, offered on the status page
+    and in Settings) or "Forgot password?" (§244) where mail is set up.
 
     The same account the app will open with later - `ACCOUNTS.sign_up` on the
     session this browser already has - so granting access changes one column
