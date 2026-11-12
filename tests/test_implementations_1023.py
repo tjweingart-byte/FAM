@@ -104,10 +104,10 @@ def test_the_add_sheet_shows_each_playlists_cover_on_the_left():
 
 def test_the_toast_is_inset_by_the_phones_bezel():
     assert ".toast, .snack{ position:absolute; left:14px; right:14px;" in INDEX
-    assert "@media (max-width:520px){ .toast, .snack{ left:0; right:0; } }" in INDEX
+    assert "@media (max-width:520px){ .toast, .snack{ left:0; right:0; max-width:calc(100% - 32px); } }" in INDEX
     # The override has to come after the rule it overrides.
     assert INDEX.index("left:14px; right:14px;") < INDEX.index(
-        ".toast, .snack{ left:0; right:0; }")
+        ".toast, .snack{ left:0; right:0; max-width")
 
 
 # --- a friend's vibe: plane sends, arrows VIBE! -------------------------------

@@ -1,4 +1,4 @@
-# FAM — working context
+# FAM - working context
 
 Read this before making changes: where the product is going, which constraints
 are load-bearing, and which settled decisions not to re-litigate.
@@ -16,7 +16,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Adding or changing a rule:** reasoning in a `docs/claude/` file under a
   new `<!-- rule:ID -->` marker, one line here citing `[ID]`.
   `tests/test_claude_md.py` fails if the IDs disagree or this file passes its
-  budget - history goes in the topic files and `PROBLEMS.md`, never here.
+  budget - history goes in topic files and `PROBLEMS.md`, never here.
 - **History:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section and line
   (`tools/problems_index.py`; a test fails if stale). Read by offset.
 - "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`.
@@ -90,8 +90,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
   says the day it was made, then a date past six days (§499). [dailyfam-catalogue]
-- **Categories are filter chips** (§229/§500): a row atop myFAM filters in
-  place; today's cache; a tap plays. [your-categories]
+- **Categories are a tab** (§500/§550): myFAM is Mixes | Categories; chips
+  filter in place; today's cache. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state; plays before the grid; a mix survives Go Deeper
   (§519). [queue]
@@ -101,8 +101,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   clients; no dislike anywhere. [explore-reel]
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
   Your story only (§250); holding pauses; your story rings your face; (+)
-  posts a note, no episode (§297); a vibe is deleted whole, from its story's ⋯
-  or held on your grid (§499). [vibe-caption]
+  posts a note, no episode (§297); a vibe is deleted whole (story ⋯ or grid
+  hold, §499); a grid tap: posts (§547). [vibe-caption] [vibe-posts]
 - **A friend's vibe** has a reply / heart / share-to-your-story row (§282); a
   reply or like is a message carrying the episode. [story-reply]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
@@ -180,7 +180,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made
   for you / Trending / Most played episodes today (24h, §181) / friends. Every choosing
-  rail: taste → `ready_first` (a sort, never a filter) → no repeats
+  rail: taste -> `ready_first` (a sort, never a filter) -> no repeats
   (`topics.is_repeat`); a heard live story is never re-offered as itself (a
   "what's new" follow-up after 6h). Trending is a twice-daily GNews edition
   (05:00/17:00 ET), ten stories written ahead, no fallback, never the live pool;
@@ -264,7 +264,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   works with no account; email/phone/Google/Apple; **reset** emails a code
   to the account's address (`mail.py`, §244; `/reset`, §297). [op-identity]
 
-## Settled constraints — do not undo without discussing (`constraints.md`)
+## Settled constraints - do not undo without discussing (`constraints.md`)
 
 Audio and the opening
 - **A first play streams as voiced** (PCM, or Opus if decoded, §242); **a
@@ -330,7 +330,7 @@ Research and truth
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
 - **Local news** (§194): a town's question goes town outlets (RSS, collected
-  ahead) → county → the search backend on known outlets, never GDELT; only what names the
+  ahead) -> county -> the search backend on known outlets, never GDELT; only what names the
   place is evidence; an empty town opens with `local_news.gap_line`, composed
   in code, then weather, then county news. [local-news-ladder]
 - **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
@@ -357,7 +357,7 @@ Caching and prefetch
   re-written key archives the old row and audio; history pins for two weeks;
   the volatile/scheduled window is 2h so a repeat search is one episode. [heard-is-kept]
 - **TTL comes from what the script was built on, not the question's words**
-  - live status → `outcome_dependent` → window → keyword floor; `in_progress`
+  - live status -> `outcome_dependent` -> window -> keyword floor; `in_progress`
   and a sports `recap`/`update` short of `final` never current (§182; an
   edition's live game 30 min, §359). No keyword fixes. Prefetch
   never calls `live_lookup` nor warms outcome-dependent scripts, editions excepted. [ttl-from-evidence]
@@ -387,7 +387,7 @@ Browse surfaces
   never invent a tile. Trending is the GNews edition (§139) ranked by
   `rank_world` (outlet count and place: `trending_score`, `WORLD_LOCAL_SLOTS`);
   the live pool's sports sweep on demand while a followed game is on, markets and news every 2h (§191); a
-  guest's page is the bank and a guest tap plays only kept audio (403 → sign-up,
+  guest's page is the bank and a guest tap plays only kept audio (403 -> sign-up,
   before the GPU); picker and Explore New keep the whole bank; the gate governs
   what is *offered*, not what is *reported*; `_has_account` defaults False. [bank-for-guests]
 - **A browse tile is a title and an angle**; one model call per refresh window
@@ -447,7 +447,7 @@ Accounts, tiers, sharing
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
-  (§204); daily/my/your one rule, centred (§363); light (§250). [typefaces]
+  (§204); daily/my/your one rule, centred (§363), web light, app dark (§546). [typefaces]
 - **Larger phone text never breaks a screen** (§499): heights are floors,
   headings never share a squeezed row. [large-text]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
@@ -485,7 +485,7 @@ Operations and honesty
   paid keys removed, GDELT/Polymarket off, `FAM_SECRETS` unread, nothing
   leaves the machine but its own private database (§243); replay only. [zero-spend-staging]
 - **Every installed client keeps working**: `X-FAM-Client`, `releases/registry.json`
-  (supported/deprecated/retired → 426), a contract per release replayed in
+  (supported/deprecated/retired -> 426), a contract per release replayed in
   CI; fix a break by keeping the old field, never by editing the contract;
   web releases kept at `/v/<version>/`. [old-clients]
 - Per-machine state lives in `~/.fam/`; a key is never written into source. [fam-home-dir]
@@ -504,7 +504,7 @@ Operations and honesty
 - `_listener` must be satisfiable by a header (bearer token in the Keychain). [listener-header]
 - First plays stream, replays may be R2 links (§252); account deletion required. [ios-pressures]
 - Server side built (`ACCOUNTS.md`); payment and delivery are not. [ios-server-built]
-- Order: hear the production voice → deploy with a GPU → Swift lock-screen spike. [ios-order]
+- Order: hear the production voice -> deploy with a GPU -> Swift lock-screen spike. [ios-order]
 - Open decisions: where to deploy (bandwidth) [dec-deploy]; accounts - answered
   [dec-accounts]; local vs hosted voices [dec-voices]; whether to warm scripts -
   measure hit rates first [dec-prefetch]; embeddings help the ranker, not the
@@ -515,7 +515,7 @@ Operations and honesty
 
 Every change ends the same way, without being asked [ship-loop]:
 
-1. `./dev.sh check` — all of it, every time.
+1. `./dev.sh check` - all of it, every time.
 2. Rebuild and **republish the preview to the same URL**:
    `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`.
    It serves `preview/fam-live-artifact.html` (`python preview/build_live_preview.py`),
@@ -530,7 +530,7 @@ Every change ends the same way, without being asked [ship-loop]:
   PDF, deck and `ALGORITHM.md` in `docs/algorithm/` from the code; a test fails
   when they are stale; `dev.sh check` rebuilds them. Never hand-edit. [algorithm-docs]
 - `./demo.sh` to show or judge the product; `tools/seed_demo.py` fills browse history. [demo-sh]
-- Feature branches → `staging` (`fam-staging`, zero spend) → batched PR into
+- Feature branches -> `staging` (`fam-staging`, zero spend) -> batched PR into
   `Main` (`fam`); both services from `render.yaml`, sharing nothing (`STAGING.md`). [staging-flow]
 
 ## Picking up a session (`workflow.md`)
@@ -539,7 +539,7 @@ Every change ends the same way, without being asked [ship-loop]:
 - Reading order and the reference docs are listed in `workflow.md`; recent
   history is in `PROBLEMS_INDEX.md`. [reading-order]
 - Setup: `pip install -r requirements.txt` and `pip install playwright`. [setup-deps]
-- Run `./dev.sh check` first; it ends `all checks passed` twice with the smoke
+- Run `./dev.sh check` first; it ends `all checks passed` twice, smoke
   count from `grep -c '^        check(' tools/smoke_preview.py`. [baseline-check-counts]
 - The share landing page has its own smoke run (`tools/smoke_landing.py`); CI
   runs all three; a check added to `dev.sh` must be added to

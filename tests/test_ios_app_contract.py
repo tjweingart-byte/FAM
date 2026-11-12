@@ -275,19 +275,30 @@ def test_the_players_side_channels_decode_what_the_server_sends():
                    # The story editor's layout, its stickers and @tags (§213, §297).
                    "StoryStyle", "StorySticker", "StoryTag",
                    "CatalogPage", "CatalogEpisode", "FriendFace", "RailsPage",
+                   # Friends who listened, on the player (§543, `/api/listened`).
+                   "ListenedPage",
                    # myFAM: mixes, the catalogue, sharing, push, the episode's topic.
                    "Mix", "MixItem", "MixPerson", "MixOwner", "RecommendedTopics", "Catalogue",
                    "Subject", "MixInvite", "MixShare", "ShareTarget", "PushStatus", "EpisodeTopic",
                    "ProfileSummary", "ProfileInterest",
+                   # What changed since you last listened (§545): R5 on the
+                   # card, Q5's bubbles inside the mix.
+                   "MixSignal", "MixSince", "MixSinceSide",
                    # The category chips and panel on the myFAM tab (§500).
                    "CategoriesPage", "CategoryFacet", "CategoryNode", "CategoryEpisodes",
                    "CategorySub", "CategoryEpisode",
+                   # Mixes | Categories' list and the morning dot (§550).
+                   "CategoryChild", "FreshMixes",
                    # Messages, friends and a friend's profile (§213, §282, §285).
                    "InboxPage", "InboxThread", "ChatMember", "ChatMessage", "ChatSender",
                    "NoticeGroup", "ChatPage", "ChatWith", "SentMessage", "GroupAnswer",
                    "UnreadAnswer", "NoticePage", "FollowPerson", "FriendsPage", "FollowCounts",
                    "FollowAnswer", "PeoplePage", "PersonPage", "PersonMix", "PersonVibe",
                    "PersonFriend", "ProfileEcho",
+                   # A grid vibe as posts: the line, likes, who heard it and
+                   # the replies under it (§547, `vibe-posts`).
+                   "VibePostsPage", "VibePostPerson", "VibePost", "VibePostLine",
+                   "VibePostHeard", "VibeReply", "VibeRepliesPage", "VibeLikeAnswer",
                    # YourFAM: the hub, Settings, Edit profile, Saved for Later,
                    # the listening history and My Vibe (`op-profile-hub`).
                    "AccountInfo", "MyProfile", "MyVibe", "ProfileMix", "MyPreferences",

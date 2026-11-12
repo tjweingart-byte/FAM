@@ -32,6 +32,7 @@ fam-pod.tar.gz
 # What a pod run writes back. Copied to the Mac, then read - not committed
 # from the pod, which has no credentials and should not get any.
 pod-results/
+stress-trial/
 
 # macOS writes one of these into every folder it displays. It is never source,
 # on any branch, and it is what a Finder window leaves behind rather than

@@ -237,6 +237,17 @@ struct NextGlyph: View {
     }
 }
 
+/// The back glyph (`#mixPrevBtn`, §550): next's drawing mirrored - the
+/// web's path is next's with every x taken from 24 - the bar on the left,
+/// the triangle pointing back.
+struct PrevGlyph: View {
+    var body: some View {
+        NextGlyph()
+            .scaleEffect(x: -1, y: 1, anchor: .center)
+            .accessibilityHidden(true)
+    }
+}
+
 /// The Captions pill's glyph, 18 x 14 from its 24 x 18 box, stroke 1.9.
 struct CaptionsGlyph: View {
     var body: some View {

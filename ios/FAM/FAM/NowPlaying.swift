@@ -32,6 +32,9 @@ struct Episode: Equatable {
     /// One of a category's episodes, played or queued from its list
     /// (`fromCategory`): the rest of that list stays queued behind it.
     var fromCategory: Bool = false
+    /// One of a DailyFAM rail's tiles queued by its Play all (§543,
+    /// `fromRail`): ended, like a category's, by anything else starting.
+    var fromRail: Bool = false
     /// Played from the Queue, which keeps a category's list as it is.
     var queued: Bool = false
     /// The ids of what the listener attached (`attach=`): such an episode is
@@ -40,6 +43,9 @@ struct Episode: Equatable {
     /// A private search or Go Deeper (§282, §285): `private=1`, and no
     /// search / complete / skip event, history row or resume position.
     var isPrivate: Bool = false
+    /// A vibe's post playing where it sits (§547, `inPlace`): the full
+    /// player does not open over the posts screen while it is showing.
+    var inPlace: Bool = false
 
     /// Whether listening to it may be written down anywhere (history,
     /// resume): not for a private one, nor one built on an attachment.
@@ -110,11 +116,29 @@ final class NowPlayingModel: ObservableObject {
     @Published private(set) var nextUpLeft = NowPlayingModel.nextUpSeconds
     @Published private(set) var nextUpPaused = false
     @Published private(set) var toast: Toast?
+    /// The friends who listened to the episode playing (§543), drawn top
+    /// left of the picture; nil draws nothing (`playerFriends`).
+    @Published private(set) var listenedFriends: PlayerFriends?
+    /// A DailyFAM tile's own friends, noted at the tap by its id, so a tile
+    /// played from DailyFAM draws them at once (`myFamTopics[bankTopicId]`).
+    var tileFriends: [String: PlayerFriends] = [:]
     /// "Added to Queue · Open": whoever is on screen opens the Queue sheet.
     @Published var showQueue = false
     /// Go Deeper is open (`goDeeperIsOpen`): an episode ending under it
     /// starts nothing - no queue, no playlist, no What's next (10.1).
     var goDeeperOpen = false
+    /// The VIBE! story editor is up (`vibeComposerIsOpen`, §550).
+    var vibeEditorOpen: () -> Bool = { false }
+    /// An episode that ended under the open editor: what comes next, held
+    /// (`heldForVibe`). Anything else starting drops it.
+    var heldForVibe: (() -> Void)?
+
+    /// Who of your friends listened: everybody counted, and the faces
+    /// (newest first) the pill and its sheet draw.
+    struct PlayerFriends: Equatable {
+        let count: Int
+        let faces: [FriendFace]
+    }
 
     struct Toast: Identifiable, Equatable {
         let id = UUID()
@@ -242,6 +266,7 @@ final class NowPlayingModel: ObservableObject {
         sourcesShown = false
         saved = false
         vibed = false
+        listenedFriends = nil
         stopCaptions()
         captionsOn = false
         sentences = []
@@ -267,6 +292,7 @@ final class NowPlayingModel: ObservableObject {
         Task { await askCard(mine) }
         Task { await askThread(mine) }
         Task { await askSources(mine) }
+        Task { await askFriends(ep, mine) }
         Task { await watch(mine) }
         // Turned on again if that is how the listener left them (§519).
         if Self.captionsRemembered { showCaptions(true) }
@@ -289,6 +315,20 @@ final class NowPlayingModel: ObservableObject {
         // Ended under an open Go Deeper: the sound stops and the sheet
         // stays up on its own - nothing else starts over it (10.1).
         if goDeeperOpen { return }
+        // Ended while the listener is making a vibe of it (§550,
+        // `heldForVibe`): the mix, the queue and What's next wait until the
+        // editor closes, posted or not, rather than moving on underneath it.
+        // The audio itself is not paused; only the moving on waits.
+        if vibeEditorOpen() {
+            heldForVibe = { [weak self] in self?.carryOn(after: ep, mine) }
+            return
+        }
+        carryOn(after: ep, mine)
+    }
+
+    /// What comes after an episode's end (`carryOn`): the playlist's next,
+    /// else the Queue's, else What's next on the full player.
+    private func carryOn(after ep: Episode, _ mine: Int) {
         // A playlist's episode, or a Go Deeper detour off it, plays the
         // playlist's next instead of offering What's next (`fromMix`, §519).
         if onEnded?(ep) == true { return }
@@ -302,11 +342,23 @@ final class NowPlayingModel: ObservableObject {
         Task { await offerNextUp(mine) }
     }
 
+    /// The VIBE! editor closed (`closeVibeComposer`, §550): what an
+    /// episode's end held while it was open goes on now - after a post or a
+    /// back alike.
+    func vibeEditorClosed() {
+        let held = heldForVibe
+        heldForVibe = nil
+        held?()
+    }
+
     /// The mini player's X, or a new episode replacing this one.
     func stopped() {
+        // Nothing held for the vibe editor outlives the episode (§550).
+        heldForVibe = nil
         reportSkipIfAbandoned()
         stopCaptions()
         captionsOn = false
+        listenedFriends = nil
         stopNextUp()
         run += 1
         episode = nil
@@ -439,6 +491,31 @@ final class NowPlayingModel: ObservableObject {
         if found.items.isEmpty && (sources?.items.isEmpty == false) { return }
         if !found.items.isEmpty || found.known { sources = found }
         if !found.items.isEmpty { sourcesShown = true }
+    }
+
+    /// Friends who listened, on the player (§543, `loadPlayerFriends`):
+    /// accounts only, never a private search or an attached episode. A
+    /// DailyFAM tile already knows its faces; anything else asks the server
+    /// by the question. Nothing at all rather than an empty pill.
+    private func askFriends(_ ep: Episode, _ mine: Int) async {
+        guard ep.keepsRecord, signedIn() else { return }
+        let query = ep.key.query
+        guard !query.isEmpty else { return }
+        if !ep.topicID.isEmpty, let known = tileFriends[ep.topicID], !known.faces.isEmpty {
+            if mine == run { listenedFriends = known }
+            return
+        }
+        let answer: ListenedPage?
+        do {
+            answer = try await api.listened(query: query)
+        } catch {
+            answer = nil
+        }
+        guard let page = answer, mine == run else { return }
+        let faces = page.faces ?? []
+        guard !faces.isEmpty else { return }
+        let count = max(faces.count, page.count ?? 0)
+        listenedFriends = PlayerFriends(count: count, faces: faces)
     }
 
     /// One more look, when Go Deeper opens.
@@ -648,10 +725,14 @@ final class NowPlayingModel: ObservableObject {
 
     /// Something else started (§500 review): the rest of a category's list
     /// is not its "next". What the listener queued themselves stays.
+    /// A rail's Play all (§543) ends the same way (`generate` clears
+    /// `fromRail` beside `fromCategory`).
     func dropCategoryQueue() {
-        guard !categoryQueued.isEmpty else { return }
-        queue.removeAll { categoryQueued.contains($0.id) }
+        guard !categoryQueued.isEmpty || !railQueued.isEmpty else { return }
+        let gone = categoryQueued.union(railQueued)
+        queue.removeAll { gone.contains($0.id) }
         categoryQueued = []
+        railQueued = []
     }
 
     private func playQueued(_ entry: QueueEntry) {
@@ -668,6 +749,25 @@ final class NowPlayingModel: ObservableObject {
         queue.removeAll { categoryQueued.contains($0.id) }
         let fresh = episodes.map { QueueEntry(episode: $0) }
         categoryQueued = Set(fresh.map(\.id))
+        queue.append(contentsOf: fresh)
+    }
+
+    /// What a rail's Play all queued (§543, `fromRail`): replaced, with a
+    /// category's, by the next Play all; what the listener queued
+    /// themselves stays (`playRailAll`).
+    private var railQueued: Set<UUID> = []
+
+    func replaceRailQueue(_ episodes: [Episode]) {
+        let gone = categoryQueued.union(railQueued)
+        queue.removeAll { gone.contains($0.id) }
+        categoryQueued = []
+        var fresh: [QueueEntry] = []
+        for ep in episodes {
+            var marked = ep
+            marked.fromRail = true
+            fresh.append(QueueEntry(episode: marked))
+        }
+        railQueued = Set(fresh.map { $0.id })
         queue.append(contentsOf: fresh)
     }
 

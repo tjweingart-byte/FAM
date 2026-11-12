@@ -78,6 +78,15 @@
    > recogniser on the same card hears it back (`"hear": true` on the wire,
    > never on an episode's chunks). Its verdict is a hint with the audio
    > beside it; nothing changes the lexicon by itself.
+   > **Current (PROBLEMS.md §549, at the owner's direction):** the list goes
+   > out to another reader and comes back as proposals
+   > (`pronounce_review.py`): /admin downloads every respelling with
+   > Wikipedia's reading and a sentence it was heard in, a fixed prompt goes
+   > with it, and an uploaded reply **changes nothing** - each correction is
+   > shown beside what it would replace and saved, as an admin's, only when
+   > accepted. Never accept a whole file blind: an admin's respelling is never
+   > replaced afterwards. `voiced` hands the voice no stress; "Hear 4 ways"
+   > and `tools/stress_trial.py` compare four spellings by ear before it changes.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default
@@ -646,6 +655,17 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
+> **Current (PROBLEMS.md §545, the owner 11.11):** a mix whose followed topic
+> is trending or has a major update since the listener last heard it shows R5
+> on its card (the story's picture, the mix's cover in its corner, one line,
+> a "Trending"/"Major update" pill) and Q5 inside (then -> now bubbles, "Start
+> with what changed"). `signals.py`; measurements only; quiet once heard.
+
+> **Current (PROBLEMS.md §544, the owner 11.10):** in the mixes list a mix
+> card is its cover, its name and a right arrow - no briefing count, no
+> "daily", no public/private, no owner or joint label, no topic line. All of
+> it is still on the mix's own page; search results keep their owner line.
+
 **A mix is made by naming it, then filled from its own page** *(PROBLEMS.md
 §498, the 11.7 packet, Spotify's flow)*. The mixes screen's circled (+) is a
 **Create new mix** pill under the myFAM wordmark (still hidden until

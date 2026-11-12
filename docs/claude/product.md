@@ -208,6 +208,44 @@ replaced when the same episode is vibed again.
 > with the account. In the viewer it has no Play, no share-to-your-story and
 > no episode menu; a reply or heart is a text message quoting it.
 
+<!-- rule:vibe-posts -->
+**A vibe tapped on a YourFAM grid opens as posts** *(PROBLEMS.md §547, the
+owner's "Vibes as Posts", option C of two rounds of ten and six)*. Only
+from the two grids - your own and a friend's; a story, My Vibe's list and
+everything else still play the episode as before, and pressing and holding
+a tile on your own grid still offers delete (§499). The screen is that
+person's vibes newest first (`GET /api/vibe/posts`, `?handle=` for a
+friend), opened at the tile tapped. Each post: face and handle, **"Vibed"
+and the day** on the catalogue's calendar (`episodeDayLabel`), the
+picture with **the line** across it, a small player with the line marked
+in gold and a chip that plays from it, heart / reply / send / save, then
+likes and the friends who heard it, the title, the caption, the top reply
+and "View all n replies".
+
+- **The line** is one sentence the poster picks from the episode's own
+  captions in VIBE!'s **Line** tool - never typed - with where it starts
+  (measured, §127, else the captions' estimate). `echoes.line` and
+  `line_at`; omitted on a vibe it keeps the row's (installed clients, a
+  re-vibe that picked nothing); cut to `social.MAX_LINE`, slurs out, time
+  clamped. A vibe without one shows no strip.
+- **It plays where it sits**: a tap is the ordinary `generate` (so every
+  replay and quota rule holds) marked `inPlace`, which keeps the full player
+  from opening over the posts; the post's bar is painted by the one progress
+  clock and its button by `setPlayState` (`transport`). The line chip
+  seeks the playing episode, or starts it with `pendingResumeSeek`.
+- **Likes** are per post, not per episode (`vibe_likes`, an account's).
+- **Replies are public to whoever may see the vibe** - the owner, or anyone
+  who may open their profile and is not kept out of a close-friends vibe.
+  They are comments filed under the vibe (`comments.echo_id`; 0 is an
+  episode's own thread, which never shows them), so posting takes an
+  account and not a suspended one, likes, report (`comment`) and delete are
+  the comment code under their own paths (`/api/vibe/replies/{id}`, never
+  the `/api/comments` the app left in §499); the poster may also delete any
+  reply on their own post.
+  Deleting a vibe or an account takes its likes and replies.
+- **Who heard it** is the player's faces (§543), friends only and a friend's
+  own search only if their searches are public.
+
 <!-- rule:group-chats -->
 **Group chats (§213).** Pick two or more people you follow under the
 Messages (+) and start typing. A group is the one thread whose id is
@@ -291,7 +329,8 @@ server's marks are still polled, only to move the give-up time (§497), and the
 screen goes the moment audio arrives, wherever the needle has got to (§292).
 Chosen by `loader` on the topic (`dial` in `startBankTopic`, `glide` in
 `playMixItem`); drawn by `paintLoadingVariant` from what is already on the
-listener's screen, never invented.
+listener's screen, never invented. Both show the FAM mark above them,
+larger than search's (§542, the owner's direction).
 
 <!-- rule:search-no-cover -->
 **On search that once meant two calls at once, and no longer does**
@@ -845,6 +884,7 @@ to the writer is judged.
   (`rank_similar`, unchanged); clearing the box brings it back.
 
 <!-- rule:your-categories -->
+> **Current (PROBLEMS.md §550, the owner 11.11, "two tabs: Mixes | Categories", like Groups | Messages):** the screen that shows "myFAM" is two tabs under the wordmark. **Mixes** is Create new mix, the search and the mix cards; **Categories** is the chip row without **All** (followed with a star, the facets, More) over a list of rows - "Your categories" with today's count, then the rest of the facets with what is under them. A chip or a row opens the category in place as below; its X goes back to that list. Every arrival on the screen opens on Mixes. Everything §500 says about a category's panel stands.
 > **Current (PROBLEMS.md §500, the owner chose option 2 of the categories deck):** categories are **a row of filter chips** at the top of the screen that shows "myFAM", above the mixes: **All** (the page as it was), the categories this listener follows with a star, the facets not followed, and **More** (finds any node in the tree by a word it starts with, as the grid's search did). A chip filters the page **in place** - `#catPanel` replaces `#mixesPane`, no screen is opened: today's most played in that category as a picture ("Most played in Sport today", tapped it plays), **Play all N · M min** and **Follow**, then the rest as rows with their pictures. Inside a category the row becomes an X (back to All), the category, and the categories one level below that have something today; tapping one narrows, tapping it again widens. The grid under the mixes, the category screen, its sorts (A to Z, most recent), its title search and Shuffle play are gone; the order is most popular. `/api/categories/episodes` now sends each row's `thumb` (`_picture_episodes`, as the catalogue). Everything else below stands: cached only, replay-only taps, following kept for an account and never a taste signal, screened per viewer.
 > **Current (PROBLEMS.md §499, the owner's 11.3 packet):** with exploreFAM gone, a category no longer opens a reel. A tap plays that episode in the player, replay only (`cachedOnly`, as the catalogue plays one), and queues the rest of the page after it in the page's order; Shuffle play does the same from a shuffled copy (`playCategoryList`, the ordinary queue of §190). "You're all caught up" went with the reel. The owner asked for the categories section and page to be redesigned: five options are in a deck for them to choose from, and none is built.
 > **Current (PROBLEMS.md §255, the owner 10.12):** a category's reel does not go round: past its last card, "You're all caught up - Explore a different category?" offers four other categories (followed first, then facets; never this one or its heading), each of which opens and shuffles. Shuffle play is smaller. An episode filed by its words is filed under its deepest match and that branch only - never every facet its words touched - so Shuffle play holds only that category.

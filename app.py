@@ -17,6 +17,7 @@ import dataclasses
 import hmac
 import html
 import os
+import sys
 import json
 import logging
 import random
@@ -654,6 +655,20 @@ def _trending_bank_report() -> dict:
         return {"enabled": bool(settings.trending_bank), "error": str(exc)}
 
 
+def _warm_first_calls() -> None:
+    """Load at boot what the first health check and the first myFAM draw
+    would load on a listener's time (§548). Never raises: each is loaded
+    again, on demand, if this did not."""
+    for name, warm in (("agents", agent_models.health),
+                       ("thumbnail styles", thumbnails_mod.style_references),
+                       ("semantic ranker", taste_vectors.enabled),
+                       ("http client", http2_enabled)):
+        try:
+            warm()
+        except Exception:  # noqa: BLE001 - a warm-up is never worth a boot
+            log.exception("could not warm the %s at boot", name)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Whether zero spend's network guard can see this loop's connections
@@ -857,6 +872,10 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
     # Unheard episodes drawn from an older bank draw again (§333).
     _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
+    # What the first /api/health and the first myFAM would otherwise pay
+    # (§548): the agents' modules, the house style's pictures and the
+    # ranker's semantic model, loaded in a thread while nobody waits.
+    _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_warm_first_calls)))
     # The server's own size once a minute, and a full report in the log the
     # first time each boot it crosses each watch line (§334).
     _BACKGROUND.add(asyncio.create_task(_watch_memory_forever()))
@@ -1056,7 +1075,35 @@ def _make_pipeline(voice: Optional[str] = None,
                            author=author)
 
 
+#: How long /api/health keeps a report that only counts things (§548).
+HEALTH_REPORT_SECONDS = 15.0
+_HEALTH_MEMO: dict = {}
+
+
+def _health_memo(name: str, ident: tuple, build):
+    """`build()`, kept `HEALTH_REPORT_SECONDS` while `ident` is unchanged.
+
+    For the reports that count rows and nothing else - the cache's totals
+    scan every script. Never for a check that performs the real action
+    ([verify-not-inspect]: the databases' reads, the build) - those run on
+    every call, off the event loop."""
+    clock = time.monotonic()
+    held = _HEALTH_MEMO.get(name)
+    if held is not None and held[0] == ident and clock - held[1] < HEALTH_REPORT_SECONDS:
+        return held[2]
+    value = build()
+    _HEALTH_MEMO[name] = (ident, clock, value)
+    return value
+
+
 def _cache_report() -> dict:
+    return _health_memo(
+        "cache", (id(SCRIPT_CACHE), settings.audio_cache, settings.cache_vector,
+                  settings.cache_semantic_key),
+        _cache_report_now)
+
+
+def _cache_report_now() -> dict:
     if SCRIPT_CACHE is None:
         return {"enabled": False}
     report = {"enabled": True, "semantic_key": settings.cache_semantic_key}
@@ -1071,9 +1118,10 @@ def _cache_report() -> dict:
     # voice engine, and how much of the ceiling that audio is using - the
     # disk it lives on is shared with every other database.
     report["audio"] = settings.audio_cache
+    stats = None
     if settings.audio_cache:
         try:
-            held = SCRIPT_CACHE.stats()
+            held = stats = SCRIPT_CACHE.stats()
         except Exception:
             held = {}
         report["audio_entries"] = held.get("audio_entries")
@@ -1085,7 +1133,8 @@ def _cache_report() -> dict:
         report["threshold"] = settings.cache_vector_threshold
         report["overlap"] = settings.cache_vector_overlap
     if isinstance(SCRIPT_CACHE, (MemoryScriptCache, SqliteScriptCache)):
-        report.update(SCRIPT_CACHE.stats())
+        # The one read above, when there was one: it is the same moment.
+        report.update(stats if stats is not None else SCRIPT_CACHE.stats())
     return report
 
 
@@ -2064,6 +2113,14 @@ def _usage_monitors_health() -> dict:
 
 @app.get("/api/health")
 async def health(request: Request) -> dict:
+    """What this server is running and whether each part of it works.
+
+    Built in a worker thread (§548): it reads every store, and on the event
+    loop each call held up every other request for its whole length."""
+    return await asyncio.to_thread(_health_report, request)
+
+
+def _health_report(request: Request) -> dict:
     # Built once and read twice: the list and the summary over it have to
     # describe the same moment, and calling the report a second time would
     # stat every database again to say the same thing.
@@ -4946,6 +5003,87 @@ async def admin_remove_pronunciation(name: str, request: Request) -> dict:
     return {"ok": pronunciation.lexicon().remove(name)}
 
 
+class PronunciationUpload(BaseModel):
+    csv: str = Field(..., max_length=2_000_000)
+
+
+class StressTrialRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+    #: A respelling to hear instead of the one on file - an uploaded proposal.
+    say: Optional[str] = Field(None, max_length=120)
+    sentence: bool = False
+
+
+@app.get("/api/admin/pronunciations/export")
+async def admin_export_pronunciations(request: Request) -> Response:
+    """Every respelling on file as a CSV, with Wikipedia's reading and a
+    sentence each name was met in, for a reviewer outside FAM (§549)."""
+    _require_admin(request)
+    import pronounce_review
+
+    body = await asyncio.to_thread(
+        pronounce_review.export_csv, voice_bank.bank(), SCRIPT_CACHE)
+    stamp = time.strftime("%Y-%m-%d")
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-pronunciations-{stamp}.csv"'})
+
+
+@app.get("/api/admin/pronunciations/review-prompt")
+async def admin_pronunciation_review_prompt(request: Request) -> dict:
+    """The fixed prompt that goes with a download (§549)."""
+    _require_admin(request)
+    import pronounce_review
+
+    return {"prompt": pronounce_review.PROMPT}
+
+
+@app.post("/api/admin/pronunciations/import")
+async def admin_import_pronunciations(req: PronunciationUpload,
+                                      request: Request) -> dict:
+    """Read a reviewer's CSV into proposals beside what is on file (§549).
+    Changes nothing: an admin accepts each one, which saves it as theirs."""
+    _require_admin(request)
+    import pronounce_review
+
+    stored = {r["name"]: (r["say"], r["source"]) for r in voice_bank.bank().pronunciations()}
+    try:
+        return pronounce_review.read_upload(req.csv, stored)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/admin/pronunciations/hear-variants")
+async def admin_hear_stress_variants(req: StressTrialRequest,
+                                     request: Request) -> dict:
+    """Say one name's respelling four ways - as the voice gets it now, and
+    three spellings that might carry its stress - and hear each back (§549).
+    Keeps nothing."""
+    _require_admin(request)
+    import pronounce_review
+    import voice_check
+
+    say = None
+    if req.say:
+        pair = pronunciation.clean(req.name, req.say)
+        if not pair:
+            raise HTTPException(status_code=400, detail=(
+                f"{req.say} is not a respelling the voice can use."))
+        say = pair[1]
+    try:
+        rows = await pronounce_review.hear_variants(
+            req.name.strip(), say=say, sentence=req.sentence)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except voice_check.VoiceCheckUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - the voice's own words
+        raise HTTPException(status_code=502, detail=(
+            f"The voice could not be heard: {exc}")[:400]) from exc
+    for row in rows:
+        row.pop("wav", None)
+    return {"name": req.name.strip(), "variants": rows}
+
+
 # ---------------------------------------------------------------- feedback
 #
 # Instant feedback (`feedback.py`): the button under the phone on the demo
@@ -6615,19 +6753,69 @@ async def list_mixes(request: Request):
     # can only refuse (`old-clients`).
     wants_joint = request.query_params.get("joint") == "1"
     joint = MIXES.joint_ids([m.id for m in own])
+    # A mix added from somebody else's says whose it was; a joint mix
+    # (11.7 packet) says who is in it and who added what - the ones this
+    # listener owns, then the ones they were invited into.
+    shown = list(own) + ([m for m in MIXES.joined(user)
+                          if not MODERATION.is_apart(m.user_id, user)]
+                         if wants_joint else [])
+    # One read of the listening history for every mix's signals (§545).
+    history = _mix_history(user)
     return {
-        # A mix added from somebody else's says whose it was; a joint mix
-        # (11.7 packet) says who is in it and who added what - the ones this
-        # listener owns, then the ones they were invited into.
-        "mixes": [_mix_out(m, user, people, m.id in joint) for m in own]
-                 + ([_mix_out(m, user, people, True) for m in MIXES.joined(user)
-                     if not MODERATION.is_apart(m.user_id, user)]
-                    if wants_joint else []),
+        # Each with its pictures and what changed since this listener last
+        # heard it (§545), via `_mix_out`.
+        "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user, history)
+                  for m in shown],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
         ],
     }
+
+
+def _fresh_mix_ids(mixes: list, now: Optional[float] = None) -> list:
+    """The mixes whose episodes this morning's edition wrote and nobody has
+    played since (§550): what the dot on the myFAM tab invites a tap on.
+
+    Only an edition that finished counts - a dot for a mix nobody wrote
+    would be an invitation to a wait - and neither a mix made after it ran
+    nor one dormant when it ran is in it, because the edition wrote neither.
+    A read of what is stored; [] on any failure (a dot is never worth an
+    error)."""
+    now = time.time() if now is None else now
+    try:
+        slot = daily_edition.last_slot(now)
+        status = daily_edition.store().status(daily_edition.slot_id(slot)) or {}
+        if status.get("status") != daily_edition.READY:
+            return []
+        built = float(status.get("built_at") or slot.timestamp())
+        return [m.id for m in mixes
+                if getattr(m, "items", None)
+                and float(getattr(m, "created_at", 0.0) or 0.0) < built
+                and daily_edition.is_active(m, built)
+                and float(getattr(m, "played_at", 0.0) or 0.0) < built]
+    except Exception:  # noqa: BLE001
+        log.exception("could not read which mixes are new this morning")
+        return []
+
+
+@app.get("/api/mixes/fresh")
+async def fresh_mixes(request: Request) -> dict:
+    """Which of this listener's mixes have a new edition waiting (§550), and
+    the edition it is - the client draws one dot per edition and clears it
+    once the listener has looked. A guest has no mixes: an empty answer,
+    never a 401, because the tab bar asks on every screen."""
+    _read_limit(request)
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated:
+        return {"fresh": [], "edition": ""}
+    user = listener.user_id
+    shown = list(MIXES.list_for_user(user)) + [
+        m for m in MIXES.joined(user) if not MODERATION.is_apart(m.user_id, user)]
+    now = time.time()
+    fresh = _fresh_mix_ids(shown, now)
+    edition = daily_edition.slot_id(daily_edition.last_slot(now)) if fresh else ""
+    return {"fresh": fresh, "edition": edition}
 
 
 @app.get("/api/mixes/sample")
@@ -6813,7 +7001,31 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
     return out
 
 
-def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
+def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None) -> dict:
+    """One mix as this viewer sees it, with each topic's picture and what
+    changed since they last heard it (§545) - on every route that answers
+    with a mix, so adding or reordering a topic never drops either.
+
+    `history` is the viewer's listening history when the caller has already
+    read it (the list reads it once for every mix); None reads it here."""
+    body = _mix_body(mix, viewer, people, joint)
+    _mix_pictures(mix, body)
+    _mix_signals(viewer, [(mix, body)], history)
+    return body
+
+
+def _mix_pictures(mix, body: dict) -> None:
+    """Each topic row's picture (§545): the player's own picker over the
+    item's words, so a row, its episode in the player and the card that
+    leads with it never disagree. "" when nothing is approved; the client
+    draws the subject's icon. Never fails the mix."""
+    for item, out in zip(mix.items, body.get("items") or ()):
+        words = item.title if item.title.lower() in (item.query or "").lower() else \
+            f"{item.query} {item.title}".strip()
+        out["picture"] = _picture_url(words, item.title)
+
+
+def _mix_body(mix, viewer: str, people: dict, joint: bool) -> dict:
     """One mix as this viewer sees it.
 
     The owner sees everything (`as_dict`); a member of a joint mix sees what
@@ -6847,6 +7059,91 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
         if who in index:
             out["added_by"] = index[who]
     return body
+
+
+def _mix_history(user: str) -> list:
+    """The listening history `_mix_signals` reads; [] when it cannot be read
+    (a signal is never worth an error)."""
+    try:
+        return SAVED.history(user, limit=400) if user else []
+    except Exception:  # noqa: BLE001
+        log.exception("could not read the history for mix signals")
+        return []
+
+
+def _mix_signals(user: str, pairs: list, history=None) -> None:
+    """Mark what changed in each mix since this listener last heard it (§545).
+
+    `pairs` is `[(Mix, served dict), ...]`; each served dict gains `signal`
+    (R5 on the card: kind, label, topic, headline, picture) when one of its
+    items has one, and each such item gains `signal` and `since` (Q5's
+    bubbles). A read of what is held - the listening history, the Trending
+    edition and story pool in memory, the script cache - so nothing here
+    waits or writes, and **nothing here may fail the list**: any error leaves
+    the mixes as they were and is logged.
+    """
+    from datetime import datetime
+
+    import signals as signals_mod
+
+    try:
+        now = time.time()
+        rows = _mix_history(user) if history is None else history
+        heard_by_query: dict = {}
+        for row in rows:                       # newest first: keep the first
+            heard_by_query.setdefault(normalize_query(row.get("query") or ""), row)
+        edition = trending_bank.stories_in_memory(now)
+        try:
+            pool = stories_mod.pool().held(now)
+        except Exception:  # noqa: BLE001 - no pool is no trending, not an error
+            pool = []
+        zone = listener_clock.zone()
+        for mix, body in pairs:
+            found_all = []
+            for item, out in zip(mix.items, body.get("items") or ()):
+                if not getattr(item, "follow", False):
+                    continue
+                prompt = out.get("prompt") or ""
+                heard = signals_mod.Heard()
+                if normalize_query(prompt) in heard_by_query:
+                    heard.today = True
+                else:
+                    for earlier in mixes_mod.earlier_prompts(prompt, signals_mod.SINCE_DAYS):
+                        row = heard_by_query.get(normalize_query(earlier))
+                        if row:
+                            heard.at = float(row.get("at") or 0.0)
+                            heard.title = (row.get("title") or "").strip()
+                            break
+                found = signals_mod.item_signal(item, edition, pool, heard, now)
+                if found is None:
+                    continue
+                found_all.append(found)
+                out["signal"] = {"kind": found.kind, "label": signals_mod.LABELS[found.kind],
+                                 "headline": found.headline}
+                day = (datetime.fromtimestamp(heard.at, zone).strftime("%a")
+                       if heard.at else "")
+                out["since"] = signals_mod.bubbles(
+                    heard, _today_title(prompt, out.get("minutes")) or found.headline, day)
+            best = signals_mod.strongest(found_all)
+            if best is not None:
+                best.picture = _picture_url(best.query, best.headline)
+                body["signal"] = best.card()
+    except Exception:  # noqa: BLE001 - a signal is never worth the mixes list
+        log.exception("could not work out what changed in this listener's mixes")
+
+
+def _today_title(prompt: str, minutes) -> str:
+    """The title of today's episode of a mix item, when it is written; ""
+    otherwise. A cache read, never a write."""
+    if not prompt or SCRIPT_CACHE is None:
+        return ""
+    try:
+        key = _episode_key(_validated_plan(prompt, as_minutes(minutes or BROWSE_MINUTES)))
+        if not key or not _cache_holds(key):
+            return ""
+        return (SCRIPT_CACHE.title(key) or "").strip()
+    except Exception:  # noqa: BLE001 - a missing title is no title
+        return ""
 
 
 def _record_mix_adds(mix, before=None, by: str = "") -> None:
@@ -7708,6 +8005,7 @@ def _mark_guest_tiles(tiles: list[dict], minutes: int) -> None:
     `playable` is the cheap half of `_guest_play_gated`: written script and
     kept audio, read from SQLite. Never a model call, never the voice."""
     written = _written_probe(minutes)
+    written.prime([tile.get("query", "") for tile in tiles])
     for tile in tiles:
         tile["cached"] = written(tile.get("query", ""))
         tile["playable"] = bool(tile["cached"]
@@ -8015,15 +8313,16 @@ async def myfam_section(request: Request,
         body["algo"] = EVENTS.algo_stamp()
         return topics_mod.page_section(body, _seen_ids(seen), page_size,
                                        wrap=not cycling)
-    written = _written_probe(minutes)
+    shared = _FeedProbe(minutes)  # one batch reader for the three (§548)
+    written = _written_probe(minutes, shared)
     try:
         place = _place_for(request)
         circle = SOCIAL.circle_of(user)
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
             circle=circle, written=written,
-            written_at=_written_at_probe(minutes),
-            episode_info=_episode_info_probe(minutes),
+            written_at=_written_at_probe(minutes, shared),
+            episode_info=_episode_info_probe(minutes, shared),
             authored=_authored_by_circle(circle),
             place=place.words, place_name=place.label,
             has_account=_has_account(request),
@@ -8066,7 +8365,8 @@ async def myfam_section(request: Request,
     return body
 
 
-def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
+def _mark_friends_listened(user: str, tiles: list[dict],
+                           public_searches_only: bool = False) -> list[dict]:
     """Who of your friends listened, on a DailyFAM card (the owner's 10.31
     notebook; faces in place of "N friends listened" at the owner's
     direction): `friends_listened` (the count, kept for installed clients)
@@ -8079,12 +8379,19 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     picture is up to `social.MAX_AVATAR` and one friend may be on a dozen
     cards. Name, handle, picture and the E mark (`explicit`, §224) only -
     what a friend's own profile already shows a friend - and never an id. A tile nobody listened to
-    carries no field. Never raises: social proof is never worth a page."""
+    carries no field. Never raises: social proof is never worth a page.
+
+    `public_searches_only` (the player, §543): a friend's listen with no
+    tile behind it - their own search, a replay - counts only if they made
+    their searches public (`searches_public`, §282)."""
     if not user or not tiles:
         return []
     try:
         people = {p["user_id"]: p for p in SOCIAL.friends(user)}
-        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles)
+        untiled = ([uid for uid in people if PREFS.get(uid).searches_public]
+                   if public_searches_only else None)
+        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles,
+                                                   untiled=untiled)
     except Exception:  # noqa: BLE001 - the cards draw without it
         log.exception("could not read friends' listens")
         return []
@@ -8109,34 +8416,236 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     return faces
 
 
+@app.get("/api/listened")
+async def listened(request: Request,
+                   q: str = Query("", max_length=600,
+                                  description="The episode's question")):
+    """**Who of your friends listened**, on the player (the owner's 11.11
+    note): the same faces a DailyFAM card shows (`_mark_friends_listened`),
+    for whatever episode is playing, matched by its normalised question the
+    way every listen count is. Friends only, an account only, and an empty
+    answer rather than an error: social proof is never worth a page. It
+    answers any question, so a friend's own search shows only if their
+    searches are public (§282) - or anyone could learn what a friend
+    searched by searching it."""
+    _read_limit(request)
+    user = _listener(request)
+    if not user or not _has_account(request) or not q.strip():
+        return {"count": 0, "faces": []}
+    tile = {"id": "_player", "query": q.strip()}
+    faces = _mark_friends_listened(user, [tile], public_searches_only=True)
+    shown = [faces[i] for i in tile.get("friends_faces", []) if i < len(faces)]
+    return {"count": int(tile.get("friends_listened") or 0), "faces": shown}
+
+
 def _cycles_cached(key: str, cycle: str) -> bool:
     """Whether this View more deals written episodes only and ends "all
     caught up" (§286): Made for you, when the client asks for it."""
     return key == "from_history" and (cycle or "").strip().lower() == "cached"
 
 
-def _written_probe(minutes: int):
+#: The script_generator logger's lines are quiet on this thread while it is
+#: set: a browse page computes a key for every candidate tile, and
+#: `plan_episode` says "SEARCH yes" for each one - a thousand log lines a
+#: draw, about episodes nobody asked for (§548). Per thread, so a search
+#: being planned beside a draw still logs.
+_QUIET_PLANS = threading.local()
+
+
+class _QuietPlans(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not getattr(_QUIET_PLANS, "on", False)
+
+
+logging.getLogger("script_generator").addFilter(_QuietPlans())
+
+#: `(query, minutes, ...) -> cache key` for browse tiles, kept across
+#: requests (§548). A key is a pure function of the question, the length and
+#: the settings `_episode_key` reads, so every one of those is in the memo's
+#: own key - and the functions themselves, so a test that swaps one is never
+#: answered from the other's memo. Never under `SEARCH_MODE=auto`, where
+#: whether an episode is researched can depend on the day. None means the
+#: question is unaskable (`_validated_plan` refused it); "" that it has no
+#: shared identity. Still `_episode_key` and nothing else: this remembers its
+#: answers, it does not compute keys of its own ([prefetch-same-key]).
+_BROWSE_KEYS: dict = {}
+_BROWSE_KEYS_MAX = 50_000
+_BROWSE_KEYS_LOCK = threading.Lock()
+
+
+def _browse_key(query: str, minutes) -> Optional[str]:
+    # The settings each step reads, wherever it reads them from: a frozen
+    # settings object is replaced, never changed, so its identity says
+    # whether anything in it moved.
+    planned = getattr(sys.modules.get(getattr(plan_episode, "__module__", "")),
+                      "settings", settings)
+    keyed = getattr(sys.modules.get(getattr(cache_key, "__module__", "")),
+                    "settings", settings)
+    mode = getattr(planned, "search_mode", "always")
+    memo = (query, minutes, mode, id(settings), id(planned), id(keyed),
+            settings.model, settings.target_wpm, settings.cache_semantic_key,
+            settings.min_minutes, settings.max_minutes, plan_episode,
+            cache_key, is_shareable, _episode_key, _validated_plan)
+    if mode != "auto":
+        try:
+            return _BROWSE_KEYS[memo]
+        except KeyError:
+            pass
+    was = getattr(_QUIET_PLANS, "on", False)
+    _QUIET_PLANS.on = True
+    try:
+        plan = _validated_plan(query, minutes)
+    except HTTPException:
+        key = None
+    else:
+        key = _episode_key(plan)
+    finally:
+        _QUIET_PLANS.on = was
+    if mode != "auto":
+        with _BROWSE_KEYS_LOCK:
+            if len(_BROWSE_KEYS) >= _BROWSE_KEYS_MAX:
+                _BROWSE_KEYS.clear()
+            _BROWSE_KEYS[memo] = key
+    return key
+
+
+#: A batch read that failed, so the probes answer what their single-key
+#: forms answer on a broken database.
+_PROBE_FAILED = object()
+
+
+class _FeedProbe:
+    """One request's answers from the shared cache, read in batches (§548).
+
+    The three probes below (`written`, `written_at`, `episode_info`) used
+    to make a round trip per candidate tile - ~1,000 a draw. With a cache that
+    has `rows_many` they share this: `prime(queries)` reads every row a batch
+    of tiles needs in one statement, and each probe answers from the row
+    exactly what its single-key read answers (`cache.ProbeRow`). A query not
+    primed is read on its own, as before. Per request, never kept: "is this
+    cached" must not go stale. A cache without `rows_many` (a test's) is asked
+    the old way, one key at a time.
+    """
+
+    def __init__(self, minutes: int):
+        self.minutes = minutes
+        self.cache = SCRIPT_CACHE
+        self.batch = (self.cache is not None
+                      and callable(getattr(self.cache, "rows_many", None)))
+        self.rows: dict = {}
+
+    def prime(self, queries) -> None:
+        if not self.batch:
+            return
+        keys = []
+        for query in queries:
+            if not query:
+                continue
+            try:
+                key = _browse_key(query, self.minutes)
+            except Exception:  # noqa: BLE001 - asked again, alone, and raised there
+                continue
+            if key and key not in self.rows:
+                keys.append(key)
+        self._load(keys)
+
+    def _load(self, keys: list) -> None:
+        keys = list(dict.fromkeys(keys))
+        if not keys:
+            return
+        try:
+            found = self.cache.rows_many(keys)
+        except Exception:  # noqa: BLE001 - each probe says what a failure reads as
+            log.exception("cache probe failed for %d tiles", len(keys))
+            for key in keys:
+                self.rows[key] = _PROBE_FAILED
+            return
+        for key in keys:
+            self.rows[key] = found.get(key)
+
+    def row(self, key: str):
+        if key not in self.rows:
+            self._load([key])
+        return self.rows[key]
+
+    def written(self, query: str) -> bool:
+        if not self.batch:
+            return _topic_is_written(query, self.minutes)
+        if not query:
+            return False
+        key = _browse_key(query, self.minutes)
+        if not key:
+            return False
+        row = self.row(key)
+        return bool(row is not None and row is not _PROBE_FAILED
+                    and row.holds(time.time()))
+
+    def written_at(self, query: str) -> Optional[float]:
+        if not query:
+            raise ValueError("a tile with no question cannot be dated")
+        if not self.batch:
+            key = _episode_key(_validated_plan(query, self.minutes))
+            if not key:
+                raise ValueError(f"no episode key for {query!r}")
+            return SCRIPT_CACHE.written_at(key)
+        key = _browse_key(query, self.minutes)
+        if not key:
+            raise ValueError(f"no episode key for {query!r}")
+        row = self.row(key)
+        if row is _PROBE_FAILED:
+            raise RuntimeError(f"could not read the cache for {query!r}")
+        return None if row is None else row.written_at(time.time())
+
+    def episode_info(self, query: str):
+        if not self.batch:
+            return _cached_episode(query, self.minutes)
+        if not query:
+            return None
+        key = _browse_key(query, self.minutes)
+        if not key:
+            return None
+        row = self.row(key)
+        if row is None or row is _PROBE_FAILED:
+            return None
+        now = time.time()
+        if not row.holds(now):
+            return None
+        try:
+            title = row.title_text(now)
+            found = provenance_mod.Provenance.from_json(row.sources_text(now))
+        except Exception:  # noqa: BLE001 - a browse row is never worth a 500
+            log.exception("cache probe failed; treating %r as unwritten", query)
+            return None
+        feeds = tuple(item.label for item in found.items
+                      if getattr(item, "kind", "") == provenance_mod.LIVE)
+        return topics_mod.CachedEpisode(title=title, live_feeds=feeds)
+
+
+def _written_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> already in the cache?` for one request.
 
     The rankers ask about every candidate they consider and the endpoint then
     asks again about the ones that survived, so the same handful of queries
     comes up several times on one page load. Each answer is a local SQLite
-    read - cheap, and cheaper still done once. Memoised per request rather
-    than globally, because "is this cached" is exactly the sort of answer that
-    must not be allowed to go stale.
+    read - cheap, and cheaper still done once, and cheaper again read in one
+    batch (`prime`, §548). Memoised per request rather than globally, because
+    "is this cached" is exactly the sort of answer that must not be allowed
+    to go stale.
     """
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, bool] = {}
 
     def probe(query: str) -> bool:
         key = query or ""
         if key not in answers:
-            answers[key] = _topic_is_written(key, minutes)
+            answers[key] = shared.written(key)
         return answers[key]
 
+    probe.prime = shared.prime
     return probe
 
 
-def _written_at_probe(minutes: int):
+def _written_at_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> when its live script was written, or None`, or
     None when this cache cannot say.
 
@@ -8150,37 +8659,36 @@ def _written_at_probe(minutes: int):
     reader = getattr(SCRIPT_CACHE, "written_at", None)
     if reader is None:
         return None
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, Optional[float]] = {}
 
     def probe(query: str) -> Optional[float]:
         if query not in answers:
-            if not query:
-                raise ValueError("a tile with no question cannot be dated")
-            key = _episode_key(_validated_plan(query, minutes))
-            if not key:
-                raise ValueError(f"no episode key for {query!r}")
-            answers[query] = reader(key)
+            answers[query] = shared.written_at(query)
         return answers[query]
 
+    probe.prime = shared.prime
     return probe
 
 
-def _episode_info_probe(minutes: int):
+def _episode_info_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> topics.CachedEpisode | None` for one request.
 
     What the three crowd rails read - they show cached episodes only, and
     "What you missed last week" also refuses one written from a live feed.
     None when the script is not in the cache at this length, which is also
-    the answer for anything unaskable. Two local reads per episode (the
-    sentences, then the title and provenance of a hit), never a model call.
+    the answer for anything unaskable. Read in batches (`prime`, §548), never
+    a model call.
     """
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, Optional[topics_mod.CachedEpisode]] = {}
 
     def probe(query: str) -> Optional[topics_mod.CachedEpisode]:
         if query not in answers:
-            answers[query] = _cached_episode(query, minutes)
+            answers[query] = shared.episode_info(query)
         return answers[query]
 
+    probe.prime = shared.prime
     return probe
 
 
@@ -9013,6 +9521,68 @@ class EventRequest(BaseModel):
     episode: str = Field("", max_length=80)
 
 
+def _draw_guest_myfam(user: str, minutes: int) -> dict:
+    """A guest's myFAM: the bank on every rail (see `myfam`). Synchronous, so
+    the endpoint draws it in a worker thread (§548)."""
+    SOCIAL.seen(user)
+    feed = topics_mod.guest_feed()
+    for section in feed["sections"]:
+        _mark_guest_tiles(section["topics"], minutes)
+    feed["minutes"] = minutes
+    feed["algo"] = EVENTS.algo_stamp()
+    return feed
+
+
+def _draw_myfam(request: Request, user: str, minutes: int, interests: str,
+                remembers: bool) -> dict:
+    """An account's myFAM, ranked and marked (see `myfam`). Synchronous and
+    awaits nothing, so the endpoint draws it in a worker thread (§548); it
+    reads the request's headers and nothing that needs the event loop."""
+    # One batch reader behind all three probes (§548): the rankers prime it
+    # with the tiles they are about to ask about, so a draw is a handful of
+    # cache statements rather than one per candidate.
+    shared = _FeedProbe(minutes)
+    written = _written_probe(minutes, shared)
+    place = _place_for(request)
+    circle = SOCIAL.circle_of(user)
+    feed = topics_mod.build_feed(
+        EVENTS, user, interests=_interests_for(request, interests),
+        circle=circle, written=written,
+        written_at=_written_at_probe(minutes, shared),
+        episode_info=_episode_info_probe(minutes, shared),
+        authored=_authored_by_circle(circle),
+        place=place.words, place_name=place.label,
+        has_account=_has_account(request),
+        country=_country_for(request, place))
+    # Every tile says whether it would replay or generate, the same way the
+    # "view more" screen already did. A listener browsing is choosing between
+    # things to hear, and "this one starts instantly" is a real difference
+    # between two of them - and it is free to say, because the ranking asked
+    # the same question a moment ago and this is the memoised answer.
+    for section in feed["sections"]:
+        section["topics"] = _drop_removed(user, section["topics"], minutes)
+        for topic in section["topics"]:
+            topic["cached"] = written(topic.get("query", ""))
+        _name_written_tiles(section["topics"], minutes)
+    feed["friend_faces"] = _mark_friends_listened(
+        user, [t for sec in feed["sections"] for t in sec["topics"]])
+    feed["minutes"] = minutes
+    # Logged here rather than inside build_feed, which stays a pure function of
+    # the log - the whole ranking design is "computed on read, never stored",
+    # and a ranker that writes cannot be tested by calling it. The impression
+    # is a fact about this *request*, so it belongs at the request boundary.
+    SOCIAL.seen(user)
+    if remembers:
+        EVENTS.record_impressions(
+            user,
+            [(section["key"], topic["id"])
+             for section in feed["sections"] for topic in section["topics"]],
+        )
+    feed["algo"] = EVENTS.algo_stamp()
+
+    return feed
+
+
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200),
                 minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
@@ -9049,13 +9619,8 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # impressions, which a guest does not keep anyway. A tap on one of these
     # tiles plays kept audio or asks for an account; see `_guest_play_gated`.
     if not _has_account(request):
-        SOCIAL.seen(user)
-        feed = topics_mod.guest_feed()
-        for section in feed["sections"]:
-            _mark_guest_tiles(section["topics"], minutes)
-        feed["minutes"] = minutes
-        feed["algo"] = EVENTS.algo_stamp()
-        return feed
+        # Off the event loop like an account's draw below (§548).
+        return await asyncio.to_thread(_draw_guest_myfam, user, minutes)
 
     # One refresh serves every listener, so this is scheduled rather than
     # awaited: myFAM renders from whatever the shared pool holds and stays
@@ -9082,43 +9647,15 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         # normal.
         asyncio.create_task(_warm_stories())
 
-    written = _written_probe(minutes)
-    place = _place_for(request)
-    circle = SOCIAL.circle_of(user)
-    feed = topics_mod.build_feed(
-        EVENTS, user, interests=_interests_for(request, interests),
-        circle=circle, written=written,
-        written_at=_written_at_probe(minutes),
-        episode_info=_episode_info_probe(minutes),
-        authored=_authored_by_circle(circle),
-        place=place.words, place_name=place.label,
-        has_account=_has_account(request),
-        country=_country_for(request, place))
-    # Every tile says whether it would replay or generate, the same way the
-    # "view more" screen already did. A listener browsing is choosing between
-    # things to hear, and "this one starts instantly" is a real difference
-    # between two of them - and it is free to say, because the ranking asked
-    # the same question a moment ago and this is the memoised answer.
-    for section in feed["sections"]:
-        section["topics"] = _drop_removed(user, section["topics"], minutes)
-        for topic in section["topics"]:
-            topic["cached"] = written(topic.get("query", ""))
-        _name_written_tiles(section["topics"], minutes)
-    feed["friend_faces"] = _mark_friends_listened(
-        user, [t for sec in feed["sections"] for t in sec["topics"]])
-    feed["minutes"] = minutes
-    # Logged here rather than inside build_feed, which stays a pure function of
-    # the log - the whole ranking design is "computed on read, never stored",
-    # and a ranker that writes cannot be tested by calling it. The impression
-    # is a fact about this *request*, so it belongs at the request boundary.
-    SOCIAL.seen(user)
-    if _remembers(request):
-        EVENTS.record_impressions(
-            user,
-            [(section["key"], topic["id"])
-             for section in feed["sections"] for topic in section["topics"]],
-        )
-    feed["algo"] = EVENTS.algo_stamp()
+    # **Drawn off the event loop** (§548). Ranking is a few hundred
+    # milliseconds of reads and arithmetic with nothing to await, and on the
+    # loop it held up every other request on this worker - a launch's
+    # client-status, health and auth waited for somebody else's page. In a
+    # worker thread it costs this request what it always did and nobody else
+    # anything: every store keeps a connection per thread (`_conn`), and the
+    # shared memos it touches are written whole or under a lock.
+    feed = await asyncio.to_thread(_draw_myfam, request, user, minutes,
+                                   interests, _remembers(request))
 
     # Guess what this listener might tap, and pay for the *understanding* of it
     # now rather than when they are waiting (PROBLEMS.md §105).
@@ -9133,7 +9670,10 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # `minutes` is passed because it is part of the key. The browse length is
     # this header's own control, so warming at the interface default would
     # produce briefs nobody ever looks up for any listener who changed it.
-    prefetch.schedule_cycle(user, minutes)
+    #
+    # And the page itself, so the feed source warms what was just shown
+    # rather than drawing it a second time on the loop (§548).
+    prefetch.schedule_cycle(user, minutes, feed)
     return feed
 
 
@@ -9192,6 +9732,13 @@ class EchoRequest(BaseModel):
     tags: Optional[list[dict]] = Field(None, max_length=social_mod.MAX_TAGS)
     #: "" for everybody who follows, "close" for close friends only.
     audience: Optional[str] = Field(None, max_length=10)
+    #: The sentence of the episode the poster picked (§547), shown across
+    #: the post's picture; "" takes it off. Omitted (None) keeps the row's,
+    #: so an installed client - or a re-vibe that picked nothing - never
+    #: wipes it. Cut to `social.MAX_LINE`, never refused.
+    line: Optional[str] = Field(None, max_length=2000)
+    #: Where that sentence starts in the audio, in seconds.
+    line_at: Optional[float] = Field(None, ge=0, le=3600)
 
 
 async def _check_photo(request: Request, user: str, data_url: Optional[str],
@@ -9272,7 +9819,7 @@ async def post_echo(req: EchoRequest, request: Request):
     try:
         echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread,
                            caption=req.caption, style=req.style, tags=tags,
-                           audience=audience)
+                           audience=audience, line=req.line, line_at=req.line_at)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Somebody tagged hears about it the way a share arrives: one message,
@@ -9458,6 +10005,190 @@ async def delete_vibe(request: Request, q: str = Query("", max_length=300),
     return await delete_echo(request, q, minutes)
 
 
+# --- a vibe as a post (§547) -----------------------------------------------
+#
+# The owner's "Vibes as Posts" (option C, "Compact Trio"): a vibe tapped on
+# your own YourFAM grid or a friend's opens as a post - the day it was
+# vibed, the line the poster picked over the picture, a player under it, a
+# like count, the friends who heard it, and replies under it.
+#
+# Who may see a post is exactly who may see the vibe: its owner, or somebody
+# who could open the owner's profile (`/api/person`'s rules - reachable, not
+# blocked either way, not suspended) and is not kept out of a close-friends
+# vibe. A reply is a comment filed under the vibe (`comments.echo_id`), so
+# reading it, liking it, reporting it and deleting it are the comment code
+# (§203) - and a reply is public to that audience, which is what makes it a
+# post's reply rather than a message.
+def _vibe_post_owner(request: Request, handle: str) -> str:
+    """Whose vibes these are: the listener's own with no handle, else the
+    person the handle names if this listener may open their profile."""
+    me = _listener(request)
+    if not handle.strip():
+        return me
+    target = _person_by_handle(handle)
+    if not target:
+        return ""
+    if target == me:
+        return me
+    if not _reachable(me, target) or MODERATION.is_apart(me, target) \
+            or MODERATION.is_suspended(target):
+        return ""
+    return target
+
+
+def _visible_vibe(request: Request, echo_id: int) -> dict:
+    """The vibe behind a like or a reply, if this listener may see it - else
+    404, the same answer as for a vibe that is not there."""
+    me = _listener(request)
+    row = SOCIAL.echo_row(echo_id)
+    if row and row["user_id"] != me:
+        owner = row["user_id"]
+        if (not _reachable(me, owner) or MODERATION.is_apart(me, owner)
+                or MODERATION.is_suspended(owner)
+                or (row.get("audience") and me not in SOCIAL.close_friends(owner))):
+            row = None
+    if not row:
+        raise HTTPException(status_code=404, detail="That vibe is not here any more.")
+    return row
+
+
+@app.get("/api/vibe/posts")
+async def vibe_posts(request: Request,
+                     handle: str = Query("", max_length=social_mod.MAX_HANDLE + 1),
+                     before: float = Query(0.0, ge=0),
+                     limit: int = Query(12, ge=1, le=30)) -> dict:
+    """Somebody's vibes as posts (§547), newest first; no handle is your own.
+
+    Each post: the vibe (`id`, question, title, length, `at` - the moment it
+    was vibed, which the post shows), its caption, its `line` (`text` and
+    `at` in seconds, or null), the picture the player draws, its likes and
+    whether you liked it, how many replies and the one shown under it, and
+    `heard` - which of your friends heard the episode, the player's faces
+    (§543) with the same caution: a friend's own search counts only if their
+    searches are public. No ids of people anywhere (`listener-id-server`).
+    """
+    _read_limit(request)
+    me = _listener(request)
+    owner = _vibe_post_owner(request, handle)
+    if not owner:
+        raise HTTPException(status_code=404, detail="No listener by that handle.")
+    hidden = {int(c) for c in MODERATION.reported_by(me, "comment") if c.isdigit()}
+    posts = SOCIAL.vibe_posts(owner, viewer=me, limit=limit + 1, before=before,
+                              exclude_users=MODERATION.apart(me), exclude_ids=hidden)
+    more = len(posts) > limit
+    posts = posts[:limit]
+    for post in posts:
+        post["thumb"] = _picture_url(post["query"], post["title"], post["minutes"])
+        post["topic"] = _topic_label(post["query"], post["title"])
+    faces: list[dict] = []
+    if me and _has_account(request) and posts:
+        tiles = [{"id": str(p["id"]), "query": p["query"]} for p in posts]
+        faces = _mark_friends_listened(me, tiles, public_searches_only=True)
+        for post, tile in zip(posts, tiles):
+            shown = [faces[i] for i in tile.get("friends_faces", []) if i < len(faces)]
+            post["heard"] = {"count": int(tile.get("friends_listened") or 0),
+                             "faces": shown[:3]}
+    for post in posts:
+        post.setdefault("heard", {"count": 0, "faces": []})
+    person = SOCIAL.person(owner)
+    return {"person": {"name": person["name"], "handle": person["handle"],
+                       "avatar": person["avatar"],
+                       "explicit": person.get("explicit", False)},
+            "mine": owner == me, "posts": posts, "more": more}
+
+
+class VibeLikeRequest(BaseModel):
+    on: bool = True
+
+
+@app.post("/api/vibe/{echo_id}/like")
+async def like_vibe_post(echo_id: int, req: VibeLikeRequest, request: Request) -> dict:
+    """Like a vibe's post, or take the like back (§547). An account's: a
+    like is kept, and kept things take one (`account-gates-kept`)."""
+    _read_limit(request)
+    user = _require_account(request)
+    _visible_vibe(request, echo_id)
+    try:
+        return SOCIAL.like_vibe(user, echo_id, on=req.on)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/vibe/{echo_id}/replies")
+async def vibe_replies(echo_id: int, request: Request) -> dict:
+    """A vibe's replies (§547): most liked first, each with its answers -
+    the comments sheet's shape, minus the blocked and the reported."""
+    _read_limit(request)
+    viewer = _listener(request)
+    row = _visible_vibe(request, echo_id)
+    hidden = {int(c) for c in MODERATION.reported_by(viewer, "comment") if c.isdigit()}
+    rows = SOCIAL.comments(row["query"], row["minutes"], viewer=viewer, echo_id=echo_id,
+                           exclude_users=MODERATION.apart(viewer), exclude_ids=hidden)
+    return {"replies": rows, "count": sum(1 + len(c.get("replies") or []) for c in rows),
+            "mine": row["user_id"] == viewer}
+
+
+class VibeReplyRequest(BaseModel):
+    #: Cut to `social.MAX_COMMENT` rather than refused.
+    text: str = Field(..., max_length=2000)
+    #: The reply this answers, or 0 for a new one.
+    parent_id: int = Field(0, ge=0)
+
+
+@app.post("/api/vibe/{echo_id}/replies")
+async def post_vibe_reply(echo_id: int, req: VibeReplyRequest, request: Request) -> dict:
+    """Reply under a vibe (§547). An account's, not a suspended one's."""
+    _read_limit(request)
+    user = _require_account(request)
+    _require_can_post(user)
+    row = _visible_vibe(request, echo_id)
+    try:
+        return SOCIAL.add_comment(user, row["query"], row["minutes"], req.text,
+                                  parent_id=req.parent_id, echo_id=echo_id)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _vibe_reply(request: Request, comment_id: int, own_ok: bool = False) -> dict:
+    """A reply under a vibe this listener may see, else 404. `own_ok`: the
+    reply's author may reach their own words even if the vibe has since
+    gone out of their sight (blocked, off a close-friends list) - to delete
+    them."""
+    found = SOCIAL.comment(comment_id)
+    if not found or not found.get("echo_id"):
+        raise HTTPException(status_code=404, detail="That reply is not here any more.")
+    if own_ok and found.get("user_id") == _listener(request):
+        return found
+    try:
+        _visible_vibe(request, found["echo_id"])
+    except HTTPException:
+        raise HTTPException(status_code=404, detail="That reply is not here any more.") from None
+    return found
+
+
+# A vibe's replies have their own paths (§547) rather than Explore's
+# `/api/comments/...`, which the app no longer reaches (§499) and which stay
+# for installed clients (`old-clients`).
+@app.post("/api/vibe/replies/{comment_id}/like")
+async def like_vibe_reply(comment_id: int, req: VibeLikeRequest,
+                          request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    _vibe_reply(request, comment_id)
+    try:
+        return SOCIAL.like_comment(user, comment_id, on=req.on)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/api/vibe/replies/{comment_id}")
+async def delete_vibe_reply(comment_id: int, request: Request) -> dict:
+    """Your own reply, or any reply on your own vibe."""
+    _read_limit(request)
+    _vibe_reply(request, comment_id, own_ok=True)
+    return {"ok": SOCIAL.delete_comment(_listener(request), comment_id)}
+
+
 # --- comments (10.5 packet #8) ---------------------------------------------
 #
 # Explore's comments sheet. A comment is about an episode - `(query,
@@ -9511,6 +10242,15 @@ async def like_comment(comment_id: int, req: CommentLikeRequest,
                        request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
+    # A reply under a vibe (§547) is liked only by somebody who may see the
+    # vibe; otherwise it answers as a reply that is not there.
+    found = SOCIAL.comment(comment_id)
+    if found and found.get("echo_id"):
+        try:
+            _visible_vibe(request, found["echo_id"])
+        except HTTPException:
+            raise HTTPException(status_code=404,
+                                detail="That comment is not here any more.") from None
     try:
         return SOCIAL.like_comment(user, comment_id, on=req.on)
     except social_mod.SocialError as exc:
@@ -10174,12 +10914,13 @@ def _explore_rail_entries(request: Request, listener: str, feed: str,
         else:
             place = _place_for(request)
             circle = SOCIAL.circle_of(listener)
+            shared = _FeedProbe(BROWSE_MINUTES)
             tiles = topics_mod.build_section(
                 EVENTS, listener, key,
                 interests=_interests_for(request, ""), circle=circle,
-                written=_written_probe(BROWSE_MINUTES),
-                written_at=_written_at_probe(BROWSE_MINUTES),
-                episode_info=_episode_info_probe(BROWSE_MINUTES),
+                written=_written_probe(BROWSE_MINUTES, shared),
+                written_at=_written_at_probe(BROWSE_MINUTES, shared),
+                episode_info=_episode_info_probe(BROWSE_MINUTES, shared),
                 authored=_authored_by_circle(circle),
                 place=place.words, place_name=place.label,
                 has_account=True,

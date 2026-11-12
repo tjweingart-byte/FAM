@@ -1940,6 +1940,16 @@ def main() -> int:
                 page.wait_for_timeout(1200)
                 assert page.evaluate("() => mixPlay && mixPlay.pos") == step, \
                     f"skip did not move to episode {step + 1}"
+            # Back one (§550), by a real click, and forward again.
+            assert page.eval_on_selector("#mixPrevBtn", "e => !e.hidden"), \
+                "no back-an-episode on the playlist's player"
+            page.click("#mixPrevBtn", timeout=3000)
+            page.wait_for_timeout(1200)
+            assert page.evaluate("() => mixPlay && mixPlay.pos") == count - 2, \
+                "back did not go to the episode before"
+            page.click("#mixSkipBtn", timeout=3000)
+            page.wait_for_timeout(1200)
+            assert page.evaluate("() => mixPlay && mixPlay.pos") == count - 1
             page.evaluate("skipMixItem()")
             page.wait_for_timeout(600)
             assert page.evaluate(
@@ -1953,6 +1963,8 @@ def main() -> int:
             assert page.evaluate("() => mixPlay === null"), "the queue kept going"
             assert page.eval_on_selector("#mixSkipBtn", "e => e.hidden"), \
                 "the skip button outlived its playlist"
+            assert page.eval_on_selector("#mixPrevBtn", "e => e.hidden"), \
+                "the back button outlived its playlist"
             page.evaluate("closeMixDone(true)")
             page.wait_for_timeout(300)
 
@@ -2931,7 +2943,9 @@ def main() -> int:
             page.click("#dailySearchX")
             page.wait_for_timeout(300)
             listed = page.inner_text("#mixList").lower()
-            assert "morning brief" in listed and "from @mike" in listed, listed[:400]
+            # The copy is in the list, drawn like any mix card: picture, name,
+            # arrow - no "from @mike" on the card since §544.
+            assert "morning brief" in listed and "from @mike" not in listed, listed[:400]
             # And on somebody's profile, the same (+).
             page.evaluate("openPersonProfile('beth', {name: 'Beth Solomon'})")
             page.wait_for_function("personMixes.length > 0", timeout=5000)
@@ -3995,14 +4009,22 @@ def main() -> int:
             assert leftovers == 0, f"{leftovers} old per-screen overlay(s) survive"
 
         def category_chips_filter_the_page_in_place():
-            """The 11.3 packet, option 2: a chip row on the screen that
-            shows "myFAM"; a chip swaps the mixes for that category - a
-            picture, Play all, the rest - and the X brings the mixes back."""
+            """The 11.3 packet, option 2, under §550's tabs: the screen that
+            shows "myFAM" opens on Mixes; Categories lists them with a chip
+            row; a chip shows that category - a picture, Play all, the rest -
+            the X goes back to the list, and Mixes brings the mixes back."""
             page.evaluate("openPlayFAM()")
+            assert page.is_visible("#pfTabMixes.on"), "myFAM did not open on Mixes"
+            assert page.eval_on_selector("#catChips", "e => e.hidden"), \
+                "the category chips showed over the mixes"
+            page.click("#pfTabCats")
             page.wait_for_selector("#catChips .catchip[data-cat]", timeout=10000)
+            page.wait_for_selector("#catHome:not([hidden]) .cath-row", timeout=5000)
+            assert page.eval_on_selector("#mixesPane", "e => e.hidden"), \
+                "the mixes stayed under Categories"
             chips = page.eval_on_selector_all("#catChips .catchip",
                                               "e => e.map(x => x.textContent.trim())")
-            assert chips[0] == "All" and chips[-1] == "More", f"the chip row reads {chips}"
+            assert "All" not in chips and chips[-1] == "More", f"the chip row reads {chips}"
             target = page.eval_on_selector(
                 "#catChips .catchip[data-cat]:not([data-cat=''])",
                 "e => e.getAttribute('data-cat')")
@@ -4011,14 +4033,19 @@ def main() -> int:
                                    timeout=5000)
             assert page.eval_on_selector("#mixesPane", "e => e.hidden"), \
                 "the mixes stayed under the category"
-            assert page.query_selector("#catChips .catchip-x"), "no way back to All"
+            assert page.query_selector("#catChips .catchip-x"), "no way back to the categories"
             if page.query_selector("#catPanel .catp-hero"):
                 assert page.query_selector("#catPanel .catp-play"), "no Play all"
             page.click("#catChips .catchip-x")
             page.wait_for_timeout(200)
             assert page.eval_on_selector("#catPanel", "e => e.hidden"), \
                 "the X left the category showing"
+            assert not page.eval_on_selector("#catHome", "e => e.hidden"), \
+                "the X did not go back to the categories"
+            page.click("#pfTabMixes")
+            page.wait_for_timeout(200)
             assert not page.eval_on_selector("#mixesPane", "e => e.hidden")
+            assert page.eval_on_selector("#catChips", "e => e.hidden")
 
         def not_interested_takes_a_tile_off_the_page():
             """The 11.3 packet #2: a tile's three dots end in Not interested,

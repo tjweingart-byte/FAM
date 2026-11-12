@@ -17,6 +17,10 @@
     --page-bg:#1E1B27; --bg:#2A2733; --surface:#38334A; --surface-2:#423C56;
     --copper:#E0B563; --coral:#E2694F; --sage:#8FAE9A; --gold:#E0B563;
     --deeper:#FFD23F;
+    /* What changed since you last listened (§545): trending gold, a major
+       update coral, each with the ink a filled pill takes. Lighter than
+       --copper/--coral in dark so small text on a card reads. */
+    --sig-tr:#E0B563; --sig-up:#F08A6E; --sig-ink:#18151F;
     --text:#F4EFE4; --text-muted:#ABA3C4; --text-faint:#8A83A0;
     --border:rgba(244,239,228,0.10); --border-strong:rgba(244,239,228,0.20);
     --muted:rgba(244,239,228,0.56); --ink-muted:#ABA3C4;
@@ -38,6 +42,7 @@
     --paper:#E6DECD;
     --page-bg:#E9E3D6; --bg:#FFFFFF; --surface:#F7F3EA; --surface-2:#EEE8DC;
     --copper:#A87520; --gold:#A87520; --coral:#C4502F; --sage:#5C8669;
+    --sig-tr:#8A5F14; --sig-up:#B4441F; --sig-ink:#FFFFFF;
     --text:#1E1B27; --text-muted:#5E5770; --text-faint:#7D768C;
     --border:rgba(30,27,39,0.12); --border-strong:rgba(30,27,39,0.22);
     --muted:rgba(30,27,39,0.60); --ink-muted:#5E5770;
@@ -401,6 +406,33 @@
      header above it, so it stays put while the mixes scroll. */
   .new-mix-row{ flex:none; display:flex; justify-content:center; background:var(--bg);
     position:relative; z-index:2; }
+  .new-mix-row[hidden]{ display:none; }
+  /* Mixes | Categories (§550): two equal tabs, a copper rule under the one
+     that is on, as Groups | Messages. Outside the scroller with the
+     wordmark, so they stay put. */
+  .pf-tabs{ flex:none; display:flex; margin:0 18px 12px; border-bottom:1px solid var(--border);
+    background:var(--bg); position:relative; z-index:2; }
+  .pf-tab{ flex:1; min-height:42px; padding:8px 0 9px; background:none; border:0;
+    border-bottom:2.5px solid transparent; margin-bottom:-1px; cursor:pointer;
+    font-family:'Geist', sans-serif; font-size:15px; font-weight:600; color:var(--text-muted); }
+  .pf-tab.on{ color:var(--text); border-bottom-color:var(--copper); }
+  .pf-tab:active{ opacity:0.7; }
+  /* The Categories tab's landing: a row per category. */
+  .cath-h{ margin:6px 0 8px; font-family:'Geist Mono', monospace; font-size:10px;
+    letter-spacing:0.14em; text-transform:uppercase; color:var(--text-faint); }
+  .cath-row{ display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px;
+    margin-bottom:8px; background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; text-align:left; cursor:pointer; font-family:inherit; color:var(--text); }
+  .cath-row:active{ background:rgba(var(--fg-rgb),0.06); }
+  .cath-ico{ flex:none; width:38px; height:38px; border-radius:10px; display:flex;
+    align-items:center; justify-content:center; color:#F4EFE4; background-color:var(--surface-2); }
+  .cath-ico svg{ width:20px; height:20px; }
+  .cath-body{ flex:1; min-width:0; }
+  .cath-name{ font-size:14.5px; font-weight:600; overflow-wrap:anywhere; }
+  .cath-name .cat-star{ vertical-align:-1px; margin-right:4px; color:var(--copper); }
+  .cath-sub{ margin-top:2px; font-size:12px; color:var(--text-muted); white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; }
+  .cath-go{ flex:none; color:var(--text-faint); }
   .new-mix-pill{ display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 16px;
     margin:0 0 10px; border-radius:16px; background:var(--surface); color:var(--text);
     border:1px solid var(--border-strong); font-family:'Geist',sans-serif; font-size:12px;
@@ -721,6 +753,52 @@
   .mix-preview{ font-size:10px; line-height:1.35; color:var(--text-muted);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .mix-chev{ flex:none; color:var(--text-muted); opacity:0.6; }
+  /* A mix row in the list is its name alone (11.10), so nothing sits under it. */
+  #mixList .mix-name{ margin-bottom:0; }
+  /* R5 (§545): when one of a mix's topics changed since the listener last
+     heard it, the card leads with the story's picture, the mix's own cover
+     small in its corner, one line naming the story and a pill where the
+     arrow was. The colour always comes with its word. */
+  .mix-card.has-sig{ border-color:var(--sig-c); }
+  .mix-card.sig-trending{ --sig-c:var(--sig-tr); }
+  .mix-card.sig-update{ --sig-c:var(--sig-up); }
+  .mix-sig-pic{ position:relative; flex:0 0 46px; height:46px; }
+  .mix-sig-pic > img, .mix-sig-pic > .mix-folder{ width:46px; height:46px; border-radius:12px;
+    object-fit:cover; display:block; box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--sig-c); }
+  .mix-sig-own{ position:absolute; left:-6px; bottom:-6px; width:22px; height:22px; border-radius:7px;
+    background:var(--paper); color:var(--ink); border:2px solid var(--surface);
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    background-size:cover; background-position:center; }
+  .mix-sig-own svg{ width:12px; height:12px; }
+  .mix-sig-own.has-cover svg{ display:none; }
+  .mix-sig-line{ margin-top:3px; font-size:11.5px; line-height:1.35; color:var(--text);
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .mix-sig-line b{ color:var(--sig-c); font-weight:700; }
+  .mix-sig-line svg, .mix-sig-tag svg{ display:inline-block; vertical-align:-2px; margin-right:3px;
+    color:var(--sig-c); }
+  .mix-pill{ flex:none; display:inline-flex; align-items:center; gap:4px; min-height:26px;
+    padding:0 6px 0 9px; border-radius:13px; background:var(--sig-c); color:var(--sig-ink);
+    font-family:'Geist',sans-serif; font-size:11px; font-weight:700; white-space:nowrap; }
+  /* Q5 inside the mix: the changed topic, outlined, with then -> now. */
+  .mix-topic.has-sig{ border:1.5px solid var(--sig-c); align-items:flex-start; }
+  .mix-topic.sig-trending{ --sig-c:var(--sig-tr); }
+  .mix-topic.sig-update{ --sig-c:var(--sig-up); }
+  .mix-topic-pic{ flex:0 0 40px; width:40px; height:40px; border-radius:10px; overflow:hidden;
+    background:var(--paper); color:var(--ink); display:flex; align-items:center; justify-content:center; }
+  .mix-topic-pic img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .mix-topic-icon{ display:flex; width:20px; height:20px; }
+  .mix-topic-icon svg{ width:20px; height:20px; }
+  .mix-topic.has-sig .mix-topic-pic{ overflow:visible; box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--sig-c); }
+  .mix-topic.has-sig .mix-topic-pic img{ border-radius:10px; }
+  .mix-sig-tag{ font-size:11px; font-weight:700; color:var(--sig-c); margin-bottom:2px; }
+  .mix-bubbles{ display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .mix-bub{ font-size:11px; line-height:1.3; padding:4px 8px; border-radius:9px;
+    background:var(--bg); color:var(--text-muted); overflow-wrap:anywhere; }
+  .mix-bub.now{ background:transparent; color:var(--text); border:1px solid var(--sig-c); }
+  .mix-bub-arrow{ color:var(--sig-c); font-weight:700; font-size:12px; }
+  .mix-play-all{ display:block; width:100%; margin:-4px 0 12px; padding:6px; border:0; background:none;
+    color:var(--text-muted); font-family:'Geist',sans-serif; font-size:12px; font-weight:600;
+    text-align:center; cursor:pointer; }
   .mix-new{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
@@ -733,7 +811,7 @@
   .catchips{ display:flex; gap:7px; overflow-x:auto; scrollbar-width:none;
     margin:4px -18px 0; padding:2px 18px 10px; }
   .catchips::-webkit-scrollbar{ display:none; }
-  .catchips:empty{ display:none; }
+  .catchips:empty, .catchips[hidden]{ display:none; }
   .catchip{ flex:none; display:inline-flex; align-items:center; gap:5px; min-height:32px;
     padding:6px 13px; border-radius:16px; border:1px solid var(--border-strong);
     background:var(--bg); color:var(--text); font-family:'Geist', sans-serif;
@@ -1347,6 +1425,25 @@
   #screen-player .player-top .go-deeper-pill{ margin:0 auto; padding:8px 34px; font-size:13px;
     line-height:1.2; }
   #screen-player .p-demo{ position:absolute; top:6px; left:50%; transform:translateX(-50%); }
+  /* Friends who listened (11.11 note): the card's faces pill, top left of
+     the picture, where the owner's mock-up put it; under the captions. The
+     picture is centred in the stage and 4:3 of the stage's width plus the
+     20px it bleeds each side, so its top edge is worked out from the
+     stage's width (`cqw`, the stage is a container), and never above the
+     stage when the picture is taller than it. */
+  .p-friends{ position:absolute; left:16px; top:10px;
+    top:max(10px, calc(50% - (100cqw + 80px) * 0.375 + 12px)); z-index:1;
+    display:flex; align-items:center; gap:5px; cursor:pointer;
+    background:rgba(20,18,28,0.62); color:var(--copper);
+    border:1px solid rgba(244,239,228,0.45); border-radius:999px;
+    padding:3px 8px 3px 3px; font-family:'Geist Mono', monospace; font-size:10px;
+    font-weight:700; box-shadow:0 1px 6px rgba(0,0,0,0.35);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  .p-friends[hidden]{ display:none; }
+  .p-friends:not(:has(.src-count)){ padding-right:3px; }
+  .p-friends .friend-face{ width:26px; height:26px; font-size:10px; }
+  .p-friends .src-marks .src-mark{ border-color:rgba(20,18,28,0.9); }
+  .p-friends .src-mark img{ opacity:0; }
   /* Share, vibe and save, one above another on the right, above the
      transport (10.2 packet). The captions hang under each circle. */
   /* Lifted clear of the title row (11.9 packet, §519): at 10px the SAVE
@@ -1372,7 +1469,7 @@
   .p-down, .p-more{ width:44px; height:44px; border:0; background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
     border-radius:50%; }
-  #screen-player .mini-stage{ padding:0 20px; }
+  #screen-player .mini-stage{ padding:0 20px; container-type:inline-size; }
   .p-titlerow{ flex:none; display:flex; align-items:center; gap:12px; padding:0 20px; }
   .p-titles{ flex:1; min-width:0; text-align:left; }
   #screen-player .mini-title{ font-size:22px; line-height:1.2; margin:0;
@@ -1390,7 +1487,7 @@
   #screen-player .pc-row1{ display:grid;
     grid-template-columns:minmax(0,1fr) minmax(0,1fr) 74px minmax(0,1fr) minmax(0,1fr);
     justify-items:center; align-items:center; gap:0; width:100%; max-width:330px; margin:0 auto; }
-  #screen-player .pc-slot{ width:48px; height:48px; }
+  #screen-player .pc-slot{ width:48px; height:48px; display:flex; align-items:center; justify-content:center; }
   #screen-player .pc-row1 .mini-ctrl-btn{ width:48px; height:48px; background:none;
     border:0; color:var(--text); border-radius:50%; }
   #screen-player .pc-row1 .mini-ctrl-btn:active{ background:rgba(var(--fg-rgb),0.08); }
@@ -1536,8 +1633,6 @@
     color:var(--copper); margin-left:0.09em; margin-right:0.15em;
     vertical-align:baseline; }
 
-  /* Public / private on a mix. Public is the default for a new mix. */
-  .mix-public{ color:var(--copper); }
   /* The profile's interest row, named and editable. */
   .pf-tags-lab{ align-self:center; font-family:'Geist Mono', monospace;
     font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase;
@@ -1570,7 +1665,6 @@
     border-top:1px solid var(--border); }
   .pi-acts .pf-btn{ flex:1; }
 
-  .mix-private{ color:var(--text-muted); }
   .mix-vis{ display:flex; align-items:center; justify-content:space-between; gap:14px;
     padding:13px 14px; margin:14px 0 10px; border-radius:12px; background:var(--surface);
     border:1px solid var(--border); cursor:pointer; }
@@ -1694,6 +1788,17 @@
     background:var(--border-strong); }
   .gd-bar span{ display:block; height:100%; background:var(--copper); }
 
+  /* A rail's heading and its Play all (11.11 note). The heading keeps at
+     least 12em of the row - em, so larger phone text needs more - and Play
+     all wraps under it rather than squeezing it (§499). */
+  .feed-head{ display:flex; flex-wrap:wrap; align-items:flex-end;
+    justify-content:space-between; column-gap:12px; }
+  .feed-head .feed-title{ flex:1 1 12em; min-width:0; }
+  .feed-playall{ flex:none; display:inline-flex; align-items:center; gap:6px;
+    margin:0 0 14px; padding:6px 11px; border:0; border-radius:999px;
+    background:var(--copper); color:var(--ink); cursor:pointer;
+    font-family:'Geist Mono', monospace; font-size:10px; font-weight:700;
+    letter-spacing:0.1em; text-transform:uppercase; white-space:nowrap; }
   /* Section headings speak instead of labelling: a sentence about why these
      are here, in the display face rather than a mono kicker. */
   .feed-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:400; font-size:20px;
@@ -2046,7 +2151,11 @@
      the audio: the screen goes the moment the first audio arrives, whatever
      the animation is doing. Painted by `paintLoadingVariant`. */
   .fam-ld-alt{ display:none; }
-  .fam-loading.alt > :not(.fam-loading-x):not(.fam-ld-alt){ display:none !important; }
+  /* The FAM mark stays on both, larger, above the dial or the glide (the
+     owner's direction, §542): the wait is the brand's, as search's is. */
+  .fam-loading.alt > :not(.fam-loading-x):not(.fam-ld-alt):not(.fam-loading-wm){ display:none !important; }
+  .fam-loading.alt .fam-loading-wm{ gap:2px; margin-bottom:10px; }
+  .fam-loading.alt .fam-loading-wm .wm-glyph, .fam-loading.alt .fam-loading-wm .wm-a{ width:46px; height:46px; }
   .fam-loading.alt .fam-ld-alt{ display:flex; flex-direction:column; align-items:center; gap:14px; width:100%; }
   .fam-ld-kick{ font-family:'Geist Mono', monospace; font-size:10.5px; letter-spacing:.1em;
     text-transform:uppercase; color:var(--text-muted); max-width:100%; overflow:hidden;
@@ -2149,33 +2258,35 @@
     line-height:1.5; max-width:250px;
   }
 
-  /* -------- what an action did: a plain line (§299) --------
-     The owner's pick (10.21, "Plain line") for both messages that used to
-     pop up at the bottom - the rounded pill (`toast`) and the dark bar with
-     Undo or Open (`snack`): a line of text with a short copper rule above
-     it, no box, no shadow, no shape. It sits just above the mini player (or
-     the tabs) on the page's own colour, fading into the page above it so it
-     reads over whatever scrolls behind. `bottom` is set when it shows, from
-     what is on screen. */
-  /* Inset by the drawn phone's bezel (10.23 packet #4): both live in
-     .phone, outside .frame, so `left:0` ran the fade across the bezel. */
+  /* -------- what an action did: a card that floats (§550) --------
+     Was a plain line (§299): text on a fade of the page's own colour. Over
+     a dark screen - a friend's vibe, the story viewer - that fade was a
+     white band across the picture ("Sent to Beth" over Play episode), and
+     the owner asked for it changed (11.11). Now a small card of its own:
+     the surface colour, a hairline, a shadow and a copper dot, sized to its
+     words and centred just above the mini player (or the tabs), so it reads
+     the same over any screen and covers nothing but itself. `bottom` is set
+     when it shows, from what is on screen. Inset by the drawn phone's bezel
+     (10.23 packet #4): both live in .phone, outside .frame. */
   .toast, .snack{ position:absolute; left:14px; right:14px; bottom:96px; z-index:1000;
-    display:flex; flex-direction:column; align-items:center; gap:7px;
-    padding:26px 20px 9px; text-align:center; color:var(--text);
-    background:linear-gradient(to bottom, rgba(var(--bg-rgb),0), rgba(var(--bg-rgb),0.98) 45%);
+    width:fit-content; max-width:calc(100% - 56px); margin:0 auto; box-sizing:border-box;
+    display:flex; flex-direction:row; align-items:center; gap:10px;
+    padding:11px 16px 11px 14px; border-radius:14px; text-align:left; color:var(--text);
+    background:var(--surface); border:1px solid var(--border-strong);
+    box-shadow:0 16px 34px -14px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.12);
     font-family:'Geist', sans-serif; font-size:13.5px; font-weight:500; line-height:1.35;
-    opacity:0; transform:translateY(6px); pointer-events:none;
-    transition:opacity .2s ease, transform .2s ease; }
-  .toast::before, .snack::before{ content:""; flex:none; width:22px; height:2px; border-radius:1px;
-    background:var(--copper); transform:scaleX(0); transform-origin:50% 50%;
+    opacity:0; transform:translateY(8px) scale(0.98); pointer-events:none;
+    transition:opacity .2s ease, transform .22s cubic-bezier(.2,.8,.2,1); }
+  .toast::before, .snack::before{ content:""; flex:none; width:7px; height:7px; border-radius:50%;
+    background:var(--copper); transform:scale(0); transform-origin:50% 50%;
     transition:transform .26s cubic-bezier(.2,.8,.2,1) .06s; }
-  .toast.show, .snack.show{ opacity:1; transform:translateY(0); }
-  @media (max-width:520px){ .toast, .snack{ left:0; right:0; } }
-  .toast.show::before, .snack.show::before{ transform:scaleX(1); }
+  .toast.show, .snack.show{ opacity:1; transform:translateY(0) scale(1); }
+  @media (max-width:520px){ .toast, .snack{ left:0; right:0; max-width:calc(100% - 32px); } }
+  .toast.show::before, .snack.show::before{ transform:scale(1); }
   /* Only the action takes a tap; the line and its fade leave the page under
      them pressable. */
   .snack.show .snack-act{ pointer-events:auto; }
-  .snack-line{ display:flex; align-items:baseline; justify-content:center; gap:10px; max-width:100%; }
+  .snack-line{ display:flex; align-items:baseline; justify-content:flex-start; gap:14px; min-width:0; max-width:100%; }
   .snack-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .snack-act{ flex:none; border:0; background:none; cursor:pointer; padding:6px 2px;
     margin:-6px 0; font:700 13.5px 'Geist', sans-serif; color:var(--copper); }
@@ -3308,6 +3419,113 @@
     font-family:'Geist Mono', monospace; font-size:8px; font-weight:700;
     display:flex; align-items:center; justify-content:center; }
   .tab-badge[hidden]{ display:none; }
+  /* The morning's new mix (§550): a plain dot, no number - one thing is
+     waiting, and it is the mix. Copper, so it is not read as a message. */
+  .tab-badge.tab-new{ top:-2px; right:-4px; min-width:9px; width:9px; height:9px; padding:0;
+    border-radius:50%; background:var(--copper); box-shadow:0 0 0 2px var(--bg); }
+  /* A mix with this morning's episodes waiting, on its card. */
+  .mix-new{ flex:none; margin-left:6px; padding:3px 8px; border-radius:10px;
+    border:1px solid var(--copper); color:var(--copper);
+    font-family:'Geist Mono', monospace; font-size:9px; font-weight:700;
+    letter-spacing:0.1em; text-transform:uppercase; }
+  /* ---- Vibes as posts (§547, option C) ---- */
+  .vp-bar-top{ display:flex; align-items:center; gap:6px; }
+  .vp-titles{ flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.15; }
+  .vp-titles b{ font-family:'Bricolage Grotesque', sans-serif; font-size:17px; font-weight:650; }
+  .vp-titles span{ font-size:12px; color:var(--text-muted); }
+  #vpBody{ padding:4px 0 120px; }
+  #vpBody > .pf-empty{ margin:8px 16px; }
+  .vp-post{ padding:6px 0 20px; scroll-margin-top:8px; }
+  .vp-head{ display:flex; align-items:center; gap:10px; padding:6px 16px 8px; }
+  .vp-head .av{ width:32px; height:32px; flex:none; border-radius:50%; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; }
+  .vp-who{ flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.2; }
+  .vp-handle{ font-weight:600; font-size:14px; overflow-wrap:anywhere; }
+  .vp-when{ font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--text-muted); }
+  .vp-icon{ background:none; border:none; color:var(--text); padding:6px; display:flex;
+    align-items:center; justify-content:center; cursor:pointer; min-width:36px; min-height:36px; }
+  .vp-icon.on{ color:var(--coral); }
+  .vp-pic{ position:relative; aspect-ratio:4/3; margin:0 16px; border-radius:14px; overflow:hidden;
+    background:var(--surface) center/cover no-repeat; }
+  .vp-strip{ position:absolute; left:0; right:0; bottom:0; padding:28px 12px 10px;
+    background:linear-gradient(transparent, rgba(14,12,18,.88)); color:#F4EFE4;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:15px; line-height:1.28; }
+  .vp-q{ color:#E0B563; }
+  .vp-tr{ display:flex; align-items:center; gap:10px; margin:10px 16px 0; }
+  .vp-play{ width:34px; height:34px; flex:none; border-radius:50%; border:none; cursor:pointer;
+    background:var(--gold); color:var(--ink); display:flex; align-items:center; justify-content:center; }
+  .vp-play svg{ margin-left:1px; }
+  .vp-bar{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; padding-top:6px; }
+  .vp-track{ position:relative; height:4px; border-radius:2px; background:var(--border-strong);
+    touch-action:none; cursor:pointer; }
+  .vp-track::before{ content:""; position:absolute; left:0; right:0; top:-10px; bottom:-10px; }
+  .vp-line-seg{ position:absolute; top:-2px; bottom:-2px; border-radius:3px; background:var(--gold); opacity:.85; }
+  .vp-fill{ position:absolute; left:0; top:0; bottom:0; width:0; border-radius:2px; background:var(--text); }
+  .vp-knob{ position:absolute; top:50%; left:0; width:11px; height:11px; border-radius:50%;
+    background:var(--text); transform:translate(-50%,-50%); opacity:0; }
+  .vp-track.live .vp-knob{ opacity:1; }
+  .vp-times{ display:flex; justify-content:space-between; font-family:'Geist Mono', monospace;
+    font-size:10px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+  .vp-chip{ flex:none; display:inline-flex; align-items:center; gap:4px; border:none; cursor:pointer;
+    font-family:'Geist Mono', monospace; font-size:11px; padding:5px 9px; border-radius:99px;
+    background:color-mix(in srgb, var(--gold) 18%, transparent); color:var(--gold); }
+  .vp-acts{ display:flex; align-items:center; gap:2px; padding:6px 10px 0; }
+  .vp-sp{ flex:1; }
+  .vp-meta{ display:flex; flex-direction:column; gap:3px; padding:2px 16px 0; font-size:14px; line-height:1.4; }
+  .vp-meta > div{ overflow-wrap:anywhere; }
+  .vp-counts{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .vp-faces{ display:flex; }
+  .vp-faces .av{ width:20px; height:20px; border-radius:50%; overflow:hidden; border:2px solid var(--bg);
+    display:flex; align-items:center; justify-content:center; font-size:8px; }
+  .vp-faces .av + .av{ margin-left:-7px; }
+  .vp-title{ font-weight:650; }
+  .vp-reply1{ color:var(--text); }
+  .vp-link{ align-self:flex-start; background:none; border:none; padding:2px 0; cursor:pointer;
+    color:var(--text-muted); font:inherit; font-size:13px; }
+  .vp-more{ display:block; margin:4px auto 0; background:none; border:1px solid var(--border-strong);
+    color:var(--text); border-radius:99px; padding:9px 18px; font:inherit; cursor:pointer; }
+  .vp-replies{ position:absolute; inset:0; z-index:30; display:flex; flex-direction:column;
+    justify-content:flex-end; background:rgba(14,12,18,.45); }
+  .vp-replies[hidden]{ display:none; }
+  .vpr-card{ background:var(--bg); border-radius:20px 20px 0 0; max-height:78%; display:flex;
+    flex-direction:column; padding-bottom:env(safe-area-inset-bottom, 0px); }
+  .vpr-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px 8px;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:650; font-size:16px;
+    border-bottom:1px solid var(--border); }
+  .vpr-list{ overflow:auto; flex:1; min-height:120px; padding:6px 0; }
+  .vpr-list > .pf-empty{ margin:10px 16px; }
+  .vpr-row{ display:flex; gap:10px; padding:8px 16px; align-items:flex-start; }
+  .vpr-row.sub{ padding-left:56px; }
+  .vpr-row .av{ width:30px; height:30px; flex:none; border-radius:50%; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; }
+  .vpr-body{ flex:1; min-width:0; font-size:13.5px; line-height:1.4; }
+  .vpr-text{ overflow-wrap:anywhere; }
+  .vpr-age{ color:var(--text-muted); font-size:12px; }
+  .vpr-acts{ display:flex; gap:14px; margin-top:2px; }
+  .vpr-acts button{ background:none; border:none; padding:2px 0; color:var(--text-muted);
+    font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+  .vpr-like{ background:none; border:none; color:var(--text-muted); display:flex; flex-direction:column;
+    align-items:center; gap:1px; font-size:10px; cursor:pointer; padding:4px; min-width:32px; }
+  .vpr-like.on{ color:var(--coral); }
+  .vpr-box{ border-top:1px solid var(--border); padding:10px 16px 14px; }
+  .vpr-to{ font-size:12px; color:var(--text-muted); margin-bottom:6px; }
+  .vpr-to button{ background:none; border:none; color:var(--text); font:inherit; font-weight:600; cursor:pointer; }
+  .vpr-in{ display:flex; gap:8px; }
+  .vpr-in input{ flex:1; min-width:0; border:1px solid var(--border-strong); border-radius:99px;
+    padding:9px 14px; font:inherit; font-size:14px; background:var(--surface); color:var(--text); }
+  .vpr-in button{ border:none; background:none; color:var(--gold); font:inherit; font-weight:700; cursor:pointer; }
+  .vpr-gate{ font-size:13px; color:var(--text-muted); }
+  /* The composer's line picker (§547). */
+  .vcs-tool.set i{ box-shadow:0 0 0 2px #E0B563; }
+  .vcs-lines{ display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .vcs-line{ text-align:left; background:rgba(244,239,228,.08); border:1px solid transparent; color:#F4EFE4;
+    border-radius:10px; padding:8px 10px; font:inherit; font-size:13px; line-height:1.35; cursor:pointer;
+    display:flex; gap:8px; }
+  .vcs-line.on{ border-color:#E0B563; background:rgba(224,181,99,.16); }
+  .vcs-line-t{ flex:none; font-family:'Geist Mono', monospace; font-size:10px; color:#E0B563; padding-top:2px; }
+  .vcs-line-none{ margin-top:8px; background:none; border:none; color:rgba(244,239,228,.7); font:inherit;
+    font-size:12px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -4040,7 +4258,7 @@
 
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre active" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -4103,7 +4321,7 @@
         </div>
         <div class="tabbar">
           <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -4127,10 +4345,17 @@
                control that appears and then vanishes reads as a fault. The
                sign-up buttons `renderMixesLocked` draws are the way in. -->
         </div>
+        <!-- Two tabs under the wordmark (§550, the owner's 11.11 note, "like
+             Groups | Messages"): the listener's mixes, and the categories
+             that used to be a chip row over them. -->
+        <div class="pf-tabs" role="tablist" aria-label="myFAM">
+          <button type="button" class="pf-tab on" id="pfTabMixes" role="tab" aria-selected="true" onclick="showPlayfamTab('mixes')">Mixes</button>
+          <button type="button" class="pf-tab" id="pfTabCats" role="tab" aria-selected="false" onclick="showPlayfamTab('categories')">Categories</button>
+        </div>
         <!-- "Create new mix" (11.7 packet): a pill under the wordmark in place
              of the circled (+) top right. Still hidden until `/api/mixes`
-             says there is an account (`showNewMixButton`). -->
-        <div class="new-mix-row">
+             says there is an account (`showNewMixButton`). On Mixes only. -->
+        <div class="new-mix-row" id="newMixRow">
           <button class="new-mix-pill" id="newMixBtn" onclick="openNewMix()" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Create new mix</button>
         </div>
         <div class="scroll">
@@ -4140,7 +4365,10 @@
                find any category in the tree. Picking one filters this page
                in place (`#catPanel` in place of `#mixesPane`); there is no
                separate category page. Cached episodes only. -->
-          <div class="catchips" id="catChips" role="tablist" aria-label="Categories"></div>
+          <div class="catchips" id="catChips" role="tablist" aria-label="Categories" hidden></div>
+          <!-- The Categories tab before one is picked (§550): the ones this
+               listener follows, then every facet, each a row to open. -->
+          <div id="catHome" hidden></div>
           <div id="catPanel" hidden></div>
           <div id="mixesPane">
           <!-- Other listeners' public mixes. Tapping the bar lists every
@@ -4164,7 +4392,7 @@
         </div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -4283,6 +4511,12 @@
           <div class="player-bg" id="playerBg" aria-hidden="true"></div>
           <span class="demo-badge p-demo" title="No API key: a built-in sample script is standing in for Claude">not your episode</span>
           <div class="next-hint" id="nextHint"></div>
+          <!-- Who of your friends listened (11.11 note): the DailyFAM card's
+               faces, top left of the picture (the mock-up). Hidden until a
+               friend has; tapping lists them all (§394). -->
+          <div class="p-friends" id="playerFriends" hidden role="button" tabindex="0"
+               onclick="openFriendsListened('_player')"
+               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); openFriendsListened('_player');}"></div>
           <!-- Share, vibe and save, stacked on the right above the transport
                (10.2 packet). The three dots' menu offers vibe and save too. -->
           <div class="p-side" id="playerSide">
@@ -4331,7 +4565,9 @@
                balances the next-episode button, which is only drawn when
                somebody chose a "next". -->
           <div class="pc-row1">
-            <span class="pc-slot" aria-hidden="true"></span>
+            <!-- The episode before it in the playlist (§550), in the slot
+                 that balances next; only while a myFAM playlist plays. -->
+            <span class="pc-slot"><div class="mini-ctrl-btn" id="mixPrevBtn" onclick="prevMixItem()" title="Back to the previous episode in this playlist" aria-label="Back to the previous episode in this playlist" hidden><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M18.5 5.2v13.6a.8.8 0 0 1-1.2.7l-10-6.8a.8.8 0 0 1 0-1.4l10-6.8a.8.8 0 0 1 1.2.7z"/><rect x="3.2" y="4.6" width="2.4" height="14.8" rx="1.1" stroke="none"/></svg></div></span>
             <div class="mini-ctrl-btn seek" onclick="skipAudio(-15)" title="Back 15 seconds" aria-label="Back 15 seconds"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.6 4.6A8.4 8.4 0 1 1 4.3 9.6"/><path d="M12.6 2.2 9.4 4.7l3.2 2.5z" fill="currentColor" stroke-width="1.2"/></svg><span class="skip-num">15</span></div>
             <div class="mini-play-btn" onclick="togglePlay()"><div id="playIcon2"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg></div></div>
             <div class="mini-ctrl-btn seek" onclick="skipAudio(15)" title="Forward 15 seconds" aria-label="Forward 15 seconds"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.4 4.6A8.4 8.4 0 1 0 19.7 9.6"/><path d="M11.4 2.2 14.6 4.7l-3.2 2.5z" fill="currentColor" stroke-width="1.2"/></svg><span class="skip-num">15</span></div>
@@ -4402,6 +4638,27 @@
         <div class="scroll"><div class="yf-person" id="personBody"></div></div>
       </section>
 
+      <!-- ============ VIBES AS POSTS (§547) ============
+           A vibe tapped on your own YourFAM grid or a friend's: that
+           person's vibes as posts, opened at the one tapped. Each plays
+           where it sits; replies open in the sheet below. -->
+      <section class="screen" id="screen-vibeposts">
+        <div class="screen-top" aria-hidden="true"></div>
+        <div class="yf-bar vp-bar-top">
+          <button class="yf-back" onclick="goBack()" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <div class="vp-titles"><b id="vpTitle">Vibes</b><span id="vpSub"></span></div>
+        </div>
+        <div class="scroll"><div id="vpBody"></div></div>
+        <div class="vp-replies" id="vpReplies" hidden onclick="if(event.target===this) closeVibeReplies()">
+          <div class="vpr-card" role="dialog" aria-labelledby="vprTitle">
+            <div class="vpr-head"><span id="vprTitle">Replies</span>
+              <button class="vp-icon" onclick="closeVibeReplies()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+            <div class="vpr-list" id="vprList"></div>
+            <div class="vpr-box" id="vprBox"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- ============ TOPIC (one interest) ============
            Behind every interest chip - on YourFAM, a friend's profile and a
            chat header. Generates nothing to fill itself: every card is an
@@ -4425,7 +4682,7 @@
         </div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab active" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -4454,7 +4711,7 @@
         <div class="scroll"><div id="threadList"></div></div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab active" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -4844,6 +5101,7 @@
             <button class="vcs-tool note-only" data-tool="bg" onclick="vcsTool('bg')"><span>Background</span><i><span class="vcs-bg-dot" id="vcsBgDot"></span></i></button>
             <button class="vcs-tool note-only" data-tool="voice" id="vcsVoiceTool" onclick="vcsDictate()"><span>Speak</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></i></button>
             <button class="vcs-tool episode-only" data-tool="mention" onclick="vcsTool('mention')"><span>Mention</span><i>@</i></button>
+            <button class="vcs-tool episode-only" data-tool="line" onclick="vcsTool('line')"><span>Line</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h3v4c0 2-1 3.5-3 4M14 7h3v4c0 2-1 3.5-3 4"/></svg></i></button>
             <button class="vcs-tool episode-only" data-tool="picture" onclick="vcsTool('picture')"><span>Picture</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></i></button>
           </div>
           <div class="vcs-size" id="vcsSize" hidden>
@@ -7072,6 +7330,13 @@
   function onGenerationStarted(){
     finishGenOverlay();
     var activeId = document.querySelector(".screen.active") ? document.querySelector(".screen.active").id : "";
+    // A vibe's post plays where it sits (§547): the mini bar carries it and
+    // the post's own bar moves, so the full player does not open over it.
+    var started = lastGenerate && TOPICS[lastGenerate.key];
+    if(started && started.inPlace && activeId === "screen-vibeposts"){
+      paintVibePostTransport();
+      return;
+    }
     if(activeId !== "screen-player"){ navigate("player"); }
   }
 
@@ -7738,12 +8003,15 @@
   var lastGenerate = null;   // for a retry after the consent question
   function generate(key, albumContext){
     lastGenerate = { key: key, albumContext: albumContext };
+    // Something started on its own: whatever an ended episode held for the
+    // vibe editor is not "next" any more (§550).
+    heldForVibe = null;
     // Something else started (§500 review): the rest of a category's Play
     // all is not this episode's "next". A queue entry or another category
     // play keeps it; what the listener queued themselves always stays.
     if(key !== "_category" && String(key).indexOf("queue_") !== 0
-       && typeof QUEUE !== "undefined" && QUEUE.some(function(q){ return q.fromCategory; })){
-      for(var qi = QUEUE.length - 1; qi >= 0; qi--){ if(QUEUE[qi].fromCategory) QUEUE.splice(qi, 1); }
+       && typeof QUEUE !== "undefined" && QUEUE.some(function(q){ return q.fromCategory || q.fromRail; })){
+      for(var qi = QUEUE.length - 1; qi >= 0; qi--){ if(QUEUE[qi].fromCategory || QUEUE[qi].fromRail) QUEUE.splice(qi, 1); }
       if(typeof drawMixSkip === "function") drawMixSkip(!!mixPlay);
     }
     // One tap is one request. The player's own topic row invites a re-tap -
@@ -7849,6 +8117,8 @@
       if(paCur) paCur.textContent = formatTime(seconds);
       if(paTot) paTot.textContent = formatTime(total);
     }
+    // A vibe's post, when its episode is the one playing (§547).
+    paintVibePostTransport();
   }
 
   // --- when an episode counts as finished -----------------------------
@@ -8720,15 +8990,19 @@
   }
 
   var vcs = { ep: null, model: null, sel: "", tool: "", people: null, sending: false };
+  // An episode that ended under the open editor: what comes next, held (§550).
+  var heldForVibe = null;
   function openVibeComposer(ep){
     // A friend's story shared to yours (§282) brings its own picture.
     var thumb = ep.thumb || "";
     if(nowBarState && nowBarState.query === ep.query) thumb = PLAYER_CARD.thumb || "";
     var st = storyStyleDefaults();
     st.thumb = thumb;
-    vcs = { ep: ep, sel: "", tool: "", people: vcs.people, sending: false,
+    vcs = { ep: ep, sel: "", tool: "", people: vcs.people, sending: false, lines: null,
             model: { query: ep.query, title: ep.title || ep.query, minutes: ep.minutes,
-                     caption: "", style: st, tags: [] } };
+                     caption: "", style: st, tags: [], line: null } };
+    var lineTool = document.querySelector('#vibeComposer .vcs-tool[data-tool="line"]');
+    if(lineTool) lineTool.classList.remove("set");
     vcsMode(false);
     document.getElementById("vcsCaption").value = "";
     document.getElementById("vcsSizeInput").value = st.size;
@@ -8791,6 +9065,15 @@
     vcs.note = false;
     vcsStopDictation();
     document.getElementById("vibeComposer").hidden = true;
+    // What an episode's end held while the editor was open (§550) goes on
+    // now - after a post or a back alike.
+    var held = heldForVibe;
+    heldForVibe = null;
+    if(held) held();
+  }
+  function vibeComposerIsOpen(){
+    var el = document.getElementById("vibeComposer");
+    return !!(el && !el.hidden);
   }
   function drawVibeComposer(){
     if(!vcs.model) return;
@@ -8885,7 +9168,8 @@
     document.getElementById("vcsSize").hidden = tool !== "text";
     document.getElementById("vcsFonts").hidden = tool !== "text";
     var panel = document.getElementById("vcsPanel");
-    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "bg");
+    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "bg"
+                     || tool === "line");
     if(tool === "text"){
       vcsPaintFonts();
       if(!keep){ try { document.getElementById("vcsCaption").focus(); } catch(e){} }
@@ -8894,6 +9178,80 @@
     if(tool === "mention") vcsPaintPeople();
     if(tool === "picture") vcsPaintPicture();
     if(tool === "bg") vcsPaintBackgrounds();
+    if(tool === "line") vcsPaintLine();
+  }
+  // The line (§547): the one sentence of the episode the poster picks,
+  // shown across their post with the player jumping to it. Chosen from the
+  // episode's own captions - the ones the player already holds when it is
+  // the episode playing, else the transcript the server keeps - so the words
+  // are the episode's and never typed. Where it starts is the measured
+  // start when the server measured one (§127), else the same estimate the
+  // captions use: its share of the words, of the episode's length.
+  function vcsLoadLines(){
+    var ep = vcs.ep;
+    if(!ep) return Promise.resolve(null);
+    if(vcs.lines && vcs.lines.ep === ep) return Promise.resolve(vcs.lines);
+    var parts = (episodeStamp || "").split("|");
+    var here = parts[0] === ep.query && +parts[1] === +ep.minutes && captionSentences.length;
+    var ready = here
+      ? Promise.resolve({ sentences: captionSentences.slice(), starts: captionStarts.slice(),
+                          total: FamAudio.isComplete() ? FamAudio.duration() : (ep.minutes || 1) * 60 })
+      : fetch("/api/transcript?q=" + encodeURIComponent(ep.query) + "&minutes=" + (ep.minutes || 1))
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){
+            return { sentences: (d && d.sentences) || [], starts: (d && d.starts) || [],
+                     total: (ep.minutes || 1) * 60 };
+          });
+    return ready.then(function(lines){
+      if(lines) lines.ep = ep;
+      if(vcs.ep === ep) vcs.lines = lines;
+      return lines;
+    });
+  }
+  function vcsLineAt(lines, i){
+    if(lines.starts && lines.starts.length === lines.sentences.length) return lines.starts[i];
+    var total = 0, before = 0;
+    lines.sentences.forEach(function(s, k){
+      var n = String(s || "").length || 1;
+      if(k < i) before += n;
+      total += n;
+    });
+    return total ? Math.round((before / total) * lines.total * 10) / 10 : 0;
+  }
+  function vcsPaintLine(){
+    var panel = document.getElementById("vcsPanel");
+    panel.innerHTML = vcsPanelHead("YOUR LINE") + '<div class="vcs-hint">Loading the episode’s words…</div>';
+    vcsLoadLines().then(function(lines){
+      if(vcs.tool !== "line") return;
+      if(!lines || !lines.sentences.length){
+        panel.innerHTML = vcsPanelHead("YOUR LINE")
+          + '<div class="vcs-hint">This episode’s words aren’t ready yet. Play a little of it and try again.</div>';
+        return;
+      }
+      var chosen = vcs.model.line ? vcs.model.line.text : "";
+      panel.innerHTML = vcsPanelHead("YOUR LINE")
+        + '<div class="vcs-hint">Pick the sentence that got you. It goes across your post, and plays from there.</div>'
+        + '<div class="vcs-lines">' + lines.sentences.map(function(s, i){
+            return '<button class="vcs-line' + (s === chosen ? ' on' : '') + '" onclick="vcsPickLine(' + i + ')">'
+              + '<span class="vcs-line-t">' + formatTime(vcsLineAt(lines, i)) + '</span>'
+              + escapeHtml(s) + '</button>';
+          }).join("") + '</div>'
+        // Always offered: a vibe posted again may carry a line from before.
+        + '<button class="vcs-line-none" onclick="vcsPickLine(-1)">No line</button>';
+    }).catch(function(){
+      panel.innerHTML = vcsPanelHead("YOUR LINE") + '<div class="vcs-hint">Could not load the episode’s words.</div>';
+    });
+  }
+  function vcsPickLine(i){
+    var lines = vcs.lines;
+    vcs.model.line = (i >= 0 && lines && lines.sentences[i])
+      ? { text: lines.sentences[i], at: vcsLineAt(lines, i) } : null;
+    // "No line" is a choice, sent as "" so a re-vibe takes the old one off.
+    vcs.model.lineCleared = !vcs.model.line;
+    var tool = document.querySelector('#vibeComposer .vcs-tool[data-tool="line"]');
+    if(tool) tool.classList.toggle("set", !!vcs.model.line);
+    vcsTool("");
+    if(vcs.model.line) toast("Your line is set");
   }
   function vcsPanelHead(label){
     return '<div class="vcs-panel-head"><span>' + label + '</span>'
@@ -9128,7 +9486,12 @@
                              minutes: ep.minutes,
                              thread: episodeThread || "",
                              caption: caption, style: model.style,
-                             tags: model.tags })
+                             tags: model.tags,
+                             // The line (§547) only when one was picked: left
+                             // out, a re-vibe keeps the one it had.
+                             line: model.line ? model.line.text
+                                              : (model.lineCleared ? "" : undefined),
+                             line_at: model.line && model.line.at >= 0 ? model.line.at : undefined })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || d.detail || "Could not vibe that");
@@ -9994,13 +10357,20 @@
         // Ended under an open Go Deeper: the sound stops and the sheet stays
         // up on its own - no album advance, no countdown over it (10.1).
         if(goDeeperIsOpen()) return;
-        // Something queued plays next, straight away (§190) - the full
-        // player only, and a playlist plays through first.
-        if(!onEnd && opts.queueable && QUEUE.length && playQueueNext()) return;
-        if(onEnd) onEnd();
-        // Offered after the episode's own bookkeeping, and only where it
-        // belongs - maybeOfferNextUp checks the surface for itself.
-        if(opts.nextUp !== false) maybeOfferNextUp(title, episodeTopicId);
+        var carryOn = function(){
+          // Something queued plays next, straight away (§190) - the full
+          // player only, and a playlist plays through first.
+          if(!onEnd && opts.queueable && QUEUE.length && playQueueNext()) return;
+          if(onEnd) onEnd();
+          // Offered after the episode's own bookkeeping, and only where it
+          // belongs - maybeOfferNextUp checks the surface for itself.
+          if(opts.nextUp !== false) maybeOfferNextUp(title, episodeTopicId);
+        };
+        // Ended while the listener is making a vibe of it (§550): the mix,
+        // the queue and the countdown wait until the editor closes, posted
+        // or not, rather than moving on underneath it.
+        if(vibeComposerIsOpen()){ heldForVibe = carryOn; return; }
+        carryOn();
       },
       onError: function(err){
         // No connection, and this one is on the device: play it from here.
@@ -10184,6 +10554,7 @@
     resetCaptions();
     document.getElementById("cc-text").innerHTML = "Displayed here when captions are turned on.";
     clearSources();
+    loadPlayerFriends(query, t, myToken);
     panel.dataset.key = key;
     document.getElementById("ccIcon").classList.remove("on");
     document.getElementById("ccIcon").setAttribute("aria-pressed", "false");
@@ -10338,6 +10709,7 @@
       playing);
     drawPlayAllTransport(playing);
     setNowBarPlaying(playing);
+    paintVibePostTransport();
     if(playing){ resumeSpeech(); } else { pauseSpeech(); }
     // "Hey FAM" (§158) never listens over an episode.
     scheduleWake(playing ? 0 : 400);
@@ -10362,6 +10734,7 @@
     if(icon) icon.innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>';
     drawPlayAllTransport(true);
     setNowBarPlaying(true);
+    paintVibePostTransport();
   }
 
   function toggleFavorite(el){
@@ -11619,9 +11992,12 @@
     // setTab already shows the screen and resets the back stack; navigating
     // on top of it would push the same screen twice and make Back a no-op.
     setTab("playfam");
-    // Every arrival opens on All (§500 review): a chip left on would hide
-    // the mixes behind yesterday's list after "Create new mix" or a mix.
+    // Every arrival opens on Mixes (§500 review, §550): a category left
+    // open would hide the mixes behind yesterday's list after "Create new
+    // mix" or a mix - and the morning's new mix is what the tab is for.
     if(catPage.root || catPage.finding) clearCategory();
+    showPlayfamTab("mixes");
+    clearMixDot();
     loadMixes();
   }
 
@@ -11715,14 +12091,12 @@
         renderMixesLocked();
       });
   }
+  // Drawn like a listener's own mix card: picture, name, arrow (11.10).
   function sampleMixCardHTML(m){
-    var names = m.items.map(function(t){ return t.title; }).join(" \u00b7 ");
     return '<div class="mix-card" onclick="openMix(\'sample\')">'
       + '<div class="mix-folder">' + folderSVG() + '</div>'
       + '<div class="mix-card-body">'
       + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-      + '<div class="mix-meta">' + m.items.length + ' briefings \u00b7 daily \u00b7 example</div>'
-      + '<div class="mix-preview">' + escapeHtml(names) + '</div>'
       + '</div>'
       + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
       + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
@@ -11765,14 +12139,39 @@
     if(btn) btn.hidden = !on;
   }
 
-  function jointLabel(m){
-    var people = m.people || [];
-    if(m.role === "member"){
-      var o = people[0] || {};
-      return "joint · " + (o.name || (o.handle ? "@" + o.handle : "another listener")) + "’s";
-    }
-    var others = people.length - 1;
-    return others > 0 ? "joint · with " + others + (others === 1 ? " other" : " others") : "joint";
+  // The two signals' icons (§545): a trend line, and a bolt for a result in.
+  function sigIconSVG(kind, size){
+    var s = size || 12;
+    var path = kind === "update" ? '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'
+                                 : '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>';
+    return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+      + 'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
+  }
+
+  // R5 (the owner's pick, §545): the story's picture with the mix's own cover
+  // in its corner, ringed in the signal's colour; the name, and one line
+  // naming the topic and the story; and a pill saying which signal it is
+  // where the arrow was. With no picture approved for the story, the mix's
+  // own cover takes the ring and nothing sits in the corner.
+  function mixSignalCardHTML(m){
+    var s = m.signal, kind = s.kind === "update" ? "update" : "trending";
+    var own = '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>';
+    var pic = s.picture
+      ? '<img src="' + escapeHtml(s.picture) + '" alt="">'
+        + '<span class="mix-sig-own' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</span>'
+      : own;
+    var cls = kind === "update" ? "mix-card has-sig sig-update" : "mix-card has-sig sig-trending";
+    return '<div class="' + cls + '" onclick="openMix(\'' + m.id + '\')">'
+      + '<div class="mix-sig-pic">' + pic + '</div>'
+      + '<div class="mix-card-body">'
+      + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
+      + '<div class="mix-sig-line">' + sigIconSVG(kind) + '<b>' + escapeHtml(s.topic) + '</b> \u00b7 '
+      + escapeHtml(s.headline) + '</div>'
+      + '</div>'
+      + '<span class="mix-pill">' + sigIconSVG(kind) + escapeHtml(s.label)
+      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" '
+      + 'stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>'
+      + '</div>';
   }
 
   function renderMixList(){
@@ -11789,24 +12188,20 @@
     // this screen carried both, so the same action sat twice on one page and
     // the second copy pushed every mix card down.
 
+    // **A mix card is its picture, its name and an arrow** (the owner, 11.10:
+    // "we just want the thumbnail of the playlist, the title of the playlist,
+    // and an arrow pointing right"). The briefing count, "daily", public or
+    // private, whose it was and the topic list are gone from this row; all of
+    // them are still on the mix's own page, one tap in.
     html += mixes.map(function(m){
-      var entries = m.items || m.topics;
-      var names = entries.map(function(t){ return t.title; }).join(" · ");
+      // R5 (§545): what changed since this listener last heard the mix.
+      if(m.signal) return mixSignalCardHTML(m);
       return '<div class="mix-card" onclick="openMix(\'' + m.id + '\')">'
         + '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
         + '<div class="mix-card-body">'
         + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-        + '<div class="mix-meta">' + entries.length
-        + (entries.length === 1 ? " briefing · daily" : " briefings · daily")
-        + ' · <span class="' + (m.public ? "mix-public" : "mix-private") + '">'
-        + (m.public ? "public" : "private") + '</span>'
-        // Added from somebody else's public mix: whose it was.
-        + (m.from ? ' · <span class="mix-by">from ' + escapeHtml(ownerLabel(m.from)) + '</span>' : '')
-        // A joint mix (11.7 packet): with whom, and whose it is.
-        + (m.joint ? ' · <span class="mix-by">' + escapeHtml(jointLabel(m)) + '</span>' : '')
         + '</div>'
-        + '<div class="mix-preview">' + (escapeHtml(names) || "Nothing in it yet") + '</div>'
-        + '</div>'
+        + (isFreshMix(m.id) ? '<span class="mix-new">New today</span>' : '')
         + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
         + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
         + '</div>';
@@ -11878,8 +12273,9 @@
   function renderCategoryChips(){
     var el = document.getElementById("catChips");
     if(!el) return;
+    renderCategoryHome();
     if(!catData){ el.innerHTML = ""; return; }
-    var x = '<button type="button" class="catchip catchip-x" onclick="clearCategory()" aria-label="All of myFAM">'
+    var x = '<button type="button" class="catchip catchip-x" onclick="clearCategory()" aria-label="All categories">'
       + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
     if(catPage.finding){
       el.innerHTML = x + '<span class="catchip-label">Find a category</span>';
@@ -11889,8 +12285,8 @@
       var mine = catData.saved ? catData.mine : [];
       var followed = {};
       mine.forEach(function(c){ followed[c.id] = true; });
-      el.innerHTML = catChipHTML("", "All", true, false, "clearCategory")
-        + mine.map(function(c){ return catChipHTML(c.id, c.label, false, true, "pickCategory"); }).join("")
+      // No "All" (§550): the mixes are their own tab now.
+      el.innerHTML = mine.map(function(c){ return catChipHTML(c.id, c.label, false, true, "pickCategory"); }).join("")
         + catData.facets.filter(function(f){ return !followed[f.id]; })
             .map(function(f){ return catChipHTML(f.id, f.label, false, false, "pickCategory"); }).join("")
         + '<button type="button" class="catchip catchip-more" onclick="openCategoryFind()">More</button>';
@@ -11903,12 +12299,76 @@
           return catChipHTML(s.id, s.label, catPage.node === s.id, isFollowed(s.id), "pickCategorySub");
         }).join("");
   }
+  // Which of myFAM's two tabs is on (§550): "mixes" or "categories".
+  var playfamTab = "mixes";
+  function showPlayfamTab(which){
+    playfamTab = which === "categories" ? "categories" : "mixes";
+    var cats = playfamTab === "categories";
+    [["pfTabMixes", !cats], ["pfTabCats", cats]].forEach(function(t){
+      var b = document.getElementById(t[0]);
+      if(!b) return;
+      b.classList.toggle("on", t[1]);
+      b.setAttribute("aria-selected", t[1] ? "true" : "false");
+    });
+    var row = document.getElementById("newMixRow");
+    if(row) row.hidden = cats;
+    var chips = document.getElementById("catChips");
+    if(chips) chips.hidden = !cats;
+    // Leaving Categories forgets the one that was open; arriving shows the
+    // list of them.
+    if(!cats && (catPage.root || catPage.finding)){ clearCategory(); }
+    else showCategoryPanel(!!(cats && (catPage.root || catPage.finding)));
+    var scroller = document.querySelector("#screen-playfam .scroll");
+    if(scroller) scroller.scrollTop = 0;
+  }
   function showCategoryPanel(on){
+    var cats = playfamTab === "categories";
     document.getElementById("catPanel").hidden = !on;
-    document.getElementById("mixesPane").hidden = on;
+    var home = document.getElementById("catHome");
+    if(home) home.hidden = on || !cats;
+    document.getElementById("mixesPane").hidden = on || cats;
+  }
+  // The Categories tab with none picked (§550): followed first, each with
+  // how many episodes it has today, then every facet and what is under it.
+  var CAT_FACET_ICONS = { sports: "ball", business: "briefcase", money: "chart",
+    tech: "chip", science: "atom", health: "pulse", culture: "palette", world: "news" };
+  function renderCategoryHome(){
+    var el = document.getElementById("catHome");
+    if(!el) return;
+    if(!catData){ el.innerHTML = '<div class="sv-empty">Loading categories\u2026</div>'; return; }
+    var row = function(id, label, facet, sub, followed){
+      return '<button type="button" class="cath-row" data-cat="' + escapeHtml(id) + '"'
+        + ' onclick="pickCategory(this.dataset.cat)">'
+        + '<span class="cath-ico ' + categoryTone(facet) + '">' + catIcon(CAT_FACET_ICONS[facet] || "news") + '</span>'
+        + '<span class="cath-body"><span class="cath-name">' + (followed ? CAT_STAR : '') + escapeHtml(label) + '</span>'
+        + (sub ? '<span class="cath-sub">' + escapeHtml(sub) + '</span>' : '') + '</span>'
+        + '<svg class="cath-go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'
+        + '</button>';
+    };
+    var mine = catData.saved ? catData.mine : [];
+    var followed = {};
+    mine.forEach(function(c){ followed[c.id] = true; });
+    var html = "";
+    if(mine.length){
+      html += '<div class="cath-h">Your categories</div>' + mine.map(function(c){
+        var n = c.today || 0;
+        return row(c.id, c.label, c.facet, n ? n + (n === 1 ? " episode today" : " episodes today")
+                                              : (c.children || []).join(" \u00b7 "), true);
+      }).join("");
+    }
+    var rest = catData.facets.filter(function(f){ return !followed[f.id]; });
+    if(rest.length){
+      html += '<div class="cath-h">' + (mine.length ? "More categories" : "All categories") + '</div>'
+        + rest.map(function(f){
+            return row(f.id, f.label, f.id, (f.children || []).slice(0, 4)
+              .map(function(c){ return c.label; }).join(" \u00b7 "), false);
+          }).join("");
+    }
+    el.innerHTML = html || '<div class="sv-empty">No categories yet.</div>';
   }
   function pickCategory(id){
     if(!id){ clearCategory(); return; }
+    if(playfamTab !== "categories") showPlayfamTab("categories");
     catPage = { root: id, node: id, episodes: [], subs: [], finding: false };
     showCategoryPanel(true);
     renderCategoryChips();
@@ -12153,6 +12613,8 @@
   // waited on: the screen and the player go on whatever it answers.
   function noteMixOpen(id, played){
     if(!id) return;
+    // Played is no longer new (§550).
+    if(played) freshMixes.ids = freshMixes.ids.filter(function(x){ return x !== id; });
     try {
       fetch("/api/mixes/" + encodeURIComponent(id) + "/open", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -12244,17 +12706,32 @@
     html += '<button class="mix-add-topics" onclick="openAddTopics()">'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
       + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to mix</button>';
-    if(items.length){
+    var changed = items.filter(function(t){ return t.since; });
+    if(items.length && changed.length){
+      // Q5 (§545): something changed since this listener last heard the mix,
+      // so the one button starts there; the whole mix is a link under it.
+      html += '<button class="mix-play" onclick="playWhatChanged()">'
+        + sigIconSVG(changed[0].signal && changed[0].signal.kind, 14)
+        + (changed.length === 1 ? "Start with what changed" : "Start with the " + changed.length + " that changed")
+        + '</button>'
+        + '<button class="mix-play-all" onclick="playMix()">or play all ' + items.length
+        + ' from the top</button>';
+    } else if(items.length){
       html += '<button class="mix-play" onclick="playMix()">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
         + '<path d="M8 5v14l11-7z"/></svg>Play today’s ' + items.length
         + (items.length === 1 ? " episode" : " episodes") + '</button>';
+    }
+    if(items.length){
       html += '<div class="mix-meta" style="margin:0 0 9px;">Today’s edition · '
         + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>';
       html += '<div class="mix-list" id="mixOrder">' + items.map(function(t, i){
         // On a joint mix, the face of whoever added it (Spotify's).
         var by = (m.joint && m.people && typeof t.added_by === "number") ? m.people[t.added_by] : null;
-        return '<div class="mix-topic' + (by ? " has-face" : "") + '" data-i="' + i + '">'
+        var sig = t.since && t.signal ? (t.signal.kind === "update" ? "update" : "trending") : "";
+        return '<div class="mix-topic' + (by ? " has-face" : "")
+          + (sig === "update" ? " has-sig sig-update" : sig ? " has-sig sig-trending" : "")
+          + '" data-i="' + i + '">'
           // The handle (10.5 packet #3): drag to put the topics in the
           // order the playlist plays them.
           + '<button class="mix-drag" type="button" aria-label="Drag to reorder"'
@@ -12263,11 +12740,15 @@
           + '<circle cx="3" cy="3" r="1.4"/><circle cx="9" cy="3" r="1.4"/>'
           + '<circle cx="3" cy="8" r="1.4"/><circle cx="9" cy="8" r="1.4"/>'
           + '<circle cx="3" cy="13" r="1.4"/><circle cx="9" cy="13" r="1.4"/></svg></button>'
+          + mixTopicPicHTML(t)
           + (by ? mixFaceHTML(by) : '')
           + '<div class="mix-topic-body">'
+          + (sig ? '<div class="mix-sig-tag">' + sigIconSVG(sig, 11) + escapeHtml(t.signal.label)
+                   + ' \u00b7 since you last listened</div>' : '')
           + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
           + '<div class="mix-topic-sub">' + escapeHtml(by ? "Added by " + (by.you ? "you" : (by.name || "@" + by.handle))
                                                           : (t.subtitle || "")) + '</div>'
+          + (sig ? mixBubblesHTML(t.since) : '')
           + '</div>'
           // By data attribute, not inside the handler: a followed item's id
           // carries the specific the listener typed, and "O'Brien" in a
@@ -12627,6 +13108,42 @@
     startMixQueue(m, 0);
   }
 
+  // Each topic row's picture (§545): the one the player will draw for it,
+  // ringed in the signal's colour when the topic changed since the listener
+  // last heard it; the subject's own icon on paper when nothing is approved.
+  function mixTopicPicHTML(t){
+    var inner = t.picture ? '<img src="' + escapeHtml(t.picture) + '" alt="">'
+                          : '<span class="mix-topic-icon">' + catIcon(t.icon) + '</span>';
+    return '<span class="mix-topic-pic">' + inner + '</span>';
+  }
+
+  // Q5 (§545): what the listener last heard of this topic and what is true
+  // today, as two bubbles joined by an arrow. One bubble when they have
+  // never heard it - never an invented "before".
+  function mixBubblesHTML(since){
+    // The arrow opens the "Today" bubble, so on a narrow row the two stack
+    // without leaving it stranded between them.
+    if(!since.then) return '<div class="mix-bubbles"><span class="mix-bub now">Today: '
+      + escapeHtml(since.now.title) + '</span></div>';
+    return '<div class="mix-bubbles"><span class="mix-bub">' + escapeHtml(since.then.day || "Before")
+      + ': ' + escapeHtml(since.then.title) + '</span>'
+      + '<span class="mix-bub now"><span class="mix-bub-arrow" aria-hidden="true">\u2192</span> Today: '
+      + escapeHtml(since.now.title) + '</span></div>';
+  }
+
+  // "Start with what changed": the changed topics first, in the mix's own
+  // order, then the rest in theirs.
+  function playWhatChanged(){
+    var m = mixById(currentMixId);
+    if(!m || !m.items.length){ toast("Add a topic first"); return; }
+    var first = m.items.filter(function(t){ return t.since; });
+    var rest = m.items.filter(function(t){ return !t.since; });
+    if(!first.length){ startMixQueue(m, 0); return; }
+    mixPlay = { name: m.name || "myFAM", id: m.sample ? "" : m.id,
+                order: first.concat(rest), pos: 0, key: "" };
+    playMixItem(mixPlay.order[0]);
+  }
+
   function playMixFrom(itemId){
     var m = mixById(currentMixId);
     if(!m) return;
@@ -12718,6 +13235,27 @@
     advanceMix(from);
   }
 
+  // Back one (§550, the owner: "a way to go backwards an episode too, not
+  // just forward"). The episode before this one in the playlist, replayed
+  // from what is kept; on the first, this one again from the start. Off a
+  // Go Deeper follow-up, back is the playlist's episode it came off.
+  function prevMixItem(){
+    if(!mixPlay) return;
+    mixPlay.failures = 0;
+    var from = mixPlay.key;
+    var onKey = currentPlayingTopicKey;
+    var on = TOPICS[onKey];
+    var asked = lastGenerate ? TOPICS[lastGenerate.key] : null;
+    var detour = (onKey !== from && on && on.mixDetour === from)
+      || (asked && lastGenerate.key !== from && asked.mixDetour === from);
+    stopSpeech();
+    setPlayState(false);
+    if(detour){ resumeMix(from); return; }
+    mixPlay.resume = null;
+    if(mixPlay.pos > 0) mixPlay.pos -= 1;
+    playMixItem(mixPlay.order[mixPlay.pos]);
+  }
+
   // Where the playlist's episode was when a Go Deeper interrupted it (§536):
   // its position, and its episode id so the same audio comes back rather
   // than a fresh write. Nothing is kept when it had already played through.
@@ -12779,6 +13317,10 @@
   function drawMixSkip(on){
     var btn = document.getElementById("mixSkipBtn");
     if(btn) btn.hidden = !(on || QUEUE.length);
+    // Back only means something inside a playlist (§550); the queue has no
+    // "before".
+    var prev = document.getElementById("mixPrevBtn");
+    if(prev) prev.hidden = !(on && mixPlay);
     // Every change to the queue comes through here, so its count does too.
     var badge = document.getElementById("queueBadge");
     if(badge){
@@ -14075,10 +14617,60 @@
       + (n > faces.length ? '<span class="src-count">+' + (n - faces.length) + '</span>' : '')
       + '</span>';
   }
+  // **Friends who listened, on the player** (the owner's 11.11 note): the
+  // card's faces for whatever is playing. A tile already knows them, so a
+  // tap from DailyFAM draws them at once; anything else asks the server
+  // (`/api/listened`, by the question). Accounts only, never a private
+  // search, and nothing at all rather than an empty row.
+  var playerFriends = null;
+  function drawPlayerFriends(){
+    var box = document.getElementById("playerFriends");
+    if(!box) return;
+    var t = playerFriends;
+    var faces = ((t && t.friendKeys) || []).length;
+    if(!faces){ box.hidden = true; box.innerHTML = ""; return; }
+    var n = Math.floor(Number(t.friends_listened)) || 0;
+    var shown = Math.min(faces, 3);
+    box.innerHTML = '<span class="src-marks">'
+      + t.friendKeys.slice(0, 3).map(function(k){ return friendFaceHtml(FRIEND_FACE_BOOK[k]); }).join("")
+      + '</span>' + (n > shown ? '<span class="src-count">+' + (n - shown) + '</span>' : '');
+    box.setAttribute("aria-label", n === 1
+      ? (FRIEND_FACE_BOOK[t.friendKeys[0]].name || "A friend") + " listened"
+      : n + " friends listened");
+    box.hidden = false;
+  }
+  function loadPlayerFriends(query, t, token){
+    playerFriends = null;
+    drawPlayerFriends();
+    if(!t || t.private || t.attach || !AUTH.authenticated || !query) return;
+    var tile = t.bankTopicId ? myFamTopics[t.bankTopicId] : null;
+    if(tile && tile.friendKeys && tile.friendKeys.length){
+      playerFriends = { friendKeys: tile.friendKeys.slice(),
+                        friends_listened: tile.friends_listened };
+      drawPlayerFriends();
+      return;
+    }
+    fetch("/api/listened?q=" + encodeURIComponent(query))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        if(!data || token !== playerSpeechToken) return;
+        var faces = data.faces || [];
+        if(!faces.length) return;
+        var keys = faces.map(function(f, i){
+          var k = f.handle ? "@" + f.handle
+            : "~" + (f.name || "") + "~" + String(f.avatar || "").slice(-32) + "~p" + i;
+          FRIEND_FACE_BOOK[k] = f;
+          return k;
+        });
+        playerFriends = { friendKeys: keys,
+                          friends_listened: Math.max(keys.length, Number(data.count) || 0) };
+        drawPlayerFriends();
+      }).catch(function(){});
+  }
   // **Who listened** (§394): the faces' own sheet, the Sources popup's
   // shape - every friend who listened, newest first, each row their profile.
   function openFriendsListened(topicId){
-    var t = myFamTopics[topicId];
+    var t = topicId === "_player" ? playerFriends : myFamTopics[topicId];
     var faces = ((t && t.friendKeys) || []).map(function(k){
       return FRIEND_FACE_BOOK[k];
     }).filter(Boolean);
@@ -14406,6 +14998,15 @@
         return '<div class="feed-section">' + heading + empty + findFriends + '</div>';
       }
 
+      // **Play all** (the owner's 11.11 note): the rail's episodes one
+      // after another, hands off. Beside the heading while it fits, under it
+      // when larger text needs the row (§499) - never squeezing it.
+      heading = '<div class="feed-head">' + heading
+        + '<button type="button" class="feed-playall" data-section="' + escapeHtml(sec.key) + '"'
+        + ' onclick="playRailAll(this.dataset.section)" aria-label="Play all of '
+        + escapeHtml(String(title || sec.title || "").replace(/\n/g, " ")) + '">'
+        + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+        + 'Play all</button></div>';
       var rail = '<div class="feed-rail" data-section="' + escapeHtml(sec.key) + '">'
         + sec.topics.map(function(t){
         myFamTopics[t.id] = t;
@@ -14457,6 +15058,38 @@
     watchRailEnds();
     markOfflineCards();
     if(!isOffline()) loadTileSaves();
+  }
+
+  // **Play all on a rail** (the owner's 11.11 note): the first tile plays as
+  // a tap on it would, and the rest of the rail goes into the ordinary queue
+  // behind it (§190), so they play one after another, Go to Queue shows
+  // what is coming and any of them can be taken out. Like a category's Play
+  // all, a second Play all replaces what the first queued, anything else
+  // that starts ends it (`generate`), and what the listener queued
+  // themselves always stays. A guest's rail plays only what is already made.
+  function playRailAll(sectionKey){
+    var tiles = (railTiles[sectionKey] || []).filter(function(t){
+      if(!t || !t.id || !t.query) return false;
+      if(t.playable === false && !AUTH.authenticated) return false;
+      if(isOffline() && !OfflineShelf.has(t.query, BROWSE_MINUTES, "")) return false;
+      return true;
+    });
+    if(!tiles.length){
+      if(!AUTH.authenticated && (railTiles[sectionKey] || []).length){ showGuestGate(); return; }
+      toast(isOffline() ? "None of these are on your device yet" : "Nothing to play here yet");
+      return;
+    }
+    for(var i = QUEUE.length - 1; i >= 0; i--){ if(QUEUE[i].fromRail || QUEUE[i].fromCategory) QUEUE.splice(i, 1); }
+    tiles.forEach(function(t){ myFamTopics[t.id] = myFamTopics[t.id] || t; });
+    startBankTopic(tiles[0].id);
+    var source = (SECTION_TITLE[sectionKey] || "DailyFAM").replace(/\n/g, " ");
+    tiles.slice(1).forEach(function(t){
+      QUEUE.push({ title: t.title || t.query, prompt: t.query,
+                   minutes: myfamLengthMinutes, source: source, surface: "myfam",
+                   bankTopicId: t.id, cachedOnly: false, thumb: t.thumb || "",
+                   playable: t.playable, titleOverridden: true, fromRail: true });
+    });
+    drawMixSkip(!!mixPlay);
   }
 
   // Which rails have been scrolled to their end, so the chevron can stand
@@ -15504,6 +16137,9 @@
         // as a friends list left in a variable.
         stopNotificationPolling();
         stopThreadPolling();
+        // The previous listener's new mix is not this one's.
+        freshMixes = { ids: [], edition: "" };
+        drawMixDot();
         hideNotification();
         notifQueue = [];
         notifCursor = 0;
@@ -16241,8 +16877,10 @@
   function vibesCount(){
     return (profileNow && profileNow.echo_count) || profileVibes.length;
   }
+  // A vibe on your own grid opens as a post (§547), at the one tapped.
   function playProfileVibe(i){
-    playOwnVibe(profileVibes[i], i);
+    if(!profileVibes[i]) return;
+    openVibePosts("", i);
   }
   // Your own mix opens as you edit it; one the list has not loaded yet
   // opens as anybody sees it.
@@ -17954,9 +18592,16 @@
     openPublicMix(m);
   }
 
+  // A vibe on a friend's grid opens as their posts (§547), at the one
+  // tapped. Without a handle to ask by, it plays as it always did.
   function playPersonVibe(i){
     var v = personVibes[i];
     if(!v) return;
+    var handle = (personPublished && personPublished.handle)
+      || (viewingProfile && viewingProfile.handle) || v.handle || "";
+    // A guest who reaches a friend's page plays it as before: liking and
+    // replying are an account's, and the posts screen is for those.
+    if(handle && AUTH.authenticated){ openVibePosts(handle, i); return; }
     var key = "pvibe_" + i + "_" + Date.now();
     TOPICS[key] = { title: v.title || v.query, surface: "other",
                     source: "vibed by " + (viewingProfile && viewingProfile.name
@@ -17964,6 +18609,477 @@
                     caption: "", prompt: v.query,
                     exploreMinutes: v.minutes, titleOverridden: true };
     generate(key);
+  }
+
+  // ---------------- Vibes as posts (§547) ----------------
+  //
+  // The owner's "Vibes as Posts", option C ("Compact Trio"): a vibe tapped
+  // on your own YourFAM grid or a friend's opens here, as a post - who
+  // vibed it and the day they did, the line they picked across the picture,
+  // a small player under it with that line marked in gold, then likes, the
+  // friends who heard it, the title, the caption and the reply shown under
+  // it. Scrolling down goes through the rest of their vibes, newest first.
+  //
+  // Only from the two grids. A story, My Vibe's list and every other way to
+  // an episode still play it the way they did.
+  //
+  // **It plays where it sits.** Play starts the kept episode the way every
+  // tap does (`generate`, so a replay and its rules), marked `inPlace` so
+  // the full player does not open over the post; the mini bar carries it
+  // like anything else, and leaving this screen never stops it. The post's
+  // bar is painted by the one progress clock (`refreshProgressNow`) and its
+  // button by `setPlayState`, so there is still one transport.
+  var vp = { handle: "", mine: false, person: null, posts: [], more: false,
+             loading: false, focus: 0 };
+  var VP_PAGE = 12;
+
+  function openVibePosts(handle, index){
+    vp = { handle: handle || "", mine: !handle, person: null, posts: [], more: false,
+           loading: false, focus: index || 0 };
+    document.getElementById("vpTitle").textContent = "Vibes";
+    document.getElementById("vpSub").textContent = handle ? "@" + handle : "";
+    document.getElementById("vpBody").innerHTML = '<div class="pf-empty">Loading…</div>';
+    navigate("vibeposts");
+    loadVibePosts(false);
+  }
+
+  function loadVibePosts(more){
+    if(vp.loading) return;
+    vp.loading = true;
+    var before = more && vp.posts.length ? vp.posts[vp.posts.length - 1].at : 0;
+    // The grid shows twelve; ask for enough that the tapped one is here.
+    var limit = Math.max(VP_PAGE, more ? VP_PAGE : vp.focus + 1);
+    var asked = vp;
+    fetch("/api/vibe/posts?limit=" + Math.min(30, limit)
+          + (vp.handle ? "&handle=" + encodeURIComponent(vp.handle) : "")
+          + (before ? "&before=" + encodeURIComponent(before) : ""))
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(asked !== vp) return;
+        vp.loading = false;
+        vp.person = d.person || vp.person;
+        vp.mine = !!d.mine;
+        vp.more = !!d.more;
+        vp.posts = more ? vp.posts.concat(d.posts || []) : (d.posts || []);
+        var who = vp.person || {};
+        document.getElementById("vpTitle").textContent = vp.mine ? "Your vibes" : "Vibes";
+        document.getElementById("vpSub").textContent = who.handle ? "@" + who.handle : "";
+        renderVibePosts();
+        if(!more){
+          var target = document.getElementById("vp-" + ((vp.posts[vp.focus] || {}).id));
+          if(target) target.scrollIntoView({ block: "start" });
+        }
+      })
+      .catch(function(){
+        if(asked !== vp) return;
+        vp.loading = false;
+        if(!more) document.getElementById("vpBody").innerHTML =
+          '<div class="pf-empty">Could not load these vibes. Pull back and try again.</div>';
+        else toast("Could not load more vibes");
+      });
+  }
+
+  function renderVibePosts(){
+    var body = document.getElementById("vpBody");
+    if(!vp.posts.length){
+      body.innerHTML = '<div class="pf-empty">' + (vp.mine
+        ? 'Nothing vibed yet. Tap VIBE! on any episode and it shows here.'
+        : 'No vibes to show.') + '</div>';
+      return;
+    }
+    body.innerHTML = vp.posts.map(vibePostHTML).join("")
+      + (vp.more ? '<button class="vp-more" onclick="loadVibePosts(true)">More vibes</button>' : '');
+    vp.posts.forEach(function(p, i){
+      var el = document.getElementById("vp-" + p.id);
+      makeVibePostScrubbable(el && el.querySelector(".vp-track"), i);
+    });
+    paintVibePostTransport();
+  }
+
+  // How long a post's bar is: the real length while its episode is the one
+  // playing (the same authority as the player's bar), else its minutes.
+  function vibePostTotal(p){
+    if(vibePostIsCurrent(p)){
+      var t = scrubTotal();
+      if(t > 0) return t;
+    }
+    return (p.minutes || BROWSE_MINUTES) * 60;
+  }
+  function vibePostIsCurrent(p){
+    return !!(p && nowBarState && nowBarState.query === p.query
+              && +nowBarState.minutes === +p.minutes);
+  }
+
+  function vibePostHTML(p, i){
+    var who = vp.person || {};
+    var line = p.line && p.line.text ? p.line : null;
+    var total = vibePostTotal(p);
+    var lineSeg = '';
+    if(line && line.at != null && total > 0){
+      var left = Math.min(98, (line.at / total) * 100);
+      // As wide as the sentence would take to say, near enough: a reading
+      // pace, never past the end.
+      var width = Math.max(2, Math.min(100 - left, (line.text.length / 15 / total) * 100));
+      lineSeg = '<span class="vp-line-seg" style="left:' + left + '%;width:' + width + '%"></span>';
+    }
+    var heard = p.heard || { count: 0, faces: [] };
+    var counts = [];
+    if(p.likes) counts.push('<b>' + p.likes + (p.likes === 1 ? ' like' : ' likes') + '</b>');
+    if(heard.count) counts.push('heard by ' + heard.count + (heard.count === 1 ? ' friend' : ' friends'));
+    return '<article class="vp-post" id="vp-' + p.id + '">'
+      + '<div class="vp-head">' + personAvHTML(who)
+      +   '<div class="vp-who"><span class="vp-handle' + (who.explicit ? ' is-explicit' : '') + '">'
+      +     escapeHtml(who.handle || who.name || "") + '</span>'
+      +   '<span class="vp-when">Vibed ' + escapeHtml(vibeDayWord(p.at)) + '</span></div>'
+      +   '<button class="vp-icon" onclick="openVibePostMenu(' + i + ')" aria-label="More">'
+      +     '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button></div>'
+      + '<div class="vp-pic"' + (p.thumb ? ' style="background-image:url(&quot;' + escapeHtml(p.thumb) + '&quot;)"' : '') + '>'
+      +   (line ? '<div class="vp-strip"><span class="vp-q">“</span>' + escapeHtml(line.text)
+                   + '<span class="vp-q">”</span></div>' : '')
+      + '</div>'
+      + '<div class="vp-tr">'
+      +   '<button class="vp-play" data-vp-play="' + i + '" onclick="playVibePost(' + i + ')" aria-label="Play">'
+      +     vibePlayIcon(false) + '</button>'
+      +   '<div class="vp-bar"><div class="vp-track" data-vp-track="' + i + '">' + lineSeg
+      +     '<span class="vp-fill"></span><span class="vp-knob"></span></div>'
+      +     '<div class="vp-times"><span data-vp-cur="' + i + '">0:00</span><span data-vp-tot="' + i + '">'
+      +       formatTime(total) + '</span></div></div>'
+      +   (line && line.at != null ? '<button class="vp-chip" onclick="playVibePostLine(' + i + ')" aria-label="Play from the line">'
+            + '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>'
+            + formatTime(line.at) + '</button>' : '')
+      + '</div>'
+      + '<div class="vp-acts">'
+      +   '<button class="vp-icon' + (p.liked ? ' on' : '') + '" onclick="likeVibePost(' + i + ')" aria-label="' + (p.liked ? 'Unlike' : 'Like') + '" aria-pressed="' + !!p.liked + '">'
+      +     '<svg width="22" height="22" viewBox="0 0 24 24" fill="' + (p.liked ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></svg></button>'
+      +   '<button class="vp-icon" onclick="openVibeReplies(' + i + ')" aria-label="Replies">'
+      +     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 1 1 3.3 6.2L4.5 19.5l1.1-3.4A7.5 7.5 0 0 1 4.5 12z"/></svg></button>'
+      +   '<button class="vp-icon" onclick="shareVibePost(' + i + ')" aria-label="Send">'
+      +     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M21 3 3 10.4l7.2 2.4L12.6 20 21 3z"/><path d="M10.2 12.8 15 8"/></svg></button>'
+      +   '<span class="vp-sp"></span>'
+      +   '<button class="vp-icon" onclick="saveVibePost(' + i + ')" aria-label="Save for later">'
+      +     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg></button>'
+      + '</div>'
+      + '<div class="vp-meta">'
+      +   (counts.length ? '<div class="vp-counts">' + (heard.faces && heard.faces.length
+            ? '<span class="vp-faces">' + heard.faces.map(personAvHTML).join("") + '</span>' : '')
+            + '<span>' + counts.join(" · ") + '</span></div>' : '')
+      +   '<div class="vp-title">' + escapeHtml(p.title || p.query) + '</div>'
+      +   (p.caption ? '<div><b>' + escapeHtml(who.handle || who.name || "") + '</b> ' + escapeHtml(p.caption) + '</div>' : '')
+      +   (p.top_reply ? '<div class="vp-reply1"><b' + (p.top_reply.explicit ? ' class="is-explicit"' : '') + '>'
+            + escapeHtml(p.top_reply.handle || p.top_reply.name || "") + '</b> ' + escapeHtml(p.top_reply.text) + '</div>' : '')
+      +   '<button class="vp-link" onclick="openVibeReplies(' + i + ')">'
+      +     (p.replies > 1 ? 'View all ' + p.replies + ' replies' : p.replies === 1 ? 'View the reply' : 'Add a reply')
+      +   '</button>'
+      + '</div></article>';
+  }
+
+  // The day it was vibed, on the catalogue's calendar (§499): "today",
+  // "yesterday", "3 days ago", then the date. Worked from how long ago, so
+  // a wrong phone clock is wrong by the same amount both ways.
+  function vibeDayWord(at){
+    var age = Math.max(0, Date.now() / 1000 - (at || 0));
+    var word = episodeDayLabel(age);
+    return /^(Today|Yesterday)$/.test(word) ? word.toLowerCase() : word;
+  }
+  function vibePlayIcon(playing){
+    return playing
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4.4" height="16" rx="1.5"/><rect x="13.6" y="4" width="4.4" height="16" rx="1.5"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.9v14.2L18.6 12z"/></svg>';
+  }
+
+  // Called by the progress clock and by every play-state change: the post
+  // whose episode is playing shows where it is; every other post rests.
+  function paintVibePostTransport(){
+    if(!vp.posts.length) return;
+    var screen = document.getElementById("screen-vibeposts");
+    if(!screen || !screen.classList.contains("active")) return;
+    vp.posts.forEach(function(p, i){
+      var current = vibePostIsCurrent(p);
+      var btn = screen.querySelector('[data-vp-play="' + i + '"]');
+      if(btn){
+        var playing = current && isPlaying;
+        if(btn.getAttribute("data-on") !== String(playing)){
+          btn.setAttribute("data-on", String(playing));
+          btn.innerHTML = vibePlayIcon(playing);
+          btn.setAttribute("aria-label", playing ? "Pause" : "Play");
+        }
+      }
+      var track = screen.querySelector('[data-vp-track="' + i + '"]');
+      if(!track || (scrubbingBar && scrubbingBar === track)) return;
+      var total = vibePostTotal(p);
+      var seconds = current ? Math.min(FamAudio.position(), total) : 0;
+      var pct = total ? (seconds / total) * 100 : 0;
+      track.querySelector(".vp-fill").style.width = pct + "%";
+      track.querySelector(".vp-knob").style.left = pct + "%";
+      track.classList.toggle("live", current);
+      var cur = screen.querySelector('[data-vp-cur="' + i + '"]');
+      var tot = screen.querySelector('[data-vp-tot="' + i + '"]');
+      if(cur) cur.textContent = formatTime(seconds);
+      if(tot) tot.textContent = formatTime(total);
+    });
+  }
+
+  // Dragging a post's bar seeks - only the post that is playing, through
+  // the player's own scrubber code, so it lands on release like the player's.
+  function makeVibePostScrubbable(track, i){
+    if(!track) return;
+    // Registered before the player's own handler, so a drag on a post that
+    // is not playing never reaches it - it would seek whatever *is* playing.
+    track.addEventListener("pointerdown", function(e){
+      if(!vibePostIsCurrent(vp.posts[i])){ e.stopImmediatePropagation(); }
+    });
+    makeScrubbable(track, function(pct, seconds){
+      var p = vp.posts[i];
+      if(!vibePostIsCurrent(p)) return;
+      track.querySelector(".vp-fill").style.width = pct + "%";
+      track.querySelector(".vp-knob").style.left = pct + "%";
+      var cur = document.querySelector('[data-vp-cur="' + i + '"]');
+      if(cur) cur.textContent = formatTime(seconds);
+    });
+  }
+
+  function playVibePost(i, at){
+    var p = vp.posts[i];
+    if(!p) return;
+    if(vibePostIsCurrent(p) && !(at >= 0)){ togglePlay(); return; }
+    var key = "vpost_" + p.id + "_" + Date.now();
+    var who = vp.person || {};
+    TOPICS[key] = { title: p.title || p.query, surface: "other",
+                    source: vp.mine ? "From your vibes"
+                                    : "vibed by " + (who.name || ("@" + (who.handle || "a friend"))),
+                    caption: "", prompt: p.query, exploreMinutes: p.minutes,
+                    titleOverridden: true, thumb: p.thumb || "", inPlace: true };
+    generate(key);
+  }
+  // The gold chip: the line, from where it starts. The episode playing
+  // jumps there at once (never past what is written); one not playing starts
+  // and jumps once enough of it has arrived - the same wait a resumed
+  // episode keeps (`pendingResumeSeek`).
+  function playVibePostLine(i){
+    var p = vp.posts[i];
+    if(!p || !p.line || p.line.at == null) return;
+    var at = Math.max(0, p.line.at);
+    if(vibePostIsCurrent(p)){
+      if(FamAudio.isActive() || FamAudio.isComplete()){
+        FamAudio.seek(Math.min(at, FamAudio.seekLimit()));
+        if(!isPlaying) setPlayState(true);
+        refreshProgressNow();
+        return;
+      }
+    }
+    // The last episode's bar comes down first: its ticker would otherwise
+    // see a seek for another episode and drop it before this one's bar is up,
+    // and the line would play from 0:00 (caught in review).
+    hideNowBar();
+    pendingResumeSeek = { query: p.query, minutes: p.minutes, at: at };
+    playVibePost(i, at);
+  }
+
+  function vibePostIndex(id){
+    for(var k = 0; k < vp.posts.length; k++) if(vp.posts[k].id === id) return k;
+    return -1;
+  }
+  function likeVibePost(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    if(!AUTH.authenticated){ showGuestGate("Create a free account to like vibes."); return; }
+    var on = !p.liked;
+    // Drawn at once, put right if the server says otherwise.
+    p.liked = on; p.likes = Math.max(0, (p.likes || 0) + (on ? 1 : -1));
+    redrawVibePost(i);
+    // The list may have changed by the time this answers: found again by id.
+    fetch("/api/vibe/" + p.id + "/like", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({ on: on }) })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ p.likes = d.likes; p.liked = d.liked; redrawVibePost(vibePostIndex(p.id)); })
+      .catch(function(){
+        p.liked = !on; p.likes = Math.max(0, (p.likes || 0) + (on ? -1 : 1));
+        redrawVibePost(vibePostIndex(p.id));
+        toast("Could not like that");
+      });
+  }
+  function redrawVibePost(i){
+    var p = vp.posts[i];
+    var el = p && document.getElementById("vp-" + p.id);
+    if(!el) return;
+    var holder = document.createElement("div");
+    holder.innerHTML = vibePostHTML(p, i);
+    el.replaceWith(holder.firstChild);
+    var fresh = document.getElementById("vp-" + p.id);
+    makeVibePostScrubbable(fresh && fresh.querySelector(".vp-track"), i);
+    paintVibePostTransport();
+  }
+  function shareVibePost(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    openShareModal({ query: p.query, minutes: p.minutes, title: p.title || p.query });
+  }
+  function saveVibePost(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    if(!AUTH.authenticated){ showGuestGate("Create a free account to save episodes."); return; }
+    fetch("/api/saved", { method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ query: p.query, minutes: p.minutes,
+                             title: p.title || p.query, source: "vibe" }) })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(){ snack("Saved for Later", { label: "Open", run: openSaved }); })
+      .catch(function(){ toast("Could not save that"); });
+  }
+  function openVibePostMenu(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    var items = [{ head: menuHead(p.title || p.query, vp.mine ? "Your vibe" : "A vibe", p.thumb || "") }];
+    if(vp.mine){
+      items.push({ label: menuLabel("remove", "Delete vibe"), danger: true, action: function(){
+        deleteMyVibe(p, function(){
+          var at = vp.posts.indexOf(p);
+          if(at !== -1){ vp.posts.splice(at, 1); renderVibePosts(); }
+        });
+      } });
+    } else {
+      items.push({ label: menuLabel("report", "Report vibe"), danger: true, action: function(){
+        reportContent({ kind: "vibe", target: p.id }, function(){
+          var at = vp.posts.indexOf(p);
+          if(at !== -1){ vp.posts.splice(at, 1); renderVibePosts(); }
+        });
+      } });
+    }
+    showActionSheet(items);
+  }
+
+  // ---- replies: a sheet over the posts -------------------------------
+  // A reply is public to whoever may see the vibe (§547), one level deep as
+  // comments are (§203). Yours, and any on your own vibe, can be deleted;
+  // anybody else's can be reported, and leaves the sheet once it is.
+  var vpr = { i: -1, id: 0, replies: [], parent: 0, parentName: "", mine: false, sending: false };
+  function openVibeReplies(i){
+    var p = vp.posts[i];
+    if(!p) return;
+    vpr = { i: i, id: p.id, replies: [], parent: 0, parentName: "", mine: vp.mine, sending: false };
+    document.getElementById("vprTitle").textContent = "Replies";
+    document.getElementById("vprList").innerHTML = '<div class="pf-empty">Loading…</div>';
+    paintVibeReplyBox();
+    document.getElementById("vpReplies").hidden = false;
+    loadVibeReplies();
+  }
+  function closeVibeReplies(){
+    document.getElementById("vpReplies").hidden = true;
+    vpr.i = -1;
+  }
+  function loadVibeReplies(){
+    var id = vpr.id;
+    fetch("/api/vibe/" + id + "/replies")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(id !== vpr.id) return;
+        vpr.replies = d.replies || [];
+        vpr.mine = !!d.mine;
+        var at = vibePostIndex(id), p = vp.posts[at];
+        if(p){ p.replies = d.count || 0; p.top_reply = vpr.replies[0] || null; redrawVibePost(at); }
+        paintVibeReplies();
+      })
+      .catch(function(){
+        if(id !== vpr.id) return;
+        document.getElementById("vprList").innerHTML = '<div class="pf-empty">Could not load the replies.</div>';
+      });
+  }
+  function vibeReplyHTML(c, top){
+    return '<div class="vpr-row' + (top ? '' : ' sub') + '">' + personAvHTML(c)
+      + '<div class="vpr-body"><div><b' + (c.explicit ? ' class="is-explicit"' : '') + '>'
+      + escapeHtml(c.handle || c.name || "") + '</b> <span class="vpr-age">'
+      + escapeHtml(episodeDayLabel(Date.now() / 1000 - c.at)) + '</span></div>'
+      + '<div class="vpr-text">' + escapeHtml(c.text) + '</div>'
+      + '<div class="vpr-acts"><button onclick="replyToVibeReply(' + c.id + ')">Reply</button>'
+      + '<button onclick="openVibeReplyMenu(' + c.id + ')">More</button></div></div>'
+      + '<button class="vpr-like' + (c.liked ? ' on' : '') + '" onclick="likeVibeReply(' + c.id + ')" aria-label="Like">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="' + (c.liked ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></svg>'
+      + (c.likes ? '<span>' + c.likes + '</span>' : '') + '</button></div>';
+  }
+  function paintVibeReplies(){
+    var list = document.getElementById("vprList");
+    if(!vpr.replies.length){
+      list.innerHTML = '<div class="pf-empty">No replies yet.' + (vpr.mine ? '' : ' Say something about it.') + '</div>';
+      return;
+    }
+    list.innerHTML = vpr.replies.map(function(c){
+      return vibeReplyHTML(c, true) + (c.replies || []).map(function(r){ return vibeReplyHTML(r, false); }).join("");
+    }).join("");
+  }
+  function findVibeReply(id){
+    var found = null;
+    vpr.replies.forEach(function(c){
+      if(c.id === id) found = c;
+      (c.replies || []).forEach(function(r){ if(r.id === id) found = r; });
+    });
+    return found;
+  }
+  function paintVibeReplyBox(){
+    var box = document.getElementById("vprBox");
+    if(!AUTH.authenticated){
+      box.innerHTML = '<div class="vpr-gate">Replying needs an account.' + gateActions() + '</div>';
+      return;
+    }
+    box.innerHTML = (vpr.parent ? '<div class="vpr-to">Replying to @' + escapeHtml(vpr.parentName)
+        + ' <button onclick="replyToVibeReply(0)">Cancel</button></div>' : '')
+      + '<div class="vpr-in"><input id="vprInput" type="text" maxlength="500" placeholder="Add a reply…"'
+      + ' aria-label="Your reply" onkeydown="if(event.key===\'Enter\') sendVibeReply()">'
+      + '<button onclick="sendVibeReply()">Post</button></div>';
+  }
+  function replyToVibeReply(id){
+    var c = id ? findVibeReply(id) : null;
+    vpr.parent = c ? id : 0;
+    vpr.parentName = c ? (c.handle || c.name || "") : "";
+    paintVibeReplyBox();
+    var input = document.getElementById("vprInput");
+    if(input) try { input.focus(); } catch(e){}
+  }
+  function sendVibeReply(){
+    var input = document.getElementById("vprInput");
+    var text = input ? input.value.trim() : "";
+    if(!text || vpr.sending) return;
+    vpr.sending = true;
+    fetch("/api/vibe/" + vpr.id + "/replies", { method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ text: text, parent_id: vpr.parent || 0 }) })
+      .then(function(r){ return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "Could not post that"); return d; }); })
+      .then(function(){
+        vpr.sending = false;
+        vpr.parent = 0; vpr.parentName = "";
+        paintVibeReplyBox();
+        loadVibeReplies();
+      })
+      .catch(function(err){ vpr.sending = false; toast(err.message || "Could not post that"); });
+  }
+  function likeVibeReply(id){
+    var c = findVibeReply(id);
+    if(!c) return;
+    if(!AUTH.authenticated){ showGuestGate("Create a free account to like replies."); return; }
+    var on = !c.liked;
+    fetch("/api/vibe/replies/" + id + "/like", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({ on: on }) })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ c.likes = d.likes; c.liked = d.liked; paintVibeReplies(); })
+      .catch(function(){ toast("Could not like that"); });
+  }
+  function openVibeReplyMenu(id){
+    var c = findVibeReply(id);
+    if(!c) return;
+    var items = [];
+    if(c.mine || vpr.mine){
+      items.push({ label: menuLabel("remove", "Delete reply"), danger: true, action: function(){
+        fetch("/api/vibe/replies/" + id, { method: "DELETE" })
+          .then(function(r){ return r.json(); })
+          .then(function(d){ if(!d.ok) throw new Error(); loadVibeReplies(); })
+          .catch(function(){ toast("Could not delete that"); });
+      } });
+    }
+    if(!c.mine){
+      items.push({ label: menuLabel("report", "Report reply"), danger: !items.length, action: function(){
+        reportContent({ kind: "comment", target: id }, loadVibeReplies);
+      } });
+    }
+    showActionSheet(items);
   }
 
   function messagePerson(userId){
@@ -22285,8 +23401,63 @@
   //: up takes it away sooner and a tap goes to the conversation.
   var NOTIF_SHOW_MS = 3000;
 
+  // ---------------- The morning's new mix (§550) ----------------
+  // The owner's 11.11 note: "add a notification thing to myFAM in the
+  // morning encouraging them to click on the new myFAM mix". A dot on the
+  // myFAM tab once this morning's edition has written a mix the listener has
+  // not played since (`/api/mixes/fresh`, the server's word, never a guess
+  // from the clock), gone once they have looked at the tab - remembered per
+  // edition, so it is back tomorrow and never twice today - and "New today"
+  // on that mix's card until it is played.
+  var freshMixes = { ids: [], edition: "" };
+  var MIX_DOT_SEEN = "fam.mixDotSeen";
+  var mixDotSeenHere = "";
+  var freshMixTimer = null;
+  function mixDotSeen(){
+    try { return localStorage.getItem(MIX_DOT_SEEN) || mixDotSeenHere; }
+    catch(e){ return mixDotSeenHere; }
+  }
+  function isFreshMix(id){ return freshMixes.ids.indexOf(id) !== -1; }
+  function drawMixDot(){
+    var on = !!(AUTH.authenticated && freshMixes.ids.length && freshMixes.edition
+                && mixDotSeen() !== freshMixes.edition);
+    document.querySelectorAll("[data-mix-dot]").forEach(function(el){ el.hidden = !on; });
+  }
+  function clearMixDot(){
+    if(freshMixes.edition){
+      mixDotSeenHere = freshMixes.edition;
+      try { localStorage.setItem(MIX_DOT_SEEN, freshMixes.edition); } catch(e){}
+    }
+    drawMixDot();
+  }
+  function checkFreshMixes(){
+    if(!AUTH.authenticated){ freshMixes = { ids: [], edition: "" }; drawMixDot(); return; }
+    fetch("/api/mixes/fresh")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        freshMixes = { ids: d.fresh || [], edition: d.edition || "" };
+        // Looking at the tab right now is looking at it.
+        var shown = document.getElementById("screen-playfam");
+        if(shown && shown.classList.contains("active")) clearMixDot();
+        else drawMixDot();
+      })
+      .catch(function(){});
+  }
+  // Asked with the notifications, when the app comes back, and every
+  // quarter hour - the edition lands once a morning.
+  function startFreshMixChecks(){
+    if(freshMixTimer) clearInterval(freshMixTimer);
+    checkFreshMixes();
+    freshMixTimer = setInterval(checkFreshMixes, 15 * 60 * 1000);
+  }
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "visible" && freshMixTimer) checkFreshMixes();
+  });
+
   function startNotificationPolling(){
     stopNotificationPolling();
+    startFreshMixChecks();
     // The first call establishes where "new" starts and announces nothing.
     // Without it, opening the app raises a banner for every message ever sent
     // to this listener - which is the usual way this is got wrong.

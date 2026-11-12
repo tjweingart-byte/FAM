@@ -100,7 +100,7 @@ __MIX_ITEMS__
   // ------------------------------------------------------------ db plumbing
   var db = null, MEM = {}, COLS =
     ["sessions", "accounts", "people", "events", "scripts", "mixes", "echoes",
-     "prefs", "feedback", "comments", "comment_likes", "notes"];
+     "prefs", "feedback", "comments", "comment_likes", "notes", "vibe_likes"];
   var cache = {}; COLS.forEach(function (c) { cache[c] = []; });
   var UID = "", EMAIL = "", TOKEN = "";
   //: Conversations, for the life of the page only - see the note on
@@ -1043,6 +1043,18 @@ __MIX_ITEMS__
                return l.comment_id === c.cid && l.user_id === UID; }),
              mine: c.user_id === UID };
   }
+  // A vibe's replies (§547), the same shape, by the vibe.
+  function vibeRepliesBody(echoId) {
+    var all = rows("comments").filter(function (c) { return c.echo_id === echoId; })
+      .sort(function (a, b) { return a.at - b.at; });
+    var tops = [], byId = {};
+    all.forEach(function (c) {
+      var d = commentDict(c);
+      if (c.parent_id) { if (byId[c.parent_id]) byId[c.parent_id].replies.push(d); return; }
+      d.replies = []; byId[c.cid] = d; tops.push(d);
+    });
+    return tops.sort(function (a, b) { return (b.likes - a.likes) || (b.at - a.at); });
+  }
   // `social.comments`: most liked then newest, replies oldest first under them.
   function commentsBody(q, m) {
     var all = commentRows(q, m).sort(function (a, b) { return a.at - b.at; });
@@ -1448,6 +1460,90 @@ __WRITING_SIM__
     if (path === "/api/messages/typing") return json({ ok: true });
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
 
+    // ---- a vibe as a post (§547). This database has one listener, so the
+    // posts are your own; likes are `vibe_likes` and replies are `comments`
+    // filed under the vibe (`echo_id`), shared with everyone who opens the
+    // page, as the server shares them with everyone who may see the vibe.
+    if (path === "/api/vibe/posts") {
+      if (String(qs.get("handle") || "").trim()) {
+        return json({ error: "There is nobody else in this preview's database." }, 404);
+      }
+      var me = rows("people").filter(function (x) { return x.id === UID; })[0] || {};
+      var mine = rows("echoes").filter(function (e) { return e.user_id === UID; })
+        .sort(function (a, b) { return b.at - a.at; });
+      return json({ person: { name: me.name || "", handle: me.handle || "", avatar: me.avatar || "",
+                              explicit: false },
+                    mine: true, more: false,
+                    posts: mine.map(function (e) {
+        var likes = rows("vibe_likes").filter(function (l) { return l.echo_id === e.id; });
+        var thread = vibeRepliesBody(e.id);
+        return { id: e.id, query: e.query, title: e.title || "", minutes: e.minutes || 3,
+                 at: e.at, caption: e.caption || "",
+                 line: e.line ? { text: e.line, at: e.line_at >= 0 ? e.line_at : null } : null,
+                 likes: likes.length,
+                 liked: likes.some(function (l) { return l.user_id === UID; }),
+                 replies: rows("comments").filter(function (c) { return c.echo_id === e.id; }).length,
+                 top_reply: thread[0] || null, heard: { count: 0, faces: [] },
+                 thumb: previewPicture(e.query + " " + (e.title || "")), topic: "" };
+      }) });
+    }
+    var vpLike = /^\/api\/vibe\/([^\/]+)\/like$/.exec(path);
+    if (vpLike) {
+      if (!EMAIL) return json({ detail: ACCOUNT_REQUIRED }, 401);
+      var vpId = decodeURIComponent(vpLike[1]), vpDoc = UID + "_" + vpId;
+      var vpJob = body.on === false ? del("vibe_likes", vpDoc)
+        : put("vibe_likes", vpDoc, { user_id: UID, echo_id: vpId, at: now() });
+      return vpJob.then(function () {
+        return json({ id: vpId, liked: body.on !== false,
+                      likes: rows("vibe_likes").filter(function (l) { return l.echo_id === vpId; }).length });
+      });
+    }
+    var vrLike = /^\/api\/vibe\/replies\/(\d+)\/like$/.exec(path);
+    if (vrLike) {
+      if (!EMAIL) return json({ detail: ACCOUNT_REQUIRED }, 401);
+      var vrl = Number(vrLike[1]), vrlDoc = UID + "_" + vrl;
+      var vrlJob = body.on === false ? del("comment_likes", vrlDoc)
+        : put("comment_likes", vrlDoc, { user_id: UID, comment_id: vrl, at: now() });
+      return vrlJob.then(function () {
+        return json({ id: vrl, likes: likesOf(vrl), liked: body.on !== false });
+      });
+    }
+    var vrDel = /^\/api\/vibe\/replies\/(\d+)$/.exec(path);
+    if (vrDel && method === "DELETE") {
+      var vrdId = Number(vrDel[1]);
+      var vrdRow = rows("comments").filter(function (c) { return c.cid === vrdId && c.echo_id; })[0];
+      var vrdPost = vrdRow && rows("echoes").some(function (e) {
+        return e.id === vrdRow.echo_id && e.user_id === UID; });
+      if (!vrdRow || (vrdRow.user_id !== UID && !vrdPost)) return json({ ok: false });
+      var vrdJobs = [];
+      rows("comments").forEach(function (c) {
+        if (c.cid === vrdId || c.parent_id === vrdId) {
+          rows("comment_likes").forEach(function (l) {
+            if (l.comment_id === c.cid) vrdJobs.push(del("comment_likes", l.id)); });
+          vrdJobs.push(del("comments", c.id));
+        }
+      });
+      return Promise.all(vrdJobs).then(function () { return json({ ok: true }); });
+    }
+    var vpRep = /^\/api\/vibe\/([^\/]+)\/replies$/.exec(path);
+    if (vpRep && method === "GET") {
+      var vrId = decodeURIComponent(vpRep[1]);
+      return json({ replies: vibeRepliesBody(vrId),
+                    count: rows("comments").filter(function (c) { return c.echo_id === vrId; }).length,
+                    mine: rows("echoes").some(function (e) { return e.id === vrId && e.user_id === UID; }) });
+    }
+    if (vpRep && method === "POST") {
+      if (!EMAIL) return json({ detail: ACCOUNT_REQUIRED }, 401);
+      var vrText = String(body.text || "").replace(/\s+/g, " ").trim().slice(0, 500);
+      if (!vrText) return json({ detail: "Write something first." }, 400);
+      var vrEcho = decodeURIComponent(vpRep[1]);
+      var vrHost = body.parent_id ? rows("comments").filter(function (c) {
+        return c.cid === Number(body.parent_id) && c.echo_id === vrEcho; })[0] : null;
+      var vrCid = Math.floor(Date.now() * 100 + Math.random() * 100);
+      var vrRow = { cid: vrCid, user_id: UID, query: "", minutes: 0, echo_id: vrEcho,
+                    parent_id: vrHost ? (vrHost.parent_id || vrHost.cid) : 0, text: vrText, at: now() };
+      return put("comments", String(vrCid), vrRow).then(function () { return json(commentDict(vrRow)); });
+    }
     // ---- comments on an episode (10.5 #8), in the artifact db so every
     // viewer of this page reads one thread per episode, as `social.comments`
     // gives everyone who hears it. Reading is open; writing and liking take
@@ -1657,7 +1753,15 @@ __WRITING_SIM__
       var found = rows("echoes").filter(function (e) {
         return e.user_id === UID && e.query === q && e.minutes === mins;
       })[0];
-      if (found) return del("echoes", found.id).then(function () { paint(); return json({ ok: true }); });
+      if (found) {
+        // A vibe deleted takes its post's likes and replies (§547).
+        var postJobs = [del("echoes", found.id)];
+        rows("vibe_likes").forEach(function (l) {
+          if (l.echo_id === found.id) postJobs.push(del("vibe_likes", l.id)); });
+        rows("comments").forEach(function (c) {
+          if (c.echo_id === found.id) postJobs.push(del("comments", c.id)); });
+        return Promise.all(postJobs).then(function () { paint(); return json({ ok: true }); });
+      }
       return json({ ok: false });
     }
     if (path === "/api/echo") {
@@ -1674,7 +1778,12 @@ __WRITING_SIM__
         // this database, so nobody can be tagged and the tags are dropped,
         // as the server drops a handle outside the graph.
         style: body.style || {}, audience: body.audience === "close" ? "close" : "",
-        unstoried: false
+        unstoried: false,
+        // The line (§547): kept when none is sent, as the server keeps it.
+        line: body.line != null ? String(body.line).replace(/\s+/g, " ").trim().slice(0, 300)
+                                : (already && already.line) || "",
+        line_at: body.line != null ? (body.line && body.line_at >= 0 ? Number(body.line_at) : -1)
+                                   : (already && already.line_at != null ? already.line_at : -1)
       }).then(function () { paint(); return json({ id: id, query: body.query, at: now() }); });
     }
     // Taking one of your vibes off your story (10.6 #1): it stays a vibe.
@@ -2073,6 +2182,18 @@ __WRITING_SIM__
     // is more permissive than the server hides exactly this decision.
     // The example playlist a guest sees under the wall (§154). Open to all.
     if (path === "/api/mixes/sample") return json(FIXTURES["/api/mixes/sample"]);
+    // The morning's new mix (§550): a preview has no edition, so every mix
+    // of the listener's with topics counts as written this morning until
+    // one is played today. A guest has none, as on the server.
+    if (path === "/api/mixes/fresh") {
+      if (!EMAIL) return json({ fresh: [], edition: "" });
+      var today = new Date().toISOString().slice(0, 10);
+      var fresh = rows("mixes").filter(function (m) {
+        return m.user_id === UID && (m.items || []).length
+          && !(m.played_at && new Date(m.played_at * 1000).toISOString().slice(0, 10) === today);
+      }).map(function (m) { return m.id; });
+      return json({ fresh: fresh, edition: fresh.length ? today + "T05:00" : "" });
+    }
     if (path.indexOf("/api/mixes") === 0 && !EMAIL) {
       return json({ error: ACCOUNT_REQUIRED }, 401);
     }

@@ -33578,3 +33578,650 @@ did. The View more Refresh button's label still said "Show eight different
 episodes" after §363 made it deal sixteen; it says 16, and a test pins the
 label to `SECTION_PAGE` so the two cannot drift again
 (`tests/test_web_wording_541.py`).
+
+## 542. The FAM mark above the dial and the glide (2026-11-10)
+
+The owner, from a screenshot of a mix's glide with the FAM mark drawn in
+above it: keep the DailyFAM and myFAM loading screens as they are, but put
+the FAM logo above both. Since §509 the `.alt` loading screen hid every
+child but the X and `#famLoadingAlt`, the wordmark with them. Now the
+wordmark (`.fam-loading-wm`, the same F, chevron A and M as everywhere) is
+exempt from that rule and drawn at 46px glyphs instead of search's 26px,
+with 10px more room under it. Search's and Go Deeper's screen is unchanged.
+The iOS app's `LoadingView` does the same: `FAMLetters(capHeight: 40)` in a
+stack above `GlideView` and `DialView`. Nothing else about the two waits
+moves - no steps, audio never held (`browse-loaders`).
+
+## 543. Play all on a rail; friends' faces on the player (2026-11-11)
+
+The owner's 11.11 note, two ideas, with a mock-up of "PLAY ALL" beside
+"Made for you" and "Trending", and a face circled on the player's picture:
+
+1. **Play all.** "If you want to go through and listen to all the things in
+   that row, they'll just play one after the other, so the user can have a
+   hands-off experience." Every myFAM rail with episodes now has a Play all
+   pill beside its heading (`playRailAll`). The first tile plays exactly as a
+   tap on it would (`startBankTopic`, so the dial loader and the browse
+   length); the rest of the rail goes into the ordinary queue (§190) marked
+   `fromRail`, so the full player plays each straight after the last, Go to
+   Queue shows them and each is removable. It behaves like a category's Play
+   all (§500): a second Play all replaces what the first queued, anything else
+   starting ends it (`generate` now clears `fromRail` beside `fromCategory`),
+   and what the listener queued themselves stays. A guest's rail plays only
+   tiles already made; offline, only what is on the device. The heading keeps
+   at least 12em of its row and the pill wraps under it rather than squeezing
+   it (§499's large-text rule).
+
+2. **Faces on the player.** The DailyFAM card's "friends who listened"
+   (§393/§394) now shows on the player too, top left of the picture as in
+   the mock-up (its top edge worked out from the stage's width with `cqw`,
+   never above the stage), under the captions. A tile already carries its
+   faces, so a tap from DailyFAM draws them at once; anything else asks the
+   new `GET /api/listened?q=` - the same `_mark_friends_listened`, matched by
+   the normalised question like every listen count, friends only, accounts
+   only, never an id, empty rather than an error. Never on a private search
+   or an attached episode. Tapping the faces opens the same "Friends who
+   listened" sheet.
+
+   **Caught in review:** the endpoint takes any question, so as first written
+   anyone could learn what a friend had searched by searching the same words
+   and seeing the face - past `searches_public` (§282), which is the only
+   thing that lets the player name a searcher. A listen with no tile behind
+   it (a search, a replay) now counts on the player only for friends who made
+   their searches public (`friends_who_listened(untiled=...)`,
+   `_mark_friends_listened(public_searches_only=True)`); the cards are
+   unchanged, their questions being FAM's own.
+
+Tests: `tests/test_play_all_and_player_faces.py`.
+
+## 544. A mix card in the list is its picture, its name and an arrow (2026-11-10)
+
+**The owner's direction (11.10), with a screenshot of two mix cards:** "get
+rid of the unnecessary stuff here: # of briefings, daily, and public. Remove
+all of that" - and, for the whole row, "we just want the thumbnail of the
+playlist, the title of the playlist, and an arrow pointing right on the right
+side". So the list on the mixes screen (the one the listener reads as
+**myFAM**, `names-swapped`) draws each mix as its cover (or the folder), its
+name, and the chevron. Gone from the row: the briefing count, "daily",
+public/private, "from" a copied mix's owner, the joint label and the topic
+preview line. Every one of them is still on the mix's own page, one tap in.
+
+The guest's example card (`sampleMixCardHTML`) is drawn the same way, so a
+first look at the screen matches what an account sees. `jointLabel` and the
+`.mix-public` / `.mix-private` styles had no other reader and are deleted.
+Public mixes found by search keep their owner line: there it is what tells
+two listeners' mixes of the same name apart. Nothing on the server changed;
+`/api/mixes` still serves every field, for installed clients
+(`old-clients`). Test: `tests/test_mix_card_minimal.py`; the smoke check
+that adds somebody's public mix now expects the copy in the list without a
+"from @mike" on its card.
+
+This is the first step of the owner's rethink of how myFAM shows what is new
+today; the signal concepts (round two's lit edge and topic chip, round
+three's variations) are being redrawn on top of this plainer card and are
+not built.
+
+**The iOS app too** (merged from Main with this pull request): its `MixCard`
+draws your own mixes the same way - picture, name, arrow - and keeps the
+owner, count and topic line for a public mix found in search, as the web
+does. Written without a Swift compiler to hand, like the rest of the iOS
+code (§538); a SwiftUI `if` on `trailing != .chevron`, nothing else.
+
+## 545. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11)
+
+**The owner's picks** from five rounds of signal designs (the slideshows are
+artifacts, not in the repo): **R5** on the myFAM mix card and **Q5** inside the
+mix. The brief throughout: someone who listened yesterday should open the
+mixes screen and see at once that something in their topics is trending or
+has a major update, without the screen shouting on days when nothing has.
+
+**R5, the card.** When one of a mix's topics changed since the listener last
+heard it, the card leads with the story's picture (`app._picture_url`, the
+player's own picker) with the mix's cover small in its corner, ringed in the
+signal's colour; under the name, one line naming the topic and the story; and
+where the arrow was, a pill saying "Trending" or "Major update". No picture
+approved for the story: the mix's own cover takes the ring and nothing sits
+in the corner. Any other day the card is §544's picture, name and arrow.
+
+**Q5, inside the mix.** Each changed topic's row is outlined and says
+"Trending · since you last listened" (or "Major update"), then two bubbles
+joined by an arrow: the day and title of the episode of that topic the
+listener last heard, and the title of today's (the written episode's, else
+the story's). Never heard it before: one bubble, never an invented "before".
+The play button becomes "Start with what changed" (`playWhatChanged`: the
+changed topics first in the mix's order, then the rest), with "or play all N
+from the top" as a link under it.
+
+**What counts, in `signals.py`.** Two measurements, never a result
+(`tile-title-angle`):
+
+* *Trending*: a story naming a subject the mix follows is in this slot's
+  Trending edition, or in the live pool carried by at least
+  `TRENDING_MIN_OUTLETS` (15, a starting value to tune against the
+  deployment's pool), and appeared after the listener last heard that topic.
+* *Major update*: a game the mix follows went `final` after the listener last
+  heard that topic. The pool had no clock for that - `live_as_of` moves on
+  every sweep - so `stories.Story.status_at` is new: set when a status first
+  appears or changes (`_seen_again`), kept otherwise, default 0 so stories
+  saved before it load as they were.
+
+"Names a subject the mix follows" is `topics.episode_subject`, the reading the
+player's (+) uses, kept to its specific answers (a named team or company, a
+subject named by its label or id, or its subtag); its facet-wide last resort
+is refused (`signals.specific_subject`), §155's rule that a field is not a
+subject - "Bond yields climb" is money news, not news about Stocks & Economy.
+A whole subject ("NFL") takes its teams' stories; a narrowed one ("NFL ·
+Eagles") only its own. Typed topics carry no signal: nothing short of a model
+call can tell a subject from a kind of thing (`mixes.TYPED_HEAD`).
+
+Quiet by default and quiet once heard: an item whose today's episode is in the
+listener's history carries nothing; a topic never heard reaches back one day
+(`NEVER_HEARD_WINDOW`); a card shows one signal, a result before a trend, then
+wider coverage. "Last heard" is the history's newest row whose question is one
+of the item's earlier dated prompts (`mixes.earlier_prompts`, thirteen days);
+the day is shown in the listener's clock (`listener-clock`).
+
+**Where it runs.** `app._mix_signals`, from `GET /api/mixes`, on what is held:
+the history (one read), the Trending edition and the pool in memory
+(`stories_in_memory`, `pool().held` - not `live`, whose variety cap could hide
+the one story about this listener's team), and the script cache for today's
+title. Nothing waits, nothing is written, and any failure leaves the list as
+it was and is logged. New fields only (`signal` on a mix; `signal` and `since`
+on its items), so installed clients are unaffected (`old-clients`).
+
+Light and dark each get the colours as tokens (`--sig-tr`, `--sig-up`,
+`--sig-ink`): dark's gold and a lighter coral so small text reads on the
+card, light's darker pair. The fixture preview shows both signals on Morning
+and At the gym, its pictures cropped from the landing page's tiles.
+
+Tests: `tests/test_signals_545.py` (matching, both signals' timing, quiet once
+heard, one per mix, the status clock, the bubbles, the route, a failure never
+taking the list down, both themes' tokens).
+
+**A picture on every topic row** (the owner, the same day: "add pictures to
+each topic row too" - Q5's mockup had them). `app._mix_pictures` gives each
+item the picture the player would draw for it (`_picture_url` over the item's
+words: "NFL Eagles" for a narrowed subject, the typed words for a typed
+topic), and the row draws it beside the title, ringed in the signal's colour
+when the topic changed; with nothing approved, the subject's own catalogue
+icon on paper (`catIcon`). Pictures and signals now come from `_mix_out`
+itself, so every route answering with a mix carries them - before, a reorder
+or an added topic would have dropped the bubbles until the list reloaded. The
+arrow now opens the "Today" bubble, so on a row narrowed by its picture the
+two bubbles stack cleanly.
+
+**Merged with Main before the pull request (2026-11-11).** Main had gained
+its own §537-§543 (the iOS launch, the loading mark, play-all on a rail)
+while this branch was open, so this branch's two sections, written as §537
+and §538, are §544 and §545, and every reference in its code, tests and
+notes was renumbered with them; `tests/test_signals_538.py` is
+`tests/test_signals_545.py`.
+
+**Two fixes from reviewing the branch before its pull request.** The list
+read the listening history once per mix when the signals moved into
+`_mix_out`; it reads it once per request now (`_mix_history`, passed down),
+and a test counts the reads. And a story held from before `status_at` existed
+would have taken the first sweep after the deploy as its status time,
+reporting last night's result as new to somebody who listened this morning;
+it takes its last known time (`live_as_of`, else `first_seen`) instead.
+
+## 546. The app starts dark, and draws itself before the server answers (2026-11-11)
+
+**What was asked.** The owner, after build 3 reached TestFlight: "I want to
+make dark mode the standard version that new users have, with the option to
+change to light mode", and "It still takes way too long to load the app when
+you first open it. Please think of more ways to help this, and make sure the
+fixes from yesterday are in."
+
+**Dark by default, in the app.** `FAMTheme.standard` is dark: a phone with no
+`fam.theme` is drawn dark, "light" is the only stored value that draws light,
+and Settings' "Dark mode" reads On for anything else (`FAMTheme.isDark`). The
+launch screen (`LaunchBackground`) is the dark `--bg`, #2A2733. A phone that
+never touched the switch turns dark with this build. The web keeps light
+(§250); the rule's note says so (`docs/claude/constraints.md`, typefaces).
+
+**Yesterday's start-up work is in build 3**: the remembered page, rails
+first, tabs that load on first look, warming behind the feed, the poll after
+it, the 429 retry and the picture cache.
+
+**What still waited.** Every open showed the wordmark until `/api/auth/me`
+answered, then played the 1.8 s intro, then drew the app. Now a phone whose
+account was last let in (`fam.lastReady`, set by `arrive`, cleared on any
+sign-out) with its first run done draws the app at once, the remembered
+page on it and the intro over it, and asks `/api/auth/me` behind it; the
+answer still decides - signed out or waiting replaces the app the moment it
+lands. The first feed still waits on that answer (`firstFeed` awaits
+`whoTask`), so the two are still never asked together (the owner's earlier
+call), and the first-run steps and the Terms check run after it without
+holding the feed. The first open after updating behaves as before, once.
+
+
+**The DailyFAM page refreshed while the app is closed (iOS only).** To make
+the first open faster still, the remembered page is kept recent in the
+background: `FeedRefresh` (a `BGAppRefreshTask`, `net.familiarize.fam.feed`,
+registered with SwiftUI's `.backgroundTask(.appRefresh(...))`; `fetch` beside
+`audio` in `UIBackgroundModes`, the id under
+`BGTaskSchedulerPermittedIdentifiers`). The next run is asked for, no sooner
+than an hour away, each time the app goes to the background and after every
+run; iOS decides when it comes. A run is one read - `FAMAPI.railsData()`,
+the same `/api/v1/myfam` query with the Keychain's token and the read pace's
+one patient retry - kept with the same `rememberFeed` a successful draw uses,
+only if it decodes, and only while a token exists and the account was last
+let in (`AppModel.readyKey`, asked again before keeping); a sign-out cancels
+the request. Nothing on the audio path, no episode, no event; a failure keeps
+nothing. A page refreshed this way is drawn at the next open by
+`showRememberedFeed`, and the fresh feed replaces it as before.
+
+**§543 in the iOS app.** Every DailyFAM rail with episodes has the web's Play
+all pill beside its heading (`RailPlayAll`, `RailHeadLayout`: the heading
+keeps 12 em, scaled with the text, and the pill wraps under it when it would
+not). `AppModel.playRailAll` plays the first tile exactly as a tap does (the
+dial, the browse length) and queues the rest (`NowPlayingModel.replaceRailQueue`,
+`fromRail`): a second Play all replaces them and a category's, anything else
+starting drops them with a category's (`dropCategoryQueue`), and what the
+listener queued stays. Offline, only tiles on the phone ("None of these are on
+your device yet"); the web's guest rule has nothing to act on, the app being
+an account's alone. The friends who listened show top left of the player's
+picture, under the captions (`PlayerFriendsPill`): a DailyFAM tap hands over
+the tile's own faces (`AppModel.noteTileFaces`), anything else asks
+`/api/v1/listened` (`ListenedPage`), never for a private search or an
+attached episode; a tap opens the same "N friends listened" card, whose
+profile rows take the player down first. Unbuilt here (no Swift compiler).
+
+## 547. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11)
+
+The owner's "Vibes as Posts" note: *"The episodes that are displayed on my
+profile as a vibe, I wanna create a new player for those… almost like an
+Instagram post. I want them to appear more as posts rather than episodes. So
+it shows the day that I vibe with the episode. This is only for when I click
+on the ones on my profile or a friend's profile."* Two rounds of mock-ups
+(ten designs, then six blends of the three the owner picked - 03 Playable
+Post, 08 The Line, 10 Conversation); the owner chose **C, "Compact Trio"**:
+all three at feed size.
+
+**What a tap on a grid does now.** `playProfileVibe` and `playPersonVibe`
+open `screen-vibeposts` at the tile tapped instead of starting the episode:
+that person's vibes, newest first, as posts. A friend's page needs a handle
+to ask by; without one the old play stays. Nothing else changed - a story,
+My Vibe's list and every other surface still play the episode, and the
+press-and-hold delete on your own grid (§499) is untouched.
+
+**A post** (`vibePostHTML`): face, handle, "Vibed yesterday" (the catalogue's
+calendar, §499, from the vibe's age); the picture with the line across its
+foot in quotes; a play button, a bar with the line's stretch in gold, the
+times, and a gold chip with the line's start; heart, reply, send (the share
+sheet), save; then "n likes · heard by n friends" with faces, the title, the
+caption, the top reply and "View all n replies" / "Add a reply". ⋯ is
+Delete vibe on yours (the same `DELETE /api/vibe`) and Report vibe on a
+friend's.
+
+**The line.** VIBE!'s editor has a **Line** tool: the episode's own
+sentences (the player's captions if it is the episode playing, else
+`/api/transcript`), each with its start time, measured when the server
+measured it (§127) and otherwise the captions' character estimate. Picking
+one sends `line` and `line_at` with the vibe. Stored on the echo row
+(`line`, `line_at`); a vibe that sends neither keeps what the row had, so an
+installed client or a re-vibe that picked nothing never wipes it. Cut to
+`social.MAX_LINE` (300), slurs out, time clamped to 15 minutes, negative
+means "no time". The line is not drawn on the story; it is the post's.
+
+**Playing in place.** A post's play is the ordinary `generate` with
+`inPlace: true` on the topic; `onGenerationStarted` does not open the full
+player while the posts screen is showing. The bar is painted from
+`refreshProgressNow` and the button from `setPlayState`/`markPlaying`
+(`paintVibePostTransport`), so there is still one transport; dragging the
+playing post's bar is the player's own `makeScrubbable`. The chip seeks the
+playing episode (never past what is written) or starts it with
+`pendingResumeSeek`, the wait a resumed episode keeps. Leaving the screen
+does not stop it; the mini bar carries it on the tab screens.
+
+**Likes and replies, and who sees them.** A like is per post
+(`vibe_likes`, keyed on the vibe's row, an account's). Replies are
+**public to whoever may see the vibe** - its owner, or anyone who may open
+the owner's profile (reachable, not blocked either way, not suspended) and
+is not kept out of a close-friends vibe. That is a product change from
+§282, where a reply to a vibe was a private message; the story's reply row
+is unchanged and still sends a message. A post's reply is a comment filed
+under the vibe: `comments.echo_id` (0 is an episode's own thread, Explore's,
+which now filters on it, as does `comment_counts_many`), so the reply code,
+likes on replies, reports (`comment`) and deletion are the comment code; the
+poster may also delete any reply on their own post. Deleting a vibe takes
+its likes and replies (`_drop_post`); deleting an account takes the likes it
+gave and the posts of its vibes.
+
+**Who heard it** is `_mark_friends_listened(public_searches_only=True)` per
+post, the player's faces (§543) with the same caution.
+
+Endpoints: `GET /api/vibe/posts` (`handle`, `before`, `limit`),
+`POST /api/vibe/{id}/like`, `GET`/`POST /api/vibe/{id}/replies`,
+`POST /api/vibe/replies/{reply}/like` and `DELETE /api/vibe/replies/{reply}`. No person ids in any response. Both
+previews answer them. Not built: the iOS client's posts screen, and a
+notice to the poster when someone replies (a reply is not a message).
+
+**Caught in review** (a second read of the whole branch, at the owner's
+request):
+
+- `vibe_posts` and `echo_row` said `int(minutes)`, so a 1.5-minute vibe -
+  the browse length - came back as 1: another episode's key. Its post
+  played or wrote the wrong episode, never showed as playing, could not be
+  deleted, and filed its replies where the post did not read them. Both now
+  say `as_minutes` (§332), which also mends a moderator's removal of a
+  half-minute vibe (`echo_row` was already `int` before this).
+- Dragging the bar of a post that was not playing seeked the episode that
+  was: `makeScrubbable` seeks on release whatever the paint callback does.
+  A post's own `pointerdown`, registered first, now stops the drag unless
+  its episode is the one playing.
+- A reply under a vibe could be liked by anybody who guessed its id
+  (`/api/comments/{id}/like` checked only that it existed); it now asks
+  `_visible_vibe` first and answers 404 as for a missing reply.
+- A guest on a friend's page was gated where the tap used to play: a guest
+  now plays it as before.
+- A like's or the reply sheet's late answer redrew the post at its old
+  index after a delete had moved the list: posts are found again by id.
+- "No line" sent nothing, so a re-vibe kept the old line; it now sends "",
+  and is always offered.
+- The sheet liked and deleted replies through `/api/comments/...`, which
+  §499 keeps out of the page (`test_explorefam_is_gone_from_the_app`):
+  a vibe's replies have their own paths, `/api/vibe/replies/{id}/like` and
+  `DELETE /api/vibe/replies/{id}`, each asking `_visible_vibe` first.
+
+**A second review** (the whole branch against Main, at the owner's request):
+
+- The line chip on a post whose episode was not the one loaded usually
+  played from 0:00: the previous episode's mini-bar ticker saw a seek for
+  another episode and dropped it before the new bar was up. The chip now
+  brings the old bar down before it starts (`hideNowBar`).
+- A reply's author lost the way to delete their own reply once the vibe's
+  owner blocked them; `DELETE /api/vibe/replies/{id}` lets the author through.
+- `SocialStore.comment` said `int(minutes)` too (a reported reply under a
+  1.5 vibe showed 1 minute); it is `as_minutes` now.
+- Deleting or reporting from a post's menu could remove the last post if
+  the list had been reloaded meanwhile; it removes only the post itself.
+- Preview mocks: a friend's posts have ids of their own, and the live
+  preview's vibe delete takes its likes and replies.
+
+Known and left as they are: a post's episode ending with something in the
+Queue plays the Queue in the full player, as every episode does; and where
+the server never measured an episode's sentences, a line's time is the
+captions' estimate against the episode's length ceiling, so on an episode
+that ended early it can land late (the seek never passes the end).
+
+Tests: `tests/test_vibe_posts.py`.
+
+## 548. myFAM in a handful of statements, off the event loop (2026-11-11)
+
+A profiling pass for the iOS launch (a seeded deployment: 400 listeners,
+3,000 cached episodes, 28k events) found `GET /api/myfam` doing 0.6 s
+(SQLite) to 1.5 s (Postgres) of synchronous work inside an `async def` -
+about 1,100 SQL statements a draw - so every other request on the worker
+waited behind it: a launch's client-status, health and auth queued behind
+somebody else's page. Four causes, fixed in this order, with **the response
+unchanged**: the same JSON, byte for byte, for 26 listeners on the seed,
+before and after, on SQLite and on Postgres (and for View more's five rails
+and a guest's page).
+
+1. **A cache probe per candidate tile** (~976 a draw). Each crowd rail asks
+   whether every tallied question is cached at the browse length, one
+   `SELECT ... WHERE key = ?` at a time, after a `plan_episode` that logged
+   "SEARCH yes" for each. Now the three probes share one per-request reader
+   (`app._FeedProbe`) over a new batch read, `ScriptCache.rows_many` (one
+   `WHERE key IN (...)` per 500 keys; `holds_many` beside it). The rankers
+   prime it with the tiles they are about to ask about (`topics._prime`:
+   `ready_first`, `repeats`, and `_crowd_tiles` in batches of 64 growing
+   fourfold), and each answer comes from `cache.ProbeRow`, which *is*
+   `SqliteScriptCache.holds` now, so the batch and the single-key read cannot
+   drift. Still per request, never kept. The key is still `_episode_key`'s
+   (`[prefetch-same-key]`): `_browse_key` only remembers its answers, keyed
+   on the question, the length, every settings object and function that
+   reads into it, and never under `SEARCH_MODE=auto`; `plan_episode`'s line
+   is quiet on that thread while it does (`_QUIET_PLANS`). A crowd tile is
+   built (tags and all) only once it is kept (`_tile_ref`).
+2. **The crowd's listens read four times a draw, for every listener.**
+   Most played (24 h), What you missed (3-7 days), the friends rail and the
+   friends' faces (14 days) each read `listens_between` and `heard_since`.
+   One snapshot of the widest window (`CROWD_SPAN`) now serves every rail and
+   every listener, filtered in memory by exactly the bounds each read asked
+   for, in the order the database returned them - so it answers what a fresh
+   read answers. It is thrown away when this process writes a play, a
+   completion or a heard listen, or forgets or clears the log
+   (`_crowd_changed`); re-read when the newest play, completion or heard
+   listen in the database is not the one it saw (`_crowd_mark`, asked at most
+   once a second); and re-read every `CROWD_REFRESH_SECONDS` (30) regardless.
+   `_norm_question` is memoised.
+   **The one semantic change, stated:** with more than one worker, another
+   worker's new play reaches this worker's crowd rails within a second rather
+   than at once, and a row another worker *deleted* (an account deletion) or
+   wrote with an older time than its newest can stay on them up to 30 s. In
+   one process nothing changed: a play recorded here is on the next draw
+   (tested). `[heard-not-tapped]`, `[missed-rail]`, `[two-crowd-rows]` and
+   `[friends-listened]` are otherwise untouched - same windows, same
+   thresholds, same tallies.
+3. **The page drawn twice.** `prefetch.schedule_cycle` ran `FeedSource`,
+   which called `build_feed` again on the loop - a whole draw's stall right
+   after the first open. The draw now hands its page to the cycle
+   (`schedule_cycle(user, minutes, feed)` -> `run_once(feed=)` ->
+   `plan(feed=)` -> `FeedSource.candidates(feed=)`, only the rails' keys,
+   titles and tiles' ids and questions kept). The same rails, ranks, weights
+   and reasons; and the tiles are now exactly the ones the listener was shown
+   - the parallel build had none of the page's cache, place, account or
+   interests inputs, so it could warm tiles nobody saw. Without a page (a
+   tool, a test) it builds one as before.
+4. **On the event loop.** The draw (`_draw_myfam`, and a guest's,
+   `_draw_guest_myfam`) runs in `asyncio.to_thread`; the story sweep,
+   vocabulary growth and the prefetch cycle are still scheduled on the loop
+   first and after. Every store keeps a connection per thread (`_conn`, the
+   Postgres pool is locked), the story pool is replaced whole, and the new
+   memos are written whole or under a lock.
+
+And **/api/health** (~25 ms a call, ~1 s the first): built in a thread
+(`_health_report`); the cache totals, which scan every script, kept 15 s
+(`_health_memo`, and read once rather than twice); the HTTP client
+`http2_enabled` inspects built once per setting. The databases' real reads
+and `build` still run on every call (`[verify-not-inspect]`,
+`[server-says-build]`). The agents' modules, the house style's pictures and
+the ranker's semantic model are loaded at boot in a thread
+(`_warm_first_calls`).
+
+Measured with uvicorn, one worker, the iOS launch requests (`measure.py`;
+medians of five, warm unless marked):
+
+| | SQLite before | SQLite after | Postgres before | Postgres after |
+|---|---:|---:|---:|---:|
+| myfam | 595 ms | 218 ms | 1,552 ms | 215 ms |
+| SQL statements a draw (in process) | 1,124 | 29 (11 cache) | 1,114 | 40 |
+| feed on screen (client-status + health + me, then myfam) | 543-824 ms | 201-274 ms | 1,360-1,522 ms | 263-356 ms |
+| a 2 ms request's worst wait while myfam draws | 667 ms | 142 ms | 1,494 ms | 203 ms |
+| health | 20.5 ms | 13.8 ms | 33 ms | 30 ms |
+| first health / first myfam, 8 s after boot | 134 / 1,064 ms | 19 / 730 ms | | |
+
+What is left of the wait while a draw runs is the GIL, not the loop: the
+draw's thread is pure Python, and the loop gets it back every switch
+interval. The tallies themselves (`_tally_listens`, per listener for What you
+missed) are now the largest part of a draw.
+
+Tests: `tests/test_feed_speed_548.py` - the batch read against each
+single-key read, a draw's cache statements (at most 12, none by single key,
+on a fixture with hundreds of candidates), the batched draw equal to the one
+a key at a time and the snapshot draw equal to fresh reads, a play here and
+another worker's play both seen, prefetch handed the page, the page drawn
+where no loop runs, health's 15 s and its client built once.
+
+## 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11)
+
+**What was asked.** The owner: "Pronunciation is still a massive problem in
+episodes, how can we cross check our names pronunciation list against another
+source to changes the answers. My first idea is to download the whole list of
+names in somewhere(maybe a regular fable claude chat), have it edit the list,
+then put it back in here". Then: "both, build the export/import and give me
+the command" (for the stress experiment below).
+
+**Why Wikipedia may not be enough.** Not measured: the guess is that many
+names on file are sports players whose article lead has no pronunciation, so
+the writer's or the brief's guess stands (§289, §324). The download's
+`wikipedia_status` column counts it.
+
+**The round trip** (`pronounce_review.py`, /admin → How names are said →
+"Checked by another reader"):
+
+- **Download list** - `GET /api/admin/pronunciations/export`, a CSV of every
+  respelling with its source, Wikipedia's reading and status, and a sentence the
+  name was met in (from the `CONTEXT_EPISODES` most recent episodes) with its
+  episode, so the reviewer can tell which Nguyen is meant.
+- **Copy the prompt** - `pronounce_review.PROMPT`, fixed so every run asks the
+  same thing: the lexicon's respelling rules (hyphenated syllables, stressed
+  syllable in capitals, as many words as the name), the evidence order (the
+  person, the leagues' media pronunciation guides, Wikipedia's IPA, broadcast
+  usage), and a reply of only the rows it would change, `name,say,confidence,reason`.
+- **Upload corrections** (or paste the reply) - `POST
+  /api/admin/pronunciations/import` reads the CSV (a ``` fence or a line of
+  prose around it is fine; a file edited in place is read from `current_say`)
+  into proposals beside what is on file, high confidence first. **It changes
+  nothing.** Unchanged rows are counted, unusable ones refused with the reason.
+  A change of stress alone is a change: rows are compared exactly, case and all.
+- Each proposal is **Accepted** (saved through the admin's own save, so as
+  `admin`), **Skipped**, or **Heard 4 ways** first; "Accept all high
+  confidence" asks before it saves. Nothing accepts the whole file blind,
+  because an admin's respelling is never replaced afterwards - not by a model,
+  not by Wikipedia (`[op-voice]`) - so a reviewer's wrong guess accepted
+  blind would be permanent.
+
+**The voice never hears the stress.** `pronunciation.voiced` lowercases every
+respelling before the voice gets it (capitals would be read as letters by
+`spoken_text`), so "sah-gah-poh-loo-TEH-leh" reaches Chatterbox as
+"Sah-gah-poh-loo-teh-leh". The lexicon records stress and the voice gets none
+of it. A corrected list may still be said with the stress in the wrong place. Unheard; to be
+measured, not assumed: `pronounce_review.stress_variants` writes one
+respelling four ways - `now` (today's), `joined` (syllables run together),
+`accent` (an acute on the stressed vowel), `spaced` (each syllable a word,
+the stressed one capitalised) - and two ways to hear them, both keeping
+nothing:
+
+- /admin: **Hear 4 ways** on every name and every proposal
+  (`POST /api/admin/pronunciations/hear-variants`, an optional `say` to hear a
+  proposal as proposed);
+- `python tools/stress_trial.py --csv <download> --limit 10`: the names with a
+  marked stress and three or more syllables, bare and in a sentence, written
+  to `stress-trial/<stamp>/index.html` to listen to.
+
+If one variant wins by ear, `voiced` changes to it - one function, on the
+synthesis path for every chunk - and the lexicon's format stays as it is.
+Until then `voiced` is unchanged. Tests: `tests/test_pronunciation_review_549.py`.
+
+## 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes | Categories, the morning dot, the pop-ups (2026-11-11)
+
+Six screenshots from the owner, five changes.
+
+1. **Back an episode** ("on myFAM mixes, add a way to go backwards an
+   episode too, not just forward"). The player's empty first slot, kept since
+   §519 to balance next, now holds a mirrored next glyph (`#mixPrevBtn`,
+   `prevMixItem`), drawn only while a myFAM playlist plays - the queue has no
+   "before". It plays the playlist's previous episode, which replays from
+   what is kept (the same dated prompt, so the same cache key); on the first
+   episode it starts that one again. Off a Go Deeper follow-up (§536), back
+   is the playlist's episode it came off, as skip is.
+
+2. **A vibe holds the playlist** ("it should not automatically skip to the
+   next episode in the queue while I'm taking a second to make the vibe
+   post"). An episode that ends while the VIBE! editor is open keeps what
+   would have come next - the mix's next, the queue's, the countdown - in
+   `heldForVibe`, and `closeVibeComposer` runs it, posted or backed out of.
+   Anything else starting in the meantime (`generate`) drops it. The audio
+   itself is not paused: only the moving on waits, as under Go Deeper (10.1).
+
+3. **Mixes | Categories** ("change the layout so there's two tabs", with the
+   Groups | Messages screenshot). Two equal tabs under the wordmark, a copper
+   rule under the one on (`.pf-tabs`, `showPlayfamTab`). Mixes is Create new
+   mix, the search and the cards; Categories is §500's chip row without All
+   over a list of categories (`#catHome`, `renderCategoryHome`: followed with
+   today's count, then the facets with what is under them). A chip or a row
+   opens the category in place, its X back to that list. Arrival opens on
+   Mixes (§500 review's rule, now with a reason the tab makes visible). The
+   owner's note says "Mixed"; the tab says Mixes, the word the app uses.
+
+4. **The morning dot** ("add a notification thing to myFAM in the morning
+   encouraging them to click on the new myFAM mix"). `GET /api/mixes/fresh`
+   answers which of the listener's mixes (own and joined) this morning's
+   DailyFAM edition wrote and nobody has played since: the edition's slot
+   must be `ready` (a dot for a mix nobody wrote would invite a wait), the
+   mix active (§359 - a dormant mix was not written) and `played_at` before
+   the edition's `built_at`. A guest gets an empty answer, never a 401; any
+   failure is no dot. Every tab bar's myFAM tab carries a copper dot
+   (`data-mix-dot`), asked with the notifications, on returning to the app
+   and every quarter hour; looking at the tab clears it for that edition
+   (kept on the device, so it is back tomorrow and not twice today), and the
+   mix's card says "New today" until it is played. In-app only; the push is
+   still §448's at the mix's listen time.
+
+5. **The pop-ups** ("CHANGE THE POP UP NOTIFICATIONS!!!", over a "Sent to
+   Beth" across a friend's vibe). §299's plain line sat on a fade of the
+   page's own colour; over the dark story viewer that fade was a white band
+   across the picture and the Play episode button. Toast and snack are now one
+   floating card: the surface colour, a hairline border, a shadow, a copper
+   dot, sized to its words and centred above the mini player or tabs, the
+   action (Undo, Open) to the right of the words. It reads the same over any
+   screen. The drop-down banner (`.notif`) is unchanged.
+
+Tests: `tests/test_owner_notes_550.py`; §229's, §108's, 10.23's tests and
+the smoke run's category and playlist checks follow the new layout and
+check back by a real click.
+
+**Merged with Main before the pull request (2026-11-11).** Main had gained
+its own §546-§549 (the app starts dark, vibes as posts, myFAM's
+statements, the pronunciation list) while this branch was open, so this
+section, written as §546, is §550, with every reference in its code, tests
+and notes renumbered; `tests/test_owner_notes_546.py` is
+`tests/test_owner_notes_550.py`. Both sides added CSS at the end of the
+stylesheet; both are kept.
+
+**From reviewing the branch.** As first written, `/api/mixes/fresh` counted
+a mix made after the morning's edition ran - active, never played - as new,
+a dot for a mix nobody wrote. It now takes only mixes made before the
+edition's `built_at`, active as of then.
+
+## 551. The app catches up with #247, #249 and #252 (2026-11-11)
+
+**What was asked.** The owner merged #247 (mix cards and what changed since
+you last listened, §544-§545), #249 (vibes as posts, §547) and #250 (the feed
+off the event loop, §548), then: update the app from those changes before the
+next build. #250 is server-only.
+
+**#247 on iOS.** A mix with a `signal` draws as R5 (`MixSignalCard`,
+`Views/MixSignals.swift`): the story's picture ringed in the signal's colour
+with the mix cover in its corner, one line naming the topic and the story,
+and the Trending / Major update pill where the arrow was. Inside the mix
+(Q5) a changed topic's row is outlined with its tag and the two bubbles
+(`MixBubbles`), "Start with what changed" plays the changed topics first
+(`AppModel.playMixChangedFirst`, the web's `playWhatChanged`), and "or play
+all N from the top" plays in order. Every topic row carries its picture
+(`MixTopicPic`). The minimal card's name now fills its row as the web's
+`flex:1`. The guest's example card has no counterpart: the app requires an
+account.
+
+**#249 on iOS.** A tap on a vibe in yourFAM's grid or a friend's profile opens
+the posts screen (`Views/VibePosts.swift`, the web's `screen-vibeposts`) at
+that vibe: its line across the picture's foot, the post's own player and
+the chip that plays from the line, likes, replies (a sheet with answers,
+likes, Delete and Report), save and share, More vibes. The VIBE! editor gains
+the Line tool (sent as `line` / `line_at`). Where iOS differs it is named in
+`ios/FAM/PARITY.md`: an E mark sits before a caption rather than inside it,
+and the posts screen inside a social cover draws its own loading screen.
+
+**#252 on iOS (§550).** Back an episode: the player's first slot holds
+next's glyph mirrored while a myFAM playlist plays (`AppModel.prevMixItem`:
+the item before, by the same dated prompt, so a replay; the first again from
+the start; off a Go Deeper detour, the interrupted episode, as skip does). A
+vibe holds the playlist: an episode ending while the story editor is up keeps
+its carry-on (`NowPlayingModel.heldForVibe`), run when the editor goes and
+dropped by anything else starting. Mixes | Categories: `PlayfamTabs` under the
+wordmark; Categories is the chip row without All over `CategoryHome` (followed
+with today's count, then the facets with what is under them), and every
+arrival opens on Mixes. The morning dot: `GET /api/v1/mixes/fresh`
+(`FreshMixes`) asked beside the notifications, on return and every quarter
+hour; a copper dot on the myFAM tab until the screen is looked at that
+edition (`fam.mixDotSeen`), "New today" on the card until played. The toast is
+the floating card. The web's "New today" chip also matches an older
+`.mix-new` rule and stretches across the card; the app draws it as §550's rule
+writes it, and `ios/FAM/PARITY.md` says so.
+
+Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
+and every new name resolves.

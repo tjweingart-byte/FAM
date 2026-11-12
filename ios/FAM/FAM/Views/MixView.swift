@@ -60,11 +60,10 @@ struct MixView: View {
                             EmptyNote(text: "Nothing in this mix yet. Add the topics you want a fresh briefing on every day.")
                                 .padding(.top, 16)
                         } else {
-                            MixPlayButton(count: mix.items.count) { model.playMix(mix) }
-                                .padding(.top, 2)
+                            playSection(mix)
                             Text("Today’s edition · \(Self.today)")
                                 .monoLabel(8.5, tracking: 0.425)
-                                .padding(.top, 16)
+                                .padding(.top, changedCount(mix) > 0 ? 12 : 16)
                                 .padding(.bottom, 9)
                             topicList(mix)
                         }
@@ -299,6 +298,31 @@ struct MixView: View {
         .padding(.bottom, 16)
     }
 
+    // MARK: - Play
+
+    /// Items that changed since this listener last heard them (§545).
+    private func changedCount(_ mix: Mix) -> Int {
+        mix.items.filter { $0.since != nil }.count
+    }
+
+    /// Q5 (§545): when something changed, the one button starts there and
+    /// the whole mix is a link under it; else "Play today's N episodes".
+    @ViewBuilder
+    private func playSection(_ mix: Mix) -> some View {
+        let changed = mix.items.filter { $0.since != nil }
+        if let first = changed.first {
+            MixChangedButton(count: changed.count, isUpdate: first.signal?.isUpdate ?? false) {
+                model.playMixChangedFirst(mix)
+            }
+            .padding(.top, 2)
+            MixPlayAllLink(count: mix.items.count) { model.playMix(mix) }
+                .padding(.top, 12)
+        } else {
+            MixPlayButton(count: mix.items.count) { model.playMix(mix) }
+                .padding(.top, 2)
+        }
+    }
+
     // MARK: - Topics, in order
 
     /// The items as drawn: the reorder just made, until the server answers.
@@ -358,10 +382,28 @@ struct MixView: View {
         return item.subtitle
     }
 
+    /// The signal a row is drawn with (Q5): only a changed item's - one
+    /// that carries both `since` and `signal`, as the web reads it.
+    private func rowSignal(_ item: MixItem) -> MixSignal? {
+        item.since == nil ? nil : item.signal
+    }
+
+    /// The row's outline: copper while it is dragged; the signal's colour,
+    /// 1.5 pt, on a changed topic (`.mix-topic.has-sig`); else the border.
+    private func rowStroke(_ signal: MixSignal?, lifted: Bool) -> Color {
+        if lifted { return FAMColor.copper }
+        if let signal { return FAMColor.signal(signal.isUpdate) }
+        return FAMColor.border
+    }
+
     private func topicRow(_ mix: Mix, _ item: MixItem, _ index: Int) -> some View {
         let who = adder(mix, item)
         let lifted = dragging == index
-        return HStack(spacing: 11) {
+        let signal = rowSignal(item)
+        let ring: Color? = signal.map { FAMColor.signal($0.isUpdate) }
+        // `.mix-topic.has-sig{ align-items:flex-start }`.
+        let align: VerticalAlignment = signal == nil ? .center : .top
+        return HStack(alignment: align, spacing: 11) {
             DragDots()
                 .foregroundStyle(lifted ? FAMColor.copper : FAMColor.textFaint)
                 .frame(width: 22, height: 34)
@@ -373,18 +415,27 @@ struct MixView: View {
                     }
                     .onEnded { _ in drop(mix) })
                 .accessibilityLabel("Drag to reorder")
-                .overlay(alignment: .bottomTrailing) {
-                    if let who { PersonFace(person: who, size: 16).offset(x: 10, y: 6) }
-                }
+                // `.mix-drag{ margin:-4px -4px -4px -6px }`.
+                .padding(.leading, -6)
+                .padding(.trailing, -4)
+                .padding(.vertical, -4)
+            MixTopicPic(item: item, ring: ring)
             VStack(alignment: .leading, spacing: 2) {
+                if let signal {
+                    MixSignalTag(signal: signal)
+                }
                 Text(item.title)
                     .font(FAMFont.heading(12.5, .semibold))
                     .foregroundStyle(FAMColor.text)
                 Text(subLine(who, item))
                     .font(FAMFont.body(9.5))
                     .foregroundStyle(FAMColor.textMuted)
+                if signal != nil, let since = item.since {
+                    MixBubbles(since: since, color: ring ?? FAMColor.sigTrending)
+                        .padding(.top, 5)
+                }
             }
-            Spacer(minLength: 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
             Button { model.playMix(mix, from: item.id) } label: {
                 PlayTriangle().fill(FAMColor.text).frame(width: 11, height: 11)
                     .frame(width: 30, height: 30)
@@ -397,7 +448,12 @@ struct MixView: View {
         .padding(.vertical, 11)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12)
-            .stroke(lifted ? FAMColor.copper : FAMColor.border))
+            .stroke(rowStroke(signal, lifted: lifted), lineWidth: signal == nil ? 1 : 1.5))
+        // On a joint mix, the face of whoever added it (`.mix-topic
+        // .mix-face{ left:28px; bottom:6px }`), over the picture's corner.
+        .overlay(alignment: .bottomLeading) {
+            if let who { PersonFace(person: who, size: 16).offset(x: 28, y: -6) }
+        }
         .shadow(color: .black.opacity(lifted ? 0.35 : 0), radius: 11, y: 8)
         .background(GeometryReader { g in
             Color.clear.onAppear { if index == 0 { rowPitch = g.size.height + 9 } }

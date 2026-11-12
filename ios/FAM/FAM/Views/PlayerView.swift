@@ -38,6 +38,8 @@ struct PlayerView: View {
     @State private var pictureFrame: CGRect = .zero
     @State private var queueFrame: CGRect = .zero
     @State private var queueBump: CGFloat = 1
+    /// "N friends listened", from the faces on the picture (§543).
+    @State private var friendsOpen = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -80,6 +82,10 @@ struct PlayerView: View {
         .fullScreenCover(item: $myStory) { reel in
             StoryViewerCover(reel: reel)
                 .environmentObject(model)
+        }
+        // The faces' own card (§394), as a DailyFAM card opens it.
+        .fullScreenCover(isPresented: $friendsOpen) {
+            friendsSheet
         }
         .onChange(of: now.showQueue) { _, wanted in
             guard wanted else { return }
@@ -198,6 +204,15 @@ struct PlayerView: View {
                     .frame(width: wide, height: wide * 3 / 4)
                     .background(FrameReporter(space: Self.space) { pictureFrame = $0 })
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                // Who of your friends listened (§543): top left of the
+                // picture, under the captions.
+                if let friends = now.listenedFriends {
+                    PlayerFriendsPill(friends: friends) { openFriends() }
+                        .padding(.leading, 16)
+                        .padding(.top, friendsTop(stage: geo.size.height, picture: wide * 3 / 4))
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                        .transition(.opacity)
+                }
                 if now.captionsOn {
                     CaptionsCard()
                         .padding(.horizontal, 12)
@@ -211,6 +226,34 @@ struct PlayerView: View {
             .animation(.easeOut(duration: 0.22), value: now.captionsOn)
         }
         .frame(maxHeight: .infinity)
+    }
+
+    /// `.p-friends`' top: 12 below the picture's top edge, never above 10
+    /// from the stage's (the picture can be taller than the stage).
+    private func friendsTop(stage: CGFloat, picture: CGFloat) -> CGFloat {
+        max(10, stage / 2 - picture / 2 + 12)
+    }
+
+    /// `openFriendsListened('_player')`: one presentation at a time.
+    private func openFriends() {
+        guard now.listenedFriends != nil else { return }
+        if sheet == nil && popup == nil {
+            friendsOpen = true
+            return
+        }
+        sheet = nil
+        popup = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { friendsOpen = true }
+    }
+
+    @ViewBuilder private var friendsSheet: some View {
+        if let friends = now.listenedFriends {
+            FriendsListened(count: max(friends.count, friends.faces.count), faces: friends.faces)
+                .environmentObject(model)
+        } else {
+            FriendsListened(count: 0, faces: [])
+                .environmentObject(model)
+        }
     }
 
     /// Share / VIBE! / save (`.p-side`): 24 apart, 34 pt up plus 12 of
@@ -292,8 +335,7 @@ struct PlayerView: View {
     /// most 330 wide: the play stays dead centre whether next shows or not.
     private var transportRow: some View {
         HStack(spacing: 0) {
-            Color.clear
-                .frame(width: 48, height: 48)
+            prevSlot
                 .frame(maxWidth: .infinity)
             seekButton(back: true)
                 .frame(maxWidth: .infinity)
@@ -318,6 +360,23 @@ struct PlayerView: View {
         }
         .buttonStyle(.press)
         .accessibilityLabel(player.playing ? "Pause" : "Play")
+    }
+
+    /// Back one (§550, `#mixPrevBtn`), in the slot that balances next:
+    /// only while a myFAM playlist plays - the queue has no "before".
+    @ViewBuilder private var prevSlot: some View {
+        if model.mixPlay != nil {
+            Button { model.prevMixItem() } label: {
+                PrevGlyph()
+                    .foregroundStyle(FAMColor.text)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(BareCircleStyle())
+            .accessibilityLabel("Back to the previous episode in this playlist")
+        } else {
+            Color.clear.frame(width: 48, height: 48)
+        }
     }
 
     @ViewBuilder private var nextSlot: some View {
@@ -554,6 +613,68 @@ struct PlayerExplicitBadge: View {
             .frame(minWidth: size, minHeight: size)
             .background(FAMColor.textMuted, in: RoundedRectangle(cornerRadius: 3))
             .accessibilityLabel("Explicit")
+    }
+}
+
+/// `.p-friends` (§543): the DailyFAM card's faces on the player - up to
+/// three 26 pt faces overlapped 6, ringed in the pill's ink, and a copper
+/// "+N" for the rest, on rgba(20,18,28,.62) over a blur, a cream hairline
+/// round it and a soft shadow under it. A tap lists who listened.
+struct PlayerFriendsPill: View {
+    let friends: NowPlayingModel.PlayerFriends
+    let open: () -> Void
+
+    private static let ground = Color(red: 20 / 255, green: 18 / 255, blue: 28 / 255)
+    private static let rim = Color(red: 244 / 255, green: 239 / 255, blue: 228 / 255)
+
+    private var shown: [FriendFace] { Array(friends.faces.prefix(3)) }
+
+    private var count: Int { max(friends.count, friends.faces.count) }
+
+    private var more: Int { count - shown.count }
+
+    private var label: String {
+        if count == 1, let face = friends.faces.first {
+            let name = face.name.isEmpty ? (face.handle ?? "") : face.name
+            return (name.isEmpty ? "A friend" : name) + " listened"
+        }
+        return "\(count) friends listened"
+    }
+
+    var body: some View {
+        Button(action: open) { look }
+            .buttonStyle(.press)
+            .fixedSize()
+            .accessibilityLabel(label)
+    }
+
+    private var look: some View {
+        HStack(spacing: 5) {
+            faces
+            if more > 0 {
+                Text("+\(more)")
+                    .font(FAMFont.mono(10, bold: true))
+                    .foregroundStyle(FAMColor.copper)
+            }
+        }
+        .padding(.leading, 3)
+        .padding(.trailing, more > 0 ? 8 : 3)
+        .padding(.vertical, 3)
+        .background(Self.ground.opacity(0.62), in: Capsule())
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(Self.rim.opacity(0.45), lineWidth: 1))
+        .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
+    }
+
+    private var faces: some View {
+        HStack(spacing: -6) {
+            ForEach(Array(shown.enumerated()), id: \.offset) { i, face in
+                Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
+                     size: 26, initialsSize: 10)
+                    .overlay(Circle().stroke(Self.ground.opacity(0.9), lineWidth: 1.5))
+                    .zIndex(Double(3 - i))
+            }
+        }
     }
 }
 
@@ -977,21 +1098,17 @@ struct MiniPlayer: View {
     }
 }
 
-/// What an action did, as a plain line (§299, `.toast` / `.snack`): a
-/// short copper rule over centred words, no box, on the page's own colour
-/// fading up into whatever is behind; an action (Undo, Open) in copper
-/// beside the words.
-/// The toast's 22 x 2 copper rule, growing from its middle as the line
-/// comes up (`.toast::before`: scaleX 0 to 1, .26 s after .06 s); whole
-/// with reduced motion.
-private struct ToastRule: View {
+/// The card's 7 pt copper dot, growing from its middle as the card comes up
+/// (`.toast::before`: scale 0 to 1, .26 s after .06 s); whole with reduced
+/// motion.
+private struct ToastDot: View {
     @State private var grown = UIAccessibility.isReduceMotionEnabled
 
     var body: some View {
-        Capsule()
+        Circle()
             .fill(FAMColor.copper)
-            .frame(width: 22, height: 2)
-            .scaleEffect(x: grown ? 1 : 0, y: 1)
+            .frame(width: 7, height: 7)
+            .scaleEffect(grown ? 1 : 0)
             .onAppear {
                 guard !grown else { return }
                 withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26).delay(0.06)) { grown = true }
@@ -999,48 +1116,65 @@ private struct ToastRule: View {
     }
 }
 
+/// What an action did, as a card that floats (§550, `.toast` / `.snack`;
+/// was §299's plain line on a fade of the page's colour, which over a dark
+/// screen - a friend's vibe, the story viewer - was a white band across the
+/// picture). The surface colour, a hairline, a shadow and a copper dot,
+/// sized to its words and centred, so it reads the same over any screen
+/// and covers nothing but itself; an action (Undo, Open) in copper to the
+/// right of the words. Where it sits is unchanged (`placeAboveBars`).
 struct ToastView: View {
     @EnvironmentObject private var now: NowPlayingModel
 
     var body: some View {
         ZStack {
             if let toast = now.toast {
-                band(toast)
+                card(toast)
                     .id(toast.id)
-                    .transition(.opacity.combined(with: .offset(y: 6)))
+                    // In: up 8 pt from 0.98 (`translateY(8px) scale(0.98)`).
+                    .transition(.opacity.combined(with: .offset(y: 8)).combined(with: .scale(scale: 0.98)))
             }
         }
-        .animation(.easeOut(duration: 0.2), value: now.toast)
+        .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.22), value: now.toast)
     }
 
-    private func band(_ toast: NowPlayingModel.Toast) -> some View {
-        VStack(spacing: 7) {
-            ToastRule()
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+    private func card(_ toast: NowPlayingModel.Toast) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return HStack(alignment: .center, spacing: 10) {
+            ToastDot()
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
                 Text(toast.text)
                     .font(FAMFont.body(13.5, .medium))
                     .foregroundStyle(FAMColor.text)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(13.5 * 0.35 - 4)
                     .lineLimit(toast.action == nil ? 3 : 1)
+                    .truncationMode(.tail)
                 if let action = toast.action {
                     Button(action) { now.toastTapped() }
                         .font(FAMFont.body(13.5, .bold))
                         .foregroundStyle(FAMColor.copper)
                         .buttonStyle(.press)
+                        .fixedSize()
                 }
             }
         }
-        .padding(.top, 26)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 9)
-        .frame(maxWidth: .infinity)
-        .background(
-            LinearGradient(stops: [
-                .init(color: FAMColor.background.opacity(0), location: 0),
-                .init(color: FAMColor.background.opacity(0.98), location: 0.45),
-            ], startPoint: .top, endPoint: .bottom)
-        )
-        // Only the action takes a tap; the line leaves what is under it
+        .padding(.top, 11)
+        .padding(.bottom, 11)
+        .padding(.leading, 14)
+        .padding(.trailing, 16)
+        .background(FAMColor.surface, in: shape)
+        .overlay(shape.stroke(FAMColor.borderStrong, lineWidth: 1))
+        // `0 16px 34px -14px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.12)`:
+        // SwiftUI has no spread, so the deep one is fainter and tighter.
+        .shadow(color: Color.black.opacity(0.3), radius: 11, x: 0, y: 12)
+        .shadow(color: Color.black.opacity(0.12), radius: 3, x: 0, y: 2)
+        // Sized to its words, never wider than the screen less 16 a side
+        // (`max-width:calc(100% - 32px)` on a phone), centred.
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, alignment: .center)
+        // Only the action takes a tap; the card leaves what is under it
         // pressable.
         .allowsHitTesting(toast.action != nil)
         .accessibilityElement(children: .combine)

@@ -10,9 +10,10 @@ enum MixRoute: Hashable {
     case publicMix(String)
 }
 
-/// The myFAM tab (`screen-playfam`): the wordmark, Create new mix, the
-/// category chips (§500), the public-mix search, and your mixes. Drawn to
-/// the web's measurements (PARITY.md).
+/// The myFAM tab (`screen-playfam`): the wordmark, then two tabs (§550):
+/// Mixes - Create new mix, the public-mix search and your mixes - and
+/// Categories - §500's chips without All over a list of the categories.
+/// Drawn to the web's measurements (PARITY.md).
 struct MyFAMView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var mixes: MixesModel
@@ -31,7 +32,11 @@ struct MyFAMView: View {
                 Wordmark(lead: "my", size: 28)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .padding(.top, 4)
-                if mixes.state == .ready {
+                // Mixes | Categories (§550, the owner's 11.11 note, "like
+                // Groups | Messages"), outside the scroller with the wordmark.
+                PlayfamTabs(tab: mixes.playfamTab) { showTab($0) }
+                // "Create new mix": on Mixes only.
+                if mixes.state == .ready && mixes.playfamTab == .mixes {
                     Button { path.append(.new) } label: {
                         HStack(spacing: 7) {
                             WebIcon(path: Icons.plus, size: 13, line: 2.4)
@@ -50,15 +55,20 @@ struct MyFAMView: View {
                 ScrollViewReader { proxy in
                 ScrollView {
                   VStack(alignment: .leading, spacing: 0) {
-                    Color.clear.frame(height: 0).id("top")
-                    CategoryChipsRow(state: $mixes.categoryState, subs: mixes.categorySubs)
-                        .padding(.top, 4)
-                    if mixes.categoryState.finding {
-                        CategoryFind(state: $mixes.categoryState)
-                    } else if let node = mixes.categoryState.node {
-                        CategoryPanel(node: node, subs: $mixes.categorySubs,
-                                      root: mixes.categoryState.root ?? node)
-                            .id(node)
+                    // The scroller's own 2 pt (`.scroll{ padding-top:2px }`).
+                    Color.clear.frame(height: 2).id("top")
+                    if mixes.playfamTab == .categories {
+                        CategoryChipsRow(state: $mixes.categoryState, subs: mixes.categorySubs)
+                            .padding(.top, 4)
+                        if mixes.categoryState.finding {
+                            CategoryFind(state: $mixes.categoryState)
+                        } else if let node = mixes.categoryState.node {
+                            CategoryPanel(node: node, subs: $mixes.categorySubs,
+                                          root: mixes.categoryState.root ?? node)
+                                .id(node)
+                        } else {
+                            CategoryHome(state: $mixes.categoryState)
+                        }
                     } else {
                     VStack(alignment: .leading, spacing: 0) {
                         searchBar.padding(.top, 18)
@@ -86,11 +96,24 @@ struct MyFAMView: View {
                         mixes.categorySubs = []
                         proxy.scrollTo("top")
                     }
+                    // Picking a category from anywhere opens its tab.
+                    if !new.atRest && mixes.playfamTab != .categories {
+                        mixes.playfamTab = .categories
+                    }
+                }
+                // Either tab starts at the top (`showPlayfamTab`).
+                .onChange(of: mixes.playfamTab) { _, _ in
+                    proxy.scrollTo("top")
                 }
                 }
             }
             .background(FAMColor.background)
             .toolbar(.hidden, for: .navigationBar)
+            // Back on the screen from a mix is looking at it (`openPlayFAM`
+            // from the back row, §550): the morning's dot goes.
+            .onChange(of: path) { _, now in
+                if now.isEmpty { mixes.clearMixDot() }
+            }
             .navigationDestination(for: MixRoute.self) { route in
                 switch route {
                 case .new: NewMixView(path: $path)
@@ -100,6 +123,15 @@ struct MyFAMView: View {
                 }
             }
         }
+    }
+
+    /// Which tab is on (`showPlayfamTab`): leaving Categories forgets the
+    /// one that was open; arriving shows the list of them.
+    private func showTab(_ which: PlayfamTab) {
+        if which == .mixes && !mixes.categoryState.atRest {
+            mixes.categoryState = CategoryState()
+        }
+        mixes.playfamTab = which
     }
 
     // MARK: - Your mixes
@@ -116,10 +148,21 @@ struct MyFAMView: View {
                 EmptyNote(text: "No mixes yet. Make one for when you listen — the gym, the commute — and it’s fresh every morning.")
             } else {
                 ForEach(mixes.mixes) { mix in
-                    Button { path.append(.mix(mix.id)) } label: { MixCard(mix: mix, trailing: .chevron) }
+                    Button { path.append(.mix(mix.id)) } label: { listCard(mix) }
                         .buttonStyle(.press)
                 }
             }
+        }
+    }
+
+    /// A mix in the list: its picture, name and arrow (§544) - or, when one
+    /// of its topics changed since this listener last heard it, R5 (§545).
+    @ViewBuilder
+    private func listCard(_ mix: Mix) -> some View {
+        if let signal = mix.signal {
+            MixSignalCard(mix: mix, signal: signal)
+        } else {
+            MixCard(mix: mix, trailing: .chevron)
         }
     }
 
@@ -265,6 +308,10 @@ struct MixCard: View {
     enum Trailing { case chevron, add, none }
     let mix: Mix
     let trailing: Trailing
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// "New today" (§550): your own list's card, until the mix is played.
+    private var fresh: Bool { trailing == .chevron && mixes.isFresh(mix.id) }
 
     var body: some View {
         HStack(spacing: 13) {
@@ -274,16 +321,31 @@ struct MixCard: View {
                     .font(FAMFont.heading(14, .semibold))
                     .foregroundStyle(FAMColor.text)
                     .multilineTextAlignment(.leading)
-                meta
-                    .font(FAMFont.mono(8.5))
-                    .tracking(0.425)
-                    .textCase(.uppercase)
-                Text(mix.items.isEmpty ? "Nothing in it yet" : mix.items.map(\.title).joined(separator: " · "))
-                    .font(FAMFont.body(10))
-                    .foregroundStyle(FAMColor.textMuted)
-                    .lineLimit(1)
+                if fresh && typeSize.isAccessibilitySize {
+                    NewTodayChip().padding(.leading, -6)
+                }
+                // Your own mixes are a picture, a name and an arrow (§544, the
+                // owner 11.10); a public mix found in search keeps whose it is.
+                if trailing != .chevron {
+                    meta
+                        .font(FAMFont.mono(8.5))
+                        .tracking(0.425)
+                        .textCase(.uppercase)
+                    Text(mix.items.isEmpty ? "Nothing in it yet" : mix.items.map(\.title).joined(separator: " · "))
+                        .font(FAMFont.body(10))
+                        .foregroundStyle(FAMColor.textMuted)
+                        .lineLimit(1)
+                }
             }
-            Spacer(minLength: 4)
+            // `.mix-card-body{ flex:1 }` with the card's 13 pt gap: a long
+            // name wraps 13 pt short of the arrow, not 30.
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // This morning's episodes waiting, until it is played (§550,
+            // `.mix-new`): your own list's card only. At the accessibility
+            // sizes it goes under the name rather than squeezing it.
+            if fresh && !typeSize.isAccessibilitySize {
+                NewTodayChip()
+            }
             switch trailing {
             case .chevron:
                 WebIcon(path: Icons.chevron, size: 15, line: 2.2)
@@ -318,6 +380,28 @@ struct MixCard: View {
             t = t + Text(" · " + MixesModel.jointLabel(mix)).foregroundColor(FAMColor.copper)
         }
         return t
+    }
+}
+
+/// "New today" on a mix's card (§550, `.mix-new` as §550 writes it):
+/// Geist Mono 9 bold, 0.1 em, uppercase, copper words in a copper hairline
+/// of radius 10, 6 pt after the name. (The web's page also matches an
+/// older `.mix-new` rule - the 100%-wide dashed New mix button - which
+/// stretches its chip across the card; that collision is not copied.)
+struct NewTodayChip: View {
+    var body: some View {
+        Text("New today")
+            .font(FAMFont.mono(9, bold: true))
+            .tracking(0.9)
+            .textCase(.uppercase)
+            .foregroundStyle(FAMColor.copper)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.copper, lineWidth: 1))
+            .padding(.leading, 6)
+            .accessibilityLabel("New today")
     }
 }
 

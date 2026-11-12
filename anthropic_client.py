@@ -89,9 +89,19 @@ def build_async_client(api_key: str | None = None) -> anthropic.AsyncAnthropic:
     return anthropic.AsyncAnthropic(**kwargs)
 
 
+#: The client `http2_enabled()` asks when it is given none, built once per
+#: `ANTHROPIC_HTTP2` value (§548): /api/health asked on every call, and
+#: building the SDK's client is milliseconds of TLS context each time.
+_PROBE_CLIENTS: dict = {}
+
+
 def http2_enabled(client: anthropic.DefaultAsyncHttpxClient | None = None) -> bool:
     """Whether the transport pool will negotiate HTTP/2. Used by tests and health."""
-    client = client if client is not None else build_http_client()
+    if client is None:
+        flag = bool(settings.anthropic_http2)
+        client = _PROBE_CLIENTS.get(flag)
+        if client is None:
+            client = _PROBE_CLIENTS[flag] = build_http_client()
     try:
         return bool(getattr(client._transport._pool, "_http2", False))
     except AttributeError:  # pragma: no cover - httpx2 internals moved
