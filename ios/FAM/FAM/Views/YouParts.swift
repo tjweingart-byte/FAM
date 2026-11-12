@@ -1,5 +1,6 @@
 import SafariServices
 import SwiftUI
+import UIKit
 
 /// YourFAM's own icons, path for path from `yfIcon` and the screens'
 /// inline SVGs (spec §4).
@@ -452,7 +453,7 @@ struct YouSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .frame(height: min(height * grow, 640))
+        .frame(height: min(height * grow, 640, UIScreen.main.bounds.height * 0.82))
     }
 
     private var height: CGFloat {

@@ -294,7 +294,7 @@ struct FAMActionSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .frame(height: min(spec.height * grow, 640))
+        .frame(height: min(spec.height * grow, 640, UIScreen.main.bounds.height * 0.82))
     }
 
     private func row(_ action: SheetAction) -> some View {
@@ -623,7 +623,7 @@ struct FAMReportSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .frame(height: min(height * grow, 640))
+        .frame(height: min(height * grow, 640, UIScreen.main.bounds.height * 0.82))
         .task { await loadReasons() }
     }
 
