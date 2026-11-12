@@ -34846,17 +34846,24 @@ on when a background load finished.
 
 **2.** The list additions above.
 
-**3. Ordinary case is for the ear.** `spoken_text.WORD_CASE` hands a word
-said as a word to the voice as written ("NASCAR", as before) or, set to
-"title", in ordinary case ("Nascar"). Unchanged until heard.
+**3. Ordinary case.** `spoken_text.WORD_CASE` hands a word said as a word
+to the voice in ordinary case ("Nascar", "Nvidia's", "Nato", "Breaking") -
+"title", decided without the trial at the owner's direction ("Just make
+the changes that you know are right, and I will come back here to let you
+know if it still needs work"): a voice learned from ordinary text, where
+capitals mean letters or shouting, and the owner's complaint was exactly
+that the words sounded like acronyms. "upper" restores capitals.
+`SAID_AS` gives the few with a form of their own: OK "okay", OPENAI
+"Open A I", USAID "U S Aid", CSPAN "C Span". Initialisms keep "F B I" -
+not reported as a problem, and the alternatives are for the ear.
 
 **4. The trial.** `python tools/stress_trial.py --caps` says each word five
 ways - letters apart ("F B I", today's for an initialism), dotted, the
-letters' names ("eff bee eye"), as written (today's for a word) and ordinary
-case - past `spoken_text`, bare and in a sentence, and marks today's.
-`pronounce_review.caps_variants`, `caps_choice`, `hear_caps`. Whichever
-column wins for words sets `WORD_CASE`; whichever wins for initialisms
-replaces `_spell`'s spacing. Unheard: this container has no voice.
+letters' names ("eff bee eye"), as written and ordinary
+case (today's for a word) - past `spoken_text`, bare and in a sentence, and
+marks today's. `pronounce_review.caps_variants`, `caps_choice`,
+`hear_caps`. If a column beats today's, it is a one-line change. Unheard:
+this container has no voice.
 
 **On /admin, because the Mac could not.** The owner ran the trial on a Mac
 with no route to the voice worker and got the placeholder tone. The same

@@ -33,8 +33,8 @@ LETTERS = ["FBI", "ESPN", "HBO", "CNN", "NFL", "NBA", "NCAA", "UCLA", "MSNBC",
 
 
 @pytest.mark.parametrize("word", WORDS)
-def test_said_as_a_word(word):
-    assert speakable(f"the {word} story") == f"the {word} story"
+def test_said_as_a_word_in_ordinary_case(word):
+    assert speakable(f"the {word} story") == f"the {word.capitalize()} story"
 
 
 @pytest.mark.parametrize("word", LETTERS)
@@ -43,7 +43,7 @@ def test_said_as_letters(word):
 
 
 def test_the_reported_cases_and_their_endings():
-    assert speakable("NASCAR drivers and NVIDIA's chips") == "NASCAR drivers and NVIDIA's chips"
+    assert speakable("NASCAR drivers and NVIDIA's chips") == "Nascar drivers and Nvidia's chips"
     assert speakable("two NFLs") == "two N F Ls"     # as before: the s stays a word ending
 
 
@@ -57,8 +57,8 @@ def test_an_entry_that_is_its_letters_names_is_letters():
 def test_until_the_dictionary_has_loaded_the_old_rule_holds(monkeypatch):
     monkeypatch.setattr(hard_words, "peek", lambda: None)
     assert speakable("AWOL") == "A W O L"          # not listed: spelled, as before
-    assert speakable("NASCAR") == "NASCAR"          # listed
-    assert speakable("BREAKING news") == "BREAKING news"   # seven or more: a word
+    assert speakable("NASCAR") == "Nascar"          # listed
+    assert speakable("BREAKING news") == "Breaking news"   # seven or more: a word
 
 
 def test_peek_never_waits_and_starts_one_load(monkeypatch):
@@ -78,10 +78,15 @@ def test_peek_never_waits_and_starts_one_load(monkeypatch):
     assert started == [hard_words._load]
 
 
-def test_word_case_title_hands_the_voice_ordinary_case(monkeypatch):
-    monkeypatch.setattr(spoken_text, "WORD_CASE", "title")
+def test_word_case_upper_hands_the_voice_capitals(monkeypatch):
+    monkeypatch.setattr(spoken_text, "WORD_CASE", "upper")
     assert speakable("NASCAR and NVIDIA's chips, by the FBI") == \
-        "Nascar and Nvidia's chips, by the F B I"
+        "NASCAR and NVIDIA's chips, by the F B I"
+
+
+def test_words_with_a_spoken_form_of_their_own():
+    assert speakable("OK, said OPENAI and USAID on CSPAN") == \
+        "okay, said Open A I and U S Aid on C Span"
 
 
 def test_the_server_loads_the_dictionary_at_boot_off_the_loop():
@@ -96,7 +101,7 @@ def test_five_ways_to_say_capitals_and_which_is_today():
         "spaced": "F B I", "dotted": "F.B.I.", "named": "eff bee eye",
         "upper": "FBI", "title": "Fbi"}
     assert pronounce_review.caps_choice("FBI") == "spaced"
-    assert pronounce_review.caps_choice("NASCAR") == "upper"
+    assert pronounce_review.caps_choice("NASCAR") == "title"
 
 
 def _tool():
@@ -123,6 +128,7 @@ def test_the_caps_trial_says_each_as_written_and_writes_a_page(monkeypatch, tmp_
                     "N A S C A R", "N.A.S.C.A.R.", "en ay ess see ay ar", "NASCAR", "Nascar"]
     page = (tmp_path / "index.html").read_text()
     assert "Capitals trial" in page and page.count("</code> <b>(today)</b>") == 2
+    assert "<code>Nascar</code> <b>(today)</b>" in page
     assert len(list(tmp_path.glob("*.wav"))) == 10
 
 
@@ -151,7 +157,7 @@ def test_admin_hears_a_word_in_capitals_five_ways_and_keeps_nothing(monkeypatch,
                            json={"word": "nascar"}).status_code == 404
         r = client.post("/api/admin/pronunciations/hear-caps", json={"word": "nascar"},
                         headers={"X-Admin-Token": "secret"}).json()
-        assert r["word"] == "NASCAR" and r["today"] == "upper"
+        assert r["word"] == "NASCAR" and r["today"] == "title"
         assert [v["variant"] for v in r["variants"]] == ["spaced", "dotted", "named", "upper", "title"]
         assert all(v["audio"].startswith("data:audio/wav;base64,") and "wav" not in v
                    for v in r["variants"])

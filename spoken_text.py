@@ -113,8 +113,13 @@ NASA NATO FIFA UEFA OPEC COVID UNESCO UNICEF NAFTA SWAT NASDAQ LASIK SCOTUS
 AIDS ASAP PIN RAM ROM LAN WAN GIF JPEG IKEA LEGO SARS MERS NIMBY FOMO YOLO
 OK NOAA DARPA ASEAN CERN INTERPOL NORAD ICE FEMA OSHA MAGA LOL
 LIV EBITDA CAPTCHA SPAC DACA FAFSA HIPAA UTEP FAANG CONCACAF CONMEBOL
-NVIDIA NASCAR DOGE FOX ARM PAC ZIP AXIOS OPENAI
+NVIDIA NASCAR DOGE FOX ARM PAC ZIP AXIOS
 """.split())
+
+#: Capitals with a spoken form of their own, part word and part letters, or
+#: a word that reads wrongly in ordinary case ("Ok").
+SAID_AS = {"OK": "okay", "OPENAI": "Open A I", "USAID": "U S Aid",
+           "CSPAN": "C Span"}
 
 #: Capitals spelled out although the dictionary has them as an ordinary word:
 #: initialisms that collide with one ("WHO" the agency, "SAT" the test).
@@ -124,10 +129,12 @@ SAID_AS_LETTERS = frozenset("""
 AARP ACLU WNBA NCAA NHRA UNLV USMNT USWNT NYSE NVDA AAPL TSLA GOOGL MSFT AMZN
 """.split())
 
-#: How a capitalised word said as a word is handed to the voice: as written
-#: ("NASCAR"), or "title" ("Nascar"). Which the voice says more smoothly is
-#: for the ear (`tools/stress_trial.py --caps`); as written until it is heard.
-WORD_CASE = "upper"
+#: How a capitalised word said as a word is handed to the voice: "title"
+#: ("Nascar") or as written ("upper", "NASCAR"). Title since §566, at the
+#: owner's direction to make the changes known to be right: a voice learned
+#: from ordinary text, where capitals mean letters or shouting, so "NASCAR"
+#: is the form most likely to come out choppy. Captions keep the capitals.
+WORD_CASE = "title"
 
 #: Each letter's name in ARPAbet without stress, the way the CMU dictionary
 #: writes an initialism ("ESPN" = IY EH S P IY EH N). An entry that is
@@ -264,6 +271,8 @@ def _caps(m: re.Match) -> str:
     word, tail = m.group(1), m.group(2) or ""
     if word in _NOT_ABBREVIATIONS:
         return m.group(0)
+    if word in SAID_AS:
+        return SAID_AS[word] + tail
     if _said_as_word(word):
         return (word.capitalize() if WORD_CASE == "title" else word) + tail
     return _spell(word) + tail
