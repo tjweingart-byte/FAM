@@ -34366,3 +34366,19 @@ and says which of two things it is:
 place the episode instead (§371). `_breach(..., plan=)` lets any check
 replace the generic plan's fields where it knows better. Tests in
 `tests/test_agent_checks_491.py`.
+
+## 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12)
+
+CI's `postgres` job (§243) has failed on Main since #250: 3 failed, 7057
+passed, all in `tests/test_feed_speed_548.py`. Two counted the statements a
+draw issues with `sqlite3.Connection.set_trace_callback`, which `db.Connection`
+does not have; one played another worker by opening the store's file with
+`sqlite3.connect(path)`, which under Postgres is an empty file with no
+`events` table. None was a fault in the code they test.
+
+Made portable rather than marked `sqlite_file`, so Postgres keeps the
+coverage: `_trace(conn, seen)` uses SQLite's hook or wraps `db.Connection.execute`
+(either way, the statements the store issued), and the other worker opens
+the same store with `db.connect(path)` - the file in SQLite, its schema in
+Postgres. Run against a local Postgres 16 and against SQLite: 14 of 14 on
+both. This branch's own category tests also pass on Postgres (72).

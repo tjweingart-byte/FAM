@@ -548,3 +548,4 @@ and `limit` = Lines.
 | 34292 | 21 | 554. The category tree on /admin (2026-11-12) |
 | 34313 | 30 | 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12) |
 | 34343 | 27 | 556. Keith's dead-node alert explains itself (2026-11-12) |
+| 34370 | 16 | 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12) |
