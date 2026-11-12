@@ -87,6 +87,15 @@
    > accepted. Never accept a whole file blind: an admin's respelling is never
    > replaced afterwards. `voiced` hands the voice no stress; "Hear 4 ways"
    > and `tools/stress_trial.py` compare four spellings by ear before it changes.
+   > **Current (PROBLEMS.md §567, at the owner's direction):** words in
+   > capitals are said as words when the CMU dictionary has them as one (from
+   > four letters: NASCAR, NVIDIA) and spelled when it has them as their
+   > letters' names or not at all (ESPN, UCLA); two or three letters are
+   > spelled unless listed. The dictionary loads at boot in a thread and is
+   > never waited for (`hard_words.peek`). A word goes to the voice in
+   > ordinary case ("Nascar"; `WORD_CASE`), captions keep the capitals;
+   > `SAID_AS` holds part-letter forms (USAID "U S Aid"). /admin's "Words in
+   > capitals" box hears any word five ways.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default
