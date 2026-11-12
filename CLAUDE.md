@@ -210,7 +210,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   One bank: personalise order, not inventory. [op-taste-scoring]
 - **DailyFAM mixes**: topic ids, never audio; **public by default**, copies
   private; `loadMixes` takes the bank before the 401; dormant after 48h
-  unplayed (§359); rows show today's episode title (§569). [op-dailyfam-mixes] [mix-dormancy]
+  unplayed (§359). [op-dailyfam-mixes] [mix-dormancy]
 - **A mix is made by naming it** (§498), then filled from its page; no
   picker. [mix-made-by-naming] Long typed topics are named short.
   [mix-topic-title] Joint: members edit topics only. [joint-mixes]
