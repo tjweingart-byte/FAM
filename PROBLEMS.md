@@ -34339,3 +34339,30 @@ the facets as ordinary rows, which the real tree never does.
 every checker against everything Nando can file - every facet, every node,
 and what `categorizer.suggest`/`place` return for `tools/nando_eval.py`'s
 questions. With the old code put back, four of its eight tests fail.
+
+## 556. Keith's dead-node alert explains itself (2026-11-12)
+
+The §552 alert stood six days, seen 1355 times, and told the owner to hold
+a healthy agent: it named two nodes and nothing else, and every agent
+breach carried the same plan ("Hold the agent ... and look at what it
+did"). Nothing on it said the nodes were facets, how many episodes, or
+whether Nando was still doing it.
+
+Now the finding carries what Keith read. `nando_nodes_exist` keeps, beside
+each pass's nodes, how many episodes are filed under each, the newest's key
+and the day it was written (`_NANDO["found"]`, kept a pass over like the
+nodes, so the words never go blank on the round after). The alert names
+each missing node with its episodes, the newest episode's title and day,
+and says which of two things it is:
+
+* **Nando filed one in the last two days** (`NANDO_STILL_FILING`): he is
+  naming nodes the tree does not hold. Plan: hold Nando and read his filing.
+* **Only older filings**: the tree changed under them (a prune, rename or
+  re-seed); Nando did nothing and holding him would not help. Plan:
+  Consuela's re-file, with whether she is off, in dry run or will move them
+  - or put the node back in the seed if it was dropped by mistake.
+
+"A listener notices" now says what happens - the writer's category words
+place the episode instead (§371). `_breach(..., plan=)` lets any check
+replace the generic plan's fields where it knows better. Tests in
+`tests/test_agent_checks_491.py`.
