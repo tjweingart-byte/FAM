@@ -533,6 +533,25 @@
   sport is `unknown` and says nothing, so an unverified mapping costs a silent
   game, never a wrong one.
 
+<!-- rule:tiingo-credit -->
+- **Tiingo is credited wherever its data was used.** *(PROBLEMS.md §552, at the
+  owner's direction, 11.12.)* An episode whose provenance names Tiingo - a
+  live lookup Tiingo answered (`provenance.from_live` credits a provider only
+  on facts), or Tiingo's figures recalled from FAM's archive - ends with the
+  sentence `provenance.TIINGO_CREDIT`, "Market data powered by Tiingo.", the
+  very last thing spoken. It is composed in code (`script_generator.market_credit`),
+  never written by the model, and added after everything the writer said, a
+  refusal included, on both write paths: `stream_prepared` (so every stream:
+  searchFAM, prefetch, the editions' live fallback, `write.py`) and
+  `sentences_from_message` (the batched editions). It is stored with the
+  script, so replays and captions carry it. It is the one sentence after
+  "land it and stop" [speak-from-inside]: a licence credit, not a summary or
+  a tease. Tiingo is also listed in the player's sources, and first:
+  `Provenance.as_dict` puts it ahead of every other source, so it is one of
+  the three marks the corner draws rather than hidden behind "+N". Both read
+  the same record, so the voice and the panel cannot disagree; a failed
+  Tiingo lookup is in neither. With `ALLOW_TOPUPS=1` (off by default) a
+  top-up would follow the credit.
 <!-- rule:sweep-on-demand -->
 > **Current (PROBLEMS.md §418):** the markets sweep is Tiingo's alone (`story_sources.TiingoSignals`): the watchlist (`MARKETS_WATCHLIST`, was `FINNHUB_WATCHLIST`) in one request every two hours, swept only while Tiingo is the markets provider. Read "Finnhub" below as the markets sweep.
 > **Current (PROBLEMS.md §290, temporary):** a league API-Sports answers is swept on API-Sports' own day: the sweep stops while `API_SPORTS_LOOKUP_RESERVE` of the sport's requests are left, so listeners' questions keep the end of the day (`api_sports.Client.sweep_may`). With `TIINGO_API_KEY` set, markets are Tiingo's and its sweep (`story_sources.TiingoSignals`) is one request for the whole watchlist; only the markets provider the episodes read is swept.

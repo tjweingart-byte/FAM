@@ -319,8 +319,8 @@ Research and truth
   reports (§275) by the scoreboard; unlisted≠fit. [player-facts]
   Code routes named teams/listings (§265); it only asks. [live-route]
 - **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
-- **Sports are BALLDONTLIE's (ALL-ACCESS, §419), markets Tiingo's** (§277,
-  §280, §418); API-Sports and Finnhub are gone. [sports-balldontlie]
+- **Sports BALLDONTLIE's (§419), markets Tiingo's** (§418) [sports-balldontlie]
+  Tiingo used: ends "Market data powered by Tiingo.", 1st source (§552). [tiingo-credit]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one
   of their games is on, only if myFAM was drawn recently; other leagues are
@@ -524,8 +524,8 @@ Every change ends the same way, without being asked [ship-loop]:
 3. Reply with a short summary and the preview URL.
 4. If something cannot be automated, give the exact command.
 
-- Previews (the fixture `fam-artifact.html` and the live-DB build) show
-  layout and flow, never writing quality or latency. [preview-fixtures]
+- Previews (fixture `fam-artifact.html`, live-DB build) show layout
+  and flow, never writing quality or latency. [preview-fixtures]
 - **The algorithm documents itself**: `tools/algorithm_docs.py` writes the
   PDF, deck and `ALGORITHM.md` in `docs/algorithm/` from the code; a test fails
   when they are stale; `dev.sh check` rebuilds them. Never hand-edit. [algorithm-docs]
@@ -555,4 +555,4 @@ Every change ends the same way, without being asked [ship-loop]:
   with `config.py`; interface literals pinned to their variable. [settings-copied]
 - `PROBLEMS.md` is the engineering log - add to it rather than starting new notes. [problems-log]
 - Tests run with no API key or speech engine. [tests-no-key]
-- `diagnose_api.py` for connection failures, `compare_models.py` for models. [diag-tools]
+- `diagnose_api.py` for connections, `compare_models.py` for models. [diag-tools]

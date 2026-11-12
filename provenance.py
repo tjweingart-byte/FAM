@@ -113,7 +113,12 @@ class Provenance:
             self.items.append(item)
 
     def as_dict(self) -> dict:
-        return {"items": [i.as_dict() for i in self.items],
+        # Tiingo first (§552): its licence asks for the credit, and the
+        # player's corner shows only the first three marks, so it is never
+        # hidden behind "+N". Otherwise the order sources were found in.
+        ordered = ([i for i in self.items if is_tiingo(i.label)]
+                   + [i for i in self.items if not is_tiingo(i.label)])
+        return {"items": [i.as_dict() for i in ordered],
                 "retrievers": list(self.retrievers),
                 "count": len(self.items)}
 
@@ -265,3 +270,35 @@ def from_attachments(attachments) -> list:
                                tier="attached by you",
                                private=True))
     return out
+
+
+
+#: The words Tiingo's licence asks for, spoken as the episode's last
+#: sentence whenever its market data went into the episode (owner's
+#: direction, §552). Added in code after everything the writer said -
+#: a refusal included - and never written by the model.
+TIINGO_CREDIT = "Market data powered by Tiingo."
+
+
+def is_tiingo(label) -> bool:
+    """Whether a source's label names Tiingo, however a path spelled it."""
+    return "tiingo" in str(label or "").lower()
+
+
+def credits_tiingo(provenance) -> bool:
+    """Whether Tiingo's data went into the episode `provenance` describes.
+
+    Read from the sources panel's own record, so the spoken credit and the
+    panel can never disagree: a live lookup Tiingo answered (`from_live`
+    credits a provider only on facts) or Tiingo's figures recalled from
+    FAM's archive (credited by provider name). A Tiingo lookup that failed
+    is not on the record and is not credited. Never raises.
+    """
+    items = provenance.get("items") if isinstance(provenance, dict) \
+        else getattr(provenance, "items", None)
+    for item in items or []:
+        label = item.get("label", "") if isinstance(item, dict) \
+            else getattr(item, "label", "")
+        if is_tiingo(label):
+            return True
+    return False
