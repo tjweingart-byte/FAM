@@ -34992,3 +34992,24 @@ writer and records why, 0 is no ceiling, each writer's own ceilings work
 alone, the lower of the two binds, one writer's spend counts against the
 others, the reserve, the report's shape, health and the tracker carry it, and
 the card draws on the real page.
+
+## 569. NVIDIA still choppy: spelled as it sounds, in every case (2026-11-12)
+
+**What was asked.** The owner, after §567 merged: "Merged, NVIDIA still
+sounds choppy".
+
+**Two reasons, both fixed here.** §567 handed the word over in ordinary case,
+"Nvidia" - and no English word opens "Nv", so a voice trained on English
+text stumbles on the first sound. And news style already writes "Nvidia",
+which the capitals rule never sees: most episodes were never reached by §567
+at all. `spoken_text.SPELLED_AS_SOUNDED` (`{"nvidia": "Envidia"}`) replaces
+the whole word in any case, just before the capitals rule; only the voice's
+text changes.
+
+**The /admin entry can be the cause.** §567's reply suggested saving
+`NVIDIA = en-VID-ee-uh` on /admin as a stopgap. A lexicon entry is applied
+before `spoken_text` and wins, and `pronunciation.voiced` hands it over as
+"En-vid-ee-uh" - four hyphenated pieces, which may itself be the choppiness.
+If that entry was saved, it must be removed (or set to `envidia`) for this
+to apply to the capitalised form. Whether hyphens make every respelled name
+choppy is the stress trial's "Run together" column (§549), still unheard.
