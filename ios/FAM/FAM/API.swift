@@ -263,8 +263,8 @@ final class FAMAPI: @unchecked Sendable {
     /// (§296), the terms box ticked (§228) and the invite code a link
     /// carried. The account is put on the list; the token comes back
     /// because it is asked for.
-    /// The join (§570): the email and a password, set on the account as it
-    /// is made. A server from before §570 already took `password` (it was
+    /// The join (§571): the email and a password, set on the account as it
+    /// is made. A server from before §571 already took `password` (it was
     /// §296's "old join"), so nothing breaks against one.
     func joinWaitlist(email: String, password: String, referral: String) async throws -> Listener {
         let who = try await send("POST", "api/v1/waitlist/join",
@@ -984,7 +984,7 @@ struct WaitlistFamPerson: Decodable, Hashable {
 
 /// The status page's own details: `has_password` false for an email-only
 /// join (§296), which is shown "Set a password so you can sign back in"
-/// (§570) and whose sign-out is warned about first.
+/// (§571) and whose sign-out is warned about first.
 struct WaitlistDetails: Decodable, Hashable {
     let email: String?
     let hasPassword: Bool?

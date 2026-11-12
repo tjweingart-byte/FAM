@@ -181,7 +181,7 @@ struct SettingsView: View {
             SetNote(text: "When it\u{2019}s on, anyone who opens an episode you searched can see your @handle in the player\u{2019}s menu.")
             SetRow(label: "Signed in as", value: model.listener?.email ?? "")
             SetRow(label: "Sign-in methods", value: methodsValue) { model.youPath.append(.signInMethods) }
-            // "Set a password" whenever the account has none (§570), opening
+            // "Set a password" whenever the account has none (§571), opening
             // the first-password flow directly (`passwordSettingsRow`).
             SetRow(label: PasswordChange.label(you.account)) {
                 PasswordChange.open(model: model, account: you.account, ask: $textAsk)

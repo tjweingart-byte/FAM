@@ -464,7 +464,7 @@ def test_the_front_door_decodes_what_the_server_sends(monkeypatch, tmp_path):
     sent = set(re.findall(r'"(\w+)":', body))
     assert sent <= set(appmod.WaitlistJoinRequest.model_fields), sorted(sent)
     assert {"email", "password", "referral_code", "accept_terms", "want_token"} <= sent
-    # §570: the join asks for a password by the server's own minimum, the
+    # §571: the join asks for a password by the server's own minimum, the
     # same number and sentence the web's page uses.
     import accounts as accounts_mod
     auth_view = (SWIFT / "Views" / "AuthView.swift").read_text(encoding="utf-8")

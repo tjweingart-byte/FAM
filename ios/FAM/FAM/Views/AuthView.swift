@@ -8,7 +8,7 @@ import UIKit
 ///
 /// **Sign up is the web's waitlist join** (decision 1, `signupGoesToWaitlist`):
 /// every web sign-up goes to `/waitlist`, whose form asks for the email,
-/// then a password (§570, reversing §296's email alone), then the terms
+/// then a password (§571, reversing §296's email alone), then the terms
 /// box (§228), and carries the invite code a link brought (`referral_code`).
 /// The account is put on the list, then the profile is offered with a way
 /// past it, then the status page. Log in is
@@ -119,13 +119,13 @@ struct AuthView: View {
         }
     }
 
-    // MARK: Sign up: the waitlist join (email, password, terms; §570)
+    // MARK: Sign up: the waitlist join (email, password, terms; §571)
 
     private var joinFields: some View {
         VStack(alignment: .leading, spacing: 0) {
             label("Email").padding(.top, 18)
             emailField(prompt: "Enter your email")
-            // A password in the same step (§570): the way back in from any
+            // A password in the same step (§571): the way back in from any
             // device, with no email needed (`#joinPassword`).
             label("Password").padding(.top, 18)
             passwordField
@@ -312,7 +312,7 @@ struct AuthView: View {
             problem = "That doesn\u{2019}t look like an email address."
             return
         }
-        // The app's own rule and sentences (`submitAuthForm`, §570).
+        // The app's own rule and sentences (`submitAuthForm`, §571).
         guard !password.isEmpty else {
             problem = "Enter your password."
             return

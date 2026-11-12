@@ -543,7 +543,7 @@ struct WaitlistStatusPage: View {
                 .padding(.top, 14)
                 hello.padding(.top, 18)
                 // An account with no password (§296's email alone) sets one
-                // here (§570, `#passwordCard`): the web's order, above the
+                // here (§571, `#passwordCard`): the web's order, above the
                 // samples and the place.
                 if page?.details?.hasPassword == false {
                     WaitlistPasswordCard { await load() }.padding(.top, 18)
@@ -730,7 +730,7 @@ struct WaitlistStatusPage: View {
     }
 
     /// Joined with the email alone (§296): this phone is the only way in
-    /// until a password is set (the card above, §570), so signing out is
+    /// until a password is set (the card above, §571), so signing out is
     /// said first.
     private func signOut() {
         if page?.details?.hasPassword == false {
@@ -763,7 +763,7 @@ struct WaitlistStatusPage: View {
     }
 }
 
-/// "Set a password so you can sign back in" (§570, the web's
+/// "Set a password so you can sign back in" (§571, the web's
 /// `#passwordCard`): drawn while `/api/waitlist/me` says the account has no
 /// password, it sets the first with `/api/auth/password/set` - the way back
 /// in from any device where "Forgot password?" needs mail this server may
