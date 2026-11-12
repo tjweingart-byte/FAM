@@ -809,8 +809,10 @@ MAX_CANDIDATES = 20
 
 #: The whole tree goes on the list after code's matches while it has at
 #: most this many nodes (§388, §389); past it, the level under the facets,
-#: and only when the words found nothing.
-WHOLE_TREE_NODES = 400
+#: and only when the words found nothing. 400 when the seed was 303 nodes;
+#: 1000 since the seed doubled to 677 (§553), so the measured 36-of-40 list
+#: is not lost to the tree's own growth. Its latency at 677 is unmeasured.
+WHOLE_TREE_NODES = 1000
 
 
 def candidates_for(query: str, context: str = "", notes=None) -> tuple:

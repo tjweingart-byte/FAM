@@ -387,3 +387,23 @@ def test_the_report_separates_declared_from_learned(seeded):
     assert report["seeded"] == len(S.rows())
     assert report["learned"] == 1
     assert report["seed_available"] == len(S.rows())
+
+
+@pytest.mark.parametrize("question, node", [
+    # 11.12, the owner's review page: each of these was filed "nothing".
+    ("Why are people so fascinated by magic?", "magic"),
+    ("Marshfield Children's Hospital in central Wisconsin has raised", "hospitals"),
+    ("What standards are being proposed for Australian schools", "education"),
+    ("How institutional systems are failing sexual abuse survivors", "sexual abuse"),
+    ("Mount Sinai study finds amino acid change alters Andes virus",
+     "infectious disease"),
+    ("health research that changed what experts recommend about alcohol", "alcohol"),
+    ("women's health research", "womens health"),
+    # The team, never the craft (`magic` sits above `nba`).
+    ("Orlando Magic beat the Celtics", "nba"),
+])
+def test_the_subjects_the_review_page_could_not_place_now_have_a_node(
+        seeded, question, node):
+    import stories
+
+    assert stories.resolve_category(question) == node
