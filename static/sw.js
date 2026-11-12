@@ -50,7 +50,7 @@ self.addEventListener("fetch", function (event) {
   );
 });
 
-/* Notifications (push.py, push_stories.py; §552): "Your myFAM is ready" once
+/* Notifications (push.py, push_stories.py; §562): "Your myFAM is ready" once
    a day per person, a big story, a followed team's final - each sent only
    once what it opens is written. A tap opens the app on it, focusing a FAM
    window that is already open rather than a second. */

@@ -30,6 +30,7 @@ import preferences as P  # noqa: E402
 import categories as CAT  # noqa: E402
 import quotas as Q  # noqa: E402
 import feedback as FB  # noqa: E402
+import surveys as SURV  # noqa: E402
 import consent as CON  # noqa: E402
 import moderation as MOD  # noqa: E402
 import saved as SV  # noqa: E402
@@ -71,6 +72,7 @@ STORES = [
     ("SAVED_DB", "saved.db", SV.SavedStore),
     ("SHARES_DB", "shares.db", SH.ShareStore),
     ("FEEDBACK_DB", "feedback.db", FB.FeedbackStore),
+    ("SURVEYS_DB", "surveys.db", SURV.SurveyStore),
     ("CONSENT_DB", "consent.db", CON.ConsentStore),
     ("MODERATION_DB", "moderation.db", MOD.ModerationStore),
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),

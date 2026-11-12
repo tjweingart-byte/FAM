@@ -26,7 +26,7 @@ EPISODE = {"title": "Who Makes the Chips",
 
 def test_every_target_renders_without_a_leftover_placeholder():
     """A share whose text says `{title}` is worse than no template at all, and
-    it is the failure a typo in one of nine strings produces."""
+    it is the failure a typo in one of eleven strings produces."""
     for target in sharing.TARGETS:
         rendered = sharing.render(target.key, **EPISODE)
         assert "{" not in rendered["text"], target.key
@@ -34,7 +34,8 @@ def test_every_target_renders_without_a_leftover_placeholder():
 
 
 def test_a_link_destination_carries_the_link():
-    for key in ("copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin"):
+    for key in ("copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
+                "threads"):
         assert EPISODE["url"] in sharing.render(key, **EPISODE)["text"], key
 
 
@@ -196,7 +197,7 @@ def test_an_ampersand_in_the_question_does_not_truncate_the_message():
 
 
 def test_every_target_renders_words_a_person_could_send():
-    """All nine, with the wording actually filled in. The templates are the
+    """All eleven, with the wording actually filled in. The templates are the
     product here: a share nobody would send is a share button nobody uses."""
     for target in sharing.TARGETS:
         rendered = sharing.render(target.key, **EPISODE)
@@ -231,7 +232,8 @@ def test_the_two_that_drop_our_words_are_the_two_we_say_so_about():
         if not target.destination:
             continue
         rendered = sharing.render(target.key, **EPISODE)
-        carries_words = "text=" in target.destination or "body=" in target.destination
+        carries_words = any(f in target.destination
+                            for f in ("text=", "body=", "title="))
         if target.key in drops_text:
             assert not carries_words, \
                 f"{target.key} can carry our words after all - stop apologising for it"
@@ -362,8 +364,87 @@ def test_a_share_resolves_to_the_episode_the_sharer_heard():
 
 
 def test_every_platform_the_packet_named_has_a_target():
-    """The nine destinations asked for, by name. A tenth is fine; a missing
+    """The destinations asked for, by name. A tenth is fine; a missing
     one is a share sheet with a gap in it."""
     wanted = {"copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
-              "instagram_story", "snapchat_story"}
+              "reddit", "threads", "instagram_story", "snapchat_story"}
     assert wanted <= set(sharing.TARGET_KEYS)
+
+
+def test_a_malformed_platform_id_gives_no_handoff_rather_than_a_broken_one():
+    """A mistyped id would fail inside Instagram or Snapchat with no word
+    about why; refused here, the card goes through the share sheet."""
+    import sharing as sh
+
+    assert sh.story_handoffs() == {}
+    assert sh.story_handoffs(instagram_app_id="12345&x=1",
+                             snapchat_client_id="not an id") == {}
+    both = sh.story_handoffs(instagram_app_id="987654321",
+                             snapchat_client_id="0f1e2d3c-4b5a")
+    assert set(both) == {"instagram_story", "snapchat_story"}
+
+
+def test_reddit_takes_the_link_and_a_title_with_no_address_in_it():
+    """Reddit's submit page has a field for the link and one for the title;
+    a URL in the title is a broken-looking post. A long question is trimmed
+    to Reddit's 300 without the link being glued back on."""
+    rendered = sharing.render("reddit", **EPISODE)
+    assert EPISODE["url"] not in rendered["text"]
+    dest = rendered["destination"]
+    assert dest.startswith("https://www.reddit.com/submit?url=")
+    assert "&title=" in dest
+    long = dict(EPISODE, question="why " + "semiconductor manufacturing " * 20)
+    text = sharing.render("reddit", **long)["text"]
+    assert len(text) <= 300 and EPISODE["url"] not in text
+
+
+def test_threads_opens_its_composer_with_the_link_in_the_words():
+    rendered = sharing.render("threads", **EPISODE)
+    assert rendered["destination"].startswith("https://www.threads.net/intent/post?text=")
+    long = dict(EPISODE, question="why " + "semiconductor manufacturing " * 40)
+    text = sharing.render("threads", **long)["text"]
+    assert len(text) <= 500 and text.endswith(EPISODE["url"])
+
+
+def test_every_target_has_mix_wording():
+    for target in sharing.TARGETS:
+        assert target.key in sharing.MIX_TEMPLATES, target.key
+
+
+def test_the_head_names_the_square_preview_before_the_story_card():
+    head = sharing.landing_head(sharing.landing_payload(
+        SHARE_ROW, url="https://fam.audio/s/abc123",
+        card_url="https://fam.audio/api/share/card?share=abc123",
+        image_url="https://fam.audio/api/share/abc123/preview.jpg"))
+    assert 'og:image" content="https://fam.audio/api/share/abc123/preview.jpg"' in head
+    assert 'og:image:width" content="1200"' in head
+    assert "/api/share/card" not in head
+
+
+def test_a_long_title_on_the_cover_is_cut_rather_than_run_off_the_picture():
+    import io
+
+    from PIL import Image
+
+    import link_preview
+
+    data = link_preview.draw(None, "why " * 80, 3)
+    assert Image.open(io.BytesIO(data)).size == (1200, 1200)
+    assert link_preview.draw(b"not a picture", "Title", 3)  # the cover instead
+
+
+def test_a_half_minute_episode_keeps_its_half_on_the_cover():
+    """The standard episode is a minute and a half (§332); the cover must
+    not round it to one."""
+    import link_preview
+    from PIL import ImageDraw, Image
+
+    assert f"{1.5:g} MIN EPISODE" == "1.5 MIN EPISODE"
+    assert link_preview.draw(None, "Title", 1.5)
+
+
+def test_a_malformed_id_is_said_in_health_rather_than_looking_unset():
+    assert sharing.story_handoff_problems() == []
+    said = sharing.story_handoff_problems(instagram_app_id="abc",
+                                          snapchat_client_id="no way")
+    assert len(said) == 2 and "INSTAGRAM_APP_ID" in said[0]

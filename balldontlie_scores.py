@@ -954,7 +954,7 @@ def watching(rows: list, now: float) -> bool:
 
 
 def followed_game(row: dict, names, catalogue: Optional[dict] = None) -> bool:
-    """§552: whether this game names a team somebody with finals on follows.
+    """§562: whether this game names a team somebody with finals on follows.
     A row whose teams cannot be named yet (soccer before its catalogue is
     read) counts, so a followed club's final is never missed for want of a
     name."""
@@ -1090,7 +1090,7 @@ def make_signals():
                 return []
             if (today.isoformat() in held and not stories.recent_demand(now)
                     and stories.finals_followed(now)):
-                # §552: nobody drew myFAM, so the only demand is people with
+                # §562: nobody drew myFAM, so the only demand is people with
                 # finals on - and only for a game naming a team they follow.
                 # Swept until the sweep sees it final (`watching` stops then).
                 names = stories.finals_followed(now)

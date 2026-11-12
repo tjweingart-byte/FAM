@@ -1,9 +1,9 @@
-"""Notifications to a listener's phone (the 10.1 packet's third set; §552).
+"""Notifications to a listener's phone (the 10.1 packet's third set; §562).
 
 Three kinds, each told at most once per thing it is about (`push_log`):
 
 * **daily** - "Your myFAM is ready" (the mixes; names swapped for the
-  listener, §185). **One per person, never one per mix** (§552, at the
+  listener, §185). **One per person, never one per mix** (§562, at the
   owner's direction, reversing §184's per-mix listen time). It names the
   most important story across their mixes - the title of an episode the
   05:00 edition already wrote - then how many more across how many mixes.
@@ -84,7 +84,7 @@ TICK_SECONDS = 60
 PUSH_TTL_SECONDS = 2 * 3600
 WEBPUSH = "webpush"
 
-#: The three kinds a listener can switch on and off (§552).
+#: The three kinds a listener can switch on and off (§562).
 DAILY = "daily"
 BREAKING = "breaking"
 FINAL = "final"
@@ -92,7 +92,7 @@ KINDS = (DAILY, BREAKING, FINAL)
 #: Which `push_prefs` column switches each kind.
 SWITCH = {DAILY: "daily", BREAKING: "breaking", FINAL: "finals"}
 
-#: §552: the daily reminder's time for somebody who chose none and has too
+#: §562: the daily reminder's time for somebody who chose none and has too
 #: little history to learn one from.
 DEFAULT_DAILY_AT = "07:30"
 #: How far back the learned time reads plays, and on how many distinct days
@@ -101,12 +101,12 @@ LEARN_DAYS = 14
 LEARN_MIN_DAYS = 3
 #: A first play this soon after a daily reminder answered it (`learned_time`).
 PROMPTED_SECONDS = 3600
-#: §552 "back off when ignored": this many daily reminders in a row with no
+#: §562 "back off when ignored": this many daily reminders in a row with no
 #: play after them, and it goes every other day; this many, and it stops
 #: until they play again.
 BACKOFF_AFTER = 3
 GIVE_UP_AFTER = 8
-#: §552 quiet hours, in the listener's own zone: no story or final between
+#: §562 quiet hours, in the listener's own zone: no story or final between
 #: these hours. A story still big at `QUIET_END` goes then.
 QUIET_START = 22
 QUIET_END = 8
@@ -209,7 +209,7 @@ class PushStore:
                 created_at REAL NOT NULL)""")
             db.execute("CREATE INDEX IF NOT EXISTS push_user "
                        "ON push_subscriptions(user_id)")
-            # §552: one row per person. `daily_at` is "" for "learn it".
+            # §562: one row per person. `daily_at` is "" for "learn it".
             db.execute("""CREATE TABLE IF NOT EXISTS push_prefs (
                 user_id TEXT PRIMARY KEY,
                 daily INTEGER NOT NULL DEFAULT 1,
@@ -291,7 +291,7 @@ class PushStore:
                               "ORDER BY user_id").fetchall()
         return [r[0] for r in rows]
 
-    # ---- what they want told (§552) ----
+    # ---- what they want told (§562) ----
     def prefs(self, user_id: str) -> dict:
         """Their switches, chosen time and zone; the defaults with no row:
         every kind on, the time learned."""
@@ -396,7 +396,7 @@ def _edition_report(now: float) -> dict:
 
 
 # --------------------------------------------------------------------------
-# When: chosen, an old client's listen time, learned, or the default (§552)
+# When: chosen, an old client's listen time, learned, or the default (§562)
 # --------------------------------------------------------------------------
 def learned_time(plays, zone_name: str, now: float, reminders=()) -> str:
     """'HH:MM': the median time of their first play of the day, over the last
@@ -497,7 +497,7 @@ def ignored_streak(sends: list, plays) -> int:
 
 
 def in_quiet_hours(zone_name: str, now: float) -> bool:
-    """§552: whether it is between `QUIET_START` and `QUIET_END` where they are."""
+    """§562: whether it is between `QUIET_START` and `QUIET_END` where they are."""
     hour = datetime.fromtimestamp(now, _zone(zone_name)).hour
     if QUIET_START <= QUIET_END:
         return QUIET_START <= hour < QUIET_END
@@ -607,7 +607,7 @@ def _count(n: int, one: str, many: str) -> str:
 def message_for(user_id: str, mix_store, now: Optional[float] = None) -> dict:
     """What the daily reminder says, and where a tap on it opens.
 
-    Headline first (§552): the title of an episode the edition wrote for
+    Headline first (§562): the title of an episode the edition wrote for
     their most recently played mix, then how many more across how many mixes.
     The mixes are "myFAM" on the listener's screen (§185)."""
     import daily_edition

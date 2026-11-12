@@ -115,6 +115,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **saved.db** (`SAVED_DB`) | `saved.py` | `folders`, `items`, `vibe_files`, `progress`, `history`, `dismissed` | Yes | History 14 days | Erased · kept |
 | **shares.db** (`SHARES_DB`) | `sharing.py` | `shares` | Yes | Forever | Erased · kept |
 | **feedback.db** (`FEEDBACK_DB`) | `feedback.py` | `reports` | Account id only | Forever | **Anonymised** · kept |
+| **surveys.db** (`SURVEYS_DB`) | `surveys.py` | `responses`, `offers` | Account id only (guests are never surveyed) | Forever | Answers **anonymised**, offers erased · kept |
 | **consent.db** (`CONSENT_DB`) | `consent.py` | `consents` | Yes | 1 row per listener per scope (`ai`, `terms`, and since §411 `demographics` - being counted in the totals, a yes recorded when the activation step is finished, a no from Settings) | Erased · kept |
 | **moderation.db** (`MODERATION_DB`) | `moderation.py` | `reports`, `blocks`, `suspended`, `hidden_episodes` | Yes | Forever | Erased (blocks, suspension) · reports **anonymised** · kept |
 | **mixes.db** (`MIXES_DB`) | `mixes.py`, `push.py`, `daily_edition.py` | `mixes`, `push_subscriptions`, `push_sent`, `daily_editions` | Yes (mixes, push) | ≤ 30 mixes per listener | Erased · `daily_editions` **wiped** |

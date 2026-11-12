@@ -989,7 +989,7 @@ friends and get none.
   active again. The edition's ceilings are lifted (0, settable), and its
   report counts `dormant_mixes`. `0` hours writes every mix, as before.
 <!-- rule:mix-listen-time -->
-> **Current (PROBLEMS.md §552, at the owner's direction, 11.12):** the phone
+> **Current (PROBLEMS.md §562, at the owner's direction, 11.12):** the phone
 > is told three things, each once, and each only once what it opens is
 > written (`push.py`, `push_stories.py`):
 > - **One daily reminder per person, never one per mix** - "Your myFAM is
@@ -1014,7 +1014,7 @@ friends and get none.
 >   Send in `/admin/push`**, offered only for the one story past
 >   `PUSH_BREAKING_EVERYONE_OUTLETS` and `PUSH_BREAKING_RATIO` times the next.
 > - **Followed finals** - a game the sports sweep saw end, to whoever follows
->   a team in it, "<score> · Final - the recap is ready". Since §553 the sweep
+>   a team in it, "<score> · Final - the recap is ready". Since §563 the sweep
 >   also runs for those followers' own teams' games with nobody drawing myFAM
 >   (rule:sweep-on-demand); nothing in the push path asks BALLDONTLIE itself.
 > - **Quiet hours 22:00-08:00** in the listener's zone hold the two story

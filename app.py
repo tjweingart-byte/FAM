@@ -27,7 +27,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from urllib.parse import quote
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from typing import Annotated, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -67,6 +67,7 @@ import oauth
 import apple_tokens
 import quotas
 import feedback as feedback_mod
+import surveys as surveys_mod
 import consent as consent_mod
 import activation as activation_mod
 import image_check
@@ -852,7 +853,7 @@ async def lifespan(_: FastAPI):
     # without keys logs why once and keeps every choice for later.
     push_ready = push_mod.status()
     if push_ready["available"]:
-        # §552: one daily reminder per person, and big stories and followed
+        # §562: one daily reminder per person, and big stories and followed
         # finals (`push_stories.py`), each written before it is told.
         _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(
             MIXES, PUSH, allowed=_may_be_notified, plays=_push_plays,
@@ -1192,6 +1193,7 @@ def _database_report() -> list[dict]:
         ("quotas", "QUOTAS_DB", QUOTAS.path),
         ("metering", "METERING_DB", METER.path),
         ("feedback", "FEEDBACK_DB", FEEDBACK.path),
+        ("surveys", "SURVEYS_DB", SURVEY_STORE.path),
         ("consent", "CONSENT_DB", CONSENT.path),
         ("moderation", "MODERATION_DB", MODERATION.path),
         # The grown ranking vocabulary. Reported like the rest rather than
@@ -1838,6 +1840,12 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not anonymise feedback for %r", user_id)
         removed["feedback_anonymised"] = -1
+    # Survey answers stay in the totals, unnamed (`surveys.py`).
+    try:
+        removed["survey_answers_anonymised"] = SURVEY_STORE.forget(user_id)
+    except Exception:
+        log.exception("could not anonymise survey answers for %r", user_id)
+        removed["survey_answers_anonymised"] = -1
     try:
         removed["usage_rows_anonymised"] = METER.anonymise(user_id)
     except Exception:
@@ -2430,6 +2438,15 @@ def _health_report(request: Request) -> dict:
             # state, not a misconfiguration - see `sharing.landing_doors`.
             "landing_doors": sharing.landing_doors(settings.app_store_url),
             "targets": list(sharing.TARGET_KEYS),
+            # Which stories go straight into Instagram / Snapchat from the
+            # iOS app (INSTAGRAM_APP_ID, SNAPCHAT_CLIENT_ID); the rest take
+            # iOS's share sheet. Settable only here, so said here.
+            "story_handoffs": sorted(_story_handoffs()),
+            # An id that is set but not the shape the platform issues: the
+            # story goes through the share sheet, and this says why.
+            "story_handoff_problems": sharing.story_handoff_problems(
+                instagram_app_id=settings.instagram_app_id,
+                snapchat_client_id=settings.snapchat_client_id),
         },
         # "Your mix is ready" (push.py): whether this server can deliver, and
         # if not, the sentence the mix page shows.
@@ -4327,6 +4344,24 @@ def _share_url(share_id: str, request: Request | None = None) -> tuple[str, bool
     return (f"{base}/s/{share_id}" if base else f"/s/{share_id}"), bool(base)
 
 
+def _story_handoffs() -> dict[str, dict]:
+    """Instagram's and Snapchat's native hand-offs, from this server's ids."""
+    return sharing.story_handoffs(instagram_app_id=settings.instagram_app_id,
+                                  snapchat_client_id=settings.snapchat_client_id)
+
+
+def _with_handoffs(rendered: dict[str, dict]) -> dict[str, dict]:
+    """Each rendered story destination with its hand-off, where it has one.
+
+    A new optional field: a build that does not know it keeps the share
+    sheet, so no installed client changes (`old-clients`).
+    """
+    for key, handoff in _story_handoffs().items():
+        if key in rendered:
+            rendered[key]["handoff"] = handoff
+    return rendered
+
+
 @app.get("/api/share/targets")
 async def share_targets(request: Request) -> dict:
     """Where an episode can be sent, and what each destination can carry.
@@ -4336,13 +4371,17 @@ async def share_targets(request: Request) -> dict:
     destinations take the card from `/api/share/card` instead of the text.
     """
     _read_limit(request)
+    handoffs = _story_handoffs()
     return {"targets": [
         {"key": t.key, "label": t.label, "kind": t.kind,
          "needs_image": t.needs_image, "max_chars": t.max_chars,
          # Whether this destination has a URL to open at all. The rendered
          # one, with the wording in it, comes back from `/api/share`; this
          # only says which kind of hand-off a client should be ready for.
-         "has_destination": bool(t.destination)}
+         "has_destination": bool(t.destination),
+         # Whether the iOS app can hand a story straight to the platform's
+         # app (`sharing.story_handoffs`) rather than the share sheet.
+         "has_handoff": t.key in handoffs}
         for t in sharing.TARGETS]}
 
 
@@ -4380,7 +4419,7 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # it. The web app fetches either happily.
         "card": _card_url(share["id"], request)
                 or f"/api/share/card?share={quote(share['id'])}",
-        "targets": rendered,
+        "targets": _with_handoffs(rendered),
     }
 
 
@@ -4429,6 +4468,7 @@ async def share_read(share_id: str, request: Request) -> dict:
         record,
         url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request),
+        image_url=_preview_url(share_id, request),
         app_store=settings.app_store_url,
     )
 
@@ -4466,6 +4506,78 @@ def _card_url(share_id: str, request: Request | None = None) -> str:
     """
     base = _public_base(request)
     return f"{base}/api/share/card?share={quote(share_id)}" if base else ""
+
+
+def _preview_url(share_id: str, request: Request | None = None) -> str:
+    """The link preview's address, absolute or "" - the same refusal as
+    `_card_url`: a relative Open Graph image is no image at all."""
+    base = _public_base(request)
+    return f"{base}/api/share/{quote(share_id)}/preview.jpg" if base else ""
+
+
+#: Drawn previews, newest last: (share id, title) -> (drawn at, JPEG). A
+#: link is previewed once per app it is pasted into, all within minutes, so
+#: a few, briefly, are enough (each is a few hundred KB); nothing is stored.
+#: A hit skips the picture read as well as the drawing.
+_PREVIEWS: "OrderedDict[tuple, tuple[float, bytes]]" = OrderedDict()
+PREVIEW_MEMORY = 32
+PREVIEW_SECONDS = 600
+
+
+def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
+    """The episode's picture as the player draws it: (row id, bytes), or
+    ("", None) when there is none. Never raises."""
+    try:
+        import thumbnails
+
+        found = _player_picture(record.get("query") or "",
+                                record.get("title") or "",
+                                as_minutes(record.get("minutes")))
+        row = found.get("picture") or found.get("node") or ""
+        if not row or not thumbnails._exists():
+            return "", None
+        got = thumbnails.store().image(row)
+        return (row, got[0]) if got else ("", None)
+    except Exception:  # noqa: BLE001 - the cover is always there
+        log.exception("link preview: could not read the episode's picture")
+        return "", None
+
+
+@app.get("/api/share/{share_id}/preview.jpg")
+async def share_preview(share_id: str, request: Request) -> Response:
+    """The picture a shared link previews with (`link_preview`, §559).
+
+    Fetched by Messages, WhatsApp, X and the rest when the link is pasted:
+    the episode's picture, square, with FAM's badge and a play button, or
+    its title on FAM's ground when it has no picture. Public, like the link.
+    """
+    _read_limit(request)
+    record = SHARES.get(share_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="No such share.")
+    key = (share_id, record.get("title") or "")
+    now = time.time()
+    kept = _PREVIEWS.get(key)
+    if kept and now - kept[0] < PREVIEW_SECONDS:
+        _PREVIEWS.move_to_end(key)
+        data = kept[1]
+    else:
+        import link_preview
+
+        _row, picture = await asyncio.to_thread(_preview_picture, record)
+        data = await asyncio.to_thread(
+            link_preview.draw, picture, record.get("title") or "",
+            as_minutes(record.get("minutes"), 1))
+        if data is None:
+            raise HTTPException(status_code=404, detail="No preview.")
+        _PREVIEWS[key] = (now, data)
+        _PREVIEWS.move_to_end(key)
+        while len(_PREVIEWS) > PREVIEW_MEMORY:
+            _PREVIEWS.popitem(last=False)
+    # As briefly as the page that names it: a re-written title is a new
+    # picture within minutes, not an hour.
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=300"})
 
 
 #: Read once. The landing page is one small file and re-reading it per request
@@ -4540,6 +4652,7 @@ async def share_open(share_id: str, request: Request):
     payload = sharing.landing_payload(
         record or {}, url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request) if record else "",
+        image_url=_preview_url(share_id, request) if record else "",
         app_store=settings.app_store_url,
     )
     return HTMLResponse(
@@ -5371,6 +5484,116 @@ async def admin_resolve_feedback(report_id: str, req: FeedbackResolve,
     return {"ok": True, "report": report, "counts": FEEDBACK.counts()}
 
 
+# ---------------------------------------------------------------- surveys
+# Optional surveys (`surveys.py`, PROBLEMS.md §560): the episode check on the
+# What's next card, the day-3 check-in and the two-week wrap-up. Accounts
+# only; the server decides which one, if any, and when.
+
+class SurveyOffer(BaseModel):
+    moment: str = Field("open", max_length=20)
+
+
+class SurveyEpisode(BaseModel):
+    id: str = Field("", max_length=200)
+    title: str = Field("", max_length=300)
+
+
+class SurveyAnswer(BaseModel):
+    survey: str = Field(..., max_length=20)
+    answers: dict = Field(default_factory=dict)
+    episode: Optional[SurveyEpisode] = None
+    build: str = Field("", max_length=200)
+
+
+class SurveyDismiss(BaseModel):
+    survey: str = Field(..., max_length=20)
+
+
+def _survey_account(request: Request) -> Optional[dict]:
+    """The asker's account, or None for a guest - who is never surveyed."""
+    if not _has_account(request):
+        return None
+    return ACCOUNTS.account(_listener(request))
+
+
+@app.get("/api/surveys")
+async def list_surveys(request: Request) -> dict:
+    """Every survey as the client draws it, for a client that wants to cache
+    them (iOS). Which one to show is `/api/surveys/offer`'s answer."""
+    account = _survey_account(request) or {}
+    return {"surveys": [surveys_mod.definition(sid, known=account)
+                        for sid in surveys_mod.SURVEYS]}
+
+
+@app.post("/api/surveys/offer")
+async def offer_survey(req: SurveyOffer, request: Request) -> dict:
+    """The survey to show at this moment, or `survey: null`.
+
+    Asked by the client when it *can* show one - the app came to the front
+    with nothing playing (`open`), or the What's next card is up
+    (`episode_end`) - because an answer here is recorded as offered, and the
+    same survey is not offered again for a day.
+    """
+    account = _survey_account(request)
+    if account is None or req.moment not in surveys_mod.MOMENTS:
+        return {"survey": None}
+    try:
+        created = account.get("created")
+        sid = SURVEY_STORE.offer(_listener(request), req.moment,
+                                 account_created=float(created) if created else None)
+    except Exception:
+        log.exception("could not decide a survey; offering none")
+        return {"survey": None}
+    return {"survey": surveys_mod.definition(sid, known=account) if sid else None}
+
+
+@app.post("/api/surveys/answer")
+async def answer_survey(req: SurveyAnswer, request: Request) -> dict:
+    """Keep one response. Every answer is optional; an empty one is refused
+    with a sentence saying so."""
+    user = _require_account(request)
+    ep = req.episode or SurveyEpisode()
+    try:
+        row = SURVEY_STORE.answer(
+            user, req.survey, req.answers, episode_id=ep.id,
+            episode_title=ep.title,
+            build=" @ ".join(x for x in (req.build.strip(),
+                                         _build_report()["short"]) if x))
+    except surveys_mod.SurveyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "id": row["id"]}
+
+
+@app.post("/api/surveys/dismiss")
+async def dismiss_survey(req: SurveyDismiss, request: Request) -> dict:
+    """'Not now': offered again in a day, and never after the third."""
+    user = _require_account(request)
+    if not SURVEY_STORE.dismiss(user, req.survey):
+        raise HTTPException(status_code=400, detail="There is no such survey.")
+    return {"ok": True}
+
+
+@app.get("/api/admin/surveys")
+async def admin_surveys(request: Request) -> dict:
+    """Each survey's tallies: offered, put off, answered, and per question."""
+    _require_admin(request)
+    return {"surveys": SURVEY_STORE.summary()}
+
+
+@app.get("/api/admin/surveys/{survey_id}.csv")
+async def admin_surveys_csv(survey_id: str, request: Request) -> Response:
+    """Every response to one survey, one row each, with the listener id so it
+    can be joined to what they did (Ask the database)."""
+    _require_admin(request)
+    try:
+        body = SURVEY_STORE.csv(survey_id)
+    except surveys_mod.SurveyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-survey-{survey_id}.csv"',
+        "Cache-Control": "no-store"})
+
+
 # ---------------- Reporting and blocking (App Store 1.2) ----------------
 # `moderation.py` says what each record means. Reporting is open to anybody
 # who can see the content - Explore and comments are read without an
@@ -5835,6 +6058,7 @@ MESSAGES = messages_mod.MessageStore()
 SAVED = saved_mod.SavedStore()
 SHARES = sharing.ShareStore()
 FEEDBACK = feedback_mod.FeedbackStore()
+SURVEY_STORE = surveys_mod.SurveyStore()
 CONSENT = consent_mod.ConsentStore()
 MODERATION = moderation_mod.ModerationStore()
 REPORT_ALERTS = moderation_mod.ReportAlerts()
@@ -7224,7 +7448,7 @@ def _may_be_notified(user_id: str) -> bool:
         return False
 
 
-# ---------------- Notifications (the 10.1 packet, third set; §552) ----------------
+# ---------------- Notifications (the 10.1 packet, third set; §562) ----------------
 #
 # One daily reminder per person ("Your myFAM is ready"), big stories, and
 # followed finals. `push.py` and `push_stories.py` have the rules. These let
@@ -7234,7 +7458,7 @@ def _may_be_notified(user_id: str) -> bool:
 class PushSubscription(BaseModel):
     #: The browser's PushSubscription.toJSON(): {endpoint, keys: {p256dh, auth}}.
     subscription: dict = Field(default_factory=dict)
-    #: The listener's IANA zone (§552), kept with their choices so the daily
+    #: The listener's IANA zone (§562), kept with their choices so the daily
     #: time and quiet hours are on their clock. Unreadable reads as unset.
     tz: Optional[str] = Field(None, max_length=64)
 
@@ -7256,7 +7480,7 @@ def _push_plays(user_id: str) -> list:
 
 
 def _push_follows(user_id: str) -> list:
-    """What this person chose to follow (§552): the subjects in their mixes
+    """What this person chose to follow (§562): the subjects in their mixes
     and their chosen interests that name one. Never what they were inferred
     to like - a phone is told only about what they asked to hear about."""
     names: list = []
@@ -7297,7 +7521,7 @@ async def push_status(request: Request):
     body["subscribed"] = account and bool(PUSH.subscriptions(user))
     if account:
         # Somebody who subscribed before their zone was kept with their
-        # choices (§552) gets it from the clock every request carries, so
+        # choices (§562) gets it from the clock every request carries, so
         # their quiet hours and daily time are on their own clock, not the
         # edition's. Only filled, never overwritten: Settings can pin one.
         zone = push_mod.clean_zone(request.headers.get(listener_clock.HEADER, ""))
@@ -7309,7 +7533,7 @@ async def push_status(request: Request):
 
 @app.post("/api/push/prefs")
 async def push_prefs(req: PushPrefs, request: Request):
-    """Change what this listener is told and when (§552)."""
+    """Change what this listener is told and when (§562)."""
     _read_limit(request)
     account = _require_account(request)
     try:
@@ -7607,8 +7831,9 @@ async def share_mix(mix_id: str, request: Request) -> dict:
         "url": url,
         "public": public,
         "card": (base + card) if base else card,
-        "targets": {t.key: sharing.render_mix(t.key, name=mix.name, topics=titles, url=url)
-                    for t in sharing.TARGETS},
+        "targets": _with_handoffs(
+            {t.key: sharing.render_mix(t.key, name=mix.name, topics=titles, url=url)
+             for t in sharing.TARGETS}),
     }
 
 
@@ -9125,12 +9350,7 @@ def _label_word(word: str, at: int) -> str:
 
 
 def _category_known(node: str) -> bool:
-    if node in topics_mod.TAG_LABELS:
-        return True
-    try:
-        return topics_mod.category_tree().get(node) is not None
-    except Exception:  # noqa: BLE001
-        return False
+    return categories_mod.holds(topics_mod.category_tree(), node)
 
 
 def _category_children(node: str) -> list[str]:
@@ -9166,7 +9386,7 @@ def _filed_under(entry: dict) -> tuple[str, frozenset]:
         tags = set(topics_mod.tags_for_text(text))
     except Exception:  # noqa: BLE001 - a filing is never worth a failure
         return "", frozenset()
-    placed = [t for t in tags if t in topics_mod.TAG_LABELS or tree.get(t)]
+    placed = [t for t in tags if categories_mod.holds(tree, t)]
     if not placed:
         return "", frozenset()
 
@@ -12540,6 +12760,21 @@ async def admin_categories(request: Request) -> dict:
     return await asyncio.to_thread(_categories_panel)
 
 
+def _category_outline() -> dict:
+    """The tree for the admin's Categories page (11.12): every node under
+    its facet, with the kept episodes Nando filed there."""
+    counts = SCRIPT_CACHE.node_counts() if hasattr(SCRIPT_CACHE, "node_counts") else {}
+    return categories_mod.outline(topics_mod.category_tree(), counts)
+
+
+@app.get("/api/admin/categories/tree")
+async def admin_categories_tree(request: Request) -> dict:
+    """The whole category tree, drawn on the admin's Categories page
+    (11.12). Read-only; no model is asked."""
+    _require_admin(request)
+    return await asyncio.to_thread(_category_outline)
+
+
 @app.get("/api/admin/categories/queue")
 async def admin_categories_queue(request: Request, limit: int = 20) -> dict:
     """Episodes for the owner to file by hand (§503), disagreements first,
@@ -13009,7 +13244,7 @@ _X_RUNNING: list = []
 
 @app.get("/admin/push", include_in_schema=False)
 async def admin_push_page(request: Request):
-    """Big stories (§552): what the detector found, and the one button that
+    """Big stories (§562): what the detector found, and the one button that
     sends a story to everybody. A shell; the endpoints check who is asking."""
     if not _admin_configured():
         raise HTTPException(status_code=404, detail="Not found")

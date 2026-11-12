@@ -214,7 +214,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **A mix is made by naming it** (§498), then filled from its page; no
   picker. [mix-made-by-naming] Long typed topics are named short.
   [mix-topic-title] Joint: members edit topics only. [joint-mixes]
-- **Push** (§552): one "myFAM is ready" a day per person, at their time or a
+- **Push** (§562): one "myFAM is ready" a day per person, at their time or a
   learnt one, after the edition, backs off; big stories to followers, all
   once admin-approved; team finals; written first; quiet 22-8. [mix-listen-time]
 - Faces on DailyFAM only, Instagram's, yours first (§297); vibes first; a
@@ -323,7 +323,7 @@ Research and truth
   §280, §418); API-Sports and Finnhub are gone. [sports-balldontlie]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one
-  of their games is on, only if myFAM was drawn recently or (§553) names
+  of their games is on, only if myFAM was drawn recently or (§563) names
   a finals follower's team; others on demand; Tiingo every 2h;
   a refused endpoint is not re-asked that day. [sweep-on-demand]
 - **The listener's clock, never the server's** (§186): `listener_clock` from

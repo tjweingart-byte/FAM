@@ -34226,7 +34226,351 @@ writes it, and `ios/FAM/PARITY.md` says so.
 Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
 and every new name resolves.
 
-## 552. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12)
+## 552. Keith's "science, world are not in the tree" was the check, not Nando (2026-11-12)
+
+Keith held an URGENT open since 11.6 (seen 1355 times): "2 node(s) Nando
+filed episodes under are not in the tree: science, world".
+`agent_checks.nando_nodes_exist` asked `tree.get(node)` of every node Nando
+filed, but the eight facets are the tree's roots and never rows in it
+(`categories.mint` refuses them as reserved slugs), and Nando's last step
+files an episode at its facet - "broader, never wrong". Every episode filed
+at a facet read as a dead node. The check now skips `topics.FACETS`; a test
+pins that `science` and `world` are not a breach. The old test's fake tree
+held `markets` as a row, which is why it never showed. Nothing was wrong with
+the episodes; the alert closes on the next whole pass.
+
+## 553. The seed tree doubled: 322 nodes to 677, from outside the bank (2026-11-12)
+
+The owner, reading the categories review page: Nando filed "nothing" for
+magic, a children's hospital raising money, Australian schools, a virus
+study and sexual abuse support - "clear categories to me ... we should start
+this with more nodes on the tree". The seed had been written from the bank
+and the day's news: no religion, history, theatre, education, crime,
+hospitals, infectious disease, psychology, wildlife, hobbies, travel,
+parenting, pets, cricket or rugby.
+
+`category_seed.SEED` gains 355 nodes across all eight facets, each a subject
+a listener asks about by name, read from outside FAM (what a general
+listener's questions cover), never from the bank. The rules kept:
+
+* **No countries.** A country is named in questions on every facet; as a
+  node it outranks the subject (India's cricket, China's carmakers). The
+  Middle East nodes (§187) stay; nothing else joins them.
+* **A one-word node only where the word means the subject.** Left out:
+  "chemistry" (a team's), "evolution" (of anything), "dating" (carbon),
+  "hunting" (jobs, houses), "puzzles" (the verb), "weather" (it would tie
+  with `extreme weather` and move §194's questions), "athletics" (Oakland).
+* **`magic` at depth one**, with `orlando magic` an alias of `nba`: the
+  tree breaks a tie by depth, so a basketball question holding both is
+  `nba`; Nando's facet-first steps keep it there anyway. Not a collision
+  (§373): a collision with nothing deciding it files nothing, and "why are
+  people fascinated by magic" has no cue.
+* **Aliases for number and apostrophes.** The tree does not stem, so
+  `hospitals` is reached by "hospital"; and "women's" tokenises as
+  "women s", so the old `womens health` never matched "women's health" -
+  `women health` is now its alias (the same for men's, children's books,
+  women's rights).
+
+Seeding is still quadratic in the file (`mint` reloads per row): 0.48s for
+322, about 1.9s for 677 at first boot only; the test's bound is 5s.
+Existing deployments take the new nodes on the next boot (`apply_seed`
+adds what is missing and moves nothing).
+
+**Nando's list.** With nothing below a facet in the words, Nando shows the
+model the whole tree while it is at most `WHOLE_TREE_NODES` (§388: 36 of 40
+right, against 20 with the level under the facets). That was 400; at 677
+the whole tree would have dropped off the list and the change would have
+made Nando worse. Raised to 1000. The cost is about 2,000 more input tokens
+on the brief's call in front of a search - unmeasured here (no key); §388
+measured 303 nodes at +0.2 s median; `tools/nando_eval.py` (§388's
+harness) measures it again with a key.
+
+Not done: a company ("Nvidia") is an entity for `category_vocabulary.json`
+(§374), never a node - and that file is still empty in production, its 303
+drafted entries pending review.
+
+## 554. The category tree on /admin (2026-11-12)
+
+The owner: "a categories tree on the admin page ... digestible ... very
+aesthetic". The Categories page now opens on **The tree**: a tile per facet
+(its colour, how many categories, how many kept episodes filed), then a card
+per facet with its subjects in collapsible branches, busiest first, guide
+lines in the facet's colour, a child count, and a bar for the episodes filed
+at a node and below (square-root scaled, so a branch of three still shows
+beside one of eighty). An amber dot marks a node grown from listeners; the
+rest were seeded. A search box shows each match with its branch and the
+words marked; "Filed only" hides what nothing is filed under; "Open all".
+Columns, not a grid, so a short facet never leaves a gap beside Sport.
+
+`GET /api/admin/categories/tree` (admin only, read-only, no model) is
+`categories.outline(tree, counts)`: every node exactly once under its facet;
+a facet's own count is episodes filed at the facet (Nando's last step,
+§552); a node whose parent is gone is counted as `orphans` and said on the
+page, never silently dropped. Counts are one grouped read,
+`ScriptCache.node_counts()`, on both caches. Checked in a browser at desktop
+and phone width: no page errors, no sideways scroll.
+
+## 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12)
+
+§552 fixed Keith's dead-node check for the facets. The same question -
+"is this node somewhere an episode can be filed?" - was asked in twelve
+places, half with `node in FACETS or tree.get(node)` and half with
+`tree.get(node)` alone. Two of the second half were live bugs:
+
+* **`tag_sync.check_episode`**: every episode filed at a facet was a
+  "dead node" in Keith's nightly sync, and `repair` skips dead nodes, so
+  its storage tags were never pushed.
+* **`housekeeping.where_now` / `surviving`**: a fact kept at a facet "was
+  not in the tree", so its nearest surviving ancestor was looked for - and
+  the facet itself failed the same test, so the fact was unfiled (node "").
+  A fact whose branch was pruned to the facet was unfiled too. Live once the
+  housekeeper runs out of dry run.
+
+Now `categories.holds(tree, node)` is the one answer: a facet, or a node the
+tree holds; takes anything with `get` (the tests' dicts); never raises. Every
+site uses it: Keith (§552), the tag sync, the housekeeper (three places),
+Nando's candidate list, the answer key's judgement, the old-episode re-file
+report, both picture lookups, and `app._category_known` / the browse filing.
+`training._nearest_surviving` already counted facets and reads its own dict.
+
+**Why the tests never showed it:** every one handed in a fake tree that held
+the facets as ordinary rows, which the real tree never does.
+`tests/test_category_holds_555.py` runs on the real seeded tree and checks
+every checker against everything Nando can file - every facet, every node,
+and what `categorizer.suggest`/`place` return for `tools/nando_eval.py`'s
+questions. With the old code put back, four of its eight tests fail.
+
+## 556. Keith's dead-node alert explains itself (2026-11-12)
+
+The §552 alert stood six days, seen 1355 times, and told the owner to hold
+a healthy agent: it named two nodes and nothing else, and every agent
+breach carried the same plan ("Hold the agent ... and look at what it
+did"). Nothing on it said the nodes were facets, how many episodes, or
+whether Nando was still doing it.
+
+Now the finding carries what Keith read. `nando_nodes_exist` keeps, beside
+each pass's nodes, how many episodes are filed under each, the newest's key
+and the day it was written (`_NANDO["found"]`, kept a pass over like the
+nodes, so the words never go blank on the round after). The alert names
+each missing node with its episodes, the newest episode's title and day,
+and says which of two things it is:
+
+* **Nando filed one in the last two days** (`NANDO_STILL_FILING`): he is
+  naming nodes the tree does not hold. Plan: hold Nando and read his filing.
+* **Only older filings**: the tree changed under them (a prune, rename or
+  re-seed); Nando did nothing and holding him would not help. Plan:
+  Consuela's re-file, with whether she is off, in dry run or will move them
+  - or put the node back in the seed if it was dropped by mistake.
+
+"A listener notices" now says what happens - the writer's category words
+place the episode instead (§371). `_breach(..., plan=)` lets any check
+replace the generic plan's fields where it knows better. Tests in
+`tests/test_agent_checks_491.py`.
+
+## 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12)
+
+CI's `postgres` job (§243) has failed on Main since #250: 3 failed, 7057
+passed, all in `tests/test_feed_speed_548.py`. Two counted the statements a
+draw issues with `sqlite3.Connection.set_trace_callback`, which `db.Connection`
+does not have; one played another worker by opening the store's file with
+`sqlite3.connect(path)`, which under Postgres is an empty file with no
+`events` table. None was a fault in the code they test.
+
+Made portable rather than marked `sqlite_file`, so Postgres keeps the
+coverage: `_trace(conn, seen)` uses SQLite's hook or wraps `db.Connection.execute`
+(either way, the statements the store issued), and the other worker opens
+the same store with `db.connect(path)` - the file in SQLite, its schema in
+Postgres. Run against a local Postgres 16 and against SQLite: 14 of 14 on
+both. This branch's own category tests also pass on Postgres (72).
+
+## 558. Instagram and Snapchat stories go straight into the platform's app (2026-11-12)
+
+**The report.** With the app in TestFlight, the owner: sharing an episode only
+works as a link; Instagram, Snapchat and the rest do not. The two story tiles
+drew the server's card to a PNG and handed it to iOS's share sheet, hoping
+Instagram's and Snapchat's share extensions would take it for a story. That is
+two extra choices at best, and not a story editor at all at worst. Instagram's
+own route, `instagram-stories://share`, has needed a Facebook App ID since
+January 2023, and FAM had none (PARITY.md said so); Snapchat's needs a Snap Kit
+client id.
+
+**What changed.** The server owns the hand-off, as every other destination's
+(`api-before-screen`): `sharing.story_handoffs` turns `INSTAGRAM_APP_ID` and
+`SNAPCHAT_CLIENT_ID` into a `handoff` on the `instagram_story` and
+`snapchat_story` targets of `/api/share` and a mix's share (`platform`, `url`,
+and the id); `/api/share/targets` says `has_handoff` and `/api/health` lists
+which are on (`sharing.story_handoffs`). Both ids are public identifiers that
+ship inside any app, so they are settings, not credentials; an id of the wrong
+shape (Meta's are digits, Snap's letters, digits and dashes) gives no hand-off
+and a warning, rather than a URL that fails inside the other app with no word
+about why. The iOS app (`StoryHandoff.swift`) asks `canOpenURL` (the two
+schemes are now in `LSApplicationQueriesSchemes`), puts the card on the
+pasteboard under the platform's keys - Meta's
+`com.instagram.sharedSticker.backgroundImage`; Snap's Creative Kit Lite keys
+with the client id and the caption, opened at
+`snapchat://creativekit/preview/1` with the pasteboard's change count - and
+opens the scheme. No SDK. Nothing unset, no app on the phone, or a refused
+open: the share sheet as before. A new optional field, so installed builds are
+unchanged and a TestFlight build with this code turns on when the server's
+settings do.
+
+**What it still needs from the owner.** A Meta app (its Facebook App ID) and a
+Snap Kit app registered with `net.familiarize.fam`; Snap's Development id posts
+only from Demo Users until Snap approves the app. Neither platform lets a
+third-party app pre-attach a tappable link any more, so the person adds the
+link sticker themselves.
+
+Unbuilt here (no Swift compiler); every changed Swift file parses with
+tree-sitter. Not tried on a phone.
+
+**Reddit and Threads** (the owner, the same day). Two more `link`
+destinations, both URL hand-offs needing no id: Reddit's submit page
+(`reddit.com/submit?url=&title=`; the words are the post's title, 300 at
+most, with no address in them because the link is its own field) and
+Threads' web intent (`threads.net/intent/post?text=`, 500, the link in the
+words as on X). Each opens the platform's app where it is installed. The
+trim in `_rendered` now re-attaches the link only where it was in the words
+to begin with - otherwise a long Reddit title would have had the URL glued
+onto it. Both clients draw the two tiles (`r/`, `Th`); an installed build
+already shows any key it does not know, with the arrow glyph.
+
+## 559. A shared link previews with the episode's picture, like a Spotify link (2026-11-12)
+
+**The report.** The owner, with a Spotify link in a group chat beside it: a
+FAM link should look like that - a picture with the title under it - rather
+than a line of words. Four options were drawn (a deck: episode art, a cover
+card, the picture with a play button, the sharer's face on top) and the
+owner chose the first with the third's play button.
+
+**Why it was words.** The share page's `og:image` was the Instagram story
+card (`/api/share/card`): SVG, 1080x1920. Messages and most link previewers
+draw only JPEG or PNG and want a square or wide picture, so they skipped it.
+
+**What changed.** `link_preview.draw` makes a 1200x1200 JPEG: the episode's
+picture (`_player_picture`, the one the player shows), cropped square, the
+FAM badge top left and a copper play button bottom right; with no picture,
+the title on FAM's dark ground with the length and the same button.
+`GET /api/share/{id}/preview.jpg` serves it, drawn on request and kept in a
+small memory (`PREVIEW_MEMORY`), nothing stored; `landing_head` names it as
+`og:image` (with type and size) ahead of the card, still only when absolute.
+Fonts are the iOS bundle's copies; a machine without them draws in Pillow's
+default face. Server-only, so every installed build and every app the link
+is pasted into gets it at once. Whether Messages prints the description
+line under the title for this site is still to be seen on a phone.
+
+## 560. Optional surveys: the episode check, the day-3 check-in and the two-week wrap-up (2026-11-12)
+
+The 11.11 beta meeting asked for surveys inside the app, for the beta and
+after it. It agreed on the format (multiple choice with an optional "Other:
+___" box), on what to ask about first (episode quality, what frustrates
+people, whether FAM sticks), on Quinn's 1-10 "part of your daily routine"
+question, and on asking about single episodes first and the whole app
+later. It left open whether the app survey comes at three days or two weeks.
+This build asks at both: a short check-in at day 3 and a wrap-up at day 13.
+
+**Three surveys, one module** (`surveys.py`):
+
+- **episode** - "How was that episode?" (Loved it / Good / Meh / Didn't
+  work), and when it was not loved, "What was off?" (pick any, including
+  "Mispronounced a name" with its own "Which name?" box and "Took too long
+  to start"). It rides on the What's next card, after a listener's first
+  finished episode, then every fifth (`EPISODE_EVERY`), never twice in
+  `ONCE_A_DAY`. Touching it pauses the countdown, as the search box there
+  does. "Loved it" is the whole answer and sends itself.
+- **day3** - age (skipped when the account already holds a date of birth),
+  what describes you, where you keep up now, what you have used, what has
+  frustrated you, the 1-10, and when you would listen.
+- **wrap** - "How would you feel if you could no longer use FAM?", the 1-10
+  again (to compare with day 3), whether FAM gave you something to bring up
+  with people (the social-information claim, §199, tested directly), what you
+  would miss, what you would pay a month (for the margin work), and one thing
+  to change. Somebody past day 13 who never answered the check-in is offered
+  this one instead, never both.
+
+**The server decides which survey, if any, and when.** `POST
+/api/surveys/offer {moment}` is asked only at a moment the client *can* show
+one: `episode_end` while the What's next card is up, or `open` when the app
+is in front on a main screen with nothing playing and nothing else open. An
+offer counts as offered, so the same survey is not offered again for a day.
+The app surveys open as a small invite above the bars (Start / Not now),
+never as the survey itself. "Not now" (`/api/surveys/dismiss`) offers it again
+a day later; after the third it is never offered again.
+
+**Accounts only.** A guest's events are never logged (`app._remembers`), and
+an answer is the most personal event there is. Answers are not taste signals
+and nothing ranks on them. Free text stays in `surveys.db` and is never sent
+to a model. Deleting an account anonymises its answers: they stay in the
+totals and lose the link to the person (as `feedback.py` does).
+
+**Answers are checked against the survey.** An unknown question or option is
+refused, not dropped: a client sending one is drawing a different survey,
+and that should fail where people can see it. A follow-up question that
+should not have been shown is not kept. Text is kept only where the question
+has a box.
+
+**Reading them:** /admin -> Surveys shows, per survey, how often it was offered
+and put off, a bar per answer, the mean and spread of each 1-10, and every
+typed line (with the episode's title for the episode check).
+`/api/admin/surveys/<id>.csv` gives one row per response with `user_id`, so
+answers can be joined to what that listener did (Ask the database).
+
+`GET /api/surveys` returns every definition for a client that caches them.
+The iOS screens are §561. The preview offers the episode
+check on every What's next card and the check-in once per page, except under
+the smoke run (`navigator.webdriver`).
+
+**Found on reviewing the branch, and fixed:** an answer of the wrong type
+(an object where an option id belongs) raised inside the validator and came
+back as a 500; it is a 400 with a sentence now. A typed line starting
+= + - @ would have been a formula in the CSV when opened in a spreadsheet;
+it is kept as text. The episode check could replace an app survey whose
+invite was still waiting, so Start would have opened the wrong survey; it
+now waits its turn (web and iOS). The web invite stayed over the player;
+it now waits off any screen it may not be offered on and comes back.
+
+Not yet: the push alert that brings a lapsed tester back to answer. That
+waits for push notifications on the phone (the meeting's other task).
+
+## 561. The iOS app catches up with §560: the surveys (2026-11-12)
+
+The three surveys on the iPhone, drawn as the web draws them (`ios/FAM/PARITY.md`,
+"Surveys").
+
+- **`Surveys.swift`.** `SurveysModel` (owned by `AppModel`, `model.surveys`)
+  holds what is offered, the answers and the one send; `SurveyQuestionView`
+  draws a question (chips that wrap in `FlowRow`, the 1-10 row with its end
+  labels, the Other box and an option's own box, a free line);
+  `SurveyPulse` is the episode check; `SurveyInvite` the card above the bars;
+  `SurveySheet` the day-3 / two-week survey. The answer shape and what is
+  sent are the web's (`surveyPayload`): only questions showing, only boxes
+  showing.
+- **The episode check** sits above the What's next grid (`NextUpOverlay`),
+  asked for when the card appears with the player's `X-FAM-Episode` and
+  title, cleared when it goes. Touching it, or any answer changing, pauses
+  the countdown. "Loved it" sends itself. The card is wrapped in
+  `ViewThatFits`, so it scrolls only when the check makes it taller than the
+  phone.
+- **The app surveys** are asked for from `MainTabs` on the same clock as the
+  notifications (`scenePhase == .active && feedDrawn`): six seconds after the
+  app settles, then each minute up to fifteen times while
+  `surveyMomentFree` is false (signed in, on a tab other than search, nothing
+  playing, connecting or buffering, no player, View more, follower card,
+  social cover, queue or playlist-end card). A device asks at most once in 30
+  minutes; the server keeps the real limit. The sheet is carried by
+  `SurveySheetHost`, because `MainTabs` does not observe the survey model.
+  Swiping the sheet away is Not now, as the X is.
+- **API.swift**: `offerSurvey`, `answerSurvey`, `dismissSurvey` on
+  `/api/v1/surveys/...`; `SurveyOffer`, `Survey`, `SurveyQuestion`,
+  `SurveyOption` and `SurveyShowIf` decode the definitions. The decoder's
+  snake-case conversion would rename a `detail` key containing an underscore;
+  none has one, and `test_ios_app_contract` fails if one is added. That test
+  also checks that every question key the server sends is one the app decodes,
+  and that the answers the app sends are kept.
+
+Not built here (no Swift compiler). Every changed file parses with tree-sitter.
+Nobody has seen these screens on a phone yet.
+
+## 562. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12)
 
 **What the owner asked.** "Push notifications to people's phones when they
 have the app and notifications on": a reminder of their daily playlists, **one
@@ -34271,7 +34615,7 @@ mix's listen time (§184, §448). It sends one per person:
   and told to whoever follows a team in it, "Eagles 27–24 Cowboys · Final" /
   "The recap is ready". It rode §191's sweep unchanged: if nobody drew myFAM
   while the game was on, the sweep did not run and the final was not told.
-  (The owner widened the sweep for these followers the same day: §553.)
+  (The owner widened the sweep for these followers the same day: §563.)
 * **Follows are chosen, never inferred** (`app._push_follows`): subjects in
   their mixes (`f:nfl~Eagles` follows "Eagles", `f:nfl` "NFL"; typed questions
   and bank topics follow nothing) and chosen interests that name a subject.
@@ -34303,10 +34647,10 @@ the web. The APNs kind is still not built.
 outlet bars (15 / 40 / 2x) are first guesses to be read off `/admin/push`
 against a real day's clusters.
 
-## 553. The sports sweep runs for people with finals on (2026-11-12)
+## 563. The sports sweep runs for people with finals on (2026-11-12)
 
 **What the owner asked.** "Sweep scores for followers with finals on" - the
-follow-up §552 left open: a final was told only if somebody happened to draw
+follow-up §562 left open: a final was told only if somebody happened to draw
 myFAM while the game was on, because only then did §191's sweep run.
 
 **What changed.** A person who has finals notifications on and somewhere to
@@ -34314,7 +34658,7 @@ receive them is demand for the sweep, **for their own teams' games only**:
 
 * `push_stories.publish_finals_followed` (in the push loop, every 5 minutes)
   hands `stories.note_finals_followed` the names those people chose to follow
-  - mix subjects and named interests, as §552 matches finals - and nothing
+  - mix subjects and named interests, as §562 matches finals - and nothing
   when `PUSH_FINALS=0`. `stories.finals_followed` forgets the list after
   `FINALS_FOLLOWED_SECONDS` (15 min), so a server whose push loop stopped (no
   VAPID keys, staging) stops sweeping for it.
@@ -34335,7 +34679,7 @@ team plays. No new endpoint and no request per listener.
 **Rule changed.** rule:sweep-on-demand carries a Current note; the CLAUDE.md
 line says it.
 
-**Review of §552-§553 (2026-11-12).** A read of the branch's whole diff found
+**Review of §562-§563 (2026-11-12).** A read of the branch's whole diff found
 four faults, each fixed with a test in `tests/test_push_552.py`:
 
 * *The learned time crept later.* A first play that answered the reminder

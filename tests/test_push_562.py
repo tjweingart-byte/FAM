@@ -1,4 +1,4 @@
-"""Notifications, one daily reminder per person, big stories and finals (PROBLEMS.md §552)."""
+"""Notifications, one daily reminder per person, big stories and finals (PROBLEMS.md §562)."""
 
 from __future__ import annotations
 
@@ -455,7 +455,7 @@ def test_the_env_example_documents_the_new_settings():
         assert line in example
 
 
-# --- §552 follow-up: the sweep runs for people with finals on ----------------
+# --- §562 follow-up: the sweep runs for people with finals on ----------------
 
 def test_the_push_loop_hands_the_sweep_only_finals_followers_teams(tmp_path, monkeypatch):
     import stories as stories_mod

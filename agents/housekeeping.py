@@ -43,6 +43,7 @@ the dedupe's own `HOUSEKEEPER_DEDUPE_DRY_RUN` and eval.
 from __future__ import annotations
 
 import asyncio
+import categories
 import logging
 import time
 from typing import Optional
@@ -78,7 +79,7 @@ def _mode() -> str:
 def surviving(path: list, tree) -> str:
     """The nearest node of `path` (root first) still in the tree, or ""."""
     for node in reversed(list(path or [])):
-        if node and tree.get(node) is not None:
+        if categories.holds(tree, node):
             return node
     return ""
 
@@ -90,7 +91,9 @@ def where_now(fact: dict, tree) -> tuple:
     import history_archive as ha
 
     node = fact.get("node_id", "")
-    if node and tree.get(node) is None:
+    # A fact kept at a facet is where it belongs (§555); unfiling it would
+    # throw away the one placement nothing can contradict.
+    if node and not categories.holds(tree, node):
         node = surviving(fact.get("node_path") or [], tree)
     return node, (ha.node_path(node) if node else [])
 
@@ -140,7 +143,7 @@ def refile(node: str, now: Optional[float] = None) -> dict:
             for old, new in out["moved_nodes"].items():
                 archive.replace_node(old, new)
         episodes = 0
-        if _tree().get(node) is None:
+        if not categories.holds(_tree(), node):
             new = out["moved_nodes"].get(node, "")
             if mode == "live":
                 # Intake and readings that named a node no fact named.

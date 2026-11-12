@@ -730,7 +730,7 @@ def recent_demand(now: Optional[float] = None) -> bool:
     return bool(_DEMAND[0]) and now - _DEMAND[0] <= float(settings.stories_demand_seconds)
 
 
-#: §552 (the owner, 11.12, "sweep scores for followers with finals on"): the
+#: §562 (the owner, 11.12, "sweep scores for followers with finals on"): the
 #: names followed by people who have finals notifications on and somewhere
 #: to receive them, published by the push loop (`push_stories.tick`). The
 #: sports sweep counts them as demand - for games naming one of them only

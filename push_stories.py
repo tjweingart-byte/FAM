@@ -1,4 +1,4 @@
-"""Big stories and followed finals, told to the phone (§552).
+"""Big stories and followed finals, told to the phone (§562).
 
 Two of the three notification kinds (`push.py` keeps the daily reminder and
 the delivery). Both keep the rule the daily reminder keeps: **ready means
@@ -15,7 +15,7 @@ GdeltSignals`) runs over the last `WINDOW_HOURS`, reading only files already
 on disk - no model, no request. A story is a cluster of headlines and its
 size is the number of **distinct outlets** running it.
 
-Who is told is the owner's choice (§552, "mixed"):
+Who is told is the owner's choice (§562, "mixed"):
 
 * **Somebody who follows a subject the story names** is told automatically
   once `PUSH_BREAKING_FOLLOWED_OUTLETS` outlets run it. "Follows" means what
@@ -34,7 +34,7 @@ A game in a followed team's league that the sports sweep saw end
 (`balldontlie_scores`, a `stories` story with `live_status == final`): the
 people who follow a team in it are told "<score> · Final - the recap is
 ready". The sweep (§191) runs while somebody drew myFAM recently **or**, at
-the owner's direction (§552), while a game naming a team followed by somebody
+the owner's direction (§562), while a game naming a team followed by somebody
 with finals on is under way: `publish_finals_followed` hands it those names.
 Nothing here asks BALLDONTLIE anything itself.
 
@@ -546,13 +546,13 @@ async def tick(push_store, follows_of, allowed=None, generator=None, cache=None,
 
 
 #: How often the names followed by people with finals on are handed to the
-#: sports sweep (§552). Well inside `stories.FINALS_FOLLOWED_SECONDS`.
+#: sports sweep (§562). Well inside `stories.FINALS_FOLLOWED_SECONDS`.
 FOLLOWED_SECONDS = 5 * 60
 _LAST_FOLLOWED = [0.0]
 
 
 def publish_finals_followed(users: list, push_store, named, now: float) -> tuple:
-    """§552, the owner: "sweep scores for followers with finals on". The
+    """§562, the owner: "sweep scores for followers with finals on". The
     teams followed by everybody here who can be told and has finals on,
     handed to `stories` for the sports sweep to count as demand. Only what
     they chose (`named`), and nothing when finals are off on the server."""

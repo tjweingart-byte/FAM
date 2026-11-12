@@ -203,7 +203,8 @@ def test_the_tool_drops_answers_for_nodes_it_did_not_ask_or_the_tree_lacks(tree,
             D.NodeWords(node="rental market", definition="d", excludes="", wordings=["Rents"]),
             D.NodeWords(node="made up", definition="d", excludes="", wordings=["x"])]))
     monkeypatch.setattr(models, "ask", ask)
-    kept, problems = asyncio.run(D.draft_nodes(tree, limit=400))
+    # The whole seeded tree (677 nodes since 11.12), so "rental market" is asked.
+    kept, problems = asyncio.run(D.draft_nodes(tree, limit=2000))
     assert kept["rental market"]["wordings"] == ["rents"]
     assert "made up" not in kept and any("made up" in p for p in problems)
 

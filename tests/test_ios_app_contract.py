@@ -479,3 +479,51 @@ def test_the_front_door_decodes_what_the_server_sends(monkeypatch, tmp_path):
     assert _fields("TermsState") <= set(terms), terms
     who = c.get("/api/v1/auth/me", headers=auth).json()
     assert {"waitlist", "home"} <= set(who)
+
+
+def test_the_surveys_decode_what_the_server_sends(monkeypatch):
+    """§560 on iOS: the offer, every survey's questions, and the answer the
+    app sends (`Surveys.swift` `payload`) is one the server keeps."""
+    import surveys as surveys_mod
+
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    c = TestClient(appmod.app)
+    headers = {"X-FAM-Client": "ios/1.0.0+2"}
+    token = c.post("/api/v1/auth/signup", headers=headers, json={
+        "email": "ios-survey@example.com", "password": "password12",
+        "accept_terms": True, "want_token": True}).json()["session_token"]
+    auth = {**headers, "Authorization": "Bearer " + token}
+    offer = c.post("/api/v1/surveys/offer", headers=auth, json={"moment": "episode_end"}).json()
+    assert _fields("SurveyOffer") <= set(offer)
+    survey = offer["survey"]
+    assert _fields("Survey") <= set(survey), sorted(_fields("Survey") - set(survey))
+    # Every key a question carries is one the app decodes (the rest would be
+    # silently lost), and every field the app requires is sent.
+    question_fields = _fields("SurveyQuestion")
+    for sid in surveys_mod.SURVEYS:
+        for q in surveys_mod.definition(sid)["questions"]:
+            assert set(q) <= question_fields, (sid, sorted(set(q) - question_fields))
+            assert {"id", "kind", "text"} <= set(q)
+            for o in q.get("options", []):
+                assert _fields("SurveyOption") == set(o)
+            if "show_if" in q:
+                assert set(q["show_if"]) == {"question", "in"}
+            # The decoder's snake-case conversion would rename a detail key
+            # with an underscore; none has one.
+            assert all("_" not in k for k in q.get("detail", {}))
+    # What `payload` sends: option ids, a list, a number, a box.
+    r = c.post("/api/v1/surveys/answer", headers=auth, json={
+        "survey": "episode", "build": "ios/1.0.0+2",
+        "answers": {"rating": {"pick": "meh"}, "off": {"pick": ["name"], "text": "Saquon"}},
+        "episode": {"id": "abc", "title": "Why the Eagles lost"}})
+    assert r.status_code == 200, r.text
+    r = c.post("/api/v1/surveys/answer", headers=auth, json={
+        "survey": "day3", "answers": {"routine": {"pick": 7}, "role": {"text": "Coach"}}})
+    assert r.status_code == 200, r.text
+    assert c.post("/api/v1/surveys/dismiss", headers=auth,
+                  json={"survey": "wrap"}).status_code == 200
+    # The app's calls are the routes it names.
+    api = _api()
+    for path in ("api/v1/surveys/offer", "api/v1/surveys/answer", "api/v1/surveys/dismiss"):
+        assert f'"POST", "{path}"' in api, path

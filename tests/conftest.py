@@ -215,7 +215,7 @@ FAM_ENVIRONMENT = (
     # Where a share recipient goes when they press anything but play. Unset
     # in a test, or a machine with a real one would draw doors the assertions
     # about the empty state do not expect.
-    "APP_STORE_URL", "APP_HOME_URL", "APPLE_TEAM_ID", "APPLE_KEY_ID", "MODERATION_EMAIL", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
+    "APP_STORE_URL", "INSTAGRAM_APP_ID", "SNAPCHAT_CLIENT_ID", "APP_HOME_URL", "APPLE_TEAM_ID", "APPLE_KEY_ID", "MODERATION_EMAIL", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
     "IMAGE_CHECK_MAX_TOKENS", "IMAGE_CHECK_TIMEOUT_SECONDS",
     "TOPIC_TITLE", "TOPIC_TITLE_MODEL", "TOPIC_TITLE_MAX_TOKENS", "TOPIC_TITLE_TIMEOUT_SECONDS",
     # Which machine speaks, and how it is reached. A developer with a real
@@ -308,7 +308,7 @@ DATA_ENVIRONMENT = (
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
     "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB",
-    "EPISODE_QUALITY_DB", "AGENTS_DB",
+    "EPISODE_QUALITY_DB", "AGENTS_DB", "SURVEYS_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the

@@ -260,7 +260,7 @@ def test_a_failed_first_read_waits_the_interval_not_every_tick(provider, monkeyp
 
 
 # --------------------------------------------------------------------------
-# §552: people with finals on are demand too, for their own teams' games
+# §562: people with finals on are demand too, for their own teams' games
 # --------------------------------------------------------------------------
 def test_a_finals_follower_wakes_the_sweep_with_nobody_looking(provider):
     stories.reset()

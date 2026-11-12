@@ -151,7 +151,7 @@ def test_due_at_the_listen_time_once_the_edition_is_written(tmp_path, monkeypatc
     pushes = push.PushStore(str(tmp_path / "m.db"))
     monkeypatch.setattr(push, "_edition_ready", lambda now: True)
     assert push.due(store, pushes, _local(2026, 10, 2, 7, 29)) == []
-    # §448: within fifteen minutes of the listen time, never later. §552: one
+    # §448: within fifteen minutes of the listen time, never later. §562: one
     # per person - the old client's mix listen time stands for its owner.
     assert push.due(store, pushes, _local(2026, 10, 2, 7, 45)) == [("u", "2026-10-02")]
     # Past the grace window, a "ready" is noise.
@@ -199,7 +199,7 @@ def test_sent_once_a_day_and_only_where_it_can_be_delivered(tmp_path, monkeypatc
     pushes.subscribe("u", {"endpoint": "https://push.example/1",
                            "keys": {"p256dh": "k", "auth": "a"}})
     assert push.tick(store, pushes, now) == [("u", "2026-10-02", 1)]
-    # §552: one reminder for all their mixes, "myFAM" on the listener's screen.
+    # §562: one reminder for all their mixes, "myFAM" on the listener's screen.
     assert sent[0][1]["title"] == "Your myFAM is ready"
     assert sent[0][1]["url"] == "/?mixes=1"
     assert push.tick(store, pushes, now + 120) == []
@@ -252,7 +252,7 @@ def test_deleting_an_account_forgets_its_phones(client, monkeypatch):
 
 
 def test_the_page_offers_a_listen_time_and_the_worker_shows_it():
-    """Superseded (§552): the row under a mix is the one daily reminder for
+    """Superseded (§562): the row under a mix is the one daily reminder for
     all of the person's mixes, saved with their zone."""
     body = _fn("renderMixBody")
     assert "mixWhenHTML()" in body

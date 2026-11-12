@@ -28,6 +28,7 @@ listener's path.
 from __future__ import annotations
 
 import asyncio
+import categories
 import logging
 import sqlite3
 import threading
@@ -386,8 +387,7 @@ def _label_from(result) -> Optional[dict]:
     if result is None or not result.ok:
         return None
     node = result.value.node.strip()
-    if node != "none" and node not in topics.FACETS \
-            and topics.category_tree().get(node) is None:
+    if node != "none" and not categories.holds(topics.category_tree(), node):
         return None
     return {"node": "" if node == "none" else node,
             "confidence": result.value.confidence,
