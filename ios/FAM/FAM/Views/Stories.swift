@@ -1,5 +1,6 @@
 import FAMSafety
 import SwiftUI
+import UIKit
 
 /// The faces row at the top of DailyFAM (`#myfamCircle`, §297): your story
 /// first with its (+) badge, then friends and people you follow - a gradient
@@ -338,6 +339,12 @@ struct StoryViewer: View {
     @State private var turnAnchor: UnitPoint = .center
     @State private var turnShift: CGFloat = 0
     @State private var turning = false
+    /// The friend being turned away from, as a still copy (`inertCopy`),
+    /// turning out while the next one turns in.
+    @State private var leavingFace: StillCopy?
+    @State private var leavingTurn: Double = 0
+    @State private var leavingAnchor: UnitPoint = .center
+    @State private var leavingShift: CGFloat = 0
     @State private var stageWidth: CGFloat = 390
     /// Block's sheet (`blockPerson`): the sentence, then "Block".
     @State private var confirm: SheetSpec?
@@ -413,6 +420,19 @@ struct StoryViewer: View {
         // The cube's turn between friends, over the dark behind it.
         .rotation3DEffect(.degrees(turn), axis: (x: 0, y: 1, z: 0), anchor: turnAnchor, perspective: 0.55)
         .offset(x: turnShift)
+        // The friend turned away from, a copy that takes no touches, turning
+        // out about its far edge as the next one turns in about its near one.
+        .overlay {
+            if let leavingFace {
+                StillCopyView(copy: leavingFace)
+                    .ignoresSafeArea()
+                    .rotation3DEffect(.degrees(leavingTurn), axis: (x: 0, y: 1, z: 0),
+                                      anchor: leavingAnchor, perspective: 0.55)
+                    .offset(x: leavingShift)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
         .background(Color.black.opacity(turning ? 1 : 0).ignoresSafeArea())
         // Out of the face and back into it.
         .mask {
@@ -1112,34 +1132,41 @@ struct StoryViewer: View {
     /// friend's own stories change in place. Still under Reduce Motion.
     private func turnTo(_ next: Int, index start: Int, dir: Int) {
         guard people.indices.contains(next) else { return }
-        guard !reduceMotion, !turning else {
+        guard !reduceMotion, !turning, let copy = StillCopy.ofWindow() else {
             person = next
             index = start
             return
         }
         turning = true
-        let half = 0.17
         let width = stageWidth
-        turnAnchor = dir > 0 ? .trailing : .leading
-        withAnimation(.easeIn(duration: half)) {
-            turn = Double(-90 * dir)
-            turnShift = -width * CGFloat(dir)
+        let d = CGFloat(dir)
+        // Both faces at once, as the web's: the copy of this friend from
+        // in place to a quarter-turn away and a width over; the next
+        // friend from a quarter-turn and a width the other side to in place.
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            leavingFace = copy
+            leavingAnchor = dir > 0 ? .trailing : .leading
+            leavingTurn = 0
+            leavingShift = 0
+            person = next
+            index = start
+            turnAnchor = dir > 0 ? .leading : .trailing
+            turn = Double(90 * dir)
+            turnShift = width * d
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + half) {
-            var still = Transaction()
-            still.disablesAnimations = true
-            withTransaction(still) {
-                person = next
-                index = start
-                turnAnchor = dir > 0 ? .leading : .trailing
-                turn = Double(90 * dir)
-                turnShift = width * CGFloat(dir)
-            }
-            withAnimation(.easeOut(duration: half)) {
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.34)) {
+                leavingTurn = Double(-90 * dir)
+                leavingShift = -width * d
                 turn = 0
                 turnShift = 0
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + half) { turning = false }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
+            leavingFace = nil
+            turning = false
         }
     }
 
@@ -1150,4 +1177,33 @@ struct StoryViewer: View {
         if mins < 60 { return "\(mins)m" }
         return "\(Int((Double(mins) / 60).rounded()))h"
     }
+}
+
+/// A still copy of what is on screen now (the web's `inertCopy`): drawn,
+/// never pressed or read aloud.
+struct StillCopy: Identifiable {
+    let id = UUID()
+    let view: UIView
+
+    static func ofWindow() -> StillCopy? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let window = scenes.flatMap(\.windows).first(where: { $0.isKeyWindow }),
+              let view = window.snapshotView(afterScreenUpdates: false) else { return nil }
+        return StillCopy(view: view)
+    }
+}
+
+struct StillCopyView: UIViewRepresentable {
+    let copy: StillCopy
+
+    func makeUIView(context: Context) -> UIView {
+        let box = UIView()
+        box.isUserInteractionEnabled = false
+        copy.view.frame = box.bounds
+        copy.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        box.addSubview(copy.view)
+        return box
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }

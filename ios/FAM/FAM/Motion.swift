@@ -231,6 +231,8 @@ struct PictureSpot {
 /// scroll redraws nothing. The press asks it for the one to grow from.
 final class PressSlot {
     private var spots: [UUID: PictureSpot] = [:]
+    /// The button's own frame, in the window.
+    var frame: CGRect = .zero
 
     func set(_ id: UUID, _ spot: PictureSpot) { spots[id] = spot }
     func remove(_ id: UUID) { spots[id] = nil }
@@ -265,10 +267,25 @@ final class PlayerMotion {
     static let shared = PlayerMotion()
 
     private var tapped: (spot: PictureSpot?, at: Date)?
+    /// The button last pressed, where it was (`Motion`'s `pressed`).
+    private var button: (frame: CGRect, at: Date)?
     /// The mini player's picture, while one is drawn.
     var mini: PictureSpot?
+    /// Each DailyFAM card's frame, by tile id: a tile queued from its ⋯
+    /// flies from the card (`addToQueue`'s `[data-topic]`).
+    var tiles: [String: CGRect] = [:]
 
     func pressed(_ spot: PictureSpot?) { tapped = (spot, Date()) }
+    func pressedButton(_ frame: CGRect) { button = (frame, Date()) }
+
+    /// The face a story grows out of (`pressedCircle`): the button pressed
+    /// in the last 1.5 s, as the circle in its middle, or nothing.
+    func pressedCircle() -> CGRect? {
+        guard let button, Date().timeIntervalSince(button.at) < 1.5,
+              button.frame.width > 0, button.frame.intersects(UIScreen.main.bounds) else { return nil }
+        let side = max(16, min(button.frame.width, button.frame.height))
+        return CGRect(x: button.frame.midX - side / 2, y: button.frame.midY - side / 2, width: side, height: side)
+    }
 
     /// The picture to grow from, if one was pressed in the last 8 s.
     func growFrom() -> PictureSpot? {
@@ -286,8 +303,16 @@ struct PressRecording: ViewModifier {
     func body(content: Content) -> some View {
         content
             .environment(\.pressSlot, slot)
+            .background(GeometryReader { geo in
+                let frame = geo.frame(in: .global)
+                Color.clear
+                    .onAppear { slot.frame = frame }
+                    .onChange(of: frame) { _, now in slot.frame = now }
+            })
             .onChange(of: pressed) { _, down in
-                if down { PlayerMotion.shared.pressed(slot.best) }
+                guard down else { return }
+                PlayerMotion.shared.pressed(slot.best)
+                PlayerMotion.shared.pressedButton(slot.frame)
             }
     }
 }
@@ -348,6 +373,10 @@ enum PlayerStagePhase: Equatable {
 
 final class PlayerStage: ObservableObject {
     @Published var phase: PlayerStagePhase = .shown
+    /// The screen under a pushed player (no picture to grow from): 1 while
+    /// it is pushed aside (`slide(from, "0%", "-28%", …, [1, 0.55])`).
+    @Published var under: CGFloat = 0
+    var underCurve: Animation? = nil
     /// Where the player's picture is, reported by `PlayerView`.
     var pictureFrame: CGRect = .zero
     /// The picture the open grows from, and the one the close shrinks into.
@@ -432,7 +461,18 @@ struct PlayerEntrance<Content: View>: View {
             withAnimation(.easeInOut(duration: 0.12)) { shown = 1 }
         } else {
             flyingKind = .none
-            withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)) { shown = 1 }
+            let curve = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)
+            withAnimation(curve) { shown = 1 }
+            stage.underCurve = curve
+            stage.under = 1
+            // Once it is in, the page under is put back where it was,
+            // unseen (the web's push ends by cancelling its animations), so
+            // a close that shrinks into the mini player finds it in place.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
+                guard stage.phase != .closing else { return }
+                stage.underCurve = nil
+                stage.under = 0
+            }
         }
     }
 
@@ -448,7 +488,15 @@ struct PlayerEntrance<Content: View>: View {
             withAnimation(.easeOut(duration: 0.2)) { shown = 0 }
         } else {
             flyingKind = .none
-            withAnimation(.easeInOut(duration: 0.26)) { shown = 0 }
+            let curve = Animation.easeInOut(duration: 0.26)
+            withAnimation(curve) { shown = 0 }
+            // The pop: the page under comes back from 28 % left as this goes.
+            stage.underCurve = nil
+            stage.under = 1
+            DispatchQueue.main.async {
+                stage.underCurve = curve
+                stage.under = 0
+            }
         }
     }
 
@@ -475,6 +523,10 @@ struct PlayerEntrance<Content: View>: View {
     private func settle() {
         flying = nil
         withAnimation(.easeOut(duration: 0.2)) { shown = 1 }
+        if flyingKind == .none && !reduceMotion {
+            stage.underCurve = nil
+            stage.under = 0
+        }
     }
 
     /// The copy: the picture, moved and sized between the two frames, its
@@ -519,11 +571,27 @@ extension EnvironmentValues {
 /// over 260 ms, as the web's screens and iOS's own pushes do - never up
 /// from the bottom, which is iOS's cover and not a screen. The cover is
 /// shown and hidden without iOS's slide; what is seen moving is drawn
-/// here. A drag from the left edge takes it back, as an iOS push does.
+/// here.
 /// The screen is live from its first frame. Reduce Motion: a 120 ms
 /// crossfade in, gone at once.
 final class PushedState: ObservableObject {
     @Published var leaving = false
+    /// 0 with nothing pushed, 1 with the screen fully in: the pushed
+    /// screen and the one under it both move by it, so they move together.
+    @Published var shown: CGFloat = 0
+    /// How the last change to `shown` moves (the screen under the cover is
+    /// in another presentation, so it is given the same curve itself).
+    var curve: Animation? = nil
+
+    /// The push's own curve (320 ms) and the pop's (260 ms).
+    static let pushCurve = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)
+    static let popCurve = Animation.easeInOut(duration: 0.26)
+    static let settleCurve = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)
+
+    func move(to value: CGFloat, _ curve: Animation?) {
+        self.curve = curve
+        withAnimation(curve) { shown = value }
+    }
 }
 
 private struct PushedScreen<Content: View>: View {
@@ -531,56 +599,47 @@ private struct PushedScreen<Content: View>: View {
     let close: () -> Void
     let content: Content
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var shown: CGFloat = 0
-    @State private var drag: CGFloat = 0
 
     private var width: CGFloat { UIScreen.main.bounds.width }
 
     var body: some View {
         content
             .background(FAMColor.background.ignoresSafeArea())
-            .opacity(reduceMotion ? shown : 1)
-            .offset(x: reduceMotion ? 0 : (1 - shown) * width + drag)
-            .overlay(alignment: .leading) {
-                // The edge a back swipe starts from.
-                if !reduceMotion {
-                    Color.clear
-                        .frame(width: 20)
-                        .frame(maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                        .gesture(DragGesture(minimumDistance: 8, coordinateSpace: .global)
-                            .onChanged { g in drag = max(0, g.translation.width) }
-                            .onEnded { g in
-                                let far = g.translation.width > width / 3
-                                    || g.predictedEndTranslation.width > width / 2
-                                if far {
-                                    close()
-                                } else {
-                                    withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { drag = 0 }
-                                }
-                            })
-                }
-            }
+            .opacity(reduceMotion ? state.shown : 1)
+            .offset(x: reduceMotion ? 0 : (1 - state.shown) * width)
             .allowsHitTesting(!state.leaving)
             .onAppear {
-                withAnimation(reduceMotion ? .easeInOut(duration: 0.12)
-                                           : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)) { shown = 1 }
+                state.move(to: 1, reduceMotion ? .easeInOut(duration: 0.12) : PushedState.pushCurve)
             }
             .onChange(of: state.leaving) { _, leaving in
                 guard leaving else {
                     // Asked for again before it had gone: back in place.
-                    withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) {
-                        shown = 1
-                        drag = 0
-                    }
+                    state.move(to: 1, PushedState.settleCurve)
                     return
                 }
                 if reduceMotion { return }
-                withAnimation(.easeInOut(duration: 0.26)) {
-                    shown = 0
-                    drag = 0
-                }
+                state.move(to: 0, PushedState.popCurve)
             }
+    }
+}
+
+/// The screen a push covers (`slide(from, "0%", "-28%", …, [1, 0.55])`):
+/// it moves 28 % of the way left and dims to 55 % as the new one comes in,
+/// and comes back as it goes.
+/// Only the view the cover hangs from moves - the tab bar and the mini
+/// player, outside it, stay where they are, as the web counter-moves them.
+/// Still with Reduce Motion.
+private struct UnderPush: ViewModifier {
+    @ObservedObject var state: PushedState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let width = UIScreen.main.bounds.width
+        let t = reduceMotion ? 0 : state.shown
+        content
+            .offset(x: -0.28 * width * t)
+            .opacity(1 - 0.45 * t)
+            .animation(state.curve, value: state.shown)
     }
 }
 
@@ -599,6 +658,7 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .modifier(UnderPush(state: state))
             .onChange(of: item?.id) { _, _ in follow() }
             .onAppear { if item != nil && held == nil { follow() } }
             .fullScreenCover(item: Binding(get: { held }, set: { new in
@@ -623,6 +683,10 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
                 guard self.item == nil else { return }
                 withTransaction(still) { held = nil }
                 state.leaving = false
+                // Gone: the screen under is home, whatever was in flight.
+                var none = Transaction()
+                none.disablesAnimations = true
+                withTransaction(none) { state.shown = 0 }
             }
         }
     }
@@ -678,7 +742,7 @@ private var windowBottomInset: CGFloat {
 /// over 150 ms, the card dropping 8 pt. A sheet is the web's
 /// `.sheet-card`: the surface, 20 pt top corners and a strong top border,
 /// at most 82 % of the screen, sized to what it holds; a tap on the dim
-/// or a drag down on the card closes it. Reduce Motion: the dim and card
+/// closes it. Reduce Motion: the dim and card
 /// fade in over 120 ms, nothing lifts, closing is at once. The card is
 /// live from its first frame.
 private struct OverlayCard<Content: View>: View {
@@ -688,7 +752,6 @@ private struct OverlayCard<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = false
     @State private var modal = false
-    @State private var drag: CGFloat = 0
 
     private static var dim: Color { Color(hex: 0x0A090F).opacity(0.62) }
 
@@ -702,7 +765,7 @@ private struct OverlayCard<Content: View>: View {
                 .accessibilityHidden(true)
             card
                 .opacity(shown ? 1 : 0)
-                .offset(y: lift + drag)
+                .offset(y: lift)
         }
         .ignoresSafeArea(.container, edges: .bottom)
         .allowsHitTesting(!state.leaving)
@@ -713,10 +776,7 @@ private struct OverlayCard<Content: View>: View {
         }
         .onChange(of: state.leaving) { _, leaving in
             if !leaving {
-                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) {
-                    shown = true
-                    drag = 0
-                }
+                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { shown = true }
                 return
             }
             guard !reduceMotion else { return }
@@ -743,25 +803,6 @@ private struct OverlayCard<Content: View>: View {
                 .padding(.bottom, -2)
                 .opacity(modal ? 0 : 1)
                 .allowsHitTesting(false))
-            .overlay(alignment: .top) {
-                // The top of a sheet is where a drag down starts, as on an
-                // iOS sheet; the list under it keeps its own scrolling.
-                if !modal {
-                    Color.clear
-                        .frame(height: 28)
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
-                        .gesture(DragGesture(minimumDistance: 6, coordinateSpace: .global)
-                            .onChanged { g in drag = max(0, g.translation.height) }
-                            .onEnded { g in
-                                if drag > 90 || g.predictedEndTranslation.height > 220 {
-                                    close()
-                                } else {
-                                    withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { drag = 0 }
-                                }
-                            })
-                }
-            }
     }
 }
 
@@ -906,4 +947,34 @@ struct LiftsIn: ViewModifier {
 
 extension View {
     func liftsIn() -> some View { modifier(LiftsIn()) }
+}
+
+/// The tab's page under a player pushed in from the right: 28 % left and
+/// dimmed to 55 %, back as it goes (the tab bar and mini player stay put).
+struct UnderPlayer: ViewModifier {
+    @ObservedObject var stage: PlayerStage
+
+    func body(content: Content) -> some View {
+        let width = UIScreen.main.bounds.width
+        content
+            .offset(x: -0.28 * width * stage.under)
+            .opacity(1 - 0.45 * stage.under)
+            .animation(stage.underCurve, value: stage.under)
+    }
+}
+
+/// Opens a story out of the face just pressed (`growStory`), as DailyFAM's
+/// faces row does: the cover comes up without iOS's slide and the story
+/// grows from the face. With no face pressed, or Reduce Motion, it is
+/// iOS's own cover.
+func presentGrowing(reel: inout StoryReel, show: (StoryReel) -> Void) {
+    guard !UIAccessibility.isReduceMotionEnabled, let face = PlayerMotion.shared.pressedCircle() else {
+        show(reel)
+        return
+    }
+    reel.origin = face
+    var still = Transaction()
+    still.disablesAnimations = true
+    let shown = reel
+    withTransaction(still) { show(shown) }
 }

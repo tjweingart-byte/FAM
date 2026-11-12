@@ -1168,7 +1168,8 @@ final class AppModel: ObservableObject {
     }
 
     func addToQueue(_ tile: Tile) {
-        nowPlaying.addToQueue(episode(for: tile))
+        // It flies from the card whose ⋯ queued it, when that is on screen.
+        nowPlaying.addToQueue(episode(for: tile), from: PlayerMotion.shared.tiles[tile.id])
     }
 
     func episode(for tile: Tile) -> Episode {

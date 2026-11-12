@@ -458,6 +458,14 @@ struct TileCard: View {
             card(faded: faded)
         }
         .buttonStyle(CardPress(pressed: $pressed))
+        .background(GeometryReader { geo in
+            // Where a queued tile flies from (`Motion.toQueue`'s `from`).
+            let frame = geo.frame(in: .global)
+            Color.clear
+                .onAppear { PlayerMotion.shared.tiles[tile.id] = frame }
+                .onChange(of: frame) { _, now in PlayerMotion.shared.tiles[tile.id] = now }
+                .onDisappear { PlayerMotion.shared.tiles[tile.id] = nil }
+        })
         .accessibilityHint("Plays the episode")
         .overlay(alignment: .top) {
             thumbControls

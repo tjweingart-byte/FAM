@@ -999,7 +999,10 @@ struct MiniPlayer: View {
     @ViewBuilder private var flightLayer: some View {
         if let flight = flying {
             let screen = UIScreen.main.bounds
-            let start = CGPoint(x: screen.midX - barFrame.minX, y: screen.midY - barFrame.minY)
+            // From the card that queued it, else the middle of the page.
+            let card = flight.from.flatMap { $0.intersects(screen) ? $0 : nil }
+            let origin = card.map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: screen.midX, y: screen.midY)
+            let start = CGPoint(x: origin.x - barFrame.minX, y: origin.y - barFrame.minY)
             let end = CGPoint(x: thumbFrame.midX, y: thumbFrame.midY)
             QueueGhost(picture: flight.picture, from: start, to: end) {
                 flying = nil

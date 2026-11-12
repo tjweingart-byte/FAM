@@ -119,7 +119,7 @@ struct PersonView: View {
                     try? await Task.sleep(nanoseconds: 350_000_000)
                     if let mine = StoryReel.mine(model) { story = mine }
                 }
-            })
+            }, origin: reel.origin)
                 .environmentObject(model)
         }
     }
@@ -674,8 +674,9 @@ struct PersonView: View {
     }
 
     private func openStory(_ p: CirclePerson) {
-        story = StoryReel(people: [StoryPerson(id: p.userId, name: p.name, handle: p.handle, avatar: p.avatar,
-                                               stories: p.stories, mine: false)], start: 0)
+        var reel = StoryReel(people: [StoryPerson(id: p.userId, name: p.name, handle: p.handle, avatar: p.avatar,
+                                                  stories: p.stories, mine: false)], start: 0)
+        presentGrowing(reel: &reel) { story = $0 }
     }
 }
 

@@ -39,7 +39,7 @@ struct YouView: View {
         .famSheet(item: $held) { v in holdSheet(v) }
         .fullScreenCover(item: $story) { reel in
             StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
-                        openMine: { showMine() })
+                        openMine: { showMine() }, origin: reel.origin)
                 .environmentObject(model)
         }
         .fullScreenCover(item: $composing) { subject in
@@ -506,9 +506,10 @@ struct YouView: View {
     private func openMyStory(_ p: MyProfile) {
         let mine = p.stories ?? []
         guard !mine.isEmpty else { return }
-        story = StoryReel(people: [StoryPerson(id: "me", name: "Your story", handle: p.handle ?? "",
-                                               avatar: p.avatar ?? "", stories: mine, mine: true)],
-                          start: 0)
+        var reel = StoryReel(people: [StoryPerson(id: "me", name: "Your story", handle: p.handle ?? "",
+                                                  avatar: p.avatar ?? "", stories: mine, mine: true)],
+                             start: 0)
+        presentGrowing(reel: &reel) { story = $0 }
     }
 }
 
