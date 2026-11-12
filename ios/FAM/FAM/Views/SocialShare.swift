@@ -198,7 +198,7 @@ struct ShareTargetRows: View {
 
     /// The server's order (`sharing.TARGETS`).
     static let order = ["copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
-                        "instagram_story", "snapchat_story"]
+                        "reddit", "threads", "instagram_story", "snapchat_story"]
 
     /// `shareGlyph`.
     static func glyph(_ key: String) -> String {
@@ -210,6 +210,8 @@ struct ShareTargetRows: View {
         case "x": return "X"
         case "facebook": return "f"
         case "linkedin": return "in"
+        case "reddit": return "r/"
+        case "threads": return "Th"
         case "instagram_story": return "IG"
         case "snapchat_story": return "SC"
         default: return "\u{2197}"

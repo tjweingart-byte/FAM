@@ -34265,3 +34265,14 @@ link sticker themselves.
 
 Unbuilt here (no Swift compiler); every changed Swift file parses with
 tree-sitter. Not tried on a phone.
+
+**Reddit and Threads** (the owner, the same day). Two more `link`
+destinations, both URL hand-offs needing no id: Reddit's submit page
+(`reddit.com/submit?url=&title=`; the words are the post's title, 300 at
+most, with no address in them because the link is its own field) and
+Threads' web intent (`threads.net/intent/post?text=`, 500, the link in the
+words as on X). Each opens the platform's app where it is installed. The
+trim in `_rendered` now re-attaches the link only where it was in the words
+to begin with - otherwise a long Reddit title would have had the URL glued
+onto it. Both clients draw the two tiles (`r/`, `Th`); an installed build
+already shows any key it does not know, with the arrow glyph.

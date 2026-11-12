@@ -26,7 +26,7 @@ EPISODE = {"title": "Who Makes the Chips",
 
 def test_every_target_renders_without_a_leftover_placeholder():
     """A share whose text says `{title}` is worse than no template at all, and
-    it is the failure a typo in one of nine strings produces."""
+    it is the failure a typo in one of eleven strings produces."""
     for target in sharing.TARGETS:
         rendered = sharing.render(target.key, **EPISODE)
         assert "{" not in rendered["text"], target.key
@@ -34,7 +34,8 @@ def test_every_target_renders_without_a_leftover_placeholder():
 
 
 def test_a_link_destination_carries_the_link():
-    for key in ("copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin"):
+    for key in ("copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
+                "threads"):
         assert EPISODE["url"] in sharing.render(key, **EPISODE)["text"], key
 
 
@@ -196,7 +197,7 @@ def test_an_ampersand_in_the_question_does_not_truncate_the_message():
 
 
 def test_every_target_renders_words_a_person_could_send():
-    """All nine, with the wording actually filled in. The templates are the
+    """All eleven, with the wording actually filled in. The templates are the
     product here: a share nobody would send is a share button nobody uses."""
     for target in sharing.TARGETS:
         rendered = sharing.render(target.key, **EPISODE)
@@ -231,7 +232,8 @@ def test_the_two_that_drop_our_words_are_the_two_we_say_so_about():
         if not target.destination:
             continue
         rendered = sharing.render(target.key, **EPISODE)
-        carries_words = "text=" in target.destination or "body=" in target.destination
+        carries_words = any(f in target.destination
+                            for f in ("text=", "body=", "title="))
         if target.key in drops_text:
             assert not carries_words, \
                 f"{target.key} can carry our words after all - stop apologising for it"
@@ -362,10 +364,10 @@ def test_a_share_resolves_to_the_episode_the_sharer_heard():
 
 
 def test_every_platform_the_packet_named_has_a_target():
-    """The nine destinations asked for, by name. A tenth is fine; a missing
+    """The destinations asked for, by name. A tenth is fine; a missing
     one is a share sheet with a gap in it."""
     wanted = {"copy", "sms", "email", "whatsapp", "x", "facebook", "linkedin",
-              "instagram_story", "snapchat_story"}
+              "reddit", "threads", "instagram_story", "snapchat_story"}
     assert wanted <= set(sharing.TARGET_KEYS)
 
 
@@ -380,3 +382,30 @@ def test_a_malformed_platform_id_gives_no_handoff_rather_than_a_broken_one():
     both = sh.story_handoffs(instagram_app_id="987654321",
                              snapchat_client_id="0f1e2d3c-4b5a")
     assert set(both) == {"instagram_story", "snapchat_story"}
+
+
+def test_reddit_takes_the_link_and_a_title_with_no_address_in_it():
+    """Reddit's submit page has a field for the link and one for the title;
+    a URL in the title is a broken-looking post. A long question is trimmed
+    to Reddit's 300 without the link being glued back on."""
+    rendered = sharing.render("reddit", **EPISODE)
+    assert EPISODE["url"] not in rendered["text"]
+    dest = rendered["destination"]
+    assert dest.startswith("https://www.reddit.com/submit?url=")
+    assert "&title=" in dest
+    long = dict(EPISODE, question="why " + "semiconductor manufacturing " * 20)
+    text = sharing.render("reddit", **long)["text"]
+    assert len(text) <= 300 and EPISODE["url"] not in text
+
+
+def test_threads_opens_its_composer_with_the_link_in_the_words():
+    rendered = sharing.render("threads", **EPISODE)
+    assert rendered["destination"].startswith("https://www.threads.net/intent/post?text=")
+    long = dict(EPISODE, question="why " + "semiconductor manufacturing " * 40)
+    text = sharing.render("threads", **long)["text"]
+    assert len(text) <= 500 and text.endswith(EPISODE["url"])
+
+
+def test_every_target_has_mix_wording():
+    for target in sharing.TARGETS:
+        assert target.key in sharing.MIX_TEMPLATES, target.key

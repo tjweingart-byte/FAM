@@ -79,13 +79,13 @@ So the server's job is to produce the payload and a share is something the
 listener completes. No OAuth to maintain, no tokens to leak, no scope reviews
 with four companies, and nothing that can post while somebody is asleep.
 
-Nine destinations, and `kind` is what actually differs:
+Eleven destinations, and `kind` is what actually differs:
 
 | kind | destinations | what it takes |
 |---|---|---|
 | `copy` | Copy link | the URL |
 | `message` | SMS, email, WhatsApp | text, and a subject for email |
-| `link` | X, Facebook, LinkedIn | text with the URL in it |
+| `link` | X, Facebook, LinkedIn, Threads, Reddit | text with the URL in it (Reddit: a title, the link in its own field) |
 | `story` | Instagram, Snapchat | **an image**, with a link sticker |
 
 **Stories cannot take a link.** They are pictures. Without a card the listener
