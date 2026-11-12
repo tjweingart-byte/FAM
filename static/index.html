@@ -2719,6 +2719,55 @@
     font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.07em;
     text-transform:uppercase; cursor:pointer; }
   .nextup-back:active{ opacity:0.6; }
+  /* -------- optional surveys (surveys.py, §552) --------
+     One drawing for all three: the episode check rides on the What's next
+     card, the day-3 and two-week surveys open in their own card from a small
+     invite above the bars. Chips are the answers; nothing here is required. */
+  .svy-pulse{ margin:0 0 12px; padding:11px 12px 12px; border-radius:14px;
+    background:var(--bg); border:1px solid var(--border); }
+  .svy-pulse[hidden]{ display:none; }
+  .svy-head{ display:flex; align-items:center; gap:8px; }
+  .svy-head .svy-title{ flex:1; min-width:0; font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:14px; color:var(--text); }
+  .svy-x{ flex:none; width:44px; height:44px; margin:-12px -12px -12px 0; border:0; background:none;
+    color:var(--text-faint); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .svy-q{ margin-top:12px; }
+  .svy-q:first-child{ margin-top:0; }
+  .svy-qt{ font-size:13px; font-weight:600; line-height:1.35; color:var(--text); margin:0 0 7px; }
+  .svy-pulse .svy-q:first-child .svy-qt{ display:none; }
+  .svy-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .svy-chip{ min-height:32px; padding:6px 12px; border-radius:16px; background:var(--surface);
+    border:1px solid var(--border-strong); color:var(--text); font-family:'Geist', sans-serif;
+    font-size:12px; font-weight:500; line-height:1.3; cursor:pointer; text-align:left; }
+  .svy-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); font-weight:700; }
+  .svy-scale{ display:grid; grid-template-columns:repeat(10, minmax(0, 1fr)); gap:4px; }
+  .svy-scale .svy-chip{ padding:6px 0; text-align:center; font-family:'Geist Mono', monospace; }
+  .svy-ends{ display:flex; justify-content:space-between; gap:8px; margin-top:4px;
+    font-family:'Geist Mono', monospace; font-size:9px; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--text-faint); }
+  .svy-text{ width:100%; margin-top:7px; padding:10px 12px; border-radius:10px;
+    background:var(--bg); border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Geist', sans-serif; font-size:16px; outline:none; box-sizing:border-box; }
+  .svy-text:focus{ border-color:var(--copper); }
+  .svy-text::placeholder{ color:var(--text-faint); }
+  .svy-err{ margin-top:10px; font-size:12px; color:var(--copper); }
+  .svy-err[hidden]{ display:none; }
+  .svy-acts{ display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+  .svy-acts[hidden]{ display:none; }
+  .svy-thanks{ font-size:13px; color:var(--text-muted); padding:2px 0; }
+  .svy-card{ width:90%; max-height:86%; display:flex; flex-direction:column; padding:18px 18px 14px; }
+  .svy-card .svy-body{ flex:1; min-height:0; overflow-y:auto; margin:0 -4px; padding:0 4px; }
+  .svy-card .svy-title{ font-size:17px; }
+  .svy-intro{ font-size:12.5px; line-height:1.5; color:var(--text-muted); margin:4px 0 14px; }
+  .svy-card .svy-q{ margin-top:18px; }
+  .svy-invite{ position:absolute; left:14px; right:14px; bottom:96px; z-index:900;
+    margin:0 auto; max-width:360px; box-sizing:border-box; padding:13px 14px 12px;
+    border-radius:16px; background:var(--surface); border:1px solid var(--border-strong);
+    box-shadow:0 16px 34px -14px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.12); }
+  .svy-invite[hidden]{ display:none; }
+  .svy-invite .svy-intro{ margin:3px 0 10px; }
+  .svy-invite .svy-acts{ margin-top:0; }
+
   /* The end of a DailyFAM playlist (§134): the same card as What's next, and
      deliberately nothing in it that plays anything. */
   .mixdone-card{ text-align:center; padding:24px 20px 14px; }
@@ -4794,6 +4843,10 @@
         <div class="nextup-card">
           <div class="nextup-h">What&rsquo;s next</div>
           <div class="nextup-sub" id="nextUpSub">First one starts in 15</div>
+          <!-- The episode check (surveys.py): only when the server offers it.
+               Touching it pauses the countdown, as the search box does. -->
+          <div class="svy-pulse" id="surveyPulse" hidden
+               onpointerdown="pauseNextUp()"></div>
           <div class="nextup-grid" id="nextUpGrid"></div>
           <!-- Your own prompt (9.30 #2). Touching it stops the countdown, so
                the lead tile never starts under somebody's typing. -->
@@ -4811,6 +4864,25 @@
         </div>
       </div>
 
+
+      <!-- The day-3 check-in and the two-week wrap-up (surveys.py, §552). -->
+      <div class="modal-overlay" id="surveyOverlay">
+        <div class="modal-card svy-card" role="dialog" aria-modal="true" aria-labelledby="surveyTitle">
+          <div class="svy-head">
+            <div class="svy-title" id="surveyTitle"></div>
+            <button class="svy-x" type="button" aria-label="Not now" onclick="surveyNotNow()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+          <div class="svy-intro" id="surveyIntro"></div>
+          <div class="svy-body" id="surveyBody"></div>
+          <div class="svy-err" id="surveyErr" role="alert" hidden></div>
+          <div class="svy-acts">
+            <button class="modal-btn ghost" type="button" onclick="surveyNotNow()">Not now</button>
+            <button class="modal-btn primary" type="button" id="surveySend" onclick="sendSurvey('sheet')">Send</button>
+          </div>
+        </div>
+      </div>
 
       <div class="sheet-overlay" id="sheetOverlay" onclick="if(event.target===this) closeSheet()">
         <div class="sheet-card" id="sheetCard"></div>
@@ -5299,6 +5371,15 @@
     </div>
 
     <div class="toast" id="toast"></div>
+    <!-- A survey is due (surveys.py): asked, never opened on its own. -->
+    <div class="svy-invite" id="surveyInvite" role="dialog" aria-labelledby="surveyInviteTitle" hidden>
+      <div class="svy-head"><div class="svy-title" id="surveyInviteTitle"></div></div>
+      <div class="svy-intro" id="surveyInviteIntro"></div>
+      <div class="svy-acts">
+        <button class="modal-btn ghost" type="button" onclick="surveyNotNow()">Not now</button>
+        <button class="modal-btn primary" type="button" onclick="openSurveySheet()">Start</button>
+      </div>
+    </div>
     <!-- What an action did, Spotify's way (10.8 packet): a bar above the
          mini player, the words on the left and where to go on the right. -->
     <div class="snack" id="snack" role="status" aria-live="polite">
@@ -23070,8 +23151,11 @@
     return active.id === "screen-player" || active.id === "screen-playall";
   }
 
+  // The episode that just ended, for the episode check (surveys.py).
+  var nextUpEpisode = null;
   function maybeOfferNextUp(query, topicId){
     if(!nextUpAllowedHere()) return;
+    nextUpEpisode = { id: FamAudio.episode() || "", title: String(query || "").slice(0, 300) };
     // A guest on the sample pages can play only episodes already made, and
     // every tile here would be refused into the sign-up sheet - which the
     // countdown would then raise by itself, fifteen seconds after an episode
@@ -23179,7 +23263,9 @@
       nextUpFromSearch ? "Back to search" : "Back to DailyFAM";
     document.getElementById("nextUpSearchInput").value = "";
     nextUpPaused = false;
+    hideSurveyPulse();
     document.getElementById("nextUpOverlay").classList.add("active");
+    offerEpisodeSurvey(nextUpEpisode);
 
     // The countdown, shown rather than described: the bar empties over the
     // same five seconds the timer runs for, so what is about to happen is
@@ -23246,6 +23332,7 @@
 
   function closeNextUp(){
     stopNextUpTimer();
+    hideSurveyPulse();
     document.getElementById("nextUpOverlay").classList.remove("active");
   }
 
@@ -23271,6 +23358,274 @@
   function dismissNextUp(){
     closeNextUp();
     if(nextUpFromSearch){ openSearchFAM(); } else { openMyFamTab(); }
+  }
+
+  // ---------------- Optional surveys (surveys.py, §552) ----------------
+  // The server decides which survey, if any, and when: `/api/surveys/offer`
+  // is asked only at a moment one *can* be shown (an answer there counts as
+  // offered), and only for an account. Every survey has Not now; nothing
+  // waits on one; an answer is never a taste signal.
+  //
+  // One drawing for all three. Answers are `{question: {pick, text}}`: `pick`
+  // an option id, a list of them, or a number; `text` the "Other" box or an
+  // option's own box ("Which name?").
+  var SURVEY = { def: null, answers: {}, where: "", episode: null, busy: false };
+  var SURVEY_OTHER = "__other";
+
+  function surveyVisible(q){
+    var c = q.show_if;
+    if(!c) return true;
+    var a = SURVEY.answers[c.question];
+    return !!a && c["in"].indexOf(a.pick) !== -1;
+  }
+  function surveyTextWanted(q){
+    var a = SURVEY.answers[q.id] || {};
+    if(q.kind === "text") return true;
+    var picks = Array.isArray(a.pick) ? a.pick : (a.pick != null ? [a.pick] : []);
+    if(a.other) return true;
+    return !!q.detail && picks.some(function(p){ return q.detail[p]; });
+  }
+  function surveyTextPlaceholder(q){
+    var a = SURVEY.answers[q.id] || {};
+    if(q.kind === "text") return q.placeholder || "";
+    var picks = Array.isArray(a.pick) ? a.pick : [a.pick];
+    var asked = q.detail ? picks.filter(function(p){ return q.detail[p]; })
+                                 .map(function(p){ return q.detail[p]; }) : [];
+    if(a.other) asked.push(asked.length ? "Anything else?" : "Tell us more");
+    return asked.join(" ");
+  }
+  function surveyQuestionHTML(q){
+    var a = SURVEY.answers[q.id] || {};
+    var html = '<div class="svy-q" data-sq="' + escapeHtml(q.id) + '">'
+      + '<div class="svy-qt">' + escapeHtml(q.text) + '</div>';
+    if(q.kind === "scale"){
+      html += '<div class="svy-scale">';
+      for(var n = q.min; n <= q.max; n++){
+        html += '<button type="button" class="svy-chip' + (a.pick === n ? " on" : "")
+          + '" data-sv="' + n + '" aria-pressed="' + (a.pick === n) + '">' + n + '</button>';
+      }
+      html += '</div><div class="svy-ends"><span>' + escapeHtml(q.low || "")
+        + '</span><span>' + escapeHtml(q.high || "") + '</span></div>';
+    } else if(q.kind !== "text"){
+      var opts = (q.options || []).slice();
+      if(q.other) opts.push({ id: SURVEY_OTHER, label: "Other" });
+      html += '<div class="svy-chips" role="group">' + opts.map(function(o){
+        var on = o.id === SURVEY_OTHER ? !!a.other
+          : (Array.isArray(a.pick) ? a.pick.indexOf(o.id) !== -1 : a.pick === o.id);
+        return '<button type="button" class="svy-chip' + (on ? " on" : "")
+          + '" data-so="' + escapeHtml(o.id) + '" aria-pressed="' + on + '">'
+          + escapeHtml(o.label) + '</button>';
+      }).join("") + '</div>';
+    }
+    if(surveyTextWanted(q)){
+      html += '<input class="svy-text" type="text" maxlength="500" data-st="'
+        + escapeHtml(q.id) + '" placeholder="' + escapeHtml(surveyTextPlaceholder(q))
+        + '" value="' + escapeHtml(a.text || "") + '" autocomplete="off">';
+    }
+    return html + '</div>';
+  }
+  function drawSurvey(box){
+    var def = SURVEY.def;
+    if(!def || !box) return;
+    box.innerHTML = def.questions.filter(surveyVisible).map(surveyQuestionHTML).join("");
+  }
+  function surveyBox(){
+    return SURVEY.where === "pulse" ? document.getElementById("surveyPulseBody")
+                                    : document.getElementById("surveyBody");
+  }
+  // One listener for every chip and box, wherever the survey is drawn.
+  function surveyTap(ev){
+    var chip = ev.target.closest(".svy-chip");
+    if(!chip || !SURVEY.def) return;
+    var qid = chip.closest("[data-sq]").getAttribute("data-sq");
+    var q = SURVEY.def.questions.filter(function(x){ return x.id === qid; })[0];
+    if(!q) return;
+    var a = SURVEY.answers[qid] || (SURVEY.answers[qid] = {});
+    if(chip.hasAttribute("data-sv")){
+      var n = +chip.getAttribute("data-sv");
+      a.pick = a.pick === n ? null : n;
+    } else {
+      var id = chip.getAttribute("data-so");
+      if(id === SURVEY_OTHER){
+        a.other = !a.other;
+        if(!a.other && !(q.detail && [].concat(a.pick || []).some(function(p){ return q.detail[p]; }))) a.text = "";
+        if(q.kind === "single" && a.other) a.pick = null;
+      } else if(q.kind === "multi"){
+        var list = Array.isArray(a.pick) ? a.pick : [];
+        var at = list.indexOf(id);
+        if(at === -1) list.push(id); else list.splice(at, 1);
+        a.pick = list;
+      } else {
+        a.pick = a.pick === id ? null : id;
+        if(a.pick) a.other = false;
+      }
+    }
+    var box = surveyBox();
+    drawSurvey(box);
+    // The episode check's first tap: "Loved it" is the whole answer.
+    if(SURVEY.where === "pulse"){
+      var more = SURVEY.def.questions.filter(surveyVisible).length > 1;
+      document.getElementById("surveyPulseActs").hidden = !more;
+      if(!more && a.pick) sendSurvey("pulse");
+    }
+    var input = box && box.querySelector('[data-st="' + qid + '"]');
+    if(input && chip.getAttribute("data-so") === SURVEY_OTHER && a.other) input.focus();
+  }
+  function surveyType(ev){
+    var input = ev.target.closest("[data-st]");
+    if(!input) return;
+    var qid = input.getAttribute("data-st");
+    (SURVEY.answers[qid] || (SURVEY.answers[qid] = {})).text = input.value;
+  }
+  function surveyPayload(){
+    var out = {};
+    SURVEY.def.questions.filter(surveyVisible).forEach(function(q){
+      var a = SURVEY.answers[q.id];
+      if(!a) return;
+      var e = {};
+      if(a.pick != null && !(Array.isArray(a.pick) && !a.pick.length)) e.pick = a.pick;
+      var text = String(a.text || "").trim();
+      if(text && surveyTextWanted(q)) e.text = text;
+      if(e.pick != null || e.text) out[q.id] = e;
+    });
+    return out;
+  }
+  function surveyPost(path, body){
+    return fetch(path, { method: "POST", credentials: "same-origin",
+                         headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify(body) })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(j){
+          if(!r.ok) throw new Error(j.error || (typeof j.detail === "string" && j.detail)
+                                    || "That did not send - try again.");
+          return j;
+        });
+      });
+  }
+  function sendSurvey(where){
+    if(!SURVEY.def || SURVEY.busy) return;
+    var answers = surveyPayload();
+    var err = document.getElementById(where === "pulse" ? "surveyPulseErr" : "surveyErr");
+    if(!Object.keys(answers).length){
+      err.textContent = "Pick at least one answer, or tap Not now.";
+      err.hidden = false;
+      return;
+    }
+    SURVEY.busy = true;
+    err.hidden = true;
+    var body = { survey: SURVEY.def.id, answers: answers, build: FAM_CLIENT };
+    if(SURVEY.episode) body.episode = SURVEY.episode;
+    surveyPost("/api/surveys/answer", body).then(function(){
+      SURVEY.busy = false;
+      if(where === "pulse"){
+        document.getElementById("surveyPulse").innerHTML =
+          '<div class="svy-thanks">Thanks — that helps.</div>';
+      } else {
+        closeSurveySheet();
+        toast("Thanks — that helps");
+      }
+      SURVEY.def = null;
+    }, function(e){
+      SURVEY.busy = false;
+      err.textContent = e.message;
+      err.hidden = false;
+    });
+  }
+  function surveyNotNow(){
+    var def = SURVEY.def;
+    hideSurveyPulse();
+    document.getElementById("surveyInvite").hidden = true;
+    closeSurveySheet();
+    SURVEY.def = null;
+    if(def) surveyPost("/api/surveys/dismiss", { survey: def.id }).catch(function(){});
+  }
+
+  // The episode check, on the What's next card.
+  function offerEpisodeSurvey(episode){
+    if(!AUTH.authenticated) return;
+    surveyPost("/api/surveys/offer", { moment: "episode_end" }).then(function(d){
+      var def = d && d.survey;
+      if(!def || !document.getElementById("nextUpOverlay").classList.contains("active")) return;
+      SURVEY = { def: def, answers: {}, where: "pulse", episode: episode, busy: false };
+      var pulse = document.getElementById("surveyPulse");
+      pulse.innerHTML = '<div class="svy-head"><div class="svy-title">'
+        + escapeHtml(def.title) + '</div><button class="svy-x" type="button" aria-label="Not now"'
+        + ' onclick="surveyNotNow()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"'
+        + ' stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+        + '</button></div><div id="surveyPulseBody" style="margin-top:9px"></div>'
+        + '<div class="svy-err" id="surveyPulseErr" role="alert" hidden></div>'
+        + '<div class="svy-acts" id="surveyPulseActs" hidden>'
+        + '<button class="modal-btn primary" type="button" onclick="sendSurvey(\'pulse\')">Send</button></div>';
+      pulse.hidden = false;
+      drawSurvey(document.getElementById("surveyPulseBody"));
+    }).catch(function(){});
+  }
+  function hideSurveyPulse(){
+    var pulse = document.getElementById("surveyPulse");
+    if(pulse){ pulse.hidden = true; pulse.innerHTML = ""; }
+    if(SURVEY.where === "pulse") SURVEY.def = null;
+  }
+
+  // The day-3 check-in and the two-week wrap-up: asked only when the app is
+  // in front, nothing is playing, and nothing else is open - and then as a
+  // small invite, never the survey itself.
+  var SURVEY_OPEN_SCREENS = ["screen-home", "screen-myfam", "screen-playfam",
+                             "screen-profile", "screen-friends", "screen-messages",
+                             "screen-saved", "screen-history", "screen-mixdetail"];
+  var surveyAskedAt = 0;
+  function surveyMomentFree(){
+    if(!AUTH.authenticated || document.visibilityState === "hidden") return false;
+    if(nowBarState && isPlaying) return false;
+    var active = document.querySelector(".screen.active");
+    if(!active || SURVEY_OPEN_SCREENS.indexOf(active.id) === -1) return false;
+    if(document.querySelector(".modal-overlay.active, .sheet-overlay.active")) return false;
+    return !SURVEY.def;
+  }
+  function maybeOfferAppSurvey(){
+    // Once in half an hour from this page; the server keeps the real limit.
+    if(Date.now() - surveyAskedAt < 30 * 60 * 1000) return;
+    if(!surveyMomentFree()) return;
+    surveyAskedAt = Date.now();
+    surveyPost("/api/surveys/offer", { moment: "open" }).then(function(d){
+      var def = d && d.survey;
+      if(!def || SURVEY.def) return;
+      SURVEY = { def: def, answers: {}, where: "sheet", episode: null, busy: false };
+      document.getElementById("surveyInviteTitle").textContent = def.title;
+      document.getElementById("surveyInviteIntro").textContent = def.intro || "";
+      var invite = document.getElementById("surveyInvite");
+      invite.hidden = false;
+      placeAboveBars(invite);
+    }).catch(function(){});
+  }
+  function openSurveySheet(){
+    if(!SURVEY.def) return;
+    document.getElementById("surveyInvite").hidden = true;
+    document.getElementById("surveyTitle").textContent = SURVEY.def.title;
+    document.getElementById("surveyIntro").textContent = SURVEY.def.intro || "";
+    document.getElementById("surveyErr").hidden = true;
+    drawSurvey(document.getElementById("surveyBody"));
+    document.getElementById("surveyOverlay").classList.add("active");
+  }
+  function closeSurveySheet(){
+    document.getElementById("surveyOverlay").classList.remove("active");
+  }
+  function startSurveyChecks(){
+    ["surveyPulse", "surveyBody"].forEach(function(id){
+      var el = document.getElementById(id);
+      el.addEventListener("click", surveyTap);
+      el.addEventListener("input", surveyType);
+    });
+    // A few seconds after the app settles, then every minute for a while
+    // (the moment may not be free at first), and again on coming back.
+    setTimeout(maybeOfferAppSurvey, 6000);
+    var tries = 0;
+    var every = setInterval(function(){
+      if(++tries > 15 || SURVEY.def){ clearInterval(every); return; }
+      if(surveyAskedAt === 0) maybeOfferAppSurvey();
+    }, 60000);
+    document.addEventListener("visibilitychange", function(){
+      if(document.visibilityState === "visible") setTimeout(maybeOfferAppSurvey, 3000);
+    });
   }
 
   // ---------------- Splash screen ----------------
@@ -23661,7 +24016,9 @@
   // which is the one outcome with nothing behind it.
   refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(openLinkedJoin).then(checkTerms)
     // The activation step, when it is owed (§414) - after the Terms.
-    .then(checkActivation);
+    .then(checkActivation)
+    // Optional surveys (surveys.py): asked for only once the app has settled.
+    .then(startSurveyChecks, startSurveyChecks);
 </script>
 </body>
 </html>

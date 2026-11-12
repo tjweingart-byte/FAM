@@ -97,6 +97,17 @@
   .chip.on { border-color:var(--amber-dk); color:var(--ink); }
   .report { border-top:1px solid var(--line); padding:10px 0; display:flex; gap:12px; align-items:flex-start; }
   .report:first-child { border-top:0; }
+  .svy { border-top:1px solid var(--line); padding:14px 0 6px; }
+  .svy h3 { margin:0 0 2px; font-size:15px; }
+  .svy .ctx { font:11px var(--mono); color:var(--muted); }
+  .svy .q { margin:12px 0 0; }
+  .svy .q b { display:block; font-size:13px; margin-bottom:4px; }
+  .svy .opt { display:grid; grid-template-columns:minmax(120px, 220px) 1fr 44px; gap:8px; align-items:center; font-size:12.5px; margin:2px 0; }
+  .svy .track { height:8px; border-radius:4px; background:var(--line); overflow:hidden; }
+  .svy .fill { height:100%; background:var(--amber); }
+  .svy .num { font:11px var(--mono); color:var(--muted); text-align:right; }
+  .svy .said { margin:6px 0 0; padding-left:16px; font-size:12.5px; color:var(--ink); }
+  .svy .said li { margin:2px 0; }
   .report .body { flex:1; min-width:0; }
   .report .text { white-space:pre-wrap; word-break:break-word; margin:0 0 5px; }
   .report .ctx { font:11px var(--mono); color:var(--muted); }
@@ -314,6 +325,7 @@
     <div class="group">Inbox</div>
     <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
     <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
+    <a href="#surveys" data-nav="surveys">Surveys</a>
     <a href="#quality" data-nav="quality">Episode quality</a>
     <a href="#categories" data-nav="categories">Categories (Nando)</a>
     <div class="group">Running costs</div>
@@ -410,6 +422,16 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="inboxList"></div>
     </section>
 
+    </div>
+
+    <!-- Optional surveys (surveys.py, PROBLEMS.md §552): what testers said,
+         tallied per question, with every free line and a CSV per survey. -->
+    <div class="page" data-page="surveys" data-title="Surveys" hidden>
+    <section class="card section" id="surveysCard">
+      <h2>Surveys</h2>
+      <p class="sub">The three optional surveys in the app: the <b>episode check</b> on the What&rsquo;s next card (first finished episode, then every fifth, at most once a day), the <b>day-3 check-in</b> and the <b>two-week wrap-up</b> (offered when the app opens, accounts only). &ldquo;Not now&rdquo; offers it again a day later, at most three times. Download a CSV to join answers to what each listener did: <code>user_id</code> is the listener.</p>
+      <div id="surveysList"></div>
+    </section>
     </div>
 
     <div class="page" data-page="categories" data-title="Categories (Nando)" hidden>
@@ -1534,6 +1556,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       tick();
       if (pageName() === "quality" && !first) loadQuality();
       loadInbox();
+      loadSurveys();
       loadReports();
       loadVoices();
       loadAgents();
@@ -1985,6 +2008,43 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       .then(loadInbox)
       .catch(function (e) { b.disabled = false; alert("Could not update the report: " + e.message); });
   });
+  // The surveys (surveys.py): one block per survey, a bar per option, the
+  // mean of a 1-10 question, and every line typed into an "Other" box.
+  function loadSurveys() {
+    return api("/api/admin/surveys").then(function (v) {
+      $("surveysList").innerHTML = (v.surveys || []).map(function (sv) {
+        var qs = (sv.questions || []).map(function (q) {
+          var rows = "";
+          if (q.kind === "scale") {
+            var spread = q.spread || {}, top = 0;
+            Object.keys(spread).forEach(function (k) { top = Math.max(top, spread[k]); });
+            rows = '<div class="ctx">mean ' + (q.mean == null ? "—" : q.mean) + ' of 10 · ' + q.answered + ' answered</div>' +
+              Object.keys(spread).map(function (k) {
+                return '<div class="opt"><span>' + esc(k) + '</span><span class="track"><span class="fill" style="width:' +
+                  (top ? Math.round(100 * spread[k] / top) : 0) + '%"></span></span><span class="num">' + spread[k] + '</span></div>';
+              }).join("");
+          } else if (q.options) {
+            rows = q.options.map(function (o) {
+              var pct = q.answered ? Math.round(100 * o.count / q.answered) : 0;
+              return '<div class="opt"><span>' + esc(o.label) + '</span><span class="track"><span class="fill" style="width:' +
+                pct + '%"></span></span><span class="num">' + o.count + '</span></div>';
+            }).join("");
+          }
+          var said = (q.texts || []).length ? '<ul class="said">' + q.texts.map(function (t) {
+            return '<li>' + esc(t.text) + (t.episode_title ? ' <span class="ctx">· ' + esc(t.episode_title) + '</span>' : '') +
+              ' <span class="ctx">· ' + when(t.created) + '</span></li>';
+          }).join("") + '</ul>' : "";
+          return '<div class="q"><b>' + esc(q.text) + ' <span class="ctx">' + q.answered + ' answered</span></b>' + rows + said + '</div>';
+        }).join("");
+        return '<div class="svy"><h3>' + esc(sv.title) + ' <span class="ctx">' + esc(sv.id) + '</span></h3>' +
+          '<div class="ctx">' + sv.responses + ' responses · offered ' + sv.offered + ' times · put off ' + sv.dismissed + ' times · ' +
+          '<a href="/api/admin/surveys/' + encodeURIComponent(sv.id) + '.csv" style="color:inherit">Download CSV</a></div>' +
+          (sv.responses ? qs : '<p class="sub">No answers yet.</p>') + '</div>';
+      }).join("");
+    }).catch(function (e) {
+      $("surveysList").innerHTML = '<p class="sub err">Could not load the surveys: ' + esc(e.message) + '</p>';
+    });
+  }
   // The voice bank (§147): list, add, remove. Removing never touches an
   // episode's kept audio; the default voice has no remove button because it
   // is not a row - it lives on every worker.
