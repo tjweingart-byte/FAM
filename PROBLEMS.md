@@ -34309,3 +34309,33 @@ a facet's own count is episodes filed at the facet (Nando's last step,
 page, never silently dropped. Counts are one grouped read,
 `ScriptCache.node_counts()`, on both caches. Checked in a browser at desktop
 and phone width: no page errors, no sideways scroll.
+
+## 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12)
+
+§552 fixed Keith's dead-node check for the facets. The same question -
+"is this node somewhere an episode can be filed?" - was asked in twelve
+places, half with `node in FACETS or tree.get(node)` and half with
+`tree.get(node)` alone. Two of the second half were live bugs:
+
+* **`tag_sync.check_episode`**: every episode filed at a facet was a
+  "dead node" in Keith's nightly sync, and `repair` skips dead nodes, so
+  its storage tags were never pushed.
+* **`housekeeping.where_now` / `surviving`**: a fact kept at a facet "was
+  not in the tree", so its nearest surviving ancestor was looked for - and
+  the facet itself failed the same test, so the fact was unfiled (node "").
+  A fact whose branch was pruned to the facet was unfiled too. Live once the
+  housekeeper runs out of dry run.
+
+Now `categories.holds(tree, node)` is the one answer: a facet, or a node the
+tree holds; takes anything with `get` (the tests' dicts); never raises. Every
+site uses it: Keith (§552), the tag sync, the housekeeper (three places),
+Nando's candidate list, the answer key's judgement, the old-episode re-file
+report, both picture lookups, and `app._category_known` / the browse filing.
+`training._nearest_surviving` already counted facets and reads its own dict.
+
+**Why the tests never showed it:** every one handed in a fake tree that held
+the facets as ordinary rows, which the real tree never does.
+`tests/test_category_holds_555.py` runs on the real seeded tree and checks
+every checker against everything Nando can file - every facet, every node,
+and what `categorizer.suggest`/`place` return for `tools/nando_eval.py`'s
+questions. With the old code put back, four of its eight tests fail.

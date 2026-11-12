@@ -35,6 +35,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import categories
 import logging
 import pathlib
 from typing import Optional
@@ -142,8 +143,7 @@ def propose(cache, page: int = 500, model: bool = True, at_once: int = 4) -> dic
             "current": now, "current_path": " > ".join(categorizer.path_for(now)),
             "proposed": node, "proposed_path": " > ".join(categorizer.path_for(node)),
             "how": how, "his_call": pick,
-            "tree_has_it": node in topics.FACETS
-            or topics.category_tree().get(node) is not None,
+            "tree_has_it": categories.holds(topics.category_tree(), node),
         })
     return {"episodes": len(rows), "changes": changes, "unchanged": unchanged,
             "unplaced": unplaced, "model": bool(model), "calls": counts}

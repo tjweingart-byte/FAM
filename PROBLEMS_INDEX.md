@@ -546,3 +546,4 @@ and `limit` = Lines.
 | 34229 | 13 | 552. Keith's "science, world are not in the tree" was the check, not Nando (2026-11-12) |
 | 34242 | 50 | 553. The seed tree doubled: 322 nodes to 677, from outside the bank (2026-11-12) |
 | 34292 | 21 | 554. The category tree on /admin (2026-11-12) |
+| 34313 | 30 | 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12) |

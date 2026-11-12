@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import asyncio
 
+import categories
 import logging
 import re
 from dataclasses import dataclass
@@ -832,8 +833,7 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
         tie = False
 
         def add(node: str) -> None:
-            if node and node not in found and (node in topics.FACETS
-                                               or tree.get(node) is not None):
+            if node and node not in found and categories.holds(tree, node):
                 found.append(node)
 
         prior = prior_for(query, context, notes)

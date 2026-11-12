@@ -1024,6 +1024,27 @@ def apply_seed(store: "CategoryStore", at: float = 0.0) -> int:
     return added
 
 
+def holds(tree, node: str) -> bool:
+    """Whether `node` is somewhere an episode can be filed: one of the eight
+    facets, or a node the tree holds. **The one answer to "is this node
+    real?"** (§555). The facets are the tree's roots and never rows in it
+    (`mint`), and Nando's last step files at one ("broader, never wrong"),
+    so a check written as `tree.get(node) is None` alone calls every facet
+    dead - Keith's false URGENT for `science` and `world` (§552), and a
+    re-file that would have unfiled every fact kept at a facet. Takes any
+    object with `get` (tests hand in a dict); never raises."""
+    if not node:
+        return False
+    import topics
+
+    if node in topics.FACETS:
+        return True
+    try:
+        return tree is not None and tree.get(node) is not None
+    except Exception:  # noqa: BLE001 - "not held" is the safe answer
+        return False
+
+
 def outline(store, episodes: Optional[dict] = None) -> dict:
     """The whole tree as the admin page draws it (11.12): the eight facets,
     each with its nodes nested beneath, every node with where it came from

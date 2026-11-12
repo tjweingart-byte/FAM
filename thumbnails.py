@@ -69,6 +69,7 @@ import hashlib
 import image_store
 import io
 import json
+import categories
 import logging
 import os
 import re
@@ -857,8 +858,7 @@ def pick(text: str, tags: Iterable[str] = (),
         if hit is None:
             facets = topics.FACETS
             own = ""
-            if category and (category in facets
-                             or tree.get(category) is not None):
+            if category and categories.holds(tree, category):
                 own = category
                 # A league, team or person the words name, on another
                 # branch, is the picture's subject (§282).
@@ -1012,7 +1012,7 @@ def pick_for_player(text: str, key: str = "",
         waiting = False
         candidates = sorted(tree.match(words) if words else (),
                             key=lambda n: (-_depth(tree, n, facets), n))
-        if category and (category in facets or tree.get(category) is not None):
+        if category and categories.holds(tree, category):
             # The named subject first when it outranks the category (§282),
             # so a borrowed picture walks up the subject's branch.
             if not _named_subject(tree, candidates, category, facets):

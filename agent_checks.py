@@ -204,6 +204,7 @@ def nando_nodes_exist(cache) -> list:
     if cache is None or not (s.agents and getattr(s, "categorizer", False)) \
             or not hasattr(cache, "tagged"):
         return []
+    import categories
     import topics
 
     # A failed read, or no tree to read against, raises (§496): `findings`
@@ -227,7 +228,7 @@ def nando_nodes_exist(cache) -> list:
     # an episode there ("broader, never wrong"): never a dead node. Counting
     # facets raised a false URGENT for `science` and `world` (11.12).
     dead = sorted(n for n in _NANDO["seen"] | _NANDO["last_pass"]
-                  if n not in topics.FACETS and tree.get(n) is None)
+                  if not categories.holds(tree, n))
     if dead:
         return [_breach("categorizer", "dead-node",
                         f"{len(dead)} node(s) Nando filed episodes under are not in the tree",

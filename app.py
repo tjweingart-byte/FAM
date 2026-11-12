@@ -9045,12 +9045,7 @@ def _label_word(word: str, at: int) -> str:
 
 
 def _category_known(node: str) -> bool:
-    if node in topics_mod.TAG_LABELS:
-        return True
-    try:
-        return topics_mod.category_tree().get(node) is not None
-    except Exception:  # noqa: BLE001
-        return False
+    return categories_mod.holds(topics_mod.category_tree(), node)
 
 
 def _category_children(node: str) -> list[str]:
@@ -9086,7 +9081,7 @@ def _filed_under(entry: dict) -> tuple[str, frozenset]:
         tags = set(topics_mod.tags_for_text(text))
     except Exception:  # noqa: BLE001 - a filing is never worth a failure
         return "", frozenset()
-    placed = [t for t in tags if t in topics_mod.TAG_LABELS or tree.get(t)]
+    placed = [t for t in tags if categories_mod.holds(tree, t)]
     if not placed:
         return "", frozenset()
 
