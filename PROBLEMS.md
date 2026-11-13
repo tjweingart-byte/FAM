@@ -35533,3 +35533,25 @@ and each now a test in `tests/test_community_sources_580.py`:
 
 The `leads.source` and `runs.id` columns are in the tables' first shape:
 neither table has shipped.
+
+## 582. The owner signed Egan's rule book: manifest version 9 (2026-11-13)
+
+The owner signed `MANIFEST.pending.json` (version 9, §579, rewritten in
+§580) on their MacBook Air with `tools/sign_rulebooks.py` - after OpenSSL
+could not find a key file the key had never been saved to (the Python
+signer reads the key from the clipboard and never writes it) - and
+uploaded `egan.md`, `MANIFEST.json` and `MANIFEST.json.sig` to
+`docs/agent_rules/` on the branch (c39d755), exactly those three.
+Verified in a separate checkout before anything else touched it:
+`python tools/rulebook_manifest.py --verify` passes, every one of the eight
+agents may still run, the signed manifest is the pending one byte for byte,
+and `egan.md` is the proposal byte for byte.
+
+**Registered.** `outreach` moved from `agents.names.PROPOSED` and
+`agents.roster.PROPOSED` (both empty now) into `AGENTS` and `ROSTER`; his
+tab is `docs/FAM_AGENTS.md` "## 9. Outreach (Egan)" with the four sub-tabs;
+his row in `docs/agent_rules/README.md`; the proposal and the pending
+manifest deleted; `tests/test_egan_579.py`'s waiting tests are signed
+ones (his lock passes, his request is his own). He stays **off** until the
+owner sets `AGENTS=1` and `OUTREACH_AGENT=1`; until then the page composes
+in code and the card says "off".

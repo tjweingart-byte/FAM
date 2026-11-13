@@ -1690,7 +1690,9 @@
   > it waits in `docs/agent_rule_proposals/` with
   > `MANIFEST.pending.json` and he is `agents.names.PROPOSED`, refused by
   > the layer; an unsigned book in `docs/agent_rules/` would hold every
-  > agent.
+  > agent. **Signed by the owner** (manifest v9, §582): he is in
+  > `agents.names.AGENTS` and the roster, off until `AGENTS=1` and
+  > `OUTREACH_AGENT=1`.
   > **Current:** since §580 (the owner's direction) subreddits and X
   > Communities are found through **Reddit's and X's own APIs** when their
   > read-only keys are set (`community_sources.py`: subreddit search and

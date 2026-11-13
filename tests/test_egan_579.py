@@ -8,7 +8,6 @@ one; whenever he cannot answer, the card is composed in code and says why.
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,7 +20,6 @@ import config  # noqa: E402
 import metering  # noqa: E402
 from agents import models, names, roster, rulebooks  # noqa: E402
 
-PROPOSAL = ROOT / "docs" / "agent_rule_proposals" / "egan.md"
 RULES = ROOT / "docs" / "agent_rules"
 
 
@@ -110,12 +108,12 @@ def test_unsure_or_unanswered_is_composed_in_code_and_says_why():
     assert len(out.pitches) == C.PITCHES and out.message
 
 
-def test_today_the_layer_refuses_him_and_the_card_is_codes():
-    """Unsigned, he is not in `agents.names.AGENTS`: the real layer refuses
-    the call before anything leaves the machine."""
+def test_off_by_default_the_layer_sends_nothing_and_the_card_is_codes():
+    """Signed (§582) but off until the owner sets AGENTS=1 and
+    OUTREACH_AGENT=1: the real layer refuses before anything leaves."""
     out, dollars = asyncio.run(C.read(lead()))
     assert out.drafted_by == "code" and dollars == 0.0
-    assert "malformed" in out.fit_why and "not an agent" in out.fit_why
+    assert "off" in out.fit_why and "AGENTS=0" in out.fit_why
 
 
 def test_nothing_but_the_model_layer_calls_a_model():
@@ -124,46 +122,33 @@ def test_nothing_but_the_model_layer_calls_a_model():
         assert word not in src, word
 
 
-# ------------------------------------------------------------- waiting to be signed
+# ------------------------------------------------------------- signed (§582)
 
-def test_he_waits_without_holding_any_other_agent():
-    assert "outreach" in names.PROPOSED and "outreach" not in names.AGENTS
-    assert "outreach" in roster.PROPOSED and "outreach" not in roster.ROSTER
-    # His book is not in the signed folder: there it would hold every agent.
-    assert not (RULES / "egan.md").exists()
-    assert PROPOSAL.exists()
-
-
-def test_the_pending_manifest_adds_his_book_and_changes_nothing_else():
-    signed = json.loads((RULES / rulebooks.MANIFEST).read_text())
-    pending = json.loads((RULES / rulebooks.PENDING).read_text())
-    assert pending["version"] == signed["version"] + 1
-    assert set(pending["books"]) - set(signed["books"]) == {"egan.md"}
-    for book, sha in signed["books"].items():
-        assert pending["books"][book] == sha, book
-    assert pending["books"]["egan.md"] == rulebooks.sha256(PROPOSAL.read_bytes())
-    # And it is exactly what the lock will compute once the book is in place.
-    paths = rulebooks.book_paths(RULES)
-    paths["egan.md"] = PROPOSAL
-    assert rulebooks.manifest_for(paths, pending["version"]) == \
-        (RULES / rulebooks.PENDING).read_bytes()
+def test_he_is_signed_and_on_the_roster():
+    assert names.AGENTS["outreach"] == ("Egan", "egan.md", "outreach_agent", ("outreach_model",))
+    assert "outreach" in roster.ROSTER and not names.PROPOSED and not roster.PROPOSED
+    assert (RULES / "egan.md").exists()
+    assert not (ROOT / "docs" / "agent_rule_proposals" / "egan.md").exists()
+    assert not (RULES / rulebooks.PENDING).exists()
+    rulebooks.reset()
+    lock = rulebooks.check("egan.md")
+    assert lock.ok, lock.reason
 
 
 def test_his_book_reads_like_every_other():
-    text = PROPOSAL.read_text()
+    text = (RULES / "egan.md").read_text()
     assert "governing copy outside Claude" in text.split("\n", 4)[2]
     assert "## You must always" in text and "## You must never" in text
     assert "every-agent.md" in text
 
 
-def test_once_registered_his_request_is_his_own_and_his_settings_are_sound(monkeypatch):
-    monkeypatch.setattr(names, "AGENTS", {**names.AGENTS, **names.PROPOSED})
+def test_his_request_is_his_own_and_his_settings_are_sound():
     assert models._own_settings(C.request(lead())) == ""
     assert models._malformed(C.request(lead())) == ""
     assert config.settings.outreach_agent is False
     spec, why = models.parse_model(config.settings.outreach_model)
     assert spec is not None and not why and spec.price_key in metering.PRICES
-    agent = roster.PROPOSED["outreach"]
+    agent = roster.ROSTER["outreach"]
     timeout, size = agent.ceiling(roster.BACKGROUND)
     assert timeout > 0 and size > 0
     assert agent.surfaces == (roster.BACKGROUND,) and not agent.sees_listener_words

@@ -573,3 +573,4 @@ and `limit` = Lines.
 | 35398 | 43 | 579. Egan: the outreach reader becomes a full agent (2026-11-13) |
 | 35441 | 48 | 580. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13) |
 | 35489 | 48 | 581. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
+| 35537 | 22 | 582. The owner signed Egan's rule book: manifest version 9 (2026-11-13) |
