@@ -21,6 +21,24 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var stage: Stage = .opening
     @Published private(set) var listener: Listener?
+    /// The claimed free-month card closed on this phone (§593), under the
+    /// web's own key, as `fam.theme` is.
+    @Published var freeMonthClosed = UserDefaults.standard.bool(forKey: "fam.freeMonthClosed") {
+        didSet { UserDefaults.standard.set(freeMonthClosed, forKey: "fam.freeMonthClosed") }
+    }
+
+    /// The card's Claim button (§593). Returns the sentence to show when it
+    /// fails, nil when the month is claimed.
+    func claimFreeMonth() async -> String? {
+        do {
+            let offer = try await api.claimFreeMonth()
+            listener?.freeMonth = offer
+            nowPlaying.say("Free month claimed")
+            return nil
+        } catch {
+            return (error as? LocalizedError)?.errorDescription ?? "Could not claim it. Try again."
+        }
+    }
     @Published private(set) var rails: [Rail] = []
     @Published private(set) var railsProblem = ""
     @Published private(set) var loadingRails = false
@@ -1288,7 +1306,7 @@ final class AppModel: ObservableObject {
     // MARK: - Playing
 
     /// A DailyFAM tile: written ahead, at the browse length (`op-taste-scoring`),
-    /// behind the tuning dial (§509, `startBankTopic`): no steps, audio
+    /// behind DailyFAM's wait (§592, `startBankTopic`): no steps, audio
     /// never held. `railKey` is the rail the card was tapped on.
     /// `faces` is the face book of the page the card is on, so the player
     /// draws the tile's friends at once (§543); none leaves it to ask.
@@ -1355,12 +1373,11 @@ final class AppModel: ObservableObject {
         nowPlaying.replaceRailQueue(rest)
     }
 
-    /// What the dial shows (`paintLoadingVariant("dial")`): the heading of
-    /// the rail the tile is on, up to four neighbouring tags from that rail
-    /// (every rail when it is on none) with the tile's own at most fourth,
-    /// its facet named in full, and its title.
+    /// What DailyFAM's wait shows (§592, `paintLoadingVariant("daily")`):
+    /// the heading of the rail the tile is on, its picture, its title, and
+    /// up to three friends who listened - kept for it by `noteTileFaces`,
+    /// so with none the picture develops instead.
     func dial(for tile: Tile, railKey: String) -> LoadingModel.Dial {
-        let tag = tile.tagText.isEmpty ? "DailyFAM" : tile.tagText
         var key = ""
         let holds: (Rail) -> Bool = { rail in rail.topics.contains(where: { other in other.id == tile.id }) }
         // The first rail holding the tile, in the page's order, whichever
@@ -1369,47 +1386,27 @@ final class AppModel: ObservableObject {
             key = found.key
         }
         let heading = key == "from_history" ? madeForTitle(multiline: false) : Self.sectionTitle(key)
-        var pool: [Tile] = []
-        if key.isEmpty {
-            for rail in rails { pool.append(contentsOf: rail.topics) }
-        } else if let rail = rails.first(where: { $0.key == key }) {
-            pool = rail.topics
-        }
-        var seen: Set<String> = [tag.lowercased()]
-        var others: [String] = []
-        for other in pool {
-            let word = other.tagText
-            if word.isEmpty || seen.contains(word.lowercased()) || others.count >= 4 { continue }
-            seen.insert(word.lowercased())
-            others.append(word)
-        }
-        let at = min(3, others.count)
-        var labels = Array(others.prefix(at))
-        labels.append(tag)
-        labels.append(contentsOf: others.dropFirst(at))
         var title = tile.title
         if title.hasSuffix(" \u{00B7} today") { title = String(title.dropLast(" \u{00B7} today".count)) }
-        return LoadingModel.Dial(heading: heading, labels: labels, at: at,
-                                 tune: dialWord(tag), title: title)
+        let friends = nowPlaying.tileFriends[tile.id]
+        let faces = Array((friends?.faces ?? []).prefix(3))
+        return LoadingModel.Dial(heading: heading, picture: api.picture(tile.thumb), title: title,
+                                 faces: faces,
+                                 friendsLine: faces.isEmpty ? ""
+                                     : Self.friendsListenedLine(faces, count: friends?.count ?? faces.count))
     }
 
-    /// A tag as words a person reads (`dialWord`): a facet's own name
-    /// ("Money & markets"), then the category tree's label, else the tag
-    /// with each word capitalised (left alone if it has capitals already).
-    func dialWord(_ tag: String) -> String {
-        if let named = mixes.tagLabels[tag.lowercased()] { return named }
-        if let page = mixes.categories {
-            if let facet = page.facets.first(where: { $0.id == tag }), facet.label != tag { return facet.label }
-            if let node = page.all.first(where: { $0.id == tag }), node.label != tag { return node.label }
-        }
-        if tag.contains(where: { $0.isUppercase }) { return tag }
-        var out = ""
-        var start = true
-        for ch in tag {
-            out += start ? String(ch).uppercased() : String(ch)
-            start = ch == " " || ch == "-" || ch == "/"
-        }
-        return out
+    /// "Maya listened", "Maya and Jordan listened", "Maya, Jordan and 4
+    /// others listened" (the web's `friendsListenedLine`).
+    static func friendsListenedLine(_ faces: [FriendFace], count: Int) -> String {
+        let names = faces.map { $0.name.isEmpty ? "@" + ($0.handle ?? "") : $0.name }
+        let n = max(faces.count, count)
+        guard let first = names.first else { return "" }
+        if n <= 1 { return first + " listened" }
+        if n == 2 && names.count >= 2 { return names[0] + " and " + names[1] + " listened" }
+        let shown = Array(names.prefix(2))
+        let rest = n - shown.count
+        return shown.joined(separator: ", ") + " and \(rest) " + (rest == 1 ? "other" : "others") + " listened"
     }
 
     /// A sample on the waiting screen: a replay, nothing written.
@@ -1899,7 +1896,8 @@ extension AppModel {
         let glide = LoadingModel.Glide(mixName: list.name,
                                        titles: list.order.map { list.items[$0].title },
                                        pos: list.pos, played: list.played,
-                                       first: list.pos == 0)
+                                       first: list.pos == 0,
+                                       pictures: list.order.map { api.picture(list.items[$0].picture) })
         // Any mix played - somebody else's public one too - keeps it out of
         // dormancy (`playMixItem`: `noteMixOpen(mixPlay.id, true)`).
         if !list.mixID.isEmpty {
@@ -1979,7 +1977,8 @@ extension AppModel {
         let glide = LoadingModel.Glide(mixName: list.name,
                                        titles: list.order.map { list.items[$0].title },
                                        pos: list.pos, played: list.played,
-                                       first: false)
+                                       first: false,
+                                       pictures: list.order.map { api.picture(list.items[$0].picture) })
         startPlaying(ep, resumeAt: back.position, glide: glide)
         return true
     }

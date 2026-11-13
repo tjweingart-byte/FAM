@@ -33,6 +33,7 @@ struct DailyView: View {
                                                            value: geo.frame(in: .named("dailyScroll")).minY)
                                 })
                             LazyVStack(alignment: .leading, spacing: 0) {
+                                FreeMonthCard()
                                 FacesRow()
                                 PickUpBlock()
                                 // No connection: what still plays (`#offlineBar`),
@@ -131,6 +132,91 @@ private struct Skeleton: View {
                 }
             }
         }
+    }
+}
+
+/// The free month somebody let off the waitlist may claim (§593, the web's
+/// `#freeMonthCard`): the first thing on DailyFAM until it is claimed, its
+/// button claiming in place; then what it is and when it runs, with an X
+/// that closes it on this phone. The month starts the day the full app is
+/// published, never in the beta - the web's words.
+struct FreeMonthCard: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var working = false
+    @State private var problem = ""
+
+    var body: some View {
+        if let fm = model.listener?.freeMonth, !(fm.claimed && model.freeMonthClosed) {
+            card(fm)
+        }
+    }
+
+    private func card(_ fm: FreeMonthOffer) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                Text(fm.claimed ? "FREE MONTH CLAIMED" : "YOU\u{2019}RE OFF THE WAITLIST")
+                    .monoLabel(9.5, color: FAMColor.copper, bold: true, tracking: 1.1)
+                Spacer(minLength: 8)
+                if fm.claimed {
+                    Button { model.freeMonthClosed = true } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(FAMColor.textMuted)
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(.press)
+                    .accessibilityLabel("Close")
+                }
+            }
+            Text(fm.claimed ? "A month of FAM Plus is yours" : "Claim your free month of FAM Plus")
+                .font(FAMFont.heading(19, .medium))
+                .foregroundStyle(FAMColor.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
+            Text(Self.when(fm) + " Nothing to pay, and nothing is billed after.")
+                .font(FAMFont.body(12.5))
+                .foregroundStyle(FAMColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
+            if !problem.isEmpty {
+                Text(problem)
+                    .font(FAMFont.body(12.5))
+                    .foregroundStyle(FAMColor.coral)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
+            if !fm.claimed {
+                Button {
+                    Task {
+                        working = true
+                        problem = await model.claimFreeMonth() ?? ""
+                        working = false
+                    }
+                } label: {
+                    Text(working ? "Claiming\u{2026}" : "Claim free month")
+                }
+                .buttonStyle(EntryButtonStyle(primary: true))
+                .disabled(working)
+                .padding(.top, 12)
+            }
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.copper))
+        .padding(.bottom, 14)
+    }
+
+    /// `freeMonthWhen`: the launch month, or that it waits for launch.
+    static func when(_ fm: FreeMonthOffer) -> String {
+        guard let starts = fm.starts, let ends = fm.ends else {
+            return "It starts the day the full FAM app is published."
+        }
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMMd")
+        return "It runs \(f.string(from: Date(timeIntervalSince1970: starts))) to "
+            + "\(f.string(from: Date(timeIntervalSince1970: ends)))."
     }
 }
 
