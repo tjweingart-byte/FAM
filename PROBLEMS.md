@@ -36104,3 +36104,16 @@ toolchain in this container; the Mac CI build is its first compile.
 **Tests:** the smoke check now plays a tile with no friends (develops) and
 the same tile with two named friends of five (gathers, "Maya, Jordan and 3
 others listened").
+
+## 593. The consent card scrolls the one-copy way too (2026-11-13)
+
+The last two-copy `ViewThatFits` in the iPhone app, the AI-answer consent
+card in `SearchParts.swift`, now uses `ScrollsWhenTall` like the activation
+card and What's next (§589). It has buttons and no inputs, so it could not
+crash the way the date picker did; it is changed so every card that scrolls
+when tall does it one way, and two live copies of `ConsentCard` no longer
+exist side by side. `ViewThatFits` is gone from `ios/`.
+
+**Not verified here.** No Xcode: to check on a phone, set the largest
+accessibility text size and ask a search that brings the card up: it scrolls,
+and Not now and Allow are reachable.

@@ -584,3 +584,4 @@ and `limit` = Lines.
 | 35922 | 116 | 590. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13) |
 | 36038 | 27 | 591. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13) |
 | 36065 | 43 | 592. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13) |
+| 36108 | 13 | 593. The consent card scrolls the one-copy way too (2026-11-13) |
