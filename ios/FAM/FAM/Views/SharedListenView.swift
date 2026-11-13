@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - A shared episode, before the app is open to you (§575)
+// MARK: - A shared episode, before the app is open to you (§576)
 
 /// `static/listen.html`, drawn natively for somebody signed out or still on
 /// the waitlist who opens a `/s/<id>` link: "Shared with you", the title,

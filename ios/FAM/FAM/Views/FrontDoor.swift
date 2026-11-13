@@ -44,7 +44,7 @@ struct FrontDoorView: View {
             }
         }
         .background(FAMColor.background.ignoresSafeArea())
-        // A shared episode's door (§575): `/waitlist`, which is Sign up here.
+        // A shared episode's door (§576): `/waitlist`, which is Sign up here.
         .onChange(of: model.askSignUp) { _, asked in
             guard asked else { return }
             model.askSignUp = false

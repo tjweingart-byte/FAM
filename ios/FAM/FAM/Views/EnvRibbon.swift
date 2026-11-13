@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Staging says so (§172, §575)
+// MARK: - Staging says so (§172, §576)
 
 /// `.env-ribbon`: a staging or zero-spend server's name and this client,
 /// in copper at the top centre of every screen - "a page that looks exactly

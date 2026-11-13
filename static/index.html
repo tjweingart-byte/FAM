@@ -3938,11 +3938,11 @@
               <div class="id-note" id="identityHandleNote">Letters, numbers and
                 underscores. This is what people search for.</div>
             </div>
-            <!-- The first run asks for a phone number too, and "Skip for now"
-                 waits for it and the name (10.8 packet). Edit profile does
-                 not: the number is the account's, changed in Settings. -->
+            <!-- The first run offers a phone number too, optional: "Skip
+                 for now" waits for the name only. Edit profile does not
+                 show it: the number is the account's, changed in Settings. -->
             <div class="auth-field" id="identityPhoneField" data-first-run>
-              <div class="auth-label">Phone <span class="auth-req">required</span></div>
+              <div class="auth-label">Phone <span class="auth-opt">optional</span></div>
               <div class="phone-row">
                 <select class="modal-input phone-cc" id="identityPhoneCC"
                         aria-label="Country code"></select>
@@ -17766,7 +17766,7 @@
     var person = yfCircle[i];
     if(!person) return;
     if(!person.handle){
-      // One-to-one only with a friend (§520, §574): the server's own
+      // One-to-one only with a friend (§520, §575): the server's own
       // sentence before a conversation that could not send opens, as the
       // app says it. With no graph loaded, the server decides on the send.
       if(friendsData.friends && !friendsData.friends.some(function(f){
@@ -18668,7 +18668,7 @@
     }
 
     if(person.user_id){
-      // Message only between friends (§520, §574): the server refuses a
+      // Message only between friends (§520, §575): the server refuses a
       // send to anybody else, so the button is not drawn for them - as the
       // app has it.
       var mutual = (friendsData.friends || []).some(function(f){
@@ -19800,21 +19800,19 @@
     });
   }
 
-  // The first run's required fields (10.8 packet): a name and a phone
-  // number, before "Skip for now" - or Next - goes on.
+  // The first run's required field: a name, before "Skip for now" - or
+  // Next - goes on. The phone number is optional.
   function identityMissing(){
     if(identityMode === "edit") return [];
     var missing = [];
     var name = document.getElementById("identityName");
-    var phone = document.getElementById("identityPhone");
     if(!name.value.trim()) missing.push(name);
-    if(phone.value.replace(/\D/g, "").length < 7) missing.push(phone);
     return missing;
   }
   function drawIdentityRequired(){
     var missing = identityMissing();
     document.getElementById("identitySkip").setAttribute("aria-disabled", String(missing.length > 0));
-    ["identityName", "identityPhone"].forEach(function(id){
+    ["identityName"].forEach(function(id){
       var el = document.getElementById(id);
       if(missing.indexOf(el) === -1) el.classList.remove("missing");
     });
@@ -19833,8 +19831,12 @@
   // account until a handle goes with it.
   function saveIdentityAccount(withName){
     if(!AUTH.authenticated) return Promise.resolve();
-    var body = { phone: phoneValue("identityPhoneCC", "identityPhone") };
+    // The number is optional: a blank one is not sent, so nothing is cleared.
+    var body = {};
+    var phone = phoneValue("identityPhoneCC", "identityPhone");
+    if(phone) body.phone = phone;
     if(withName) body.display_name = document.getElementById("identityName").value.trim();
+    if(!Object.keys(body).length) return Promise.resolve();
     return fetch("/api/account", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body)
@@ -20002,7 +20004,7 @@
     nameEl.classList.toggle("is-explicit", !!person.explicit);
     paintPersonAv(document.getElementById("thread-av"), person);
     var sub = document.getElementById("thread-sub");
-    // "1 person" at one, as the app says it (§575).
+    // "1 person" at one, as the app says it (§576).
     var memberCount = (person.members || []).length;
     if(sub) sub.textContent = person.group
       ? memberCount + (memberCount === 1 ? " person" : " people") + " · See who’s here"

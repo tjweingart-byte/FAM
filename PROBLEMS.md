@@ -35143,13 +35143,122 @@ conflict, and tree-sitter parses a redeclaration as valid syntax. The object is
 now `playerStage`. A scan of every type in the 56 Swift files for a property
 name declared twice found no other.
 
-## 575. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13)
+## 573. The phone number is optional at sign-up (2026-11-13)
+
+The owner: "The phone number shouldn't be required for signing." The 10.8
+packet had made a name **and** a phone number the first run's required
+fields, on both the app's identity step (`screen-identity`) and the waitlist's
+profile; "Skip for now" stayed disabled until seven digits were typed.
+
+Now only the name is required. The phone field stays on both first runs,
+labelled optional, and a blank one is not sent - `saveIdentityAccount` and the
+waitlist's `skipSetup` leave `phone` out of the body rather than posting `""`,
+so skipping never clears a number already on the account. The server never
+required one (`/api/signup` takes an email or a phone; `update_profile`
+accepts no phone), and the iPhone app's identity step never asked.
+
+**Tests:** `test_skip_waits_for_a_name_and_the_phone_is_optional` and
+`test_the_apps_first_run_offers_an_optional_phone_and_gates_skip_on_the_name`
+in `tests/test_implementations_108.py`.
+
+## 574. fam-db's memory was its connections (2026-11-13)
+
+**What was asked.** The owner, on Keith's open incident "render: fam-db
+memory at 83% of 0.26843546 GB (reopened 9 times)" with no more than two
+people ever on the app at once: what is in that memory, and the long-term
+fixes. Then: "build 1, 2 and 4, and walk me through 3".
+
+**Why.** Each server connection is a Postgres process with memory of its
+own, busy or idle. The pool (§243) opened up to 20 and kept up to 8 idle for
+ever; what fills it is not listeners (they share the pool over HTTP) but
+background work - editions, sweeps, Keith's rounds - all at once. So the
+database's memory followed the busiest moment of FAM's own schedule and
+never came back down. Not measured on production from here (no key): the
+`pg_stat_activity` query in POSTGRES.md confirms it, and Keith now reads it.
+
+**1. Idle connections close** (`db.idle_seconds()`, `DATABASE_IDLE_SECONDS`,
+300). On release and by a reaper thread every minute, so a quiet server
+hangs up too. None is kept back: one left open could be the one the
+server's `idle_session_timeout` closes, failing the next statement.
+
+**2. Background work has a share** (`db.background_connections()`,
+`DATABASE_BACKGROUND_CONNECTIONS`, 4, never all of the pool). A request is
+marked by `app.carry_the_session` (`db.for_request()`, a context variable
+the request's threads inherit); anything else waits for the share, and says
+so if it times out. Two exemptions, both to avoid a wait on oneself: a
+thread already holding a background connection, and the event loop (a wait
+there stops every request). A task a request spawns counts as the request.
+
+**4. Keith says who holds connections** (`db.server_connections()`: every
+client connection by state, FAM's by `application_name = 'fam'`, the
+server's `max_connections`, this pool). The Render monitor adds a "fam-db
+connections" figure against `max_connections` and hangs the count on the
+memory figure; the memory incident's plan names idle connections before a
+plan when more than two of FAM's sit idle. Sizes read as the plan names
+them: "256 MB", not "0.26843546 GB" (`incidents._quantity`).
+
+**3. The owner's step** (POSTGRES.md, "The database's own safety net"):
+`ALTER ROLE CURRENT_USER SET idle_session_timeout = '15min'` from fam-db's
+PSQL, longer than FAM's five minutes. Tried here as a non-superuser owner
+on Postgres 16.
+
+**Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
+two against a real Postgres, run here on a local 16).
+
+## 575. Shared links: the picture and the audio behind the waitlist, Message between friends, and a Mac build in CI (2026-11-13)
+
+**The report.** The owner, with an iMessage screenshot: a shared FAM link
+showed its title, "familiarize.net" and FAM's icon - no picture - after
+§559 had made the preview a picture. Then: "The waitlist should allow people
+to see the full shared episode, and on that is a link to the waitlist."
+
+**Why there was no picture.** With `WAITLIST=1` (production) the gate
+refused everything under `/api/` that it does not list, and the share
+page's `og:image` (`/api/share/{id}/preview.jpg`) and story card
+(`/api/share/card`) were not listed. Messages' link fetcher has no account,
+so it got a 403 and drew the `apple-touch-icon`. §559's tests ran with the
+waitlist off. `_shared_episode_request` now lets both pictures through
+(GET/HEAD only; each is a 404 for an id that is not a share).
+
+**Why the shared episode did not play.** `ShareStore.is_shared` compared
+`max(1, int(stored))` with the request's length - `int`, missed by §332's
+half-minute change - so a 1.5-minute share (every DailyFAM and myFAM
+episode) was 1 and never matched its own audio. Everybody the link was sent
+to who was not an active member got a page that would not play. It is
+`as_minutes` now. `GET /api/share/{id}` also passes the gate, so the app can
+play a `/s/` link for somebody signed out or waitlisted (the app's screen
+for it is build 7, §576).
+
+**Message only between friends, on the web too.** The social audit found
+the web drew Message on any profile, and opened a chat from a face with no
+handle, though the server refuses a one-to-one send to anybody who is not a
+mutual follow (§520); the app already followed the rule. The owner: "Change
+the web to match the app." The profile's Message, `openCircleFace` and New
+message's label ("Pick one or more friends") now do.
+
+**A Mac build in CI.** Build 6 failed in Xcode ("Invalid redeclaration of
+'stage'", §572) after every check here passed: nothing in this repository
+compiled Swift. `.github/workflows/ios.yml` runs `xcodegen` and an unsigned
+Release device build of the FAM scheme on `macos-15` for every push or PR
+touching `ios/`. It is not yet a required check - that is the owner's
+branch-protection setting.
+
+**The audit behind it.** Seven read-only audits of the app against the web
+and server (animations, sharing and links, the API contract, compile risks,
+account screens, listening screens, social), in the session's scratchpad
+as `audit3-*.md`. Their fixes are build 7 (§576).
+
+**Tests:** `tests/test_waitlist.py` (`..._previews_behind_the_waitlist_575`,
+`..._one_and_a_half_minutes_575`, both run with the waitlist on, both fail
+without the fix); `tests/test_message_friends_575.py`.
+
+## 576. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13)
 
 **What was asked.** The owner's standing rule - "Everything we've put in the
 app has been intentional, do not leave things out due to your judgement" -
 against the third round of audits (account, social, listening, API), and
 first of all: a `/s/` link opened on an iPhone by somebody signed out or on
-the waitlist was held until they were let in, so it never played. §574 made
+the waitlist was held until they were let in, so it never played. §575 made
 the server let the share and its audio through; this is the app's half.
 
 **A shared episode (`AppLinks.swift`, `Views/SharedListenView.swift`).**
