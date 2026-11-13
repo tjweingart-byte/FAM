@@ -585,4 +585,5 @@ and `limit` = Lines.
 | 36038 | 27 | 591. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13) |
 | 36065 | 43 | 592. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13) |
 | 36108 | 27 | 593. The free month in both apps: a card on DailyFAM that claims it (2026-11-13) |
-| 36135 | 26 | 594. The phone field says what the text is: consent for the carriers (2026-11-13) |
+| 36135 | 25 | 594. The phone field says what the text is: consent for the carriers (2026-11-13) |
+| 36160 | 31 | 595. One text per account, ever (2026-11-13) |

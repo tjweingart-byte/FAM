@@ -103,7 +103,26 @@ def _drain(waitlist, base: str, home: str, limit: int, result: dict) -> dict:
                     waitlist.mark_done(item["id"])
                     result["skipped"] += 1
                     continue
-                ok = sms.send(view["phone"], sms_body(link, starts))
+                # One text, ever (§595): taken on the account before it is
+                # sent, so a retry, a second process or a second grant finds
+                # it gone. Given back only when it certainly did not go.
+                if not waitlist.take_text(item["user_id"]):
+                    waitlist.mark_done(item["id"])
+                    result["skipped"] += 1
+                    continue
+                outcome = sms.send(view["phone"], sms_body(link, starts))
+                if outcome is True or outcome == sms.SENT:
+                    ok = True
+                elif outcome == sms.UNKNOWN:
+                    # Perhaps delivered: never risk a second one.
+                    waitlist.mark_given_up(
+                        item["id"], "no answer from Twilio; not retried, so "
+                        "it is never sent twice")
+                    result["failed"] += 1
+                    continue
+                else:
+                    waitlist.give_text_back(item["user_id"])
+                    ok = False
                 why = sms.status()["reason"] or "Twilio refused it"
             if ok:
                 waitlist.mark_done(item["id"])

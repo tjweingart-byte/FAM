@@ -36157,3 +36157,33 @@ identity step) - numbers given there come after the let-in, and FAM sends
 them nothing; iOS asks for no phone number (PARITY.md). If FAM ever texts
 anything else, this wording and the privacy section must change first.
 
+## 595. One text per account, ever (2026-11-13)
+
+**Asked:** "we want to only send one text to users, when they are off the
+waitlist, and never again."
+
+**Found:** three ways §587 could text somebody twice. A timeout after Twilio
+took the message read as a failure and was retried hourly; the drain's lock
+is per process, so two processes could send one queued text; and nothing on
+the account said it had been texted, so a second grant queued a second one.
+
+**Changed:**
+- `accounts.texted_at`, set once. `Waitlist.take_text` claims it with
+  `UPDATE ... WHERE texted_at = 0` before the send - exactly one caller wins,
+  across processes. `give_text_back` clears it only after a send that
+  certainly did not go.
+- `sms.send` answers `SENT`, `NOT_SENT` (unconfigured, a 4xx, never
+  connected) or `UNKNOWN` (a timeout, a dropped connection, a 5xx: it may
+  have been delivered). `UNKNOWN` is finished with the error kept
+  (`mark_given_up`, "refused" on /admin) and never retried: at most once
+  beats at least once here.
+- `grant` queues a text only for an account never texted and with no text
+  ever queued.
+
+**The trade:** an UNKNOWN that in fact never arrived is not resent; the
+email and the in-app card (§593) still carry the claim link. The guard is
+per account: a person who deletes their account and joins again is a new
+account (a number cannot be kept after deletion without keeping it).
+
+**Tests:** five more in `tests/test_waitlist_notify.py`.
+
