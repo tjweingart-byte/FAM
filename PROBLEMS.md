@@ -35782,7 +35782,88 @@ the errors the owner saw were not seen. Other app workers read the edits at
 their next tree reload.
 
 
-## 586. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13)
+## 586. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13)
+
+The owner recorded a reference in Voice Memos and /admin's Voice bank would
+not take it: the file picker said `.wav` only and `check_recording` reads
+with the stdlib `wave` module. Converting on the admin's own machine
+(`afconvert`) is a step nobody should need for the format a phone records.
+
+`voice_bank.to_wav` decodes anything that is not a RIFF/WAVE header with
+PyAV - already a dependency for kept audio (§237), and its wheel carries the
+AAC decoder, so the image still needs no ffmpeg - to 16-bit mono PCM at the
+recording's own rate. `prepare_upload` runs it before mastering (§328), so a
+converted memo is trimmed and levelled like any WAV, and `mastered.converted`
+tells the page, which says "converted it to WAV". A WAV is still kept byte
+for byte. The input is capped at `MAX_REFERENCE_BYTES` before decoding and
+decoding stops past it, so a long file is refused as too long rather than
+filling memory. Without PyAV, or for bytes that are not audio, the upload is
+refused as before, now naming both formats ("not a WAV or M4A file").
+
+The picker accepts `.wav,.m4a`. The server decodes any format PyAV reads; the
+page names only the two that have been tried. Tests: three in
+`tests/test_voice_drift_176.py` (an AAC .m4a built with PyAV, one opening in
+silence, junk refused).
+
+## 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13)
+
+**Asked:** "Are people emailed when they get let off the waitlist right
+now? If they're not, they need to be notified (and if their phone number is
+in they should be texted) ... with a link to claim a free month." Then: "The
+free trial should start when the real app is published, it should not apply
+to the beta version." Only grants from now on are told (the owner chose not
+to message people already let in).
+
+**Found:** no. `Waitlist.grant` flipped `status`, stamped
+`access_granted_at` and queued Viral Loops' `flag`; nothing reached the
+person. Nothing in FAM could send a text at all (a phone number was a
+sign-in name, unverified).
+
+**Built:**
+- `grant(..., notify=True)` mints `accounts.claim_code` and queues
+  `notify_email` / `notify_sms` - whichever the account has - in
+  `waitlist_outbox`. `app._admit_admin` passes `notify=False`.
+- `due(actions=...)`: Viral Loops' drain reads `VENDOR_ACTIONS` only (its
+  `_drain` marked any unknown action done, so without this it would have
+  swallowed the notices); `waitlist_notify.drain` reads `NOTIFY_ACTIONS`.
+- `sms.py`: Twilio's REST API over httpx, mail.py's shape - `status()` says
+  what is missing, `report()` in `/api/health` as `sms`, the number never in
+  an error, `TWILIO_AUTH_TOKEN` a paid credential `spend_guard` removes.
+- `waitlist_notify.py`: the email ("You're off the FAM waitlist") and the
+  text, each with `<base>/claim/<code>`, worded from `free_month_starts`
+  ("starts the day the full FAM app is published" until it is set, then the
+  date). A failed or unconfigured send is `mark_failed` and retried on
+  `RETRY_DELAYS` (hourly at the tail) - never dropped, counted in
+  `outbox_summary` on /admin. Drained right after an admin grant
+  (`_kick_notices`) and every five minutes (`_drain_notices_forever`).
+- `GET /claim/<code>`: stamps `free_month_earned_at` once (the stamp five
+  friends earn, §577), so the month is plus for 30 days from the launch day
+  and nothing during the beta; a page says so with an Open FAM button. Open
+  past the gate (it is opened from a mail app or a text); 404 for a code that
+  names nobody. A mail scanner that opens the link claims it for its owner,
+  which is harmless.
+
+**To switch on in production:** SMTP is already the reset's (`SMTP_HOST`,
+`MAIL_FROM`, `SMTP_PASSWORD`). Texts need `TWILIO_ACCOUNT_SID`,
+`TWILIO_FROM` and `TWILIO_AUTH_TOKEN` in the dashboard (US numbers also need
+Twilio's A2P 10DLC registration). Until then texts wait in the outbox.
+
+**Checked again before merging** (the owner: "double check all changes"):
+- Two drains could overlap - the one a grant kicks and the five-minute timer
+  - and read the same due rows, sending one notice twice. `drain` now takes
+  a per-process lock and a second drain returns at once.
+- `outbox_summary` counted notices as "Viral Loops call(s) waiting" on
+  /admin/waitlist. It now takes `actions`; the page has its own lines for
+  let-in notices, and says when mail or texts cannot send and why.
+  `/api/health` has `waitlist.notices_pending`.
+- The text ends "Reply STOP to opt out." and is one SMS segment.
+- The claim link always names `PUBLIC_BASE_URL` or `APP_HOME_URL`, never the
+  host an admin granted from; `claim_code` is indexed.
+- Numbered §587: §585 and §586 went to the category tree review and the voice bank on `Main` meanwhile.
+
+**Tests:** `tests/test_waitlist_notify.py`.
+
+## 588. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13)
 
 **The owner, 11.13:** "for the myFAM loading screen, it should have the
 thumbnail of the episode and name of the category they selected on the

@@ -78,7 +78,7 @@ final class LoadingModel: ObservableObject {
         var played: Set<Int>
         var first: Bool
         /// Each item's picture, in playlist order (`picture`, the player's
-        /// own, §545): the card shows it above the topic's name (§586).
+        /// own, §545): the card shows it above the topic's name (§588).
         var pictures: [URL?] = []
     }
 
@@ -544,7 +544,7 @@ struct GlideView: View {
         let label: String = before ? "\(i + 1) · \(played ? "Played" : "Skipped")" : "\(i + 1)"
         let numberColor: Color = current ? FAMColor.copper : ((before && played) ? FAMColor.textMuted : FAMColor.textFaint)
         // The episode's picture, 4:3 like every tile, over the topic's name
-        // - never the episode's title (§586).
+        // - never the episode's title (§588).
         let side = cardWidth - 12
         let url: URL? = glide.pictures.indices.contains(i) ? glide.pictures[i] : nil
         return VStack(alignment: .leading, spacing: 5) {

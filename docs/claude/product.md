@@ -333,7 +333,7 @@ listener's screen, never invented. Both show the FAM mark above them,
 larger than search's (§542, the owner's direction). Each card of the glide is
 the episode's picture (the item's `picture`, the player's own) over the topic
 the listener chose, and the line under the row names that topic - never
-today's episode title, which the player and the mix's rows use (§586, the
+today's episode title, which the player and the mix's rows use (§588, the
 owner's direction).
 
 <!-- rule:search-no-cover -->

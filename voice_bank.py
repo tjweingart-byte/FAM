@@ -242,6 +242,61 @@ def master_recording(audio: bytes) -> bytes:
     return out.getvalue()
 
 
+def is_wav(audio: bytes) -> bool:
+    """A RIFF/WAVE header - the only container the bank stores."""
+    return len(audio) >= 12 and audio[:4] == b"RIFF" and audio[8:12] == b"WAVE"
+
+
+def to_wav(audio: bytes) -> Optional[bytes]:
+    """Another recording (an iPhone or Mac Voice Memo's M4A, chiefly) decoded
+    to 16-bit mono PCM WAV at its own sample rate, so the admin page takes
+    what a phone records without a conversion step on the admin's machine.
+
+    PyAV is already here for kept audio (`audio_codec.py`) and its wheel
+    carries the AAC decoder, so the image needs no ffmpeg. Returns None when
+    PyAV is missing or the bytes are not audio it can read; the caller then
+    leaves the upload for `check_recording` to refuse in its own words. Stops
+    decoding past `MAX_REFERENCE_BYTES` of PCM, which the check then refuses
+    as too long, so a large file cannot fill memory.
+    """
+    if not audio or len(audio) > MAX_REFERENCE_BYTES:
+        return None
+    try:
+        import av  # type: ignore
+    except ImportError:
+        return None
+    pcm = bytearray()
+    rate = 0
+    try:
+        with av.open(io.BytesIO(audio), mode="r") as container:
+            if not container.streams.audio:
+                return None
+            stream = container.streams.audio[0]
+            rate = int(stream.rate or stream.codec_context.sample_rate or 0)
+            if not rate:
+                return None
+            resampler = av.AudioResampler(format="s16", layout="mono", rate=rate)
+            for frame in container.decode(stream):
+                for out in resampler.resample(frame):
+                    pcm += bytes(out.planes[0])[: out.samples * 2]
+                if len(pcm) > MAX_REFERENCE_BYTES:
+                    break
+            else:
+                for out in resampler.resample(None):
+                    pcm += bytes(out.planes[0])[: out.samples * 2]
+    except Exception:  # noqa: BLE001 - not audio PyAV reads; the check says so
+        return None
+    if not pcm:
+        return None
+    wav_out = io.BytesIO()
+    with wave.open(wav_out, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes(bytes(pcm))
+    return wav_out.getvalue()
+
+
 def prepare_upload(audio: bytes) -> tuple[bytes, Optional[dict]]:
     """An admin's upload, mastered only if the check would refuse it (§328).
 
@@ -251,21 +306,32 @@ def prepare_upload(audio: bytes) -> tuple[bytes, Optional[dict]]:
     returned so the page can say so: the admin listens to the voice that was
     kept, not the one they uploaded. A file that cannot be read is returned
     unchanged for `check_recording` to refuse in its own words.
+
+    A recording that is not a WAV (an M4A from Voice Memos) is decoded to one
+    first (`to_wav`), and `converted` says so: the kept voice is that WAV.
     """
+    converted = None
+    if not is_wav(audio):
+        decoded = to_wav(audio)
+        if decoded is None:
+            return audio, None
+        audio, converted = decoded, {"converted": True,
+                                     "trimmed_seconds": 0.0, "gain_db": 0.0}
     try:
         stats = recording_stats(audio)
     except Exception:  # noqa: BLE001 - not a WAV; the check names why
         return audio, None
     lead, level = stats["lead_silence"], stats["loudness_dbfs"]
     if lead is None:
-        return audio, None
+        return audio, converted
     silent = lead > MAX_LEAD_SILENCE
     quiet = level is not None and level < MIN_LOUDNESS_DBFS
     if not (silent or quiet):
-        return audio, None
+        return audio, converted
     mastered = master_recording(audio)
     after = recording_stats(mastered)
     return mastered, {
+        "converted": converted is not None,
         "trimmed_seconds": round(max(0.0, lead - after["lead_silence"]), 2),
         "gain_db": (round(after["loudness_dbfs"] - level, 1)
                     if level is not None and after["loudness_dbfs"] is not None
@@ -285,7 +351,9 @@ def check_recording(audio: bytes) -> float:
         with wave.open(io.BytesIO(audio)) as wav:
             frames, rate = wav.getnframes(), wav.getframerate()
     except (wave.Error, EOFError) as exc:
-        raise VoiceBankError(f"the recording is not a WAV file: {exc}") from exc
+        raise VoiceBankError(
+            "the recording is not a WAV or M4A file this server can read "
+            f"({exc}); export it from Voice Memos or as a WAV") from exc
     seconds = frames / float(rate or 1)
     if seconds < 3:
         raise VoiceBankError(
