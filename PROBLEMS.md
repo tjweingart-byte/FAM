@@ -36698,48 +36698,71 @@ the app's; its share sheet is the one the tour already pauses under. #289,
 (`.github/workflows/ios.yml`) compiles it; the glide, the card at large text
 and VoiceOver want a phone.
 
-## 606. The four failures §602/§603 left on Main, and the hedged brief call nobody paid for (2026-11-13)
+## 606. The waitlist is the email alone; let in, the first step is a password (2026-11-13)
 
-PR #292 (§602, §603) merged with four tests failing. One was a real bug;
-three were tests not updated.
+**Asked.** The owner: "A password has been added onto the waitlist for some
+reason. A user should only have to put their email in. Once the user is let
+off of the waitlist, their first step should be to set their password ...
+If someone in the waitlist is let into the app, the account should be
+recognized, and their first step should be to set a password. You should not
+need to create a password for the waitlist." Reverses §571's password at the
+join, keeping what §571 was for: nobody let in is locked out.
 
-**The real bug: a hedged brief's second request was never counted.** In
-`episode_intelligence._ask` the request (`make()`) and its count
-(`metering.fold_call`) had come apart: `_hedged` sends an identical second
-request when the first is slower than `EI_HEDGE_SECONDS` on searchFAM, took
-the winner, cancelled the other, and only the winner's usage reached the
-spend. §603 wrote the under-count down as a cost; the metering rule
-("cost at spend time per listener") does not allow one, and
-`test_model_spend_481`'s structural check (a Claude request and its count in
-the same function) caught it. Now:
+**The join.** `/waitlist`'s form is the email and the Terms box; the app's
+Sign Up goes there; iOS's join (`AuthView`) drops its password field and
+sends `password` empty. The server is unchanged for a join that still sends
+one (§571's page, iOS builds 6-7: `old-clients`). The status page's "Set a
+password so you can sign back in" card is gone (web and iOS); its Sign out
+warns that a member without a password is back in from the let-in link.
 
-- `make()` awaits the request and folds that answer's usage itself, so every
-  request that answers is counted where it answers - the winner as before,
-  and the one not taken too;
-- the request not taken is no longer cancelled: it has been sent and is
-  billed whether or not anyone reads it, so it is left to answer (held in
-  `_LEFT_TO_ANSWER`) and its tokens land in the same notes and the day's
-  spend. A loser that answers after the episode's ledger was written still
-  reaches the day's spend (`fold_call` -> `count_call`); only the per-episode
-  row could miss it, and losers answer within seconds of the winner;
-- a request cancelled before answering - the caller was cancelled, a
-  listener left, or the process stopped - is recorded per part in
-  `_UNANSWERED` (`/api/health` -> `episode_intelligence.unanswered`) and
-  logged, since its tokens never came back.
+**Recognised once let in, three ways:**
+* *The browser or phone that joined* is still signed in. `/api/auth/me`
+  (and `/api/account`) carry `password_needed`: true for an account the app
+  is open to - `active`, or any account once `WAITLIST=0`, since launch day
+  lets everybody in at once - with no password and no Google or Apple
+  (`app._password_needed`; false while the gate holds it). The activation
+  card (date of birth, §411) waits behind it on both apps. The web app's `routeFirstScreen` opens
+  `#screen-password-first` - "You're in. Set your password", one field with
+  the eye, Set password, the app's sentences - before the first run, with no
+  X and no skip; set, `/api/auth/me` is read again and the app goes on from
+  the top. iOS: `EntryStep.password`, `PasswordFirstView`, ahead of
+  `beginEntry`'s checks, even on a phone that finished the first run.
+* *Another device: the let-in link.* `/claim/<code>` (the email and the one
+  text, §587/§597) still claims the month, and for a `_password_needed`
+  account also signs that browser in - a fresh session, as a log-in mints,
+  the old one ended - and 303s to `/` on the same host (never
+  `APP_HOME_URL`, which may not carry the cookie). The link reached the
+  person's own address or number, as a reset code would. Once a password is
+  set, or for a Google/Apple account, the link only claims the month: it is
+  never a standing way in. The email for a passwordless account says "Open
+  this link to sign in and set your password", the text "you're in! Set
+  your password & claim a free month of Plus" (one segment, 157 characters
+  at today's link). A Google or Apple account let in keeps "Sign in the
+  way you joined" (`notice_view` `can_sign_in`). The phone field's consent line and the privacy page say
+  the link sets the password.
+* *Typing the email at a sign-in* is recognised rather than "That email and
+  password do not match": `accounts.log_in` raises `NoPasswordYet` for an
+  account with no hash, and `/api/auth/login` says how that account gets in
+  (`_no_password_words`) - waiting: "You're on the waitlist, so there's no
+  password yet. When you're let in, we'll send you a link to set one."; let
+  in: "Open the link we sent you when you were let in, and set one there"
+  (", or FAM on the device you joined from", and Forgot password? when
+  mail exists); Google/Apple: names
+  the provider. The join form already says whether an address is
+  registered, so this tells nobody anything new. The phone log-in keeps its
+  one sentence.
 
-**Tests not updated:**
+**Not done: typing the email alone never sets the password.** That would let
+anyone who knows an address take over a let-in account before its owner
+does. The link (or a reset code, where mail exists) is the proof. An account
+let in before §587 got no link; it is still signed in where it joined, and
+otherwise needs Forgot password? or the owner.
 
-- `test_hermetic`: `config.py` reads `EI_FRAME_APART`, `EI_HEDGE_SECONDS`
-  and `EI_PROMPT_CACHE_TTL`; `tests/conftest.py`'s `FAM_ENVIRONMENT` now
-  clears them.
-- `test_writer_latency_270` (two tests) saw "search" asked twice. Not the
-  hedge - that fixture has no delay, and the hedge waits 6 s. It is §603's
-  framing call (`EI_FRAME_APART=1`), whose schema has no `intent`, which the
-  stub's two-way classifier labelled "search". The fourth call is intended,
-  so the stub now names `frame` (as `test_ei_split_268` does) and the tests
-  expect four parts, or three with the outline off; with
-  `EI_FRAME_APART=0` too they still assert the two parts of §268.
-
-Tests: `tests/test_hedge_metered_606.py` (the loser is counted in the same
-notes after the winner; one call is counted once; a request cancelled before
-answering is recorded).
+**Tests:** `tests/test_waitlist.py` (§571's form and card tests rewritten:
+the form has no password, the status page offers none; new: `password_needed`
+after the grant and not before, the link signing a new browser in and then
+not once a password is set, never for a passworded account, the sign-in's
+sentences, the app's first screen), `tests/test_waitlist_notify.py` (the
+notice's words and one segment), `tests/test_ios_app_contract.py` (the
+join, `passwordNeeded`, `PasswordFirstView`). Swift parsed with tree-sitter;
+not compiled here.

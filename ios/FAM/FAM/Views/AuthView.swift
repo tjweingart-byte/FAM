@@ -7,8 +7,8 @@ import UIKit
 /// button, and the line that switches between the two.
 ///
 /// **Sign up is the web's waitlist join** (decision 1, `signupGoesToWaitlist`):
-/// every web sign-up goes to `/waitlist`, whose form asks for the email,
-/// then a password (§571, reversing §296's email alone), then the terms
+/// every web sign-up goes to `/waitlist`, whose form asks for the email
+/// alone (§606, reversing §571's password), then the terms
 /// box (§228), and carries the invite code a link brought (`referral_code`).
 /// The account is put on the list, then the profile is offered with a way
 /// past it, then the status page. Log in is
@@ -126,15 +126,14 @@ struct AuthView: View {
         }
     }
 
-    // MARK: Sign up: the waitlist join (email, password, terms; §571)
+    // MARK: Sign up: the waitlist join (email, terms; §606)
 
     private var joinFields: some View {
         VStack(alignment: .leading, spacing: 0) {
             // No visible labels on `/waitlist`: the fields say it (`aria-label`).
+            // The email alone (§606, reversing §571): the password is the
+            // first step once let in (`PasswordFirstView`).
             emailField(prompt: "Enter your email").padding(.top, 18)
-            // A password in the same step (§571): the way back in from any
-            // device, with no email needed (`#joinPassword`).
-            passwordField.padding(.top, 12)
             Button {
                 Task { await join() }
             } label: {
@@ -330,15 +329,6 @@ struct AuthView: View {
             problem = "That doesn\u{2019}t look like an email address."
             return
         }
-        // The app's own rule and sentences (`submitAuthForm`, §571).
-        guard !password.isEmpty else {
-            problem = "Enter your password."
-            return
-        }
-        guard password.count >= 8 else {
-            problem = "Use at least 8 characters for your password."
-            return
-        }
         guard agreed else {
             problem = "Tick the box to agree to the Terms and conditions."
             return
@@ -346,19 +336,16 @@ struct AuthView: View {
         working = true
         defer { working = false }
         do {
-            try await model.joinWaitlist(email: address, password: password)
-            password = ""
+            // No password (§606): the server makes the account with none.
+            try await model.joinWaitlist(email: address, password: "")
         } catch {
             let words = error.localizedDescription
             problem = words
             // Already on FAM (joined before, on another device): the
-            // sign-in, with the address and the password carried over,
-            // is the way back.
+            // sign-in, with the address carried over, is the way back.
             if words.contains("already registered") {
                 switchMode()
-                note = resetAvailable
-                    ? "That email is already on FAM. Sign in, or use Forgot password? if you never set one."
-                    : "That email is already on FAM. Sign in with its password, or on the device you joined from."
+                note = "That email is already on FAM. Sign in with its password \u{2014} or, if you haven\u{2019}t set one, open the link we sent when you were let in."
             }
         }
     }

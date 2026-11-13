@@ -571,12 +571,6 @@ struct WaitlistStatusPage: View {
                 .buttonStyle(.press)
                 .padding(.top, 14)
                 hello.padding(.top, 18)
-                // An account with no password (§296's email alone) sets one
-                // here (§571, `#passwordCard`): the web's order, above the
-                // samples and the place.
-                if page?.details?.hasPassword == false {
-                    WaitlistPasswordCard { await load() }.padding(.top, 18)
-                }
                 SampleCarousel().padding(.top, 18)
                 if let page {
                     placeOrGranted(page).padding(.top, 18)
@@ -616,7 +610,7 @@ struct WaitlistStatusPage: View {
             Button("Sign out") { Task { await model.signOut() } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("You have no password yet, so you couldn\u{2019}t sign back in. Set one on this page first. Sign out anyway?")
+            Text("You don\u{2019}t have a password yet, so you can\u{2019}t sign back in until you\u{2019}re let in \u{2014} we\u{2019}ll send you a link then. Sign out anyway?")
         }
         .screenCover(isPresented: $editing) {
             IdentityView(mode: .edit)
@@ -774,9 +768,8 @@ struct WaitlistStatusPage: View {
         }
     }
 
-    /// Joined with the email alone (§296): this phone is the only way in
-    /// until a password is set (the card above, §571), so signing out is
-    /// said first.
+    /// Joined with the email alone (§606): no password while waiting, so a
+    /// signed-out member is back in only from the let-in link. Said first.
     private func signOut() {
         if page?.details?.hasPassword == false {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { confirmSignOut = true }
@@ -808,14 +801,40 @@ struct WaitlistStatusPage: View {
     }
 }
 
-/// "Set a password so you can sign back in" (§571, the web's
-/// `#passwordCard`): drawn while `/api/waitlist/me` says the account has no
-/// password, it sets the first with `/api/auth/password/set` - the way back
-/// in from any device where "Forgot password?" needs mail this server may
-/// not have. The app's own rule and sentences; the log-in's show/hide eye.
-struct WaitlistPasswordCard: View {
+/// "You're in. Set your password" (§606, the web's
+/// `#screen-password-first`): the first step for an account let in off the
+/// waitlist with the email alone (`/api/auth/me` `password_needed`). It sets
+/// the first with `/api/auth/password/set`. No X and no skip: without it,
+/// signing out is locked out. The app's own rule and sentences; the log-in's
+/// show/hide eye. (§571's status-page card is gone: waiting needs none.)
+struct PasswordFirstView: View {
     @EnvironmentObject private var model: AppModel
-    /// Reload the page, which then draws no card.
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("You\u{2019}re in. Set your password")
+                    .font(FAMFont.heading(26, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("You joined the waitlist with just your email. Choose a password so you can sign in on any device.")
+                    .font(FAMFont.body(14))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+                FirstPasswordFields(done: { await model.passwordSet() })
+                    .padding(.top, 18)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 48)
+        }
+    }
+}
+
+/// The password field, its eye and the Set button (§606's first step).
+struct FirstPasswordFields: View {
+    @EnvironmentObject private var model: AppModel
+    /// What happens once it is set.
     let done: () async -> Void
 
     @State private var password = ""
@@ -824,16 +843,7 @@ struct WaitlistPasswordCard: View {
     @State private var problem = ""
 
     var body: some View {
-        WaitlistCard {
-            Text("Set a password so you can sign back in")
-                .font(FAMFont.heading(18, .semibold))
-                .foregroundStyle(FAMColor.text)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("You joined with just your email. Choose a password and you can sign in from any device.")
-                .font(FAMFont.body(13))
-                .foregroundStyle(FAMColor.textMuted)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 6)
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Group {
                     if showPassword {
@@ -863,7 +873,6 @@ struct WaitlistPasswordCard: View {
                 .accessibilityAddTraits(showPassword ? .isSelected : [])
             }
             .modifier(FieldBox())
-            .padding(.top, 12)
             if !problem.isEmpty {
                 Text(problem)
                     .font(FAMFont.body(12.5))
@@ -900,7 +909,7 @@ struct WaitlistPasswordCard: View {
             try await model.api.setPassword(password)
             password = ""
             showPassword = false
-            model.nowPlaying.say("Password set. Sign in with it on any device.")
+            model.nowPlaying.say("Password set")
             await done()
         } catch {
             problem = SocialModel.sentence(error, else: "That did not work")
