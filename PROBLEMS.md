@@ -35204,3 +35204,44 @@ on Postgres 16.
 
 **Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
 two against a real Postgres, run here on a local 16).
+
+## 575. Five friends earn a free month (2026-11-13)
+
+**Asked:** the waitlist page should incentivise sharing more clearly: "Share
+the waitlist to five friends to earn a free month!" Then: build the reward;
+"it'll be a free month when the whole app is live."
+
+**Decided with the owner:** a friend counts when they join through the link
+(the same `referred_by` invites that order the line - nobody can use the app
+while waitlisted, so counting only friends who play would mean nobody earns
+it before launch). Earning it is recorded now and becomes a month of "plus"
+from launch day; there is still no checkout, so nothing is billed.
+
+**Built:**
+- `waitlist.FREE_MONTH_INVITES` (5) and `FREE_MONTH_SECONDS` (30 days).
+  `Waitlist.join` calls `credit_free_month(referrer)`, which stamps
+  `accounts.free_month_earned_at` once at five. Stamped, never re-derived:
+  a friend deleting their account drops the count to four and the month
+  stays (the "an eviction that forgets is a creation" lesson). Accounts
+  already at five are stamped at start-up (`_credit_everyone`).
+- The launch day is an admin setting, `waitlist_settings.free_month_starts`,
+  set from `/admin/waitlist` ("App goes live (free months start)",
+  `POST /api/admin/waitlist/free-month`). The admin page counts months
+  earned and marks each row.
+- `AccountStore._with_free_month` raises an earned account's plan to "plus"
+  from launch for 30 days, in `listener_for` and `account()`; never lowers
+  one. The launch day is read with the session, cached for a minute per
+  process (dropped at once in the process that sets it).
+- `/api/waitlist/me` carries `free_month` {needed, invites, remaining,
+  earned, starts, ends}; the share card draws five dots and "2 of 5 friends
+  joined. 3 more for a free month." / "Free month earned. It starts the day
+  FAM opens to everyone." / the dates once launch is set.
+- The iOS waitlist page has the new sentence (`FrontDoor.swift`) but not yet
+  the dots; PARITY.md says so.
+
+**While `ENFORCE_QUOTAS=0`** every tier is unlimited, so the month changes
+nothing a listener can notice until the tiers are on - which is the point:
+it is a promise kept at launch.
+
+**Tests:** `tests/test_free_month.py`.
+

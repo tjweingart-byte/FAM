@@ -503,6 +503,12 @@
     background:var(--text); color:var(--gold-ink); padding:12px 18px; border-radius:12px; font-size:15px;
     transition:opacity .2s, transform .2s; pointer-events:none; z-index:10; }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .fm{ margin-top:16px; }
+  .fm-dots{ display:flex; gap:8px; }
+  .fm-dots span{ flex:1; height:8px; border-radius:4px; background:rgba(244,239,228,0.14); }
+  .fm-dots span.on{ background:var(--gold); }
+  .fm-line{ margin-top:10px; font-size:15px; line-height:1.4; color:var(--muted); }
+  .fm.earned .fm-line{ color:var(--gold); font-weight:600; }
   .link-row{ display:flex; gap:8px; align-items:center; margin-top:18px; }
   .link-row .link-box{ flex:1; min-width:0; height:44px; font-size:14px; color:var(--muted); }
   .link-row .ghost{ height:44px; flex:none; }
@@ -934,6 +940,12 @@
   <section class="card" id="shareCard">
     <h2>Move up the list</h2>
     <p>Share the waitlist to five friends to earn a free month!</p>
+    <!-- The free month (§575): one dot per friend who joined with the link,
+         five to earn it; the month starts the day the whole app goes live. -->
+    <div class="fm hidden" id="freeMonth" aria-live="polite">
+      <div class="fm-dots" id="freeMonthDots" aria-hidden="true"></div>
+      <div class="fm-line" id="freeMonthLine"></div>
+    </div>
     <div class="link-row">
       <input class="pinput link-box" id="shareLink" readonly aria-label="Your invite link" onclick="this.select()">
       <button class="ghost" type="button" onclick="copyLink()">Copy</button>
@@ -2024,6 +2036,29 @@
       .then(function(){ $("firstPasswordBtn").disabled = false; });
   });
 
+  // The free month (§575): how many of the five have joined, or that it is
+  // earned and when it runs. Absent from an older server, then hidden.
+  function drawFreeMonth(d){
+    var fm = d.free_month, box = $("freeMonth");
+    if(!fm){ box.classList.add("hidden"); return; }
+    var have = fm.earned ? fm.needed : Math.min(fm.invites, fm.needed);
+    var dots = "";
+    for(var i = 0; i < fm.needed; i++) dots += '<span' + (i < have ? ' class="on"' : '') + '></span>';
+    $("freeMonthDots").innerHTML = dots;
+    var day = function(t){ return new Date(t * 1000).toLocaleDateString(undefined, { month: "long", day: "numeric", timeZone: "UTC" }); };
+    var line;
+    if(fm.earned){
+      line = fm.starts ? "Free month earned: " + day(fm.starts) + " to " + day(fm.ends) + "."
+                       : "Free month earned. It starts the day FAM opens to everyone.";
+    } else {
+      line = fm.invites + " of " + fm.needed + " friends joined. "
+           + fm.remaining + " more for a free month.";
+    }
+    $("freeMonthLine").textContent = line;
+    box.classList.toggle("earned", !!fm.earned);
+    box.classList.remove("hidden");
+  }
+
   function load(){
     return Promise.all([
       api("/api/waitlist/me"),
@@ -2032,6 +2067,7 @@
     ]).then(function(r){
       STATE = r[0];
       drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]); drawPasswordCard(STATE);
+      drawFreeMonth(STATE);
       $("shareLink").value = link();
     });
   }

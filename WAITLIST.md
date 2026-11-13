@@ -192,7 +192,20 @@ section when a decision changes, including why.
     (typed MM/DD/YYYY) and the place. Country and state are lists that can be
     typed into, the state's list the country's own (`static/places.json`,
     written by `tools/build_places.py`); the city stays typed.
-21. **Still open (ask the owner):** what each unlock gives (the tiers are
+21. **Five friends earn a free month** (the owner, 13/11, PROBLEMS.md §575).
+    The share card says "Share the waitlist to five friends to earn a free
+    month!" and draws five dots, one per friend who joined with the link
+    (`referred_by`, the invites that already order the line). The fifth
+    stamps `accounts.free_month_earned_at`, once, never cleared - a friend
+    deleting their account does not take it back. The month is a month of
+    "plus" and runs from **the day the whole app goes live**, the same
+    month for everyone, set by an admin on `/admin/waitlist`
+    (`waitlist_settings.free_month_starts`, `POST
+    /api/admin/waitlist/free-month`). Until then it is earned and waiting.
+    It only ever raises a plan (`AccountStore._with_free_month`). While
+    `ENFORCE_QUOTAS=0` every tier is unlimited, so nothing changes until the
+    tiers are on.
+22. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.
 

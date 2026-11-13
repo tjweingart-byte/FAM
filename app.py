@@ -14027,6 +14027,8 @@ async def waitlist_me(request: Request) -> dict:
         "invites": len(invites),
         "unlock": waitlist_mod.next_unlock(
             len(invites), waitlist_mod.parse_unlocks(settings.waitlist_unlocks)),
+        # Five friends earn a free month, from the day the app goes live (§575).
+        "free_month": WAITLIST.free_month(user, invites=len(invites)),
         "fam": [{"name": p["name"], "handle": p["handle"], "avatar": p["avatar"],
                  "initials": _initials(p["name"], p["handle"]),
                  "invited": p["user_id"] in order,
@@ -14255,6 +14257,7 @@ async def admin_waitlist(request: Request) -> dict:
                      "name": profile["name"] or row["display_name"],
                      "handle": profile["handle"], "email": row["email"],
                      "invites": row["invites"],
+                     "free_month": row.get("free_month", False),
                      "profile_complete": profile["complete"],
                      "joined": row["joined"]})
     counts = WAITLIST.counts()
@@ -14267,6 +14270,11 @@ async def admin_waitlist(request: Request) -> dict:
                                       "email": r["email"], "invites": r["invites"]}
                                      for r in top]},
         "cutoff": WAITLIST.cutoff(),
+        # The free month (§575): who has earned it, and the launch day it
+        # starts on for all of them (None until an admin sets it).
+        "free_month": {"needed": waitlist_mod.FREE_MONTH_INVITES,
+                       "earned": sum(1 for r in rows if r["free_month"]),
+                       "starts": WAITLIST.free_month_starts() or None},
         "gate": settings.waitlist,
         "viral_loops": {"configured": VIRAL_LOOPS.configured,
                         **WAITLIST.outbox_summary()},
@@ -14332,6 +14340,26 @@ class AdminCutoffRequest(BaseModel):
 async def admin_waitlist_cutoff(req: AdminCutoffRequest, request: Request) -> dict:
     _require_admin(request)
     return {"cutoff": WAITLIST.set_cutoff(req.cutoff)}
+
+
+class AdminFreeMonthRequest(BaseModel):
+    #: Seconds since the epoch the whole app goes live, or 0 for "not yet".
+    starts: float = Field(..., ge=0, le=10_000_000_000)
+
+
+@app.post("/api/admin/waitlist/free-month")
+async def admin_waitlist_free_month(req: AdminFreeMonthRequest,
+                                    request: Request) -> dict:
+    """The day the whole app goes live, which is the day every earned free
+    month starts (§575). Until it is set the month is earned and waiting."""
+    _require_admin(request)
+    try:
+        starts = WAITLIST.set_free_month_starts(req.starts)
+    except waitlist_mod.WaitlistError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    log.info("admin set the free month to start at %s", starts)
+    return {"starts": starts or None,
+            "ends": (starts + waitlist_mod.FREE_MONTH_SECONDS) if starts else None}
 
 
 # Also resolved from the project root, and for the same reason as the

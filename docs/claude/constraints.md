@@ -1481,6 +1481,13 @@
   always delete itself. Profile setup writes only `/api/me` and `/api/preferences`,
   which cannot reach `status`, `referred_by`, place or admin. Launch is
   `WAITLIST=0`.
+<!-- rule:free-month -->
+- **Five friends earn a free month** (PROBLEMS.md §575, the owner 13/11):
+  friends count as invites do (`referred_by`); the fifth stamps
+  `free_month_earned_at` once, never cleared; the month is "plus" from the
+  admin-set launch day (`free_month_starts`) for 30 days, the same month for
+  everyone; it only raises a plan. The page's "five" is pinned to
+  `FREE_MONTH_INVITES` by a test.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   > **Current (§519, the 11.9 packet):** switched **off again in production**
