@@ -733,6 +733,8 @@ fell to a facet). Four changes, none of which moves the §209 rules above:
   keep theirs until regenerated (`tools/thumbnails.py`).
 
 <!-- rule:tree-review -->
+> **Current (PROBLEMS.md §600):** **an edit carries its episodes.** Accepting a remove, merge or rename moves every episode Nando filed under the node: a merged or renamed phrase's to the node it became, a removed one's unfiled (read by the writer's words, §371, then re-filed by Nando, §428) - `category_review.refile`, run by `/api/admin/categories/edit` and once at boot for edits accepted before. Keith reads a node the owner took out, whose episodes were all filed before the edit, as the tree moving - never "Nando may still be filing"; a filing after the edit still is.
+
 > **Current (PROBLEMS.md §599):** the first reviewed tree showed what grows junk - 188 of the 216 nodes grown from searches were junk or duplicates, most of them lone everyday words ("company", "development"). The placer now answers `not_subjects` beside its paths; a node **grown from searches** it names is taken out (`CategoryStore.decline`) and never minted from searches again (`category_declined`, emptied by a wipe - it is derived from listening). A story's subject, the writer's words, the seed and the owner's nodes are never declined. **A lone searched word is minted only when the placer will be asked** (`promote(single_words=)`, `_placer_ready`): with no key it waits. The download carries `examples`, up to three titles filed at each node, so the reviewer sees what a category holds.
 
 **The tree goes out to another reader and comes back as edits** *(PROBLEMS.md

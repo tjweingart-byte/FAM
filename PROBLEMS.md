@@ -36333,3 +36333,41 @@ World. A merged phrase already reads as its target (§585), so the writer's
 **Not verified here.** No key and no real tree: the placer's judgement on
 real searched words is unheard. Nodes already grown stay until the owner's
 upload removes them; the decline applies to what the sweep mints from now on.
+
+
+## 600. An edit to the tree carries its episodes; Keith tells an owner's edit from Nando (2026-11-13)
+
+**Seen.** Right after the owner accepted the first review's edits (§585,
+§599), Keith mailed an URGENT: "19 node(s) Nando filed 39 episode(s) under
+are not in the tree" - "ahead", "case", "commercial", "company",
+"development" - "so Nando may still be naming nodes the tree does not hold"
+and recommending a hold on Nando.
+
+**Cause.** Nando was fine. `owner_remove` took the node out of the tree and
+left `category_node` on every episode filed there, so those episodes now
+named a node the tree does not hold. Keith decides between "Nando is
+misbehaving" and "the tree moved" by the newest filing alone: within two
+days (`NANDO_STILL_FILING`) means still filing - and these were filed on
+Nov 11-12, a day before the edit.
+
+**Guardrails.**
+* **The edit carries its episodes** (`category_review.refile`, called by
+  `apply(cache=)` from `/api/admin/categories/edit`): a merge or rename
+  moves them to the node it became; a removal unfiles them, so the episode
+  reads by the writer's own words (§371) and Nando's re-file of unfiled
+  episodes (§428) places it afresh - never guessed into the parent. The
+  answer says how many ("1 episode re-filed").
+* **The boot repair**: `_refile_owner_edits` runs `refile` over every owner
+  edit once at startup, in a thread, so episodes left by edits accepted
+  before this (the 39 in the mail) move on the next deploy. Idempotent; a
+  node put back since is left alone.
+* **Keith tells the two apart** (`_owner_edited_at`,
+  `CategoryStore.owner_decided_at`): a dead node the owner removed, merged
+  or renamed counts as Nando "still filing" only if an episode was filed
+  there *after* the edit. Otherwise it is the tree moving, said as "taken
+  out by your edits to the tree", with no hold recommended.
+* `tests/test_owner_edit_refile_600.py` (both caches).
+
+**Not verified here.** The production tree and its 39 episodes are not in
+this container; the repair's count is in the boot log
+("categories: N episode(s) re-filed and M unfiled").

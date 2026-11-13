@@ -994,6 +994,17 @@ class CategoryStore:
         """phrase -> (action, target) for every edit the owner has made."""
         return dict(self._owner)
 
+    def owner_decided_at(self, node_id: str) -> float:
+        """When the owner made their edit to this phrase, or 0.0 (§600)."""
+        try:
+            row = self._conn().execute(
+                "SELECT at FROM category_owner WHERE id = ?",
+                (normalise(node_id),)).fetchone()
+            return float(row[0]) if row else 0.0
+        except Exception:  # noqa: BLE001 - unknown is 0
+            log.exception("could not read when %r was edited", node_id)
+            return 0.0
+
     def placed_by_owner(self, node_id: str) -> bool:
         """Whether the owner put this node where it is: the placer leaves it."""
         return self._owner.get(node_id, ("",))[0] in ("added", "placed")

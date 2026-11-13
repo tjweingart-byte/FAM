@@ -709,6 +709,9 @@ async def lifespan(_: FastAPI):
     # Before the first listener signs up into a database that is about to be
     # replaced by the next push.
     _announce_storage()
+    # Episodes still filed under a node the owner took out (§600): moved to
+    # what it became, or unfiled for Nando - in a thread, never awaited.
+    asyncio.get_running_loop().run_in_executor(None, _refile_owner_edits)
     # The rule-book lock, read and verified at boot (§348) and again before
     # every agent call. Says in the log which agents it holds and why.
     agent_rulebooks.load()
@@ -13014,6 +13017,21 @@ async def admin_categories_tree(request: Request) -> dict:
     return await asyncio.to_thread(_category_outline)
 
 
+def _refile_owner_edits() -> dict:
+    """The boot repair (§600): every owner edit's episodes, once."""
+    import category_review
+
+    try:
+        got = category_review.refile(SCRIPT_CACHE, topics_mod.category_tree())
+    except Exception:  # noqa: BLE001 - a repair never costs the boot
+        log.exception("could not re-file the episodes under the owner's tree edits")
+        return {}
+    if got.get("moved") or got.get("unfiled"):
+        log.info("categories: %d episode(s) re-filed and %d unfiled under the "
+                 "owner's tree edits", got["moved"], got["unfiled"])
+    return got
+
+
 @app.get("/api/admin/categories/export")
 async def admin_export_categories(request: Request) -> Response:
     """Every node of the tree as a CSV - path, source, episodes filed - for
@@ -13074,8 +13092,10 @@ async def admin_edit_category(req: CategoryEdit, request: Request) -> dict:
     import category_review
 
     try:
+        # The edit carries the episodes Nando filed under the node (§600).
         return await asyncio.to_thread(category_review.apply, topics_mod.category_tree(),
-                                       req.action, req.node, req.target, req.reason)
+                                       req.action, req.node, req.target, req.reason,
+                                       SCRIPT_CACHE)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

@@ -235,6 +235,24 @@ def _day(at: float) -> str:
     return f"{day:%b} {day.day}"
 
 
+def _owner_edited_at(nodes) -> dict:
+    """{node: when the owner removed, merged or renamed it} for those of
+    `nodes` the owner took out of the tree (§600). {} when unreadable."""
+    try:
+        import topics
+
+        tree = topics.category_tree()
+        decisions = tree.owner_decisions() if hasattr(tree, "owner_decisions") else {}
+        out = {}
+        for node in nodes:
+            action = (decisions.get(node) or ("",))[0]
+            if action in ("removed", "merged"):
+                out[node] = float(tree.owner_decided_at(node) or 0.0)
+        return out
+    except Exception:  # noqa: BLE001 - unknown reads as "not the owner's"
+        return {}
+
+
 def _dead_node_breach(dead: list, cache, now: float) -> dict:
     """What Keith found, in words (§556): each missing node with its episodes,
     the newest's title and day; then which of two things it is, and the
@@ -268,9 +286,17 @@ def _dead_node_breach(dead: list, cache, now: float) -> dict:
                      + (f": \"{said[:70]}\"" if said else "") + ")")
     more = f", and {len(dead) - 5} more" if len(dead) > 5 else ""
     newest = max((e["newest"] for e in evidence.values()), default=0.0)
-    still = bool(newest) and now - newest < NANDO_STILL_FILING
+    # §600: a node the owner took out (a remove, merge or rename on the
+    # Categories page) whose episodes were all filed before that edit is the
+    # tree moving, not Nando naming a node it does not hold - the first
+    # review of the tree raised exactly that as "Nando may still be filing".
+    edited = _owner_edited_at(dead)
+    filed_after = [e["newest"] for n, e in evidence.items()
+                   if e["newest"] and e["newest"] > edited.get(n, 0.0)]
+    newest_unexplained = max(filed_after, default=0.0)
+    still = bool(newest_unexplained) and now - newest_unexplained < NANDO_STILL_FILING
     if still:
-        why = (f"An episode was filed under one of these on {_day(newest)}, so Nando may "
+        why = (f"An episode was filed under one of these on {_day(newest_unexplained)}, so Nando may "
                "still be naming nodes the tree does not hold, which his rule book forbids "
                "(\"only nodes that exist\") - unless the node was removed since then.")
         plan = {"recommended": "Hold Nando (Keith's hold_agent asks Netenyahu, once switched on) "
@@ -285,9 +311,13 @@ def _dead_node_breach(dead: list, cache, now: float) -> dict:
         except Exception:  # noqa: BLE001
             consuela = False
         dry = bool(getattr(_settings(), "housekeeper_dry_run", True))
+        by_owner = [n for n in dead if n in edited]
         why = (f"Nothing has been filed under them since {_day(newest)}: the tree changed "
-               "under these episodes (a node pruned, renamed or re-seeded). Nando did "
-               "nothing wrong, and holding him would not help.")
+               "under these episodes (a node pruned, renamed or re-seeded"
+               + (f"; {len(by_owner)} taken out by your edits to the tree" if by_owner else "")
+               + "). Nando did nothing wrong, and holding him would not help."
+               + (" Your edits carry their episodes from now on, and the next restart "
+                  "re-files these (§600)." if by_owner else ""))
         if not consuela:
             state = ("Consuela is not running (she needs AGENTS, HOUSEKEEPER and her "
                      "rule book signed), so nothing moves them yet.")

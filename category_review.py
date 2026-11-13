@@ -295,23 +295,74 @@ def read_upload(text: str, store) -> dict:
     return {"proposals": proposals, "refused": refused}
 
 
-def apply(store, action: str, node: str, target: str = "", reason: str = "") -> dict:
-    """One accepted proposal, saved as the owner's. Raises ValueError."""
+def apply(store, action: str, node: str, target: str = "", reason: str = "",
+          cache=None) -> dict:
+    """One accepted proposal, saved as the owner's. Raises ValueError. With
+    `cache`, a remove, merge or rename takes its episodes with it (§600)."""
+    said = _apply(store, action, node, target, reason)
+    if said.get("action") in ("remove", "merge", "rename"):
+        moved = refile(cache, store, [node])
+        n = moved["moved"] + moved["unfiled"]
+        if n:
+            said["said"] += (f"; {n} episode{'s' if n != 1 else ''} "
+                             + ("re-filed" if moved["moved"] else "left for Nando to re-file"))
+        said["refiled"] = moved
+    said.pop("action", None)
+    return said
+
+
+def _apply(store, action: str, node: str, target: str = "", reason: str = "") -> dict:
     action = _ACTION_WORDS.get(str(action or "").strip().lower())
     if action == "move":
         store.owner_move(node, target, reason)
-        return {"ok": True, "said": f"moved under {categories.normalise(target)}"}
+        return {"ok": True, "action": action, "said": f"moved under {categories.normalise(target)}"}
     if action == "remove":
         moved = store.owner_remove(node, "", reason)
-        return {"ok": True, "said": "removed" + (f"; {moved} below it moved up" if moved else "")}
+        return {"ok": True, "action": action, "said": "removed" + (f"; {moved} below it moved up" if moved else "")}
     if action == "merge":
         moved = store.owner_remove(node, target, reason)
-        return {"ok": True, "said": f"merged into {categories.normalise(target)}"
+        return {"ok": True, "action": action, "said": f"merged into {categories.normalise(target)}"
                 + (f" with {moved} below it" if moved else "")}
     if action == "rename":
         store.owner_rename(node, target, reason)
-        return {"ok": True, "said": f"renamed {categories.normalise(target)}"}
+        return {"ok": True, "action": action, "said": f"renamed {categories.normalise(target)}"}
     if action == "add":
         store.owner_add(node, target, reason)
-        return {"ok": True, "said": f"added under {categories.normalise(target)}"}
+        return {"ok": True, "action": action, "said": f"added under {categories.normalise(target)}"}
     raise ValueError(f"'{action}' is not an action ({', '.join(ACTIONS)})")
+
+
+# --------------------------------------------------------------------------
+# The episodes under an edit (§600)
+# --------------------------------------------------------------------------
+
+def refile(cache, store, nodes: Iterable[str] | None = None) -> dict:
+    """Move the episodes Nando filed under a node the owner took out (§600).
+
+    An accepted remove, merge or rename changed the tree and left every
+    episode filed there pointing at a node that is gone - Keith then read
+    them as Nando naming nodes the tree does not hold. Now the edit carries
+    its episodes: a merged or renamed phrase's go to the node it became; a
+    removed one's are unfiled, so the episode reads by the writer's own
+    words (§371) and Nando's re-file of unfiled episodes (§428) places it
+    afresh. Idempotent; `nodes` None is every owner edit (the boot repair).
+    Returns {"moved": n, "unfiled": n}.
+    """
+    out = {"moved": 0, "unfiled": 0}
+    if cache is None or not hasattr(cache, "keys_with_node") \
+            or not hasattr(cache, "set_category_node"):
+        return out
+    decisions = getattr(store, "owner_decisions", dict)()
+    wanted = None if nodes is None else {categories.normalise(n) for n in nodes}
+    for node, (action, target) in decisions.items():
+        if action not in ("removed", "merged") or (wanted is not None and node not in wanted):
+            continue
+        if store.get(node) is not None:
+            continue  # put back since: its episodes are where they belong
+        target = categories.normalise(target) if action == "merged" else ""
+        if target and not categories.holds(store, target):
+            target = ""
+        for key in cache.keys_with_node(node):
+            if cache.set_category_node(key, target):
+                out["moved" if target else "unfiled"] += 1
+    return out
