@@ -217,7 +217,7 @@ class GenerationStats:
 
     def note_headroom(self, made: float) -> float:
         """Audio made so far less audio a listener could have played, kept as
-        `min_headroom`; below zero is silence, recorded once (§599).
+        `min_headroom`; below zero is silence, recorded once (§602).
 
         **Counted from the first audio, never from the tap.** The wait in
         front of the first word is the loading screen's, measured and shown

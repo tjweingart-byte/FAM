@@ -1,4 +1,4 @@
-"""§599: the brief has no time limit, its seconds are accounted for, and
+"""§602: the brief has no time limit, its seconds are accounted for, and
 "the voice fell behind" is counted from the first audio, never the tap."""
 from __future__ import annotations
 

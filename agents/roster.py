@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from agents import names
 from config import NO_BRIEF_LIMIT_SECONDS, settings
 
-#: The brief's own limits, where 0 is none (§599): an agent working inside
+#: The brief's own limits, where 0 is none (§602): an agent working inside
 #: the brief is given the client's own timeout instead.
 BRIEF_LIMITS = ("ei_timeout_seconds", "ei_ahead_timeout_seconds")
 

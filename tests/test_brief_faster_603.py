@@ -1,4 +1,4 @@
-"""§600: the framing apart from the routing, finished beside the research,
+"""§603: the framing apart from the routing, finished beside the research,
 and a second identical call when a brief part is slow on searchFAM."""
 from __future__ import annotations
 

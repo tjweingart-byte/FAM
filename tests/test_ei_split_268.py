@@ -89,7 +89,7 @@ def _part_of(kwargs) -> str:
     if "intent" in props and "search_query" in props:
         return "whole"
     if "why_now" in props and "intent" not in props:
-        return "frame"      # the framing apart (§600)
+        return "frame"      # the framing apart (§603)
     return "understand" if "intent" in props else "search"
 
 
@@ -143,7 +143,7 @@ def test_the_defaults():
     fresh = config.Settings()
     assert fresh.ei_split is True
     assert fresh.ei_examples is True
-    # No time limit on the brief, on either path (§599).
+    # No time limit on the brief, on either path (§602).
     assert fresh.ei_ahead_timeout_seconds == 0.0
     assert fresh.ei_timeout_seconds == 0.0
     assert fresh.ei_prompt_cache_ttl == "1h"
@@ -190,7 +190,7 @@ def test_the_one_call_prompt_is_unchanged_and_each_half_reads_only_its_own():
 def test_a_split_brief_is_two_calls_at_once_and_one_brief(model):
     brief = asyncio.run(ei.understand("did the eagles win", 2))
     # The outline is the third part since §270, and is pinned in its own file.
-    # The framing is its own part since §600.
+    # The framing is its own part since §603.
     assert sorted(part for part, _ in model["calls"]) == ["frame", "outline", "search",
                                                           "understand"]
     assert not brief.degraded

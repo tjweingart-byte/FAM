@@ -318,7 +318,7 @@
   which is exactly what FAM did before it existed, and says so in
   `Brief.degraded`, the log and `/api/health`. An EI that had quietly stopped
   running would look identical from outside to one that was working.
-  > **Current (PROBLEMS.md §599):** slowness is no longer a failure: the
+  > **Current (PROBLEMS.md §602):** slowness is no longer a failure: the
   > brief has no time limit by default, so a slow brief is waited for, and
   > only an error, refusal, unreadable answer or no room degrades it.
 <!-- rule:recency-credibility -->
@@ -1331,7 +1331,7 @@
   > prefetch and the DailyFAM and Trending editions - get
   > `EI_AHEAD_TIMEOUT_SECONDS` (30), and only a listener in front of the
   > first word is held to `EI_TIMEOUT_SECONDS`; the instructions carry
-  > *(both ceilings are gone since §599 - see the note below)*;
+  > *(both ceilings are gone since §602 - see the note below)*;
   > worked example briefs in one cacheable block (`EI_EXAMPLES`); and
   > `/api/health` counts and times briefs by path (`since_boot_by_path`,
   > `seconds_by_path`, `parts_since_boot`). `since_boot` stays the total.
@@ -1350,7 +1350,7 @@
   > is there (§440). searchFAM stays at `EFFORT` (low), so the first word is
   > not moved; `EDITION_WRITER_EFFORT`, when set, still wins for an edition.
   >
-  > **Current:** **the brief has no time limit** (PROBLEMS.md §599, at the
+  > **Current:** **the brief has no time limit** (PROBLEMS.md §602, at the
   > owner's direction: "Brief took too long shouldn't be an option, it
   > produces an empty episode. There shouldn't be a time limit on the
   > brief, but we first want to try to reduce the time"). `EI_TIMEOUT_SECONDS`
@@ -1366,7 +1366,7 @@
   > chosen from where the seconds actually go.
   >
   > **Current:** **the brief made faster at the same effort** (PROBLEMS.md
-  > §600, the owner choosing two of the options: "Do option 1 and option
+  > §603, the owner choosing two of the options: "Do option 1 and option
   > 2", "ideally we don't drop to low effort"). (1) **The framing is its own
   > call** (`EI_FRAME_APART=1`, `FRAME_FIELDS`: `why_now`, `structure`,
   > `cautions`, read by the writer alone): the understanding part asks only

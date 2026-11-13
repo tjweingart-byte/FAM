@@ -236,7 +236,7 @@ DEFAULT_MINUTES = 1.5
 #: onto it; §249 moved them back to `MODEL` at the owner's direction; §261
 #: moved the brief alone back, at medium effort.
 SMALL_MODEL = "claude-haiku-5-5"
-#: **What "no limit on the brief" is to a caller that must name one** (§599):
+#: **What "no limit on the brief" is to a caller that must name one** (§602):
 #: the Anthropic client's own request timeout, ten minutes. The brief itself
 #: sets no limit (`EI_TIMEOUT_SECONDS=0`); the agent layer refuses a call
 #: without one, so C3P0's half of the brief is given this.
@@ -585,18 +585,18 @@ class Settings:
     # an ordinary one is unchanged. The wall-clock bound is
     # `EI_TIMEOUT_SECONDS`, not this.
     ei_max_tokens: int = _env_int("EI_MAX_TOKENS", 3000)
-    # **No time limit on the brief** (§599, at the owner's direction: "Brief
+    # **No time limit on the brief** (§602, at the owner's direction: "Brief
     # took too long shouldn't be an option, it produces an empty episode").
     # `0` is no limit: the brief is waited for, and only a call that fails
     # (an error, a refusal, no room) degrades it. Any number above 0 puts
     # §268's ceiling back, past which the raw query is searched - 8 s was
-    # the search path's until §599. The client's own request timeout still
+    # the search path's until §602. The client's own request timeout still
     # ends a connection that hangs, as a failure.
     ei_timeout_seconds: float = _env_float("EI_TIMEOUT_SECONDS", 0.0)
     # The same for a brief nobody is waiting on (§268: prefetch and the two
-    # editions, 30 s until §599). `0` is no limit.
+    # editions, 30 s until §602). `0` is no limit.
     ei_ahead_timeout_seconds: float = _env_float("EI_AHEAD_TIMEOUT_SECONDS", 0.0)
-    # **The framing apart from the routing** (§600, at the owner's
+    # **The framing apart from the routing** (§603, at the owner's
     # direction): `why_now`, `structure` and `cautions` - read by the
     # writer alone - are their own call, so the search waits on a smaller
     # one; on searchFAM they finish beside the research. `0` keeps them in
@@ -604,7 +604,7 @@ class Settings:
     ei_frame_apart: bool = field(
         default_factory=lambda: os.environ.get("EI_FRAME_APART", "1")
         not in ("0", "false", "False", ""))
-    # **A second call when the first is slow** (§600, at the owner's
+    # **A second call when the first is slow** (§603, at the owner's
     # direction, at the same effort - §268's declined hedge was a low-effort
     # one). On searchFAM only: a brief part that has not answered in this
     # many seconds is asked again, identically, and whichever answers first
@@ -613,7 +613,7 @@ class Settings:
     # sits under §375's p90 (6.6-7.4 s) for the whole brief, so roughly the
     # slowest one in ten. `0` is one call, as before.
     ei_hedge_seconds: float = _env_float("EI_HEDGE_SECONDS", 6.0)
-    # **How long the brief's cached instructions live** (§599): `1h` by
+    # **How long the brief's cached instructions live** (§602): `1h` by
     # default, where the writer's follow `PROMPT_CACHE_TTL` (5m). A search
     # comes minutes apart, so at five minutes nearly every brief read its
     # ~3,000-token instructions cold, three times over (each part has its

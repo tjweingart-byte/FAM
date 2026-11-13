@@ -36288,7 +36288,119 @@ saved lead.
 `test_the_shared_prompt_script_is_served_to_admins_only`); the button was
 pressed in a headless browser against a sample card and its text read back.
 
-## 599. The brief has no time limit, and "the voice fell behind" counted the wait before the first word (2026-11-13)
+
+## 599. Junk grown from searches: the placer declines it, a lone word waits, the download shows titles (2026-11-13)
+
+**Seen.** The owner sent the tree out for review (§585) and the reviewer's
+report said search had grown 216 nodes, 188 of them junk or duplicates -
+"company" held 13 episodes, "development" 9 - and that removing them would
+not last: the sweep turns any run of non-stopwords that three listeners used
+in two wordings into a node, so the next everyday word ("update", "plan")
+clears the same bar. An owner's removal blocks only that phrase. It also
+asked for episode titles: 97 episodes sat on junk nodes and it could not say
+where they belonged from counts alone.
+
+**Why the placer did not catch it.** It was already told to leave a
+non-subject out - and leaving one out left it in the tree under the facet
+its searches voted for. Silence was not a verdict.
+
+**Built.**
+* `PLACER_SCHEMA` gains `not_subjects` (required, so the answer is always
+  explicit); `PLACER_SYSTEM` names what an everyday word looks like and that a
+  real one-word subject ("bitcoin", "nvidia") is a subject.
+* `apply_declines` / `CategoryStore.decline`: a node the placer was asked
+  about, **grown from searches**, is taken out (children up to its parent)
+  and recorded in `category_declined`; `mint` refuses it from `DECLINABLE`
+  sources (search, model) from then on. A story's subject, the writer's
+  words, the seed and the owner's nodes are refused a decline, as is a node
+  the owner placed. A wipe empties the table - it is derived from listening.
+* `promote(single_words=False)` holds a lone word only searches support; the
+  sweep passes `_placer_ready()` (placer on and a key), so with no key such a
+  word waits rather than growing unchecked. Two-word phrases, stories and the
+  writer's words grow as before. `test_no_key_still_grows_a_real_tree` now
+  grows `nvidia blackwell` and asserts `nvidia` alone waits.
+* The download (`category_review.export_csv`) gains `examples`: up to three
+  titles (the question when untitled) Nando filed at each node, newest first,
+  from `node_titles` on both caches; the prompt says to name where a removed
+  node's episodes belong.
+* `tests/test_category_declined_599.py`.
+
+**Answered for the owner.** A facet may hold episodes and a merge may target
+one (`owner_remove(into=)` takes a facet), so "world > news" can merge into
+World. A merged phrase already reads as its target (§585), so the writer's
+"stocks" lands on markets.
+
+**Not verified here.** No key and no real tree: the placer's judgement on
+real searched words is unheard. Nodes already grown stay until the owner's
+upload removes them; the decline applies to what the sweep mints from now on.
+
+
+## 600. An edit to the tree carries its episodes; Keith tells an owner's edit from Nando (2026-11-13)
+
+**Seen.** Right after the owner accepted the first review's edits (§585,
+§599), Keith mailed an URGENT: "19 node(s) Nando filed 39 episode(s) under
+are not in the tree" - "ahead", "case", "commercial", "company",
+"development" - "so Nando may still be naming nodes the tree does not hold"
+and recommending a hold on Nando.
+
+**Cause.** Nando was fine. `owner_remove` took the node out of the tree and
+left `category_node` on every episode filed there, so those episodes now
+named a node the tree does not hold. Keith decides between "Nando is
+misbehaving" and "the tree moved" by the newest filing alone: within two
+days (`NANDO_STILL_FILING`) means still filing - and these were filed on
+Nov 11-12, a day before the edit.
+
+**Guardrails.**
+* **The edit carries its episodes** (`category_review.refile`, called by
+  `apply(cache=)` from `/api/admin/categories/edit`): a merge or rename
+  moves them to the node it became; a removal unfiles them, so the episode
+  reads by the writer's own words (§371) and Nando's re-file of unfiled
+  episodes (§428) places it afresh - never guessed into the parent. The
+  answer says how many ("1 episode re-filed").
+* **The boot repair**: `_refile_owner_edits` runs `refile` over every owner
+  edit once at startup, in a thread, so episodes left by edits accepted
+  before this (the 39 in the mail) move on the next deploy. Idempotent; a
+  node put back since is left alone.
+* **Keith tells the two apart** (`_owner_edited_at`,
+  `CategoryStore.owner_decided_at`): a dead node the owner removed, merged
+  or renamed counts as Nando "still filing" only if an episode was filed
+  there *after* the edit. Otherwise it is the tree moving, said as "taken
+  out by your edits to the tree", with no hold recommended.
+* `tests/test_owner_edit_refile_600.py` (both caches).
+
+**Not verified here.** The production tree and its 39 episodes are not in
+this container; the repair's count is in the boot log
+("categories: N episode(s) re-filed and M unfiled").
+
+## 601. A shared link sends as the picture tile from every share button, not only a paste (2026-11-13)
+
+**The report.** The owner, testing the link picture (§559): it looks right,
+but it only arrives as the tile when the link is copied and pasted; pressing
+iMessage (or the others) in the share sheet sends the link bare.
+
+**Why.** Messages builds the tile when a link is pasted or shared as a URL.
+The iMessage tile opened `sms:&body=<url>` and Email `mailto:?body=`, which
+put the link in as typed text, and Messages and Mail send typed text as
+text. The page's tags were right all along; nothing asked Messages to read
+them.
+
+**What changed.** On iOS, iMessage and Email open the share sheet with a
+`RichLinkItem` (`RichLink.swift`): the URL, its title, and the picture
+(`/api/share` now returns `preview`, the address of `preview.jpg`, fetched
+by `FAMAPI.linkPreviewImage`, six seconds at most) as `LPLinkMetadata`.
+Messages and Mail send that as the tile. Email keeps its words and subject
+above it, the URL taken out of the words. With no picture the item gives
+no metadata and Messages reads the page itself, as for a paste; with no
+public link both keep their old URLs. The two tiles now say "share sheet".
+The picture steps its JPEG quality down, then its size, until it is under
+280 KB (`link_preview.MAX_BYTES`), because WhatsApp drops a preview image
+over about 300 KB. X, Facebook, LinkedIn, Threads, Reddit and WhatsApp
+already open with the link and draw the card from the page.
+
+Not changed: the web app's iMessage still opens `sms:` (a browser cannot
+hand Messages a rich link). Unbuilt here (no Swift compiler); the four
+changed Swift files parse with tree-sitter.
+## 602. The brief has no time limit, and "the voice fell behind" counted the wait before the first word (2026-11-13)
 
 The owner, from two cards on /admin's pipeline errors: **"The brief took
 too long"** (4 in 7 days, all `timeout (search)`, "EI did not answer
@@ -36372,7 +36484,7 @@ from now on is real silence, and a run of them is the case for raising the
 console's Active workers with `REMOTE_VOICE_ACTIVE_WORKERS`. The /admin
 explanation says both, and that rows before this were mostly the wait.
 
-Tests: `tests/test_brief_unlimited_599.py` (no limit on either path; a slow
+Tests: `tests/test_brief_unlimited_602.py` (no limit on either path; a slow
 brief is waited for; a set ceiling still degrades; the outline ahead is
 waited for; C3P0 gets the client's limit; per-part usage reported; the
 hour-long cache; the screenshot's case is not silence; real silence after
@@ -36380,9 +36492,9 @@ playback starts is still recorded). `test_ei_split_268`,
 `test_agents_c3p0_call`, `test_agents_roster_tasks` and
 `test_episode_intelligence` follow the new defaults.
 
-## 600. The brief made faster at the same effort: the framing beside the research, and a slow call asked twice (2026-11-13)
+## 603. The brief made faster at the same effort: the framing beside the research, and a slow call asked twice (2026-11-13)
 
-The owner, after §599 took the brief's time limit away: "What are the
+The owner, after §602 took the brief's time limit away: "What are the
 options to help fix this, ideally we don't drop to low effort", then, of the
 options given, "Do option 1 and option 2". Medium effort is unchanged.
 
@@ -36439,11 +36551,11 @@ low-effort, at the owner's choice.
 
 **What it should do, unmeasured (no key here).** The routing part writes
 roughly two thirds of what the understanding part did, and the tail beyond
-6 s gets a second chance. Read `parts_usage` (§599) for `understand` before
+6 s gets a second chance. Read `parts_usage` (§602) for `understand` before
 and after, and `hedges.*.second_won`: if second calls rarely win, the slow
 briefs are thinking, not waiting, and 6 s buys nothing.
 
-Tests: `tests/test_brief_faster_600.py` (the routing asks no framing and the
+Tests: `tests/test_brief_faster_603.py` (the routing asks no framing and the
 framing only it; a whole brief has it merged with code's caution first; the
 search does not wait for a slow framing and `finish` brings it; ahead never
 defers; a failed framing never degrades; `abandon` cancels; `0` restores the

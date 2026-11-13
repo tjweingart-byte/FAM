@@ -574,7 +574,7 @@ EXPLAIN = (
     ("brief", r"^framing",
      _ex("The brief's framing did not answer",
          "The brief's framing - why it is asked now, the story's shape and "
-         "what the writer must be careful of - is its own call since §600, "
+         "what the writer must be careful of - is its own call since §603, "
          "and it failed.",
          "Nothing missing from the search: the episode was searched and "
          "written as planned, shaped by its intent, with only the cautions "
@@ -597,7 +597,7 @@ EXPLAIN = (
          "not answer before its deadline, so the episode went ahead without it.",
          "A plainer episode: it was searched with the question as typed, with no "
          "plan of the piece and no pronunciations.",
-         "Since §599 the brief has no time limit, so this appears only when "
+         "Since §602 the brief has no time limit, so this appears only when "
          "EI_TIMEOUT_SECONDS (or EI_AHEAD_TIMEOUT_SECONDS) is set above 0, or "
          "the model client's own ten-minute timeout ran out. '(search)' means "
          "a listener was waiting; '(ahead)' means prefetch or an edition.",
@@ -830,7 +830,7 @@ EXPLAIN = (
      _ex("The voice fell behind",
          "After playback started, the voice made audio slower than it was "
          "played, so the listener heard silence part-way through. Counted "
-         "from the first audio since §599; before it, the wait before the "
+         "from the first audio since §602; before it, the wait before the "
          "first word was counted too, so most older rows were not silence.",
          "A gap of silence in the middle of the episode.",
          "The GPU was slow or shared, the network to it was, or listeners "

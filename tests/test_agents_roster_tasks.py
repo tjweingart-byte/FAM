@@ -41,7 +41,7 @@ def test_every_ceiling_names_a_real_setting_with_a_positive_value():
         for surface, timeout, size in agent.ceilings:
             assert surface in agent.surfaces, (agent.role, surface)
             if timeout:
-                # The brief's own limits may be 0, none (§599); the roster
+                # The brief's own limits may be 0, none (§602); the roster
                 # then gives the client's timeout, so the ceiling is positive.
                 assert agent.ceiling(surface)[0] > 0, (agent.role, timeout)
                 assert size and getattr(settings, size) > 0, (agent.role, size)
@@ -53,7 +53,7 @@ def test_the_brief_partners_share_the_briefs_own_ceilings():
     """C3P0 and Nando work inside the brief's call (§346): C3P0's ceiling is
     the brief's, never a second clock beside it."""
     c3p0 = roster.get("contextualizer")
-    # The brief has no limit by default (§599): C3P0 gets the client's own.
+    # The brief has no limit by default (§602): C3P0 gets the client's own.
     from config import NO_BRIEF_LIMIT_SECONDS
 
     for surface, name in (("search", "ei_timeout_seconds"),

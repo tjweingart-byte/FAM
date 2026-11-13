@@ -550,7 +550,7 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
             instructions=instructions(), material=tuple(material),
             carries_listener_words=True,
             # The brief's own limit, as his call is its search half - none
-            # by default (§599), which the roster reads as the client's own
+            # by default (§602), which the roster reads as the client's own
             # request timeout: the agent layer refuses a call without one.
             timeout=float(roster.get("contextualizer").ceiling(
                 "ahead" if ahead else "search")[0]),
