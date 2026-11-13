@@ -3938,11 +3938,11 @@
               <div class="id-note" id="identityHandleNote">Letters, numbers and
                 underscores. This is what people search for.</div>
             </div>
-            <!-- The first run asks for a phone number too, and "Skip for now"
-                 waits for it and the name (10.8 packet). Edit profile does
-                 not: the number is the account's, changed in Settings. -->
+            <!-- The first run offers a phone number too, optional: "Skip
+                 for now" waits for the name only. Edit profile does not
+                 show it: the number is the account's, changed in Settings. -->
             <div class="auth-field" id="identityPhoneField" data-first-run>
-              <div class="auth-label">Phone <span class="auth-req">required</span></div>
+              <div class="auth-label">Phone <span class="auth-opt">optional</span></div>
               <div class="phone-row">
                 <select class="modal-input phone-cc" id="identityPhoneCC"
                         aria-label="Country code"></select>
@@ -19783,21 +19783,19 @@
     });
   }
 
-  // The first run's required fields (10.8 packet): a name and a phone
-  // number, before "Skip for now" - or Next - goes on.
+  // The first run's required field: a name, before "Skip for now" - or
+  // Next - goes on. The phone number is optional.
   function identityMissing(){
     if(identityMode === "edit") return [];
     var missing = [];
     var name = document.getElementById("identityName");
-    var phone = document.getElementById("identityPhone");
     if(!name.value.trim()) missing.push(name);
-    if(phone.value.replace(/\D/g, "").length < 7) missing.push(phone);
     return missing;
   }
   function drawIdentityRequired(){
     var missing = identityMissing();
     document.getElementById("identitySkip").setAttribute("aria-disabled", String(missing.length > 0));
-    ["identityName", "identityPhone"].forEach(function(id){
+    ["identityName"].forEach(function(id){
       var el = document.getElementById(id);
       if(missing.indexOf(el) === -1) el.classList.remove("missing");
     });
@@ -19816,8 +19814,12 @@
   // account until a handle goes with it.
   function saveIdentityAccount(withName){
     if(!AUTH.authenticated) return Promise.resolve();
-    var body = { phone: phoneValue("identityPhoneCC", "identityPhone") };
+    // The number is optional: a blank one is not sent, so nothing is cleared.
+    var body = {};
+    var phone = phoneValue("identityPhoneCC", "identityPhone");
+    if(phone) body.phone = phone;
     if(withName) body.display_name = document.getElementById("identityName").value.trim();
+    if(!Object.keys(body).length) return Promise.resolve();
     return fetch("/api/account", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body)

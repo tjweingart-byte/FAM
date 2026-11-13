@@ -35142,3 +35142,21 @@ stage: PlayerStage` to a view that already had `private var stage: some View`
 conflict, and tree-sitter parses a redeclaration as valid syntax. The object is
 now `playerStage`. A scan of every type in the 56 Swift files for a property
 name declared twice found no other.
+
+## 573. The phone number is optional at sign-up (2026-11-13)
+
+The owner: "The phone number shouldn't be required for signing." The 10.8
+packet had made a name **and** a phone number the first run's required
+fields, on both the app's identity step (`screen-identity`) and the waitlist's
+profile; "Skip for now" stayed disabled until seven digits were typed.
+
+Now only the name is required. The phone field stays on both first runs,
+labelled optional, and a blank one is not sent - `saveIdentityAccount` and the
+waitlist's `skipSetup` leave `phone` out of the body rather than posting `""`,
+so skipping never clears a number already on the account. The server never
+required one (`/api/signup` takes an email or a phone; `update_profile`
+accepts no phone), and the iPhone app's identity step never asked.
+
+**Tests:** `test_skip_waits_for_a_name_and_the_phone_is_optional` and
+`test_the_apps_first_run_offers_an_optional_phone_and_gates_skip_on_the_name`
+in `tests/test_implementations_108.py`.
