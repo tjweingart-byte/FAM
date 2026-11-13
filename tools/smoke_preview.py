@@ -3743,7 +3743,7 @@ def main() -> int:
 
         def the_browse_waits_have_their_own_screens():
             """A DailyFAM tile's picture develops - or, when friends have
-            listened, their faces gather on it and are named (§589) - and a
+            listened, their faces gather on it and are named (§590) - and a
             mix's episode glides along the mix (§509); none shows or waits
             for the five steps. Search keeps them - checked above.
             """

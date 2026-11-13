@@ -35863,7 +35863,28 @@ Twilio's A2P 10DLC registration). Until then texts wait in the outbox.
 
 **Tests:** `tests/test_waitlist_notify.py`.
 
-## 588. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13)
+
+## 588. Egan has his own section on /admin (2026-11-13)
+
+**What was asked.** The owner: "Where can I see Egan in the admin page, he
+should have his own section". He was a row in the shared Agents table and,
+for his work, the separate `/admin/groups` page.
+
+**What was built.** `/admin` → Tracker → **Egan (outreach)**, beside
+Keith's: his state (on, off or held, and why - "off - the page composes in
+code" until `AGENTS=1` and `OUTREACH_AGENT=1`), his model and his week
+(requests, spend, fallbacks, last call), from `/api/admin/agents`'s row for
+`outreach`; the communities by status, today's searches against the
+ceiling, the last search and which sources can be asked, and the newest
+leads with whose words each card carries - Egan's, or code's with why -
+from `/api/admin/groups`, the endpoint the Communities page reads. A link
+opens Communities. Read-only, like Keith's page. The Agents panel no
+longer says "eight agents".
+
+**Tests:** `tests/test_egan_580.py`
+(`test_he_has_his_own_section_on_the_admin_page`).
+
+## 589. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13)
 
 **The owner, 11.13:** "for the myFAM loading screen, it should have the
 thumbnail of the episode and name of the category they selected on the
@@ -35890,7 +35911,7 @@ in both places a glide is built) and `GlideView`'s card draws it above the
 topic; its line under the row already used the topic. Not built here - no
 Swift toolchain in this container; the Mac build in CI compiles it.
 
-## 589. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13)
+## 590. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13)
 
 The owner reopened §509's choice for DailyFAM and asked for a new set of
 options. A twelve-slide deck (Slides artifact, each option playing live in a

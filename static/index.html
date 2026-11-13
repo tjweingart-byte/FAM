@@ -2171,7 +2171,7 @@
   @keyframes famLdPulse{ 0%,100%{ opacity:.3; } 50%{ opacity:1; } }
   @keyframes famLdUp{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
 
-  /* DailyFAM's wait (§589, the owner's pick from the 13 November deck):
+  /* DailyFAM's wait (§590, the owner's pick from the 13 November deck):
      option 1, the tile's picture coming into focus from a soft grey blur,
      a light sweeping across it - or, when friends have listened, option 3,
      the picture with their faces landing on its corner and a line naming
@@ -2209,7 +2209,7 @@
   .fam-glide-card{ flex:none; width:128px; border-radius:12px; padding:6px 6px 9px; box-sizing:border-box;
     background:var(--surface); border:1px solid var(--border); text-align:left; position:relative;
     display:flex; flex-direction:column; gap:5px; opacity:.4; overflow:hidden; }
-  /* The episode's picture, 4:3 like every tile (§588); the surface shows
+  /* The episode's picture, 4:3 like every tile (§589); the surface shows
      through when the topic has none. */
   .fam-glide-pic{ display:block; width:100%; aspect-ratio:4/3; border-radius:8px; overflow:hidden;
     background:var(--surface-2); }
@@ -7314,9 +7314,9 @@
   // ---------------- DailyFAM's wait and a mix's glide ----------------
   //
   // The owner's picks: a mix's episode glides along the mix (§509, its cards
-  // the episodes' pictures and topics since §588); a DailyFAM tile's picture
+  // the episodes' pictures and topics since §589); a DailyFAM tile's picture
   // comes into focus, or, when friends have listened, gathers their faces
-  // (§589, options 1 and 3 of the 13 November deck, replacing §509's dial).
+  // (§590, options 1 and 3 of the 13 November deck, replacing §509's dial).
   // Search and Go Deeper keep FAMiliarizing and its five steps. Everything
   // drawn here is already the listener's - the tile's picture and friends,
   // the mix's topics in its order - and the screen still goes the moment
@@ -7326,7 +7326,7 @@
   var LOADING_FACES = 3;
 
   // "Maya listened", "Maya and Jordan listened", "Maya, Jordan and 4 others
-  // listened": who, by name, of the friends on the tile (§589).
+  // listened": who, by name, of the friends on the tile (§590).
   function friendsListenedLine(faces, count){
     var names = faces.map(function(f){
       return '<b>' + escapeHtml(f.name || (f.handle ? "@" + f.handle : "A friend")) + '</b>';
@@ -7378,7 +7378,7 @@
     } else if(kind === "glide"){
       // Each card is a topic of the mix as the listener chose it: the
       // episode's picture (`picture`, the player's own, §545) and the
-      // topic's name (`title`) - never today's episode title (§588).
+      // topic's name (`title`) - never today's episode title (§589).
       var order = (t.fromMix && mixPlay && mixPlay.order.length) ? mixPlay.order
         : [t.loaderItem || { title: title }];
       var pos = (t.fromMix && mixPlay) ? mixPlay.pos : 0;
@@ -13485,7 +13485,7 @@
       fromMix: true,
       // Its loading screen is the mix gliding along (§509), drawn from the
       // item itself: its picture and the topic chosen, never the episode's
-      // title (§588).
+      // title (§589).
       loader: "glide",
       loaderItem: item
     };
@@ -14214,7 +14214,7 @@
       prompt: query,
       exploreMinutes: BROWSE_MINUTES,
       titleOverridden: true,
-      // DailyFAM's wait (§589), with no tile: the picture asked for.
+      // DailyFAM's wait (§590), with no tile: the picture asked for.
       loader: "daily"
     };
     generate(key);
@@ -16036,7 +16036,7 @@
       bankTopicId: topicId,
       exploreMinutes: myfamLengthMinutes,
       titleOverridden: true,
-      // Its loading screen: the picture developing, or friends gathering (§589).
+      // Its loading screen: the picture developing, or friends gathering (§590).
       loader: "daily", loaderTopic: topicId
     };
     generate(key);

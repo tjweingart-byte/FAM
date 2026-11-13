@@ -578,6 +578,7 @@ and `limit` = Lines.
 | 35602 | 147 | 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13) |
 | 35749 | 36 | 585. The category tree out to another reader and back (2026-11-13) |
 | 35785 | 23 | 586. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13) |
-| 35808 | 58 | 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13) |
-| 35866 | 27 | 588. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13) |
-| 35893 | 43 | 589. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13) |
+| 35808 | 59 | 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13) |
+| 35867 | 20 | 588. Egan has his own section on /admin (2026-11-13) |
+| 35887 | 27 | 589. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13) |
+| 35914 | 43 | 590. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13) |
