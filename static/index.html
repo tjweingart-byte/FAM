@@ -20002,8 +20002,10 @@
     nameEl.classList.toggle("is-explicit", !!person.explicit);
     paintPersonAv(document.getElementById("thread-av"), person);
     var sub = document.getElementById("thread-sub");
+    // "1 person" at one, as the app says it (§575).
+    var memberCount = (person.members || []).length;
     if(sub) sub.textContent = person.group
-      ? (person.members || []).length + " people · See who’s here"
+      ? memberCount + (memberCount === 1 ? " person" : " people") + " · See who’s here"
       : "View profile";
     var photoBtn = document.getElementById("threadPhotoBtn");
     if(photoBtn) photoBtn.hidden = !person.group;
@@ -20094,7 +20096,9 @@
     var g = currentThread;
     if(!g || !g.group) return;
     groupMemberRows = (g.members || []).filter(function(m){ return !m.me; });
-    var items = [{ group: escapeHtml(g.name) + " · " + (g.members || []).length + " people" }];
+    var memberTotal = (g.members || []).length;
+    var items = [{ group: escapeHtml(g.name) + " · " + memberTotal
+                   + (memberTotal === 1 ? " person" : " people") }];
     groupMemberRows.forEach(function(m, i){
       items.push({ label: '<span class="menu-row">' + personAvHTML(m) + ' '
                    + escapeHtml(m.name || ("@" + m.handle)) + (m.handle ? ' <span style="color:var(--text-muted);font-size:11px;">@'

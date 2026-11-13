@@ -750,10 +750,6 @@ struct StoryViewer: View {
                     friend(dx < 0 ? 1 : -1)
                     return
                 }
-                if dy > 80 && dy > abs(dx) {
-                    close()
-                    return
-                }
                 if abs(dx) < 12 && abs(dy) < 12 {
                     if composed && !isNote && postFrame.contains(value.startLocation) {
                         play()

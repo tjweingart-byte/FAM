@@ -101,8 +101,6 @@ struct ChatScreen: View {
                 TextField("Group name", text: $newName)
                 Button("Cancel", role: .cancel) {}
                 Button("Save") { rename() }
-            } message: {
-                Text("Up to 60 letters. Leave it empty to take the name off.")
             }
     }
 
@@ -694,10 +692,6 @@ struct ChatScreen: View {
         GroupMembersSheet(name: displayName, members: who.members,
                           open: { m in
                               social.openPerson(handle: m.handle, name: m.name, avatar: m.avatar)
-                          },
-                          report: { m in reporting = ReportTarget(subject: .person(handle: m.handle)) },
-                          block: { m in
-                              askBlock(name: m.name.isEmpty ? "@" + m.handle : m.name, handle: m.handle, member: true)
                           })
             .environmentObject(model)
     }
@@ -1036,17 +1030,14 @@ struct TypingBubble: View {
     }
 }
 
-/// See who's here (shot 25): each other member opens their profile, and
-/// each has Report and Block - the web has neither for a group's people
-/// (1.2) - then the web's last row, "You", which does nothing but close.
+/// See who's here (shot 25, `openGroupMembers`): each other member's face,
+/// name and @handle opens their profile - where Report and Block are - then
+/// the web's last row, "You", which does nothing but close.
 struct GroupMembersSheet: View {
     @Environment(\.dismiss) private var dismiss
     let name: String
     let members: [ChatMember]
     let open: (ChatMember) -> Void
-    let report: (ChatMember) -> Void
-    let block: (ChatMember) -> Void
-    @State private var acting: ChatMember?
 
     private var others: [ChatMember] { members.filter { !$0.me } }
 
@@ -1064,16 +1055,6 @@ struct GroupMembersSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .confirmationDialog(acting.map { $0.name.isEmpty ? "@" + $0.handle : $0.name } ?? "",
-                            isPresented: Binding(get: { acting != nil }, set: { if !$0 { acting = nil } }),
-                            titleVisibility: .visible) {
-            if let m = acting {
-                Button("View profile") { after { open(m) } }
-                Button("Report", role: .destructive) { after { report(m) } }
-                Button("Block", role: .destructive) { after { block(m) } }
-                Button("Cancel", role: .cancel) {}
-            }
-        }
     }
 
     private func row(_ m: ChatMember) -> some View {
@@ -1091,12 +1072,6 @@ struct GroupMembersSheet: View {
                                 .font(FAMFont.body(11))
                                 .foregroundStyle(FAMColor.textMuted)
                         }
-                        // §520: a group may hold people you are not friends
-                        // with; the server says which (`friend`).
-                        if m.friend == false {
-                            Text("Not your friend").monoLabel(8.5, color: FAMColor.copper, tracking: 0.6)
-                                .padding(.top, 1)
-                        }
                     }
                     Spacer(minLength: 0)
                 }
@@ -1104,13 +1079,6 @@ struct GroupMembersSheet: View {
             }
             .buttonStyle(.press)
             .disabled(m.handle.isEmpty)
-            if !m.handle.isEmpty {
-                Button { acting = m } label: {
-                    RoundIcon(size: 30) { WebFill(path: Icons.dots(1.6), size: 15) }
-                }
-                .buttonStyle(.press)
-                .accessibilityLabel("More about \(m.name.isEmpty ? m.handle : m.name)")
-            }
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 9)

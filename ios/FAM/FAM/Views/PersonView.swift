@@ -182,9 +182,8 @@ struct PersonView: View {
                     .foregroundStyle(FAMColor.textMuted)
                     .padding(.top, 4)
             }
-            if missing && page == nil && open.name.isEmpty {
-                SocialNote(text: "No listener by that handle.")
-            }
+            // A failed `/api/person` leaves the page standing and says
+            // nothing (`loadPersonProfile`).
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -204,24 +203,13 @@ struct PersonView: View {
         return Date().timeIntervalSince1970 - at < 48 * 3600
     }
 
-    /// Their stories in the faces row, if they are there.
-    private var circlePerson: CirclePerson? {
-        model.circle?.circle.first { !handle.isEmpty && $0.handle.lowercased() == handle.lowercased() && !$0.stories.isEmpty }
-    }
-
     @ViewBuilder private var photo: some View {
         if ringed {
-            let face = Face(name: name, handle: handle, avatar: avatar, size: 86, initialsSize: 28)
+            // The ring is a plain span on the web: not a control.
+            Face(name: name, handle: handle, avatar: avatar, size: 86, initialsSize: 28)
                 .padding(2)
                 .overlay(Circle().stroke(FAMColor.copper, lineWidth: 2))
                 .padding(2)
-            if let person = circlePerson {
-                Button { openStory(person) } label: { face }
-                    .buttonStyle(.press)
-                    .accessibilityLabel("\(name)'s story")
-            } else {
-                face
-            }
         } else {
             Face(name: name, handle: handle, avatar: avatar, size: 92, initialsSize: 28)
         }
@@ -673,11 +661,6 @@ struct PersonView: View {
         if let data = try? JSONEncoder().encode(map) { seenJSON = String(decoding: data, as: UTF8.self) }
     }
 
-    private func openStory(_ p: CirclePerson) {
-        var reel = StoryReel(people: [StoryPerson(id: p.userId, name: p.name, handle: p.handle, avatar: p.avatar,
-                                                  stories: p.stories, mine: false)], start: 0)
-        presentGrowing(reel: &reel) { story = $0 }
-    }
 }
 
 /// A profile tile (`.yf-pic`): the picture filling a 3:4 tile (or the

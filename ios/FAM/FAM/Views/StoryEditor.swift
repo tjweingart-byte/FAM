@@ -1280,7 +1280,8 @@ struct StoryEditor: View {
             }
             .buttonStyle(.press)
             .padding(10)
-            .accessibilityLabel(ed.note ? "Close" : "Back to the episode")
+            // `aria-label="Back to the episode"`, which `vcsMode` leaves alone.
+            .accessibilityLabel("Back to the episode")
             tools
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.top, 10)
