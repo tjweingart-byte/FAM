@@ -444,6 +444,21 @@
   .seed-card.not-offline .seed-thumb{ opacity:0.35; filter:grayscale(0.7); }
   .seed-card.not-offline .seed-card-body{ opacity:0.5; }
   .is-offline .seed-card .seed-acts{ display:none; }
+  /* The free month somebody let off the waitlist may claim (§593): the
+     first thing on DailyFAM until it is claimed, then a line they close. */
+  .fm-card{ margin:0 0 14px; padding:14px 15px 15px; border-radius:14px;
+    background:var(--surface); border:1px solid var(--copper); position:relative; }
+  .fm-card[hidden]{ display:none; }
+  .fm-kicker{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--copper); font-weight:700; }
+  .fm-title{ font-family:'Bricolage Grotesque', sans-serif; font-size:19px; font-weight:500;
+    line-height:1.2; margin:6px 28px 6px 0; color:var(--text); }
+  .fm-body{ font-size:12.5px; line-height:1.45; color:var(--text-muted); margin:0; }
+  .fm-card .pf-acts{ padding-top:12px; }
+  .fm-x{ position:absolute; top:10px; right:10px; width:30px; height:30px; border-radius:50%;
+    border:0; background:none; color:var(--text-muted); display:flex; align-items:center;
+    justify-content:center; cursor:pointer; }
+  .fm-x[hidden]{ display:none; }
   .offline-bar{ margin:0 16px 10px; padding:9px 12px; border-radius:12px;
     background:var(--surface); border:1px solid var(--border); font-size:12px;
     color:var(--text-muted); }
@@ -4347,6 +4362,7 @@
         <div class="scroll">
           <!-- The friends row from YourFAM, first thing on the page (10.2
                packet #1): faces with a VIBE badge play as stories. -->
+          <div class="fm-card" id="freeMonthCard" hidden></div>
           <div class="myfam-circle" id="myfamCircle" hidden></div>
           <div id="goDeeperBlock"></div>
           <div class="offline-bar" id="offlineBar" hidden>You&rsquo;re offline. Episodes you&rsquo;ve finished on this device still play.</div>
@@ -16239,6 +16255,7 @@
         }
         authUnreachable = false;
         rememberSignedIn(!!d.authenticated);
+        try { drawFreeMonthCard(); } catch(e){}
         // The Profile tab is decided entirely by this answer, so it is the
         // one screen that has to be redrawn when the answer changes under
         // it. Without this a cold open that lands on Profile before
@@ -16254,6 +16271,60 @@
         return d;
       })
       .catch(function(){ return AUTH; });
+  }
+
+  // The free month somebody let off the waitlist may claim (§593), from
+  // `/api/auth/me` `free_month`: {claimed, starts, ends}, absent for anyone
+  // else. Unclaimed, the card is the first thing on DailyFAM and its button
+  // claims it (`/api/free-month/claim`, the emailed link's same claim).
+  // Claimed, it says when the month runs and can be closed - closed once,
+  // on this device (`fam.freeMonthClosed`). The month starts the day the
+  // real app is published, never in the beta, and the words say so.
+  function freeMonthWhen(fm){
+    if(!fm || !fm.starts) return "It starts the day the full FAM app is published.";
+    var o = { month:"long", day:"numeric" };
+    return "It runs " + new Date(fm.starts * 1000).toLocaleDateString(undefined, o)
+      + " to " + new Date(fm.ends * 1000).toLocaleDateString(undefined, o) + ".";
+  }
+  function freeMonthClosed(){
+    try { return localStorage.getItem("fam.freeMonthClosed") === "1"; } catch(e){ return false; }
+  }
+  function drawFreeMonthCard(){
+    var el = document.getElementById("freeMonthCard");
+    if(!el) return;
+    var fm = AUTH && AUTH.authenticated ? AUTH.free_month : null;
+    if(!fm || (fm.claimed && freeMonthClosed())){ el.hidden = true; el.innerHTML = ""; return; }
+    el.innerHTML = fm.claimed
+      ? '<button class="fm-x" onclick="closeFreeMonthCard()" aria-label="Close">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
+        + '<div class="fm-kicker">Free month claimed</div>'
+        + '<div class="fm-title">A month of FAM Plus is yours</div>'
+        + '<p class="fm-body">' + escapeHtml(freeMonthWhen(fm)) + ' Nothing to pay, and nothing is billed after.</p>'
+      : '<div class="fm-kicker">You&rsquo;re off the waitlist</div>'
+        + '<div class="fm-title">Claim your free month of FAM Plus</div>'
+        + '<p class="fm-body">' + escapeHtml(freeMonthWhen(fm)) + ' Nothing to pay, and nothing is billed after.</p>'
+        + '<div class="pf-acts"><button class="pf-btn primary" id="freeMonthClaim" onclick="claimFreeMonth()">Claim free month</button></div>';
+    el.hidden = false;
+  }
+  function claimFreeMonth(){
+    var b = document.getElementById("freeMonthClaim");
+    if(b){ b.disabled = true; b.textContent = "Claiming\u2026"; }
+    fetch("/api/free-month/claim", { method:"POST" })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(x){
+        if(!x.ok) throw new Error(x.d && x.d.detail || "Could not claim it. Try again.");
+        AUTH.free_month = x.d.free_month;
+        drawFreeMonthCard();
+        toast("Free month claimed");
+      })
+      .catch(function(e){
+        if(b){ b.disabled = false; b.textContent = "Claim free month"; }
+        toast(e && e.message ? e.message : "Could not claim it. Try again.");
+      });
+  }
+  function closeFreeMonthCard(){
+    try { localStorage.setItem("fam.freeMonthClosed", "1"); } catch(e){}
+    drawFreeMonthCard();
   }
 
   // The two buttons every account gate in the app draws, and the one place
