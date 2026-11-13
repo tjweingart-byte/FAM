@@ -35701,3 +35701,47 @@ window or the new squeezes behave on a device - is unverified.
 
 `CURRENT_PROJECT_VERSION` is 7. Tests: five `..._575` tests in
 `tests/test_ios_app_contract.py`.
+
+**Second audit (addendum).** Six read-only audits of build 7 (runtime,
+sharing, account, social, API, motion) found what the first pass left.
+Fixed: a shared or sample play no longer asks for the full player behind
+its own screen (it opened over the tabs after a sign-up); the shared screen
+loads with no waiting state or entrance, squeezes only its play button
+(0.95, 120 ms `ease`, the page's one motion), seeks once on release and
+leaves a vertical drag to the scroll, says "--:--" for a dead link, sets
+its footnote at `.doors p`'s 13.5, and keeps the status bar dark in the
+light theme. The staging ribbon's window no longer freezes the status bar
+(restyled with the theme, private search and the shared screen) and goes
+back on the live scene after a reconnect. A dead `/s/` link for a member
+is the page's "Nothing to play"; `/j/` signed out is the web's sheet (the
+invite line, Sign up, Log in); a link on a phone drawn ahead waits for
+`/api/auth/me`, so an expired session lands on the shared screen. The mix
+invite shares words and link as two items; the waitlist share carries the
+subject "FAM"; legal links in sentences open in the app's Safari sheet.
+Log in says the app's "New to FAM? Sign up"; the join has no title row or
+visible labels; passwords cap at 1024 as the pages' `maxlength`, with no
+iOS-only sentences; the free-month line is 15 pt and the status page's
+three icons are the page's paths. **The web follows the app** on New
+message (§575): a typed handle to a non-friend gets "You can message
+people who follow you back." and the card stays open; and both sides now
+refuse only once the friends list has loaded (`notAFriend` /
+`mayNotMessage` - the web's `friendsData.friends` started as `[]`, so it
+refused before its list arrived, against its own comment). Social and
+motion details are the web's (rename, "0 people", the member row, the
+save label, the playlist-done and What's next cards, the banner, the row
+fold, three missing squeezes, the Replies sheet). `release_contracts` now
+reads the app's relative `api/v1/...` literals, which it never matched, so
+`ios-1.0.0.json` is recut from this source (still unapproved; the registry
+records build 7). Survey `detail` and the catalogue's tag dictionaries go
+back to the server's keys, as the share targets do.
+
+Listed, not built: Report / Block on a one-to-one with somebody who has no
+handle (neither side has it; the owner's call under §222);
+`www.familiarize.net` is accepted by the app but not in the entitlement;
+the phone field on the identity step (APP_STORE gap 12). For a device:
+the chained sheets (a row's sheet opening the next one 0.45 s later, on
+iOS 17 and 18), the vibe tile's hold and scroll under its squeeze, the
+shared screen's bar inside its scroll view, and whether the ribbon's
+window really yields the status bar. Tests: eight `..._584` tests in
+`tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
+one in `test_client_contracts.py`.

@@ -575,4 +575,4 @@ and `limit` = Lines.
 | 35484 | 48 | 581. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13) |
 | 35532 | 48 | 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
 | 35580 | 22 | 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13) |
-| 35602 | 103 | 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13) |
+| 35602 | 147 | 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13) |
