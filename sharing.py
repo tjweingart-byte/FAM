@@ -615,7 +615,10 @@ class ShareStore:
         except Exception:
             log.exception("could not look up a share")
             return False
-        return any(max(1, int(r[0] or 0)) == minutes for r in rows)
+        # `as_minutes`, never `int` (§574): `int` floored the standard 1.5
+        # to 1, so no shared DailyFAM or myFAM episode matched itself and the
+        # waitlist refused its audio to everybody the link was sent to.
+        return any(max(1, as_minutes(r[0] or 0)) == minutes for r in rows)
 
     def opened(self, share_id: str) -> None:
         """Somebody followed the link. The only number here, and it is the one

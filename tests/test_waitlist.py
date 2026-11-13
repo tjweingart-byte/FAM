@@ -540,6 +540,35 @@ def test_a_shared_link_previews_behind_the_waitlist_574(world, monkeypatch):
     assert r.status_code == 403 and r.headers["X-FAM-Waitlist"] == "/waitlist"
 
 
+def test_a_shared_episode_plays_at_one_and_a_half_minutes_574(world, monkeypatch):
+    """§574: every DailyFAM and myFAM episode is 1.5 minutes, and `is_shared`
+    floored it to 1, so the gate refused the shared episode's own audio. The
+    app's requests (`/api/v1/`, Opus, `link=1`) and the web page's both pass,
+    for a guest and for a waitlisted account, and the app may read the share."""
+    import sharing
+    store = sharing.ShareStore(os.path.join(os.path.dirname(
+        appmod.WAITLIST.accounts.path), "shares.db"))
+    monkeypatch.setattr(appmod, "SHARES", store)
+    share = store.create("sharer", "why is the sky blue", 1.5, "The Sky")
+    waiting, _ = _join("w@fam.test")
+    for c in (TestClient(appmod.app), waiting):
+        r = c.get(f"/api/v1/share/{share['id']}")
+        assert r.status_code == 200 and r.json()["minutes"] == 1.5, r.text
+        for path, params in (
+                ("/api/v1/audio", {"q": "why is the sky blue", "minutes": "1.5",
+                                   "fmt": "opus", "link": "1", "surface": "share"}),
+                ("/api/audio", {"q": "why is the sky blue", "minutes": "1.5",
+                                "fmt": "pcm", "surface": "share"})):
+            r = c.get(path, params=params)
+            assert "X-FAM-Waitlist" not in r.headers, (path, r.status_code)
+        # Another length of the same question is still not the share.
+        r = c.get("/api/audio", params={"q": "why is the sky blue", "minutes": "2",
+                                        "surface": "share"})
+        assert r.status_code == 403
+    assert store.is_shared("why is the sky blue", "1.5")
+    assert not store.is_shared("why is the sky blue", "1")
+
+
 @pytest.mark.usefixtures("everyone_friends")
 def test_launch_lifts_the_waitlist_rules(world, monkeypatch):
     """WAITLIST=0 is launch: anyone still marked waitlisted is findable and
