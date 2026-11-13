@@ -80,7 +80,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   episodes; myFAM's header button (a bookshelf, §203) opens the A-Z of others'
   cached episodes; Messages is a tab where Explore was; the player's (+) adds
   the episode's topic to a mix. [interface-181]
-- **A tour** once after sign-up; Skip on every card (§586). [tour]
+- **A tour** once per account; Skip on every card (§586-7). [tour]
 
 - **The player is Spotify's layout** (§190): Home logo (§255), picture (4:3, §192;
   centred between GO DEEPER and the title; `pick_for_player` borrows (tiles

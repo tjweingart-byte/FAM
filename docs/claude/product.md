@@ -134,7 +134,10 @@ control and a card saying what it is. What it keeps to:
 * **Motion** (rule `motion`): the screen is switched first, the hole glides in
   380 ms, the card swaps in 220 ms; reduced motion jumps and fades only.
 * It moves between tab roots only, so a minimised episode keeps playing.
-* An account made before §586 is not a first run and is never offered it.
+* **Existing accounts get it once too** (§587, the owner's word: "show it to
+  existing users once too"): `Tour.offerOnce`, on opening the app or signing
+  in, asks `/api/preferences` once per device and offers it while
+  `tour_done` is false; the account's "done" is then kept on the device.
 `tools/smoke_preview.py` drives it; `tests/test_tour_586.py` holds the flag.
 
 <!-- rule:explore-reel -->

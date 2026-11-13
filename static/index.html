@@ -23264,7 +23264,6 @@
     // starts once the hand-off and the activation step are out of the way.
     Tour.owe();
     finishEntry();
-    Tour.offer();
   }
 
   function finishEntry(opts){
@@ -23287,6 +23286,9 @@
     // the other; `startNotificationPolling` clears its own timer, so arriving
     // by both cannot leave two running.
     startNotificationPolling();
+    // The tour: owed from the first run just finished, or once for an
+    // account from before it existed (§586, §587).
+    Tour.offerOnce();
   }
 
   // The FAM intro (§201, from the owner's sketch). Four beats, about 1.8s:
@@ -23476,7 +23478,28 @@
     }
 
     // Owed from the first run, and kept owed across a reload until it runs.
-    function owe(){ if(!done()) saveLocalPrefs({ tour: OWED }); }
+    // A new account's, whatever an earlier account on this device did.
+    function owe(){ saveLocalPrefs({ tour: OWED }); }
+    // Every way into the app (`routeFirstScreen`, `finishEntry`): owed from
+    // the first run, or - for an account that was here before the tour
+    // existed - owed once if the account says it has not been taken
+    // (the owner's ask, §587). The account's word is asked for once per
+    // device; a "done" from it is kept here so it is not asked again.
+    function offerOnce(){
+      if(running) return;
+      var here = localPrefs().tour;
+      if(here === OWED) return offer();
+      if(here === "done" || !AUTH.authenticated) return;
+      fetch("/api/preferences")
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){
+          if(!d || !d.saved) return;
+          if(d.tour_done){ saveLocalPrefs({ tour: "done" }); return; }
+          saveLocalPrefs({ tour: OWED });
+          offer();
+        })
+        .catch(function(){});
+    }
     function offer(){
       if(running || done() || localPrefs().tour !== OWED) return;
       waitUntilClear(function(){ begin(); });
@@ -23724,7 +23747,7 @@
         + '<div class="tp-bar"><i></i></div></div>';
     }
 
-    return { owe: owe, offer: offer, start: start, next: next, back: back,
+    return { owe: owe, offer: offer, offerOnce: offerOnce, start: start, next: next, back: back,
              skip: skip, on: function(){ return running; } };
   })();
 
@@ -24375,8 +24398,9 @@
     // you" is the next time this listener's own app asks.
     checkNewFollowers();
     startNotificationPolling();
-    // A tour owed from sign-up that a reload interrupted before it began.
-    Tour.offer();
+    // A tour owed from sign-up that a reload interrupted before it began,
+    // or one owed once to an account from before the tour (§587).
+    Tour.offerOnce();
   }
 
   // ---------------- drop-down notifications ----------------

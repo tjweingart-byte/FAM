@@ -237,7 +237,7 @@ def main() -> int:
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
                 "skipping the tour did not land on DailyFAM"
             assert page.evaluate("localPrefs().tour") == "done", "a skip was not remembered"
-            page.evaluate("Tour.offer()")
+            page.evaluate("Tour.offerOnce()")
             page.wait_for_timeout(1500)
             assert page.evaluate("document.getElementById('famTour').hidden"), \
                 "a skipped tour came back by itself"

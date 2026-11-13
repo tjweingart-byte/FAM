@@ -35814,3 +35814,22 @@ and be skippable at any time."
 **Not verified here.** On a phone: the card's placement with large text, and
 the feel of the glide. The preview is a guest, so Messages and yourFAM show
 their sign-up doors behind the card; an account sees its own.
+
+## 587. The tour, once, for accounts from before it (2026-11-13)
+
+**Asked.** "Show it to existing users once too" (after §586, which offered
+the tour only at the end of sign-up).
+
+**Built.** `Tour.offerOnce`, called from `routeFirstScreen` (opening the app
+signed in) and `finishEntry` (signing in, or the first run ending). Owed on
+the device: offered. Otherwise, signed in and nothing remembered here: one
+`/api/preferences` read; `tour_done` false makes it owed and offers it,
+true is kept on the device as "done" so the server is not asked again.
+Finishing or skipping writes `tour_done` as before, so it is once per account,
+not per device. It still waits behind anything else on screen - in the
+preview the new-followers popup opened first and the tour followed it.
+`owe()` now marks a new account's first run owed even where an earlier
+account on the device had taken it. Rule `tour`; `tests/test_tour_586.py`.
+
+**Not verified here.** Against a real server with real accounts; the fetch
+was stubbed in the browser.

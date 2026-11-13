@@ -80,7 +80,21 @@ def test_the_api_stores_it_for_an_account(client):
 def test_the_interface_owes_it_at_the_end_of_sign_up_and_offers_a_replay():
     finish = INDEX[INDEX.index("function finishIntro(){"):]
     finish = finish[:finish.index("\n  }\n")]
-    assert "Tour.owe()" in finish and "Tour.offer()" in finish
+    assert "Tour.owe()" in finish and "finishEntry()" in finish
+    entry = INDEX[INDEX.index("function finishEntry(opts){"):]
+    entry = entry[:entry.index("\n  }\n")]
+    assert "Tour.offerOnce()" in entry
+
+
+def test_an_account_from_before_the_tour_is_offered_it_once():
+    """§587: offered once on the next open or sign-in when the account says
+    it has not been taken; the account's "done" is kept on the device."""
+    once = INDEX[INDEX.index("function offerOnce(){"):]
+    once = once[:once.index("\n    }\n")]
+    assert '"/api/preferences"' in once and "d.tour_done" in once
+    route = INDEX[INDEX.index("function routeFirstScreen(){"):]
+    route = route[:route.index("\n  }\n")]
+    assert "Tour.offerOnce()" in route
     assert 'settingsRow("Take the tour"' in INDEX
     # Skippable from every card: one Skip in the card's head, and Escape.
     assert 'id="tourSkip"' in INDEX and 'e.key === "Escape"' in INDEX

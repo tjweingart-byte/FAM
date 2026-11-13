@@ -547,9 +547,8 @@ class PreferenceStore:
                              " private_search INTEGER NOT NULL DEFAULT 0")
             except sqlite3.OperationalError:
                 pass  # already there
-            # §586: not taken, for every older row. An account made before
-            # the tour existed is not a first run, and is never offered it
-            # by itself - the flag only says it need not be.
+            # §586: not taken, for every older row - and so an account made
+            # before the tour existed is offered it once (§587).
             try:
                 conn.execute("ALTER TABLE preferences ADD COLUMN"
                              " tour_done INTEGER NOT NULL DEFAULT 0")
