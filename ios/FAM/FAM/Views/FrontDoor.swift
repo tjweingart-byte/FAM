@@ -667,11 +667,15 @@ struct WaitlistStatusPage: View {
             Text("Move up the list")
                 .font(FAMFont.heading(18, .semibold))
                 .foregroundStyle(FAMColor.text)
-            Text("Share your link. Every person who joins with it moves you up.")
+            Text("Share the waitlist to five friends to earn a free month!")
                 .font(FAMFont.body(13))
                 .foregroundStyle(FAMColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
+            if let fm = page?.freeMonth {
+                WaitlistFreeMonthProgress(month: fm)
+                    .padding(.top, 12)
+            }
             HStack(spacing: 8) {
                 Text(link)
                     .font(FAMFont.body(12.5))
@@ -1159,3 +1163,52 @@ struct WaitlistFamSection: View {
         }
     }
 }
+
+/// The free month's progress on the share card (§577), as the web's
+/// `drawFreeMonth`: one bar per friend of the five, filled as each joins
+/// with the link, and the line under it - how many more, or that it is
+/// earned and when it runs.
+struct WaitlistFreeMonthProgress: View {
+    let month: WaitlistFreeMonth
+
+    private var filled: Int { month.earned ? month.needed : min(month.invites, month.needed) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                ForEach(0..<max(month.needed, 0), id: \.self) { i in
+                    Capsule()
+                        .fill(i < filled ? FAMColor.copper : FAMColor.borderStrong)
+                        .frame(height: 8)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .accessibilityHidden(true)
+            Text(Self.line(month))
+                .font(FAMFont.body(13, month.earned ? .semibold : .regular))
+                .foregroundStyle(month.earned ? FAMColor.copper : FAMColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The web's sentences, word for word.
+    static func line(_ m: WaitlistFreeMonth) -> String {
+        if m.earned {
+            if let starts = m.starts, let ends = m.ends {
+                return "Free month earned: \(day(starts)) to \(day(ends))."
+            }
+            return "Free month earned. It starts the day FAM opens to everyone."
+        }
+        return "\(m.invites) of \(m.needed) friends joined. \(m.remaining) more for a free month."
+    }
+
+    /// "December 1": the launch day is midnight UTC, so read it in UTC.
+    private static func day(_ t: Double) -> String {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMMd")
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f.string(from: Date(timeIntervalSince1970: t))
+    }
+}
+

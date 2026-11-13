@@ -53,6 +53,16 @@ _CODE_RE = re.compile(r"^[a-z0-9]{4,32}$")
 #: dropped because the vendor was down (WAITLIST.md §3b).
 RETRY_DELAYS = (60, 300, 900, 3600)
 
+#: The free month (§577): five friends who join with your link earn a month
+#: of the "plus" tier. Friends count the way invites do - an account that
+#: names you in `referred_by` - and the page's sentence ("Share the waitlist
+#: to five friends to earn a free month!") is pinned to this number by a test.
+FREE_MONTH_INVITES = 5
+#: How long the month lasts, counted from the day the whole app goes live
+#: (`free_month_starts`, set by an admin) - not from the day each person is
+#: let in, so everybody's month is the same month.
+FREE_MONTH_SECONDS = 30 * 86400
+
 
 class WaitlistError(ValueError):
     """A request the waitlist refuses, with a sentence a person can read."""
@@ -92,7 +102,8 @@ class Waitlist:
     def __init__(self, accounts) -> None:
         self.accounts = accounts
         with self._conn() as conn:
-            # Admin-set numbers, one row each. Only `access_cutoff` today.
+            # Admin-set numbers, one row each: `access_cutoff` and
+            # `free_month_starts` (§577).
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS waitlist_settings (
                        name  TEXT PRIMARY KEY,
@@ -115,6 +126,10 @@ class Waitlist:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS waitlist_outbox_due"
                          " ON waitlist_outbox(done_at, next_at)")
+        try:
+            self._credit_everyone()
+        except Exception:
+            log.exception("could not stamp the free months already earned")
 
     def _conn(self):
         return self.accounts._conn()
@@ -205,8 +220,86 @@ class Waitlist:
         row = self._conn().execute(
             "SELECT referred_by FROM accounts WHERE user_id = ?", (user_id,)
         ).fetchone()
+        if row and row[0]:
+            self.credit_free_month(row[0], at=now)
         return {"referrer": row[0] if row else "", "code": code,
                 "capped": capped}
+
+    # --- the free month ---------------------------------------------------
+
+    def credit_free_month(self, user_id: str, at: float = 0.0) -> bool:
+        """Stamp the free month on this account once it has five invites.
+
+        **Stamped, never re-derived.** A friend who later deletes their
+        account drops the invite count back to four; an earned month must not
+        go with it, so the moment it is earned is written on the row and only
+        ever set once. Returns whether it is earned (now or before).
+        """
+        if not user_id:
+            return False
+        now = at or time.time()
+        invites = self._conn().execute(
+            "SELECT COUNT(*) FROM accounts WHERE referred_by = ?",
+            (user_id,)).fetchone()[0]
+        if int(invites) >= FREE_MONTH_INVITES:
+            self._conn().execute(
+                "UPDATE accounts SET free_month_earned_at = ?"
+                " WHERE user_id = ? AND free_month_earned_at = 0",
+                (now, user_id))
+        row = self._conn().execute(
+            "SELECT free_month_earned_at FROM accounts WHERE user_id = ?",
+            (user_id,)).fetchone()
+        return bool(row and row[0])
+
+    def _credit_everyone(self) -> int:
+        """Stamp the month on everybody already at five - the accounts that
+        reached it before the reward existed. Idempotent; run at start-up."""
+        return int(self._conn().execute(
+            "UPDATE accounts SET free_month_earned_at = ?"
+            " WHERE free_month_earned_at = 0 AND user_id IN ("
+            "   SELECT referred_by FROM accounts WHERE referred_by != ''"
+            "   GROUP BY referred_by HAVING COUNT(*) >= ?)",
+            (time.time(), FREE_MONTH_INVITES)).rowcount or 0)
+
+    def free_month_starts(self) -> float:
+        """When the free month begins for everyone who earned it: the day the
+        whole app goes live. 0 until an admin sets it - the month is then
+        earned and waiting, and the page says it starts at launch."""
+        row = self._conn().execute(
+            "SELECT value FROM waitlist_settings WHERE name = 'free_month_starts'"
+        ).fetchone()
+        try:
+            return max(0.0, float(row[0])) if row else 0.0
+        except ValueError:
+            return 0.0
+
+    def set_free_month_starts(self, value: float) -> float:
+        value = float(value)
+        if value < 0:
+            raise WaitlistError("The launch date is a time, or 0 for not yet.")
+        self._conn().execute(
+            "INSERT INTO waitlist_settings (name, value) VALUES"
+            " ('free_month_starts', ?)"
+            " ON CONFLICT (name) DO UPDATE SET value = excluded.value",
+            (repr(value),))
+        self.accounts.forget_free_month_window()
+        return value
+
+    def free_month(self, user_id: str, invites: Optional[int] = None) -> dict:
+        """Where this person stands against the free month, for the page."""
+        if invites is None:
+            invites = len(self.invites_of(user_id))
+        row = self._conn().execute(
+            "SELECT free_month_earned_at FROM accounts WHERE user_id = ?",
+            (user_id,)).fetchone()
+        earned = bool(row and row[0])
+        starts = self.free_month_starts()
+        return {"needed": FREE_MONTH_INVITES,
+                "invites": int(invites),
+                "remaining": 0 if earned else max(0, FREE_MONTH_INVITES - int(invites)),
+                "earned": earned,
+                "starts": starts or None,
+                "ends": (starts + FREE_MONTH_SECONDS) if starts else None}
 
     # --- reading ----------------------------------------------------------
 
@@ -262,7 +355,7 @@ class Waitlist:
     _ORDERED = (
         "SELECT a.user_id, a.email, a.phone, a.display_name, a.created,"
         "       a.waitlist_joined_at, a.referral_code, a.referred_by,"
-        "       COALESCE(i.n, 0) AS invites"
+        "       COALESCE(i.n, 0) AS invites, a.free_month_earned_at"
         " FROM accounts a"
         " LEFT JOIN (SELECT referred_by, COUNT(*) AS n FROM accounts"
         "            WHERE referred_by != '' GROUP BY referred_by) i"
@@ -280,7 +373,8 @@ class Waitlist:
         return [{"place": n, "user_id": r[0], "email": r[1], "phone": r[2],
                  "display_name": r[3], "created": r[4],
                  "joined": r[5] or r[4], "referral_code": r[6],
-                 "referred_by": r[7], "invites": int(r[8])}
+                 "referred_by": r[7], "invites": int(r[8]),
+                 "free_month": bool(r[9])}
                 for n, r in enumerate(rows, start=1)]
 
     def place_of(self, user_id: str) -> Optional[int]:
