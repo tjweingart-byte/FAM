@@ -318,6 +318,9 @@
   which is exactly what FAM did before it existed, and says so in
   `Brief.degraded`, the log and `/api/health`. An EI that had quietly stopped
   running would look identical from outside to one that was working.
+  > **Current (PROBLEMS.md §599):** slowness is no longer a failure: the
+  > brief has no time limit by default, so a slow brief is waited for, and
+  > only an error, refusal, unreadable answer or no room degrades it.
 <!-- rule:recency-credibility -->
 > **Current (PROBLEMS.md §320):** the window is checked in code as well as asked of the vendor: `research.within_window` drops a dated result older than the window (a day's grace; undated kept), and the thin-packet retry **widens** the window (`retry_window`: 3x, at least a week) instead of dropping it. A window longer than a week on a question about no particular moment is removed (`episode_intelligence.time_bound`, in the gate); a week or less is EI's own "a moment" and is never removed. Parallel's objective names EI's `source_kind`; Perplexity reads it as `search_mode`.
 > **Current (PROBLEMS.md §178):** before anything is graded, `research.screen_results` drops a simulated or video-game league's page (a Madden league's "result" for a game not yet played) unless the question is about one, and on a sports question (`live_domain == "sports"`) drops unknown outlets once two known ones answered. The writer never argues a factual disagreement aloud: it says the better-supported reading and nothing about the sources.
@@ -1328,6 +1331,7 @@
   > prefetch and the DailyFAM and Trending editions - get
   > `EI_AHEAD_TIMEOUT_SECONDS` (30), and only a listener in front of the
   > first word is held to `EI_TIMEOUT_SECONDS`; the instructions carry
+  > *(both ceilings are gone since §599 - see the note below)*;
   > worked example briefs in one cacheable block (`EI_EXAMPLES`); and
   > `/api/health` counts and times briefs by path (`since_boot_by_path`,
   > `seconds_by_path`, `parts_since_boot`). `since_boot` stays the total.
@@ -1345,6 +1349,21 @@
   > "for when nobody waits, it's supposed to be haiku high"), as Shakespeare
   > is there (§440). searchFAM stays at `EFFORT` (low), so the first word is
   > not moved; `EDITION_WRITER_EFFORT`, when set, still wins for an edition.
+  >
+  > **Current:** **the brief has no time limit** (PROBLEMS.md §599, at the
+  > owner's direction: "Brief took too long shouldn't be an option, it
+  > produces an empty episode. There shouldn't be a time limit on the
+  > brief, but we first want to try to reduce the time"). `EI_TIMEOUT_SECONDS`
+  > and `EI_AHEAD_TIMEOUT_SECONDS` default to `0`, none; a number puts §268's
+  > ceiling back. A slow brief is waited for; only a call that fails
+  > degrades it. C3P0's half gets the client's own ten-minute timeout
+  > (`NO_BRIEF_LIMIT_SECONDS`), because the agent layer refuses a call
+  > without one. The outline's grace on the search path is unchanged (it
+  > never degrades the brief, only drops the plan). To reduce the time: the
+  > brief's instructions are cached for an hour (`EI_PROMPT_CACHE_TTL`), and
+  > `/api/health` -> `episode_intelligence.parts_usage` reports each part's
+  > tokens written, tokens per second and cache hits, so the next lever is
+  > chosen from where the seconds actually go.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an

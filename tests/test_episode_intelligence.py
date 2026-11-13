@@ -769,5 +769,5 @@ def test_health_says_which_state_a_deploy_is_in():
     that is working; the episodes are merely less relevant."""
     report = ei.report()
     assert report["enabled"] is True
-    assert report["model"] and report["timeout_seconds"] > 0
+    assert report["model"] and report["timeout_seconds"] >= 0   # 0 is none (§599)
     assert set(report["intents"]) == set(ei.INTENTS)

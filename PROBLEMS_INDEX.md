@@ -590,3 +590,4 @@ and `limit` = Lines.
 | 36205 | 25 | 596. The phone field says what the text is: consent for the carriers (2026-11-13) |
 | 36230 | 31 | 597. One text per account, ever (2026-11-13) |
 | 36261 | 30 | 598. "Copy for Claude" on every community card (2026-11-13) |
+| 36291 | 92 | 599. The brief has no time limit, and "the voice fell behind" counted the wait before the first word (2026-11-13) |

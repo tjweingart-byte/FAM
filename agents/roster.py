@@ -16,7 +16,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agents import names
-from config import settings
+from config import NO_BRIEF_LIMIT_SECONDS, settings
+
+#: The brief's own limits, where 0 is none (§599): an agent working inside
+#: the brief is given the client's own timeout instead.
+BRIEF_LIMITS = ("ei_timeout_seconds", "ei_ahead_timeout_seconds")
 
 #: Who is waiting when an agent works.
 SEARCH, AHEAD, BACKGROUND = "search", "ahead", "background"
@@ -55,8 +59,10 @@ class Agent:
             if where == surface:
                 if not timeout:
                     return None, None
-                return (float(getattr(settings, timeout)),
-                        int(getattr(settings, size)) if size else None)
+                seconds = float(getattr(settings, timeout))
+                if timeout in BRIEF_LIMITS and seconds <= 0:
+                    seconds = NO_BRIEF_LIMIT_SECONDS
+                return (seconds, int(getattr(settings, size)) if size else None)
         return None, None
 
 

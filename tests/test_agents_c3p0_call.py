@@ -120,8 +120,11 @@ def test_the_effort_is_the_briefs_on_the_tap_and_ahead_effort_before_it(model, c
     from config import settings
     assert on_tap.effort == settings.ei_effort and on_tap.surface == "search"
     assert ahead.effort == settings.ei_ahead_effort == "high" and ahead.surface == "ahead"
-    assert on_tap.timeout == settings.ei_timeout_seconds
-    assert ahead.timeout == settings.ei_ahead_timeout_seconds
+    from agents import roster
+
+    assert on_tap.timeout == roster.get("contextualizer").ceiling("search")[0]
+    assert ahead.timeout == roster.get("contextualizer").ceiling("ahead")[0]
+    assert on_tap.timeout > 0, "the agent layer refuses a call with no limit"
 
 
 def test_nandos_candidates_go_with_the_call_when_he_works_too(tree, model, c3p0):

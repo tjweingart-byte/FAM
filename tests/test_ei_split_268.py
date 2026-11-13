@@ -141,15 +141,18 @@ def test_the_defaults():
     fresh = config.Settings()
     assert fresh.ei_split is True
     assert fresh.ei_examples is True
-    assert fresh.ei_ahead_timeout_seconds == 30.0
-    assert fresh.ei_timeout_seconds == 8.0, "the search path's ceiling is unchanged"
+    # No time limit on the brief, on either path (§599).
+    assert fresh.ei_ahead_timeout_seconds == 0.0
+    assert fresh.ei_timeout_seconds == 0.0
+    assert fresh.ei_prompt_cache_ttl == "1h"
 
 
 def test_env_example_agrees_with_config():
     """A setting is settled only where it is copied (CLAUDE.md)."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     text = open(os.path.join(root, ".env.example"), encoding="utf-8").read()
-    for line in ("\nEI_AHEAD_TIMEOUT_SECONDS=30.0\n", "\nEI_SPLIT=1\n",
+    for line in ("\nEI_AHEAD_TIMEOUT_SECONDS=0\n", "\nEI_TIMEOUT_SECONDS=0\n",
+                 "\nEI_PROMPT_CACHE_TTL=1h\n", "\nEI_SPLIT=1\n",
                  "\nEI_EXAMPLES=1\n"):
         assert line in text
 

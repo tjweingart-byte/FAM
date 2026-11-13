@@ -1601,7 +1601,12 @@ def ei_system():
     if not settings.prompt_cache:
         return text
     marker: dict = {"type": "ephemeral"}
-    if str(settings.prompt_cache_ttl or "").strip() == "1h":
+    # Its own cache life (§599), an hour unless set: searches come minutes
+    # apart, and a cold read of these instructions is time in front of the
+    # first word. Empty follows the writer's `PROMPT_CACHE_TTL`.
+    ttl = (str(settings.ei_prompt_cache_ttl or "").strip()
+           or str(settings.prompt_cache_ttl or "").strip())
+    if ttl == "1h":
         marker["ttl"] = "1h"
     return [{"type": "text", "text": text, "cache_control": marker}]
 
@@ -1618,6 +1623,59 @@ _SECONDS: dict = {"search": collections.deque(maxlen=SECONDS_KEPT),
                   "ahead": collections.deque(maxlen=SECONDS_KEPT)}
 #: How each half of a split brief ended - or the one call, as `whole`.
 _PART_OUTCOMES: dict = {}
+#: **Where a brief's seconds go** (§599), per part, over its last
+#: `SECONDS_KEPT` answers: how long the call took, how many tokens it wrote
+#: (thinking and JSON together), and how much of its instructions it read
+#: from the cache. Seconds alone could not say whether a slow brief thought
+#: for longer, was served slowly, or read its instructions cold - and each
+#: has a different cure.
+_PART_USAGE: dict = {}
+
+
+def brief_ceiling(ahead: bool = False) -> Optional[float]:
+    """The brief's time limit on this path, or None for none (§599).
+
+    None by default: the owner's direction is that a brief is waited for,
+    never given up on for being slow, because a brief given up on is a
+    plainer episode. `EI_TIMEOUT_SECONDS` / `EI_AHEAD_TIMEOUT_SECONDS` above
+    0 put §268's ceilings back."""
+    value = float(settings.ei_ahead_timeout_seconds if ahead
+                  else settings.ei_timeout_seconds)
+    return value if value > 0 else None
+
+
+def _note_usage(part: str, seconds: float, usage) -> None:
+    """One part's call, kept for `report` (§599). Never raises."""
+    try:
+        _PART_USAGE.setdefault(part, collections.deque(maxlen=SECONDS_KEPT)).append({
+            "seconds": round(float(seconds), 3),
+            "output": int(getattr(usage, "output_tokens", 0) or 0),
+            "cache_read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
+            "cache_write": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
+            "uncached": int(getattr(usage, "input_tokens", 0) or 0),
+        })
+    except Exception:  # noqa: BLE001 - a measurement never costs a brief
+        pass
+
+
+def _usage_report() -> dict:
+    """Per part: tokens written, how fast, and how often the cache served."""
+    out = {}
+    for part, rows in _PART_USAGE.items():
+        rows = list(rows)
+        if not rows:
+            continue
+        rates = [r["output"] / r["seconds"] for r in rows if r["seconds"] > 0]
+        out[part] = {
+            "n": len(rows),
+            "output_tokens": _spread([r["output"] for r in rows]),
+            "tokens_per_second": _spread([round(x, 1) for x in rates]),
+            # Calls that read their instructions from the cache, and those
+            # that wrote them (a cold read).
+            "cache_hits": sum(1 for r in rows if r["cache_read"] > 0),
+            "cache_writes": sum(1 for r in rows if r["cache_write"] > 0),
+        }
+    return out
 
 
 def _count(kind: str, path: str) -> None:
@@ -1638,26 +1696,29 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
         content = build_ei_prompt(query, minutes, context, now, covered,
                                   None if part == "whole" else PARTS[part],
                                   reading=reading)
+    began = time.monotonic()
     try:
-        response = await asyncio.wait_for(
-            client.messages.create(
-                model=settings.ei_model,
-                max_tokens=settings.ei_max_tokens,
-                system=ei_system(),
-                output_config={
-                    "effort": settings.ei_effort,
-                    "format": FORMATS[part],
-                },
-                messages=[{"role": "user", "content": content}],
-            ),
-            timeout=timeout,
+        call = client.messages.create(
+            model=settings.ei_model,
+            max_tokens=settings.ei_max_tokens,
+            system=ei_system(),
+            output_config={
+                "effort": settings.ei_effort,
+                "format": FORMATS[part],
+            },
+            messages=[{"role": "user", "content": content}],
         )
+        # No limit unless one is set (§599): a slow brief is waited for.
+        response = await (call if not timeout or timeout <= 0
+                          else asyncio.wait_for(call, timeout=timeout))
     except asyncio.TimeoutError:
-        return "timeout", None, f"EI did not answer within {timeout:g}s"
+        return "timeout", None, (f"EI did not answer within {timeout:g}s" if timeout
+                                 else "EI's call timed out at the client")
     except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis here
         return "failed", None, f"EI call failed: {exc}"
 
     metering.fold_call(notes, settings.ei_model, getattr(response, "usage", None))
+    _note_usage(part, time.monotonic() - began, getattr(response, "usage", None))
 
     # `output_config.format` guarantees valid JSON in the first text block -
     # but a refusal stops before any of that, and a refusal parsed as a brief
@@ -1746,8 +1807,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
 
     now = now or listener_clock.now_line()
     path = "ahead" if ahead else "search"
-    timeout = float(settings.ei_ahead_timeout_seconds if ahead
-                    else settings.ei_timeout_seconds)
+    timeout = brief_ceiling(ahead)
     parts = ("understand", "search") if settings.ei_split else ("whole",)
     started = time.monotonic()
     outline = None
@@ -1919,7 +1979,10 @@ async def _outline_by(task, ahead: bool, started: float, timeout: float) -> tupl
     brief by more than that; ahead it has the brief's whole ceiling.
     """
     if ahead:
-        wait = max(0.0, timeout - (time.monotonic() - started))
+        # Ahead, all of the brief's ceiling - and with none (§599), as long
+        # as the outline takes: nobody is waiting.
+        wait = (None if timeout is None
+                else max(0.0, timeout - (time.monotonic() - started)))
     else:
         wait = float(settings.ei_outline_grace_seconds)
     try:
@@ -2186,6 +2249,10 @@ def report() -> dict:
         "outline_grace_seconds": settings.ei_outline_grace_seconds,
         "examples": bool(settings.ei_examples),
         "ahead_timeout_seconds": settings.ei_ahead_timeout_seconds,
+        # 0 is no limit (§599); and where each part's seconds go.
+        "prompt_cache_ttl": (settings.ei_prompt_cache_ttl
+                             or settings.prompt_cache_ttl),
+        "parts_usage": _usage_report(),
         "default_recency_days": settings.ei_default_recency_days,
         "intents": list(INTENTS),
         "structures": [s for s in PICKABLE_STRUCTURES if s != "general"],
