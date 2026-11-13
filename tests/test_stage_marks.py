@@ -12,10 +12,12 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import types
 
 import pytest
 
 import episode_intelligence
+import episode_marks
 import live_facts
 import pipeline as pipeline_mod
 import research as research_mod
@@ -34,6 +36,28 @@ WRITER_THINKING = 0.25
 #: CI runner, which failed a 0.05s bound on Main and on staging.
 SHORTEST_STEP = min(BRIEF_DELAY, RETRIEVAL_DELAY, WRITER_THINKING)
 
+class _Clock:
+    """The episode's clock for these tests (§585): it moves only when a stub
+    "waits", by exactly what it waits. On the wall clock a loaded runner made
+    a 0.30s brief read 0.42s (CI, on SQLite) and 0.69-0.79s (on Postgres),
+    from the scheduler and the real code inside the span - neither is what
+    these tests are about, which is which step each measured time is put
+    under."""
+
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    async def wait(self, seconds: float) -> None:
+        await asyncio.sleep(0)  # still a real yield to the event loop
+        self.now += seconds
+
+
+_CLOCK = _Clock()
+
+
 SCRIPT = ("The committee held rates where they were on Wednesday. "
           "Two officials dissented, both wanting a cut. "
           "The statement kept the door open for September.")
@@ -47,7 +71,7 @@ class _Stream:
     @property
     def text_stream(self):
         async def deltas():
-            await asyncio.sleep(WRITER_THINKING)
+            await _CLOCK.wait(WRITER_THINKING)
             for word in SCRIPT.split(" "):
                 yield word + " "
         return deltas()
@@ -76,18 +100,19 @@ class _Client:
 @pytest.fixture
 def stubbed(monkeypatch):
     async def understand(query, minutes, context="", notes=None, now=None):
-        await asyncio.sleep(BRIEF_DELAY)
+        await _CLOCK.wait(BRIEF_DELAY)
         return Brief(query=query, intent="recap", subject="the Fed",
                      search_query="Federal Reserve decision", recency_days=3)
 
     async def retrieve(query, backend=None, brief=None, **overrides):
-        await asyncio.sleep(RETRIEVAL_DELAY)
+        await _CLOCK.wait(RETRIEVAL_DELAY)
         return research_mod.Packet(context="Reuters, yesterday: rates held.",
                                    backend="parallel", searches=1)
 
     async def lookup(brief, notes=None, **_):
         return None
 
+    monkeypatch.setattr(episode_marks, "time", types.SimpleNamespace(perf_counter=_CLOCK))
     monkeypatch.setattr(episode_intelligence, "understand", understand)
     monkeypatch.setattr(research_mod, "retrieve", retrieve)
     monkeypatch.setattr(live_facts, "lookup", lookup)
@@ -98,7 +123,7 @@ def stubbed(monkeypatch):
 
 
 def _run(pipe) -> GenerationStats:
-    stats = GenerationStats()
+    stats = GenerationStats(marks=EpisodeMarks(started=_CLOCK()))
     plan = dataclasses.replace(
         plan_episode("what happened with the fed yesterday", 1, search=True))
 
@@ -131,10 +156,11 @@ def test_the_steps_happen_in_the_order_a_listener_waits_through_them(stubbed):
 def test_each_stage_is_the_step_it_names(stubbed):
     """The stubbed delays come back out of the right labels.
 
-    A sleep never ends early, so each stage is held tight from below; that
-    alone pins the labels, because the delays differ and any swap puts a
-    shorter step under a longer one's name. A loaded CI runner can make a
-    sleep run long (0.29s for 0.15s once), so the bound above is loose.
+    Each stage is held tight from below; that alone pins the labels,
+    because the delays differ and any swap puts a shorter step under a
+    longer one's name. On `_CLOCK` the stubbed waits are exact; the loose
+    bound above is from when they were wall-clock sleeps (0.29s for 0.15s
+    once on a loaded runner).
     """
     stages = _run(stubbed).marks.stages()
     for name, delay in (("brief", BRIEF_DELAY), ("evidence", RETRIEVAL_DELAY),

@@ -35806,12 +35806,19 @@ catalogue it walks either way.
    to wait on its own leftovers.
 
 §574's production behaviour is unchanged: the reaper, the share, the caps.
-`test_stage_marks`' tolerance is unchanged: locally the brief measures
-0.30-0.32s on Postgres, so the 0.69s was the slow server, not latency the
-test should allow.
+
+4. *`test_stage_marks` runs on a clock of its own.* The first CI run of
+   this branch failed it on SQLite too (0.42s for a 0.30s brief, a loaded
+   runner), so it was never only the database: the brief's span holds a
+   real `asyncio.sleep` and the real code around the stub, and the wall
+   clock charged both to the scheduler's mood. The episode's clock is now a
+   counter that moves only when a stub waits, by exactly what it waits;
+   every bound in the file is kept, and a stubbed wait moved outside its
+   span still shows up as `unaccounted`. The tolerance is not widened.
 
 **Tests:** `tests/test_db_tests_585.py` (the pool with faked dialling; three
-against a real Postgres); `test_every_http_request_is_marked_as_one` now
+against a real Postgres); `tests/test_stage_marks.py` on its own clock;
+`test_every_http_request_is_marked_as_one` now
 checks the app leaks no mark from a context of its own.
 
 **After, the same last 187 files:** 3,833 tests, 46m37s, all passing, no
