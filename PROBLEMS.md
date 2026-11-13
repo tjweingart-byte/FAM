@@ -36132,3 +36132,72 @@ others listened").
 **Tests:** four more in `tests/test_waitlist_notify.py`, one pinning the
 same words in both apps.
 
+## 594. A tour of the app after sign-up (2026-11-13)
+
+**Asked.** "A tutorial for FAM when someone first opens the app. This should
+walk them through all of the features, flow smoothly (with proper animations),
+and be skippable at any time."
+
+**Built.** Rule `tour` (`docs/claude/product.md`).
+* `Tour` in `static/index.html`: twelve steps over the real screens, a
+  spotlight hole (one element, its shadow dims the rest) that glides between
+  controls, a card above or below it (over the bottom of a control too tall
+  for either, the dailyFAM feed, with the hole cut short), a progress bar
+  counted over the steps that apply, Back, Next, Skip on every card,
+  Escape / arrow keys. It pauses under any sheet or modal and resumes on the
+  same step. Optional steps (friends' vibes) are passed over when their
+  control is not drawn. Trending searches was a step and became a sentence on
+  "Ask anything": it loads only when searchFAM opens, so the count changed
+  part-way.
+* Started by `finishIntro` (owed on the device, offered when clear) and from
+  `routeFirstScreen` after a reload; "Take the tour" in Settings replays it.
+  `surveyMomentFree` waits for it.
+* `preferences.tour_done` (column added like the others), written on finish
+  or skip, read back by `/api/preferences`, so another device does not offer
+  it again. The iOS client can read the same flag.
+* `tests/test_tour_594.py`; a smoke check that it opens after the first run,
+  Next walks to searchFAM, Back goes back, a sheet pauses it, Skip lands on
+  dailyFAM and is remembered.
+* CLAUDE.md was at its budget: four lines reworded to make room, no rule
+  changed.
+
+**Not verified here.** On a phone: the card's placement with large text, and
+the feel of the glide. The preview is a guest, so Messages and yourFAM show
+their sign-up doors behind the card; an account sees its own.
+
+## 595. The tour, once, for accounts from before it (2026-11-13)
+
+**Asked.** "Show it to existing users once too" (after §594, which offered
+the tour only at the end of sign-up).
+
+**Built.** `Tour.offerOnce`, called from `routeFirstScreen` (opening the app
+signed in) and `finishEntry` (signing in, or the first run ending). Owed on
+the device: offered. Otherwise, signed in and nothing remembered here: one
+`/api/preferences` read; `tour_done` false makes it owed and offers it,
+true is kept on the device as "done" so the server is not asked again.
+Finishing or skipping writes `tour_done` as before, so it is once per account,
+not per device. It still waits behind anything else on screen - in the
+preview the new-followers popup opened first and the tour followed it.
+`owe()` now marks a new account's first run owed even where an earlier
+account on the device had taken it. Rule `tour`; `tests/test_tour_594.py`.
+
+**Not verified here.** Against a real server with real accounts; the fetch
+was stubbed in the browser.
+
+**Double-checked (same day).** Four faults found reading it again, fixed:
+two quick taps past an optional step ran two moves at once and duplicated
+the Back history (a `seq` counter now drops any late callback, and Back
+walks the history down past the current step); a card with large text
+could run off the screen (`max-height`, scrolls inside); signing out kept
+the device's "done", so a second existing account on the phone was never
+offered it (`Tour.forget` on log-out); and a tour waiting to start could
+open for the next person to sign in (re-checked at the moment it starts,
+and an answer from `/api/preferences` is dropped if the account changed).
+Postgres: a duplicate column maps to the `OperationalError` already caught.
+
+**Moved onto Main.** Written as §586/§587 while Main took those numbers
+(the voice memo, the waitlist notices); renumbered §594/§595 on top of it,
+with `tests/test_tour_594.py`. The smoke check closes the new-followers
+popup that sign-up raises before it looks for the tour - the tour waits
+behind it, which the check now asserts - and a later check that runs the
+first run a second time marks its tour taken.

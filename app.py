@@ -8145,6 +8145,8 @@ class PreferenceRequest(BaseModel):
     searches_public: Optional[bool] = None
     #: §285: private search left on, for every search and Go Deeper.
     private_search: Optional[bool] = None
+    #: §594: the first run's tour finished or skipped.
+    tour_done: Optional[bool] = None
 
 
 def _interests_for(request: Request, given: str = "") -> tuple[str, ...]:
@@ -8477,7 +8479,8 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                            country=req.country,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done,
                            searches_public=req.searches_public,
-                           private_search=req.private_search)
+                           private_search=req.private_search,
+                           tour_done=req.tour_done)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Saved topics are also *picks*, and the log is what the ranker reads.
