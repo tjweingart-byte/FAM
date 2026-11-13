@@ -35745,3 +35745,76 @@ shared screen's bar inside its scroll view, and whether the ribbon's
 window really yields the status bar. Tests: eight `..._584` tests in
 `tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
 one in `test_client_contracts.py`.
+
+## 585. The Postgres job's slowdown was the test run's own catalogue (2026-11-13)
+
+**What was asked.** CI's Postgres job went from about two hours to 4h07m
+and slowed as it ran, ending `1 failed, 7272 passed, 68 skipped, 1 error`
+(job 131640962399): `test_stage_marks` measured the brief at 0.69s for 0.30,
+and `test_second_review_377`'s setup failed on `COMMIT` with "got no result
+from the query" beside "flushing failed: the connection is closed". The
+reading given was §574's background share throttling the test thread and
+`close_all` closing connections other threads still held.
+
+**Measured, against a local Postgres 16 (16.15), before any change.** Two
+slices with a probe logging every pool wait over 50 ms, threads, pool and
+server connections per test: the first 60 test files (697 tests, 9m40s) and
+the last 187 (3,833 tests, 47m41s, all passing). Not one wait on the
+background share, in either: the four waits recorded were connections being
+dialled. Threads stayed at 2-10, FAM held no server connection between
+tests, and the cheapest tenth of tests cost the same at the end as at the
+start (0.23-0.27 s). So the share is not what slowed the job.
+
+What did grow was the catalogue: each test makes its stores in its own
+directory, about fifteen schemas a test, and nothing dropped them -
+11,265 schemas after 700 tests, 67,624 (1.15 million relations, 8.4 GB)
+after the slice. `/api/health` sums every relation's size (`db.sizes`,
+§252) and `pg_database_size` walks every file: 12.7s at 27,000 schemas,
+68s at 67,000. The slowest tests in the second slice were the health
+checks - 64s, 52s, 45s, 27s, 19s, 12s - one every five minutes (the
+sizes' cache), each longer than the last. A full run reaches about
+110,000 schemas, and a catalogue walk that long on the server is what
+every other statement waits behind (the 0.39s inside a brief).
+
+**And on CI.** The step change came between #266 and #267, before #271:
+#266 ran on `postgres:16` = 16.15 and finished in 1h53m; from #267 on the
+image was 16.16, and #267, #271's merge and the failed run all slowed the
+same way (35% done at 36 min on #266; 54-69 min after). Not reproduced
+here (no 16.16 in this container), so whether 16.16 walks the catalogue
+more slowly is a reading, not a measurement; the fix below removes the
+catalogue it walks either way.
+
+**The fixes.**
+
+1. *Each test's schemas are dropped* (`db.drop_schemas_under`, called by
+   conftest's `close_database_connections` with the test's `tmp_path`):
+   `db.connect` remembers each schema's directory, and after a test the
+   schemas under its directory go, with what the process remembered about
+   them. About 25 ms a test. The catalogue stayed at under 200 schemas for
+   the whole second slice, and the health checks left the slowest forty.
+2. *`close_all` never closes a connection another thread holds*: idle
+   ones close at once, a lent one is marked and closed when it is given
+   back, and the counts (`open`, the background share) stay true while it
+   is out. The old one closed a straggling thread's connection mid-
+   statement - the "got no result from the query" error, and the
+   "connection is closed" a flusher logged - and zeroed the counts while
+   slots were still out.
+3. *The test thread is a request* (conftest `a_test_is_a_request`): never
+   held to the background share, as a listener's request is not; threads
+   the code starts are still background, as in production. Not the cause
+   of the slowdown - no wait was ever seen - but a test should not be able
+   to wait on its own leftovers.
+
+§574's production behaviour is unchanged: the reaper, the share, the caps.
+`test_stage_marks`' tolerance is unchanged: locally the brief measures
+0.30-0.32s on Postgres, so the 0.69s was the slow server, not latency the
+test should allow.
+
+**Tests:** `tests/test_db_tests_585.py` (the pool with faked dialling; three
+against a real Postgres); `test_every_http_request_is_marked_as_one` now
+checks the app leaks no mark from a context of its own.
+
+**After, the same last 187 files:** 3,833 tests, 46m37s, all passing, no
+test over 7.2s. Locally the whole saving is the health checks (about 3.5
+minutes of 47); on CI, where the walk is the slowdown, it should be most of
+the two extra hours - see the CI run on the branch.

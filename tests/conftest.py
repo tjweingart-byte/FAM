@@ -418,16 +418,35 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(autouse=True)
-def close_database_connections():
-    """With DATABASE_URL set (CI's Postgres job, §243), close every store's
-    connection after each test: a server keeps one per store per thread for
-    its life, and a test run makes stores in new directories thousands of
-    times. A no-op on SQLite."""
+def close_database_connections(tmp_path):
+    """With DATABASE_URL set (CI's Postgres job, §243), after each test:
+    close the pool's connections (idle ones now, ones a thread the test left
+    running still holds when it gives them back - never under it, §585), and
+    drop the schemas of the stores the test made in its own directory. Kept,
+    a run left a hundred thousand schemas, and everything that walks the
+    catalogue got slower test by test (§585). A no-op on SQLite."""
     yield
     import db
 
     if db.enabled():
         db.close_all()
+        db.drop_schemas_under(str(tmp_path))
+
+
+@pytest.fixture(autouse=True)
+def a_test_is_a_request():
+    """The test is the person waiting (§585): its own statements are never
+    held to the share background work gets (§574), as a request's are not.
+    Threads the code under test starts are still background, as they are in
+    production."""
+    import db
+
+    token = db.for_request()
+    yield
+    try:
+        db.end_request(token)
+    except ValueError:
+        pass  # the test ran on another context; nothing of ours to undo
 
 
 def config_environment_names() -> set:
