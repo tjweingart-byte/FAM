@@ -6282,7 +6282,7 @@ def carry_the_session(app):
             await app(scope, receive, send)
             return
         # Somebody sent this: its database work never waits on the share
-        # background work is held to (§573).
+        # background work is held to (§574).
         db_mod.for_request()
         request = Request(scope, receive)
         path = request.url.path

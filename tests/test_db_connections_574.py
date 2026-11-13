@@ -1,4 +1,4 @@
-"""fam-db's memory was its connections (§573).
+"""fam-db's memory was its connections (§574).
 
 With two people on the app, the database sat at 83% of its 256 MB: each
 server connection is a Postgres process holding memory, busy or idle, and

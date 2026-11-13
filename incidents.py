@@ -464,7 +464,7 @@ def from_usage() -> list:
                           if f.get("projected") else ""))
             recommended = f"Move up before the limit: {f.get('next') or 'see the plan page'}."
             if held:
-                # §573: a database's memory is mostly its connections, one
+                # §574: a database's memory is mostly its connections, one
                 # server process each - said, so idle ones are not paid for
                 # with a bigger plan.
                 problem += (f". It has {held['total']} connection(s) open: "
@@ -496,7 +496,7 @@ def from_usage() -> list:
 
 
 def _quantity(value, unit) -> str:
-    """A figure as a person reads it (§573): a memory under a GB in MB, as
+    """A figure as a person reads it (§574): a memory under a GB in MB, as
     the plan names it ("256 MB", never "0.26843546 GB")."""
     if value is None:
         return "?"

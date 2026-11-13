@@ -77,9 +77,9 @@ _CREATE_TABLE = re.compile(r"\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)"
 _SCHEMAS: set = set()
 #: Idle connections kept open beyond this many are closed.
 IDLE_KEPT = 8
-#: How often the pool looks for connections idle past `idle_seconds()` (§573).
+#: How often the pool looks for connections idle past `idle_seconds()` (§574).
 REAP_EVERY_SECONDS = 60.0
-#: Whether the work on this context is a request somebody sent (§573). Set by
+#: Whether the work on this context is a request somebody sent (§574). Set by
 #: `app.carry_the_session` for every HTTP request, and copied by
 #: `asyncio.to_thread` and the request's threadpool; anything else - an
 #: edition, a sweep, Keith's rounds, a thread a loop started - is background
@@ -100,7 +100,7 @@ def max_connections() -> int:
 
 
 def idle_seconds() -> float:
-    """An idle server connection unused this long is closed (§573): each one
+    """An idle server connection unused this long is closed (§574): each one
     is a Postgres process holding memory on the database, busy or not. Keep
     it under the server's `idle_session_timeout` (POSTGRES.md), so FAM hangs
     up first. 0 keeps them all."""
@@ -111,7 +111,7 @@ def idle_seconds() -> float:
 
 
 def background_connections() -> int:
-    """Most connections background work holds at once (§573), so an edition
+    """Most connections background work holds at once (§574), so an edition
     or a sweep never fills the pool a listener's request draws from."""
     try:
         wanted = int(os.environ.get("DATABASE_BACKGROUND_CONNECTIONS") or 4)
@@ -468,7 +468,7 @@ class _Pool:
         self._idle: list[_Slot] = []
         self._all: set = set()
         self._count = 0
-        #: Slots out of the pool on background work (§573).
+        #: Slots out of the pool on background work (§574).
         self._background: set = set()
         self._reaper: Optional[threading.Thread] = None
         self._closed_idle = 0
@@ -590,7 +590,7 @@ class _Pool:
 
     def _stale_locked(self, now: float) -> list:
         """Under the lock: take out the idle slots unused for `idle_seconds()`,
-        (§573)."""
+        (§574)."""
         limit = idle_seconds()
         if not limit or not self._idle:
             return []
@@ -676,7 +676,7 @@ def _close(slots) -> None:
 
 
 #: What FAM's connections call themselves on the server, so
-#: `pg_stat_activity` tells them from a shell or the copy tool's (§573).
+#: `pg_stat_activity` tells them from a shell or the copy tool's (§574).
 APPLICATION_NAME = "fam"
 
 _LOCK = threading.Lock()
@@ -1205,7 +1205,7 @@ def report() -> dict:
 
 
 def server_connections() -> Optional[dict]:
-    """Who holds connections on the database server, for Keith (§573):
+    """Who holds connections on the database server, for Keith (§574):
     every client connection by state (`active`, `idle`, ...), how many are
     FAM's (`APPLICATION_NAME`) and how many of those sit idle, the server's
     `max_connections`, and this process's pool. None without Postgres, or

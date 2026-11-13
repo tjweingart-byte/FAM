@@ -61,7 +61,7 @@ Then check `/api/health` → `database.backend` is `postgres` and
 Each FAM process keeps at most `DATABASE_MAX_CONNECTIONS` (20) open, and
 closes idle ones beyond 8. An idle connection is also closed after
 `DATABASE_IDLE_SECONDS` (300), since each is a Postgres
-process holding memory whether or not it is busy (§573). Background work -
+process holding memory whether or not it is busy (§574). Background work -
 editions, sweeps, Keith's rounds, anything not answering a request - holds at
 most `DATABASE_BACKGROUND_CONNECTIONS` (4) at once, so it never fills the pool a
 listener's request draws from. Connections are named `fam` on the server;
@@ -72,7 +72,7 @@ few for the shell and the copy tool) under the plan's limit: Render's plans
 allow from about 100 connections upward - check the plan page before
 raising either number.
 
-### The database's own safety net (§573)
+### The database's own safety net (§574)
 
 Postgres can close a session that has sat idle too long, whatever the client
 does. Set it once, from `fam-db`'s PSQL command (Render -> fam-db -> Connect):

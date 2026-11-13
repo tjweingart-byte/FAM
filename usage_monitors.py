@@ -667,7 +667,7 @@ async def read_render(now: Optional[datetime.datetime] = None, client=None) -> d
                     next_plan="grow the disk: $0.30/GB-month, in steps of 5 GB"))
             db_memory = await latest_gb("memory", db_id, f"{name}'s memory")
             db_limit = await latest_gb("memory-limit", db_id, f"{name}'s memory limit")
-            # Who holds connections on it (§573): each is a server process
+            # Who holds connections on it (§574): each is a server process
             # with memory of its own, busy or idle, so the memory figure
             # carries them - an idle pile is fixed in code, not by a plan.
             held = await asyncio.to_thread(_server_connections)

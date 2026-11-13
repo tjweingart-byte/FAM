@@ -35135,7 +35135,33 @@ released first, this upload needs 1.0.1 and a recut release record.
 `tests/test_ios_app_contract.py`; tree-sitter finds no ERROR or MISSING node
 in the 56 Swift files. Not compiled here.
 
-## 573. fam-db's memory was its connections (2026-11-13)
+**Build 6 failed in Xcode (2026-11-13):** "Invalid redeclaration of 'stage'"
+in `PlayerView`. #265 (the animations) added `@EnvironmentObject private var
+stage: PlayerStage` to a view that already had `private var stage: some View`
+(the picture, captions and side buttons); the two merged textually without a
+conflict, and tree-sitter parses a redeclaration as valid syntax. The object is
+now `playerStage`. A scan of every type in the 56 Swift files for a property
+name declared twice found no other.
+
+## 573. The phone number is optional at sign-up (2026-11-13)
+
+The owner: "The phone number shouldn't be required for signing." The 10.8
+packet had made a name **and** a phone number the first run's required
+fields, on both the app's identity step (`screen-identity`) and the waitlist's
+profile; "Skip for now" stayed disabled until seven digits were typed.
+
+Now only the name is required. The phone field stays on both first runs,
+labelled optional, and a blank one is not sent - `saveIdentityAccount` and the
+waitlist's `skipSetup` leave `phone` out of the body rather than posting `""`,
+so skipping never clears a number already on the account. The server never
+required one (`/api/signup` takes an email or a phone; `update_profile`
+accepts no phone), and the iPhone app's identity step never asked.
+
+**Tests:** `test_skip_waits_for_a_name_and_the_phone_is_optional` and
+`test_the_apps_first_run_offers_an_optional_phone_and_gates_skip_on_the_name`
+in `tests/test_implementations_108.py`.
+
+## 574. fam-db's memory was its connections (2026-11-13)
 
 **What was asked.** The owner, on Keith's open incident "render: fam-db
 memory at 83% of 0.26843546 GB (reopened 9 times)" with no more than two
@@ -35176,5 +35202,5 @@ them: "256 MB", not "0.26843546 GB" (`incidents._quantity`).
 PSQL, longer than FAM's five minutes. Tried here as a non-superuser owner
 on Postgres 16.
 
-**Tests:** `tests/test_db_connections_573.py` (the pool with faked dialling;
+**Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
 two against a real Postgres, run here on a local 16).
