@@ -581,3 +581,4 @@ and `limit` = Lines.
 | 35808 | 59 | 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13) |
 | 35867 | 20 | 588. Egan has his own section on /admin (2026-11-13) |
 | 35887 | 35 | 589. The iPhone crashed as the date of birth was tapped (2026-11-13) |
+| 35922 | 116 | 590. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13) |
