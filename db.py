@@ -77,7 +77,7 @@ _CREATE_TABLE = re.compile(r"\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)"
 #: Schemas this process has created (or found), so CREATE SCHEMA runs once.
 _SCHEMAS: set = set()
 #: schema -> the directory of the store file it was opened for, so the test
-#: suite can drop what one test made (`drop_schemas_under`, §599).
+#: suite can drop what one test made (`drop_schemas_under`, §604).
 _DIRS: dict = {}
 #: Every `Connection` still reachable, so a schema something can still use is
 #: never dropped (`drop_schemas_under`).
@@ -662,7 +662,7 @@ class _Pool:
 
     def close_all(self) -> int:
         """Close the idle connections now and every lent one as it comes
-        back (§599): closing a connection another thread is mid-statement on
+        back (§604): closing a connection another thread is mid-statement on
         failed that statement ("got no result from the query"), and zeroing
         the counts while slots were out let the pool's books drift."""
         with self._cond:
@@ -1010,7 +1010,7 @@ def connect(path, *args, **kwargs):
 
 def close_all() -> int:
     """Close every Postgres connection this process holds: the idle ones
-    now, and each one a thread still holds when it gives it back (§599).
+    now, and each one a thread still holds when it gives it back (§604).
 
     `tests/conftest.py` calls this after each test. Returns how many were
     closed or will be."""
@@ -1021,7 +1021,7 @@ def drop_schemas_under(directory: str) -> int:
     """Drop the schemas of every store opened under `directory`, and forget
     what this process remembered about them. How many were dropped.
 
-    For the test suite (§599): each test makes its stores in a directory of
+    For the test suite (§604): each test makes its stores in a directory of
     its own, about fifteen schemas a test, and a run of seven thousand tests
     left a hundred thousand of them - so everything that walks the catalogue
     (the health check's sizes, `pg_database_size`) got slower test by test.

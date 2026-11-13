@@ -214,6 +214,39 @@ class GenerationStats:
         if self.pending_synthesis_mark:
             marks.mark(self.pending_synthesis_mark)
             self.pending_synthesis_mark = ""
+
+    def note_headroom(self, made: float) -> float:
+        """Audio made so far less audio a listener could have played, kept as
+        `min_headroom`; below zero is silence, recorded once (§602).
+
+        **Counted from the first audio, never from the tap.** The wait in
+        front of the first word is the loading screen's, measured and shown
+        as its own steps (§263): nobody is listening to anything during it.
+        Counted from the tap, the first chunk of any episode whose first word
+        took longer than that chunk lasts was "the voice fell behind" - a
+        search with a brief and research in front of it, nearly every time -
+        and /admin read a wait as silence in the middle of an episode. The
+        first chunk is therefore never behind: playback starts with it.
+        Conservative still, because the app holds the audio until its last
+        loading step, so the listener's buffer is larger than this.
+        """
+        now = time.perf_counter() - self.started_at
+        played = now - self.first_audio_at if self.first_audio_at else 0.0
+        headroom = made - played
+        if headroom < self.min_headroom:
+            self.min_headroom = headroom
+        if headroom < 0 and not self.starved:
+            self.starved = True
+            log.warning(
+                "STARVED %.1fs into playback: only %.1fs of audio made. "
+                "The listener hears silence here. Synthesis so far: %.1fs.",
+                played, made, self.synth_seconds)
+            # The listener heard silence: on /admin's errors (§269).
+            pipeline_errors.record(
+                "episode", "voice fell behind",
+                f"silence {played:.1f}s into playback: {made:.1f}s of audio made",
+                self.query or self.title, pipeline_errors.NOTICE)
+        return headroom
     cache: str = "off"
     #: When generation began, for audio-produced vs wall-clock comparisons.
     started_at: float = field(default_factory=time.perf_counter)
@@ -685,29 +718,13 @@ class PodcastPipeline:
         stats.marks.add_chunk(fit.text, len(fit.spoken),
                               tts_done - synth_seconds, tts_done, audio_seconds)
         stats.synth_seconds += synth_seconds
-        elapsed_wall = time.perf_counter() - stats.started_at
-        headroom = pace.elapsed + audio_seconds - elapsed_wall
-        if headroom < stats.min_headroom:
-            stats.min_headroom = headroom
+        headroom = stats.note_headroom(pace.elapsed + audio_seconds)
         log.debug(
             "chunk %d: %d sentence(s), %.2fs audio in %.2fs (%.0fx realtime), "
             "headroom %.1fs", chunk.index, len(fit.spoken), audio_seconds,
             synth_seconds, audio_seconds / synth_seconds if synth_seconds else 0,
             headroom,
         )
-        if headroom < 0 and not stats.starved:
-            stats.starved = True
-            log.warning(
-                "STARVED after %.1fs: only %.1fs of audio made in %.1fs of wall clock. "
-                "The listener hears silence here. Synthesis so far: %.1fs.",
-                elapsed_wall, pace.elapsed + audio_seconds, elapsed_wall, stats.synth_seconds,
-            )
-            # The listener heard silence: on /admin's errors (§269).
-            pipeline_errors.record(
-                "episode", "voice fell behind",
-                f"silence after {elapsed_wall:.1f}s: {pace.elapsed + audio_seconds:.1f}s "
-                f"of audio made", stats.query or stats.title,
-                pipeline_errors.NOTICE)
         # Where each sentence starts in the audio, measured before this chunk
         # is counted, so the caption panel follows the voice rather than
         # estimating it (§127).
@@ -808,28 +825,12 @@ class PodcastPipeline:
         # number that matters, and it is logged for every sentence.
         audio_seconds = pcm_duration(len(pcm), self.engine.sample_rate)
         stats.synth_seconds += synth_seconds
-        elapsed_wall = time.perf_counter() - stats.started_at
-        headroom = pace.elapsed + audio_seconds - elapsed_wall
-        if headroom < stats.min_headroom:
-            stats.min_headroom = headroom
+        headroom = stats.note_headroom(pace.elapsed + audio_seconds)
         log.debug(
             "sentence %d: %.2fs audio in %.2fs (%.0fx realtime), headroom %.1fs",
             stats.sentences + 1, audio_seconds, synth_seconds,
             audio_seconds / synth_seconds if synth_seconds else 0, headroom,
         )
-        if headroom < 0 and not stats.starved:
-            stats.starved = True
-            log.warning(
-                "STARVED after %.1fs: only %.1fs of audio made in %.1fs of wall clock. "
-                "The listener hears silence here. Synthesis so far: %.1fs.",
-                elapsed_wall, pace.elapsed + audio_seconds, elapsed_wall, stats.synth_seconds,
-            )
-            # The listener heard silence: on /admin's errors (§269).
-            pipeline_errors.record(
-                "episode", "voice fell behind",
-                f"silence after {elapsed_wall:.1f}s: {pace.elapsed + audio_seconds:.1f}s "
-                f"of audio made", stats.query or stats.title,
-                pipeline_errors.NOTICE)
         stats.marks.add_chunk(sentence, 1, tts_done - synth_seconds, tts_done,
                               pcm_duration(len(pcm), self.engine.sample_rate))
         start = pace.elapsed

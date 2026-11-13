@@ -239,3 +239,31 @@ def test_a_half_minute_share_asks_for_its_picture_at_its_own_length(
     appmod._PREVIEWS.clear()
     assert client.get(f"/api/share/{made['share']['id']}/preview.jpg").status_code == 200
     assert asked == [1.5]
+
+
+def test_a_share_names_its_link_picture_for_a_rich_link(client):
+    """The app hands Messages and Mail the link with its picture (§601), so
+    they send the tile a pasted link makes; the share answer says where the
+    picture is."""
+    made = client.post("/api/share", json={
+        "query": "why bonds move", "minutes": 3, "title": "Bonds"}).json()
+    assert made["preview"].endswith(f"/api/share/{made['share']['id']}/preview.jpg")
+
+
+def test_the_link_picture_fits_under_whatsapps_limit():
+    """WhatsApp drops a preview image over about 300 KB (§601). A noisy
+    photo is the worst case for JPEG size."""
+    import io
+    import random
+
+    from PIL import Image
+
+    import link_preview
+
+    rng = random.Random(7)
+    noisy = Image.frombytes("RGB", (1200, 1200),
+                            bytes(rng.getrandbits(8) for _ in range(1200 * 1200 * 3)))
+    buf = io.BytesIO()
+    noisy.save(buf, format="PNG")
+    data = link_preview.draw(buf.getvalue(), "Title", 3)
+    assert data and len(data) <= link_preview.MAX_BYTES

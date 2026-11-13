@@ -37,6 +37,9 @@ log = logging.getLogger(__name__)
 
 SIZE = 1200
 QUALITY = 86
+#: WhatsApp drops a link preview whose image is over about 300 KB (§601),
+#: so the link picture steps its quality down until it fits under this.
+MAX_BYTES = 280_000
 INK = (24, 21, 31)
 PAPER = (244, 239, 228)
 COPPER = (224, 181, 99)
@@ -230,9 +233,18 @@ def draw(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes
     """The preview as JPEG bytes; `None` only if Pillow itself fails."""
     try:
         im = _preview(picture, title, minutes)
-        out = io.BytesIO()
-        im.save(out, format="JPEG", quality=QUALITY, optimize=True)
-        return out.getvalue()
+        data = b""
+        # Quality first; a picture still too big after that (very fine
+        # detail) is drawn smaller, which every previewer scales anyway.
+        for side in (SIZE, 960, 800, 640):
+            frame = im if side == SIZE else im.resize((side, side))
+            for quality in (QUALITY, 80, 74, 68, 60):
+                out = io.BytesIO()
+                frame.save(out, format="JPEG", quality=quality, optimize=True)
+                data = out.getvalue()
+                if len(data) <= MAX_BYTES:
+                    return data
+        return data
     except Exception:  # noqa: BLE001 - a preview is never worth a 500
         log.exception("link preview: could not draw")
         return None

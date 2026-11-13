@@ -407,6 +407,11 @@ class Brief:
     degraded: bool = False
     #: Why it degraded, or why the gate intervened. For the log and /api/health.
     notes: list = field(default_factory=list)
+    #: **The framing still on its way** (§603): the `frame` part's task
+    #: while searchFAM's research runs, merged by `finish` before the writer.
+    #: Never compared, never shown; None once merged or when there is none.
+    framing_task: object = field(default=None, repr=False, compare=False)
+    framing_path: str = field(default="search", repr=False, compare=False)
 
     @property
     def retrieval(self) -> str:
@@ -435,7 +440,15 @@ class Brief:
         return self.category_path[-1] if len(self.category_path) > 1 else ""
 
     def as_dict(self) -> dict:
-        return dataclasses.asdict(self)
+        # The framing still on its way is a task, never data (§603).
+        pending, self.framing_task = self.framing_task, None
+        try:
+            out = dataclasses.asdict(self)
+        finally:
+            self.framing_task = pending
+        out.pop("framing_task", None)
+        out.pop("framing_path", None)
+        return out
 
 
 def place_category(brief: "Brief") -> "Brief":
@@ -1288,6 +1301,26 @@ PARTS = {
                "forecast_query", "source_kind"),
 }
 
+#: **The framing, apart from the routing** (§603, at the owner's direction).
+#: Of the understanding part's fields, only these are read by nobody but
+#: the writer - research, the live providers, the gate's window and C3P0's
+#: plan read the rest - and the writer starts only once the evidence is in.
+#: With `EI_FRAME_APART=1` they are their own call, `frame`, and on searchFAM
+#: the search waits for the smaller `understand` alone while `frame` finishes
+#: beside the research (`finish`, awaited before the writer).
+FRAME_FIELDS = ("why_now", "structure", "cautions")
+
+
+def parts_asked() -> dict:
+    """The fields each part of the brief asks for, as settings have it now:
+    `PARTS`, with `FRAME_FIELDS` moved to `frame` when the framing is apart."""
+    if not settings.ei_frame_apart:
+        return dict(PARTS)
+    return {"understand": tuple(f for f in PARTS["understand"]
+                                if f not in FRAME_FIELDS),
+            "frame": FRAME_FIELDS,
+            "search": PARTS["search"]}
+
 
 def _schema_for(fields) -> dict:
     """`BRIEF_SCHEMA` cut to these fields - the same definitions, never a
@@ -1304,6 +1337,10 @@ def _schema_for(fields) -> dict:
 
 UNDERSTAND_SCHEMA = _schema_for(PARTS["understand"])
 SEARCH_SCHEMA = _schema_for(PARTS["search"])
+#: The routing part and the framing part, when the framing is apart (§603).
+ROUTE_SCHEMA = _schema_for(tuple(f for f in PARTS["understand"]
+                                 if f not in FRAME_FIELDS))
+FRAME_SCHEMA = _schema_for(FRAME_FIELDS)
 
 #: **The third part: the plan of the piece** (§270, at the owner's direction).
 #: Written from the question alone, beside the other two, so the writer is
@@ -1363,6 +1400,8 @@ question"). Never a question, a tease, or what happens next."""
 FORMATS = {
     "whole": {"type": "json_schema", "schema": BRIEF_SCHEMA},
     "understand": {"type": "json_schema", "schema": UNDERSTAND_SCHEMA},
+    "route": {"type": "json_schema", "schema": ROUTE_SCHEMA},
+    "frame": {"type": "json_schema", "schema": FRAME_SCHEMA},
     "search": {"type": "json_schema", "schema": SEARCH_SCHEMA},
     "outline": {"type": "json_schema", "schema": OUTLINE_SCHEMA},
 }
@@ -1601,7 +1640,12 @@ def ei_system():
     if not settings.prompt_cache:
         return text
     marker: dict = {"type": "ephemeral"}
-    if str(settings.prompt_cache_ttl or "").strip() == "1h":
+    # Its own cache life (§602), an hour unless set: searches come minutes
+    # apart, and a cold read of these instructions is time in front of the
+    # first word. Empty follows the writer's `PROMPT_CACHE_TTL`.
+    ttl = (str(settings.ei_prompt_cache_ttl or "").strip()
+           or str(settings.prompt_cache_ttl or "").strip())
+    if ttl == "1h":
         marker["ttl"] = "1h"
     return [{"type": "text", "text": text, "cache_control": marker}]
 
@@ -1618,6 +1662,105 @@ _SECONDS: dict = {"search": collections.deque(maxlen=SECONDS_KEPT),
                   "ahead": collections.deque(maxlen=SECONDS_KEPT)}
 #: How each half of a split brief ended - or the one call, as `whole`.
 _PART_OUTCOMES: dict = {}
+#: **Where a brief's seconds go** (§602), per part, over its last
+#: `SECONDS_KEPT` answers: how long the call took, how many tokens it wrote
+#: (thinking and JSON together), and how much of its instructions it read
+#: from the cache. Seconds alone could not say whether a slow brief thought
+#: for longer, was served slowly, or read its instructions cold - and each
+#: has a different cure.
+_PART_USAGE: dict = {}
+
+
+def brief_ceiling(ahead: bool = False) -> Optional[float]:
+    """The brief's time limit on this path, or None for none (§602).
+
+    None by default: the owner's direction is that a brief is waited for,
+    never given up on for being slow, because a brief given up on is a
+    plainer episode. `EI_TIMEOUT_SECONDS` / `EI_AHEAD_TIMEOUT_SECONDS` above
+    0 put §268's ceilings back."""
+    value = float(settings.ei_ahead_timeout_seconds if ahead
+                  else settings.ei_timeout_seconds)
+    return value if value > 0 else None
+
+
+def _note_usage(part: str, seconds: float, usage) -> None:
+    """One part's call, kept for `report` (§602). Never raises."""
+    try:
+        _PART_USAGE.setdefault(part, collections.deque(maxlen=SECONDS_KEPT)).append({
+            "seconds": round(float(seconds), 3),
+            "output": int(getattr(usage, "output_tokens", 0) or 0),
+            "cache_read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
+            "cache_write": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
+            "uncached": int(getattr(usage, "input_tokens", 0) or 0),
+        })
+    except Exception:  # noqa: BLE001 - a measurement never costs a brief
+        pass
+
+
+#: How each part's second calls went (§603): `started` (the first was slow),
+#: `second_won` (the second answered first) - the number that says whether
+#: `EI_HEDGE_SECONDS` buys anything.
+_HEDGES: dict = {}
+
+
+async def _hedged(make, after: float, part: str):
+    """`make()`'s answer - and, when it has not come within `after` seconds,
+    whichever of it and one identical second call answers first (§603).
+
+    The same request at the same effort, so the answer is the same kind of
+    answer: what it cures is a call that was slow for the service's reasons
+    (queued, a slow host), not one that thought for longer. The one not
+    taken is cancelled. When one fails the other is still waited for; only
+    both failing raises (the first's error). `after` of 0 is one call."""
+    first = asyncio.ensure_future(make())
+    if not after or after <= 0:
+        return await first
+    second = None
+    try:
+        done, _ = await asyncio.wait({first}, timeout=after)
+        if done:
+            return first.result()
+        counts = _HEDGES.setdefault(part, collections.Counter())
+        counts["started"] += 1
+        second = asyncio.ensure_future(make())
+        pending = {first, second}
+        error = None
+        while pending:
+            done, pending = await asyncio.wait(
+                pending, return_when=asyncio.FIRST_COMPLETED)
+            for task in (first, second):
+                if task not in done:
+                    continue
+                if task.exception() is None:
+                    if task is second:
+                        counts["second_won"] += 1
+                    return task.result()
+                error = error or task.exception()
+        raise error
+    finally:
+        for task in (first, second):
+            if task is not None and not task.done():
+                task.cancel()
+
+
+def _usage_report() -> dict:
+    """Per part: tokens written, how fast, and how often the cache served."""
+    out = {}
+    for part, rows in _PART_USAGE.items():
+        rows = list(rows)
+        if not rows:
+            continue
+        rates = [r["output"] / r["seconds"] for r in rows if r["seconds"] > 0]
+        out[part] = {
+            "n": len(rows),
+            "output_tokens": _spread([r["output"] for r in rows]),
+            "tokens_per_second": _spread([round(x, 1) for x in rates]),
+            # Calls that read their instructions from the cache, and those
+            # that wrote them (a cold read).
+            "cache_hits": sum(1 for r in rows if r["cache_read"] > 0),
+            "cache_writes": sum(1 for r in rows if r["cache_write"] > 0),
+        }
+    return out
 
 
 def _count(kind: str, path: str) -> None:
@@ -1636,28 +1779,42 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
                    + OUTLINE_GUIDE)
     else:
         content = build_ei_prompt(query, minutes, context, now, covered,
-                                  None if part == "whole" else PARTS[part],
+                                  None if part == "whole" else parts_asked()[part],
                                   reading=reading)
-    try:
-        response = await asyncio.wait_for(
-            client.messages.create(
-                model=settings.ei_model,
-                max_tokens=settings.ei_max_tokens,
-                system=ei_system(),
-                output_config={
-                    "effort": settings.ei_effort,
-                    "format": FORMATS[part],
-                },
-                messages=[{"role": "user", "content": content}],
-            ),
-            timeout=timeout,
+    # The routing part's own answer shape when the framing is apart (§603).
+    shape = (FORMATS["route"] if part == "understand" and settings.ei_frame_apart
+             else FORMATS[part])
+    began = time.monotonic()
+
+    def make():
+        return client.messages.create(
+            model=settings.ei_model,
+            max_tokens=settings.ei_max_tokens,
+            system=ei_system(),
+            output_config={
+                "effort": settings.ei_effort,
+                "format": shape,
+            },
+            messages=[{"role": "user", "content": content}],
         )
+
+    # A second, identical call when a listener is waiting and the first is
+    # slow (§603): never on the outline, which has its own grace.
+    hedge = (float(settings.ei_hedge_seconds or 0)
+             if path == "search" and part != "outline" else 0.0)
+    try:
+        call = _hedged(make, hedge, part)
+        # No limit unless one is set (§602): a slow brief is waited for.
+        response = await (call if not timeout or timeout <= 0
+                          else asyncio.wait_for(call, timeout=timeout))
     except asyncio.TimeoutError:
-        return "timeout", None, f"EI did not answer within {timeout:g}s"
+        return "timeout", None, (f"EI did not answer within {timeout:g}s" if timeout
+                                 else "EI's call timed out at the client")
     except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis here
         return "failed", None, f"EI call failed: {exc}"
 
     metering.fold_call(notes, settings.ei_model, getattr(response, "usage", None))
+    _note_usage(part, time.monotonic() - began, getattr(response, "usage", None))
 
     # `output_config.format` guarantees valid JSON in the first text block -
     # but a refusal stops before any of that, and a refusal parsed as a brief
@@ -1712,8 +1869,15 @@ def _search_fields(data: dict, query: str) -> dict:
 
 async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
                      notes=None, now: str | None = None, covered=(),
-                     ahead: bool = False, reading: str = "") -> Brief:
+                     ahead: bool = False, reading: str = "",
+                     defer_framing: bool = False) -> Brief:
     """Work out what this request is, before anything is retrieved.
+
+    `defer_framing` (§603): with the framing apart (`EI_FRAME_APART`), a
+    caller that will await `finish(brief)` before the writer may take the
+    brief as soon as the routing and search parts are in; the framing part
+    is left running on `brief.framing_task`. Only searchFAM's `prepare`
+    asks for it; ahead of the tap the whole brief is waited for.
 
     Never raises. Every failure path returns `fallback_brief`, which searches
     the raw query - the behaviour this layer replaced - so an EI outage costs
@@ -1746,11 +1910,12 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
 
     now = now or listener_clock.now_line()
     path = "ahead" if ahead else "search"
-    timeout = float(settings.ei_ahead_timeout_seconds if ahead
-                    else settings.ei_timeout_seconds)
+    timeout = brief_ceiling(ahead)
     parts = ("understand", "search") if settings.ei_split else ("whole",)
+    framed_apart = len(parts) == 2 and bool(settings.ei_frame_apart)
     started = time.monotonic()
     outline = None
+    frame_task = None
     # C3P0 rides in the search half when he works on this episode (§375):
     # the same call, at the same moment, through the agent layer. Nando's
     # candidate nodes go with it when Nando works too.
@@ -1792,6 +1957,12 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
                                               candidates, fallback, reading=reading)
 
         main = asyncio.gather(*(_timed(part, path, ask(part), notes) for part in parts))
+        if framed_apart:
+            # The framing, started with the rest and never holding the
+            # search (§603).
+            frame_task = asyncio.ensure_future(_timed("frame", path, _ask(
+                client, "frame", query, minutes, context, now,
+                tuple(covered or ()), timeout, notes, path, reading=reading)))
         outline_task = None
         if len(parts) == 2 and settings.ei_outline:
             outline_task = asyncio.ensure_future(_timed(
@@ -1803,6 +1974,8 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         except BaseException:
             if outline_task is not None:
                 outline_task.cancel()
+            if frame_task is not None:
+                frame_task.cancel()
             raise
         if outline_task is not None and answers[0][0] != "ok":
             # A degraded brief shows no plan, so it is not waited for
@@ -1810,6 +1983,15 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
             outline_task.cancel()
         elif outline_task is not None:
             outline = await _outline_by(outline_task, ahead, started, timeout)
+        if frame_task is not None and not (defer_framing and not ahead):
+            # Nobody is waiting, or nobody will finish it later: waited for
+            # here, so the brief comes back whole.
+            try:
+                answer = await frame_task
+            except BaseException:
+                frame_task.cancel()
+                raise
+            frame_task = _Answered(answer)
     _SECONDS.setdefault(path, collections.deque(maxlen=SECONDS_KEPT)).append(
         round(time.monotonic() - started, 3))
     for part, (kind, _data, _why) in zip(parts, answers):
@@ -1842,7 +2024,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
             brief.notes.append("the search half answered; its searches are kept")
             brief.contextualized = dict(search.get("_c3p0") or {})
             brief = gate(brief, query)
-        return brief
+        return _with_framing(brief, frame_task, path)
 
     data = dict(head)
     if len(parts) == 2:
@@ -1877,7 +2059,13 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
             # The writer plans the piece itself, as it did before §270.
             brief.notes.append(f"the outline did not answer ({outline[0]}): "
                                f"{outline[2]}")
+    if frame_task is not None:
+        # Until the framing is in, the shape its intent reaches for and no
+        # why-now claimed - so the gate repairs nothing that is merely late.
+        brief.structure = INTENT_STRUCTURE.get(brief.intent, "general")
+        brief.why_now_confidence = "low"
     brief = gate(brief, query)
+    brief = _with_framing(brief, frame_task, path)
     _count("ok", path)
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "
              "why_now=%s(%s) search=%r fallback=%r [%s, %.2fs]", query,
@@ -1886,6 +2074,103 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
              brief.why_now or "-", brief.why_now_confidence, brief.retrieval,
              brief.broader, path, _SECONDS[path][-1])
     return brief
+
+
+class _Answered:
+    """A framing answer already in hand, shaped like the task `finish`
+    awaits, so a whole brief and a deferred one go through one merge."""
+
+    def __init__(self, answer):
+        self.answer = answer
+
+    def done(self) -> bool:
+        return True
+
+    def cancel(self) -> None:
+        pass
+
+    def __await__(self):
+        if False:  # pragma: no cover - makes this a generator
+            yield
+        return self.answer
+
+
+def _with_framing(brief: Brief, frame_task, path: str) -> Brief:
+    """The framing merged now if it is in, else left on the brief for
+    `finish` (§603). No framing part: the brief as it was."""
+    if frame_task is None:
+        return brief
+    if isinstance(frame_task, _Answered):
+        _frame_into(brief, frame_task.answer, path)
+        return brief
+    brief.framing_task = frame_task
+    brief.framing_path = path
+    return brief
+
+
+def _frame_into(brief: Brief, answer: tuple, path: str) -> None:
+    """The framing part's fields onto the brief, held to the gate's own
+    rules for them (§603). Never raises.
+
+    The cautions code already put first - "nothing confirmed yet" on a
+    result, a named broadcast slot's - stay first; the model's follow, to
+    six. A framing that failed leaves the intent's shape and no why-now,
+    and says so: the brief is not degraded, the writer plans from less."""
+    kind, data, why = answer
+    _PART_OUTCOMES.setdefault("frame", collections.Counter())[kind] += 1
+    if kind != "ok" or not isinstance(data, dict):
+        brief.notes.append(f"the framing did not answer ({kind}): {why}")
+        pipeline_errors.record("brief", f"framing {kind} ({path})", why,
+                               brief.query, pipeline_errors.NOTICE)
+        return
+    try:
+        structure = str(data.get("structure", "") or "")
+        if structure in PICKABLE_STRUCTURES:
+            brief.structure = structure
+        brief.why_now = str(data.get("why_now", "") or "")
+        confidence = str(data.get("why_now_confidence", "") or "")
+        brief.why_now_confidence = (confidence if confidence in ("high", "medium", "low")
+                                    else "low")
+        if not brief.why_now.strip():
+            brief.why_now_confidence = "low"
+        kept = list(brief.cautions or [])
+        for caution in data.get("cautions") or []:
+            text = str(caution or "").strip()
+            if text and text not in kept:
+                kept.append(text)
+        brief.cautions = kept[:6]
+    except Exception as exc:  # noqa: BLE001 - the brief stands without it
+        brief.notes.append(f"the framing could not be read: {exc}")
+
+
+async def finish(brief):
+    """The brief whole: its framing awaited and merged, when `understand`
+    left it running (§603). Called by `prepare` once the evidence is in,
+    before anything reads the framing; with nothing pending, at once."""
+    task = getattr(brief, "framing_task", None)
+    if brief is None or task is None:
+        return brief
+    brief.framing_task = None
+    try:
+        answer = await task
+    except asyncio.CancelledError:
+        task.cancel()
+        raise
+    except Exception as exc:  # noqa: BLE001 - never costs the episode
+        answer = ("failed", None, f"{type(exc).__name__}: {exc}")
+    _frame_into(brief, answer, getattr(brief, "framing_path", "search"))
+    return brief
+
+
+def abandon(brief) -> None:
+    """Cancel a framing nobody will read (a listener who left). Never raises."""
+    task = getattr(brief, "framing_task", None)
+    if task is not None:
+        try:
+            task.cancel()
+        except Exception:  # noqa: BLE001
+            pass
+        brief.framing_task = None
 
 
 #: The episode mark the loading screen's first step waits for (§288): the
@@ -1919,7 +2204,10 @@ async def _outline_by(task, ahead: bool, started: float, timeout: float) -> tupl
     brief by more than that; ahead it has the brief's whole ceiling.
     """
     if ahead:
-        wait = max(0.0, timeout - (time.monotonic() - started))
+        # Ahead, all of the brief's ceiling - and with none (§602), as long
+        # as the outline takes: nobody is waiting.
+        wait = (None if timeout is None
+                else max(0.0, timeout - (time.monotonic() - started)))
     else:
         wait = float(settings.ei_outline_grace_seconds)
     try:
@@ -2186,6 +2474,14 @@ def report() -> dict:
         "outline_grace_seconds": settings.ei_outline_grace_seconds,
         "examples": bool(settings.ei_examples),
         "ahead_timeout_seconds": settings.ei_ahead_timeout_seconds,
+        # 0 is no limit (§602); and where each part's seconds go.
+        "prompt_cache_ttl": (settings.ei_prompt_cache_ttl
+                             or settings.prompt_cache_ttl),
+        "parts_usage": _usage_report(),
+        # The framing apart from the routing, and the second calls (§603).
+        "frame_apart": bool(settings.ei_split and settings.ei_frame_apart),
+        "hedge_seconds": settings.ei_hedge_seconds,
+        "hedges": {p: dict(c) for p, c in _HEDGES.items()},
         "default_recency_days": settings.ei_default_recency_days,
         "intents": list(INTENTS),
         "structures": [s for s in PICKABLE_STRUCTURES if s != "general"],

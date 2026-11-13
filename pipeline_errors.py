@@ -571,6 +571,18 @@ def _ex(title: str, what: str, heard: str, causes: str, act: str) -> dict:
 #: first match wins; the stage's own entry (pattern "") is the fallback, so a
 #: kind added later still says which part of making an episode it is.
 EXPLAIN = (
+    ("brief", r"^framing",
+     _ex("The brief's framing did not answer",
+         "The brief's framing - why it is asked now, the story's shape and "
+         "what the writer must be careful of - is its own call since §603, "
+         "and it failed.",
+         "Nothing missing from the search: the episode was searched and "
+         "written as planned, shaped by its intent, with only the cautions "
+         "code adds.",
+         "The brief model was busy or failed; a timeout only if "
+         "EI_TIMEOUT_SECONDS is set.",
+         "Act only if it is most episodes; EI_FRAME_APART=0 puts the framing "
+         "back in the understanding part.")),
     ("brief", r"^search half",
      _ex("Half the brief did not answer",
          "The brief is asked in parts at once. The part that plans the searches "
@@ -585,11 +597,12 @@ EXPLAIN = (
          "not answer before its deadline, so the episode went ahead without it.",
          "A plainer episode: it was searched with the question as typed, with no "
          "plan of the piece and no pronunciations.",
-         "The brief model was slow (a busy hour at Anthropic), or the question "
-         "needed a long answer. '(search)' means a listener was waiting; "
-         "'(ahead)' means prefetch or an edition.",
-         "If it is more than a few a day, raise EI_TIMEOUT_SECONDS or check "
-         "Anthropic's status page.")),
+         "Since §602 the brief has no time limit, so this appears only when "
+         "EI_TIMEOUT_SECONDS (or EI_AHEAD_TIMEOUT_SECONDS) is set above 0, or "
+         "the model client's own ten-minute timeout ran out. '(search)' means "
+         "a listener was waiting; '(ahead)' means prefetch or an edition.",
+         "Set EI_TIMEOUT_SECONDS=0 to wait for the brief; if the client's "
+         "timeout ran out, check Anthropic's status page.")),
     ("brief", r"^out_of_room",
      _ex("The brief ran out of room",
          "The brief's answer was cut off at its token limit before it finished.",
@@ -815,11 +828,15 @@ EXPLAIN = (
          "written as soon as it answers again.")),
     ("episode", r"^voice fell behind",
      _ex("The voice fell behind",
-         "The voice made audio slower than it was played, so the listener "
-         "heard silence part-way through.",
+         "After playback started, the voice made audio slower than it was "
+         "played, so the listener heard silence part-way through. Counted "
+         "from the first audio since §602; before it, the wait before the "
+         "first word was counted too, so most older rows were not silence.",
          "A gap of silence in the middle of the episode.",
-         "The GPU was slow or shared, or the network to it was.",
-         "A run of these means the voice worker needs a faster GPU.")),
+         "The GPU was slow or shared, the network to it was, or listeners "
+         "voiced at once took turns on the one always-on worker (§578).",
+         "A run of these means more active workers (REMOTE_VOICE_ACTIVE_WORKERS "
+         "with the console's) or a faster GPU.")),
 )
 _EXPLAIN = [(stage, re.compile(pattern, re.I), words)
             for stage, pattern, words in EXPLAIN]

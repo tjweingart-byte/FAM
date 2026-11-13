@@ -820,7 +820,8 @@ struct ShareSheet: View {
                                 isPublic: link.public ?? true,
                                 card: link.card ?? "",
                                 storyImage: link.storyImage ?? "",
-                                storySticker: link.storySticker ?? "") { dismiss() }
+                                storySticker: link.storySticker ?? "",
+                                preview: link.preview ?? "") { dismiss() }
             } else {
                 Text(problem.isEmpty ? "Making a link\u{2026}" : problem)
                     .font(FAMFont.body(12))

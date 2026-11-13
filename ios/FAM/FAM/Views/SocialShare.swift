@@ -197,6 +197,9 @@ struct ShareTargetRows: View {
     /// which keep `card`.
     var storyImage: String = ""
     var storySticker: String = ""
+    /// The link's preview picture (`preview` on `/api/share`, §601):
+    /// handed to Messages and Mail with the link so they send the tile.
+    var preview: String = ""
     let done: () -> Void
     @State private var activity: [Any]?
     @State private var making = false
@@ -256,10 +259,16 @@ struct ShareTargetRows: View {
         }
     }
 
+    /// The two that open iOS's share sheet with a rich link (§601) rather
+    /// than their `destination`: `sms:` and `mailto:` put the link in as
+    /// typed text, which Messages and Mail send bare, without the picture.
+    static let richLinked: Set<String> = ["sms", "email"]
+
     /// Which way a tap goes, said on the tile (`shareHint`).
     private func hint(_ key: String, _ t: ShareTarget) -> String {
         if key == "copy" { return "clipboard" }
         if t.needsImage == true { return "card" }
+        if Self.richLinked.contains(key), absoluteLink != nil { return "share sheet" }
         let destination = t.destination ?? ""
         return destination.isEmpty ? "share sheet" : "opens"
     }
@@ -312,6 +321,10 @@ struct ShareTargetRows: View {
             done()
             return
         }
+        if Self.richLinked.contains(key), let link = absoluteLink {
+            shareRich(key, t, link: link, text: text)
+            return
+        }
         if let destination = t.destination, !destination.isEmpty, let link = URL(string: destination) {
             let dropsText = key == "facebook" || key == "linkedin"
             if dropsText { UIPasteboard.general.string = text }
@@ -328,6 +341,46 @@ struct ShareTargetRows: View {
             activity = [link]
         } else {
             activity = [ShareTextItem(text: text, subject: t.subject ?? "")]
+        }
+    }
+
+    /// The share link when it is one another phone can open; a relative one
+    /// (no public address) keeps the old route.
+    private var absoluteLink: URL? {
+        guard let link = URL(string: url), let scheme = link.scheme,
+              scheme == "https" || scheme == "http" else { return nil }
+        return link
+    }
+
+    /// The episode's (or mix's) title: the story destinations' words are
+    /// exactly that (`{title}` / `{name}`).
+    private var linkTitle: String {
+        targets["instagram_story"]?.text ?? targets["snapchat_story"]?.text ?? ""
+    }
+
+    /// iMessage and Email (§601): the share sheet with the link as a rich
+    /// link - its title and the server's preview picture - so Messages and
+    /// Mail send the tile, as they do for a pasted link. Email keeps its
+    /// words and subject above the link (the link itself taken out of the
+    /// words, as the tile carries it).
+    private func shareRich(_ key: String, _ t: ShareTarget, link: URL, text: String) {
+        guard !making else { return }
+        making = true
+        let api = model.api
+        let address = preview
+        let title = linkTitle
+        Task {
+            defer { making = false }
+            let image = await api.linkPreviewImage(address)
+            let item = RichLinkItem(url: link, title: title, image: image)
+            if key == "email" {
+                let words = text.replacingOccurrences(of: url, with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                activity = words.isEmpty ? [item]
+                    : [ShareTextItem(text: words, subject: t.subject ?? title), item]
+            } else {
+                activity = [item]
+            }
         }
     }
 

@@ -223,7 +223,7 @@ def test_every_http_request_is_marked_as_one(monkeypatch):
         return db._FOR_REQUEST.get()
 
     # In a context of its own: the test itself is marked as a request
-    # (conftest, §599), and what is checked is that the app leaks no mark.
+    # (conftest, §604), and what is checked is that the app leaks no mark.
     assert contextvars.Context().run(call) is False  # not leaked to the caller
     assert seen and all(seen)
 

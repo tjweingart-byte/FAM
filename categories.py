@@ -235,6 +235,12 @@ SOURCE_OWNER = "owner"
 #: placer may not move; `added` marks the owner's own node.
 OWNER_ACTIONS = ("added", "placed", "removed", "merged")
 
+#: The sources a phrase the placer declined (§599) may not come back from:
+#: what three listeners typed, and the levels a model names. A live story's
+#: subject, the writer's words, the seed and the owner are judged elsewhere
+#: and are never declined.
+DECLINABLE = (SOURCE_SEARCH, SOURCE_MODEL)
+
 _WORD = re.compile(r"[a-z0-9]+")
 
 #: What an unknown node's word set reads as. Never a subset of anything real,
@@ -518,7 +524,17 @@ class CategoryStore:
                        reason  TEXT NOT NULL DEFAULT ''
                    )"""
             )
+            # §599: phrases grown from searches that the placer said are not
+            # subjects ("company", "development"). The sweep never mints them
+            # again; derived from listening, so a wipe empties it.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS category_declined (
+                       id  TEXT PRIMARY KEY,
+                       at  REAL NOT NULL
+                   )"""
+            )
         self._owner: dict[str, tuple[str, str]] = {}
+        self._declined: frozenset[str] = frozenset()
         self.reload()
 
     def _conn(self) -> sqlite3.Connection:
@@ -555,6 +571,12 @@ class CategoryStore:
         except Exception:  # noqa: BLE001 - the tree reads without them
             log.exception("could not read the owner's tree edits")
             owner = dict(getattr(self, "_owner", {}))
+        try:
+            declined = frozenset(r[0] for r in self._conn().execute(
+                "SELECT id FROM category_declined").fetchall())
+        except Exception:  # noqa: BLE001 - the tree reads without them
+            log.exception("could not read the declined phrases")
+            declined = getattr(self, "_declined", frozenset())
         # **The check (§513).** A grown node holding a `NEVER_ALONE` word -
         # "lead", or "world record", "power grid" - is not a category: it is
         # left out of the tree as read, so it never matches, `get` never
@@ -638,6 +660,7 @@ class CategoryStore:
             nodes, index, words, ancestry, aliases)
         self._silenced = silenced
         self._owner = owner
+        self._declined = declined
         self._loaded_at = time.time()
         return len(nodes)
 
@@ -762,6 +785,11 @@ class CategoryStore:
                 and self._owner.get(phrase, ("",))[0] in ("removed", "merged")):
             # The owner took it out (§585). Nothing grows it back - not the
             # sweep, not the writer's words, not the seed at the next boot.
+            return None
+        if (source in DECLINABLE and phrase not in self._nodes
+                and phrase in self._declined):
+            # The placer said it is not a subject (§599): the next sweep
+            # does not grow it back from the same searches.
             return None
         if _silenced(phrase, source) and phrase not in self._nodes:
             # An everyday word (`category_seed.NEVER_ALONE`), alone or in a
@@ -917,19 +945,65 @@ class CategoryStore:
         try:
             self._conn().execute("DELETE FROM categories")
             # What the categorisers said about episodes the wipe is emptying
-            # is derived from them too (§209).
+            # is derived from them too (§209), and so is what the placer
+            # declined from their searches (§599).
             self._conn().execute("DELETE FROM category_audit")
+            self._conn().execute("DELETE FROM category_declined")
         except Exception:
             log.exception("could not clear the category tree")
             return 0
         self.reload()
         return gone
 
+    # --- what the placer declined (§599) --------------------------------------
+
+    def declined(self) -> frozenset[str]:
+        """Phrases grown from searches that the placer said are not subjects."""
+        return frozenset(getattr(self, "_declined", frozenset()))
+
+    def decline(self, node_id: str, at: float = 0.0) -> bool:
+        """Take a node the placer said is not a subject out of the tree, and
+        remember it so the sweep never mints it again (§599).
+
+        Only a node grown from searches: a live story's subject, the writer's
+        words, the seed and the owner's nodes are not the placer's to refuse,
+        and neither is a node the owner placed. What sat below it moves up to
+        its parent, as an owner's removal does."""
+        node_id = normalise(node_id)
+        node = self._nodes.get(node_id)
+        if (node is None or node.source != SOURCE_SEARCH
+                or self.placed_by_owner(node_id)):
+            return False
+        for child in [n.id for n in self._nodes.values() if n.parent_id == node_id]:
+            self.reparent(child, node.parent_id)
+        try:
+            self._conn().execute("DELETE FROM categories WHERE id = ?", (node_id,))
+            self._conn().execute(
+                "INSERT INTO category_declined (id, at) VALUES (?, ?)"
+                " ON CONFLICT(id) DO UPDATE SET at = excluded.at",
+                (node_id, at or time.time()))
+        except Exception:
+            log.exception("could not decline %r", node_id)
+            return False
+        self.reload()
+        return True
+
     # --- the owner's edits (§585) -------------------------------------------
 
     def owner_decisions(self) -> dict[str, tuple[str, str]]:
         """phrase -> (action, target) for every edit the owner has made."""
         return dict(self._owner)
+
+    def owner_decided_at(self, node_id: str) -> float:
+        """When the owner made their edit to this phrase, or 0.0 (§600)."""
+        try:
+            row = self._conn().execute(
+                "SELECT at FROM category_owner WHERE id = ?",
+                (normalise(node_id),)).fetchone()
+            return float(row[0]) if row else 0.0
+        except Exception:  # noqa: BLE001 - unknown is 0
+            log.exception("could not read when %r was edited", node_id)
+            return 0.0
 
     def placed_by_owner(self, node_id: str) -> bool:
         """Whether the owner put this node where it is: the placer leaves it."""
@@ -1505,7 +1579,8 @@ def _containment_parent(store: "CategoryStore", phrase: str) -> str:
 def promote(store: "CategoryStore", texts: Iterable[tuple[str, str]],
             always: Iterable[str] = (), source: str = SOURCE_SEARCH,
             now: Optional[float] = None, limit: int = MAX_NEW_PER_SWEEP,
-            written: Iterable[tuple[str, str]] = ()) -> list[Node]:
+            written: Iterable[tuple[str, str]] = (),
+            single_words: bool = True) -> list[Node]:
     """Mint whatever the log now says is a subject. The keyless sweep.
 
     `texts` is `(listener, text)` - searches, shares, saves, typed interests -
@@ -1526,6 +1601,14 @@ def promote(store: "CategoryStore", texts: Iterable[tuple[str, str]],
     not place. Trusted like `always` - the writer read the research - and
     minted as `SOURCE_WRITER` under the facet its episodes' questions
     pointed at, unless containment finds a closer parent.
+
+    `single_words` False (§599): one word that only searches support -
+    "company", "development" - is held back. It is the shape most of the
+    junk in the first reviewed tree took, and a lone word is the one a
+    reader cannot tell from a subject without asking what it means; the
+    sweep passes False when no placer will be asked, so with no key such a
+    word waits rather than growing unchecked. A story's subject and the
+    writer's words are never held.
     """
     now = time.time() if now is None else now
     texts = list(texts)
@@ -1551,7 +1634,8 @@ def promote(store: "CategoryStore", texts: Iterable[tuple[str, str]],
     redundant = _drop_subsumed(seen)
     eligible = [(p, users) for p, (users, wordings) in seen.items()
                 if len(users) >= MIN_LISTENERS and len(wordings) >= MIN_TEXTS
-                and p not in redundant and not store.get(p)]
+                and p not in redundant and not store.get(p)
+                and (single_words or len(p.split()) > 1)]
     always_set: set[str] = set()
     for phrase in always:
         phrase = normalise(phrase)
@@ -1690,7 +1774,10 @@ PLACER_SYSTEM = (
     "- State nothing about the world. You are naming categories, not "
     "reporting events: no results, no dates, no numbers.\n"
     "- If a subject is not a subject - a fragment, a verb, a piece of a "
-    "question - leave it out entirely rather than inventing a home for it."
+    "question, or an everyday word that names no particular thing on its own "
+    "('company', 'development', 'update', 'season', 'plan') - give it no "
+    "path: list it in not_subjects, spelled exactly as given. A real subject "
+    "that is one word ('bitcoin', 'dressage', 'nvidia') is a subject."
 )
 
 PLACER_SCHEMA = {
@@ -1708,8 +1795,11 @@ PLACER_SCHEMA = {
                 "additionalProperties": False,
             },
         },
+        # §599: what the placer says is not a subject. Taken out of the tree
+        # and never minted from searches again (`CategoryStore.decline`).
+        "not_subjects": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["paths"],
+    "required": ["paths", "not_subjects"],
     # The API refuses a structured-output schema with an object that does not
     # say this explicitly (400 invalid_request_error), and a refused placer
     # is a sweep that places nothing - every subject keeps its keyless
@@ -1794,6 +1884,26 @@ def apply_paths(store: "CategoryStore", rows: Iterable[dict],
     return moved
 
 
+def apply_declines(store: "CategoryStore", names: Iterable[str],
+                   asked: Iterable[str], now: Optional[float] = None) -> int:
+    """Take out what the placer said is not a subject (§599). Returns how many.
+
+    Only names it was asked about - a reply cannot take out a node it was
+    not shown - and only nodes grown from searches (`decline` refuses the
+    rest), so the writer's words, a story's subject, the seed and the
+    owner's nodes stand whatever a reply says."""
+    asked_set = {normalise(a) for a in asked}
+    gone = 0
+    decline = getattr(store, "decline", None)
+    if decline is None:
+        return 0
+    for name in names or ():
+        name = normalise(name)
+        if name and name in asked_set and decline(name, at=now or 0.0):
+            gone += 1
+    return gone
+
+
 async def place(store: "CategoryStore", subjects: list[str],
                 now: Optional[float] = None) -> int:
     """Ask a model where new subjects belong, and build the levels it names.
@@ -1859,11 +1969,17 @@ async def place(store: "CategoryStore", subjects: list[str],
         return 0
     try:
         text = next(b.text for b in response.content if b.type == "text")
-        rows = (json.loads(text) or {}).get("paths") or []
+        answer = json.loads(text) or {}
+        rows = answer.get("paths") or []
+        not_subjects = answer.get("not_subjects") or []
     except (StopIteration, AttributeError, ValueError, TypeError) as exc:
         log.warning("categories: the placer returned nothing readable (%s)", exc)
         return 0
 
+    declined = apply_declines(store, not_subjects, subjects, now)
+    if declined:
+        log.info("categories: the placer declined %d searched words as not "
+                 "subjects", declined)
     moved = apply_paths(store, rows, now)
     # A placed subject is no longer degraded: it is where a model put it
     # rather than where containment guessed. Done here rather than in
@@ -1881,6 +1997,20 @@ async def place(store: "CategoryStore", subjects: list[str],
                 log.exception("could not clear degraded on %r", subject)
     store.reload()
     return moved
+
+
+def _placer_ready() -> bool:
+    """Whether this sweep's placer will be asked: on, and a key to ask with.
+    A lone searched word is minted only then (§599), because the placer is
+    what can say it is not a subject."""
+    from config import settings
+    if not settings.categories_place:
+        return False
+    try:
+        import credentials
+        return bool(credentials.active("ANTHROPIC_API_KEY"))
+    except Exception:  # noqa: BLE001 - no key is the answer
+        return False
 
 
 async def sweep(store: "CategoryStore", texts: Iterable[tuple[str, str]],
@@ -1917,7 +2047,7 @@ async def sweep(store: "CategoryStore", texts: Iterable[tuple[str, str]],
         # a thread with the product.
         minted = await asyncio.to_thread(
             promote, store, texts, always=always, now=now,
-            written=list(written or ()))
+            written=list(written or ()), single_words=_placer_ready())
         placed = await place(store, [n.id for n in minted], now)
         pruned = await asyncio.to_thread(store.prune, now)
     except Exception:

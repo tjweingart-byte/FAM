@@ -202,7 +202,9 @@ def test_what_understanding_cost_lands_in_the_episode_total(model):
     asyncio.run(ei.understand("who won the 49ers game", 3, notes=notes))
     # Both halves of a split brief are billed to the episode (§268).
     # The two halves and, since §270, the outline.
-    calls = (3 if config.settings.ei_outline else 2) if config.settings.ei_split else 1
+    # And the framing as its own call since §603.
+    calls = ((2 + bool(config.settings.ei_outline) + bool(config.settings.ei_frame_apart))
+             if config.settings.ei_split else 1)
     assert notes.usage.model_calls == calls
     assert notes.usage.input_tokens == 100 * calls
 
@@ -730,7 +732,9 @@ def test_an_unresearched_episode_is_understood_too(model):
     plan = plan_episode("how does a heat pump work", 3, search=False)
     assert asyncio.run(generator.understand(plan)).brief is not None
     # One brief: one call, or its two halves (§268).
-    assert len(calls) == ((3 if config.settings.ei_outline else 2)
+    # And the framing as its own call since §603.
+    assert len(calls) == ((2 + bool(config.settings.ei_outline)
+                           + bool(config.settings.ei_frame_apart))
                           if config.settings.ei_split else 1)
 
 
@@ -769,5 +773,5 @@ def test_health_says_which_state_a_deploy_is_in():
     that is working; the episodes are merely less relevant."""
     report = ei.report()
     assert report["enabled"] is True
-    assert report["model"] and report["timeout_seconds"] > 0
+    assert report["model"] and report["timeout_seconds"] >= 0   # 0 is none (§602)
     assert set(report["intents"]) == set(ei.INTENTS)
