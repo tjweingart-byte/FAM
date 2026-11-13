@@ -59,6 +59,13 @@ final class FAMAPI: @unchecked Sendable {
         try await send("GET", "api/v1/auth/me", as: Listener.self)
     }
 
+    /// Claim the free month (§593): the same claim as the emailed link, for
+    /// the signed-in account.
+    func claimFreeMonth() async throws -> FreeMonthOffer {
+        try await send("POST", "api/v1/free-month/claim", body: [:],
+                       as: FreeMonthClaimed.self).freeMonth
+    }
+
     /// Sign in with email and password. The token comes back in the body
     /// only because it is asked for (`want_token`), and goes to the Keychain.
     func signIn(email: String, password: String) async throws -> Listener {
@@ -738,9 +745,26 @@ struct Listener: Decodable, Equatable {
     /// The app's public home (`APP_HOME_URL`), from `/api/auth/me`: where an
     /// invite sends somebody when there is no referral link.
     let home: String?
+    /// The free month somebody let off the waitlist may claim (§593), from
+    /// `/api/auth/me` only; nil for everyone else and in an older server's
+    /// answer. `var` so a claim can update it in place.
+    var freeMonth: FreeMonthOffer?
 
     /// Waiting for a place while the waitlist runs (`waitlist.WAITLISTED`).
     var waitlisted: Bool { status == "waitlisted" }
+}
+
+/// `/api/auth/me` `free_month` (§593): whether it is claimed, and the launch
+/// month it runs (`starts`/`ends`, epoch seconds), nil until the admin sets
+/// the day the full app is published.
+struct FreeMonthOffer: Decodable, Equatable {
+    let claimed: Bool
+    let starts: Double?
+    let ends: Double?
+}
+
+private struct FreeMonthClaimed: Decodable {
+    let freeMonth: FreeMonthOffer
 }
 
 struct RailsPage: Decodable {

@@ -560,6 +560,37 @@ class Waitlist:
             (at or time.time(), row[0]))
         return row[0]
 
+    def claim_offer(self, user_id: str) -> Optional[dict]:
+        """The free month as the app shows it to somebody let in (§593), or
+        None for anyone never let in through a notice (no `claim_code`):
+        {claimed, starts, ends}. Claimed is the stamp, however it was
+        earned - five friends stamp it too."""
+        if not user_id:
+            return None
+        row = self._conn().execute(
+            "SELECT claim_code, free_month_earned_at, status FROM accounts"
+            " WHERE user_id = ?", (user_id,)).fetchone()
+        if not row or not row[0] or row[2] != ACTIVE:
+            return None
+        starts = self.free_month_starts()
+        return {"claimed": bool(row[1]),
+                "starts": starts or None,
+                "ends": (starts + FREE_MONTH_SECONDS) if starts else None}
+
+    def claim_for(self, user_id: str, at: float = 0.0) -> Optional[dict]:
+        """Claim from inside the app: the signed-in account's own code, so
+        the button and the emailed link are one claim. None when this
+        account has nothing to claim."""
+        offer = self.claim_offer(user_id)
+        if offer is None:
+            return None
+        if not offer["claimed"]:
+            code = self._conn().execute(
+                "SELECT claim_code FROM accounts WHERE user_id = ?",
+                (user_id,)).fetchone()[0]
+            self.claim_free_month(code, at=at)
+        return self.claim_offer(user_id)
+
     def grant_top(self, n: int, at: float = 0.0) -> list[str]:
         if int(n) <= 0:
             raise WaitlistError("Grant at least one place.")

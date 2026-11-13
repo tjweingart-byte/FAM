@@ -1504,6 +1504,12 @@
   the real app is published (`free_month_starts`) and never applies to the
   beta (the owner: "it should not apply to the beta version"). The link is
   open past the gate, idempotent, and its code names one account.
+  > **Current (PROBLEMS.md §593, the owner 13/11):** both apps show it too: a
+  > let-in account's `/api/auth/me` carries `free_month` {claimed, starts,
+  > ends} (absent for everyone else, and for accounts let in before §587),
+  > and DailyFAM's first card claims it in place (`POST /api/free-month/claim`,
+  > the link's same stamp) - web `#freeMonthCard`, iOS `FreeMonthCard`, the
+  > same words; claimed, it says when the month runs and closes once per device.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   > **Current (§519, the 11.9 packet):** switched **off again in production**

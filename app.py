@@ -2637,7 +2637,35 @@ async def auth_me(request: Request) -> dict:
             # (§571): an account made with none - a §296 join, Google, Apple -
             # is offered the first one directly.
             "has_password": bool(listener.is_authenticated
-                                 and _has_password(listener.user_id))}
+                                 and _has_password(listener.user_id)),
+            # The free month somebody let off the waitlist may claim (§593),
+            # drawn as a card on DailyFAM; absent for everyone else.
+            "free_month": _free_month_offer(listener)}
+
+
+def _free_month_offer(listener) -> Optional[dict]:
+    """Never raises: a guest, or a store that fails, is offered nothing."""
+    if listener is None or not listener.is_authenticated:
+        return None
+    try:
+        return WAITLIST.claim_offer(listener.user_id)
+    except Exception:  # noqa: BLE001 - the open must never fail over this
+        log.exception("could not read the free month offer")
+        return None
+
+
+@app.post("/api/free-month/claim")
+async def claim_free_month_in_app(request: Request) -> dict:
+    """The card's Claim button (§593): the same claim as the emailed link,
+    for the signed-in account, so neither app has to open a browser."""
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated:
+        raise HTTPException(status_code=401, detail="Sign in to claim your free month.")
+    offer = await asyncio.to_thread(WAITLIST.claim_for, listener.user_id)
+    if offer is None:
+        raise HTTPException(status_code=404,
+                            detail="There is no free month to claim on this account.")
+    return {"free_month": offer}
 
 
 def _activation_needed(listener) -> bool:

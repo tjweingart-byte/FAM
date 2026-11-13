@@ -36104,3 +36104,31 @@ toolchain in this container; the Mac CI build is its first compile.
 **Tests:** the smoke check now plays a tile with no friends (develops) and
 the same tile with two named friends of five (gathers, "Maya, Jordan and 3
 others listened").
+
+## 593. The free month in both apps: a card on DailyFAM that claims it (2026-11-13)
+
+**Asked:** "the iPhone app should show the claim link too."
+
+**Built** (web first, as the app follows it - `PARITY.md`):
+- `Waitlist.claim_offer(user_id)`: {claimed, starts, ends} for an active
+  account with a `claim_code` (let in since §587), else None.
+  `claim_for(user_id)` claims with the account's own code, so the button and
+  the emailed link are one claim and one stamp.
+- `/api/auth/me` carries `free_month` (absent/None for everyone else - old
+  clients ignore it); `POST /api/free-month/claim` (also `/api/v1/...`)
+  claims for the signed-in account: 401 signed out, 404 with nothing to claim.
+- Web: `#freeMonthCard`, the first thing on DailyFAM, drawn from
+  `refreshAuth`. Unclaimed: "You're off the waitlist / Claim your free month
+  of FAM Plus", when it runs, and **Claim free month**. Claimed: "A month of
+  FAM Plus is yours" and when it runs, with an X that closes it on this
+  device (`fam.freeMonthClosed`).
+- iOS: `FreeMonthCard` in `DailyView.swift` above the faces row,
+  `Listener.freeMonth`, `API.claimFreeMonth`, `AppModel.claimFreeMonth`,
+  the same words and the same key. **Not compiled here** (no Swift
+  toolchain in the container); the next Xcode build is the check.
+- Wording: "It starts the day the full FAM app is published." until the
+  launch day is set, then "It runs <date> to <date>." - never in the beta.
+
+**Tests:** four more in `tests/test_waitlist_notify.py`, one pinning the
+same words in both apps.
+

@@ -174,3 +174,60 @@ def test_admin_counts_notices_apart_from_viral_loops(acc, wl):
     wl.grant(["e"])
     assert wl.outbox_summary()["pending"] == 1  # the flag
     assert wl.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)["pending"] == 1
+
+
+# --- the free month in the apps (§593) --------------------------------------
+
+def test_offer_only_for_somebody_let_in(acc, wl):
+    acc.sign_up("w", "w@fam.test", PASSWORD)
+    assert wl.claim_offer("w") is None          # still waiting
+    acc.sign_up("old", "old@fam.test", PASSWORD)
+    with acc._conn() as c:
+        c.execute("UPDATE accounts SET status = 'active' WHERE user_id = 'old'")
+    assert wl.claim_offer("old") is None        # let in before notices existed
+    assert wl.claim_for("old") is None
+    wl.grant(["w"])
+    assert wl.claim_offer("w") == {"claimed": False, "starts": None, "ends": None}
+
+
+def test_claiming_in_the_app_is_the_links_claim(acc, wl):
+    acc.sign_up("w", "w@fam.test", PASSWORD)
+    wl.grant(["w"])
+    assert wl.claim_for("w", at=500.0)["claimed"] is True
+    assert acc.account("w")["free_month_earned_at"] == 500.0
+    code = wl.notice_view("w")["claim_code"]
+    assert wl.claim_free_month(code, at=900.0) == "w"
+    assert acc.account("w")["free_month_earned_at"] == 500.0  # still once
+    wl.set_free_month_starts(10 * DAY)
+    assert wl.claim_offer("w") == {"claimed": True, "starts": 10 * DAY,
+                                   "ends": 10 * DAY + waitlist_mod.FREE_MONTH_SECONDS}
+
+
+def test_auth_me_carries_it_and_the_button_claims(world):
+    c = TestClient(appmod.app)
+    r = c.post("/api/waitlist/join", json={"email": "m@fam.test", "password": PASSWORD})
+    assert r.status_code == 200, r.text
+    user = appmod.WAITLIST.ordered()[0]["user_id"]
+    assert c.get("/api/auth/me").json().get("free_month") is None
+    appmod.WAITLIST.grant([user])
+    assert c.get("/api/auth/me").json()["free_month"] == {
+        "claimed": False, "starts": None, "ends": None}
+    r = c.post("/api/v1/free-month/claim")
+    assert r.status_code == 200 and r.json()["free_month"]["claimed"] is True
+    assert c.get("/api/v1/auth/me").json()["free_month"]["claimed"] is True
+    assert TestClient(appmod.app).post("/api/free-month/claim").status_code in (401, 403)
+
+
+def test_both_apps_draw_the_card_with_the_same_words():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    web = open(os.path.join(root, "static", "index.html"), encoding="utf-8").read()
+    ios = open(os.path.join(root, "ios", "FAM", "FAM", "Views", "DailyView.swift"),
+               encoding="utf-8").read()
+    api = open(os.path.join(root, "ios", "FAM", "FAM", "API.swift"), encoding="utf-8").read()
+    assert 'id="freeMonthCard"' in web and "/api/free-month/claim" in web
+    assert "FreeMonthCard()" in ios and "api/v1/free-month/claim" in api
+    for words in ("Claim your free month of FAM Plus", "Claim free month",
+                  "A month of FAM Plus is yours",
+                  "It starts the day the full FAM app is published.",
+                  "Nothing to pay, and nothing is billed after."):
+        assert words in web and words in ios, words
