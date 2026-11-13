@@ -36371,3 +36371,32 @@ Nov 11-12, a day before the edit.
 **Not verified here.** The production tree and its 39 episodes are not in
 this container; the repair's count is in the boot log
 ("categories: N episode(s) re-filed and M unfiled").
+
+## 601. A shared link sends as the picture tile from every share button, not only a paste (2026-11-13)
+
+**The report.** The owner, testing the link picture (§559): it looks right,
+but it only arrives as the tile when the link is copied and pasted; pressing
+iMessage (or the others) in the share sheet sends the link bare.
+
+**Why.** Messages builds the tile when a link is pasted or shared as a URL.
+The iMessage tile opened `sms:&body=<url>` and Email `mailto:?body=`, which
+put the link in as typed text, and Messages and Mail send typed text as
+text. The page's tags were right all along; nothing asked Messages to read
+them.
+
+**What changed.** On iOS, iMessage and Email open the share sheet with a
+`RichLinkItem` (`RichLink.swift`): the URL, its title, and the picture
+(`/api/share` now returns `preview`, the address of `preview.jpg`, fetched
+by `FAMAPI.linkPreviewImage`, six seconds at most) as `LPLinkMetadata`.
+Messages and Mail send that as the tile. Email keeps its words and subject
+above it, the URL taken out of the words. With no picture the item gives
+no metadata and Messages reads the page itself, as for a paste; with no
+public link both keep their old URLs. The two tiles now say "share sheet".
+The picture steps its JPEG quality down, then its size, until it is under
+280 KB (`link_preview.MAX_BYTES`), because WhatsApp drops a preview image
+over about 300 KB. X, Facebook, LinkedIn, Threads, Reddit and WhatsApp
+already open with the link and draw the card from the page.
+
+Not changed: the web app's iMessage still opens `sms:` (a browser cannot
+hand Messages a rich link). Unbuilt here (no Swift compiler); the four
+changed Swift files parse with tree-sitter.

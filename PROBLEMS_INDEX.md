@@ -592,3 +592,4 @@ and `limit` = Lines.
 | 36261 | 31 | 598. "Copy for Claude" on every community card (2026-11-13) |
 | 36292 | 46 | 599. Junk grown from searches: the placer declines it, a lone word waits, the download shows titles (2026-11-13) |
 | 36338 | 37 | 600. An edit to the tree carries its episodes; Keith tells an owner's edit from Nando (2026-11-13) |
+| 36375 | 29 | 601. A shared link sends as the picture tile from every share button, not only a paste (2026-11-13) |
