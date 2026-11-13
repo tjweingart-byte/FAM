@@ -13022,8 +13022,11 @@ async def admin_export_categories(request: Request) -> Response:
     import category_review
 
     counts = SCRIPT_CACHE.node_counts() if hasattr(SCRIPT_CACHE, "node_counts") else {}
+    # A few titles per node (§599), so the reviewer sees what each holds.
+    titles = (await asyncio.to_thread(SCRIPT_CACHE.node_titles)
+              if hasattr(SCRIPT_CACHE, "node_titles") else {})
     body = await asyncio.to_thread(
-        category_review.export_csv, topics_mod.category_tree(), counts)
+        category_review.export_csv, topics_mod.category_tree(), counts, titles)
     stamp = time.strftime("%Y-%m-%d")
     return Response(body, media_type="text/csv; charset=utf-8", headers={
         "Content-Disposition": f'attachment; filename="fam-categories-{stamp}.csv"'})

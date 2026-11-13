@@ -1186,6 +1186,18 @@ class MemoryScriptCache:
                 counts[n] = counts.get(n, 0) + 1
         return counts
 
+    def node_titles(self, per_node: int = 3) -> dict:
+        """{node: [title, ...]} - a few kept episodes Nando filed under each
+        node, newest first, for the tree's download (§599)."""
+        out: dict = {}
+        for key in sorted(self._category_nodes,
+                          key=lambda k: -(self.sourced_at(k) or 0)):
+            node = self._category_nodes[key]
+            title = self._titles.get(key, "") or (self._data.get(key) or [0, 0, 0, ""])[3]
+            if node and title and len(out.setdefault(node, [])) < per_node:
+                out[node].append(content_filter.scrub(title))
+        return out
+
     def tagged(self, after: str = "", limit: int = 500) -> list:
         return [(k, n, self.sourced_at(k), []) for k, n in
                 sorted(self._category_nodes.items()) if k > after][:limit]
@@ -2468,6 +2480,24 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache node count failed")
             return {}
+
+    def node_titles(self, per_node: int = 3) -> dict:
+        """{node: [title, ...]} - a few kept episodes Nando filed under each
+        node, newest first, for the tree's download (§599), so a reviewer
+        can see what a category actually holds. {} when it cannot be read."""
+        out: dict = {}
+        try:
+            rows = self._conn().execute(
+                "SELECT category_node, title, query FROM scripts "
+                f"WHERE category_node != '' ORDER BY {_SOURCED} DESC").fetchall()
+        except Exception:
+            log.exception("script cache node titles failed")
+            return {}
+        for node, title, query in rows:
+            title = title or query or ""
+            if title and len(out.setdefault(node, [])) < per_node:
+                out[node].append(content_filter.scrub(title))
+        return out
 
     def keys_with_node(self, node: str, limit: int = 5000) -> list:
         """Written episodes Nando filed under `node`."""

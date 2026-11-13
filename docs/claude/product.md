@@ -733,6 +733,8 @@ fell to a facet). Four changes, none of which moves the §209 rules above:
   keep theirs until regenerated (`tools/thumbnails.py`).
 
 <!-- rule:tree-review -->
+> **Current (PROBLEMS.md §599):** the first reviewed tree showed what grows junk - 188 of the 216 nodes grown from searches were junk or duplicates, most of them lone everyday words ("company", "development"). The placer now answers `not_subjects` beside its paths; a node **grown from searches** it names is taken out (`CategoryStore.decline`) and never minted from searches again (`category_declined`, emptied by a wipe - it is derived from listening). A story's subject, the writer's words, the seed and the owner's nodes are never declined. **A lone searched word is minted only when the placer will be asked** (`promote(single_words=)`, `_placer_ready`): with no key it waits. The download carries `examples`, up to three titles filed at each node, so the reviewer sees what a category holds.
+
 **The tree goes out to another reader and comes back as edits** *(PROBLEMS.md
 §585, at the owner's direction)*, the pronunciation round trip (§549) for
 categories. /admin's Categories page downloads every node as a CSV (path,

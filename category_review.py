@@ -24,7 +24,10 @@ import categories
 
 #: The columns of a download, in order.
 EXPORT_COLUMNS = ("node", "path", "parent", "depth", "children", "source",
-                  "episodes", "episodes_below", "listeners", "owner")
+                  "episodes", "episodes_below", "listeners", "owner", "examples")
+
+#: How many episode titles a download shows per node (§599).
+EXAMPLE_TITLES = 3
 
 #: What a reviewer may ask for, and what `target` means for each.
 ACTIONS = {
@@ -60,6 +63,10 @@ Attached is a CSV of every node. Columns:
   episodes        kept episodes filed at this node; episodes_below includes its branch
   listeners       how many people's searches grew it
   owner           an edit the owner already made here - leave these alone unless clearly wrong
+  examples        up to three titles of episodes filed here, newest first, separated by " | ".
+                  Use them to see what a node really holds. When you remove a node that
+                  holds episodes, say in the reason where its episodes belong, or merge it
+                  into that node instead.
 
 Look for:
   - nodes under the wrong parent (a team under the wrong league or sport, a company
@@ -93,9 +100,12 @@ node column (or, for add/rename, the new phrase). Do not touch the eight facets.
 # Out
 # --------------------------------------------------------------------------
 
-def export_rows(store, episodes: dict | None = None) -> list[dict]:
-    """Every node, parents before children, as download rows."""
+def export_rows(store, episodes: dict | None = None,
+                titles: dict | None = None) -> list[dict]:
+    """Every node, parents before children, as download rows. `titles` is
+    `{node: [title, ...]}` (§599): what the node holds, for the reviewer."""
     episodes = dict(episodes or {})
+    titles = dict(titles or {})
     nodes = store.nodes()
     owner = getattr(store, "owner_decisions", dict)()
     kids: dict[str, list] = {}
@@ -128,16 +138,20 @@ def export_rows(store, episodes: dict | None = None) -> list[dict]:
                     "depth": node.depth, "children": len(kids.get(node.id, ())),
                     "source": node.source, "episodes": int(episodes.get(node.id, 0)),
                     "episodes_below": below(node.id), "listeners": node.listeners,
-                    "owner": f"{action} {target}".strip() if action else ""})
+                    "owner": f"{action} {target}".strip() if action else "",
+                    "examples": " | ".join(
+                        str(t).replace("\n", " ").strip()
+                        for t in list(titles.get(node.id) or ())[:EXAMPLE_TITLES])})
     out.sort(key=lambda r: r["path"])
     return out
 
 
-def export_csv(store, episodes: dict | None = None) -> str:
+def export_csv(store, episodes: dict | None = None,
+               titles: dict | None = None) -> str:
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=EXPORT_COLUMNS, lineterminator="\n")
     writer.writeheader()
-    for row in export_rows(store, episodes):
+    for row in export_rows(store, episodes, titles):
         writer.writerow(row)
     return buf.getvalue()
 

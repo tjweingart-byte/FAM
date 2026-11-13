@@ -36287,3 +36287,49 @@ saved lead.
 (`test_a_card_copies_its_message_and_a_prompt_for_claude`,
 `test_the_shared_prompt_script_is_served_to_admins_only`); the button was
 pressed in a headless browser against a sample card and its text read back.
+
+
+## 599. Junk grown from searches: the placer declines it, a lone word waits, the download shows titles (2026-11-13)
+
+**Seen.** The owner sent the tree out for review (§585) and the reviewer's
+report said search had grown 216 nodes, 188 of them junk or duplicates -
+"company" held 13 episodes, "development" 9 - and that removing them would
+not last: the sweep turns any run of non-stopwords that three listeners used
+in two wordings into a node, so the next everyday word ("update", "plan")
+clears the same bar. An owner's removal blocks only that phrase. It also
+asked for episode titles: 97 episodes sat on junk nodes and it could not say
+where they belonged from counts alone.
+
+**Why the placer did not catch it.** It was already told to leave a
+non-subject out - and leaving one out left it in the tree under the facet
+its searches voted for. Silence was not a verdict.
+
+**Built.**
+* `PLACER_SCHEMA` gains `not_subjects` (required, so the answer is always
+  explicit); `PLACER_SYSTEM` names what an everyday word looks like and that a
+  real one-word subject ("bitcoin", "nvidia") is a subject.
+* `apply_declines` / `CategoryStore.decline`: a node the placer was asked
+  about, **grown from searches**, is taken out (children up to its parent)
+  and recorded in `category_declined`; `mint` refuses it from `DECLINABLE`
+  sources (search, model) from then on. A story's subject, the writer's
+  words, the seed and the owner's nodes are refused a decline, as is a node
+  the owner placed. A wipe empties the table - it is derived from listening.
+* `promote(single_words=False)` holds a lone word only searches support; the
+  sweep passes `_placer_ready()` (placer on and a key), so with no key such a
+  word waits rather than growing unchecked. Two-word phrases, stories and the
+  writer's words grow as before. `test_no_key_still_grows_a_real_tree` now
+  grows `nvidia blackwell` and asserts `nvidia` alone waits.
+* The download (`category_review.export_csv`) gains `examples`: up to three
+  titles (the question when untitled) Nando filed at each node, newest first,
+  from `node_titles` on both caches; the prompt says to name where a removed
+  node's episodes belong.
+* `tests/test_category_declined_599.py`.
+
+**Answered for the owner.** A facet may hold episodes and a merge may target
+one (`owner_remove(into=)` takes a facet), so "world > news" can merge into
+World. A merged phrase already reads as its target (§585), so the writer's
+"stocks" lands on markets.
+
+**Not verified here.** No key and no real tree: the placer's judgement on
+real searched words is unheard. Nodes already grown stay until the owner's
+upload removes them; the decline applies to what the sweep mints from now on.
