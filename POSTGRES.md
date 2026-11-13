@@ -59,10 +59,38 @@ Then check `/api/health` → `database.backend` is `postgres` and
 ## Connections
 
 Each FAM process keeps at most `DATABASE_MAX_CONNECTIONS` (20) open, and
-closes idle ones beyond 8. Keep `instances x DATABASE_MAX_CONNECTIONS` (plus a
+closes idle ones beyond 8. An idle connection is also closed after
+`DATABASE_IDLE_SECONDS` (300), since each is a Postgres
+process holding memory whether or not it is busy (§573). Background work -
+editions, sweeps, Keith's rounds, anything not answering a request - holds at
+most `DATABASE_BACKGROUND_CONNECTIONS` (4) at once, so it never fills the pool a
+listener's request draws from. Connections are named `fam` on the server;
+`/api/health` -> `database.pool` and Keith's Render monitor show who holds
+what. The database can also close idle sessions itself
+(`idle_session_timeout`, below). Keep `instances x DATABASE_MAX_CONNECTIONS` (plus a
 few for the shell and the copy tool) under the plan's limit: Render's plans
 allow from about 100 connections upward - check the plan page before
 raising either number.
+
+### The database's own safety net (§573)
+
+Postgres can close a session that has sat idle too long, whatever the client
+does. Set it once, from `fam-db`'s PSQL command (Render -> fam-db -> Connect):
+
+```sql
+ALTER ROLE CURRENT_USER SET idle_session_timeout = '15min';
+```
+
+It applies to new connections from then on (FAM's are replaced within
+minutes). Keep it **longer** than `DATABASE_IDLE_SECONDS` (5 min), so FAM
+hangs up first and the server only catches what leaked. Check it with
+`SHOW idle_session_timeout;` from a fresh connection; undo it with
+`ALTER ROLE CURRENT_USER RESET idle_session_timeout;`. See who holds what:
+
+```sql
+SELECT application_name, state, count(*) FROM pg_stat_activity
+WHERE datname = current_database() GROUP BY 1, 2 ORDER BY 3 DESC;
+```
 
 ## Production: the switch-over
 

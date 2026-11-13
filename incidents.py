@@ -456,23 +456,55 @@ def from_usage() -> list:
             if f.get("level") not in (WARN, URGENT):
                 continue
             share = f.get("share")
+            unit = f.get("unit")
+            held = f.get("connections")
+            problem = (f"{f['name']} is {_quantity(f.get('value'), unit)} against "
+                       f"{_quantity(f.get('limit'), unit)} ({f.get('limit_source')})"
+                       + (f"; on pace for {f['projected']} this month"
+                          if f.get("projected") else ""))
+            recommended = f"Move up before the limit: {f.get('next') or 'see the plan page'}."
+            if held:
+                # §573: a database's memory is mostly its connections, one
+                # server process each - said, so idle ones are not paid for
+                # with a bigger plan.
+                problem += (f". It has {held['total']} connection(s) open: "
+                            + ", ".join(f"{n} {state}" for state, n in
+                                        sorted(held["by_state"].items()))
+                            + f"; {held['fam']} are FAM's, {held['fam_idle']} of them idle")
+                if held["fam_idle"] > 2:
+                    recommended = (
+                        f"{held['fam_idle']} of FAM's connections are idle, each a "
+                        "Postgres process holding memory: let them close sooner "
+                        "(DATABASE_IDLE_SECONDS) or hold fewer "
+                        "(DATABASE_MAX_CONNECTIONS) before buying memory. If that "
+                        f"is not enough: {f.get('next') or 'see the plan page'}.")
             out.append(finding(
                 f"usage:{service}:{f['name']}", "usage", f["level"],
                 f"{service}: {f['name']} at "
                 + (f"{share:.0%}" if share is not None else "its limit")
-                + (f" of {f['limit']} {f['unit']}" if f.get("limit") else ""),
+                + (f" of {_quantity(f['limit'], unit)}" if f.get("limit") else ""),
                 detail={"value": f.get("value"), "limit": f.get("limit"),
-                        "unit": f.get("unit"), "projected": f.get("projected"),
-                        "limit_source": f.get("limit_source")},
-                problem=f"{f['name']} is {f.get('value')} {f.get('unit')} against "
-                        f"{f.get('limit')} ({f.get('limit_source')})"
-                        + (f"; on pace for {f['projected']} this month"
-                           if f.get("projected") else ""),
+                        "unit": unit, "projected": f.get("projected"),
+                        "limit_source": f.get("limit_source"),
+                        **({"connections": held} if held else {})},
+                problem=problem,
                 heard="Nothing yet; at the limit the service refuses, slows or bills more.",
-                recommended=f"Move up before the limit: {f.get('next') or 'see the plan page'}.",
+                recommended=recommended,
                 cost_risk=f.get("next") or "",
                 needs="Your decision on the plan; Keith never changes one."))
     return out
+
+
+def _quantity(value, unit) -> str:
+    """A figure as a person reads it (§573): a memory under a GB in MB, as
+    the plan names it ("256 MB", never "0.26843546 GB")."""
+    if value is None:
+        return "?"
+    if unit == "GB" and 0 < float(value) < 1:
+        return f"{float(value) * 1e9 / 2 ** 20:.0f} MB"
+    if unit == "connections":
+        return f"{float(value):.0f} connections"
+    return f"{round(float(value), 2):g} {unit}"
 
 
 def from_quotas(now: float) -> list:

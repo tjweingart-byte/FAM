@@ -49,6 +49,8 @@ that does not say where it goes (`service=`, `hostaddr=`) is refused.
 """
 from __future__ import annotations
 
+import asyncio
+import contextvars
 import hashlib
 import ipaddress
 import logging
@@ -75,6 +77,15 @@ _CREATE_TABLE = re.compile(r"\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)"
 _SCHEMAS: set = set()
 #: Idle connections kept open beyond this many are closed.
 IDLE_KEPT = 8
+#: How often the pool looks for connections idle past `idle_seconds()` (§573).
+REAP_EVERY_SECONDS = 60.0
+#: Whether the work on this context is a request somebody sent (§573). Set by
+#: `app.carry_the_session` for every HTTP request, and copied by
+#: `asyncio.to_thread` and the request's threadpool; anything else - an
+#: edition, a sweep, Keith's rounds, a thread a loop started - is background
+#: and shares `background_connections()`.
+_FOR_REQUEST: contextvars.ContextVar = contextvars.ContextVar(
+    "fam_db_for_request", default=False)
 #: How long a statement waits for a free connection before it fails.
 WAIT_SECONDS = 30.0
 #: How long a write waits for its store's lock: SQLite's busy timeout.
@@ -86,6 +97,46 @@ def max_connections() -> int:
         return max(2, int(os.environ.get("DATABASE_MAX_CONNECTIONS") or 20))
     except ValueError:
         return 20
+
+
+def idle_seconds() -> float:
+    """An idle server connection unused this long is closed (§573): each one
+    is a Postgres process holding memory on the database, busy or not. Keep
+    it under the server's `idle_session_timeout` (POSTGRES.md), so FAM hangs
+    up first. 0 keeps them all."""
+    try:
+        return max(0.0, float(os.environ.get("DATABASE_IDLE_SECONDS") or 300))
+    except ValueError:
+        return 300.0
+
+
+def background_connections() -> int:
+    """Most connections background work holds at once (§573), so an edition
+    or a sweep never fills the pool a listener's request draws from."""
+    try:
+        wanted = int(os.environ.get("DATABASE_BACKGROUND_CONNECTIONS") or 4)
+    except ValueError:
+        wanted = 4
+    return max(1, min(wanted, max_connections() - 1))
+
+
+def for_request() -> contextvars.Token:
+    """Mark this context as serving a request (`app.carry_the_session`)."""
+    return _FOR_REQUEST.set(True)
+
+
+def end_request(token: contextvars.Token) -> None:
+    _FOR_REQUEST.reset(token)
+
+
+def _on_event_loop() -> bool:
+    """Whether this thread runs an event loop: a wait there would stop every
+    request with it, so the background share never makes it wait."""
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
 
 
 def url() -> str:
@@ -404,6 +455,11 @@ class _Slot:
     def __init__(self, pg):
         self.pg = pg
         self.schema: Optional[str] = None
+        self.last_used = time.monotonic()
+        #: The thread holding it, and whether it counts against the
+        #: background share, while it is out of the pool.
+        self.owner: Optional[int] = None
+        self.background = False
 
 
 class _Pool:
@@ -412,13 +468,18 @@ class _Pool:
         self._idle: list[_Slot] = []
         self._all: set = set()
         self._count = 0
+        #: Slots out of the pool on background work (§573).
+        self._background: set = set()
+        self._reaper: Optional[threading.Thread] = None
+        self._closed_idle = 0
 
     def _open(self) -> _Slot:
         import psycopg
 
         check_staging_address()
         pg = psycopg.connect(url(), autocommit=True, row_factory=_row_factory,
-                             prepare_threshold=None, connect_timeout=10)
+                             prepare_threshold=None, connect_timeout=10,
+                             application_name=APPLICATION_NAME)
         pg.adapters.register_loader("numeric", _number_loader())
         pg.execute(f"SET lock_timeout = '{LOCK_TIMEOUT}'")
         with _LOCK:
@@ -426,6 +487,7 @@ class _Pool:
         slot = _Slot(pg)
         with self._cond:
             self._all.add(slot)
+        self._start_reaper()
         return slot
 
     def acquire(self, schema: Optional[str]) -> _Slot:
@@ -455,29 +517,51 @@ class _Pool:
 
     def _take(self, schema: Optional[str]) -> _Slot:
         deadline = time.monotonic() + WAIT_SECONDS
+        background = not _FOR_REQUEST.get() and not _on_event_loop()
+        me = threading.get_ident()
         with self._cond:
             while True:
-                for i in range(len(self._idle) - 1, -1, -1):
-                    if schema is None or self._idle[i].schema == schema:
-                        return self._idle.pop(i)
-                if self._idle:
-                    return self._idle.pop()
-                if self._count < max_connections():
-                    self._count += 1
-                    break
+                # A background thread already holding a connection (a
+                # transaction reading another store) is never made to wait
+                # on its own share: that would wait on itself.
+                capped = (background and len(self._background) >= background_connections()
+                          and not any(s.owner == me for s in self._background))
+                if not capped:
+                    for i in range(len(self._idle) - 1, -1, -1):
+                        if schema is None or self._idle[i].schema == schema:
+                            return self._lend(self._idle.pop(i), background, me)
+                    if self._idle:
+                        return self._lend(self._idle.pop(), background, me)
+                    if self._count < max_connections():
+                        self._count += 1
+                        break
                 left = deadline - time.monotonic()
                 if left <= 0:
+                    if capped:
+                        raise sqlite3.OperationalError(
+                            f"database is locked: background work holds all "
+                            f"{background_connections()} of its connections "
+                            f"(DATABASE_BACKGROUND_CONNECTIONS)")
                     raise sqlite3.OperationalError(
                         f"database is locked: all {max_connections()} connections "
                         f"are in use (DATABASE_MAX_CONNECTIONS)")
                 self._cond.wait(left)
         try:
-            return self._open()
+            slot = self._open()
         except Exception:
             with self._cond:
                 self._count -= 1
                 self._cond.notify()
             raise
+        with self._cond:
+            return self._lend(slot, background, me)
+
+    def _lend(self, slot: _Slot, background: bool, me: int) -> _Slot:
+        """Under the lock: `slot` goes out to thread `me`."""
+        slot.owner, slot.background = me, background
+        if background:
+            self._background.add(slot)
+        return slot
 
     def release(self, slot: _Slot) -> None:
         from psycopg.pq import TransactionStatus
@@ -489,19 +573,65 @@ class _Pool:
                 slot.pg.execute("ROLLBACK")
         except Exception:  # noqa: BLE001 - a broken connection is not kept
             return self.discard(slot)
-        surplus = None
+        surplus = []
         with self._cond:
+            self._background.discard(slot)
+            slot.owner, slot.background = None, False
+            slot.last_used = time.monotonic()
             self._idle.append(slot)
             if len(self._idle) > IDLE_KEPT:
-                surplus = self._idle.pop(0)
+                surplus.append(self._idle.pop(0))
+            surplus += self._stale_locked(slot.last_used)
+            for old in surplus:
                 self._count -= 1
-                self._all.discard(surplus)
-            self._cond.notify()
-        if surplus is not None:
+                self._all.discard(old)
+            self._cond.notify_all()
+        _close(surplus)
+
+    def _stale_locked(self, now: float) -> list:
+        """Under the lock: take out the idle slots unused for `idle_seconds()`,
+        (§573)."""
+        limit = idle_seconds()
+        if not limit or not self._idle:
+            return []
+        # None is kept back: a connection left open past this could be the
+        # one the server's own `idle_session_timeout` closes, and the next
+        # statement on it would fail. Dialling again costs milliseconds.
+        stale = [s for s in self._idle if now - s.last_used >= limit]
+        if stale:
+            self._idle = [s for s in self._idle if s not in stale]
+            self._closed_idle += len(stale)
+        return stale
+
+    def close_idle(self, now: Optional[float] = None) -> int:
+        """Close the connections idle past `idle_seconds()`; how many."""
+        with self._cond:
+            stale = self._stale_locked(time.monotonic() if now is None else now)
+            for old in stale:
+                self._count -= 1
+                self._all.discard(old)
+            if stale:
+                self._cond.notify_all()
+        _close(stale)
+        return len(stale)
+
+    def _start_reaper(self) -> None:
+        """A quiet server still hangs up: nothing has to come through the
+        pool for idle connections to close."""
+        with self._cond:
+            if self._reaper is not None and self._reaper.is_alive():
+                return
+            self._reaper = threading.Thread(target=self._reap, name="db-idle",
+                                            daemon=True)
+            self._reaper.start()
+
+    def _reap(self) -> None:
+        while True:
+            time.sleep(REAP_EVERY_SECONDS)
             try:
-                surplus.pg.close()
-            except Exception:  # noqa: BLE001
-                pass
+                self.close_idle()
+            except Exception:  # noqa: BLE001 - the reaper never stops
+                log.exception("closing idle connections failed")
 
     def discard(self, slot: _Slot) -> None:
         try:
@@ -509,15 +639,17 @@ class _Pool:
         except Exception:  # noqa: BLE001
             pass
         with self._cond:
+            self._background.discard(slot)
             if slot in self._all:
                 self._all.discard(slot)
                 self._count -= 1
-            self._cond.notify()
+            self._cond.notify_all()
 
     def close_all(self) -> int:
         with self._cond:
             slots, self._idle = list(self._all), []
             self._all.clear()
+            self._background.clear()
             self._count = 0
             self._cond.notify_all()
         for slot in slots:
@@ -529,8 +661,23 @@ class _Pool:
 
     def stats(self) -> dict:
         with self._cond:
-            return {"open": self._count, "idle": len(self._idle), "max": max_connections()}
+            return {"open": self._count, "idle": len(self._idle), "max": max_connections(),
+                    "background_busy": len(self._background),
+                    "background_max": background_connections(),
+                    "idle_seconds": idle_seconds(), "closed_idle": self._closed_idle}
 
+
+def _close(slots) -> None:
+    for slot in slots:
+        try:
+            slot.pg.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+#: What FAM's connections call themselves on the server, so
+#: `pg_stat_activity` tells them from a shell or the copy tool's (§573).
+APPLICATION_NAME = "fam"
 
 _LOCK = threading.Lock()
 _POOL = _Pool()
@@ -1055,3 +1202,42 @@ def report() -> dict:
         private = False
     return {"backend": "postgres", "private": private,
             "connections_opened": _OPENED[0], "pool": _POOL.stats(), **probe()}
+
+
+def server_connections() -> Optional[dict]:
+    """Who holds connections on the database server, for Keith (§573):
+    every client connection by state (`active`, `idle`, ...), how many are
+    FAM's (`APPLICATION_NAME`) and how many of those sit idle, the server's
+    `max_connections`, and this process's pool. None without Postgres, or
+    when the server does not answer. Reads only; never raises."""
+    if not enabled():
+        return None
+    try:
+        slot = _POOL.acquire(None)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not read the database's connections: %s", exc)
+        return None
+    try:
+        rows = slot.pg.execute(
+            "SELECT COALESCE(state, 'unknown'), application_name = %s, count(*)"
+            " FROM pg_stat_activity WHERE datname = current_database()"
+            " AND backend_type = 'client backend' GROUP BY 1, 2",
+            (APPLICATION_NAME,)).fetchall()
+        limit = slot.pg.execute("SHOW max_connections").fetchone()[0]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not read the database's connections: %s", exc)
+        return None
+    finally:
+        _POOL.release(slot)
+    by_state: dict = {}
+    fam = fam_idle = 0
+    for state, ours, n in rows:
+        n = int(n)
+        by_state[state] = by_state.get(state, 0) + n
+        if ours:
+            fam += n
+            if state == "idle":
+                fam_idle += n
+    return {"total": sum(by_state.values()), "by_state": by_state,
+            "fam": fam, "fam_idle": fam_idle, "others": sum(by_state.values()) - fam,
+            "max_connections": int(limit), "pool": _POOL.stats()}
