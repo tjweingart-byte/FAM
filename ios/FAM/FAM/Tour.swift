@@ -189,13 +189,19 @@ final class TourModel: ObservableObject {
         waitTask = nil
         if running { finishQuietly() }
         stored = ""
+        // The last account's sheets are gone with it.
+        TourCovers.shared.clear()
     }
 
-    /// Settings' "Take the tour": the same tour, from the top.
+    /// Settings' "Take the tour": the same tour, from the top, begun at
+    /// once as the web's `start()` is. Nothing is over Settings when its
+    /// row is tapped, so a cover still counted then is one whose going was
+    /// missed: forgotten, so it cannot hold the tour paused.
     func start() {
         if running { return }
         waitTask?.cancel()
         waitTask = nil
+        TourCovers.shared.clear()
         begin()
     }
 
@@ -220,7 +226,7 @@ final class TourModel: ObservableObject {
     /// .sheet-overlay.active`). A tour running pauses while one is up.
     private func overlayOpen() -> Bool {
         guard let app else { return true }
-        if TourCovers.shared.open > 0 { return true }
+        if TourCovers.shared.any { return true }
         if app.owedActivation != nil || app.termsOwed != nil || app.updateRequired != nil { return true }
         if app.showPlayer || app.loading.visible { return true }
         if app.social.follower != nil || app.social.cover != nil || app.social.newChatOpen { return true }
@@ -552,18 +558,65 @@ private struct TourTargetReader: ViewModifier {
     }
 }
 
-/// The sheets and covers on screen, counted as each comes and goes, so the
-/// tour waits behind them and pauses under them.
+/// The pieces of a target drawn lazily (DailyFAM's rails, `#myfamFeed`):
+/// each reports its bounds, and the stack round them reads them once.
+struct TourFeedParts: PreferenceKey {
+    static let defaultValue: [Anchor<CGRect>] = []
+    static func reduce(value: inout [Anchor<CGRect>], nextValue: () -> [Anchor<CGRect>]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+/// Reports the union of the parts drawn as one target, in the global
+/// space. Cheap when the tour is not running: a compare and a store.
+struct TourUnionReader: View {
+    let target: TourTarget
+    let parts: [Anchor<CGRect>]
+
+    var body: some View {
+        GeometryReader { geo in
+            let rect: CGRect? = Self.union(parts, in: geo)
+            Color.clear
+                .onAppear { TourFrames.shared.set(target, rect) }
+                .onChange(of: rect) { _, now in TourFrames.shared.set(target, now) }
+                .onDisappear { TourFrames.shared.set(target, nil) }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private static func union(_ parts: [Anchor<CGRect>], in geo: GeometryProxy) -> CGRect? {
+        guard let first = parts.first else { return nil }
+        var all: CGRect = geo[first]
+        for part in parts.dropFirst() { all = all.union(geo[part]) }
+        let origin = geo.frame(in: .global).origin
+        return all.offsetBy(dx: origin.x, dy: origin.y)
+    }
+}
+
+/// The sheets and covers on screen, each by its own id - in as it appears,
+/// out as it goes, so a second appearance never counts twice - so the tour
+/// waits behind them and pauses under them.
 final class TourCovers {
     static let shared = TourCovers()
-    var open = 0
+    private var open: Set<UUID> = []
+
+    var any: Bool { !open.isEmpty }
+
+    func shown(_ id: UUID) { open.insert(id) }
+
+    func gone(_ id: UUID) { open.remove(id) }
+
+    func clear() { open.removeAll() }
 }
 
 private struct TourCoverCount: ViewModifier {
+    @State private var id = UUID()
+
     func body(content: Content) -> some View {
         content
-            .onAppear { TourCovers.shared.open += 1 }
-            .onDisappear { TourCovers.shared.open = max(0, TourCovers.shared.open - 1) }
+            .onAppear { TourCovers.shared.shown(id) }
+            .onDisappear { TourCovers.shared.gone(id) }
     }
 }
 
@@ -572,6 +625,11 @@ extension View {
     /// (a still copy of a page, as searchFAM's blind draws).
     func tourTarget(_ target: TourTarget?) -> some View {
         modifier(TourTargetReader(target: target))
+    }
+
+    /// One piece of DailyFAM's rails, for the tour's hole round all of them.
+    func tourFeedPart() -> some View {
+        anchorPreference(key: TourFeedParts.self, value: .bounds) { [$0] }
     }
 
     /// This presented view is a sheet or cover the tour waits behind.
@@ -685,40 +743,62 @@ struct TourOverlay: View {
                 GeometryReader { geo in
                     layer(geo)
                 }
+                // The whole window, the status bar's strip and the home
+                // indicator's included, as the web's dims its whole page.
+                .ignoresSafeArea()
                 .transition(.opacity)
+                // Back from a pause with the card already measured: it
+                // glides again from its next move.
+                .onAppear { if cardHeight > 0 { settle() } }
                 .onDisappear { placed = false }
             }
         }
     }
 
+    private func settle() {
+        guard !placed else { return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            placed = true
+        }
+    }
+
     private func layer(_ geo: GeometryProxy) -> some View {
-        let box = geo.frame(in: .global)
+        // The reader fills the window (`ignoresSafeArea`), in the global
+        // space the targets report in. The card is placed in the room left
+        // between the status bar and the home indicator, and the hole and
+        // the card are drawn back in the window's own coordinates.
+        let full = geo.frame(in: .global)
+        let insets = geo.safeAreaInsets
+        let topInset: CGFloat = insets.top
+        let roomHeight: CGFloat = max(0, full.height - insets.top - insets.bottom)
+        let room = CGRect(x: full.minX, y: full.minY + topInset, width: full.width, height: roomHeight)
         let steps = TourModel.steps
         let index = tour.cardStep
         let step: TourStep? = steps.indices.contains(index) ? steps[index] : nil
         let target: CGRect? = step?.target.flatMap { tour.frame(of: $0) }
-        let spot = TourSpot.place(target: target, box: box, cardHeight: cardHeight)
-        // The dim runs down behind the home indicator, under the bar.
-        let tall: CGFloat = box.height + geo.safeAreaInsets.bottom
+        let spot = TourSpot.place(target: target, box: room, cardHeight: cardHeight)
+        let hole: CGRect = spot.hole.offsetBy(dx: 0, dy: topInset)
+        let cardTop: CGFloat = spot.cardTop + topInset
         let cardGlide: Animation? = (reduceMotion || !placed) ? nil : glide
         return ZStack(alignment: .topLeading) {
-            TourDim(hole: spot.hole, radius: spot.radius)
+            TourDim(hole: hole, radius: spot.radius)
                 .fill(Color(hex: 0x0A0912).opacity(0.72), style: FillStyle(eoFill: true))
-                .frame(width: box.width, height: tall)
-                .animation(reduceMotion ? nil : glide, value: spot.hole)
+                .frame(width: full.width, height: full.height)
+                .animation(reduceMotion ? nil : glide, value: hole)
                 .contentShape(Rectangle())
                 .onTapGesture {}
                 .accessibilityHidden(true)
-            TourRing(hole: spot.hole, radius: spot.radius)
+            TourRing(hole: hole, radius: spot.radius)
                 .stroke(FAMColor.deeper.opacity(0.9), lineWidth: 2)
-                .frame(width: box.width, height: tall)
+                .frame(width: full.width, height: full.height)
                 .opacity(spot.none ? 0 : 1)
-                .animation(reduceMotion ? nil : glide, value: spot.hole)
+                .animation(reduceMotion ? nil : glide, value: hole)
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.38), value: spot.none)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             if let step {
-                TourCard(tour: tour, step: step, index: index, maxHeight: max(0, box.height - 32))
+                TourCard(tour: tour, step: step, index: index, maxHeight: max(0, roomHeight - 32))
                     .background(GeometryReader { g in
                         Color.clear
                             .onAppear { cardHeight = g.size.height }
@@ -726,19 +806,15 @@ struct TourOverlay: View {
                     })
                     .frame(maxWidth: 420)
                     .padding(.horizontal, 16)
-                    .frame(width: box.width)
+                    .frame(width: full.width)
                     .opacity(tour.cardOpacity)
                     .offset(y: tour.cardLift)
-                    .animation(cardGlide) { $0.offset(y: spot.cardTop) }
+                    .animation(cardGlide) { $0.offset(y: cardTop) }
             }
         }
-        .frame(width: box.width, height: box.height, alignment: .topLeading)
+        .frame(width: full.width, height: full.height, alignment: .topLeading)
         .onChange(of: cardHeight) { _, h in
-            guard h > 0, !placed else { return }
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 60_000_000)
-                placed = true
-            }
+            if h > 0 { settle() }
         }
     }
 }

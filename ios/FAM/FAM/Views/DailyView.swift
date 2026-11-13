@@ -40,12 +40,13 @@ struct DailyView: View {
                                 // No connection: what still plays (`#offlineBar`),
                                 // in the page under the faces and Pick up.
                                 if model.isOffline { OfflineBar() }
-                                // One block, as `#myfamFeed` is, so the
-                                // tour's hole can go round all of it.
-                                VStack(alignment: .leading, spacing: 0) {
-                                    feed
-                                }
-                                .tourTarget(.feed)
+                                feed
+                            }
+                            // `#myfamFeed` for the tour: the rails stay lazy,
+                            // each reports its bounds, and their union is
+                            // the hole's target.
+                            .overlayPreferenceValue(TourFeedParts.self) { parts in
+                                TourUnionReader(target: .feed, parts: parts)
                             }
                             .padding(.horizontal, 18)
                             .padding(.bottom, 24)
@@ -88,11 +89,14 @@ struct DailyView: View {
     @ViewBuilder private var feed: some View {
         if !model.railsProblem.isEmpty {
             EmptyNote(text: model.railsProblem).padding(.top, 20)
+                .tourFeedPart()
         } else if model.rails.isEmpty {
             Skeleton(top: tight ? 0 : 18)
+                .tourFeedPart()
         } else {
             ForEach(Array(model.rails.enumerated()), id: \.element.id) { n, rail in
                 RailRow(rail: rail, order: n, tight: n == 0 && tight)
+                    .tourFeedPart()
             }
         }
     }
