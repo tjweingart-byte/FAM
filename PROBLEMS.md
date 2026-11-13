@@ -36132,3 +36132,28 @@ others listened").
 **Tests:** four more in `tests/test_waitlist_notify.py`, one pinning the
 same words in both apps.
 
+## 594. The phone field says what the text is: consent for the carriers (2026-11-13)
+
+**Asked:** "yes add the consent wording to the phone field" - US carriers
+check, before they deliver texts from a toll-free number (Twilio's
+Toll-Free Verification), that the number was given with consent to a
+described message.
+
+**Changed:**
+- `static/waitlist.html`, under the profile's phone number (the one field
+  whose number gets the §587 let-in text): "By adding your number, you agree
+  FAM may text you once, when you're let off the waitlist, with a link to
+  claim your free month. Msg & data rates may apply. Reply STOP to opt out,
+  HELP for help. See our Privacy Policy." (`#smsConsent`, the input's
+  `aria-describedby`).
+- `pages/privacy.html`: Twilio in the providers table, the email provider's
+  row names the let-in email, and a **Text messages** section - one text,
+  STOP/HELP, and that no mobile information is shared for marketing (the
+  carriers' required sentence).
+- `docs/DATA.md`: the let-in email and text stay in the providers' logs.
+
+**Not changed:** the app's own phone fields (sign-up, the first run's
+identity step) - numbers given there come after the let-in, and FAM sends
+them nothing; iOS asks for no phone number (PARITY.md). If FAM ever texts
+anything else, this wording and the privacy section must change first.
+
