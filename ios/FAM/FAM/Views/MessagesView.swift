@@ -371,7 +371,7 @@ struct NewMessageCard: View {
         // One-to-one only with a friend (§520): the server's own sentence,
         // before a conversation that could not send opens. With no graph to
         // ask, the conversation opens and the server decides on the send.
-        if !chat.group && social.graph != nil && !social.isFriend(chat.with) {
+        if !chat.group && social.mayNotMessage(chat.with) {
             model.nowPlaying.say("You can message people who follow you back.")
             return
         }

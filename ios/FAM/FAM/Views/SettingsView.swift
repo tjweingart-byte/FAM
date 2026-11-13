@@ -403,12 +403,11 @@ struct SettingsView: View {
 
     private func openBlocked() {
         Task {
-            guard let people = try? await model.safety.blocked() else {
-                model.nowPlaying.say("Couldn\u{2019}t reach FAM. Try again.")
-                return
-            }
+            // A list that could not be read is no list (`loadBlocked`
+            // answers []), so the same sentence either way.
+            let people = (try? await model.safety.blocked()) ?? []
             if people.isEmpty {
-                model.nowPlaying.say("You haven't blocked anyone")
+                model.nowPlaying.say("You haven\u{2019}t blocked anyone")
                 return
             }
             blocked = people

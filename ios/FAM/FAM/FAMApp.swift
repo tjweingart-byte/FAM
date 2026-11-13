@@ -549,16 +549,22 @@ struct MainTabs: View {
         // Voice search (§151): full screen over the tabs and the mini player.
         .overlay { VoiceSearchLayer(voice: model.voiceSearch) }
         .overlay {
-            if let name = model.mixDone {
-                MixDoneOverlay(name: name) {
-                    model.mixDone = nil
-                    show(.myfam)
-                    model.mixPath = []
-                    // `closeMixDone(true)` → `openPlayFAM` (§550).
-                    model.mixes.arrived()
-                    Task { await model.mixes.load() }
+            ZStack {
+                if let name = model.mixDone {
+                    MixDoneOverlay(name: name) {
+                        model.mixDone = nil
+                        show(.myfam)
+                        model.mixPath = []
+                        // `closeMixDone(true)` → `openPlayFAM` (§550).
+                        model.mixes.arrived()
+                        Task { await model.mixes.load() }
+                    }
+                    // `#mixDoneOverlay` is a `.modal-overlay`: in over 200 ms,
+                    // the card lifting 14 pt; out over 150, dropping 8.
+                    .transition(.famOverlay(reduceMotion: reduceMotion))
                 }
             }
+            .animation(.easeOut(duration: 0.2), value: model.mixDone)
         }
         .onChange(of: model.tabRequest) { _, wanted in
             guard let wanted else { return }

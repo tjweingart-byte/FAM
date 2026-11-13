@@ -98,7 +98,8 @@ struct ChatScreen: View {
             .famSheet(isPresented: $showMembers) { membersSheet }
             .famSheet(item: $deeper) { base in deeperSheet(base) }
             .alert("Name this group", isPresented: $renaming) {
-                TextField("Group name", text: $newName)
+                // `window.prompt`: no placeholder.
+                TextField("", text: $newName)
                 Button("Cancel", role: .cancel) {}
                 Button("Save") { rename() }
             }
@@ -234,11 +235,10 @@ struct ChatScreen: View {
         return who.group ? "Group" : "Someone"
     }
 
-    /// "View profile", or "N people · See who's here" once the group's
-    /// people are known (a banner opens a group with none yet, quirk 16).
+    /// "View profile", or "N people · See who's here" - "0 people" while
+    /// the group's people are not known yet, as the web counts them.
     private var subLine: String {
         guard who.group else { return "View profile" }
-        if !who.loaded || who.members.isEmpty { return "See who\u{2019}s here" }
         let n = who.members.count
         return "\(n) \(n == 1 ? "person" : "people") \u{00B7} See who\u{2019}s here"
     }
@@ -552,7 +552,7 @@ struct ChatScreen: View {
                     reporting = ReportTarget(subject: .person(handle: handle))
                 })
                 actions.append(SheetAction(label: "Block " + name, danger: true) {
-                    askBlock(name: name, handle: handle, member: false)
+                    askBlock(name: name, handle: handle)
                 })
             }
         }
@@ -562,8 +562,8 @@ struct ChatScreen: View {
     /// The web's action sheets (`blockPerson`, `confirmDeleteChat`,
     /// `confirmLeaveGroup`): the sentence as the sheet's group line, then
     /// the one coral row.
-    private func askBlock(name: String, handle: String, member: Bool) {
-        sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked(member: member) }
+    private func askBlock(name: String, handle: String) {
+        sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked() }
     }
 
     private func askDelete() {
@@ -577,19 +577,15 @@ struct ChatScreen: View {
         sheet = SheetSpec(header: header, actions: [SheetAction(label: "Leave group", danger: true) { leaveGroup() }])
     }
 
-    /// After a block: "Blocked", the graph and inbox re-read; a 1:1 chat
-    /// closes, a group stays without their lines.
-    private func blocked(member: Bool) {
+    /// After a block (a 1:1 chat's ⋯): "Blocked", the graph and inbox
+    /// re-read, and the chat closes (`blockPerson(..., goBack)`).
+    private func blocked() {
         model.nowPlaying.say("Blocked")
         Task {
             await social.loadGraph()
             await social.loadInbox()
         }
-        if member {
-            Task { await chat.load() }
-        } else {
-            social.back()
-        }
+        social.back()
     }
 
     private func deleteChat() {
@@ -621,7 +617,8 @@ struct ChatScreen: View {
     }
 
     private func rename() {
-        let name = String(newName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
+        // Sent as typed (`renameGroup`): the server trims and caps it.
+        let name = newName
         let gid = who.with
         Task {
             do {
@@ -988,7 +985,9 @@ struct SharedEpisodeCard: View {
                 .overlay(Circle().stroke(saved ? FAMColor.copper : FAMColor.borderStrong))
             }
             .buttonStyle(.press)
-            .accessibilityLabel(saved ? "Remove from Saved for Later" : "Save for later")
+            // The web's `aria-label`, saved or not.
+            .accessibilityLabel("Save for later")
+            .accessibilityAddTraits(saved ? .isSelected : [])
         }
     }
 }
@@ -1059,7 +1058,8 @@ struct GroupMembersSheet: View {
 
     private func row(_ m: ChatMember) -> some View {
         HStack(spacing: 12) {
-            Button { after { open(m) } } label: {
+            // A row with no handle only closes the sheet, as the web's does.
+            Button { if m.handle.isEmpty { dismiss() } else { after { open(m) } } } label: {
                 HStack(spacing: 12) {
                     Face(name: m.name, handle: m.handle, avatar: m.avatar, size: 34, initialsSize: 12)
                     VStack(alignment: .leading, spacing: 2) {
@@ -1078,7 +1078,6 @@ struct GroupMembersSheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press)
-            .disabled(m.handle.isEmpty)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 9)

@@ -392,9 +392,10 @@ struct VibePostsView: View {
                     }
                 }
             }
+            // `#vpReplies` is shown and hidden by `hidden`: at once.
             if vp.repliesShown {
                 repliesLayer
-                    .transition(.opacity)
+                    .transition(.identity)
             }
             // Inside a cover the app's loading screen is drawn under it, so
             // the wait for a post's episode is drawn here (`generate`'s

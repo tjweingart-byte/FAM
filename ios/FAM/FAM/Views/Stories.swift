@@ -39,7 +39,7 @@ struct FacesRow: View {
                         let face = faceItem(name: person.name, handle: person.handle, avatar: person.avatar,
                                             label: label, ring: state, plus: false)
                             .background(FaceFrameReader(box: frames, id: person.userId))
-                        if person.stories.isEmpty && person.handle.isEmpty && !social.isFriend(person.userId) {
+                        if person.stories.isEmpty && person.handle.isEmpty && social.mayNotMessage(person.userId) {
                             face.accessibilityElement(children: .combine)
                         } else if person.stories.isEmpty {
                             Button { openFace(person) } label: { face }
@@ -213,8 +213,9 @@ struct FacesRow: View {
     /// `openCircleFace`: the profile by handle, else a conversation.
     private func openFace(_ p: CirclePerson) {
         if p.handle.isEmpty {
-            // A conversation only with a friend (§520).
-            guard model.social.isFriend(p.userId) else {
+            // A conversation only with a friend (§520); with no friends
+            // list loaded yet, the server decides on the send.
+            guard !model.social.mayNotMessage(p.userId) else {
                 model.nowPlaying.say("You can message people who follow you back.")
                 return
             }
@@ -592,8 +593,11 @@ struct StoryViewer: View {
 
     /// Somebody with no handle: your conversation with them, once the
     /// story has closed - a friend's only (§520), as the faces row does.
+    /// Not a friend: the story closes first, then the sentence
+    /// (`storyProfile` -> `openCircleFace`).
     private func openChat() {
-        guard model.social.isFriend(who.id) else {
+        guard !model.social.mayNotMessage(who.id) else {
+            close()
             model.nowPlaying.say("You can message people who follow you back.")
             return
         }
@@ -616,6 +620,8 @@ struct StoryViewer: View {
                 .lineSpacing(0)
                 .multilineTextAlignment(.center)
                 .onTapGesture { play() }
+                // `#storyTitle` is `role="button"`, so it squeezes (PRESSABLE).
+                .tapSqueeze()
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint("Plays the episode")
             Text("\(who.mine ? "You" : firstName) vibed this \u{00B7} \(FAMAPI.minutes(story.minutes ?? FAMAPI.browseMinutes)) min")
@@ -716,8 +722,8 @@ struct StoryViewer: View {
 
     /// One gesture for the story's surface, as the web's pointer handlers:
     /// held 220 ms without travelling pauses and hides the chrome until the
-    /// finger lifts; a horizontal swipe of 50 pt changes friend; a drag down
-    /// closes; otherwise a tap steps back (left half) or on (right half).
+    /// finger lifts; a horizontal swipe of 50 pt changes friend; otherwise a
+    /// tap steps back (left half) or on (right half).
     private func surfaceGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in

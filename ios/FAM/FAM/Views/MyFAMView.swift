@@ -617,6 +617,8 @@ struct MixDoneOverlay: View {
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong))
             .shadow(color: .black.opacity(0.45), radius: 30, y: 30)
+            .liftsIn()
+            .dropsOnLeave()
             .padding(.horizontal, 27)
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)

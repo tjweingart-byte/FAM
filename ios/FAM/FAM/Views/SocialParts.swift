@@ -399,7 +399,19 @@ struct ModalField: View {
 /// 28 pt or the X dismisses; a finger on it holds it.
 struct SocialBannerLayer: View {
     @EnvironmentObject private var social: SocialModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var drag: CGFloat = 0
+
+    /// `.notif`'s one transition, both ways: the slide over .28 s on
+    /// `cubic-bezier(.2,.8,.3,1)`, the fade over .2 s `ease`. Reduce Motion:
+    /// the fade alone.
+    private var comesAndGoes: AnyTransition {
+        let fade = AnyTransition.opacity.animation(.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.2))
+        if reduceMotion { return fade }
+        return AnyTransition.move(edge: .top)
+            .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.28))
+            .combined(with: fade)
+    }
 
     var body: some View {
         if let b = social.banner {
@@ -407,7 +419,7 @@ struct SocialBannerLayer: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 10)
                 .offset(y: min(0, drag))
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(comesAndGoes)
                 .gesture(swipe)
                 .zIndex(10)
         }

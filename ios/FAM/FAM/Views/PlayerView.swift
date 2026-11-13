@@ -67,7 +67,8 @@ struct PlayerView: View {
         .coordinateSpace(name: Self.space)
         .background(FAMColor.background.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: popup)
-        .animation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36), value: now.nextUp.isEmpty)
+        // What's next comes and goes on its own transition's timings.
+        .animation(.easeOut(duration: 0.2), value: now.nextUp.isEmpty)
         .famSheet(item: Binding(get: { sheet == .vibe ? nil : sheet }, set: { sheet = $0 })) { which in
             sheetView(which)
                 .environmentObject(model)

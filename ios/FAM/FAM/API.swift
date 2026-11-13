@@ -2436,9 +2436,6 @@ struct ChatMember: Decodable, Hashable {
     let handle: String
     let avatar: String
     let me: Bool
-    /// Whether this listener and that member follow each other (§520): a
-    /// group may hold people who are not friends with each other.
-    let friend: Bool?
 }
 
 /// A message (`Message.as_dict`), as a conversation, the inbox's last

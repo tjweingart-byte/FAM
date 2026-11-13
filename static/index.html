@@ -16318,6 +16318,7 @@
         // a friends list left in a variable is the previous listener's data
         // sitting in the next one's app.
         friendsData = { following: [], followers: [], friends: [], counts: {} };
+        friendsLoaded = false;
         // And the episodes kept on this device for offline listening.
         forgetOfflineCopies();
         newFollowers = [];
@@ -17769,8 +17770,7 @@
       // One-to-one only with a friend (§520, §575): the server's own
       // sentence before a conversation that could not send opens, as the
       // app says it. With no graph loaded, the server decides on the send.
-      if(friendsData.friends && !friendsData.friends.some(function(f){
-            return f.user_id === person.user_id; })){
+      if(notAFriend(person.user_id)){
         toast("You can message people who follow you back.");
         return;
       }
@@ -18284,6 +18284,15 @@
   }
 
   var friendsData = { following: [], followers: [], friends: [], counts: {} };
+  //: Whether `friendsData` is the server's answer yet. Before it is, a
+  //: one-to-one is not refused here: the server decides on the send.
+  var friendsLoaded = false;
+  //: Somebody this listener may not message one-to-one (§520, §575): the
+  //: friends list has loaded and they are not on it.
+  function notAFriend(userId){
+    return friendsLoaded && !(friendsData.friends || []).some(function(f){
+      return f.user_id === userId; });
+  }
 
   //: Who followed since this listener last opened the Friends tab. Drives the
   //: badge on the profile's Friends tile and the popup below.
@@ -18299,6 +18308,7 @@
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         friendsData = d;
+        friendsLoaded = true;
         newFollowers = d.new_followers || [];
         renderFriends();
         return d;
@@ -18323,6 +18333,7 @@
       .then(function(d){
         if(!d) return;
         friendsData = d;
+        friendsLoaded = true;
         newFollowers = d.new_followers || [];
         // `announce`, not `new_followers`: only people this listener has never
         // been shown (§142). The popup used to remember that in page memory,
@@ -18554,6 +18565,7 @@
         .then(function(d){
           if(!d) return;
           friendsData = d;
+          friendsLoaded = true;
           if(viewingProfile && viewingProfile.handle === handle
              && document.getElementById("screen-person").classList.contains("active")){
             // Opened by handle alone, the person had no id - and without one
@@ -21004,6 +21016,13 @@
       .then(function(d){
         var found = (d.people || [])[0];
         if(!found){ toast("Nobody with that handle"); return; }
+        // A typed handle is held to the same rule as a face (§575): one-to-one
+        // only with a friend, said before the conversation opens, the card
+        // left open to try another.
+        if(notAFriend(found.user_id)){
+          toast("You can message people who follow you back.");
+          return;
+        }
         closeNewChatModal();
         openThreadWith(found);
       })

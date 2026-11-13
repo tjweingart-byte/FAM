@@ -274,7 +274,8 @@ struct SampleCarousel: View {
                         .padding(5)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                // `.ws-dot` is a button, so it squeezes as every one does.
+                .buttonStyle(.press)
                 .accessibilityLabel("Sample \(i + 1)")
             }
         }

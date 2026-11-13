@@ -270,6 +270,8 @@ struct AddTopicsView: View {
                    added: false, label: "Add it to this mix") { Task { await addTyped() } }
             .contentShape(Rectangle())
             .onTapGesture { Task { await addTyped() } }
+            // `.typed-offer` has an onclick, so it squeezes (PRESSABLE).
+            .tapSqueeze()
         // Teams and topics in the listener's interest order (`followRanked`).
         let ranked = mixes.interestOrder()
         if typed.count >= 2 {

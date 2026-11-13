@@ -121,16 +121,23 @@ struct RowGone: ViewModifier {
 }
 
 extension AnyTransition {
+    /// With Reduce Motion the list just redraws (`removeRow`'s `reduced`).
     static var rowRemoval: AnyTransition {
-        .asymmetric(insertion: .opacity,
-                    removal: AnyTransition.modifier(active: RowGone(gone: true), identity: RowGone(gone: false))
-                        .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.18)))
+        if UIAccessibility.isReduceMotionEnabled { return .identity }
+        return .asymmetric(insertion: .opacity,
+                           removal: AnyTransition.modifier(active: RowGone(gone: true), identity: RowGone(gone: false))
+                               .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.18)))
     }
 }
 
 extension Animation {
-    /// The rows under a removed one close up after it has slid away.
-    static var rowFold: Animation { .easeOut(duration: 0.2).delay(0.18) }
+    /// The rows under a removed one close up after it has slid away, on the
+    /// web's default EASE (`cubic-bezier(.2,.8,.2,1)`: the fold names no
+    /// easing of its own). Reduce Motion: nil, the list just redraws.
+    static var rowFold: Animation? {
+        if UIAccessibility.isReduceMotionEnabled { return nil }
+        return .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2).delay(0.18)
+    }
 }
 
 // MARK: - Tabs nudge toward the new tab's side

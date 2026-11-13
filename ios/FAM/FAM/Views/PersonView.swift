@@ -12,7 +12,6 @@ struct PersonView: View {
     let open: PersonOpen
 
     @State private var page: PersonPage?
-    @State private var missing = false
     @State private var tab = 0
     @State private var allFriends = false
     @State private var menu = false
@@ -29,8 +28,6 @@ struct PersonView: View {
     @State private var followedHandles: Set<String> = []
     @State private var addedMixes: [String: Bool] = [:]
     /// A mix of theirs already in your myFAM, asked about before it goes.
-    @State private var story: StoryReel?
-    @AppStorage("storiesSeen") private var seenJSON = "{}"
 
     /// `.yf-person .yf-hero`'s wash, the top bar's colour at the top.
     private static let wash = FAMColor.wash
@@ -91,7 +88,7 @@ struct PersonView: View {
         .task { await load() }
     }
 
-    /// The ⋯, Report, Block, Unfollow and the story, kept out of `body`.
+    /// The ⋯, Report, Block and Unfollow, kept out of `body`.
     private func presentations<V: View>(_ content: V) -> some View {
         content
         .famSheet(isPresented: $menu) { menuSheet }
@@ -100,17 +97,6 @@ struct PersonView: View {
                            say: { model.nowPlaying.say($0) }) { _ in }
         }
         .famSheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
-        .fullScreenCover(item: $story) { reel in
-            StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 }, openMine: {
-                // "Vibed to your story · View" after the VIBE! arrows.
-                Task { @MainActor in
-                    await model.loadCircle()
-                    try? await Task.sleep(nanoseconds: 350_000_000)
-                    if let mine = StoryReel.mine(model) { story = mine }
-                }
-            }, origin: reel.origin)
-                .environmentObject(model)
-        }
     }
 
     private func load() async {
@@ -118,9 +104,8 @@ struct PersonView: View {
         if social.me == nil { Task { await social.loadMe() } }
         do {
             page = try await model.api.person(handle: open.handle, userID: open.userID)
-            missing = false
         } catch {
-            missing = true
+            // The page stands as drawn from the graph, and says nothing.
         }
     }
 
@@ -292,7 +277,7 @@ struct PersonView: View {
                 }
                 .buttonStyle(.press)
                 .disabled(working)
-            } else if !handle.isEmpty && !missing {
+            } else if !handle.isEmpty {
                 Button { follow() } label: {
                     Text("Follow")
                         .font(FAMFont.body(12, .bold))
@@ -646,19 +631,6 @@ struct PersonView: View {
             }
         }
     }
-
-    // MARK: - Their story (the ring)
-
-    private var seen: [String: Double] {
-        (try? JSONDecoder().decode([String: Double].self, from: Data(seenJSON.utf8))) ?? [:]
-    }
-
-    private func markSeen(_ id: String, _ at: Double) {
-        var map = seen
-        map[id] = max(map[id] ?? 0, at)
-        if let data = try? JSONEncoder().encode(map) { seenJSON = String(decoding: data, as: UTF8.self) }
-    }
-
 }
 
 /// A profile tile (`.yf-pic`): the picture filling a 3:4 tile (or the
