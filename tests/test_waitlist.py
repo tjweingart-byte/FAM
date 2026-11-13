@@ -786,25 +786,17 @@ def test_the_profile_keeps_birth_date_phone_and_location(world):
     assert member.get("/api/waitlist/me").json()["details"]["birth_date"] == ""
 
 
-def test_the_waitlist_page_asks_for_the_email_a_password_and_says_the_place():
-    """§571 (reversing §296's email alone): the join form is the email, then
-    one password with the log-in's show/hide eye, then the Terms box - one
-    step - and the join sends the password, checked first with the app's
-    own rule and sentences."""
+def test_the_waitlist_page_asks_for_the_email_alone_and_says_the_place():
+    """§606 (reversing §571): the join form is the email, then the Terms box -
+    no password - and the join sends none."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     form = page.split('<form id="joinForm"', 1)[1].split("</form>", 1)[0]
-    assert form.index('id="email"') < form.index('id="joinPassword"') < form.index('id="acceptTerms"')
-    assert form.count('type="password"') == 1 and 'data-pw="joinPassword"' in form
-    assert 'autocomplete="new-password"' in form
-    assert 'id="password2"' not in page
+    assert form.index('id="email"') < form.index('id="acceptTerms"')
+    assert 'type="password"' not in form and 'id="joinPassword"' not in page
     join = page.split('api("/api/waitlist/join", ', 1)[1].split(")", 1)[0]
-    assert "password: password" in join
+    assert "password" not in join
     submit = page.split('$("joinForm").addEventListener("submit"', 1)[1].split('api("/api/waitlist/join"', 1)[0]
-    assert "Enter your password." in submit
-    assert "Use at least 8 characters for your password." in submit
-    assert f"password.length < {accounts_mod.MIN_PASSWORD}" in submit
-    app_page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-    assert "Use at least 8 characters for your password." in app_page
+    assert "password" not in submit.lower()
     assert 'id="placeBig"' in page and '"#" + fmt(d.place)' in page
     assert 'id="shareLink"' in page
     for field in ("pBirth", "pCountry", "pRegion", "pCity", "pPhone"):
@@ -1216,27 +1208,20 @@ def test_a_registered_email_with_a_password_is_still_refused(world):
                                                   "password": PASSWORD,
                                                   "accept_terms": True})
     assert r.status_code == 400 and "already registered" in r.text
-    # The page opens its sign-in with the address and the password carried.
+    # The page opens its sign-in, and says where a passwordless one gets in.
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     join = page.split('api("/api/waitlist/join"', 1)[1].split("\n    });", 1)[0]
-    assert '$("loginPassword").value = password' in join
+    assert '$("toggleLogin").click()' in join
+    assert "open the link we sent when you were let in" in join
+    assert "loginPassword" not in join
 
 
-def test_the_status_page_offers_a_password_to_an_account_with_none():
-    """§571: "Set a password so you can sign back in", drawn from
-    `details.has_password === false`, sets one with `/api/auth/password/set`."""
+def test_the_status_page_never_asks_for_a_password():
+    """§606 (reversing §571's card): the waitlist needs no password, so the
+    status page offers none; it is the app's first step once let in."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    card = page.split('id="passwordCard"', 1)[1].split("</section>", 1)[0]
-    assert "Set a password so you can sign back in" in card
-    assert 'id="firstPassword"' in card and 'data-pw="firstPassword"' in card
-    draw = page.split("function drawPasswordCard(d){", 1)[1].split("\n  }", 1)[0]
-    assert "has_password === false" in draw
-    submit = page.split('$("firstPasswordForm").addEventListener("submit"', 1)[1].split("\n  });", 1)[0]
-    assert 'api("/api/auth/password/set", { "new": pw })' in submit
-    assert "Use at least 8 characters for your password." in submit
-    assert "drawPasswordCard(STATE);" in page.split("function load(){", 1)[1]
-    # Hidden until the answer says there is no password.
-    assert '<section class="card hidden" id="passwordCard">' in page
+    assert 'id="passwordCard"' not in page and "drawPasswordCard" not in page
+    assert 'id="firstPassword"' not in page
 
 
 def test_settings_says_set_a_password_when_there_is_none():
@@ -1302,7 +1287,7 @@ def test_refusals_never_read_object_object():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     assert "new Error(errorSentence(data))" in page
     assert "Array.isArray(said)" in page.split("function errorSentence(data){", 1)[1]
-    for field in ("joinPassword", "firstPassword"):
+    for field in ("resetPassword",):
         tag = page.split(f'id="{field}"', 1)[1].split(">", 1)[0]
         assert f'maxlength="{accounts_mod.MAX_PASSWORD}"' in tag
 
@@ -1312,3 +1297,112 @@ def test_the_settings_note_follows_the_password_and_reset():
     note = page.split("function passwordSettingsNote(){", 1)[1].split("\n  }", 1)[0]
     assert "AUTH.has_password === false" in note and "RESET_READY" in note
     assert "passwordSettingsNote()" in page.split("function renderSettings(){", 1)[1]
+
+
+# ---------------------------------------------------------------- §606
+
+
+def _passwordless_let_in(email):
+    """An email-only join, let in, its let-in link's code."""
+    member, body = _join(email, password="")
+    appmod.WAITLIST.grant([body["user_id"]])
+    return member, body, appmod.WAITLIST.notice_view(body["user_id"])["claim_code"]
+
+
+def test_an_email_only_join_is_asked_for_a_password_first_once_let_in(world):
+    """§606: waiting, nothing asks for a password; let in, `/api/auth/me`
+    says `password_needed` (the app's first screen), and setting one ends it."""
+    member, body = _join("waiting@fam.test", password="")
+    assert member.get("/api/auth/me").json()["password_needed"] is False
+    appmod.WAITLIST.grant([body["user_id"]])
+    me = member.get("/api/auth/me").json()
+    assert me["password_needed"] is True and me["has_password"] is False
+    assert member.get("/api/account").json()["password_needed"] is True
+    assert member.post("/api/auth/password/set", json={"new": PASSWORD}).status_code == 200
+    assert member.get("/api/auth/me").json()["password_needed"] is False
+    door = TestClient(appmod.app)
+    r = door.post("/api/auth/login", json={"email": "waiting@fam.test", "password": PASSWORD})
+    assert r.status_code == 200 and r.json()["user_id"] == body["user_id"]
+
+
+def test_the_let_in_link_signs_a_passwordless_account_in_on_another_device(world):
+    """§606: the account is recognised from its let-in link - a new browser
+    is signed in and sent to the app, whose first step is the password. Once
+    one is set, the link only claims the month: never a standing way in."""
+    _member, body, code = _passwordless_let_in("link@fam.test")
+    phone = TestClient(appmod.app)
+    r = phone.get(f"/claim/{code}", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/"
+    me = phone.get("/api/auth/me").json()
+    assert me["user_id"] == body["user_id"] and me["password_needed"] is True
+    assert phone.post("/api/auth/password/set", json={"new": PASSWORD}).status_code == 200
+    stranger = TestClient(appmod.app)
+    r = stranger.get(f"/claim/{code}", follow_redirects=False)
+    assert r.status_code == 200 and "free month" in r.text.lower()
+    assert stranger.get("/api/auth/me").json().get("authenticated") is not True
+
+
+def test_the_let_in_link_never_signs_in_a_waitlisted_or_passworded_account(world):
+    member, body = _join("haspw@fam.test", password=PASSWORD)
+    appmod.WAITLIST.grant([body["user_id"]])
+    code = appmod.WAITLIST.notice_view(body["user_id"])["claim_code"]
+    other = TestClient(appmod.app)
+    assert other.get(f"/claim/{code}", follow_redirects=False).status_code == 200
+    assert other.get("/api/auth/me").json().get("authenticated") is not True
+    assert member.get("/api/auth/me").json()["password_needed"] is False
+
+
+def test_signing_in_to_a_passwordless_account_says_how_to_get_in(world, monkeypatch):
+    """§606: recognised, not "do not match" - waiting, it is told the link
+    comes when let in; let in, to open that link."""
+    import mail
+    monkeypatch.setattr(mail, "status", lambda: {"available": False, "reason": "off"})
+    _member, body = _join("nopw@fam.test", password="")
+    door = TestClient(appmod.app)
+    r = door.post("/api/auth/login", json={"email": "nopw@fam.test", "password": "anything-at-all"})
+    assert r.status_code == 401 and "on the waitlist" in r.json()["error"]
+    appmod.WAITLIST.grant([body["user_id"]])
+    r = door.post("/api/auth/login", json={"email": "nopw@fam.test", "password": "anything-at-all"})
+    assert r.status_code == 401
+    assert "Open the link we sent you when you were let in" in r.json()["error"]
+    assert "Forgot password?" not in r.json()["error"]
+    # A wrong password on an account that has one is still the one sentence.
+    _join("withpw@fam.test", password=PASSWORD)
+    r = door.post("/api/auth/login", json={"email": "withpw@fam.test", "password": "wrong-password"})
+    assert r.status_code == 401 and "do not match" in r.json()["error"]
+
+
+def test_the_app_opens_on_set_your_password_when_it_is_needed():
+    """§606: `routeFirstScreen` asks for the password before the first run,
+    on a screen with no X and no skip."""
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    route = page.split("function routeFirstScreen(){", 1)[1].split("\n  }\n", 1)[0]
+    assert route.index("AUTH.password_needed") < route.index("afterAccount(")
+    screen = page.split('id="screen-password-first"', 1)[1].split("</section>", 1)[0]
+    assert 'id="passwordFirstInput"' in screen and 'autocomplete="new-password"' in screen
+    assert "sheet-close" not in screen and "Skip" not in screen
+    submit = page.split("function submitPasswordFirst(){", 1)[1].split("\n  }\n", 1)[0]
+    assert '"/api/auth/password/set"' in submit and "routeFirstScreen()" in submit
+    assert "Use at least 8 characters for your password." in submit
+
+
+def test_launch_day_asks_a_waitlisted_account_for_its_password(world, monkeypatch):
+    """§606: `WAITLIST=0` lets every waitlisted account in at once, so one
+    with no password is asked for it first, as a let-in one is."""
+    member, _body = _join("launch@fam.test", password="")
+    on = appmod.settings
+    monkeypatch.setattr(appmod, "settings", dataclasses.replace(on, waitlist=False))
+    assert member.get("/api/auth/me").json()["password_needed"] is True
+    monkeypatch.setattr(appmod, "settings", on)
+    assert member.get("/api/auth/me").json()["password_needed"] is False
+
+
+def test_the_activation_card_waits_behind_set_your_password():
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    first = page.split("function inFirstRun(){", 1)[1].split("\n  }\n", 1)[0]
+    assert '"screen-password-first"' in first
+    release = page.split("function releaseActivation(id){", 1)[1].split("\n  }\n", 1)[0]
+    assert '"password-first"' in release
+    model = (ROOT / "ios" / "FAM" / "FAM" / "AppModel.swift").read_text()
+    check = model.split("func checkActivation() async {", 1)[1].split("\n    }\n", 1)[0]
+    assert "listener?.passwordNeeded != true" in check

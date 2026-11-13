@@ -1696,6 +1696,53 @@ def _has_password(user_id: str) -> bool:
     return bool(row and row[0])
 
 
+def _signs_in_with_provider(user_id: str) -> list[str]:
+    """The Google or Apple links on this account, by name ("Google")."""
+    names = {"google": "Google", "apple": "Apple"}
+    return [names[i["provider"]] for i in ACCOUNTS.identities_for(user_id)
+            if i.get("provider") in names]
+
+
+def _password_needed(user_id: str) -> bool:
+    """Whether this account's first step in the app is setting a password
+    (§606): in the app (let in, or the gate is off - launch day lets every
+    waitlisted account in at once), joined with the email alone, and with
+    no other way back in (no password, no Google or Apple). Never raises.
+
+    An account still held by the gate is never asked - the waitlist needs
+    no password - and a Google or Apple account already has its way in."""
+    try:
+        account = ACCOUNTS.account(user_id) or {}
+        if not account:
+            return False
+        if (account.get("status") == waitlist_mod.WAITLISTED
+                and settings.waitlist):
+            return False
+        return not _has_password(user_id) and not _signs_in_with_provider(user_id)
+    except Exception:  # noqa: BLE001 - an open must never fail over this
+        log.exception("could not decide whether a password is needed")
+        return False
+
+
+def _no_password_words(user_id: str) -> str:
+    """What the sign-in says for an account that has no password yet
+    (§606), instead of "do not match": how *this* account gets in."""
+    providers = _signs_in_with_provider(user_id)
+    if providers:
+        return (f"This account signs in with {' or '.join(providers)}. Use that, "
+                "then you can add a password in Settings.")
+    account = ACCOUNTS.account(user_id) or {}
+    if account.get("status") == waitlist_mod.WAITLISTED and settings.waitlist:
+        return ("You're on the waitlist, so there's no password yet. When "
+                "you're let in, we'll send you a link to set one.")
+    words = ("This account has no password yet. Open the link we sent you "
+             "when you were let in, or FAM on the device you joined from, "
+             "and set one there")
+    if mail_mod.status().get("available"):
+        words += ", or use Forgot password? to get a code by email"
+    return words + "."
+
+
 def _quota_snapshot(user: str, tier_name: str) -> dict:
     """Where this listener stands against every countable resource.
 
@@ -2641,6 +2688,10 @@ async def auth_me(request: Request) -> dict:
             # is offered the first one directly.
             "has_password": bool(listener.is_authenticated
                                  and _has_password(listener.user_id)),
+            # Let in off the waitlist with the email alone (§606): the app's
+            # first screen is "Set your password", before anything else.
+            "password_needed": bool(listener.is_authenticated
+                                    and _password_needed(listener.user_id)),
             # The free month somebody let off the waitlist may claim (§593),
             # drawn as a card on DailyFAM; absent for everyone else.
             "free_month": _free_month_offer(listener)}
@@ -2854,6 +2905,11 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
         else:
             listener = await asyncio.to_thread(ACCOUNTS.log_in_phone, req.phone,
                                                req.password)
+    except accounts_mod.NoPasswordYet as exc:
+        # The account is recognised (§606): an email-only waitlist join has
+        # never had a password, so say how it gets in, not "do not match".
+        raise HTTPException(status_code=401,
+                            detail=_no_password_words(exc.user_id)) from exc
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     listener = _admit_admin(listener)
@@ -3075,6 +3131,7 @@ async def account_read(request: Request) -> dict:
         "created": account.get("created", 0),
         "identities": ACCOUNTS.identities_for(user),
         "has_password": bool(ACCOUNTS.account(user) and _has_password(user)),
+        "password_needed": _password_needed(user),
         "sessions": ACCOUNTS.sessions_for(user, _session_token(request)),
         "entitlements": entitlements.describe(tier_name),
         # Said here as well as on /api/entitlements because a settings screen
@@ -5864,15 +5921,34 @@ async def support() -> HTMLResponse:
 
 
 @app.get("/claim/{code}", include_in_schema=False)
-async def claim_free_month(code: str) -> HTMLResponse:
+async def claim_free_month(code: str, request: Request):
     """The link in "you're off the waitlist" (§587): claims the free month.
 
     Open to everybody - it is opened from a mail app or a text, often in a
     browser with no session - and the code is the whole credential: it names
     one account and does one harmless, idempotent thing to it. The month runs
     from the day the real app is published, never in the beta.
+
+    **And it is the way in for an account with no password** (§606): the
+    waitlist asks for the email alone, so somebody let in on another device
+    has nothing to sign in with. While the account has no password and no
+    Google or Apple (`_password_needed`), the link signs this browser in -
+    a fresh session, as `/api/auth/login` mints - and opens the app, whose
+    first screen is "Set your password". It arrived at their own address or
+    number, as a reset code would. Once a password is set the link only
+    claims the month again: it is never a standing way in.
     """
     user = await asyncio.to_thread(WAITLIST.claim_free_month, code)
+    if user and await asyncio.to_thread(_password_needed, user):
+        old = _session_token(request)
+        token, _user_id = ACCOUNTS.new_session(user)
+        if old:
+            ACCOUNTS.end_session(old)
+        request.state.set_session = token
+        # "/" on this host, where the cookie was just set - never
+        # `app_home_url`, which may be another host without it.
+        return RedirectResponse("/", status_code=303,
+                                headers={"Cache-Control": "no-store"})
     home = html.escape(settings.app_home_url)
     if not user:
         title = "That link doesn't work"
@@ -14202,11 +14278,10 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    #: Asked for again since §571 (the owner, reversing §296's email alone):
-    #: the join form is the email, a password and the Terms box, and the
-    #: password is set on the account in the same INSERT that makes it. Still
-    #: optional here: an installed client that sends none (`old-clients`)
-    #: gets §296's passwordless join, unchanged.
+    #: Not asked for since §606 (the owner, reversing §571): joining is the
+    #: email and the Terms box, and the password is the first step once let
+    #: in. Still taken when sent - §571's web page and iOS builds 6 and 7
+    #: send one (`old-clients`) - and set in the INSERT, as it was.
     password: str = Field("", max_length=accounts_mod.MAX_PASSWORD)
     referral_code: str = Field("", max_length=64)
     want_token: bool = False
@@ -14263,14 +14338,14 @@ def _admin_previewing_join(req, request: Request):
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own sign-up, then the waitlist half.
 
-    **The email and a password** (the owner, PROBLEMS.md §571, reversing
-    §296's email alone): the password is checked by the same rule as every
-    other (`accounts.check_password`) and stored in the INSERT that makes
-    the account, so a join never leaves an account half made. A join with
-    no password - an installed client from §296's weeks - is still made
-    with none (`passwordless`), as a Google-or-Apple one is; its way back in
-    is setting one (`/api/auth/password/set`, offered on the status page
-    and in Settings) or "Forgot password?" (§244) where mail is set up.
+    **The email alone** (the owner, PROBLEMS.md §606, reversing §571): the
+    account is made with no password (`passwordless`), as a Google-or-Apple
+    one is, and the waitlist never asks for one. Let in, the account is
+    recognised - this browser's session, or the let-in link (`/claim/<code>`,
+    which signs a passwordless account in) - and the app's first step is
+    setting a password (`/api/auth/me` `password_needed`). A join that still
+    sends a password (§571's clients) has it checked by the app's rule and
+    stored in the INSERT, as before.
 
     The same account the app will open with later - `ACCOUNTS.sign_up` on the
     session this browser already has - so granting access changes one column

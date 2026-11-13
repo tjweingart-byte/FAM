@@ -105,7 +105,7 @@ def test_the_listener_fields_are_sent(monkeypatch):
     fields = _fields("Listener")
     # `activation_needed`, `waitlist` and `home` are `/me`'s alone (§411);
     # a sign-up decodes them nil.
-    mine = {"activation_needed", "waitlist", "home"}
+    mine = {"activation_needed", "waitlist", "home", "password_needed"}
     assert fields - mine <= set(signup), sorted(fields - mine - set(signup))
     token = signup["session_token"]
     me = c.get("/api/v1/auth/me", headers={**headers, "Authorization": "Bearer " + token}).json()
@@ -894,6 +894,25 @@ def test_motion_matches_the_web_where_audit_4_found_it_did_not_584():
     assert ".transition(comesAndGoes)" in parts and "if reduceMotion { return fade }" in parts
     social = _swift("Social.swift")
     assert "withAnimation(.easeIn(duration: 0.2)) { banner = nil }" not in social
+
+
+def test_the_join_asks_no_password_and_a_let_in_account_sets_one_first_606():
+    """§606: the iPhone's join is the email and the Terms box, and an
+    account let in with no way back in sets a password before anything."""
+    auth = _swift("Views", "AuthView.swift")
+    join = auth[auth.index("private var joinFields"):auth.index("private var loginFields")]
+    assert "passwordField" not in join
+    act = auth[auth.index("private func join() async"):auth.index("private func logIn() async")]
+    assert 'joinWaitlist(email: address, password: "")' in act
+    assert "Enter your password." not in act
+    assert "let passwordNeeded: Bool?" in _api()
+    you = _swift("YourFAM.swift")
+    begin = you[you.index("func beginEntry("):you.index("func finishEntry()")]
+    assert begin.index("passwordNeeded == true") < begin.index("api.preferences()")
+    assert "case .password:\n                    PasswordFirstView()" in _swift("FAMApp.swift")
+    door = _swift("Views", "FrontDoor.swift")
+    assert "struct PasswordFirstView: View" in door and "WaitlistPasswordCard" not in door
+    assert "model.api.setPassword(password)" in door
 
 
 # --- The tour (§594, §595) ---------------------------------------------------

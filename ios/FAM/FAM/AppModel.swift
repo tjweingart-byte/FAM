@@ -522,7 +522,10 @@ final class AppModel: ObservableObject {
         // often somebody let in off the waitlist): the steps a new account
         // gets (`routeFirstScreen` → `afterAccount({fromBoot})`). The feed
         // is already on its way: it waits on the answer alone.
-        if stage == .ready && !UserDefaults.standard.bool(forKey: Self.entryKey) {
+        // A password owed (§606) comes first even on a phone that finished
+        // the first run.
+        if stage == .ready && (!UserDefaults.standard.bool(forKey: Self.entryKey)
+                               || listener?.passwordNeeded == true) {
             await beginEntry(handoff: false)
         } else if stage == .ready {
             // `routeFirstScreen`: a tour owed from sign-up that a relaunch
@@ -598,6 +601,19 @@ final class AppModel: ObservableObject {
 
     /// `/api/auth/me` again: the waitlist switch and `activation_needed`
     /// are its alone (a log-in's answer leaves them out).
+    /// The first password is set (§606): ask who this is again, so
+    /// `password_needed` is false, and carry on with the first run.
+    func passwordSet() async {
+        await refreshWho()
+        if UserDefaults.standard.bool(forKey: Self.entryKey) {
+            entry = nil
+            // What launch would have offered behind the password (§595).
+            tour.offerOnce()
+        } else {
+            await beginEntry(handoff: false)
+        }
+    }
+
     private func refreshWho() async {
         guard let who = try? await api.me() else { return }
         arrive(who)
@@ -776,7 +792,8 @@ final class AppModel: ObservableObject {
     /// is asked its name and place first); then `/api/activation`, and the
     /// card if it is still owed.
     func checkActivation() async {
-        guard activationOwed, stage == .ready, entry == nil, owedActivation == nil else { return }
+        guard activationOwed, stage == .ready, entry == nil, owedActivation == nil,
+              listener?.passwordNeeded != true else { return }
         guard let found = await you.loadActivation() else { return }
         activationOwed = false
         if found.needed == true { owedActivation = found }
