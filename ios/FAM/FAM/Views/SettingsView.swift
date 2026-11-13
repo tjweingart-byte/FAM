@@ -44,6 +44,11 @@ struct SettingsView: View {
                     if model.listener?.authenticated == true {
                         NotificationRows(mixes: model.mixes) { sheet = .daily }
                     }
+                    // "Hey FAM" (§158), only where the phone can recognise
+                    // speech: after Notifications, as the web draws it.
+                    if VoiceSearchModel.available {
+                        WakeRow(wake: model.wake)
+                    }
                     PrivacyRows(consent: model.consent, open: open)
                     accountGroup
                 }
@@ -126,10 +131,6 @@ struct SettingsView: View {
             // Always drawn (`renderSettings`), the label falling back as the
             // web's `voiceLabel` does; a tap with no bank says so.
             SetRow(label: "Voice for your searches", value: voiceValue) { openVoices() }
-            // "Hey FAM" (§158), only where the phone can recognise speech.
-            if VoiceSearchModel.available {
-                WakeRow(wake: model.wake)
-            }
         }
     }
 

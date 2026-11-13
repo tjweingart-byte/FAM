@@ -355,6 +355,14 @@ enum Icons {
         return p
     }()
 
+    /// The join's arrow (`M5 12h14M13 6l6 6-6 6`, `#joinBtn`).
+    static let arrowRight: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 5, y: 12)); p.addLine(to: CGPoint(x: 19, y: 12))
+        p.move(to: CGPoint(x: 13, y: 6)); p.addLine(to: CGPoint(x: 19, y: 12)); p.addLine(to: CGPoint(x: 13, y: 18))
+        return p
+    }()
+
     /// Back: the double chevron («).
     static let back: Path = {
         var p = Path()

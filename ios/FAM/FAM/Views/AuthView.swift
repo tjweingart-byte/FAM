@@ -46,7 +46,10 @@ struct AuthView: View {
     var body: some View {
         Group {
             if resetting {
-                ResetPasswordView(initialEmail: email) { resetting = false }
+                // Its back arrow is `backToWelcome()`, as the web's; its
+                // "Remembered it? Log in" is the log-in form again.
+                ResetPasswordView(initialEmail: email, back: { resetting = false },
+                                  toWelcome: { resetting = false; back() })
             } else {
                 form
             }
@@ -64,7 +67,6 @@ struct AuthView: View {
     private var form: some View {
         VStack(spacing: 0) {
             YouBackRow(title: making ? "Sign up" : "Log in") { back() }
-            if making { StepMarks(step: 1).padding(.top, -6) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     lead
@@ -129,15 +131,20 @@ struct AuthView: View {
             // device, with no email needed (`#joinPassword`).
             label("Password").padding(.top, 18)
             passwordField
-            if !problem.isEmpty { problemLine }
             Button {
                 Task { await join() }
             } label: {
-                Text("Join the waitlist")
+                // `#joinBtn`: the words and the arrow after them.
+                HStack(spacing: 8) {
+                    Text("Join the waitlist")
+                    WebIcon(path: Icons.arrowRight, size: 16, line: 2)
+                }
             }
             .buttonStyle(EntryButtonStyle(primary: true))
             .disabled(working)
-            .padding(.top, problem.isEmpty ? 22 : 10)
+            .padding(.top, 22)
+            // `#joinNote`: what went wrong, under the button, over the terms.
+            if !problem.isEmpty { problemLine }
             terms.padding(.top, 16)
             Button("What is FAM?") { openAbout() }
                 .font(FAMFont.body(13, .bold))
@@ -233,8 +240,10 @@ struct AuthView: View {
         .modifier(FieldBox())
     }
 
+    /// The join's own words on Sign up; the app's form says "at least 8
+    /// characters" on Log in too (`#authPassword`).
     private var passwordPrompt: String {
-        making ? "Choose a password (at least 8 characters)" : "Your password"
+        making ? "Choose a password (at least 8 characters)" : "at least 8 characters"
     }
 
     private var problemLine: some View {
@@ -245,17 +254,15 @@ struct AuthView: View {
             .padding(.top, 12)
     }
 
+    /// `#toggleLogin`, the waitlist page's one line: "Already on the list?
+    /// Sign in" under the join, "New here? Get early access" under the sign-in.
     private var switchLine: some View {
-        HStack(spacing: 6) {
-            Text(making ? "Already have an account?" : "New to FAM?")
-                .foregroundStyle(FAMColor.textMuted)
-            Button(making ? "Log in" : "Sign up") { switchMode() }
-                .fontWeight(.bold)
-                .foregroundStyle(FAMColor.copper)
-        }
-        .font(FAMFont.body(13))
-        .frame(maxWidth: .infinity)
-        .padding(.top, 18)
+        Button(making ? "Already on the list? Sign in" : "New here? Get early access") { switchMode() }
+            .font(FAMFont.body(13, .bold))
+            .foregroundStyle(FAMColor.copper)
+            .buttonStyle(.press)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 18)
     }
 
     /// Between the two without losing what was typed (`switchAuthMode`);
@@ -433,6 +440,8 @@ struct ResetPasswordView: View {
     @EnvironmentObject private var model: AppModel
     let initialEmail: String
     let back: () -> Void
+    /// The back arrow (`backToWelcome`).
+    let toWelcome: () -> Void
 
     @State private var email = ""
     @State private var code = ""
@@ -450,7 +459,7 @@ struct ResetPasswordView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            YouBackRow(title: "Reset password") { back() }
+            YouBackRow(title: "Reset password") { toWelcome() }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Enter the email on your account.")

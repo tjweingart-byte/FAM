@@ -287,6 +287,33 @@ struct MainTabs: View {
         return max(16, bottom - pageBottom + 2)
     }
 
+    /// The screens a survey may be offered on (`SURVEY_OPEN_SCREENS`):
+    /// searchFAM, DailyFAM, myFAM, YourFAM, Friends, Messages, Saved for
+    /// Later, Listening history and a mix's page - never Settings, View
+    /// more, a topic, a profile, a conversation or anything else pushed.
+    private var surveyScreen: Bool {
+        switch tab {
+        case .search:
+            return true
+        case .daily:
+            return model.dailyPath.isEmpty
+        case .myfam:
+            guard let last = model.mixPath.last else { return true }
+            if case .mix = last { return true }
+            return false
+        case .messages:
+            guard let last = social.messagesPath.last else { return true }
+            if case .friends = last { return true }
+            return false
+        case .you:
+            guard let last = model.youPath.last else { return true }
+            switch last {
+            case .saved, .history: return true
+            default: return false
+            }
+        }
+    }
+
     /// Nothing playing, nothing open, a signed-in listener on one of the
     /// tabs (`surveyMomentFree`): the only time an app survey is asked for.
     /// One question a line: a single twelve-term expression of optionals
@@ -294,7 +321,7 @@ struct MainTabs: View {
     private var surveyMomentFree: Bool {
         guard model.listener?.authenticated == true else { return false }
         guard scenePhase == .active else { return false }
-        if model.showPlayer || sectionOpen || tab == .search { return false }
+        if model.showPlayer || !surveyScreen { return false }
         switch player.phase {
         case .playing, .buffering, .connecting: return false
         default: break
@@ -476,8 +503,9 @@ struct MainTabs: View {
         // A survey is due (`#surveyInvite`, §560): asked, never opened on
         // its own; just above the bars, where the toast sits.
         .overlay(alignment: .bottom) {
-            // Waits off searchFAM and View more, and comes back with them.
-            if tab != .search && !sectionOpen {
+            // Waits off every screen not in `SURVEY_OPEN_SCREENS`, and
+            // comes back with them.
+            if surveyScreen {
                 GeometryReader { geo in
                     SurveyInvite(surveys: model.surveys)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
