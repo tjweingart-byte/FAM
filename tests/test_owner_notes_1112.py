@@ -59,7 +59,7 @@ def test_the_activation_step_saves_with_no_place(monkeypatch):
 
 def test_return_sends_on_the_iphone():
     chat = swift("ChatView.swift")
-    assert "ChatView.returnPressed(old, now)" in chat
+    assert "Self.returnPressed(old, now)" in chat
     assert ".submitLabel(.send)" in chat
     assert "static func returnPressed" in chat
 

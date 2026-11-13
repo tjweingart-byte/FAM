@@ -473,7 +473,7 @@ struct ChatScreen: View {
                     // - one character more, nothing else changed - is taken
                     // back out and the message sent. A pasted block keeps
                     // its lines.
-                    if let typed = ChatView.returnPressed(old, now) {
+                    if let typed = Self.returnPressed(old, now) {
                         chat.draft = typed
                         chat.sendText()
                         return

@@ -55,7 +55,7 @@ extension StoryHandoff {
     @MainActor
     private func instagram(png: Data, sticker: Data?) async -> Bool {
         guard let link = URL(string: self.url) else { return false }
-        var item: [String: Any]
+        let item: [String: Any]
         if let sticker {
             item = [
                 "com.instagram.sharedSticker.stickerImage": sticker,
