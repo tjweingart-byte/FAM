@@ -1364,6 +1364,20 @@
   > `/api/health` -> `episode_intelligence.parts_usage` reports each part's
   > tokens written, tokens per second and cache hits, so the next lever is
   > chosen from where the seconds actually go.
+  >
+  > **Current:** **the brief made faster at the same effort** (PROBLEMS.md
+  > §600, the owner choosing two of the options: "Do option 1 and option
+  > 2", "ideally we don't drop to low effort"). (1) **The framing is its own
+  > call** (`EI_FRAME_APART=1`, `FRAME_FIELDS`: `why_now`, `structure`,
+  > `cautions`, read by the writer alone): the understanding part asks only
+  > what research reads, and on searchFAM `prepare` takes the brief without
+  > the framing and awaits it (`episode_intelligence.finish`) once the
+  > evidence is in, before the writer. Ahead of the tap the brief is waited
+  > for whole. A framing that fails never degrades the brief. (2) **A slow
+  > part is asked again** (`EI_HEDGE_SECONDS`, 6): on searchFAM only, the
+  > same call at the same effort, the first answer taken and the other
+  > cancelled; never the outline; never C3P0's half (the agent layer allows
+  > one call). `/api/health` reports `hedges` per part.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an

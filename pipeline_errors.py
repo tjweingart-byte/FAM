@@ -571,6 +571,18 @@ def _ex(title: str, what: str, heard: str, causes: str, act: str) -> dict:
 #: first match wins; the stage's own entry (pattern "") is the fallback, so a
 #: kind added later still says which part of making an episode it is.
 EXPLAIN = (
+    ("brief", r"^framing",
+     _ex("The brief's framing did not answer",
+         "The brief's framing - why it is asked now, the story's shape and "
+         "what the writer must be careful of - is its own call since §600, "
+         "and it failed.",
+         "Nothing missing from the search: the episode was searched and "
+         "written as planned, shaped by its intent, with only the cautions "
+         "code adds.",
+         "The brief model was busy or failed; a timeout only if "
+         "EI_TIMEOUT_SECONDS is set.",
+         "Act only if it is most episodes; EI_FRAME_APART=0 puts the framing "
+         "back in the understanding part.")),
     ("brief", r"^search half",
      _ex("Half the brief did not answer",
          "The brief is asked in parts at once. The part that plans the searches "

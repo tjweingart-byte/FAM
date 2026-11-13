@@ -596,6 +596,23 @@ class Settings:
     # The same for a brief nobody is waiting on (§268: prefetch and the two
     # editions, 30 s until §599). `0` is no limit.
     ei_ahead_timeout_seconds: float = _env_float("EI_AHEAD_TIMEOUT_SECONDS", 0.0)
+    # **The framing apart from the routing** (§600, at the owner's
+    # direction): `why_now`, `structure` and `cautions` - read by the
+    # writer alone - are their own call, so the search waits on a smaller
+    # one; on searchFAM they finish beside the research. `0` keeps them in
+    # the understanding part, as §268 built it.
+    ei_frame_apart: bool = field(
+        default_factory=lambda: os.environ.get("EI_FRAME_APART", "1")
+        not in ("0", "false", "False", ""))
+    # **A second call when the first is slow** (§600, at the owner's
+    # direction, at the same effort - §268's declined hedge was a low-effort
+    # one). On searchFAM only: a brief part that has not answered in this
+    # many seconds is asked again, identically, and whichever answers first
+    # is taken; the other is cancelled. Cures a call slow for the service's
+    # reasons, at one more Haiku call (~$0.001) on those briefs alone. 6 s
+    # sits under §375's p90 (6.6-7.4 s) for the whole brief, so roughly the
+    # slowest one in ten. `0` is one call, as before.
+    ei_hedge_seconds: float = _env_float("EI_HEDGE_SECONDS", 6.0)
     # **How long the brief's cached instructions live** (§599): `1h` by
     # default, where the writer's follow `PROMPT_CACHE_TTL` (5m). A search
     # comes minutes apart, so at five minutes nearly every brief read its

@@ -36379,3 +36379,75 @@ hour-long cache; the screenshot's case is not silence; real silence after
 playback starts is still recorded). `test_ei_split_268`,
 `test_agents_c3p0_call`, `test_agents_roster_tasks` and
 `test_episode_intelligence` follow the new defaults.
+
+## 600. The brief made faster at the same effort: the framing beside the research, and a slow call asked twice (2026-11-13)
+
+The owner, after §599 took the brief's time limit away: "What are the
+options to help fix this, ideally we don't drop to low effort", then, of the
+options given, "Do option 1 and option 2". Medium effort is unchanged.
+
+**1. The framing apart from the routing** (`EI_FRAME_APART=1`). Of the
+understanding part's eleven fields, three are read by nobody but the
+writer: `why_now` (with its confidence), `structure` and `cautions`
+(`FRAME_FIELDS`). Research, the live providers, the gate's window, the code
+routes and C3P0's plan read the other eight. So they are now their own
+call, `frame`, started with the others (`parts_asked()`; the routing part
+answers under `ROUTE_SCHEMA`, the framing under `FRAME_SCHEMA`, both cut
+from `BRIEF_SCHEMA`). The search waits on a smaller call - fewer fields to
+think about and write - and:
+
+- **on searchFAM** `prepare` asks for the brief early (`notes.framing_later`,
+  so any `understand` override is called as before): the brief comes back
+  with the framing still running on `brief.framing_task`, the intent's
+  shape (`INTENT_STRUCTURE`) and no why-now standing in so the gate repairs
+  nothing merely late, and `prepare` awaits `episode_intelligence.finish`
+  after `evidence_ready` and before Shakespeare and the writer
+  (`framing_wait` / `framing_ready` marks). Research takes seconds, so the
+  framing is normally in by then and costs nothing in front of the first
+  word. A listener who leaves cancels it (`prepare` wraps `_prepare`;
+  `abandon`);
+- **ahead of the tap** (prefetch, the editions) the whole brief is waited
+  for, as before: nothing there finishes it later.
+
+The merge (`_frame_into`) keeps code's cautions first - "nothing confirmed
+yet" on a result (§88), a named slot's (§178) - then the model's, to six;
+a structure outside the pickable set keeps the intent's; a why-now with no
+hypothesis is `low`. **A framing that fails never degrades the brief**: the
+episode is searched and written as planned, shaped by its intent, with code's
+cautions only, and /admin says "The brief's framing did not answer".
+`Brief.as_dict` never carries the task. `EI_FRAME_APART=0` puts the fields
+back in the understanding part, byte for byte the §268 call.
+
+Not moved, on purpose: `must_establish` (Parallel's objective reads it,
+§260), `subject` and `intent` (the retry and the window read them).
+
+**2. A slow part asked twice** (`EI_HEDGE_SECONDS=6`). On searchFAM only, a
+brief part (routing, search half, framing - never the outline, which has its
+grace) that has not answered in 6 s is sent again, identically, at the same
+effort; whichever answers first is taken and the other cancelled
+(`_hedged`). One failing waits for the other; both failing raises the first
+error, which degrades as any failure does. It cures a call slow for the
+service's reasons (a queue, a slow host), not one that simply thought for
+longer - both copies would. Cost: one more Haiku call on those briefs only,
+~$0.001; the cancelled call's tokens are not metered (it never returns its
+usage), so metering under-counts a hedged brief by up to that. C3P0's half
+is not hedged: the agent layer allows one call per task (roster
+`retries == 1`). `/api/health` -> `episode_intelligence.hedges` counts, per
+part, how often a second call started and how often it won; `0` is one call.
+§268 recorded "a second, low-effort call" as declined; this one is not
+low-effort, at the owner's choice.
+
+**What it should do, unmeasured (no key here).** The routing part writes
+roughly two thirds of what the understanding part did, and the tail beyond
+6 s gets a second chance. Read `parts_usage` (§599) for `understand` before
+and after, and `hedges.*.second_won`: if second calls rarely win, the slow
+briefs are thinking, not waiting, and 6 s buys nothing.
+
+Tests: `tests/test_brief_faster_600.py` (the routing asks no framing and the
+framing only it; a whole brief has it merged with code's caution first; the
+search does not wait for a slow framing and `finish` brings it; ahead never
+defers; a failed framing never degrades; `abandon` cancels; `0` restores the
+one part; `as_dict`; `prepare` awaits it after the evidence and before the
+writer; the second call wins when the first is slow, one failure waits for
+the other, both raise; hedged only on searchFAM, never the outline).
+`test_ei_split_268` and `test_episode_intelligence` count the fourth call.
