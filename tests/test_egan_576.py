@@ -1,4 +1,4 @@
-"""Hermes, the outreach agent (§576): `/admin/groups`' reader, as a full agent.
+"""Egan, the outreach agent (§576): `/admin/groups`' reader, as a full agent.
 
 Pinned here: his call goes through `agents/models.py` and nowhere else; he
 waits for the owner's signature without holding any other agent; he never
@@ -21,7 +21,7 @@ import config  # noqa: E402
 import metering  # noqa: E402
 from agents import models, names, roster, rulebooks  # noqa: E402
 
-PROPOSAL = ROOT / "docs" / "agent_rule_proposals" / "hermes.md"
+PROPOSAL = ROOT / "docs" / "agent_rule_proposals" / "egan.md"
 RULES = ROOT / "docs" / "agent_rules"
 
 
@@ -62,10 +62,10 @@ def test_his_answer_is_used_and_said_to_be_his():
     ask, seen = answers(reading())
     out, dollars = asyncio.run(C.read(lead(), ask))
     assert out.fit == 4 and [p["title"] for p in out.pitches] == ["Idea a", "Idea b", "Idea c"]
-    assert out.drafted_by.startswith("Hermes") and dollars == 0.002
+    assert out.drafted_by.startswith("Egan") and dollars == 0.002
     req = seen[0]
     assert (req.agent, req.switch_setting, req.model_setting, req.rule_book) == \
-        ("outreach", "outreach_agent", "outreach_model", "hermes.md")
+        ("outreach", "outreach_agent", "outreach_model", "egan.md")
     assert req.surface == "background" and req.timeout > 0 and req.max_tokens > 0
 
 
@@ -83,7 +83,7 @@ def test_an_answer_naming_a_person_is_sent_back_once_then_code():
     bad = reading(message="Hi Maria Lopez, would you like early access?")
     ask, seen = answers(bad, reading())
     out, _ = asyncio.run(C.read(lead(), ask))
-    assert len(seen) == 2 and out.drafted_by.startswith("Hermes")
+    assert len(seen) == 2 and out.drafted_by.startswith("Egan")
     ask, seen = answers(bad, bad)
     out, _ = asyncio.run(C.read(lead(), ask))
     assert len(seen) == 2 and out.drafted_by == "code"
@@ -130,7 +130,7 @@ def test_he_waits_without_holding_any_other_agent():
     assert "outreach" in names.PROPOSED and "outreach" not in names.AGENTS
     assert "outreach" in roster.PROPOSED and "outreach" not in roster.ROSTER
     # His book is not in the signed folder: there it would hold every agent.
-    assert not (RULES / "hermes.md").exists()
+    assert not (RULES / "egan.md").exists()
     assert PROPOSAL.exists()
 
 
@@ -138,13 +138,13 @@ def test_the_pending_manifest_adds_his_book_and_changes_nothing_else():
     signed = json.loads((RULES / rulebooks.MANIFEST).read_text())
     pending = json.loads((RULES / rulebooks.PENDING).read_text())
     assert pending["version"] == signed["version"] + 1
-    assert set(pending["books"]) - set(signed["books"]) == {"hermes.md"}
+    assert set(pending["books"]) - set(signed["books"]) == {"egan.md"}
     for book, sha in signed["books"].items():
         assert pending["books"][book] == sha, book
-    assert pending["books"]["hermes.md"] == rulebooks.sha256(PROPOSAL.read_bytes())
+    assert pending["books"]["egan.md"] == rulebooks.sha256(PROPOSAL.read_bytes())
     # And it is exactly what the lock will compute once the book is in place.
     paths = rulebooks.book_paths(RULES)
-    paths["hermes.md"] = PROPOSAL
+    paths["egan.md"] = PROPOSAL
     assert rulebooks.manifest_for(paths, pending["version"]) == \
         (RULES / rulebooks.PENDING).read_bytes()
 

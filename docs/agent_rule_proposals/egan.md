@@ -1,4 +1,4 @@
-# Hermes (outreach) - rule book
+# Egan (outreach) - rule book
 
 Draft v1, 2026-11-13. The owner holds the governing copy outside Claude.
 You also follow every rule in `every-agent.md`.

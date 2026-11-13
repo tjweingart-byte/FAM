@@ -37,7 +37,7 @@ AGENTS: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
 #: the commit that brings its signed book, `agents/models.py` refuses its
 #: calls (not an agent) and its work runs in code, as it did before.
 PROPOSED: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
-    "outreach": ("Hermes", "hermes.md", "outreach_agent", ("outreach_model",)),
+    "outreach": ("Egan", "egan.md", "outreach_agent", ("outreach_model",)),
 }
 
 #: The rule book every agent also follows.

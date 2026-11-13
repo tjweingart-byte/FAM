@@ -1342,7 +1342,7 @@ class Settings:
     communities_subjects: int = max(1, _env_int("COMMUNITIES_SUBJECTS", 5))
     # Leads one run reads (pitches and a message each) and leaves on the page.
     communities_shortlist: int = max(1, _env_int("COMMUNITIES_SHORTLIST", 12))
-    # The pitches and the first message are Hermes's (§576, `outreach_*`
+    # The pitches and the first message are Egan's (§576, `outreach_*`
     # with the other agents' settings); without him they are composed in code.
 
     # --- GNews (gnews.io), the bank's source -------------------------------
@@ -2111,7 +2111,7 @@ class Settings:
     it_agent: bool = field(
         default_factory=lambda: os.environ.get("IT_AGENT", "0")
         not in ("0", "false", "False", ""))
-    # Hermes, the outreach agent (§576, `/admin/groups`). Waiting for the
+    # Egan, the outreach agent (§576, `/admin/groups`). Waiting for the
     # owner's signature on his rule book: until it is signed his calls are
     # refused whatever this says, and the page composes in code.
     outreach_agent: bool = field(
@@ -2355,7 +2355,7 @@ class Settings:
                 "fam,gdelt,tiingo,balldontlie,perplexity,gnews").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
-    # Hermes's one call per community (§576): nobody waits on it, a person
+    # Egan's one call per community (§576): nobody waits on it, a person
     # pressed a button; one retry when code sends his answer back.
     outreach_timeout_seconds: float = _env_float("OUTREACH_TIMEOUT_SECONDS", 45.0)
     outreach_max_tokens: int = _env_int("OUTREACH_MAX_TOKENS", 1200)

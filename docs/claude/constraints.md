@@ -1669,9 +1669,9 @@
   message are composed in code and the card says so. Each card carries its
   reason in words ([candidate-reason]). Untouched leads are kept 30 days.
   > **Current:** since §576 the fit, the pitches and the message are
-  > **Hermes's**, a full agent ([agent-model-layer]): one call per
+  > **Egan's**, a full agent ([agent-model-layer]): one call per
   > community through `agents/models.py`, under his own rule book
-  > (`hermes.md`), off by default (`OUTREACH_AGENT`). He never reads about
+  > (`egan.md`), off by default (`OUTREACH_AGENT`). He never reads about
   > a person (every-agent.md "never" 9): `communities.redacted` takes
   > names, handles, addresses and numbers out of his material, and code
   > sends back an answer that carries one, or a figure the material does

@@ -567,4 +567,4 @@ and `limit` = Lines.
 | 35146 | 18 | 573. The phone number is optional at sign-up (2026-11-13) |
 | 35164 | 44 | 574. fam-db's memory was its connections (2026-11-13) |
 | 35208 | 68 | 575. Communities to reach replace FAM on X (2026-11-13) |
-| 35276 | 43 | 576. Hermes: the outreach reader becomes a full agent (2026-11-13) |
+| 35276 | 43 | 576. Egan: the outreach reader becomes a full agent (2026-11-13) |

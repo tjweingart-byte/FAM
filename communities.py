@@ -45,14 +45,14 @@ scrubbed there, and a run says so rather than pretending it found nothing.
 
 **A candidate carries its reason in words** ([candidate-reason]).
 
-**Hermes reads each community** (§576, the outreach agent): the fit, the
+**Egan reads each community** (§576, the outreach agent): the fit, the
 pitches and the message are his, through `agents/models.py` under his
-signed rule book (`hermes.md`), off by default. He never reads about a
+signed rule book (`egan.md`), off by default. He never reads about a
 person: the material he is given is `redacted` of names, handles, addresses
 and numbers, and code sends back an answer that carries one.
 
 **A layer that adds quality must not subtract availability**: whenever
-Hermes cannot answer - off, unsigned, held, failed - the pitches and the
+Egan cannot answer - off, unsigned, held, failed - the pitches and the
 message are composed in code, and the card says why.
 """
 from __future__ import annotations
@@ -519,7 +519,7 @@ def suggested_subjects(cache, label_of: Callable[[str], str] = lambda k: "",
 # The pitches and the message
 
 
-#: Hermes, the outreach agent (§576, `docs/agent_rule_proposals/hermes.md`
+#: Egan, the outreach agent (§576, `docs/agent_rule_proposals/egan.md`
 #: until the owner signs it): his role in `agents.names`, his switch and
 #: model settings, and his rule book.
 AGENT = "outreach"
@@ -552,7 +552,7 @@ try:
         why: str = Field(..., max_length=400)
 
     class Reading(BaseModel):
-        """Hermes's answer for one community."""
+        """Egan's answer for one community."""
         model_config = ConfigDict(extra="forbid")
         fit: int = Field(..., ge=1, le=5)
         fit_why: str = Field(..., max_length=400)
@@ -563,7 +563,7 @@ except ImportError:  # pragma: no cover - pydantic is a dependency
     Pitch = Reading = None  # type: ignore
 
 
-#: What stands in for a person in the material Hermes reads ("never" 1, 2).
+#: What stands in for a person in the material Egan reads ("never" 1, 2).
 PERSON, ADDRESS = "[a person]", "[an address]"
 _HANDLE = re.compile(r"(?<![\w/])(?:u/|@)[\w.-]{2,30}")
 
@@ -571,7 +571,7 @@ _HANDLE = re.compile(r"(?<![\w/])(?:u/|@)[\w.-]{2,30}")
 def redacted(text: str, people: Iterable[str] = ()) -> str:
     """`text` with nothing in it that names or reaches a person: phone
     numbers, email addresses, @handles and u/names, and the names the page
-    gave for its admins. Hermes never reads about a person (rule book
+    gave for its admins. Egan never reads about a person (rule book
     "never" 1; every-agent.md "never" 9)."""
     out = strip_phones(text or "")
     out = _EMAIL.sub(ADDRESS, out)
@@ -582,7 +582,7 @@ def redacted(text: str, people: Iterable[str] = ()) -> str:
 
 
 def material(lead: Lead) -> tuple:
-    """The `(tag, text)` pairs Hermes reads: the community as the search saw
+    """The `(tag, text)` pairs Egan reads: the community as the search saw
     it, redacted, and the kept episode if one fits. Never a listener's words,
     so no `request` tag."""
     plat = PLATFORMS[lead.platform]
@@ -602,12 +602,12 @@ def material(lead: Lead) -> tuple:
 
 
 def request(lead: Lead):
-    """Hermes's one call for `lead`, through `agents/models.py`."""
+    """Egan's one call for `lead`, through `agents/models.py`."""
     from agents import models
 
     return models.AgentRequest(
         agent=AGENT, task=TASK, switch_setting="outreach_agent",
-        model_setting="outreach_model", rule_book="hermes.md", schema=Reading,
+        model_setting="outreach_model", rule_book="egan.md", schema=Reading,
         instructions=INSTRUCTIONS, material=material(lead),
         timeout=float(config.settings.outreach_timeout_seconds),
         max_tokens=int(config.settings.outreach_max_tokens), effort="low",
@@ -674,7 +674,7 @@ def _clean_pitch(p: dict) -> Optional[dict]:
 
 
 def refused(lead: Lead, reading) -> str:
-    """Why code sends Hermes's answer back, or "" when it stands: not three
+    """Why code sends Egan's answer back, or "" when it stands: not three
     pitches; a figure the material does not contain; a person's name,
     address or number in his words."""
     if len(reading.pitches) != PITCHES:
@@ -695,7 +695,7 @@ def refused(lead: Lead, reading) -> str:
 
 
 async def read(lead: Lead, ask=None) -> tuple[Lead, float]:
-    """The fit, the pitches and the message: Hermes's (§576), one call and
+    """The fit, the pitches and the message: Egan's (§576), one call and
     one retry when code sends his answer back; the code's whenever he cannot
     answer - off, held, unsigned, failed or refused twice - and the card says
     which. Never raises but cancellation. Returns the lead and his cost."""
@@ -717,28 +717,28 @@ async def read(lead: Lead, ask=None) -> tuple[Lead, float]:
             result = await ask(built)
             dollars += float(result.cost_usd or 0.0)
             if not result.ok:
-                return by_code(f"composed in code: Hermes did not answer "
+                return by_code(f"composed in code: Egan did not answer "
                                f"({result.status}: {result.reason})")
             reading = result.value
             why = refused(lead, reading)
             if not why:
                 break
         else:
-            return by_code(f"composed in code: Hermes's answer was sent back twice ({why})")
+            return by_code(f"composed in code: Egan's answer was sent back twice ({why})")
         if reading.unsure:
-            return by_code(f"composed in code: Hermes was unsure what the community is for "
+            return by_code(f"composed in code: Egan was unsure what the community is for "
                            f"({_line(reading.fit_why, 200)})")
         lead.fit = max(1, min(5, int(reading.fit)))
         lead.fit_why = _line(reading.fit_why, 300)
         lead.pitches = [p for p in (_clean_pitch(x.model_dump()) for x in reading.pitches) if p]
         lead.message = trim(strip_phones(reading.message))
-        lead.drafted_by = f"Hermes ({result.model or 'agent'})"
+        lead.drafted_by = f"Egan ({result.model or 'agent'})"
         return lead, dollars
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001 - never costs the card
-        log.warning("communities: Hermes's read fell back to code: %s", exc)
-        return by_code("composed in code: Hermes's read could not run")
+        log.warning("communities: Egan's read fell back to code: %s", exc)
+        return by_code("composed in code: Egan's read could not run")
 
 
 # --------------------------------------------------------------------------

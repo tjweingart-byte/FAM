@@ -115,11 +115,11 @@ def test_screening():
 
 # ------------------------------------------------------------- the read
 
-def test_without_hermes_the_pitches_are_composed_in_code():
+def test_without_egan_the_pitches_are_composed_in_code():
     lead = C.Lead("reddit", "eagles", "Eagles", "u", "c", "Philadelphia Eagles")
     out, dollars = asyncio.run(C.read(lead))
     assert out.drafted_by == "code" and dollars == 0.0
-    assert "Hermes did not answer" in out.fit_why
+    assert "Egan did not answer" in out.fit_why
     assert len(out.pitches) == C.PITCHES and out.message
     assert "Eagles" in out.message and len(out.message) <= C.MESSAGE_CHARS
 

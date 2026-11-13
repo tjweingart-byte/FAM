@@ -35273,14 +35273,14 @@ it is an admin tool calling the small model directly, metered.
 
 **Tests:** `tests/test_communities_575.py`.
 
-## 576. Hermes: the outreach reader becomes a full agent (2026-11-13)
+## 576. Egan: the outreach reader becomes a full agent (2026-11-13)
 
 **What was asked.** The owner, on §575's note that `/admin/groups`' model
 call went straight to Claude rather than through `agents/models.py`: "make
 it a full agent with a rule book".
 
-**What was built.** Hermes (role `outreach`; the name is a working one for
-the owner to keep or change). His one call per community goes through
+**What was built.** Egan (role `outreach`; named by the owner,
+2026-11-13, first built as "Hermes"). His one call per community goes through
 `agents/models.py` (`communities.request`, schema `communities.Reading`,
 material tagged `evidence` and `archive` - never `request`, because it is a
 community's page and not a listener's words). Settings with the other
@@ -35294,17 +35294,17 @@ when code's, why.
 
 **The rule book, and every-agent.md "never" 9.** "Research or describe a
 private person" rules out what §575's prompt allowed: the admins are
-private people. So Hermes is never given an admin's name, handle, address
+private people. So Egan is never given an admin's name, handle, address
 or number (`communities.redacted` over all his material), never greets
 anyone by name, and an answer that names or reaches a person is refused.
-`docs/agent_rule_proposals/hermes.md`: seven "always", seven "never".
+`docs/agent_rule_proposals/egan.md`: seven "always", seven "never".
 
 **Waiting for the signature, without holding anyone.** The lock holds
 every agent while the signed folder has a book its manifest does not
 cover, and the tests require every `names.AGENTS` entry to have a signed
 book there. So the book waits in `docs/agent_rule_proposals/`, and
 `docs/agent_rules/MANIFEST.pending.json` (version 9) is version 8 with
-`hermes.md` added and nothing else changed - a test pins that, and that it
+`egan.md` added and nothing else changed - a test pins that, and that it
 is the exact bytes the lock will compute. He is `agents.names.PROPOSED` and
 `agents.roster.PROPOSED`: the model layer refuses his calls as "not an
 agent", so until he is signed the page composes in code, as before. The
@@ -35313,5 +35313,5 @@ activation steps are in the proposals README.
 **Also.** `tests/test_agents_model_layer.py`'s import allow-list gains
 `communities.py: {models}`: an admin page's button, never a listener's path.
 
-**Tests:** `tests/test_hermes_576.py`; `tests/test_communities_575.py`
+**Tests:** `tests/test_egan_576.py`; `tests/test_communities_575.py`
 updated (its direct-client tests went with the direct client).
