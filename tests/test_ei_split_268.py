@@ -88,6 +88,8 @@ def _part_of(kwargs) -> str:
         return "outline"
     if "intent" in props and "search_query" in props:
         return "whole"
+    if "why_now" in props and "intent" not in props:
+        return "frame"      # the framing apart (§603)
     return "understand" if "intent" in props else "search"
 
 
@@ -96,7 +98,7 @@ def model(monkeypatch):
     """A stubbed Claude that answers each half from its own script."""
     state = {"calls": [], "understand": _reply(UNDERSTOOD),
              "search": _reply(WORDED), "whole": _reply({**UNDERSTOOD, **WORDED}),
-             "outline": _reply(OUTLINED),
+             "outline": _reply(OUTLINED), "frame": _reply(UNDERSTOOD),
              "delay": {}, "in_flight": set(), "together": set()}
 
     class _Messages:
@@ -141,15 +143,18 @@ def test_the_defaults():
     fresh = config.Settings()
     assert fresh.ei_split is True
     assert fresh.ei_examples is True
-    assert fresh.ei_ahead_timeout_seconds == 30.0
-    assert fresh.ei_timeout_seconds == 8.0, "the search path's ceiling is unchanged"
+    # No time limit on the brief, on either path (§602).
+    assert fresh.ei_ahead_timeout_seconds == 0.0
+    assert fresh.ei_timeout_seconds == 0.0
+    assert fresh.ei_prompt_cache_ttl == "1h"
 
 
 def test_env_example_agrees_with_config():
     """A setting is settled only where it is copied (CLAUDE.md)."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     text = open(os.path.join(root, ".env.example"), encoding="utf-8").read()
-    for line in ("\nEI_AHEAD_TIMEOUT_SECONDS=30.0\n", "\nEI_SPLIT=1\n",
+    for line in ("\nEI_AHEAD_TIMEOUT_SECONDS=0\n", "\nEI_TIMEOUT_SECONDS=0\n",
+                 "\nEI_PROMPT_CACHE_TTL=1h\n", "\nEI_SPLIT=1\n",
                  "\nEI_EXAMPLES=1\n"):
         assert line in text
 
@@ -185,7 +190,8 @@ def test_the_one_call_prompt_is_unchanged_and_each_half_reads_only_its_own():
 def test_a_split_brief_is_two_calls_at_once_and_one_brief(model):
     brief = asyncio.run(ei.understand("did the eagles win", 2))
     # The outline is the third part since §270, and is pinned in its own file.
-    assert sorted(part for part, _ in model["calls"]) == ["outline", "search",
+    # The framing is its own part since §603.
+    assert sorted(part for part, _ in model["calls"]) == ["frame", "outline", "search",
                                                           "understand"]
     assert not brief.degraded
     assert brief.intent == "recap" and brief.live_entity == "Philadelphia Eagles"
@@ -194,7 +200,8 @@ def test_a_split_brief_is_two_calls_at_once_and_one_brief(model):
     assert ei.report()["since_boot"] == {"ok": 1}, "one brief, counted once"
     assert ei.report()["parts_since_boot"] == {"understand": {"ok": 1},
                                                "search": {"ok": 1},
-                                               "outline": {"ok": 1}}
+                                               "outline": {"ok": 1},
+                                               "frame": {"ok": 1}}
 
 
 def test_the_halves_run_side_by_side(model):

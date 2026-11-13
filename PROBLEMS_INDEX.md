@@ -592,4 +592,6 @@ and `limit` = Lines.
 | 36261 | 31 | 598. "Copy for Claude" on every community card (2026-11-13) |
 | 36292 | 46 | 599. Junk grown from searches: the placer declines it, a lone word waits, the download shows titles (2026-11-13) |
 | 36338 | 37 | 600. An edit to the tree carries its episodes; Keith tells an owner's edit from Nando (2026-11-13) |
-| 36375 | 29 | 601. A shared link sends as the picture tile from every share button, not only a paste (2026-11-13) |
+| 36375 | 28 | 601. A shared link sends as the picture tile from every share button, not only a paste (2026-11-13) |
+| 36403 | 92 | 602. The brief has no time limit, and "the voice fell behind" counted the wait before the first word (2026-11-13) |
+| 36495 | 72 | 603. The brief made faster at the same effort: the framing beside the research, and a slow call asked twice (2026-11-13) |

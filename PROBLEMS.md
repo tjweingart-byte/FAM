@@ -36400,3 +36400,166 @@ already open with the link and draw the card from the page.
 Not changed: the web app's iMessage still opens `sms:` (a browser cannot
 hand Messages a rich link). Unbuilt here (no Swift compiler); the four
 changed Swift files parse with tree-sitter.
+## 602. The brief has no time limit, and "the voice fell behind" counted the wait before the first word (2026-11-13)
+
+The owner, from two cards on /admin's pipeline errors: **"The brief took
+too long"** (4 in 7 days, all `timeout (search)`, "EI did not answer
+within 8s") and **"The voice fell behind"** (54 in 24 h, 136 in 7 days,
+details like "silence after 18.5s: 5.8s of audio made"). On the first:
+"Brief took too long shouldn't be an option, it produces an empty
+episode. There shouldn't be a time limit on the brief, but we first want
+to try to reduce the time."
+
+**The brief: no time limit.** `EI_TIMEOUT_SECONDS` and
+`EI_AHEAD_TIMEOUT_SECONDS` now default to `0`, which is none
+(`episode_intelligence.brief_ceiling` returns None): the understanding and
+search parts are awaited without `wait_for`, so a slow brief is waited for
+and never becomes `fallback_brief`. Only a call that fails - an error, a
+refusal, unreadable JSON, `out_of_room` - still degrades, and the client's
+own ten-minute request timeout still ends a connection that hangs (as a
+`timeout` with "EI's call timed out at the client"). A number above 0 puts
+§268's ceiling back without a deploy of code. C3P0's half of the brief goes
+through the agent layer, which refuses a call with no limit (§353), so
+`agents.roster` reads a brief limit of 0 as `config.NO_BRIEF_LIMIT_SECONDS`
+(600, the client's own) and C3P0's request takes the roster's ceiling - one
+number, as §346 asked. **Not changed:** the outline's grace on the search
+path (`EI_OUTLINE_GRACE_SECONDS`), because a late outline never degrades the
+brief, it only leaves the writer to plan the piece; ahead, with no ceiling,
+the outline is waited for whole. The ei-before-search rule's "a timeout
+falls back to the raw query" is narrowed accordingly ([ei-before-search],
+[small-calls-haiku] Current notes).
+
+What this costs: a search whose brief takes 11 s now waits 11 s in front of
+the first word instead of 8 s and a plainer episode; §375 measured the
+search path's brief at median 5.6-6.1 s, p90 6.6-7.4 s, max ~8 s, so the
+cases are the tail. The loading screen's first step already waits on the
+understanding half (§288), so the wait is shown honestly.
+
+**Reducing the time - what is in, and what is still the owner's.** Without
+a key here, nothing was timed; two changes went in:
+
+1. **The brief's instructions are cached for an hour**
+   (`EI_PROMPT_CACHE_TTL=1h`, its own setting; empty follows
+   `PROMPT_CACHE_TTL`, still 5m for the writer). Each part has its own
+   answer shape (`output_config.format`), so its own cache entry: at five
+   minutes, a search minutes after the last read its ~3,000-token
+   instructions cold, three times. A cold read is time to first token;
+   on Haiku likely tenths of a second, not seconds. Cost: a write is 2x
+   instead of 1.25x, ~$0.0006 an hour for all three parts. A `max_tokens:
+   0` keep-alive (as the writer has, §270) cannot be sent with
+   structured outputs, so the longer life is the way to keep it warm.
+2. **Where the seconds go, per part** (`/api/health` ->
+   `episode_intelligence.parts_usage`): over each part's last 200 calls,
+   tokens written (thinking and JSON), tokens per second, and how many calls
+   read or wrote the cache. The timeout cases come from the understanding
+   part; whether it is slow because it writes more (thinking) or because
+   it is served slowly decides the next lever.
+
+Still the owner's, because §268 recorded them as declined: **`EI_EFFORT=low`
+on the search path** (fewer thinking tokens; the largest lever if
+`parts_usage` shows the understanding part writing ~1,500+ tokens), and **a
+hedge** (a second, low-effort call started when the first is slow). A third,
+not proposed before: splitting the understanding part again, since it writes
+the most fields and is what was timing out.
+
+**The voice fell behind: measured from the tap.** `GenerationStats.started_at`
+is when generation began - before the brief, the research and the writer -
+and both starvation checks (`_speak_chunk`, `_speak_one`) compared audio made
+against wall clock since then. So the **first** chunk was "behind" whenever
+the wait in front of the first word was longer than that chunk: the
+screenshot's "silence after 18.5s: 5.8s of audio made" is an 18.5 s wait and
+a 5.8 s first chunk, on the loading screen, with nothing playing. That is
+nearly every search. Now one method, `GenerationStats.note_headroom`, counts
+from the first audio: the first chunk is never behind (playback starts with
+it), and after it, audio made is compared with time since the first audio.
+Still conservative - the app holds the audio until its last loading step
+(§263), so the listener's real buffer is larger. The detail reads "silence
+12.0s into playback: 9.1s of audio made". `_headroom_probe`, which ships
+pending text early when the buffer is thin, is unchanged (it is deliberately
+conservative, and erring early costs nothing heard).
+
+What remains real: since §578 a single always-on worker voices one chunk at
+a time across every listener, so two listeners at once take turns; any row
+from now on is real silence, and a run of them is the case for raising the
+console's Active workers with `REMOTE_VOICE_ACTIVE_WORKERS`. The /admin
+explanation says both, and that rows before this were mostly the wait.
+
+Tests: `tests/test_brief_unlimited_602.py` (no limit on either path; a slow
+brief is waited for; a set ceiling still degrades; the outline ahead is
+waited for; C3P0 gets the client's limit; per-part usage reported; the
+hour-long cache; the screenshot's case is not silence; real silence after
+playback starts is still recorded). `test_ei_split_268`,
+`test_agents_c3p0_call`, `test_agents_roster_tasks` and
+`test_episode_intelligence` follow the new defaults.
+
+## 603. The brief made faster at the same effort: the framing beside the research, and a slow call asked twice (2026-11-13)
+
+The owner, after §602 took the brief's time limit away: "What are the
+options to help fix this, ideally we don't drop to low effort", then, of the
+options given, "Do option 1 and option 2". Medium effort is unchanged.
+
+**1. The framing apart from the routing** (`EI_FRAME_APART=1`). Of the
+understanding part's eleven fields, three are read by nobody but the
+writer: `why_now` (with its confidence), `structure` and `cautions`
+(`FRAME_FIELDS`). Research, the live providers, the gate's window, the code
+routes and C3P0's plan read the other eight. So they are now their own
+call, `frame`, started with the others (`parts_asked()`; the routing part
+answers under `ROUTE_SCHEMA`, the framing under `FRAME_SCHEMA`, both cut
+from `BRIEF_SCHEMA`). The search waits on a smaller call - fewer fields to
+think about and write - and:
+
+- **on searchFAM** `prepare` asks for the brief early (`notes.framing_later`,
+  so any `understand` override is called as before): the brief comes back
+  with the framing still running on `brief.framing_task`, the intent's
+  shape (`INTENT_STRUCTURE`) and no why-now standing in so the gate repairs
+  nothing merely late, and `prepare` awaits `episode_intelligence.finish`
+  after `evidence_ready` and before Shakespeare and the writer
+  (`framing_wait` / `framing_ready` marks). Research takes seconds, so the
+  framing is normally in by then and costs nothing in front of the first
+  word. A listener who leaves cancels it (`prepare` wraps `_prepare`;
+  `abandon`);
+- **ahead of the tap** (prefetch, the editions) the whole brief is waited
+  for, as before: nothing there finishes it later.
+
+The merge (`_frame_into`) keeps code's cautions first - "nothing confirmed
+yet" on a result (§88), a named slot's (§178) - then the model's, to six;
+a structure outside the pickable set keeps the intent's; a why-now with no
+hypothesis is `low`. **A framing that fails never degrades the brief**: the
+episode is searched and written as planned, shaped by its intent, with code's
+cautions only, and /admin says "The brief's framing did not answer".
+`Brief.as_dict` never carries the task. `EI_FRAME_APART=0` puts the fields
+back in the understanding part, byte for byte the §268 call.
+
+Not moved, on purpose: `must_establish` (Parallel's objective reads it,
+§260), `subject` and `intent` (the retry and the window read them).
+
+**2. A slow part asked twice** (`EI_HEDGE_SECONDS=6`). On searchFAM only, a
+brief part (routing, search half, framing - never the outline, which has its
+grace) that has not answered in 6 s is sent again, identically, at the same
+effort; whichever answers first is taken and the other cancelled
+(`_hedged`). One failing waits for the other; both failing raises the first
+error, which degrades as any failure does. It cures a call slow for the
+service's reasons (a queue, a slow host), not one that simply thought for
+longer - both copies would. Cost: one more Haiku call on those briefs only,
+~$0.001; the cancelled call's tokens are not metered (it never returns its
+usage), so metering under-counts a hedged brief by up to that. C3P0's half
+is not hedged: the agent layer allows one call per task (roster
+`retries == 1`). `/api/health` -> `episode_intelligence.hedges` counts, per
+part, how often a second call started and how often it won; `0` is one call.
+§268 recorded "a second, low-effort call" as declined; this one is not
+low-effort, at the owner's choice.
+
+**What it should do, unmeasured (no key here).** The routing part writes
+roughly two thirds of what the understanding part did, and the tail beyond
+6 s gets a second chance. Read `parts_usage` (§602) for `understand` before
+and after, and `hedges.*.second_won`: if second calls rarely win, the slow
+briefs are thinking, not waiting, and 6 s buys nothing.
+
+Tests: `tests/test_brief_faster_603.py` (the routing asks no framing and the
+framing only it; a whole brief has it merged with code's caution first; the
+search does not wait for a slow framing and `finish` brings it; ahead never
+defers; a failed framing never degrades; `abandon` cancels; `0` restores the
+one part; `as_dict`; `prepare` awaits it after the evidence and before the
+writer; the second call wins when the first is slow, one failure waits for
+the other, both raise; hedged only on searchFAM, never the outline).
+`test_ei_split_268` and `test_episode_intelligence` count the fourth call.
