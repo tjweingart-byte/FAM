@@ -35204,3 +35204,50 @@ on Postgres 16.
 
 **Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
 two against a real Postgres, run here on a local 16).
+
+## 575. Shared links: the picture and the audio behind the waitlist, Message between friends, and a Mac build in CI (2026-11-13)
+
+**The report.** The owner, with an iMessage screenshot: a shared FAM link
+showed its title, "familiarize.net" and FAM's icon - no picture - after
+§559 had made the preview a picture. Then: "The waitlist should allow people
+to see the full shared episode, and on that is a link to the waitlist."
+
+**Why there was no picture.** With `WAITLIST=1` (production) the gate
+refused everything under `/api/` that it does not list, and the share
+page's `og:image` (`/api/share/{id}/preview.jpg`) and story card
+(`/api/share/card`) were not listed. Messages' link fetcher has no account,
+so it got a 403 and drew the `apple-touch-icon`. §559's tests ran with the
+waitlist off. `_shared_episode_request` now lets both pictures through
+(GET/HEAD only; each is a 404 for an id that is not a share).
+
+**Why the shared episode did not play.** `ShareStore.is_shared` compared
+`max(1, int(stored))` with the request's length - `int`, missed by §332's
+half-minute change - so a 1.5-minute share (every DailyFAM and myFAM
+episode) was 1 and never matched its own audio. Everybody the link was sent
+to who was not an active member got a page that would not play. It is
+`as_minutes` now. `GET /api/share/{id}` also passes the gate, so the app can
+play a `/s/` link for somebody signed out or waitlisted (the app's screen
+for it is build 7, §576).
+
+**Message only between friends, on the web too.** The social audit found
+the web drew Message on any profile, and opened a chat from a face with no
+handle, though the server refuses a one-to-one send to anybody who is not a
+mutual follow (§520); the app already followed the rule. The owner: "Change
+the web to match the app." The profile's Message, `openCircleFace` and New
+message's label ("Pick one or more friends") now do.
+
+**A Mac build in CI.** Build 6 failed in Xcode ("Invalid redeclaration of
+'stage'", §572) after every check here passed: nothing in this repository
+compiled Swift. `.github/workflows/ios.yml` runs `xcodegen` and an unsigned
+Release device build of the FAM scheme on `macos-15` for every push or PR
+touching `ios/`. It is not yet a required check - that is the owner's
+branch-protection setting.
+
+**The audit behind it.** Seven read-only audits of the app against the web
+and server (animations, sharing and links, the API contract, compile risks,
+account screens, listening screens, social), in the session's scratchpad
+as `audit3-*.md`. Their fixes are build 7 (§576).
+
+**Tests:** `tests/test_waitlist.py` (`..._previews_behind_the_waitlist_575`,
+`..._one_and_a_half_minutes_575`, both run with the waitlist on, both fail
+without the fix); `tests/test_message_friends_575.py`.
