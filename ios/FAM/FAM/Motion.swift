@@ -49,7 +49,7 @@ struct PressedLabel<Label: View>: View {
     @State private var size: CGSize = .zero
 
     /// About 30 % of a phone's screen, in points.
-    private static let largestArea: CGFloat = 100_000
+    private static var largestArea: CGFloat { 100_000 }
 
     private var squeezes: Bool {
         guard !reduceMotion, isEnabled, size.width > 0, size.height > 0 else { return false }
