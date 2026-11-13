@@ -175,7 +175,9 @@ def test_the_iphone_hands_instagram_the_card_as_a_sticker():
     # The share sheet gets the picture alone; the words wait on the clipboard.
     assert "activity = [file]\n" in share
     api = swift("API.swift")
-    assert "case url, targets, card, storySticker, storyImage, `public`" in api
+    # The decoder reads both story pictures (and, since §601, the link's
+    # own `preview`).
+    assert "case url, targets, card, storySticker, storyImage, preview, `public`" in api
     assert "storyImage: link.storyImage" in swift("PlayerSheets.swift")
 
 
