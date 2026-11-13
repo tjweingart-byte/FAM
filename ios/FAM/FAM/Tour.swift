@@ -743,9 +743,10 @@ struct TourOverlay: View {
                 GeometryReader { geo in
                     layer(geo)
                 }
-                // The whole window, the status bar's strip and the home
-                // indicator's included, as the web's dims its whole page.
-                .ignoresSafeArea()
+                // Down to the window's bottom edge (the home indicator's
+                // strip), from under the status bar: the web's `.fam-tour`
+                // starts at `top: var(--sb-h)` and leaves that strip as it is.
+                .ignoresSafeArea(edges: .bottom)
                 .transition(.opacity)
                 // Back from a pause with the card already measured: it
                 // glides again from its next move.
@@ -764,7 +765,7 @@ struct TourOverlay: View {
     }
 
     private func layer(_ geo: GeometryProxy) -> some View {
-        // The reader fills the window (`ignoresSafeArea`), in the global
+        // The reader reaches the window's bottom (`ignoresSafeArea`), in the global
         // space the targets report in. The card is placed in the room left
         // between the status bar and the home indicator, and the hole and
         // the card are drawn back in the window's own coordinates.
