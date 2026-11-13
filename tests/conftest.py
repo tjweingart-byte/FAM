@@ -153,11 +153,9 @@ FAM_ENVIRONMENT = (
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
-    # /admin/x (§321); its token is cleared by `isolated_x_threads`.
-    "X_THREADS_MAX_READS",
-    "X_THREADS_DAILY_READS", "X_THREADS_WINDOW_HOURS", "X_THREADS_SEEDS", "X_THREADS_MIN_ENGAGEMENT",
-    "X_THREADS_REPLY_READS",
-    "X_THREADS_MODEL",
+    # /admin/groups (§575).
+    "COMMUNITIES_MAX_SEARCHES", "COMMUNITIES_DAILY_SEARCHES",
+    "COMMUNITIES_SUBJECTS", "COMMUNITIES_SHORTLIST", "COMMUNITIES_MODEL",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
@@ -830,19 +828,15 @@ def isolated_thumbnails(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def isolated_x_threads(tmp_path, monkeypatch):
-    """`/admin/x`'s cards (§321) per test: `x_threads._STORE` is a
+def isolated_communities(tmp_path, monkeypatch):
+    """`/admin/groups`' leads (§575) per test: `communities._STORE` is a
     process-global, like the tile pictures above."""
-    import x_threads
+    import communities
 
-    monkeypatch.setenv("X_THREADS_DB", str(tmp_path / "stores" / "x_threads.db"))
-    # Read through `credentials`, not config.py: a developer's X token must
-    # not let a test reach api.x.com.
-    monkeypatch.delenv("X_BEARER_TOKEN", raising=False)
-    monkeypatch.delenv("X_BEARER_TOKENS", raising=False)
-    x_threads.reset()
+    monkeypatch.setenv("COMMUNITIES_DB", str(tmp_path / "stores" / "communities.db"))
+    communities.reset()
     yield
-    x_threads.reset()
+    communities.reset()
 
 
 @pytest.fixture(autouse=True)

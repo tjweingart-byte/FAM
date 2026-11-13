@@ -35204,3 +35204,63 @@ on Postgres 16.
 
 **Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
 two against a real Postgres, run here on a local 16).
+
+## 575. Communities to reach replace FAM on X (2026-11-13)
+
+**What was asked.** The owner: an agent on the admin page that looks across
+Facebook groups, finds their admins and their contact information
+(Facebook handle, email, phone number), and hypothesises episodes to show
+them - not written - so FAM can offer admins access to share episodes with
+their groups. After a workshop: "go with the public-channels version,
+Facebook and Reddit. Also do X, delete the current X agent in there and do
+the same thing. Discord and slack good too".
+
+**The workshop's answer, and why.** Collecting admins' personal emails and
+phone numbers from Facebook means a signed-in scrape, which Meta's terms
+forbid and enforce against, and messaging private people at addresses they
+never gave FAM (TCPA for texts, CAN-SPAM for email, GDPR in Europe), while
+App Review reads FAM's privacy story. It is also worse outreach: an admin
+reached through their own group, with something made for it, listens. So:
+discovery is a web search through FAM's research backends; the contact is
+the community's own public channel; a person sends.
+
+**What was built.** `communities.py` and `/admin/groups` ([community-outreach]):
+- Five platforms (`PLATFORMS`): Facebook groups, subreddits, X Communities,
+  Discord servers (invites, DISBOARD), Slack communities. One search per
+  subject per platform, held to its domains (`_search_blocking`, down the
+  research ladder's web rungs). Subjects are typed, or the categories of
+  FAM's most played kept episodes.
+- `community_of` recognises a community in a URL or a passage (a platform's
+  own pages excluded); `contact_url` is the community's way to its admins
+  (`/members/admins`, modmail compose, `/moderators`, the invite).
+- `strip_phones` over every text kept, the notes too. `public_contacts`
+  keeps an email only in the same sentence as "contact", "admins" and the
+  like, and only on the community's own page; `admin_hints` a name only as
+  that page states it.
+- One small-model call per shortlisted lead (`COMMUNITIES_MODEL`, Haiku):
+  fit 1-5, three pitches, a first message under 600 characters; a figure it
+  was not given sends the message back to the code's. With no key, all of
+  it in code. Fit under 3 is set aside.
+- A kept episode that matches (embeddings 0.6, shared words 0.4, at 0.35)
+  is offered, linkable once heard (`/api/admin/groups/listen`).
+- Statuses new -> contacted -> replied -> invited -> joined, or passed;
+  notes and the admin's handle as the person found it. Invited points at
+  `/admin/waitlist` to let them in once they sign up.
+- Ceilings `COMMUNITIES_MAX_SEARCHES` (20) and `COMMUNITIES_DAILY_SEARCHES`
+  (60); `COMMUNITIES_DB`; untouched leads pruned after 30 days.
+
+**What was removed.** `x_threads.py`, `outreach_intelligence.py`,
+`admin_ui/x.html`, `/admin/x` and its endpoints, `tools/x_agent_eval.py`,
+their tests, the `X_THREADS_*` settings and X's row on the services report.
+`X_BEARER_TOKEN` stays in `spend_guard.PAID_CREDENTIALS` so an old deploy's
+key is still scrubbed on staging. The tracker links "Communities" where it
+linked "FAM on X". The rule [x-threads] became [community-outreach].
+
+**Not verified here.** No search or model key in this container: no real
+search was run, so how often a platform's communities show up in Parallel
+and Perplexity results is unmeasured. Discord and Slack are the likeliest
+to come back thin (invites live on directories and in passages). The model
+call is not an agent under `agents/models.py`: like the X agent it replaces,
+it is an admin tool calling the small model directly, metered.
+
+**Tests:** `tests/test_communities_575.py`.

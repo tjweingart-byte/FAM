@@ -1331,28 +1331,20 @@ class Settings:
     trending_bank_max_age_hours: float = _env_float(
         "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
 
-    # --- Conversations on X (`/admin/x`, x_threads.py, §321) ---------------
-    # A read-only X API bearer token (X_BEARER_TOKEN, read through
-    # `credentials`) is the statement of intent; unset, the page says so.
-    # X bills per post read, so a run and a day are both capped.
-    x_threads_max_reads: int = _env_int("X_THREADS_MAX_READS", 300)
-    x_threads_daily_reads: int = _env_int("X_THREADS_DAILY_READS", 600)
-    # Only posts younger than this: a reply is read while a thread is moving.
-    # X's recent search reaches back seven days and refuses anything older.
-    x_threads_window_hours: float = max(
-        1.0, min(_env_float("X_THREADS_WINDOW_HOURS", 6.0), 168.0))
-    # How many episodes one run looks for conversations about.
-    x_threads_seeds: int = _env_int("X_THREADS_SEEDS", 10)
-    # High engagement is the target (§337): a post with fewer interactions
-    # (likes, replies, reposts and quotes together) is not a card.
-    x_threads_min_engagement: int = max(0, _env_int("X_THREADS_MIN_ENGAGEMENT", 25))
-    # The replies read under each card as context for the read (§368): the
-    # original post sets the subject, replies only say what is debated. X's
-    # least is 10 a request; 0 reads none. Counted inside the ceilings above.
-    x_threads_reply_reads: int = max(0, _env_int("X_THREADS_REPLY_READS", 10))
-    # Drafts the replies a person approves. A short call; the small model.
-    x_threads_model: str = field(
-        default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
+    # --- Communities to reach (`/admin/groups`, communities.py, §575) -------
+    # Facebook groups, subreddits, X Communities, Discord servers and Slack
+    # communities about FAM's subjects, found by web search through the
+    # research backends (never a platform's own API or a signed-in scrape).
+    # Each search is billed, so a run and a day are both capped.
+    communities_max_searches: int = max(0, _env_int("COMMUNITIES_MAX_SEARCHES", 20))
+    communities_daily_searches: int = max(0, _env_int("COMMUNITIES_DAILY_SEARCHES", 60))
+    # Subjects one run searches, each on every chosen platform.
+    communities_subjects: int = max(1, _env_int("COMMUNITIES_SUBJECTS", 5))
+    # Leads one run reads (pitches and a message each) and leaves on the page.
+    communities_shortlist: int = max(1, _env_int("COMMUNITIES_SHORTLIST", 12))
+    # Writes the pitches and the first message. A short call; the small model.
+    communities_model: str = field(
+        default_factory=lambda: os.environ.get("COMMUNITIES_MODEL") or SMALL_MODEL)
 
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.

@@ -50,7 +50,7 @@ import story_store as SS  # noqa: E402
 import wikimedia as WM  # noqa: E402
 import history_archive as HA  # noqa: E402
 import episode_quality as EQ  # noqa: E402
-import x_threads as XT  # noqa: E402
+import communities as CM  # noqa: E402
 from agents import tasks as AT  # noqa: E402
 from agents import housekeeper as HK  # noqa: E402
 import demographic_totals as DT  # noqa: E402
@@ -90,7 +90,7 @@ STORES = [
     ("WIKIMEDIA_DB", "wikimedia.db", WM.ReferenceStore),
     ("ARCHIVE_DB", "archive.db", HA.SQLiteBackend),
     ("EPISODE_QUALITY_DB", "episode_quality.db", EQ.QualityStore),
-    ("X_THREADS_DB", "x_threads.db", XT.Store),
+    ("COMMUNITIES_DB", "communities.db", CM.Store),
     ("AGENTS_DB", "agents.db", AT.TaskStore),
     ("HOUSEKEEPER_DB", "housekeeper.db", HK.ReportStore),
     ("DEMOGRAPHICS_DB", "demographics.db", DT.TotalsStore),
@@ -155,12 +155,12 @@ ALL_VARS = sorted(DECLARED)
 #: exists - the same case again. `ARCHIVE_DB` (§308) is created by the
 #: first written episode with sources, and reported once it exists.
 #: `EPISODE_QUALITY_DB` (§309) is created by the first written episode - the
-#: routing rows' case. `X_THREADS_DB` (§321) is created by the first
-#: search on `/admin/x`, and reported once it exists.
+#: routing rows' case. `COMMUNITIES_DB` (§575) is created by the first
+#: search on `/admin/groups`, and reported once it exists.
 #: `AGENTS_DB` (§349) is created by the first agent task, and reported once
 #: it exists - the trending bank's case. `HOUSEKEEPER_DB` (§399) is created
 #: by Consuela's first run, and reported once it exists - the same case.
-LAZY_STORES = {"DEMOGRAPHICS_DB", "HOUSEKEEPER_DB", "AGENTS_DB", "X_THREADS_DB", "ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
+LAZY_STORES = {"DEMOGRAPHICS_DB", "HOUSEKEEPER_DB", "AGENTS_DB", "COMMUNITIES_DB", "ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",
                "GDELT_EXPORT_DB", "LIVE_ROUTING_DB", "STORY_POOL_DB",
                "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB", "EPISODE_QUALITY_DB"}

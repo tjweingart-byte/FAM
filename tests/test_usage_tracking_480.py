@@ -14,7 +14,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -51,9 +50,11 @@ class _Usage:
 
 
 # ------------------------------------------------------------ provider_usage
-def test_x_claude_the_image_model_and_r2_are_reported():
+def test_claude_the_image_model_and_r2_are_reported():
     shown = rows()
-    for provider, label in (("x", "X"), ("anthropic", "Claude (Anthropic)"),
+    # X left with the X agent (§575).
+    assert "x" not in shown
+    for provider, label in (("anthropic", "Claude (Anthropic)"),
                             ("gemini", "Google image model"),
                             ("r2", "Cloudflare R2")):
         assert shown[provider]["label"] == label
@@ -96,17 +97,6 @@ def test_a_monthly_limit_is_measured_over_the_month(tmp_path, monkeypatch):
     assert w["allowance"]["used"] == 600 and w["allowance"]["share"] == 0.6
     # The 7-day average still covers the last seven days only.
     assert w["average"] == round(300 / 7, 1)
-
-
-def test_x_is_measured_in_posts_from_its_own_count(monkeypatch):
-    import x_threads
-
-    setting(monkeypatch, x_threads_daily_reads=600)
-    monkeypatch.setattr(x_threads, "_exists", lambda: True)
-    monkeypatch.setattr(x_threads, "store",
-                        lambda: SimpleNamespace(reads_since=lambda since: 450))
-    x = rows()["x"]["allowance"]
-    assert x["unit"] == "posts" and x["used"] == 450 and x["share"] == 0.75
 
 
 def test_exists_asks_the_database_not_for_a_file(tmp_path, monkeypatch):

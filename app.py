@@ -102,7 +102,7 @@ import autocorrect as autocorrect_mod
 import categories as categories_mod
 import topics as topics_mod
 import thumbnails as thumbnails_mod
-import x_threads
+import communities
 import accounts as accounts_mod
 import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
@@ -1285,10 +1285,10 @@ def _database_report() -> list[dict]:
                            thumbnails_mod.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
-    # Conversations on X (§321): created by the first search on /admin/x.
-    if x_threads._exists():
+    # Communities to reach (§575): created by the first search on /admin/groups.
+    if communities._exists():
         try:
-            stores.append(("x threads", "X_THREADS_DB", x_threads.store().path))
+            stores.append(("communities", "COMMUNITIES_DB", communities.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
     # Requests per outside service per day (§179). Created by the first
@@ -13316,16 +13316,6 @@ async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
             "room_today": room}
 
 
-# --- Conversations on X (§321, x_threads.py) ---------------------------------
-# Threads on X one of FAM's episodes could add to, found from the episodes
-# FAM already has. A person approves each reply and posts it in X; FAM holds
-# a read-only search credential and never posts ([no-social-posting]).
-
-#: One search at a time: a second press while one runs would spend X's
-#: per-read billing twice on the same threads.
-_X_RUNNING: list = []
-
-
 @app.get("/admin/push", include_in_schema=False)
 async def admin_push_page(request: Request):
     """Big stories (§562): what the detector found, and the one button that
@@ -13363,75 +13353,114 @@ async def admin_push_decide(req: PushDecision, request: Request) -> dict:
     return {"ok": True, "story": push_stories.store().decide(req.id, req.status, time.time())}
 
 
-@app.get("/admin/x", include_in_schema=False)
-async def admin_x_page(request: Request):
-    """The review page. A shell, like `/admin/thumbnails`; every card on it
-    is fetched from the endpoints below, which are what check who is asking."""
+# --- Communities to reach (§575, communities.py) -----------------------------
+# Facebook groups, subreddits, X Communities, Discord servers and Slack
+# communities whose admins might share FAM with their members. Found by web
+# search; each card says how a person reaches the admins through the
+# community's own public channel. FAM never messages anybody
+# ([no-social-posting], [community-outreach]).
+
+#: One search at a time: a second press while one runs would bill the same
+#: searches twice.
+_GROUPS_RUNNING: list = []
+
+
+@app.get("/admin/groups", include_in_schema=False)
+async def admin_groups_page(request: Request):
+    """The outreach page. A shell; every card on it is fetched from the
+    endpoints below, which are what check who is asking."""
     if not _admin_configured():
         raise HTTPException(status_code=404, detail="Not found")
-    page = PROJECT_ROOT / "admin_ui" / "x.html"
+    page = PROJECT_ROOT / "admin_ui" / "groups.html"
     return HTMLResponse(page.read_text(encoding="utf-8"),
                         headers={"Cache-Control": "no-store",
                                  "X-Robots-Tag": "noindex"})
 
 
-@app.get("/api/admin/x")
-async def admin_x(request: Request, status: str = "") -> dict:
-    """Every card (newest run first, waiting before decided), whether X can
-    be asked, what today's reads have used, and what the last run did."""
+def _groups_suggested() -> list:
+    """Subjects to search when the person names none: the categories of the
+    most played kept episodes."""
+    return communities.suggested_subjects(
+        SCRIPT_CACHE, lambda key: _category_label(_episode_category(key)))
+
+
+@app.get("/api/admin/groups")
+async def admin_groups(request: Request, status: str = "", platform: str = "") -> dict:
+    """Every lead (to contact first, best first), whether a search can run,
+    today's searches, the last run, and subjects to suggest."""
     _require_admin(request)
-    if status and status not in x_threads.STATUSES:
+    if status and status not in communities.STATUSES and status != communities.SET_ASIDE:
         raise HTTPException(status_code=422, detail="Unknown status.")
-    cards, rejected = [], []
-    if x_threads._exists():
-        cards = await asyncio.to_thread(x_threads.store().all, status)
-        # What the agent turned away and why (§368), for a person to audit:
-        # never actionable, never shown as a card.
-        rejected = await asyncio.to_thread(x_threads.store().all,
-                                           x_threads.SET_ASIDE, "", 40)
-    return {"health": x_threads.health(), "running": bool(_X_RUNNING),
-            "cards": cards, "rejected": rejected, "kinds": x_threads.KINDS}
+    if platform and platform not in communities.PLATFORMS:
+        raise HTTPException(status_code=422, detail="Unknown platform.")
+    leads = []
+    if communities._exists():
+        leads = await asyncio.to_thread(communities.store().all, status, platform)
+    suggested = await asyncio.to_thread(_groups_suggested)
+    return {"health": communities.health(), "running": bool(_GROUPS_RUNNING),
+            "leads": leads, "suggested": suggested}
 
 
-@app.post("/api/admin/x/run")
-async def admin_x_run(request: Request) -> dict:
-    """Look for threads now, in the background, inside the read ceilings.
+class GroupsRun(BaseModel):
+    subjects: list[str] = Field(default_factory=list, max_length=20)
+    platforms: list[str] = Field(default_factory=list, max_length=5)
+
+
+@app.post("/api/admin/groups/run")
+async def admin_groups_run(req: GroupsRun, request: Request) -> dict:
+    """Look for communities now, in the background, inside the ceilings.
     Returns at once; the page polls the list to watch the cards arrive."""
     _require_admin(request)
-    ok, why = x_threads.available()
+    ok, why = communities.available()
     if not ok:
-        raise HTTPException(status_code=409, detail=f"Cannot search X: {why}.")
-    if _X_RUNNING:
+        raise HTTPException(status_code=409, detail=f"Cannot search: {why}.")
+    if _GROUPS_RUNNING:
         raise HTTPException(status_code=409, detail="A search is already running.")
+    unknown = [p for p in req.platforms if p not in communities.PLATFORMS]
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown platform: {unknown[0]}.")
+    subjects = [" ".join(s.split())[:80] for s in req.subjects if s and s.strip()]
+    if not subjects:
+        subjects = await asyncio.to_thread(_groups_suggested)
+    if not subjects:
+        raise HTTPException(status_code=422, detail=(
+            "Name a subject to search for: FAM has no played episodes to suggest one from."))
 
     async def _run() -> None:
         try:
-            report = await x_threads.run(SCRIPT_CACHE)
-            log.info("x threads (admin run): %s",
-                     {k: v for k, v in report.items() if k != "seeds"})
+            report = await communities.run(SCRIPT_CACHE, subjects, req.platforms)
+            log.info("communities (admin run): %s",
+                     {k: v for k, v in report.items() if k != "screened"})
         except Exception:  # noqa: BLE001 - recorded, never raised into nothing
-            log.exception("x threads: the run failed")
+            log.exception("communities: the run failed")
         finally:
-            _X_RUNNING.clear()
+            _GROUPS_RUNNING.clear()
 
-    _X_RUNNING.append(time.time())
+    _GROUPS_RUNNING.append(time.time())
     _BACKGROUND.add(asyncio.create_task(_run()))
-    return {"started": True}
+    return {"started": True, "subjects": subjects}
 
 
-class XCard(BaseModel):
-    post_id: str = Field(..., min_length=1, max_length=40, pattern=r"^[0-9]+$")
+class GroupsLead(BaseModel):
+    id: str = Field(..., min_length=3, max_length=140, pattern=r"^[a-z]+:[A-Za-z0-9._:-]+$")
 
 
-def _x_episode_link(card: dict, request: Request) -> str:
-    """The card's episode as a share link FAM owns, or "" when the card has
-    no episode. One link per episode however many threads it is offered on
-    (`ShareStore.create` is once per sharer, question and length)."""
-    episode = card.get("episode") or {}
+@app.post("/api/admin/groups/listen")
+async def admin_groups_listen(req: GroupsLead, request: Request) -> dict:
+    """The card's kept episode as a share link FAM owns, to hear before it
+    goes in a message: nobody vouches for audio they have not heard."""
+    _require_admin(request)
+    if not communities._exists():
+        raise HTTPException(status_code=404, detail="No leads yet")
+    held = communities.store()
+    lead = await asyncio.to_thread(held.get, req.id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="No such lead")
+    episode = lead.get("episode") or {}
     if not episode.get("query"):
-        return ""
+        raise HTTPException(status_code=409, detail="This lead has no kept episode.")
     try:
-        share = SHARES.create(x_threads.SHARER, episode["query"],
+        share = SHARES.create(communities.SHARER, episode["query"],
                               as_minutes(episode.get("minutes") or 1),
                               episode.get("title") or "")
     except sharing.ShareError as exc:
@@ -13440,105 +13469,40 @@ def _x_episode_link(card: dict, request: Request) -> str:
     if not public:
         raise HTTPException(status_code=409, detail=(
             "This server does not know its public address, so the episode "
-            "link would not open on X. Set PUBLIC_BASE_URL."))
-    return link
-
-
-@app.post("/api/admin/x/listen")
-async def admin_x_listen(req: XCard, request: Request) -> dict:
-    """The episode's link, to hear it before approving - the playbook's
-    "add a checked episode": nobody vouches for audio they have not heard."""
-    _require_admin(request)
-    if not x_threads._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    card = await asyncio.to_thread(x_threads.store().get, req.post_id)
-    if card is None:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    link = _x_episode_link(card, request)
-    if not link:
-        raise HTTPException(status_code=404, detail="This card has no episode.")
-    # Heard through the very link the reply will carry: listening is also
-    # testing the link (§368). Approve with a link waits for this.
-    await asyncio.to_thread(x_threads.store().listened, req.post_id, time.time())
+            "link would not open for anybody else. Set PUBLIC_BASE_URL."))
+    await asyncio.to_thread(held.listened, req.id, time.time(), link)
     return {"url": link}
 
 
-@app.post("/api/admin/x/match")
-async def admin_x_match(req: XCard, request: Request) -> dict:
-    """A card's proposed episode, once a person has written it in FAM: the
-    kept episode that answers the proposal goes on the card, unheard (§368)."""
+class GroupsMove(BaseModel):
+    id: str = Field(..., min_length=3, max_length=140, pattern=r"^[a-z]+:[A-Za-z0-9._:-]+$")
+    status: str = Field(..., pattern="^(new|contacted|replied|invited|joined|passed)$")
+    #: What the person found or agreed, in their words.
+    notes: Optional[str] = Field(None, max_length=2000)
+    #: The admin's handle on the platform, as the person found it there.
+    handle: Optional[str] = Field(None, max_length=120)
+
+
+@app.post("/api/admin/groups/move")
+async def admin_groups_move(req: GroupsMove, request: Request) -> dict:
+    """Move a lead along: contacted, replied, invited, joined or passed.
+    Nothing is sent from here; the person reached the admin themselves."""
     _require_admin(request)
-    if not x_threads._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    try:
-        card = await asyncio.to_thread(x_threads.attach_written, SCRIPT_CACHE,
-                                       req.post_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    except LookupError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {"card": card}
-
-
-class XDecision(BaseModel):
-    post_id: str = Field(..., min_length=1, max_length=40, pattern=r"^[0-9]+$")
-    action: str = Field(..., pattern="^(approve|skip|reopen)$")
-    #: The reply as the person edited it on the card; the stored draft if empty.
-    text: str = Field("", max_length=1000)
-    #: Leave the episode's link off this reply even when it has one.
-    no_link: bool = False
-    #: The person checked every claim in the words (§368): no approval without.
-    verified: bool = False
-
-
-@app.post("/api/admin/x/decide")
-async def admin_x_decide(req: XDecision, request: Request) -> dict:
-    """A person's verdict on one card. Approve makes the episode's share link
-    (owned by FAM, never a listener), puts the reply together, and hands back
-    X's compose screen with the words in it - the page opens it and copies
-    the words. Nothing is posted from here."""
-    _require_admin(request)
-    if not x_threads._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    held = x_threads.store()
-    card = await asyncio.to_thread(held.get, req.post_id)
-    if card is None:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    now = time.time()
-    if req.action != "approve":
-        status = x_threads.SKIPPED if req.action == "skip" else x_threads.WAITING
-        await asyncio.to_thread(held.decide, req.post_id, status, now)
-        return {"post_id": req.post_id, "status": status}
-    words = " ".join((req.text or card["draft"] or "").split())
-    if not words:
-        raise HTTPException(status_code=422, detail="There is no reply to post.")
-    if not req.verified:
-        raise HTTPException(status_code=422, detail=(
-            "Check every claim in the reply first, then tick that you did."))
-    link = ""
-    if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
-        if card.get("relevance", 0) < x_threads.EPISODE_RELEVANCE:
-            # Only a 4 or 5 against the original post carries an episode
-            # (§368); a card read in code, or from before the scale, does not.
-            raise HTTPException(status_code=409, detail=(
-                "Only a card scored 4 or 5 against the original post may link "
-                "an episode. Tick no link to send the comment alone."))
-        if not card.get("listened_at"):
-            # Nobody vouches for audio they have not heard (§368).
-            raise HTTPException(status_code=409, detail=(
-                "Listen to the episode through its link before linking it "
-                "(Listen first), or untick the link."))
-        link = _x_episode_link(card, request)
-    try:
-        text = x_threads.compose(words, link)
-    except x_threads.TooLong as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    await asyncio.to_thread(held.decide, req.post_id, x_threads.APPROVED, now,
-                            posted=text, share_url=link)
-    return {"post_id": req.post_id, "status": x_threads.APPROVED, "text": text,
-            "share_url": link,
-            "intent_url": x_threads.intent_url(req.post_id, text),
-            "post_url": card["post"]["url"]}
+    if not communities._exists():
+        raise HTTPException(status_code=404, detail="No leads yet")
+    held = communities.store()
+    lead = await asyncio.to_thread(held.get, req.id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="No such lead")
+    if lead["status"] == communities.SET_ASIDE:
+        raise HTTPException(status_code=409, detail="A set-aside lead is for audit only.")
+    handle = req.handle
+    if handle is not None:
+        handle = communities.strip_phones(" ".join(handle.split()))
+    notes = communities.strip_phones(req.notes) if req.notes is not None else None
+    await asyncio.to_thread(held.move, req.id, req.status, time.time(),
+                            notes=notes, handle=handle)
+    return {"lead": await asyncio.to_thread(held.get, req.id)}
 
 
 @app.exception_handler(HTTPException)
