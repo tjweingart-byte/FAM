@@ -85,6 +85,8 @@ def main() -> int:
                         "document.querySelectorAll('.modal-overlay.active,"
                         " .sheet-overlay.active').forEach("
                         "  function(el){ el.classList.remove('active'); })")
+                    # The tour takes every tap while it is up (§594).
+                    page.evaluate("Tour.on() && Tour.skip()")
                 except Exception:  # noqa: BLE001 - the page may be gone
                     pass
 
@@ -195,6 +197,58 @@ def main() -> int:
             page.wait_for_timeout(900)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
                 "finishing the intro did not land in the app"
+
+        def the_tour_walks_the_app_and_can_be_skipped():
+            """The first run ends in a tour of the real screens (§594): it
+            opens by itself once sign-up's steps are done, every card can be
+            skipped, Back goes back, a sheet opening part-way only pauses it,
+            and once skipped it never comes back by itself."""
+            # It waits behind anything else on screen. Signing up here also
+            # raises "new followers", so the tour must not be up yet, and
+            # comes once that is closed.
+            page.wait_for_timeout(600)
+            if page.evaluate("document.getElementById('followerOverlay').classList.contains('active')"):
+                assert page.evaluate("document.getElementById('famTour').hidden"), \
+                    "the tour opened on top of the new-followers popup"
+                page.evaluate("closeFollowerPopup()")
+            page.wait_for_selector("#famTour:not([hidden])", timeout=10000)
+            page.wait_for_timeout(400)
+            assert page.text_content("#tourTitle") == "Welcome to FAM", \
+                "the tour did not open on its welcome"
+            assert page.is_visible("#tourSkip"), "the first card cannot be skipped"
+            seen = []
+            for _ in range(4):
+                page.click("#tourNext")
+                page.wait_for_timeout(500)
+                seen.append((page.text_content("#tourTitle"),
+                             page.eval_on_selector(".screen.active", "e => e.id")))
+                assert page.is_visible("#tourSkip"), f"no Skip on {seen[-1][0]!r}"
+            assert ("Ask anything", "screen-home") in seen, \
+                f"the tour never reached searchFAM's bar: {seen}"
+            hole = page.eval_on_selector("#tourHole", "e => e.getBoundingClientRect().width")
+            assert hole > 40, "the spotlight is not round the search bar"
+            page.click("#tourBack")
+            page.wait_for_timeout(500)
+            assert page.text_content("#tourTitle") == seen[-2][0], "Back did not go back"
+            page.evaluate("openLengthMenu()")
+            page.wait_for_timeout(700)
+            assert page.evaluate("document.getElementById('famTour').classList.contains('paused')"), \
+                "the tour stayed on top of a sheet"
+            page.evaluate("closeSheet ? closeSheet() : document.querySelectorAll("
+                          "'.sheet-overlay.active').forEach(e => e.classList.remove('active'))")
+            page.wait_for_timeout(700)
+            assert not page.evaluate("document.getElementById('famTour').classList.contains('paused')"), \
+                "the tour did not come back after the sheet closed"
+            page.click("#tourSkip")
+            page.wait_for_timeout(600)
+            assert page.evaluate("document.getElementById('famTour').hidden"), "Skip left the tour up"
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
+                "skipping the tour did not land on DailyFAM"
+            assert page.evaluate("localPrefs().tour") == "done", "a skip was not remembered"
+            page.evaluate("Tour.offerOnce()")
+            page.wait_for_timeout(1500)
+            assert page.evaluate("document.getElementById('famTour').hidden"), \
+                "a skipped tour came back by itself"
 
         def no_weekly_recap_pops_up():
             """The weekly recap popup is gone at the owner's direction, and
@@ -1271,7 +1325,8 @@ def main() -> int:
             assert found == ["Ice Hockey"], found
             page.fill("#catalogSearch", "")
             page.wait_for_timeout(200)
-            page.evaluate("finishIntro()")
+            # A second first run, for this check only: its tour was taken.
+            page.evaluate("finishIntro(); saveLocalPrefs({ tour: 'done' })")
             page.wait_for_timeout(700)
 
         def the_catalogue_saves_what_was_chosen():
@@ -4341,6 +4396,7 @@ def main() -> int:
             page.wait_for_timeout(300)
 
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
+        check("The tour walks the app and can be skipped", the_tour_walks_the_app_and_can_be_skipped)
         check("No weekly recap pops up", no_weekly_recap_pops_up)
         check("myFAM renders a rail per signal", myfam)
         check("a live story tile shows its angle", live_story_tiles_show_their_angle)
