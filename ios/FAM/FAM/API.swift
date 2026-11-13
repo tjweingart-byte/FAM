@@ -1285,6 +1285,11 @@ struct SharePayload: Decodable {
     let title: String
     let question: String
     let minutes: Double
+    /// The link preview's picture (`image`), for the lock screen.
+    let image: String?
+    /// Whether the App Store is where the page's other doors go (`has_app`):
+    /// "Ask your own question" and "Browse episodes" are drawn only then.
+    let hasApp: Bool?
 }
 
 /// `quotas.Verdict.as_dict`: the limit screen's words and numbers.

@@ -87,6 +87,12 @@ extension AppModel {
             openPendingLink()
             return
         }
+        // A shared episode plays for anyone (§574): somebody signed out or
+        // still on the waitlist gets the listen page's screen now (§575).
+        if stage == .signedOut || stage == .waiting, case .episode = link {
+            openSharedListenIfHeld()
+            return
+        }
         if stage == .signedOut, case .join = link {
             // The web's sheet: the token waits for the sign-up or log-in.
             nowPlaying.say("You\u{2019}ve been invited to a joint mix. Sign up or log in to add topics to it.")
@@ -159,4 +165,128 @@ extension AppModel {
             nowPlaying.say(MixesModel.sentence(error, else: "Could not join that mix"))
         }
     }
+
+    // MARK: - A shared episode before the app is open to you (§575)
+
+    /// The stage settled (RootView's `onChange(of: stage)`): a link held
+    /// since a cold start opens the shared screen for somebody not let in;
+    /// let in, the screen closes and the app takes over as before.
+    func stageSettled() {
+        switch stage {
+        case .signedOut, .waiting: openSharedListenIfHeld()
+        case .ready: closeSharedListen()
+        case .opening: break
+        }
+    }
+
+    /// A held `/s/<id>` link, for somebody signed out or waitlisted: the
+    /// listen page's screen, its share read, its open counted as the page
+    /// counts it. The link is taken - nothing replays it after a sign-up.
+    func openSharedListenIfHeld() {
+        guard stage == .signedOut || stage == .waiting, let url = pendingLink,
+              case let .episode(id)? = Self.sharedLink(url) else { return }
+        pendingLink = nil
+        stopSample()
+        stopSharedAudio()
+        sharedListen = SharedListen(id: id)
+        Task { @MainActor in
+            do {
+                let share = try await self.api.sharedEpisode(id)
+                guard self.sharedListen?.id == id else { return }
+                guard !share.question.isEmpty else {
+                    self.sharedListen?.expired = true
+                    self.sharedListen?.loaded = true
+                    return
+                }
+                self.sharedListen?.share = share
+                self.sharedListen?.loaded = true
+                Task { await self.api.shareOpened(id) }
+            } catch {
+                guard self.sharedListen?.id == id else { return }
+                if case let FAMError.refused(status, _) = error, status == 404 {
+                    self.sharedListen?.expired = true
+                } else {
+                    self.sharedListen?.problem = MixesModel.sentence(error, else: "That episode could not be played just now.")
+                }
+                self.sharedListen?.loaded = true
+            }
+        }
+    }
+
+    /// Play: the listen page's `start()` - the question at exactly the
+    /// shared length (1.5 stays 1.5), on the `share` surface, nothing
+    /// attached, in the voice it was made in; pause and resume in place.
+    func toggleShared() {
+        guard let share = sharedListen?.share else { return }
+        if !shareStarted || shareEnded || shareQuery.isEmpty {
+            shareStarted = true
+            shareEnded = false
+            shareQuery = share.question
+            shareNote = "Starting the episode\u{2026}"
+            shareNoteBad = false
+            player.play(title: share.title.isEmpty ? "A FAM episode" : share.title,
+                        picture: share.image.flatMap { URL(string: $0) },
+                        request: api.audio(query: share.question, minutes: share.minutes, surface: "share"),
+                        minutes: share.minutes, holdStart: false)
+            return
+        }
+        player.toggle()
+    }
+
+    /// The first word (`onFirstAudio`): the note goes.
+    func sharedStarted() {
+        if !shareQuery.isEmpty && shareNote.hasPrefix("Starting") { shareNote = "" }
+    }
+
+    /// `onEnd`.
+    func shareFinished() {
+        shareEnded = true
+        shareNote = "That\u{2019}s the episode."
+        shareNoteBad = false
+    }
+
+    /// `onError`: a play button again, and why, in the server's words.
+    func shareFailed(_ words: String) {
+        shareStarted = false
+        shareEnded = false
+        shareQuery = ""
+        shareNote = words.isEmpty ? "That episode could not be played just now." : words
+        shareNoteBad = true
+    }
+
+    /// The shared episode's audio stops (the page left).
+    func stopSharedAudio() {
+        if !shareQuery.isEmpty { player.stop() }
+        shareQuery = ""
+        shareNote = ""
+        shareNoteBad = false
+        shareStarted = false
+        shareEnded = false
+    }
+
+    /// Every other control on the page is a door (`data-door`): the page's
+    /// go to `/waitlist`. In the app that is Sign up for somebody signed out;
+    /// somebody already on the waitlist is back on their status page.
+    func shareDoor() {
+        let signedOut = stage == .signedOut
+        closeSharedListen()
+        if signedOut { askSignUp = true }
+    }
+
+    /// The screen goes, and the audio with it.
+    func closeSharedListen() {
+        stopSharedAudio()
+        sharedListen = nil
+    }
+}
+
+/// The shared screen's state: the share once read, or why it is not there.
+struct SharedListen: Identifiable {
+    let id: String
+    var share: SharePayload?
+    var loaded = false
+    /// Nothing to play: the page's "This link has expired".
+    var expired = false
+    /// The share could not be read (no connection, the server's sentence).
+    var problem = ""
 }

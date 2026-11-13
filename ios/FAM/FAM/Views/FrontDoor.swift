@@ -26,6 +26,7 @@ struct UpdateNotice: Equatable, Identifiable {
 struct FrontDoorView: View {
     enum Door: Hashable { case welcome, signUp, logIn }
 
+    @EnvironmentObject private var model: AppModel
     @State private var door: Door = .welcome
 
     var body: some View {
@@ -43,6 +44,12 @@ struct FrontDoorView: View {
             }
         }
         .background(FAMColor.background.ignoresSafeArea())
+        // A shared episode's door (§575): `/waitlist`, which is Sign up here.
+        .onChange(of: model.askSignUp) { _, asked in
+            guard asked else { return }
+            model.askSignUp = false
+            go(.signUp)
+        }
     }
 
     /// The words slide 24 pt and fade between steps (`Motion` "step").

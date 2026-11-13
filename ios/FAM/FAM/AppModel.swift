@@ -120,6 +120,20 @@ final class AppModel: ObservableObject {
     /// (`welcomePlaying`): its question, "" when none; and the line under it.
     @Published private(set) var sampleQuery = ""
     @Published private(set) var sampleNote = ""
+    /// A shared episode (`/s/<id>`) opened by somebody not let in yet - signed
+    /// out or on the waitlist: the listen page's own screen
+    /// (`static/listen.html`) over the front door or the status page (§575).
+    @Published var sharedListen: SharedListen?
+    /// The shared screen's door, for somebody signed out: the front door
+    /// goes to Sign up (the waitlist join), as the page's door goes to `/waitlist`.
+    @Published var askSignUp = false
+    /// The shared episode's question while its audio is the player's, "" when
+    /// none (as `sampleQuery`); the line under the player and how it ended.
+    @Published private(set) var shareQuery = ""
+    @Published private(set) var shareNote = ""
+    @Published private(set) var shareNoteBad = false
+    @Published private(set) var shareStarted = false
+    @Published private(set) var shareEnded = false
     /// An invite code a link carried (`referralCode`), kept until an
     /// account is made with it (the web's `famReferral`).
     static let referralKey = "fam.referral"
@@ -255,6 +269,12 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 // A sample played in place says why under its card, and
                 // nothing else moves (`playWelcomeSample`'s onError).
+                // The shared screen's episode says why under its player
+                // (the listen page's `onError`), and nothing else moves.
+                if !self.shareQuery.isEmpty {
+                    self.shareFailed(self.player.failureWords)
+                    return
+                }
                 if !self.sampleQuery.isEmpty {
                     let words = self.player.failureWords
                     self.sampleEnded(words.isEmpty ? "That episode could not be played just now." : words)
@@ -304,6 +324,11 @@ final class AppModel: ObservableObject {
         player.onFinished = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                // The shared screen's episode ended: "That's the episode."
+                if !self.shareQuery.isEmpty {
+                    self.shareFinished()
+                    return
+                }
                 // A sample on the front door is not an episode of the app's.
                 if !self.sampleQuery.isEmpty {
                     self.sampleEnded("")
@@ -814,6 +839,7 @@ final class AppModel: ObservableObject {
 
     func forgetEverything() {
         stopSample()
+        stopSharedAudio()
         termsOwed = nil
         // Search DailyFAM's way back and searchFAM's Length are the last
         // listener's too.
@@ -1665,7 +1691,7 @@ final class AppModel: ObservableObject {
     private func refused(_ error: FAMError) -> Bool {
         // A front-door sample refused is that sample's failure, said under
         // its card; nothing else moves.
-        if !sampleQuery.isEmpty { return false }
+        if !sampleQuery.isEmpty || !shareQuery.isEmpty { return false }
         switch error {
         case .consentRequired:
             loading.stop()

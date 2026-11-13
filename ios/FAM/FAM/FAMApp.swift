@@ -89,6 +89,9 @@ struct RootView: View {
 
     var body: some View {
         stages
+            // A shared episode for somebody not let in yet (§575): the
+            // listen page over the front door or the status page.
+            .overlay { SharedListenLayer() }
             .overlay(alignment: .bottom) {
                 if rootToasts { ToastView().padding(.bottom, 40) }
             }
@@ -117,6 +120,9 @@ struct RootView: View {
             // On the waitlist the first run is the status page's profile
             // (`?setup=1`): who you are, then the status page; the interests
             // come once the account is let in.
+            // A link held since a cold start, once the server has said who
+            // this is; let in, the shared screen gives way to the app.
+            .onChange(of: model.stage) { _, _ in model.stageSettled() }
             .onChange(of: model.entry) { _, step in
                 if model.stage == .waiting && step == .interests { model.entry = nil }
             }
