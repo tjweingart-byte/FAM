@@ -5337,7 +5337,7 @@
           <div class="modal-title">New message</div>
           <!-- Pick one person for a chat, or several for a group (10.6
                packet #4); Chat starts typing to them. -->
-          <div class="gc-label" style="margin-bottom:8px;">Pick one or more people you follow</div>
+          <div class="gc-label" style="margin-bottom:8px;">Pick one or more friends</div>
           <div class="share-contacts" id="newChatContacts"></div>
           <div class="gc-picked" id="newChatPicked"></div>
           <input class="modal-input" id="newChatGroupName" type="text" maxlength="60" hidden
@@ -17765,7 +17765,18 @@
   function openCircleFace(i){
     var person = yfCircle[i];
     if(!person) return;
-    if(!person.handle){ openThreadWith(person); return; }
+    if(!person.handle){
+      // One-to-one only with a friend (§520, §574): the server's own
+      // sentence before a conversation that could not send opens, as the
+      // app says it. With no graph loaded, the server decides on the send.
+      if(friendsData.friends && !friendsData.friends.some(function(f){
+            return f.user_id === person.user_id; })){
+        toast("You can message people who follow you back.");
+        return;
+      }
+      openThreadWith(person);
+      return;
+    }
     openPersonProfile(person.handle, person);
   }
 
@@ -18657,9 +18668,15 @@
     }
 
     if(person.user_id){
+      // Message only between friends (§520, §574): the server refuses a
+      // send to anybody else, so the button is not drawn for them - as the
+      // app has it.
+      var mutual = (friendsData.friends || []).some(function(f){
+        return f.user_id === person.user_id;
+      });
       html += '<div class="yf-acts yf-acts-centre">'
-        + '<button class="yf-btn gold" onclick="messagePerson(\'' + person.user_id + '\')">'
-        + yfIcon("chat", 15) + 'Message</button>'
+        + (mutual ? '<button class="yf-btn gold" onclick="messagePerson(\'' + person.user_id + '\')">'
+                    + yfIcon("chat", 15) + 'Message</button>' : '')
         + '<button class="yf-btn" onclick="'
         + (following
             ? 'unfollowPerson(\'' + person.user_id + '\')'
