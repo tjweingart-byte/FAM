@@ -376,6 +376,11 @@ struct SettingsView: View {
         case .blocked: openBlocked()
         case .page(let path): page = LegalPage(url: model.api.base.appendingPathComponent(path))
         case .activationValue: break
+        case .tour:
+            // `startTourFromSettings`: the same tour, from the top; whatever
+            // was open closes into its first screen.
+            model.youPath = []
+            model.tour.start()
         }
     }
 
@@ -520,6 +525,8 @@ struct NotificationRows: View {
 /// What a privacy row asks Settings to do.
 enum PrivacyAction {
     case aiOff, aiAsk, counting(Bool), blocked, page(String), activationValue
+    /// "Take the tour" (§594): Settings closes into its first screen.
+    case tour
 }
 
 /// Everything Settings presents, kept out of its body.
@@ -541,7 +548,7 @@ private struct SettingsPresentations<Sheet: View>: ViewModifier {
             .avatarFlow(flow, model: model, save: savePicture)
             .textModal($textAsk)
             .famSheet(item: $sheet) { kind in sheetView(kind) }
-            .sheet(item: $page) { p in SafariView(url: p.url).ignoresSafeArea() }
+            .sheet(item: $page) { p in SafariView(url: p.url).ignoresSafeArea().tourCover() }
             .screenCover(isPresented: $editing) { IdentityView(mode: .edit).famObjects(model) }
             .screenCover(isPresented: $locating) { LocationView().famObjects(model) }
             .screenCover(isPresented: $interestsOpen) { InterestsView(mode: .settings).famObjects(model) }
@@ -578,6 +585,8 @@ struct PrivacyRows: View {
             SetRow(label: "Terms and conditions") { open(.page("terms")) }
             SetRow(label: "Privacy policy") { open(.page("privacy")) }
             SetRow(label: "Help and support") { open(.page("support")) }
+            // The first run's tour (§594), from the top.
+            SetRow(label: "Take the tour") { open(.tour) }
         }
     }
 

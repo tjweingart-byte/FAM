@@ -62,6 +62,7 @@ struct FriendsView: View {
         .task { await social.friendsOpened() }
         .sheet(isPresented: Binding(get: { invite != nil }, set: { if !$0 { invite = nil } })) {
             ActivityView(items: invite ?? []) { invite = nil }
+                .tourCover()
         }
     }
 

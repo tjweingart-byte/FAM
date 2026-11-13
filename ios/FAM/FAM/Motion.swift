@@ -748,6 +748,8 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
                 PushedScreen(state: state, close: { item = nil }, content: screen(shown))
                     .famThemed()
                     .presentationBackground(.clear)
+                    // The tour waits behind it and pauses under it (§594).
+                    .tourCover()
             }
     }
 
@@ -913,6 +915,8 @@ private struct OverlayCover<Item: Identifiable, Card: View>: ViewModifier {
                 OverlayCard(state: state, close: { item = nil }, content: card(shown))
                     .famThemed()
                     .presentationBackground(.clear)
+                    // The tour waits behind it and pauses under it (§594).
+                    .tourCover()
             }
     }
 

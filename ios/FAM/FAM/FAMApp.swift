@@ -346,7 +346,59 @@ struct MainTabs: View {
         if social.follower != nil || social.cover != nil { return false }
         if now.showQueue { return false }
         if model.mixDone != nil { return false }
+        // Never over the tour (`if(Tour.on()) return false;`).
+        if model.tour.running { return false }
         return true
+    }
+
+    /// What arriving on a tab from another one does, from the bar or from
+    /// the tour (`openMyFamTab`, `openPlayFAM`, `openMessages`,
+    /// `openProfile`); the tab itself is shown by the caller.
+    private func arriveOnTab(_ wanted: Tab) {
+        switch wanted {
+        case .daily:
+            model.dailyPath = []
+            Task { await model.loadRails() }
+        case .myfam:
+            // Every arrival opens on Mixes and asks for the list
+            // afresh; looking at the tab clears its dot
+            // (`openPlayFAM`, §550).
+            model.mixPath = []
+            model.mixes.categoryState = CategoryState()
+            model.mixes.arrived()
+            Task { await model.mixes.load() }
+        case .messages:
+            // Every arrival opens on the list, read afresh (`openMessages`);
+            // the first arrival's read is the list's own, as it is built.
+            social.messagesPath = []
+            if built.contains(.messages) { Task { await social.loadInbox() } }
+        case .you:
+            // `openProfile`: the stack reset to the hub, read afresh;
+            // the first arrival's read is the page's own, as it is built.
+            model.youPath = []
+            if built.contains(.you) { Task { await model.you.loadProfile() } }
+        case .search:
+            break
+        }
+    }
+
+    /// The tour's `openScreen`: nothing if that tab's root is already
+    /// showing, else the tab opened as its own button opens it. It moves
+    /// between tab roots only, so nothing playing stops.
+    private func tourOpen(_ wanted: Tab) {
+        if wanted == tab && tabAtRoot(wanted) { return }
+        arriveOnTab(wanted)
+        show(wanted)
+    }
+
+    private func tabAtRoot(_ which: Tab) -> Bool {
+        switch which {
+        case .daily: return model.dailyPath.isEmpty
+        case .myfam: return model.mixPath.isEmpty
+        case .messages: return social.messagesPath.isEmpty
+        case .you: return model.youPath.isEmpty
+        case .search: return true
+        }
     }
 
     /// "Added to Queue · Open" with the player down.
@@ -412,27 +464,14 @@ struct MainTabs: View {
                     if tab == .daily {
                         scrollToTop += 1
                     } else {
-                        model.dailyPath = []
-                        Task { await model.loadRails() }
+                        arriveOnTab(.daily)
                     }
                 }, onMyFAM: {
-                    // Every arrival opens on Mixes and asks for the list
-                    // afresh; looking at the tab clears its dot
-                    // (`openPlayFAM`, §550).
-                    model.mixPath = []
-                    model.mixes.categoryState = CategoryState()
-                    model.mixes.arrived()
-                    Task { await model.mixes.load() }
+                    arriveOnTab(.myfam)
                 }, onMessages: {
-                    // Every arrival opens on the list, read afresh (`openMessages`);
-                    // the first arrival's read is the list's own, as it is built.
-                    social.messagesPath = []
-                    if built.contains(.messages) { Task { await social.loadInbox() } }
+                    arriveOnTab(.messages)
                 }, onYou: {
-                    // `openProfile`: the stack reset to the hub, read afresh;
-                    // the first arrival's read is the page's own, as it is built.
-                    model.youPath = []
-                    if built.contains(.you) { Task { await model.you.loadProfile() } }
+                    arriveOnTab(.you)
                 }, dark: tab == .search && model.privateSearch)
                 // The bar is the foot of the search screen's blind: the
                 // charcoal reaches it last as it falls, and leaves it first
@@ -566,6 +605,12 @@ struct MainTabs: View {
             }
             .animation(.easeOut(duration: 0.2), value: model.mixDone)
         }
+        // The tour (§594) over the tabs and the bar, above every overlay
+        // drawn in place; sheets and covers come over it, and it pauses.
+        .overlay { TourOverlay(tour: model.tour) }
+        .onReceive(model.tour.opens) { wanted in tourOpen(wanted) }
+        .onAppear { model.tour.hosts += 1 }
+        .onDisappear { model.tour.hosts -= 1 }
         .onChange(of: model.tabRequest) { _, wanted in
             guard let wanted else { return }
             show(wanted)
@@ -749,6 +794,9 @@ struct TabBar: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.press)
+        // The tour's hole round the Messages and yourFAM tabs
+        // (`.tabbar .tab[data-tab=…]`).
+        .tourTarget(which == .messages ? .messagesTab : (which == .you ? .youTab : nil))
         .accessibilityShowsLargeContentViewer {
             WebIcon(path: icon, size: 20)
             Text(label)

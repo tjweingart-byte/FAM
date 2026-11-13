@@ -13,6 +13,7 @@ struct DailyView: View {
     /// Whether the page is at its top: a tap there refetches, a tap
     /// further down only scrolls back up (`openMyFamTab`).
     @State private var atTop = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack(path: $model.dailyPath) {
@@ -39,7 +40,12 @@ struct DailyView: View {
                                 // No connection: what still plays (`#offlineBar`),
                                 // in the page under the faces and Pick up.
                                 if model.isOffline { OfflineBar() }
-                                feed
+                                // One block, as `#myfamFeed` is, so the
+                                // tour's hole can go round all of it.
+                                VStack(alignment: .leading, spacing: 0) {
+                                    feed
+                                }
+                                .tourTarget(.feed)
                             }
                             .padding(.horizontal, 18)
                             .padding(.bottom, 24)
@@ -53,6 +59,16 @@ struct DailyView: View {
                     .refreshable { await model.loadRails() }
                     .onChange(of: scrollToTop) { _, _ in
                         tabTapped(proxy)
+                    }
+                    // The tour's friends' step (`scrollIntoView`): back to
+                    // the top, where the faces row is; nothing reloads.
+                    .onReceive(model.tour.scrolls) { _ in
+                        guard !atTop else { return }
+                        if reduceMotion {
+                            proxy.scrollTo("top", anchor: .top)
+                        } else {
+                            withAnimation { proxy.scrollTo("top", anchor: .top) }
+                        }
                     }
                 }
             }

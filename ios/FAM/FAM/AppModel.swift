@@ -124,6 +124,8 @@ final class AppModel: ObservableObject {
     /// Bumped whenever the FAM intro plays (§201): every open, and when
     /// signing in or finishing sign-up hands over to DailyFAM.
     @Published private(set) var introRun = 0
+    /// When the FAM intro last played: the tour waits until it has gone.
+    private(set) var introAt = Date.distantPast
     /// Bumped when the phone changes account without signing out (linking
     /// an Apple ID or Google account that had a FAM account of its own):
     /// every tab is drawn afresh, nothing of the last account left on it.
@@ -199,6 +201,8 @@ final class AppModel: ObservableObject {
     let nowPlaying: NowPlayingModel
     /// The optional surveys (`surveys.py`, §560).
     let surveys: SurveysModel
+    /// The tour of the app after sign-up (§594, §595).
+    let tour = TourModel()
     /// The episode behind the loading screen, until its audio is released.
     private var pending: Episode?
 
@@ -459,6 +463,7 @@ final class AppModel: ObservableObject {
             self.player.resume()
         }
         social.requestTab = { [weak self] tab in self?.tabRequest = tab }
+        tour.app = self
         // "Couldn't reach FAM. Try again." when the AI answer cannot be read.
         consent.unreachable = { [weak self] in self?.nowPlaying.say("Couldn\u{2019}t reach FAM. Try again.") }
         // A deprecated or retired build hears it from any answer (§208).
@@ -520,6 +525,11 @@ final class AppModel: ObservableObject {
         // is already on its way: it waits on the answer alone.
         if stage == .ready && !UserDefaults.standard.bool(forKey: Self.entryKey) {
             await beginEntry(handoff: false)
+        } else if stage == .ready {
+            // `routeFirstScreen`: a tour owed from sign-up that a relaunch
+            // interrupted before it began, or one owed once to an account
+            // from before the tour (§595).
+            tour.offerOnce()
         }
         await checkTerms()
     }
@@ -622,6 +632,7 @@ final class AppModel: ObservableObject {
     /// The FAM intro (§201): skipped under Reduce Motion by the layer.
     func playIntro() {
         introRun += 1
+        introAt = Date()
     }
 
     /// `/api/health` once (`genStatusNote`): "Staging: playing the built-in
@@ -905,6 +916,8 @@ final class AppModel: ObservableObject {
         emptiedRails = []
         tasteSource = "taste"
         forgetDevicePrefs()
+        // The tour as this phone knew it was theirs (§595).
+        tour.forget()
         activationOwed = false
         owedActivation = nil
         listener = nil

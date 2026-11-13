@@ -894,3 +894,110 @@ def test_motion_matches_the_web_where_audit_4_found_it_did_not_584():
     assert ".transition(comesAndGoes)" in parts and "if reduceMotion { return fade }" in parts
     social = _swift("Social.swift")
     assert "withAnimation(.easeIn(duration: 0.2)) { banner = nil }" not in social
+
+
+# --- The tour (§594, §595) ---------------------------------------------------
+
+def _unescape_swift(text: str) -> str:
+    return re.sub(r"\\u\{([0-9A-Fa-f]+)\}", lambda m: chr(int(m.group(1), 16)), text)
+
+
+def _web_tour() -> str:
+    web = (ROOT / "static" / "index.html").read_text()
+    block = web[web.index("var Tour = (function(){"):]
+    return block[:block.index("var OWED")]
+
+
+def test_the_tour_has_the_webs_twelve_steps_594():
+    """The same cards in the same order: kickers, titles, bodies, the Next
+    labels and the screen each opens (names swapped, `names-swapped`: the
+    web's `myfam` rails are the `.daily` tab, `playfam` the `.myfam` tab)."""
+    web = _web_tour()
+    swift = _unescape_swift(_swift("Tour.swift"))
+    swift = swift[swift.index("static var steps"):swift.index("@Published private(set) var visible")]
+    for field in ("kicker", "title", "next"):
+        mine = re.findall(field + r': "([^"]+)"', swift)
+        theirs = re.findall(field + r': "([^"]+)"', web)
+        assert mine == theirs, (field, mine, theirs)
+    assert len(re.findall(r'title: "([^"]+)"', web)) == 12
+    assert re.findall(r'body: "([^"]+)"', swift) == re.findall(r'body: "([^"]+)"', web)
+    # "Talk or attach" follows whether the mic is drawn, as the web's does.
+    for words in ('"Tap the mic to ask out loud, or the clip"', '"Tap the clip"',
+                  '" to add a document, photo or link and hear about it."'):
+        assert words in web and words in swift, words
+    assert "VoiceSearchModel.available ?" in swift
+    tabs = {"myfam": "daily", "home": "search", "playfam": "myfam",
+            "messages": "messages", "profile": "you"}
+    assert [tabs[s] for s in re.findall(r'screen: "(\w+)"', web)] == \
+        re.findall(r"TourStep\(screen: \.(\w+)", swift)
+    # The optional step is the friends' row, passed over when it is not drawn.
+    assert web.count("optional: true") == 1 and swift.count("isOptional: true") == 1
+    assert "target: .circle, isOptional: true" in swift
+    # The tabs' meanings: `openMyFamTab` is the dailyFAM tab, `openPlayFAM`
+    # the myFAM tab.
+    app = _swift("FAMApp.swift")
+    arrive = app[app.index("private func arriveOnTab"):][:1600]
+    assert "(`openPlayFAM`, §550)" in arrive[arrive.index("case .myfam:"):arrive.index("case .messages:")]
+    assert 'item(.daily, "dailyFAM"' in app and 'item(.myfam, "myFAM"' in app
+
+
+def test_the_tour_is_offered_kept_and_forgotten_as_the_web_does_594():
+    web = (ROOT / "static" / "index.html").read_text()
+    tour = _swift("Tour.swift")
+    # Settings' row, after Help and support, from the top.
+    assert 'settingsRow("Help and support", "", "openLegal(\'support\')")\n' in web
+    assert 'settingsRow("Take the tour", "", "startTourFromSettings()")' in web
+    settings = _swift("Views", "SettingsView.swift")
+    help_row = settings.index('SetRow(label: "Help and support")')
+    assert settings.index('SetRow(label: "Take the tour") { open(.tour) }') > help_row
+    assert "model.tour.start()" in settings
+    # tour_done read back and written, as the web's `offerOnce` / `finish`.
+    assert "let tourDone: Bool?" in _api() and "let saved: Bool?" in _api()
+    assert "answer.tourDone == true" in tour and "answer.saved == true" in tour
+    assert 'savePreference(["tour_done": true])' in tour
+    assert "d.tour_done" in web and "savePreferences({ tour_done: true })" in web
+    # Owed at the end of the first run, offered on every way in.
+    you = _swift("YourFAM.swift")
+    finish = you[you.index("func finishEntry()"):][:900]
+    assert "tour.owe()" in finish and "tour.offerOnce()" in finish
+    begin = you[you.index("func beginEntry("):you.index("func finishEntry()")]
+    assert begin.count("tour.offerOnce()") == 2
+    model = _swift("AppModel.swift")
+    opening = model[model.index("func open() async"):model.index("private func askWho")]
+    assert "tour.offerOnce()" in opening
+    # Signing out forgets it, as `logOut` does.
+    assert "Tour.forget();" in web
+    forget = model[model.index("func forgetEverything()"):][:2500]
+    assert "tour.forget()" in forget
+    sign_out = model[model.index("func signOut() async"):][:400]
+    assert "forgetEverything()" in sign_out
+    # The survey waits for it (`if(Tour.on()) return false;`).
+    assert "if(Tour.on()) return false;" in web
+    app = _swift("FAMApp.swift")
+    moment = app[app.index("private var surveyMomentFree"):][:1200]
+    assert "if model.tour.running { return false }" in moment
+    # The device's word and the account's, exactly the web's states.
+    assert 'static let owedMark = "owed"' in tour and 'static let doneMark = "done"' in tour
+    assert 'stored = ""' in tour
+    # Two clear looks 450 ms apart; a seq counter; Back walks the history.
+    assert "450_000_000" in tour and "clear >= 2" in tour
+    assert "mine == self.seq" in tour
+    assert "while let last = shownSteps.last, last >= at { shownSteps.removeLast() }" in tour
+
+
+def test_the_tour_flag_decodes_from_the_servers_answer_594(monkeypatch):
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    c = TestClient(appmod.app)
+    headers = {"X-FAM-Client": "ios/1.0.0+2"}
+    signup = c.post("/api/v1/auth/signup", headers=headers, json={
+        "email": "ios-tour-594@example.com", "password": "password12",
+        "accept_terms": True, "want_token": True}).json()
+    auth = {**headers, "Authorization": "Bearer " + signup["session_token"]}
+    read = c.get("/api/v1/preferences", headers=auth).json()
+    assert {"tour_done", "saved"} <= _fields("MyPreferences")
+    assert _fields("MyPreferences") <= set(read), sorted(_fields("MyPreferences") - set(read))
+    assert read["tour_done"] is False and read["saved"] is True
+    wrote = c.post("/api/v1/preferences", headers=auth, json={"tour_done": True}).json()
+    assert wrote["tour_done"] is True
+    assert c.get("/api/v1/preferences", headers=auth).json()["tour_done"] is True

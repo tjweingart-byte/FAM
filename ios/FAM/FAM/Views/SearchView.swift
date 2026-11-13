@@ -216,7 +216,7 @@ struct SearchView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollDisabled(!live)
-        .overlay(alignment: .topLeading) { bookshelf(pal) }
+        .overlay(alignment: .topLeading) { bookshelf(pal, live: live) }
         .background(pal.background.ignoresSafeArea())
     }
 
@@ -271,6 +271,8 @@ struct SearchView: View {
                 .padding(.horizontal, 2)
             }
             bubbles(pal, privateOn: privateOn)
+                // `#screen-home .fam-controls`: the tour's "Make it yours".
+                .tourTarget(live ? .controls : nil)
                 .padding(.top, 12)
             if privateOn {
                 privateNote(pal)
@@ -288,7 +290,7 @@ struct SearchView: View {
         .padding(.bottom, 18)
     }
 
-    private func bookshelf(_ pal: SearchPalette) -> some View {
+    private func bookshelf(_ pal: SearchPalette, live: Bool) -> some View {
         Button { library = true } label: {
             // The web's own bookshelf (index.html:3927), 19 pt at 1.8.
             WebIcon(path: Icons.bookshelf, size: 19, line: 1.8)
@@ -299,6 +301,9 @@ struct SearchView: View {
         }
         .buttonStyle(.press)
         .accessibilityLabel("The episode library")
+        // `#myfamSearchBtn`: the tour's library step (the live page only,
+        // never the blind's still copy).
+        .tourTarget(live ? .library : nil)
         .padding(.top, 8)
         .padding(.leading, 38)
     }
@@ -320,6 +325,8 @@ struct SearchView: View {
                 .padding(.trailing, tall ? 12 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
             buttons(pal)
+                // `#searchBar .bar-btns`: the tour's "Talk or attach".
+                .tourTarget(live ? .barButtons : nil)
         }
         .padding(.leading, 18)
         .padding(.trailing, 6)
@@ -328,6 +335,8 @@ struct SearchView: View {
         .frame(minHeight: 52)
         .background(pal.surface, in: RoundedRectangle(cornerRadius: radius))
         .overlay(RoundedRectangle(cornerRadius: radius).stroke(pal.border))
+        // `#searchBar`: the tour's "Ask anything".
+        .tourTarget(live ? .searchBar : nil)
     }
 
     /// The box itself, or - in the blind's still copy - its words as text.

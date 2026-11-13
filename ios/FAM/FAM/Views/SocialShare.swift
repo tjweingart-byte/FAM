@@ -253,6 +253,7 @@ struct ShareTargetRows: View {
                 activity = nil
                 done()
             }
+            .tourCover()
         }
     }
 
