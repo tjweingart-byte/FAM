@@ -329,12 +329,16 @@ extension AppModel {
         guard let prefs = try? await api.preferences() else {
             entry = nil
             if handoff { playIntro() }
+            // `finishEntry`'s offer: owed from a first run, or once for an
+            // account from before the tour (§594, §595).
+            tour.offerOnce()
             return
         }
         if prefs.introDone == true {
             UserDefaults.standard.set(true, forKey: AppModel.entryKey)
             entry = nil
             if handoff { playIntro() }
+            tour.offerOnce()
             return
         }
         let profile = try? await api.myProfile()
@@ -350,10 +354,15 @@ extension AppModel {
         // This phone has finished the first run (`entry: "done"`), and the
         // wordmark hands them into DailyFAM (`beginEntryHandoff`, §201).
         UserDefaults.standard.set(true, forKey: AppModel.entryKey)
+        // The tour is owed from here, the end of sign-up's own steps
+        // (`finishIntro`, §594), and starts once the hand-off and the
+        // activation step are out of the way.
+        tour.owe()
         playIntro()
         // The tabs are drawn afresh, on DailyFAM.
         entry = nil
         Task { await loadRails() }
+        tour.offerOnce()
     }
 
     /// The account is gone (an under-13 date confirmed, §411): forget it all.

@@ -352,15 +352,10 @@ struct ConsentLayer: View {
 
     /// The card as it is, or - when the server's words outgrow the screen
     /// at the largest text sizes (`large-text`) - the same card scrolling,
-    /// so Not now and Allow are always reachable.
+    /// so Not now and Allow are always reachable. One copy, as every card
+    /// that scrolls when tall (§589).
     private func fitted(_ notice: ConsentNotice) -> some View {
-        ViewThatFits(in: .vertical) {
-            cardStack(notice)
-            ScrollView {
-                cardStack(notice)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-        }
+        ScrollsWhenTall { cardStack(notice) }
     }
 
     private func cardStack(_ notice: ConsentNotice) -> some View {

@@ -41,10 +41,12 @@ struct YouView: View {
             StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
                         openMine: { showMine() }, origin: reel.origin)
                 .environmentObject(model)
+                .tourCover()
         }
         .fullScreenCover(item: $composing) { subject in
             StoryEditor(subject: subject, openMine: { showMine() })
                 .environmentObject(model)
+                .tourCover()
         }
         .task(id: model.listener?.userId) {
             await you.loadProfile()
