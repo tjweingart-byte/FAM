@@ -80,6 +80,20 @@ def test_every_response_an_installed_client_reads_keeps_its_shape(release, curre
         "or removing them; a new shape belongs under /api/v2.")
 
 
+def test_the_extractor_reads_the_ios_apps_relative_versioned_calls():
+    """The iPhone app writes every call as `"api/v1/messages"` - no leading
+    slash, through the versioned prefix. A contract cut from it must name the
+    route that call reaches, or it promises the phone nothing (audit 4)."""
+    found = rc.endpoints_in(['let a = send("GET", "api/v1/messages")',
+                             'let b = "/api/v1/mixes/" + id',
+                             'fetch("/api/history")'])
+    assert found == ["/api/history", "/api/messages", "/api/mixes/"]
+    ios = rc.endpoints_in(rc.client_sources("ios", ROOT / "ios" / "FAM" / "FAM"))
+    for path in ("/api/messages", "/api/messages/thread", "/api/history",
+                 "/api/waitlist/join", "/api/share"):
+        assert path in ios, path
+
+
 def test_the_live_web_client_calls_nothing_that_does_not_route():
     """The page this server ships today, checked against the same rules - a
     typo in a fetch path fails here before any release is cut from it."""
