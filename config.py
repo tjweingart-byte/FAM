@@ -1224,7 +1224,7 @@ class Settings:
     # have verified the address. Nothing invents one.
     mail_from: str = field(
         default_factory=lambda: os.environ.get("MAIL_FROM", "").strip())
-    # Texts (`sms.py`, §585): Twilio, for the "you're off the waitlist"
+    # Texts (`sms.py`, §586): Twilio, for the "you're off the waitlist"
     # notice. TWILIO_AUTH_TOKEN is a credential, read through `credentials`.
     # TWILIO_FROM is a +E.164 number or a Messaging Service id (MG...).
     twilio_account_sid: str = field(

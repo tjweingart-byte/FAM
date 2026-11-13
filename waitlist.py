@@ -63,7 +63,7 @@ FREE_MONTH_INVITES = 5
 #: let in, so everybody's month is the same month.
 FREE_MONTH_SECONDS = 30 * 86400
 
-#: The outbox's two kinds of call (§585). Viral Loops' drain reads only its
+#: The outbox's two kinds of call (§586). Viral Loops' drain reads only its
 #: own; the "you're off the waitlist" notices are `waitlist_notify`'s, one
 #: row per channel so an email that went is not re-sent when a text retries.
 VENDOR_ACTIONS = ("register", "flag")
@@ -137,7 +137,7 @@ class Waitlist:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS waitlist_outbox_due"
                          " ON waitlist_outbox(done_at, next_at)")
-            # The free-month claim link's lookup (§585).
+            # The free-month claim link's lookup (§586).
             conn.execute("CREATE INDEX IF NOT EXISTS accounts_claim_code"
                          " ON accounts(claim_code) WHERE claim_code != ''")
         try:
@@ -475,7 +475,7 @@ class Waitlist:
         unless `flag` is False, for an account Viral Loops was never told
         about (an admin let in at sign-up, `app._admit_admin`).
 
-        Each one granted is also told (§585, unless `notify` is False - the
+        Each one granted is also told (§586, unless `notify` is False - the
         admin let in at sign-up, who was never waiting): an email to the
         account's address and a text to its phone, whichever it has, each
         carrying the link that claims the free month. Queued in the same
@@ -496,7 +496,7 @@ class Waitlist:
                     self._queue_notice(user_id, now)
         return changed
 
-    # --- "you're off the waitlist" (§585) ---------------------------------
+    # --- "you're off the waitlist" (§586) ---------------------------------
 
     def _queue_notice(self, user_id: str, now: float) -> None:
         row = self._conn().execute(

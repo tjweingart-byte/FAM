@@ -1,4 +1,4 @@
-"""Text messages: the one route FAM has to a phone number (§585).
+"""Text messages: the one route FAM has to a phone number (§586).
 
 Until this file nothing could text anybody; a phone number on an account was
 a sign-in name and nothing more (and is still not verified). This does one

@@ -35746,7 +35746,43 @@ window really yields the status bar. Tests: eight `..._584` tests in
 `tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
 one in `test_client_contracts.py`.
 
-## 585. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13)
+## 585. The category tree out to another reader and back (2026-11-13)
+
+**Asked.** The owner looked at the tree on /admin's Categories page for the
+first time and found clear errors. They wanted to download it, have a
+different Claude chat (on high effort) correct it, and upload the result -
+the way pronunciations already go out and come back (§549).
+
+**The catch.** The tree is not a file: it is grown. The seed is minted at
+every boot, the sweep mints what listeners searched for and the writer's
+words, the placer reparents what it mints, and prune drops what went quiet.
+A fix written straight into the `categories` table would be undone - a
+removed seed node is back at the next boot, a removed grown one at the next
+sweep, a moved one by the next placer answer about it.
+
+**Built.**
+* `category_review.py`: `export_csv` (every node with its path, parent,
+  depth, children, source, episodes there and below, listeners, owner edit),
+  `PROMPT`, `read_upload` (proposals in file order, so an add precedes the
+  moves under it; refusals in words; a chat's code fence and prose stripped)
+  and `apply`.
+* `categories.py`: a `category_owner` table and `owner_add/move/remove/
+  rename/undo`. `mint` refuses a removed or merged phrase from any source but
+  the owner; `apply_paths` leaves owner-placed nodes; `prune` keeps them;
+  merged phrases become aliases; `apply_owner` (run by `apply_seed`) restores
+  owner adds and placements after a wipe or on a fresh database.
+* `/api/admin/categories/export`, `/review-prompt`, `/import`, `/edit`,
+  `/edits` (GET, DELETE one) and the panel under the tree: Download tree,
+  Copy the prompt, Upload edits (or paste), Accept / Skip / Accept all high
+  confidence, and "Your edits to the tree" with Forget.
+* `tests/test_category_review_585.py`.
+
+**Not verified here.** No real tree: this container has the seed only, so
+the errors the owner saw were not seen. Other app workers read the edits at
+their next tree reload.
+
+
+## 586. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13)
 
 **Asked:** "Are people emailed when they get let off the waitlist right
 now? If they're not, they need to be notified (and if their phone number is
@@ -35788,6 +35824,19 @@ sign-in name, unverified).
 `MAIL_FROM`, `SMTP_PASSWORD`). Texts need `TWILIO_ACCOUNT_SID`,
 `TWILIO_FROM` and `TWILIO_AUTH_TOKEN` in the dashboard (US numbers also need
 Twilio's A2P 10DLC registration). Until then texts wait in the outbox.
+
+**Checked again before merging** (the owner: "double check all changes"):
+- Two drains could overlap - the one a grant kicks and the five-minute timer
+  - and read the same due rows, sending one notice twice. `drain` now takes
+  a per-process lock and a second drain returns at once.
+- `outbox_summary` counted notices as "Viral Loops call(s) waiting" on
+  /admin/waitlist. It now takes `actions`; the page has its own lines for
+  let-in notices, and says when mail or texts cannot send and why.
+  `/api/health` has `waitlist.notices_pending`.
+- The text ends "Reply STOP to opt out." and is one SMS segment.
+- The claim link always names `PUBLIC_BASE_URL` or `APP_HOME_URL`, never the
+  host an admin granted from; `claim_code` is indexed.
+- Numbered §586: §585 went to the category tree review on `Main` meanwhile.
 
 **Tests:** `tests/test_waitlist_notify.py`.
 

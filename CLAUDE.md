@@ -1,7 +1,7 @@
 # FAM - working context
 
 Read this before making changes: where the product is going, which constraints
-are load-bearing, and which settled decisions not to re-litigate.
+are load-bearing, which settled decisions not to re-litigate.
 
 ## How this file works
 
@@ -87,7 +87,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   DEEPER pill at the top, share/vibe/save on the right (§192), CC pill,
   captions on the picture (§519), ⋯ menu; no "exclude from taste"; searcher
   if `searches_public`. [player-layout]
-- **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
+- **Search DailyFAM opens on an A-Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
   says the day it was made, then a date past six days (§499). [dailyfam-catalogue]
 - **Categories are a tab** (§500/§550): myFAM is Mixes | Categories; chips
@@ -143,7 +143,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Category gaps** (§235): beneath the phrases, the nearest node by meaning
   (`category_near`); a writer's category unplaced on 2+ episodes is minted;
   a town's question is offered the local branch; scenes paint geography,
-  not names. [category-gaps]
+  not names. [category-gaps] Tree fixes: §585. [tree-review]
 - Openings are concrete and open a question - not inverted-pyramid news style. [no-inverted-pyramid]
 
 ## The writing problem (`product.md`)
@@ -428,7 +428,7 @@ Accounts, tiers, sharing
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
 - **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited`; no
   checkout [tiers-off]; 5 invites: free month [free-month];
-  let in: mail+text a claim link, month at launch (§585) [waitlist-notice]
+  let in: mail+text a claim link, month at launch (§586) [waitlist-notice]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every
@@ -512,7 +512,7 @@ Operations and honesty
   cache, and `learned_rank` may reorder what cleared the floor, never admit
   below it [dec-embedding].
 
-## How to ship a change (standing instruction) (`workflow.md`)
+## How to ship a change (`workflow.md`)
 
 Every change ends the same way, without being asked [ship-loop]:
 

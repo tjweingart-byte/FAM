@@ -1,4 +1,4 @@
-"""Letting somebody off the waitlist tells them (§585).
+"""Letting somebody off the waitlist tells them (§586).
 
 `grant` queues an email and/or a text - whichever the account has - in the
 waitlist outbox; `waitlist_notify.drain` sends them with `/claim/<code>`;
