@@ -192,6 +192,11 @@ struct ShareTargetRows: View {
     var card: String = ""
     /// What the card's file is called (`fam-episode.png` / `fam-mix.png`).
     var cardName: String = "fam-episode.png"
+    /// The player card for a story (11.12 notes): the whole 9:16 picture
+    /// and the card alone as a sticker; "" from an older server or a mix,
+    /// which keep `card`.
+    var storyImage: String = ""
+    var storySticker: String = ""
     let done: () -> Void
     @State private var activity: [Any]?
     @State private var making = false
@@ -333,7 +338,7 @@ struct ShareTargetRows: View {
     /// file and the words. A failure is said, never silent.
     private func shareCard(text: String, handoff: StoryHandoff? = nil) {
         guard !making else { return }
-        guard !card.isEmpty else {
+        guard !card.isEmpty || !storyImage.isEmpty else {
             model.nowPlaying.say("The card could not be made")
             return
         }
@@ -341,22 +346,44 @@ struct ShareTargetRows: View {
         model.nowPlaying.say("Making your card\u{2026}")
         let api = model.api
         let address = card
+        let story = storyImage
+        let stickerAddress = storySticker
         let name = cardName
         Task {
             defer { making = false }
+            var fileName = name
             do {
-                let svg = try await api.storyCardSVG(address)
-                guard let png = StoryCardRenderer.png(svg: svg) else {
-                    model.nowPlaying.say("The card could not be drawn")
-                    return
+                // The player card, as a FAM link shows in Messages (11.12
+                // notes); the words-only card only from an older server.
+                let png: Data
+                var sticker: Data?
+                if !story.isEmpty {
+                    png = try await api.shareImage(story)
+                    if handoff?.platform == "instagram", !stickerAddress.isEmpty {
+                        sticker = try? await api.shareImage(stickerAddress)
+                    }
+                    fileName = (name as NSString).deletingPathExtension + ".jpg"
+                } else {
+                    let svg = try await api.storyCardSVG(address)
+                    guard let drawn = StoryCardRenderer.png(svg: svg) else {
+                        model.nowPlaying.say("The card could not be drawn")
+                        return
+                    }
+                    png = drawn
                 }
-                if let handoff, await handoff.send(png: png, caption: text) {
+                if let handoff, await handoff.send(png: png, sticker: sticker, caption: text) {
                     done()
                     return
                 }
-                let file = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+                // The share sheet: the picture alone, so Instagram's and
+                // Snapchat's own share extensions take it (a picture with
+                // words beside it is refused by some of them); the words
+                // wait on the clipboard.
+                let file = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
                 try png.write(to: file, options: .atomic)
-                activity = [file, text]
+                UIPasteboard.general.string = text
+                model.nowPlaying.say("Your words are on the clipboard \u{2014} paste them in")
+                activity = [file]
             } catch {
                 model.nowPlaying.say("The card could not be made")
             }

@@ -20,7 +20,7 @@ import asyncio
 import dataclasses
 import logging
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Callable, Optional
+from typing import Any, AsyncIterator, Callable, Optional
 
 import time
 
@@ -183,6 +183,8 @@ class GenerationStats:
     voice: str = ""
     sample_rate: int = settings.sample_rate
     truncated: bool = False
+    #: This episode's pace, chunk by chunk (`pace_level`, 11.12 notes).
+    pace_leveller: Any = field(default=None, repr=False, compare=False)
     topups: int = 0
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it wrote none, and every caller falls back to the question.
@@ -672,11 +674,13 @@ class PodcastPipeline:
         # (`spoken_text`) and hard names respelled (`pronunciation`, §165);
         # the captions and the cache keep the digits and the real spelling.
         self._may_voice()
-        pcm = await self.engine.synth(speakable(respell(fit.text)), wpm, self.voice)
+        voiced = speakable(respell(fit.text))
+        pcm = await self.engine.synth(voiced, wpm, self.voice)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
         if not pcm:
             return
+        pcm = self._level_pace(pcm, voiced, stats)
 
         audio_seconds = pcm_duration(len(pcm), self.engine.sample_rate)
         stats.marks.add_chunk(fit.text, len(fit.spoken),
@@ -724,6 +728,18 @@ class PodcastPipeline:
             log.info("first audio ready after %.2fs", stats.first_audio_at)
         yield pcm
         yield gap
+
+    def _level_pace(self, pcm: bytes, voiced: str, stats: "GenerationStats") -> bytes:
+        """The chunk at the episode's own pace (`pace_level`): only for an
+        engine with no rate control (Chatterbox), and before anything is
+        measured from it, so the captions and the budget see what is heard."""
+        if not getattr(self.engine, "levels_pace", False):
+            return pcm
+        if stats.pace_leveller is None:
+            import pace_level
+
+            stats.pace_leveller = pace_level.PaceLeveller()
+        return stats.pace_leveller.level(pcm, self.engine.sample_rate, voiced)
 
     async def _speak(
         self,
@@ -781,11 +797,13 @@ class PodcastPipeline:
         stats.take_synthesis_mark(stats.marks)
         started = time.perf_counter()
         self._may_voice()
-        pcm = await self.engine.synth(speakable(respell(sentence)), wpm, self.voice)
+        voiced = speakable(respell(sentence))
+        pcm = await self.engine.synth(voiced, wpm, self.voice)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
         if not pcm:
             return
+        pcm = self._level_pace(pcm, voiced, stats)
 
         # Compare audio produced against wall clock consumed. A listener hears
         # silence exactly when the second overtakes the first, so this is the

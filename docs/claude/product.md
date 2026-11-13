@@ -319,7 +319,7 @@ surfaces; on search, keep the work small enough that there is no gap to fill.
 **DailyFAM and a mix have their own loading screens** *(PROBLEMS.md §509, the
 owner's pick from a six-option page, 11.9).*
 
-> **Current (§590, the owner's 11.13 pick from a second deck):** a DailyFAM
+> **Current (§592, the owner's 11.13 pick from a second deck):** a DailyFAM
 > tile no longer shows the tuning dial. Its picture comes into focus from a
 > soft grey blur, a light sweeping across it (option 1, Picture Develop); when
 > friends have listened (the tile's own faces, mutual friends only) the
@@ -345,7 +345,7 @@ listener's screen, never invented. Both show the FAM mark above them,
 larger than search's (§542, the owner's direction). Each card of the glide is
 the episode's picture (the item's `picture`, the player's own) over the topic
 the listener chose, and the line under the row names that topic - never
-today's episode title, which the player and the mix's rows use (§589, the
+today's episode title, which the player and the mix's rows use (§591, the
 owner's direction).
 
 <!-- rule:search-no-cover -->

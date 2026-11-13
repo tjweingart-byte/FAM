@@ -580,5 +580,7 @@ and `limit` = Lines.
 | 35785 | 23 | 586. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13) |
 | 35808 | 59 | 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13) |
 | 35867 | 20 | 588. Egan has his own section on /admin (2026-11-13) |
-| 35887 | 27 | 589. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13) |
-| 35914 | 43 | 590. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13) |
+| 35887 | 35 | 589. The iPhone crashed as the date of birth was tapped (2026-11-13) |
+| 35922 | 116 | 590. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13) |
+| 36038 | 27 | 591. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13) |
+| 36065 | 43 | 592. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13) |

@@ -2171,7 +2171,7 @@
   @keyframes famLdPulse{ 0%,100%{ opacity:.3; } 50%{ opacity:1; } }
   @keyframes famLdUp{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
 
-  /* DailyFAM's wait (§590, the owner's pick from the 13 November deck):
+  /* DailyFAM's wait (§592, the owner's pick from the 13 November deck):
      option 1, the tile's picture coming into focus from a soft grey blur,
      a light sweeping across it - or, when friends have listened, option 3,
      the picture with their faces landing on its corner and a line naming
@@ -2209,7 +2209,7 @@
   .fam-glide-card{ flex:none; width:128px; border-radius:12px; padding:6px 6px 9px; box-sizing:border-box;
     background:var(--surface); border:1px solid var(--border); text-align:left; position:relative;
     display:flex; flex-direction:column; gap:5px; opacity:.4; overflow:hidden; }
-  /* The episode's picture, 4:3 like every tile (§589); the surface shows
+  /* The episode's picture, 4:3 like every tile (§591); the surface shows
      through when the topic has none. */
   .fam-glide-pic{ display:block; width:100%; aspect-ratio:4/3; border-radius:8px; overflow:hidden;
     background:var(--surface-2); }
@@ -3994,7 +3994,7 @@
                  so is the difference between a question and a demand. All
                  three are optional and the app works with none of them. -->
             <div class="auth-field">
-              <div class="auth-label">Where you are</div>
+              <div class="auth-label">Where you are <span class="auth-opt">optional</span></div>
               <input class="modal-input" id="identityCity" type="text"
                      autocomplete="address-level2" autocorrect="off"
                      autocapitalize="words" spellcheck="false"
@@ -4810,13 +4810,14 @@
         <input type="file" id="groupPhotoFile" hidden accept="image/*,.heic,.heif" onchange="groupPhotoChosen(this)">
         <div class="yf-composer">
           <button class="yf-round" onclick="shareIntoThread()" aria-label="Share an episode"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-          <!-- Return makes a new line and the arrow sends (§142): the return
-               key used to send, and with an empty box did nothing at all.
-               The keyboard's own autocorrect is on, and FAM's is behind it
-               (`autocorrect.py`). -->
+          <!-- Return sends, as the arrow does (the owner's 11.12 notes,
+               reversing §142's new line); Shift+Return makes a new line,
+               and Return in an empty box does nothing. The keyboard's own
+               autocorrect is on, and FAM's is behind it (`autocorrect.py`). -->
           <textarea id="threadInput" rows="1" placeholder="Message…" aria-label="Message"
                     autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true"
-                    data-autocorrect enterkeyhint="enter"></textarea>
+                    data-autocorrect enterkeyhint="send"
+                    onkeydown="if(event.key==='Enter' && !event.shiftKey && !event.isComposing){ event.preventDefault(); sendThreadMessage(); }"></textarea>
           <button class="yf-round gold" onclick="sendThreadMessage()" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
         </div>
       </section>
@@ -5296,12 +5297,12 @@
             <input class="modal-input act-input" id="actBirth" type="date"
                    oninput="activationReady()" onchange="activationReady()">
             <div class="act-help" id="actBirthHelp"></div>
-            <label class="act-label" for="actPlace">Where you live</label>
+            <label class="act-label" for="actPlace">Where you live <span class="auth-opt">optional</span></label>
             <input class="modal-input act-input" id="actPlace" type="text"
                    placeholder="Town or city" autocomplete="address-level2"
                    autocapitalize="words" spellcheck="false">
             <div class="act-help" id="actPlaceHelp"></div>
-            <div class="act-label">Gender</div>
+            <div class="act-label">Gender <span class="auth-opt">optional</span></div>
             <div class="act-chips" id="actGenders" role="radiogroup" aria-label="Gender"></div>
             <div class="act-help" id="actGenderHelp"></div>
             <div class="limit-body act-notice" id="actNotice"></div>
@@ -7314,9 +7315,9 @@
   // ---------------- DailyFAM's wait and a mix's glide ----------------
   //
   // The owner's picks: a mix's episode glides along the mix (§509, its cards
-  // the episodes' pictures and topics since §589); a DailyFAM tile's picture
+  // the episodes' pictures and topics since §591); a DailyFAM tile's picture
   // comes into focus, or, when friends have listened, gathers their faces
-  // (§590, options 1 and 3 of the 13 November deck, replacing §509's dial).
+  // (§592, options 1 and 3 of the 13 November deck, replacing §509's dial).
   // Search and Go Deeper keep FAMiliarizing and its five steps. Everything
   // drawn here is already the listener's - the tile's picture and friends,
   // the mix's topics in its order - and the screen still goes the moment
@@ -7326,7 +7327,7 @@
   var LOADING_FACES = 3;
 
   // "Maya listened", "Maya and Jordan listened", "Maya, Jordan and 4 others
-  // listened": who, by name, of the friends on the tile (§590).
+  // listened": who, by name, of the friends on the tile (§592).
   function friendsListenedLine(faces, count){
     var names = faces.map(function(f){
       return '<b>' + escapeHtml(f.name || (f.handle ? "@" + f.handle : "A friend")) + '</b>';
@@ -7378,7 +7379,7 @@
     } else if(kind === "glide"){
       // Each card is a topic of the mix as the listener chose it: the
       // episode's picture (`picture`, the player's own, §545) and the
-      // topic's name (`title`) - never today's episode title (§589).
+      // topic's name (`title`) - never today's episode title (§591).
       var order = (t.fromMix && mixPlay && mixPlay.order.length) ? mixPlay.order
         : [t.loaderItem || { title: title }];
       var pos = (t.fromMix && mixPlay) ? mixPlay.pos : 0;
@@ -13485,7 +13486,7 @@
       fromMix: true,
       // Its loading screen is the mix gliding along (§509), drawn from the
       // item itself: its picture and the topic chosen, never the episode's
-      // title (§589).
+      // title (§591).
       loader: "glide",
       loaderItem: item
     };
@@ -14214,7 +14215,7 @@
       prompt: query,
       exploreMinutes: BROWSE_MINUTES,
       titleOverridden: true,
-      // DailyFAM's wait (§590), with no tile: the picture asked for.
+      // DailyFAM's wait (§592), with no tile: the picture asked for.
       loader: "daily"
     };
     generate(key);
@@ -16036,7 +16037,7 @@
       bankTopicId: topicId,
       exploreMinutes: myfamLengthMinutes,
       titleOverridden: true,
-      // Its loading screen: the picture developing, or friends gathering (§590).
+      // Its loading screen: the picture developing, or friends gathering (§592).
       loader: "daily", loaderTopic: topicId
     };
     generate(key);
@@ -21906,15 +21907,26 @@
      tab is not. */
   function shareStoryCard(t){
     toast("Making your card\u2026");
-    fetch(shareTargets.card)
-      .then(function(r){
-        if(!r.ok) throw new Error("The card could not be made");
-        return r.text();
-      })
-      .then(svgToPngBlob)
+    // The player card a FAM link makes in Messages, centred on a 9:16 story
+    // (the owner's 11.12 notes) - drawn by the server, so no canvas; a mix,
+    // or an older server, keeps the words-only SVG card.
+    var story = shareTargets.story_image || "";
+    var made = story
+      ? fetch(story).then(function(r){
+          if(!r.ok) throw new Error("The card could not be made");
+          return r.blob();
+        })
+      : fetch(shareTargets.card)
+          .then(function(r){
+            if(!r.ok) throw new Error("The card could not be made");
+            return r.text();
+          })
+          .then(svgToPngBlob);
+    made
       .then(function(blob){
-        var file = new File([blob], shareSubject.kind === "mix" ? "fam-mix.png" : "fam-episode.png",
-                            { type: "image/png" });
+        var type = story ? "image/jpeg" : "image/png";
+        var file = new File([blob], (shareSubject.kind === "mix" ? "fam-mix" : "fam-episode")
+                            + (story ? ".jpg" : ".png"), { type: type });
         if(navigator.canShare && navigator.share
            && navigator.canShare({ files: [file] })){
           return navigator.share({ files: [file], text: t.text })
@@ -21965,7 +21977,7 @@
   // decision, not a failure.
   function saveCardInstead(blob, t){
     copyQuietly(t.text);
-    return downloadBlob(blob, "fam-episode.png").then(function(saved){
+    return downloadBlob(blob, blob.type === "image/jpeg" ? "fam-episode.jpg" : "fam-episode.png").then(function(saved){
       toast(saved ? "Card saved \u2014 the words are on your clipboard"
                   : "Not saved \u2014 the words are on your clipboard");
     });

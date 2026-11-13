@@ -1288,7 +1288,7 @@ final class AppModel: ObservableObject {
     // MARK: - Playing
 
     /// A DailyFAM tile: written ahead, at the browse length (`op-taste-scoring`),
-    /// behind DailyFAM's wait (§590, `startBankTopic`): no steps, audio
+    /// behind DailyFAM's wait (§592, `startBankTopic`): no steps, audio
     /// never held. `railKey` is the rail the card was tapped on.
     /// `faces` is the face book of the page the card is on, so the player
     /// draws the tile's friends at once (§543); none leaves it to ask.
@@ -1355,7 +1355,7 @@ final class AppModel: ObservableObject {
         nowPlaying.replaceRailQueue(rest)
     }
 
-    /// What DailyFAM's wait shows (§590, `paintLoadingVariant("daily")`):
+    /// What DailyFAM's wait shows (§592, `paintLoadingVariant("daily")`):
     /// the heading of the rail the tile is on, its picture, its title, and
     /// up to three friends who listened - kept for it by `noteTileFaces`,
     /// so with none the picture develops instead.

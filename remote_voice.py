@@ -328,6 +328,7 @@ class RemoteChatterboxEngine(TTSEngine):
     """
 
     name = "remote"
+    levels_pace = True
     keeps_audio = True
 
     #: Shared across requests: `build_engine()` constructs a new instance per

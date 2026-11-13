@@ -465,7 +465,19 @@ struct ChatScreen: View {
                 .frame(maxHeight: 112)
                 .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
+                .submitLabel(.send)
                 .onChange(of: chat.draft) { old, now in
+                    // Return sends (the owner's 11.12 notes, reversing
+                    // §142's new line): a vertical field takes Return as a
+                    // newline and never calls `onSubmit`, so one typed "\n"
+                    // - one character more, nothing else changed - is taken
+                    // back out and the message sent. A pasted block keeps
+                    // its lines.
+                    if let typed = Self.returnPressed(old, now) {
+                        chat.draft = typed
+                        chat.sendText()
+                        return
+                    }
                     chat.noteTyping()
                     let box = chat
                     corrector?.changed(from: old, to: now, read: { box.draft }, write: { box.draft = $0 })
@@ -483,6 +495,17 @@ struct ChatScreen: View {
         .padding(.bottom, 14)
         .background(FAMColor.background.ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+    }
+
+    /// The draft as it was if `now` is `old` with one Return typed into
+    /// it (anywhere the cursor was); nil for anything else.
+    static func returnPressed(_ old: String, _ now: String) -> String? {
+        guard now.count == old.count + 1 else { return nil }
+        let a = Array(old), b = Array(now)
+        var i = 0
+        while i < a.count && a[i] == b[i] { i += 1 }
+        guard b[i] == "\n", Array(b[(i + 1)...]) == Array(a[i...]) else { return nil }
+        return old
     }
 
     private var placeholder: String {

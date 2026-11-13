@@ -50,7 +50,7 @@ final class LoadingModel: ObservableObject {
     /// five steps. It holds nothing - audio starts the moment it arrives,
     /// after the 0.45 s minimum.
     @Published private(set) var glide: Glide?
-    /// A DailyFAM tile's wait (§590, `paintLoadingVariant("daily")`):
+    /// A DailyFAM tile's wait (§592, `paintLoadingVariant("daily")`):
     /// its picture developing, or friends' faces gathering on it, instead
     /// of the five steps. Like the glide it holds nothing. (Still called
     /// `dial` in the plumbing: §509's tuning dial was the first to use it.)
@@ -81,7 +81,7 @@ final class LoadingModel: ObservableObject {
         var played: Set<Int>
         var first: Bool
         /// Each item's picture, in playlist order (`picture`, the player's
-        /// own, §545): the card shows it above the topic's name (§589).
+        /// own, §545): the card shows it above the topic's name (§591).
         var pictures: [URL?] = []
     }
 
@@ -547,7 +547,7 @@ struct GlideView: View {
         let label: String = before ? "\(i + 1) · \(played ? "Played" : "Skipped")" : "\(i + 1)"
         let numberColor: Color = current ? FAMColor.copper : ((before && played) ? FAMColor.textMuted : FAMColor.textFaint)
         // The episode's picture, 4:3 like every tile, over the topic's name
-        // - never the episode's title (§589).
+        // - never the episode's title (§591).
         let side = cardWidth - 12
         let url: URL? = glide.pictures.indices.contains(i) ? glide.pictures[i] : nil
         return VStack(alignment: .leading, spacing: 5) {
@@ -636,7 +636,7 @@ private struct PulsingDot: View {
     }
 }
 
-/// DailyFAM's wait (§590, the owner's pick from the 13 November deck, web
+/// DailyFAM's wait (§592, the owner's pick from the 13 November deck, web
 /// `paintLoadingVariant("daily")` and CSS `.fam-dev*`): option 1, the
 /// tile's picture coming into focus from a soft grey blur with a light
 /// sweeping across it - or, when friends have listened, option 3, the

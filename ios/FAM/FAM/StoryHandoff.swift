@@ -26,13 +26,16 @@ extension StoryHandoff {
 
     /// Puts the card on the pasteboard and opens the platform's app. True
     /// when iOS opened it; false sends the caller to the share sheet.
-    /// `png` is the 1080x1920 card; `caption` the destination's words.
+    /// `png` is the whole 1080x1920 story (the player card centred, or the
+    /// old words-only card from an older server); `sticker` the player card
+    /// alone, which Instagram places as a sticker the person can move
+    /// (11.12 notes); `caption` the destination's words.
     @MainActor
-    func send(png: Data, caption: String) async -> Bool {
+    func send(png: Data, sticker: Data? = nil, caption: String) async -> Bool {
         guard available else { return false }
         switch platform {
         case "instagram":
-            return await instagram(png: png)
+            return await instagram(png: png, sticker: sticker)
         case "snapchat":
             return await snapchat(png: png, caption: caption)
         default:
@@ -40,16 +43,29 @@ extension StoryHandoff {
         }
     }
 
-    /// Meta's "Sharing to Stories": the picture under
-    /// `com.instagram.sharedSticker.backgroundImage`, then
-    /// `instagram-stories://share?source_application=<Facebook App ID>`.
+    /// FAM's dark ground, top and bottom, behind Instagram's sticker.
+    private static let groundTop = "#3A3140"
+    private static let groundBottom = "#18151F"
+
+    /// Meta's "Sharing to Stories", then
+    /// `instagram-stories://share?source_application=<Facebook App ID>`:
+    /// the player card under `com.instagram.sharedSticker.stickerImage`
+    /// on FAM's ground (`backgroundTopColor` / `backgroundBottomColor`);
+    /// with no sticker, the whole picture under `backgroundImage`.
     @MainActor
-    private func instagram(png: Data) async -> Bool {
+    private func instagram(png: Data, sticker: Data?) async -> Bool {
         guard let link = URL(string: self.url) else { return false }
-        let items: [[String: Any]] = [[
-            "com.instagram.sharedSticker.backgroundImage": png,
-        ]]
-        UIPasteboard.general.setItems(items, options: [.expirationDate: Date().addingTimeInterval(Self.expiry)])
+        let item: [String: Any]
+        if let sticker {
+            item = [
+                "com.instagram.sharedSticker.stickerImage": sticker,
+                "com.instagram.sharedSticker.backgroundTopColor": Self.groundTop,
+                "com.instagram.sharedSticker.backgroundBottomColor": Self.groundBottom,
+            ]
+        } else {
+            item = ["com.instagram.sharedSticker.backgroundImage": png]
+        }
+        UIPasteboard.general.setItems([item], options: [.expirationDate: Date().addingTimeInterval(Self.expiry)])
         return await UIApplication.shared.open(link)
     }
 
