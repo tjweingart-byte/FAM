@@ -579,3 +579,4 @@ and `limit` = Lines.
 | 35749 | 36 | 585. The category tree out to another reader and back (2026-11-13) |
 | 35785 | 23 | 586. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13) |
 | 35808 | 59 | 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13) |
+| 35867 | 20 | 588. Egan has his own section on /admin (2026-11-13) |

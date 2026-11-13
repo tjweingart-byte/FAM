@@ -35863,3 +35863,23 @@ Twilio's A2P 10DLC registration). Until then texts wait in the outbox.
 
 **Tests:** `tests/test_waitlist_notify.py`.
 
+
+## 588. Egan has his own section on /admin (2026-11-13)
+
+**What was asked.** The owner: "Where can I see Egan in the admin page, he
+should have his own section". He was a row in the shared Agents table and,
+for his work, the separate `/admin/groups` page.
+
+**What was built.** `/admin` → Tracker → **Egan (outreach)**, beside
+Keith's: his state (on, off or held, and why - "off - the page composes in
+code" until `AGENTS=1` and `OUTREACH_AGENT=1`), his model and his week
+(requests, spend, fallbacks, last call), from `/api/admin/agents`'s row for
+`outreach`; the communities by status, today's searches against the
+ceiling, the last search and which sources can be asked, and the newest
+leads with whose words each card carries - Egan's, or code's with why -
+from `/api/admin/groups`, the endpoint the Communities page reads. A link
+opens Communities. Read-only, like Keith's page. The Agents panel no
+longer says "eight agents".
+
+**Tests:** `tests/test_egan_580.py`
+(`test_he_has_his_own_section_on_the_admin_page`).
