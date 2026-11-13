@@ -419,7 +419,7 @@ class AccountStore:
                 # §587: the code in the "you're off the waitlist" notice's
                 # free-month claim link, minted when the account is let in.
                 "ALTER TABLE accounts ADD COLUMN claim_code TEXT NOT NULL DEFAULT ''",
-                # §595: when FAM's one text to this account went (or was
+                # §597: when FAM's one text to this account went (or was
                 # handed to Twilio with no word back). Set once, before the
                 # send, and never cleared but by a send that certainly
                 # failed - so no account is ever texted twice.

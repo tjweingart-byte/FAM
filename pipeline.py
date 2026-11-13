@@ -674,8 +674,7 @@ class PodcastPipeline:
         # (`spoken_text`) and hard names respelled (`pronunciation`, §165);
         # the captions and the cache keep the digits and the real spelling.
         self._may_voice()
-        voiced = speakable(respell(fit.text))
-        pcm = await self.engine.synth(voiced, wpm, self.voice)
+        pcm = await self.engine.synth(voiced := speakable(respell(fit.text)), wpm, self.voice)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
         if not pcm:
@@ -797,8 +796,7 @@ class PodcastPipeline:
         stats.take_synthesis_mark(stats.marks)
         started = time.perf_counter()
         self._may_voice()
-        voiced = speakable(respell(sentence))
-        pcm = await self.engine.synth(voiced, wpm, self.voice)
+        pcm = await self.engine.synth(voiced := speakable(respell(sentence)), wpm, self.voice)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
         if not pcm:

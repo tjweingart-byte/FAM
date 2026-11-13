@@ -103,7 +103,7 @@ def _drain(waitlist, base: str, home: str, limit: int, result: dict) -> dict:
                     waitlist.mark_done(item["id"])
                     result["skipped"] += 1
                     continue
-                # One text, ever (§595): taken on the account before it is
+                # One text, ever (§597): taken on the account before it is
                 # sent, so a retry, a second process or a second grant finds
                 # it gone. Given back only when it certainly did not go.
                 if not waitlist.take_text(item["user_id"]):

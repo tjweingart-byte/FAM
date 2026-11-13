@@ -1510,7 +1510,7 @@
   > and DailyFAM's first card claims it in place (`POST /api/free-month/claim`,
   > the link's same stamp) - web `#freeMonthCard`, iOS `FreeMonthCard`, the
   > same words; claimed, it says when the month runs and closes once per device.
-  > **Current (PROBLEMS.md §595, the owner 13/11):** **one text per account,
+  > **Current (PROBLEMS.md §597, the owner 13/11):** **one text per account,
   > ever** - only the let-in notice. `accounts.texted_at` is taken (an atomic
   > UPDATE, `take_text`) before the send, so a retry, a second process or a
   > second grant finds it gone; it is given back only when the send certainly

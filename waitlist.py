@@ -507,7 +507,7 @@ class Waitlist:
         self.ensure_claim_code(user_id)
         if row[0]:
             self.enqueue(user_id, NOTIFY_EMAIL, at=now)
-        # One text per account, ever (§595): never queued twice, and never
+        # One text per account, ever (§597): never queued twice, and never
         # for an account already texted.
         if row[1] and not self.texted(user_id) \
                 and not self.has_action(user_id, NOTIFY_SMS):
@@ -530,7 +530,7 @@ class Waitlist:
             "SELECT claim_code FROM accounts WHERE user_id = ?",
             (user_id,)).fetchone()[0]
 
-    # --- one text, ever (§595) --------------------------------------------
+    # --- one text, ever (§597) --------------------------------------------
 
     def texted(self, user_id: str) -> bool:
         row = self._conn().execute(

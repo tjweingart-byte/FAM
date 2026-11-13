@@ -233,7 +233,7 @@ def test_both_apps_draw_the_card_with_the_same_words():
         assert words in web and words in ios, words
 
 
-# --- one text, ever (§595) --------------------------------------------------
+# --- one text, ever (§597) --------------------------------------------------
 
 def _phone_user(acc, uid="t", number="+14155550199"):
     acc.sign_up(uid, f"{uid}@fam.test", PASSWORD)
