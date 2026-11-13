@@ -1164,7 +1164,7 @@ struct WaitlistFamSection: View {
     }
 }
 
-/// The free month's progress on the share card (§575), as the web's
+/// The free month's progress on the share card (§577), as the web's
 /// `drawFreeMonth`: one bar per friend of the five, filled as each joins
 /// with the link, and the line under it - how many more, or that it is
 /// earned and when it runs.

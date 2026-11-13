@@ -940,7 +940,7 @@
   <section class="card" id="shareCard">
     <h2>Move up the list</h2>
     <p>Share the waitlist to five friends to earn a free month!</p>
-    <!-- The free month (§575): one dot per friend who joined with the link,
+    <!-- The free month (§577): one dot per friend who joined with the link,
          five to earn it; the month starts the day the whole app goes live. -->
     <div class="fm hidden" id="freeMonth" aria-live="polite">
       <div class="fm-dots" id="freeMonthDots" aria-hidden="true"></div>
@@ -2036,7 +2036,7 @@
       .then(function(){ $("firstPasswordBtn").disabled = false; });
   });
 
-  // The free month (§575): how many of the five have joined, or that it is
+  // The free month (§577): how many of the five have joined, or that it is
   // earned and when it runs. Absent from an older server, then hidden.
   function drawFreeMonth(d){
     var fm = d.free_month, box = $("freeMonth");

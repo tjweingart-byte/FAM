@@ -1,4 +1,4 @@
-"""The free month (§575): five friends who join with your link earn a month of
+"""The free month (§577): five friends who join with your link earn a month of
 "plus", and the month runs from the day the whole app goes live.
 
 Friends count the way invites do (`referred_by`); the month is stamped on the

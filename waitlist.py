@@ -53,7 +53,7 @@ _CODE_RE = re.compile(r"^[a-z0-9]{4,32}$")
 #: dropped because the vendor was down (WAITLIST.md §3b).
 RETRY_DELAYS = (60, 300, 900, 3600)
 
-#: The free month (§575): five friends who join with your link earn a month
+#: The free month (§577): five friends who join with your link earn a month
 #: of the "plus" tier. Friends count the way invites do - an account that
 #: names you in `referred_by` - and the page's sentence ("Share the waitlist
 #: to five friends to earn a free month!") is pinned to this number by a test.
@@ -103,7 +103,7 @@ class Waitlist:
         self.accounts = accounts
         with self._conn() as conn:
             # Admin-set numbers, one row each: `access_cutoff` and
-            # `free_month_starts` (§575).
+            # `free_month_starts` (§577).
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS waitlist_settings (
                        name  TEXT PRIMARY KEY,

@@ -412,7 +412,7 @@ class AccountStore:
                 # The activation step's gender (§411): one of `GENDERS`, or "".
                 # Never shown to anyone; counted only in groups of 100+.
                 "ALTER TABLE accounts ADD COLUMN gender TEXT NOT NULL DEFAULT ''",
-                # The free month (§575): when five friends had joined with
+                # The free month (§577): when five friends had joined with
                 # this account's link. Set once and never cleared, so a
                 # friend deleting their account cannot take it back.
                 "ALTER TABLE accounts ADD COLUMN free_month_earned_at REAL NOT NULL DEFAULT 0",
@@ -599,7 +599,7 @@ class AccountStore:
                 "birth_date": row[7] or "", "gender": row[8] or "",
                 "free_month_earned_at": float(row[9] or 0)}
 
-    # --- the free month (§575) --------------------------------------------
+    # --- the free month (§577) --------------------------------------------
 
     #: How long the launch date is trusted before it is read again. It is read
     #: with the session on every request, so it is not a query per request;
