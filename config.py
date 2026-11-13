@@ -1334,7 +1334,8 @@ class Settings:
     # --- Communities to reach (`/admin/groups`, communities.py, §575) -------
     # Facebook groups, subreddits, X Communities, Discord servers and Slack
     # communities about FAM's subjects, found by web search through the
-    # research backends (never a platform's own API or a signed-in scrape).
+    # research backends, and Reddit's and X's read-only APIs where their keys
+    # are set (§577) - never a signed-in scrape.
     # Each search is billed, so a run and a day are both capped.
     communities_max_searches: int = max(0, _env_int("COMMUNITIES_MAX_SEARCHES", 20))
     communities_daily_searches: int = max(0, _env_int("COMMUNITIES_DAILY_SEARCHES", 60))

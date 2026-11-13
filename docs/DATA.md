@@ -405,7 +405,8 @@ the sender's note (phone numbers removed) and what its facts were read from
 (Reddit's or X's API, or a web search).
 **No phone number is ever stored** (`communities.strip_phones` runs over
 every text kept, the notes included). `runs`, what each search asked and how
-many searches it spent, which is how the daily ceiling is counted. No
+many searches it spent, counted as each is made (§578), which is how the
+daily ceiling is counted. No
 listener's data; untouched leads pruned after 30 days. Read only by
 `/admin/groups`. (Replaced `x_threads.db`, §321, removed in §575.)
 

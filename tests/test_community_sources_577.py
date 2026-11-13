@@ -226,7 +226,7 @@ def test_a_group_fam_does_not_pitch_is_refused_with_why(tmp_path):
         return [SimpleNamespace(url="https://www.facebook.com/groups/loss", title="Grief support",
                                 highlights=["A grief support group."])], 0.0, "parallel"
 
-    with pytest.raises(ValueError, match="grief"):
+    with pytest.raises(C.NotPitched, match="grief"):
         asyncio.run(C.lookup(None, "https://www.facebook.com/groups/loss", searcher=grief,
                              reader=_reader, held=_held(tmp_path)))
 
@@ -258,7 +258,7 @@ def test_the_daily_ceiling_holds_for_sent_groups_too(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config, "settings",
                         dataclasses.replace(config.settings, communities_daily_searches=0))
-    with pytest.raises(LookupError):
+    with pytest.raises(C.DailyCeiling):
         asyncio.run(C.lookup(None, "reddit.com/r/eagles", held=_held(tmp_path)))
 
 
@@ -275,3 +275,135 @@ def test_the_send_endpoint(monkeypatch, tmp_path):
     monkeypatch.setattr(C, "lookup", fake)
     r = client.post("/api/admin/groups/send", json={"url": "https://reddit.com/r/eagles"})
     assert r.status_code == 200 and r.json()["lead"]["id"] == "reddit:eagles"
+
+
+# ------------------------------------------------------------- the review's findings (§578)
+
+def test_no_email_is_kept_but_the_communitys_published_contact():
+    lead = C.leads_from([SimpleNamespace(
+        url="https://www.facebook.com/groups/eaglesfans", title="Eagles Fans | Facebook",
+        highlights=["Bob said ping bob.smith@yahoo.com anytime. Contact the admins at "
+                    "hello@eaglesfans.org."])], "facebook", "Eagles")[0]
+    assert lead.public_contact == ["hello@eaglesfans.org"]
+    assert "bob.smith" not in lead.description and "hello@eaglesfans.org" in lead.description
+    api = C.lead_from_found(CS.Found("reddit", "x1", "Jane jane.roe@gmail.com",
+                                     "Contact jane.roe@gmail.com or +33 6 12 34 56 78"), "s", "api")
+    assert "jane.roe" not in api.name + api.description and "56 78" not in api.description
+
+
+def test_a_members_post_is_not_the_communitys_page():
+    lead = C.leads_from([SimpleNamespace(
+        url="https://www.reddit.com/r/nfl/comments/abc/my_post/", title="My post : r/nfl",
+        highlights=["I'm John, email me at john.doe@gmail.com with questions. Admin: John Doe"])],
+        "reddit", "NFL")[0]
+    assert lead.public_contact == [] and lead.admin_hint == [] and lead.description == ""
+    assert lead.seen_at == "www.reddit.com" and lead.name == "nfl"
+    assert C.own_page("https://www.reddit.com/r/nfl/about/", "reddit", "nfl")
+    assert C.own_page("https://www.facebook.com/groups/x123/?ref=share", "facebook", "x123")
+    assert not C.own_page("https://www.facebook.com/groups/x123/posts/9", "facebook", "x123")
+
+
+def test_a_sent_adults_only_subreddit_is_refused(tmp_path, monkeypatch):
+    monkeypatch.setattr(CS, "reddit_available", lambda: (True, "Reddit's API"))
+    monkeypatch.setattr(CS, "reddit_about", lambda n: CS.Found("reddit", n, "x", adult=True))
+    with pytest.raises(C.NotPitched, match="adults only"):
+        asyncio.run(C.lookup(None, "reddit.com/r/something", reader=_reader, held=_held(tmp_path)))
+
+
+def test_people_in_a_note_or_a_profile_link_never_reach_egan():
+    lead = C.Lead("reddit", "austinrunning", "Running in Austin", "u", "c", "Running in Austin",
+                  description="Weekly runs.",
+                  note="Mod Jane Roe said yes, her handle is janeroe99, see reddit.com/u/janeroe99 "
+                       "and x.com/janeroe; Running in Austin is great")
+    text = " ".join(t for _tag, t in C.material(lead))
+    for leaked in ("Jane", "Roe", "janeroe"):
+        assert leaked not in text, leaked
+    assert "Running in Austin is great" in text
+    assert "reach a person" in C.refused(lead, SimpleNamespace(
+        message="See reddit.com/user/janedoe", fit_why="", pitches=[SimpleNamespace(
+            title="a", angle="b", why="c")] * 3))
+
+
+def test_admin_names_are_read_in_their_usual_forms_and_a_community_is_not_one():
+    assert C.admin_hints("Admin: Sarah") == ["Sarah"]
+    assert C.admin_hints("Hosted by Dr. Jane Smith") == ["Dr. Jane Smith"]
+    assert C.admin_hints("Run by Jane Smith and Bob Jones") == ["Jane Smith", "Bob Jones"]
+    assert C.admin_hints("mods are u/johnny_b and u/kate") == ["u/johnny_b", "u/kate"]
+    assert C.admin_hints("Moderators: Fantasy Football Talk", "Fantasy Football Talk") == []
+    assert C.admin_hints("Admin Approval Required") == []
+    assert C.admin_hints("Created by Taylor Swift Fans") == []
+
+
+@pytest.mark.parametrize("phone", ["+91 98765 43210", "+61 4 1234 5678", "+33 6 12 34 56 78",
+                                   "06 12 34 56 78", "call 555-1234", "2155550134"])
+def test_phone_numbers_in_their_usual_shapes_are_removed(phone):
+    assert "[number removed]" in C.strip_phones(phone)
+
+
+@pytest.mark.parametrize("text", ["2026-11-13", "48,000 members", "Score 24-17",
+                                  "x.com/i/communities/1493446837214187523", "Top 10 in 2024"])
+def test_dates_counts_scores_and_ids_are_not_phones(text):
+    assert C.strip_phones(text) == text
+
+
+def test_searches_count_as_they_are_made_so_a_send_cannot_overshoot(tmp_path, monkeypatch):
+    import config
+    import dataclasses
+
+    monkeypatch.setattr(config, "settings",
+                        dataclasses.replace(config.settings, communities_daily_searches=3))
+    held = _held(tmp_path)
+    seen = []
+
+    async def searcher(query, platform):
+        seen.append(held.searches_since(0))
+        # Meanwhile a person sends groups that use the rest of the day.
+        other = held.start_run(1.0)
+        held.count_search(other)
+        held.count_search(other)
+        return [], 0.0, "parallel"
+
+    report = asyncio.run(C.run(None, ["A", "B"], ["reddit", "x"], searcher=searcher,
+                               reader=_reader, held=held, now=10.0))
+    assert seen == [0] and "ran out" in report["stopped"]
+    assert held.searches_since(0) == 3
+
+
+def test_a_lead_a_person_worked_on_or_sent_is_never_pruned(tmp_path):
+    held = _held(tmp_path)
+    for ident, source in (("a", C.SEARCHED), ("b", C.SEARCHED), ("c", C.SENT)):
+        lead = C.Lead("reddit", ident, ident, "u", "c", "s", source=source)
+        held.add(lead, 0.0)
+    held.move("reddit:b", C.NEW, 0.0, notes="spoke to them")
+    held.prune(C.KEEP_DAYS * 86400 + 10)
+    assert {l["id"] for l in held.all()} == {"reddit:b", "reddit:c"}
+
+
+def test_a_lookup_that_asked_nothing_is_not_counted(tmp_path):
+    held = _held(tmp_path)
+    out = asyncio.run(C.lookup(None, "discord.gg/birdgang", "Eagles", reader=_reader, held=held))
+    assert out["lead"]["status"] == C.NEW and held.searches_since(0) == 0
+
+
+def test_moves_follow_the_buttons_and_a_stray_error_is_not_the_ceiling(monkeypatch, tmp_path):
+    monkeypatch.setattr(appmod, "_require_admin", lambda request: None)
+    held = _held(tmp_path)
+    C.reset(held)
+    held.add(C.Lead("reddit", "eagles", "Eagles", "u", "c", "Eagles"), 1.0)
+    client = TestClient(appmod.app, raise_server_exceptions=False)
+    r = client.post("/api/admin/groups/move", json={"id": "reddit:eagles", "status": "joined"})
+    assert r.status_code == 409
+    r = client.post("/api/admin/groups/move", json={"id": "reddit:eagles", "status": "new",
+                                                    "notes": "write to x@y.com, 215-555-0134"})
+    assert r.status_code == 200 and "x@y.com" not in held.get("reddit:eagles")["notes"]
+
+    async def broken(*a, **k):
+        raise KeyError("key")
+
+    monkeypatch.setattr(C, "lookup", broken)
+    r = client.post("/api/admin/groups/send", json={"url": "https://reddit.com/r/eagles"})
+    assert r.status_code == 500
+
+
+def test_a_reddit_title_loses_its_subreddit_suffix():
+    assert C._clean_name("Philadelphia Eagles : r/eagles", "reddit") == "Philadelphia Eagles"

@@ -1696,6 +1696,14 @@
   > rest) and it is kept to contact **whatever its fit** - a person chose
   > it - unless FAM does not pitch its subject (`AVOID`). A lookup is one
   > search against the day's ceiling.
+  > **Current:** since §578 (a review): `scrub` keeps no email but the
+  > community's published contact anywhere, phone numbers in international
+  > shapes included; only a community's own page (`own_page`) gives a
+  > description, contact or admin, never a member's post; a sent
+  > adults-only community is refused; profile links, handles and the people
+  > a team's note names are redacted before Egan; searches count as they
+  > are made; a lead a person sent, moved or wrote on is never pruned; the
+  > server enforces the page's status moves.
   > **History:** this replaced **FAM on X** (§321-§368, `x_threads.py`,
   > `outreach_intelligence.py`, `/admin/x`), which searched X's API for
   > threads one of FAM's episodes answered and drafted replies a person

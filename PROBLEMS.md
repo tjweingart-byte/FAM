@@ -35363,3 +35363,51 @@ account's API access on the first real run; a refusal is shown on the page
 and the run falls back to the web.
 
 **Tests:** `tests/test_community_sources_577.py`.
+
+## 578. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13)
+
+At the owner's request every change on the branch was read again, by the
+session and by an independent reviewer that saw the code and not the
+session's conclusions. The reviewer's findings, each verified with a probe
+and each now a test in `tests/test_community_sources_577.py`:
+
+- **Emails were stored in descriptions, notes and handles**: only phones
+  were stripped. `communities.scrub` now keeps no email but the
+  community's published contact, everywhere text is kept (search results,
+  Reddit and X descriptions and names, sent notes, the person's notes and
+  handle).
+- **A member's post counted as the community's page**: a URL naming the
+  community (`/r/nfl/comments/...`, `/groups/x/posts/...`) gave a
+  "published" contact and an admin from a member's words. `own_page`: only
+  the community's address, its about, members, info or rules page. Any other
+  page gives the address alone, with only its host as where it was found.
+- **A sent adults-only subreddit became a card.** Refused now (`NotPitched`).
+- **Names reached Egan**: the team's note was not redacted for people, and
+  profile links (`reddit.com/u/...`, `x.com/<name>`, `facebook.com/<name>`)
+  and handles said in words ("her handle is ...") passed. `note_people`,
+  `_PROFILE` and `_CALLED` take them out; the note box asks for no names or
+  contacts. `refused` sends back an answer carrying a profile link.
+- **`_ADMIN` missed "Admin: Sarah", "Dr. Jane Smith", lists, and matched
+  "Moderators: Fantasy Football Talk"** - which then redacted the
+  community's own name and made Egan's every answer "name a person". A
+  separator is required now, lists and titles are read, and a "name" made of
+  the community's words or words like "fans", "team" is no person.
+- **Phone numbers in international shapes passed** (+91 98765 43210,
+  06 12 34 56 78, 555-1234). `_PHONE` now reads digit groups and
+  `_is_phone` decides: 7-15 digits, not a date; bare digits only at 10-11;
+  never inside a URL or an id.
+- **The daily ceiling could be overshot** while a run was going: searches
+  were recorded at its end. Each search is now counted as it is made
+  (`start_run`, `count_search`), a run re-checks before each search, and a
+  lookup that asked nothing is not counted.
+- **Prune deleted leads a person had worked on.** Only searched leads with
+  no note, handle or move go after 30 days (`leads.source`).
+- **`/send` mapped any `LookupError` (a stray `KeyError`) to "searches used
+  up"** and any `ValueError` to 409: its own exception types now.
+- Smaller: the server enforces the page's status moves (`MOVES`); the
+  store reads, the catalogue's embeddings and `health()` run in threads,
+  never on the event loop; " : r/name" leaves Reddit titles; stale
+  "no platform token" wording in config.py and the module docstring.
+
+The `leads.source` and `runs.id` columns are in the tables' first shape:
+neither table has shipped.

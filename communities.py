@@ -17,18 +17,20 @@ way, for communities rather than threads.
 ## Rules that are load-bearing
 
 **Public channels only** ([community-outreach]). Discovery is a web search
-through FAM's own research backends (`research.WEB_BACKENDS`), never a
-logged-in scrape of any platform: nothing here signs in to Facebook, Reddit,
-X, Discord or Slack, and no platform token is held. A card says *how* to
+through FAM's own research backends (`research.WEB_BACKENDS`), and Reddit's
+and X's own APIs where their read-only keys are set (§577,
+`community_sources.py`), never a logged-in scrape: nothing here signs in to
+Facebook, Reddit, X, Discord or Slack, and no key held can post or message. A card says *how* to
 reach the admins - the group's admin list, Reddit's modmail, the
 community's moderators page, its own rules - and a person does it from FAM's
 account with the community in front of them.
 
 **No personal contact details are collected.** A phone number is never
-stored: it is removed from every piece of text kept (`strip_phones`). An
-email is kept only when the community itself publishes it on the page the
-search returned (`public_contacts`), with that page beside it, and an
-admin's name only when that page states it (`admin_hints`). Nothing guesses
+stored, and an email only when the community itself publishes it as its
+contact on its own page (`public_contacts`): `scrub` runs over every text
+kept, the team's notes included. Only the community's own page speaks for
+it (`own_page`) - a member's post on it gives its address and nothing else -
+and an admin's name is kept only when that page states it (`admin_hints`). Nothing guesses
 an address, looks a person up elsewhere, or enriches a name.
 
 **Episodes are hypothesised, never written.** Each card carries three
@@ -90,6 +92,12 @@ STATUS_LABELS = {
     NEW: "To contact", CONTACTED: "Contacted", REPLIED: "Replied",
     INVITED: "Invited", JOINED: "Joined", PASSED: "Passed",
 }
+
+#: Where a lead may move from each status: the page's buttons, enforced on
+#: the server too. Staying put (saving notes) is always allowed.
+MOVES = {NEW: {CONTACTED, PASSED}, CONTACTED: {REPLIED, PASSED},
+         REPLIED: {INVITED, PASSED}, INVITED: {JOINED, PASSED},
+         JOINED: set(), PASSED: {NEW}}
 
 #: How long a lead nobody acted on is kept; a lead a person moved is kept.
 KEEP_DAYS = 30
@@ -242,19 +250,70 @@ _COUNT = re.compile(
     r"(\d[\d,.]*)\s*([kKmM])?\+?\s*(?:total\s+)?"
     r"(members|member|subscribers|readers|followers)\b", re.I)
 
-#: Phone numbers in any of the usual shapes. Removed from everything kept.
+#: A run of digits that may be a phone number: an optional +country code,
+#: an optional (area), then groups of digits joined by spaces, dots or
+#: dashes. `_is_phone` decides on the digits: 7 to 15 of them, and not a date.
+#: Never inside a URL or an id (`/` or `=` before it), and never with a comma
+#: (a member count).
 _PHONE = re.compile(
-    r"(?<!\w)(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\d{2,4})[\s.-]?\d{3,4}[\s.-]?\d{3,4}(?!\w)")
+    r"(?<![\w/=.+-])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{1,5}\)[\s.-]?)?\d{1,11}(?:[\s.-]\d{1,5}){0,6}"
+    r"(?![\w/-])")
+_DATE = re.compile(r"^\d{4}[-./]\d{1,2}[-./]\d{1,2}$|^\d{1,2}[-./]\d{1,2}[-./]\d{2,4}$")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 #: Words that make an email on a community's page its contact.
 _CONTACT_WORDS = re.compile(
     r"\b(contact|email|e-mail|reach|questions|enquir|inquir|partnership|"
     r"sponsor|press|media|advertis|collab|admins?|mods?|moderators?|organi[sz]er)\b", re.I)
+#: One person as a page names them: a handle, or a name of one to three
+#: capitalised words, perhaps with a title.
+_PERSON = (r"(?:(?:u/|@)[\w.-]{2,30}"
+           r"|(?:(?:Dr|Mr|Mrs|Ms|Mx|Prof)\.?\s+)?[A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+){0,2})")
+#: A role and the people after it. "Admin: Sarah", "mods are u/a and u/b",
+#: "Run by Dr. Jane Smith and Bob Jones". A role word with no separator
+#: ("Admin Approval Required") names nobody.
 _ADMIN = re.compile(
-    # The role is any case; the name after it must be capitalised.
-    r"\b(?i:admin(?:istrator)?s?|moderators?|mods?|run by|founded by|created by|"
-    r"organi[sz]ed by|organi[sz]ers?|hosted by)\b\s*(?i:is|are|:|-|–)?\s*"
-    r"((?:u/|@)[\w.-]{2,30}|[A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+){1,2})")
+    r"(?:\b(?i:admin(?:istrator)?s?|moderators?|mods?|organi[sz]ers?)\s*(?i:is|are|:|-|–)\s*"
+    r"|\b(?i:run|founded|created|organi[sz]ed|hosted|moderated|managed)\s+(?i:by)\s+)"
+    r"(" + _PERSON + r"(?:\s*(?:,|&|\b(?i:and)\b)\s*" + _PERSON + r"){0,4})")
+#: Words that make a "name" a community, not a person ("Moderators: Fantasy
+#: Football Talk", "Created by Taylor Swift Fans").
+_NOT_PEOPLE = frozenset("""
+fans fan group groups club team community communities talk network nation society
+official members member page forum league approval required rules staff crew
+admins mods moderators everyone us all channel server subreddit discord slack
+facebook reddit twitter official news daily weekly the our this
+""".split())
+#: Profile links: a person's page on a platform, never a community's.
+_PROFILE = re.compile(
+    r"(?:https?://)?(?:[\w-]+\.)?(?:reddit\.com/(?:u|user)/[\w-]+"
+    r"|(?:x|twitter)\.com/(?!i/)[A-Za-z0-9_]{2,15}(?![\w/])"
+    r"|facebook\.com/(?!groups/)(?:profile\.php\?id=\d+|[A-Za-z0-9.]{3,50}))", re.I)
+
+
+def _is_phone(match: "re.Match") -> bool:
+    raw = match.group(0)
+    digits = re.sub(r"\D", "", raw)
+    if not 7 <= len(digits) <= 15 or _DATE.match(raw.strip()):
+        return False
+    # Digits alone, with no separator and no +: a phone only at 10-11 digits
+    # (a bare US number); shorter is a count or a year, longer an id.
+    if raw.isdigit():
+        return len(raw) in (10, 11)
+    return True
+
+
+def strip_phones(text: str) -> str:
+    """`text` with every phone number removed: FAM never keeps one."""
+    return _PHONE.sub(lambda m: "[number removed]" if _is_phone(m) else m.group(0), text or "")
+
+
+def scrub(text: str, keep: Iterable[str] = ()) -> str:
+    """`text` as FAM may keep it: no phone number, and no email address but
+    the community's own published contacts (`keep`)."""
+    kept = {k.lower() for k in keep}
+    out = strip_phones(text)
+    return _EMAIL.sub(lambda m: m.group(0) if m.group(0).strip(".").lower() in kept
+                      else "[address removed]", out)
 
 
 def members(text: str) -> int:
@@ -281,11 +340,6 @@ def privacy(text: str) -> str:
     return ""
 
 
-def strip_phones(text: str) -> str:
-    """`text` with every phone number removed: FAM never keeps one."""
-    return _PHONE.sub("[number removed]", text or "")
-
-
 def public_contacts(text: str) -> list[str]:
     """Emails a community's own page publishes as its contact: an address
     within a few words of "contact", "email", "admins" and the like. An
@@ -303,20 +357,26 @@ def public_contacts(text: str) -> list[str]:
     return found[:2]
 
 
-def admin_hints(text: str) -> list[str]:
+def admin_hints(text: str, community: str = "") -> list[str]:
     """Names or handles the page itself states as its admins, organisers or
-    moderators. Read from the page, never looked up."""
+    moderators. Read from the page, never looked up. A "name" made of a
+    community's words (its own name, "fans", "team") is not a person."""
+    ours = _words(community)
     out = []
     for m in _ADMIN.finditer(text or ""):
-        name = m.group(1).strip()
-        if name and name not in out and name.lower() not in {"the group", "the team"}:
+        for name in re.split(r"\s*(?:,|&|\band\b)\s*", m.group(1)):
+            name = name.strip()
+            words = {w.lower().strip(".") for w in name.split()}
+            if (not name or name in out or words & _NOT_PEOPLE
+                    or (not name.startswith(("u/", "@")) and words <= ours)):
+                continue
             out.append(name)
-    return out[:3]
+    return out[:5]
 
 
 def _clean_name(title: str, platform: str) -> str:
     """A result's title as the community's name: the platform's suffixes off."""
-    name = re.sub(r"\s*[|\-–:]\s*(Facebook|Reddit|X|Twitter|Discord|Slack|DISBOARD)"
+    name = re.sub(r"\s*[|\-–:]\s*(r/\S+|Facebook|Reddit|X|Twitter|Discord|Slack|DISBOARD)"
                   r"(\s.*)?$", "", title or "", flags=re.I)
     name = re.sub(r"^(r/|Join the |Join )", "", name.strip(), flags=re.I)
     return " ".join(name.split())[:120] or ""
@@ -363,6 +423,27 @@ class Lead:
         return f"{self.platform}:{self.ident}"
 
 
+#: What may follow a community's address on its own page: nothing, its about
+#: page, or its member list. Anything else - a post, a comment, a photo - is a
+#: member's, and a member's words are not the community's.
+_ROOT_TAIL = re.compile(r"^/?(?:about|members|info|rules)?/?$", re.I)
+
+
+def own_page(url: str, platform: str, ident: str) -> bool:
+    """Whether `url` is the community's own page, not a member's post on it."""
+    bare = (url or "").split("#", 1)[0].split("?", 1)[0]
+    key = ident.split(":", 1)[-1]
+    at = bare.lower().find(key.lower())
+    if at < 0:
+        return False
+    return bool(_ROOT_TAIL.match(bare[at + len(key):]))
+
+
+def _host(url: str) -> str:
+    m = re.match(r"^(?:https?://)?([^/?#]+)", url or "")
+    return m.group(1) if m else ""
+
+
 def leads_from(results: Iterable, platform: str, subject: str) -> list[Lead]:
     """Leads from one search's results: every community a result's URL or
     text names on `platform`, with what the page says about it. A result
@@ -373,34 +454,40 @@ def leads_from(results: Iterable, platform: str, subject: str) -> list[Lead]:
         title = str(getattr(r, "title", "") or "")
         text = " ".join(str(h) for h in (getattr(r, "highlights", None) or []))
         found = [p for p in community_of(url) if p[0] == platform]
-        own_page = bool(found)
         if not found:
             found = [p for p in community_of(text) if p[0] == platform][:1]
         for plat, ident in found[:1]:
             key = f"{plat}:{ident}"
             if key in out:
                 continue
+            # Only the community's own page speaks for it: a member's post on
+            # it, or another site naming it, gives its address and nothing
+            # else - no description, contact or admin, and only its host as
+            # where it was found.
+            ours = own_page(url, plat, ident)
             body = f"{title}. {text}"
+            name = scrub(_clean_name(title, plat)) if ours else ident
+            contacts = public_contacts(text) if ours else []
             out[key] = Lead(
-                platform=plat, ident=ident,
-                name=strip_phones(_clean_name(title, plat)) if own_page else ident,
+                platform=plat, ident=ident, name=name or ident,
                 url=community_url(plat, ident), contact_url=contact_url(plat, ident),
                 subject=subject,
-                description=strip_phones(" ".join(text.split()))[:600],
-                members=members(body), privacy=privacy(body), seen_at=url,
-                # A contact or a name is the community's own only on its own page.
-                public_contact=public_contacts(text) if own_page else [],
-                admin_hint=[strip_phones(n) for n in admin_hints(text)] if own_page else [])
+                description=scrub(" ".join(text.split()), contacts)[:600] if ours else "",
+                members=members(body) if ours else 0,
+                privacy=privacy(body) if ours else "",
+                seen_at=url if ours else _host(url),
+                public_contact=contacts,
+                admin_hint=[scrub(n) for n in admin_hints(text, name)] if ours else [])
     return list(out.values())
 
 
 def lead_from_found(found, subject: str, looked_up_with: str) -> Lead:
     """A lead from a platform API's row (`community_sources.Found`)."""
     return Lead(platform=found.platform, ident=found.ident,
-                name=strip_phones(found.name),
+                name=scrub(found.name),
                 url=community_url(found.platform, found.ident),
                 contact_url=contact_url(found.platform, found.ident), subject=subject,
-                description=strip_phones(found.description)[:600], members=found.members,
+                description=scrub(found.description)[:600], members=found.members,
                 privacy=found.privacy, seen_at=found.source_url,
                 looked_up_with=looked_up_with)
 
@@ -588,17 +675,42 @@ except ImportError:  # pragma: no cover - pydantic is a dependency
 
 #: What stands in for a person in the material Egan reads ("never" 1, 2).
 PERSON, ADDRESS = "[a person]", "[an address]"
-_HANDLE = re.compile(r"(?<![\w/])(?:u/|@)[\w.-]{2,30}")
+_HANDLE = re.compile(r"(?<![\w])(?:u/|@)[\w.-]{2,30}")
+#: A handle said in words: "her handle is janeroe99", "ig: jane.roe".
+_CALLED = re.compile(
+    r"\b(?i:handle|user\s*name|username|account|goes by|ig|insta(?:gram)?|tiktok|"
+    r"twitter|discord(?:\s+name)?)\s*(?i:is|:|-)?\s*@?([\w.]{3,30})")
+#: Two or three capitalised words in a row: how a note names a person
+#: ("met Jane Roe"). In the team's note only, and only when they are not the
+#: community's own words.
+_NAME_RUN = re.compile(r"\b[A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+){1,2}\b")
+
+
+def note_people(note: str, community: Iterable[str] = ()) -> list[str]:
+    """Who the team's note may name: the people `admin_hints` reads in it,
+    and every run of capitalised words that is not the community's own
+    (its name, subject or page). Over-redacting a note costs a phrase;
+    under-redacting it would put a private person in front of Egan."""
+    ours = set()
+    for text in community:
+        ours |= _words(text)
+    found = admin_hints(note)
+    for m in _NAME_RUN.finditer(note or ""):
+        if not {w.lower() for w in m.group(0).split()} <= ours:
+            found.append(m.group(0))
+    return list(dict.fromkeys(found))
 
 
 def redacted(text: str, people: Iterable[str] = ()) -> str:
     """`text` with nothing in it that names or reaches a person: phone
-    numbers, email addresses, @handles and u/names, and the names the page
-    gave for its admins. Egan never reads about a person (rule book
+    numbers, email addresses, profile links, @handles and u/names, and the
+    names given for people. Egan never reads about a person (rule book
     "never" 1; every-agent.md "never" 9)."""
     out = strip_phones(text or "")
     out = _EMAIL.sub(ADDRESS, out)
+    out = _PROFILE.sub(PERSON, out)
     out = _HANDLE.sub(PERSON, out)
+    out = _CALLED.sub(lambda m: m.group(0)[:m.start(1) - m.start(0)] + PERSON, out)
     for name in sorted({p for p in people if p}, key=len, reverse=True):
         out = re.sub(re.escape(name), PERSON, out, flags=re.I)
     return out
@@ -609,7 +721,8 @@ def material(lead: Lead) -> tuple:
     it, redacted, and the kept episode if one fits. Never a listener's words,
     so no `request` tag."""
     plat = PLATFORMS[lead.platform]
-    people = list(lead.admin_hint)
+    people = list(lead.admin_hint) + note_people(
+        lead.note, (lead.name, lead.subject, lead.description))
     evidence = "\n".join([
         f"Platform: {plat.label} ({plat.noun})",
         f"Community: {redacted(lead.name, people)}",
@@ -704,15 +817,18 @@ def refused(lead: Lead, reading) -> str:
         return f"{len(reading.pitches)} pitches, not {PITCHES}"
     words = " ".join([reading.message, reading.fit_why]
                      + [f"{p.title} {p.angle} {p.why}" for p in reading.pitches])
-    if _EMAIL.search(words) or _PHONE.search(words) or _HANDLE.search(words):
+    if (_EMAIL.search(words) or strip_phones(words) != words or _HANDLE.search(words)
+            or _PROFILE.search(words)):
         return "his words carry a way to reach a person"
     given = _figures(" ".join(text for _tag, text in material(lead)))
     stray = _figures(words) - given
     if stray:
         return f"his words name {', '.join(sorted(stray)[:3])}, which the material does not"
     low = words.lower()
-    for name in lead.admin_hint:
-        if name and name.lower() in low:
+    community = _words(f"{lead.name} {lead.subject}")
+    for name in list(lead.admin_hint) + note_people(
+            lead.note, (lead.name, lead.subject, lead.description)):
+        if name and name.lower() in low and not _words(name) <= community:
             return "his words name a person"
     return ""
 
@@ -786,12 +902,14 @@ class Store:
                        notes       TEXT NOT NULL DEFAULT '',
                        handle      TEXT NOT NULL DEFAULT '',
                        listened_at REAL NOT NULL DEFAULT 0,
-                       share_url   TEXT NOT NULL DEFAULT ''
+                       share_url   TEXT NOT NULL DEFAULT '',
+                       source      TEXT NOT NULL DEFAULT 'search'
                    )""")
             conn.execute("CREATE INDEX IF NOT EXISTS leads_status"
                          " ON leads(status, found_at)")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS runs (
+                       id       TEXT PRIMARY KEY,
                        at       REAL NOT NULL,
                        searches INTEGER NOT NULL DEFAULT 0,
                        report   TEXT NOT NULL DEFAULT '{}'
@@ -811,18 +929,18 @@ class Store:
     def add(self, lead: Lead, at: float, status: str = NEW) -> None:
         self._conn().execute(
             "INSERT OR IGNORE INTO leads (id, platform, found_at, updated_at,"
-            " status, score, fit, lead) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            " status, score, fit, lead, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (lead.id, lead.platform, at, at, status, lead.score, lead.fit,
-             json.dumps(asdict(lead))))
+             json.dumps(asdict(lead)), lead.source))
 
     def put(self, lead: Lead, at: float, status: str = NEW) -> None:
         """Add `lead`, or read it again over the stored one (a person sent
         it, §577): the person's notes and the handle they found are kept."""
         self.add(lead, at, status)
         self._conn().execute(
-            "UPDATE leads SET lead = ?, status = ?, score = ?, fit = ?, updated_at = ?"
-            " WHERE id = ?",
-            (json.dumps(asdict(lead)), status, lead.score, lead.fit, at, lead.id))
+            "UPDATE leads SET lead = ?, status = ?, score = ?, fit = ?, updated_at = ?,"
+            " source = ? WHERE id = ?",
+            (json.dumps(asdict(lead)), status, lead.score, lead.fit, at, lead.source, lead.id))
 
     def _row(self, r) -> dict:
         out = json.loads(r[7])
@@ -880,17 +998,33 @@ class Store:
             "SELECT status, COUNT(*) FROM leads GROUP BY status")}
 
     def prune(self, now: float) -> int:
-        """Leads nobody acted on, after `KEEP_DAYS`; runs after 30 days."""
+        """Leads a search found and nobody touched, after `KEEP_DAYS`: never
+        one a person sent to Egan, moved, or wrote a note or handle on.
+        Runs after 30 days."""
         cut = now - KEEP_DAYS * 86400
         n = self._conn().execute(
-            "DELETE FROM leads WHERE status IN (?, ?) AND updated_at < ?",
-            (NEW, SET_ASIDE, cut)).rowcount
+            "DELETE FROM leads WHERE status IN (?, ?) AND source = ? AND notes = ''"
+            " AND handle = '' AND updated_at < ?",
+            (NEW, SET_ASIDE, SEARCHED, cut)).rowcount
         self._conn().execute("DELETE FROM runs WHERE at < ?", (now - 30 * 86400,))
         return int(n or 0)
 
-    def add_run(self, at: float, searches: int, report: dict) -> None:
-        self._conn().execute("INSERT INTO runs (at, searches, report) VALUES (?, ?, ?)",
-                             (at, int(searches), json.dumps(report)))
+    def start_run(self, at: float) -> str:
+        """A run or a lookup, recorded before its first search so the day's
+        count includes it while it is still going."""
+        import uuid
+
+        run_id = uuid.uuid4().hex
+        self._conn().execute("INSERT INTO runs (id, at, searches, report) VALUES (?, ?, 0, '{}')",
+                             (run_id, at))
+        return run_id
+
+    def count_search(self, run_id: str) -> None:
+        self._conn().execute("UPDATE runs SET searches = searches + 1 WHERE id = ?", (run_id,))
+
+    def finish_run(self, run_id: str, report: dict) -> None:
+        self._conn().execute("UPDATE runs SET report = ? WHERE id = ?",
+                             (json.dumps(report), run_id))
 
     def searches_since(self, since: float) -> int:
         r = self._conn().execute(
@@ -899,7 +1033,8 @@ class Store:
 
     def last_run(self) -> Optional[dict]:
         r = self._conn().execute(
-            "SELECT at, searches, report FROM runs ORDER BY at DESC LIMIT 1").fetchone()
+            "SELECT at, searches, report FROM runs WHERE report != '{}'"
+            " ORDER BY at DESC LIMIT 1").fetchone()
         if not r:
             return None
         return {"at": r[0], "searches": r[1], **json.loads(r[2] or "{}")}
@@ -1009,11 +1144,32 @@ def _api_for(platform: str):
     return None
 
 
+class NoSource(RuntimeError):
+    """Nothing could be asked about this platform: no web search backend and
+    no API of its own. Not a search, so not counted against the day."""
+
+
+class DailyCeiling(Exception):
+    """Today's searches are used up (`COMMUNITIES_DAILY_SEARCHES`)."""
+
+
+class NotPitched(Exception):
+    """A community FAM does not pitch, with why."""
+
+
+class NotACommunity(Exception):
+    """The link is not one this page can read, in words."""
+
+
 async def _find(subject: str, platform: str, searcher) -> tuple[list, float, str]:
     """`(leads, dollars, what was asked)` for one subject on one platform:
     the platform's API when it has one configured, else - or when it fails -
-    the web search. A test's `searcher` stands in for the web search."""
+    the web search. A test's `searcher` stands in for the web search.
+    Raises `NoSource` when nothing could be asked."""
     api = _api_for(platform) if searcher is None else None
+    if api is None and searcher is None and not backends():
+        raise NoSource(f"nothing searches {PLATFORMS[platform].label} here: no web search "
+                       f"backend{' and no API key' if platform in ('reddit', 'x') else ''}")
     if api is not None:
         search, _about, label = api
         try:
@@ -1041,6 +1197,21 @@ def _day_start(now: float) -> float:
     return now - (now % 86400)
 
 
+def _left_today(held: "Store", now: float) -> int:
+    """Searches left today, counting those a run still in progress has made."""
+    return max(0, int(config.settings.communities_daily_searches)
+               - held.searches_since(_day_start(now)))
+
+
+def _match_episodes(cache, leads: list) -> None:
+    """Each lead's kept episode and score. CPU work (an embedding per kept
+    episode), so it runs in a thread, never on the event loop."""
+    episodes = catalogue(cache) if leads else []
+    for lead in leads:
+        lead.episode = best_episode(episodes, lead)
+        lead.score = score(lead)
+
+
 #: What this page's searches and calls are filed under in the day's spend.
 SPEND_SOURCE = "community outreach"
 
@@ -1051,9 +1222,10 @@ async def run(cache, subjects: Iterable[str], platforms: Iterable[str], *,
     """Search each subject on each platform, screen, match, read; leave the
     cards on the page. Returns the run's report, which is also stored.
 
-    Every search and call is in the day's spend under `SPEND_SOURCE` (§481),
-    and the run is recorded however it ends, so a run that fails halfway
-    still counts the searches it spent against the day's ceiling."""
+    Every search and call is in the day's spend under `SPEND_SOURCE` (§481).
+    Each search is counted against the day's ceiling as it is made, so a
+    group sent to Egan while a run is going sees it, and a run that fails
+    halfway has already counted what it spent."""
     import metering
 
     with metering.spend_source(SPEND_SOURCE):
@@ -1062,55 +1234,63 @@ async def run(cache, subjects: Iterable[str], platforms: Iterable[str], *,
 
 
 async def _run(cache, subjects, platforms, *, now, searcher, reader, held) -> dict:
-    import metering
-
     now = time.time() if now is None else now
     held = held or store()
-    held.prune(now)
+    await asyncio.to_thread(held.prune, now)
     settings = config.settings
     subjects = [s.strip() for s in subjects if s and s.strip()][:int(settings.communities_subjects)]
     platforms = [p for p in platforms if p in PLATFORMS] or list(PLATFORMS)
     report: dict = {"subjects": subjects, "platforms": platforms, "searched": 0,
                     "found": 0, "kept": 0, "set_aside": 0, "screened": [],
-                    "failed": [], "dollars": 0.0, "stopped": ""}
-    if not subjects:
-        report["stopped"] = "no subjects to search"
-        held.add_run(now, 0, report)
-        return report
-    left = max(0, int(settings.communities_daily_searches) - held.searches_since(_day_start(now)))
-    budget = min(int(settings.communities_max_searches), left)
-    if budget <= 0:
-        report["stopped"] = "today's searches are used up (COMMUNITIES_DAILY_SEARCHES)"
-        held.add_run(now, 0, report)
-        return report
-    pairs = [(s, p) for s in subjects for p in platforms]
-    if len(pairs) > budget:
-        report["stopped"] = (f"{len(pairs) - budget} searches left out to stay "
-                             f"inside today's ceiling")
+                    "failed": [], "skipped": [], "dollars": 0.0, "stopped": ""}
+    run_id = await asyncio.to_thread(held.start_run, now)
     try:
-        await _search_and_read(cache, pairs[:budget], report, held, now,
-                               searcher, reader or read, metering)
+        if not subjects:
+            report["stopped"] = "no subjects to search"
+            return report
+        left = await asyncio.to_thread(_left_today, held, now)
+        budget = min(int(settings.communities_max_searches), left)
+        if budget <= 0:
+            report["stopped"] = "today's searches are used up (COMMUNITIES_DAILY_SEARCHES)"
+            return report
+        pairs = [(s, p) for s in subjects for p in platforms]
+        if len(pairs) > budget:
+            report["stopped"] = (f"{len(pairs) - budget} searches left out to stay "
+                                 f"inside today's ceiling")
+        await _search_and_read(cache, pairs[:budget], report, held, run_id, now,
+                               searcher, reader or read)
+        return report
     finally:
         report["dollars"] = round(report["dollars"], 4)
         report["screened"] = report["screened"][:20]
-        held.add_run(now, report["searched"], report)
-    return report
+        await asyncio.to_thread(held.finish_run, run_id, report)
 
 
-async def _search_and_read(cache, pairs, report, held, now, searcher, reader,
-                           metering) -> None:
-    known = held.known()
+async def _search_and_read(cache, pairs, report, held, run_id, now, searcher,
+                           reader) -> None:
+    import metering
+
+    known = await asyncio.to_thread(held.known)
     found: dict[str, Lead] = {}
     for subject, platform in pairs:
+        if await asyncio.to_thread(_left_today, held, now) <= 0:
+            # A group sent to Egan meanwhile took the last of the day.
+            report["stopped"] = "today's searches ran out during the run"
+            break
         try:
             leads, cost, _asked = await _find(subject, platform, searcher)
         except asyncio.CancelledError:
             raise
+        except NoSource as exc:
+            report["skipped"].append(str(exc))
+            continue
         except Exception as exc:  # noqa: BLE001 - recorded, the run goes on
             report["failed"].append(f"{subject} on {PLATFORMS[platform].label}: {exc}")
             report["searched"] += 1
+            await asyncio.to_thread(held.count_search, run_id)
             continue
         report["searched"] += 1
+        await asyncio.to_thread(held.count_search, run_id)
         report["dollars"] += float(cost or 0.0)
         if cost:
             # The day's spend (§481), like every other search FAM pays for.
@@ -1125,10 +1305,7 @@ async def _search_and_read(cache, pairs, report, held, now, searcher, reader,
                 report["screened"].append(f"{lead.name or lead.ident}: {why}")
                 continue
             found[lead.id] = lead
-    episodes = catalogue(cache) if found else []
-    for lead in found.values():
-        lead.episode = best_episode(episodes, lead)
-        lead.score = score(lead)
+    await asyncio.to_thread(_match_episodes, cache, list(found.values()))
     shortlist = sorted(found.values(), key=lambda l: -l.score)[
         :int(config.settings.communities_shortlist)]
     for lead in shortlist:
@@ -1136,10 +1313,10 @@ async def _search_and_read(cache, pairs, report, held, now, searcher, reader,
         report["dollars"] += float(dollars or 0.0)
         lead.reason = reason(lead)
         if lead.fit < FIT_FLOOR:
-            held.add(lead, now, SET_ASIDE)
+            await asyncio.to_thread(held.add, lead, now, SET_ASIDE)
             report["set_aside"] += 1
             continue
-        held.add(lead, now)
+        await asyncio.to_thread(held.add, lead, now)
         report["kept"] += 1
 
 
@@ -1153,6 +1330,7 @@ def _apis() -> dict:
 
 
 def health() -> dict:
+    """For the page. Reads the store: call it in a thread."""
     ok, why = available()
     settings = config.settings
     out = {"available": ok, "detail": why,
@@ -1179,42 +1357,43 @@ def health() -> dict:
 # A group a person sends to Egan (§577)
 
 
-class NotACommunity(ValueError):
-    """The link is not one this page can read, in words."""
-
-
 #: What the page says it can read.
 SENDABLE = ("a Facebook group (facebook.com/groups/...), a subreddit (reddit.com/r/...), "
             "an X Community (x.com/i/communities/...), a Discord invite (discord.gg/...) "
             "or a Slack workspace (name.slack.com or join.slack.com/t/...)")
 
 
-async def _facts(lead: Lead, searcher=None) -> tuple[Optional[Lead], float, str]:
-    """`(what the source says about it, dollars, what was asked)`: the
-    platform's API when it has one, else a web search for its address.
-    `(None, ...)` when nothing was found."""
+async def _facts(lead: Lead, searcher=None) -> tuple[Optional[Lead], float, str, bool]:
+    """`(what the source says about it, dollars, what was asked, whether a
+    request went out)`: the platform's API when it has one, else a web
+    search for its address. `None` when nothing was found. Raises
+    `NotPitched` for a community its platform marks adults only."""
     api = _api_for(lead.platform) if searcher is None else None
+    asked = False
     if api is not None:
         _search, about, label = api
         try:
+            asked = True
             found = await asyncio.to_thread(about, lead.ident)
-            return lead_from_found(found, lead.subject, label), 0.0, label
-        except asyncio.CancelledError:
+            if found.adult:
+                raise NotPitched(f"{label} marks it adults only")
+            return lead_from_found(found, lead.subject, label), 0.0, label, True
+        except (asyncio.CancelledError, NotPitched):
             raise
         except Exception as exc:  # noqa: BLE001 - the web is the next rung
             log.warning("communities: %s could not read %s: %s", label, lead.id, exc)
     query = lead.url.split("://", 1)[-1]
     if searcher is None:
         if not backends():
-            return None, 0.0, "nothing: no web search backend is configured"
+            return None, 0.0, "nothing: no web search backend is configured", asked
         results, cost, backend = await asyncio.to_thread(_search_blocking, query, lead.platform)
     else:
         results, cost, backend = await searcher(query, lead.platform)
     for found in leads_from(results, lead.platform, lead.subject):
-        if found.id == lead.id:
+        if found.id == lead.id and (found.description or found.name != found.ident):
             found.looked_up_with = f"a web search ({backend})"
-            return found, float(cost or 0.0), backend
-    return None, float(cost or 0.0), backend
+            return found, float(cost or 0.0), backend, True
+    return None, float(cost or 0.0), f"a web search ({backend})", True
 
 
 async def lookup(cache, url: str, subject: str = "", note: str = "", *,
@@ -1225,9 +1404,9 @@ async def lookup(cache, url: str, subject: str = "", note: str = "", *,
     draft the message, and keep it as a lead to contact - whatever its fit,
     because a person chose it. Returns `{"lead": ..., "already": bool}`.
 
-    Raises `NotACommunity` for a link this page cannot read, `LookupError`
-    when today's searches are used up, and `ValueError` for a community FAM
-    does not pitch (`AVOID`), with the reason."""
+    Raises `NotACommunity` for a link this page cannot read, `DailyCeiling`
+    when today's searches are used up, and `NotPitched` for a community FAM
+    does not pitch (`AVOID`, or adults only), with the reason."""
     import metering
 
     now = time.time() if now is None else now
@@ -1236,51 +1415,52 @@ async def lookup(cache, url: str, subject: str = "", note: str = "", *,
     if not pairs:
         raise NotACommunity(f"That link is not one this page can read. Send {SENDABLE}.")
     platform, ident = pairs[0]
-    subject = " ".join((subject or "").split())[:80]
-    note = strip_phones(" ".join((note or "").split()))[:600]
-    existing = held.get(f"{platform}:{ident}")
+    subject = scrub(" ".join((subject or "").split()))[:80]
+    note = scrub(" ".join((note or "").split()))[:600]
+    existing = await asyncio.to_thread(held.get, f"{platform}:{ident}")
     if existing is not None and existing["status"] != SET_ASIDE:
         return {"lead": existing, "already": True}
-    if held.searches_since(_day_start(now)) >= int(config.settings.communities_daily_searches):
-        raise LookupError("Today's searches are used up (COMMUNITIES_DAILY_SEARCHES).")
+    if await asyncio.to_thread(_left_today, held, now) <= 0:
+        raise DailyCeiling("Today's searches are used up (COMMUNITIES_DAILY_SEARCHES).")
     lead = Lead(platform=platform, ident=ident, name=ident,
                 url=community_url(platform, ident), contact_url=contact_url(platform, ident),
                 subject=subject, source=SENT, note=note)
     report = {"sent": lead.id, "searched": 0, "dollars": 0.0, "kept": 0, "set_aside": 0,
-              "failed": [], "screened": [], "stopped": ""}
-    with metering.spend_source(SPEND_SOURCE):
-        try:
-            facts, cost, asked = await _facts(lead, searcher)
-            report["searched"] = 1
+              "failed": [], "skipped": [], "screened": [], "stopped": ""}
+    run_id = await asyncio.to_thread(held.start_run, now)
+    try:
+        with metering.spend_source(SPEND_SOURCE):
+            try:
+                facts, cost, asked, went_out = await _facts(lead, searcher)
+            except (asyncio.CancelledError, NotPitched):
+                raise
+            except Exception as exc:  # noqa: BLE001 - Egan reads its address alone
+                facts, cost, asked, went_out = None, 0.0, f"the lookup failed ({exc})", True
+                report["failed"].append(str(exc))
+            if went_out:
+                report["searched"] = 1
+                await asyncio.to_thread(held.count_search, run_id)
             report["dollars"] += cost
             if cost:
                 metering.Usage().add_research(1, cost)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - Egan reads its address alone
-            facts, asked = None, f"nothing: the lookup failed ({exc})"
-            report["searched"] = 1
-            report["failed"].append(str(exc))
-        if facts is not None:
-            for name in ("name", "description", "members", "privacy", "seen_at",
-                         "public_contact", "admin_hint", "looked_up_with"):
-                setattr(lead, name, getattr(facts, name))
-        else:
-            lead.looked_up_with = f"{asked}; found nothing, so Egan reads its address alone"
-        if not lead.subject:
-            lead.subject = lead.name if lead.name != ident else ident
-        why = screen(lead)
-        if why and "too few" not in why:
-            held.add_run(now, report["searched"], {**report, "screened": [why]})
-            raise ValueError(f"FAM does not pitch this community: {why}.")
-        lead.episode = best_episode(catalogue(cache), lead)
-        lead.score = score(lead)
-        try:
+            if facts is not None:
+                for name in ("name", "description", "members", "privacy", "seen_at",
+                             "public_contact", "admin_hint", "looked_up_with"):
+                    setattr(lead, name, getattr(facts, name))
+            else:
+                lead.looked_up_with = f"{asked}: found nothing, so Egan reads its address alone"
+            if not lead.subject:
+                lead.subject = lead.name
+            why = screen(lead)
+            if why and "too few" not in why:
+                report["screened"].append(why)
+                raise NotPitched(f"FAM does not pitch this community: {why}.")
+            await asyncio.to_thread(_match_episodes, cache, [lead])
             lead, dollars = await (reader or read)(lead)
             report["dollars"] += float(dollars or 0.0)
-        finally:
-            held.add_run(now, report["searched"], report)
+    finally:
+        await asyncio.to_thread(held.finish_run, run_id, report)
     lead.reason = reason(lead)
-    held.put(lead, now, NEW)
+    await asyncio.to_thread(held.put, lead, now, NEW)
     report["kept"] = 1
-    return {"lead": held.get(lead.id), "already": False}
+    return {"lead": await asyncio.to_thread(held.get, lead.id), "already": False}

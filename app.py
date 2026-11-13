@@ -13409,7 +13409,8 @@ async def admin_groups(request: Request, status: str = "", platform: str = "") -
     if communities._exists():
         leads = await asyncio.to_thread(communities.store().all, status, platform)
     suggested = await asyncio.to_thread(_groups_suggested)
-    return {"health": communities.health(), "running": bool(_GROUPS_RUNNING),
+    health = await asyncio.to_thread(communities.health)
+    return {"health": health, "running": bool(_GROUPS_RUNNING),
             "leads": leads, "suggested": suggested}
 
 
@@ -13475,9 +13476,9 @@ async def admin_groups_send(req: GroupsSend, request: Request) -> dict:
         return await communities.lookup(SCRIPT_CACHE, req.url, req.subject, req.note)
     except communities.NotACommunity as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except LookupError as exc:
+    except communities.DailyCeiling as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
-    except ValueError as exc:
+    except communities.NotPitched as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
@@ -13536,10 +13537,17 @@ async def admin_groups_move(req: GroupsMove, request: Request) -> dict:
         raise HTTPException(status_code=404, detail="No such lead")
     if lead["status"] == communities.SET_ASIDE:
         raise HTTPException(status_code=409, detail="A set-aside lead is for audit only.")
+    if (req.status != lead["status"]
+            and req.status not in communities.MOVES.get(lead["status"], set())):
+        raise HTTPException(status_code=409, detail=(
+            f"A lead that is {lead['status']} cannot move to {req.status}."))
+    # The person's own words, kept without a phone number or an email that
+    # is not the community's published contact ([community-outreach]).
+    keep = lead.get("public_contact") or []
     handle = req.handle
     if handle is not None:
-        handle = communities.strip_phones(" ".join(handle.split()))
-    notes = communities.strip_phones(req.notes) if req.notes is not None else None
+        handle = communities.scrub(" ".join(handle.split()), keep)
+    notes = communities.scrub(req.notes, keep) if req.notes is not None else None
     await asyncio.to_thread(held.move, req.id, req.status, time.time(),
                             notes=notes, handle=handle)
     return {"lead": await asyncio.to_thread(held.get, req.id)}

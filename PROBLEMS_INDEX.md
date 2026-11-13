@@ -569,3 +569,4 @@ and `limit` = Lines.
 | 35208 | 68 | 575. Communities to reach replace FAM on X (2026-11-13) |
 | 35276 | 43 | 576. Egan: the outreach reader becomes a full agent (2026-11-13) |
 | 35319 | 48 | 577. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13) |
+| 35367 | 48 | 578. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
