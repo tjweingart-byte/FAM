@@ -72,7 +72,7 @@ flowchart TB
 | **RunPod container disk** | Nothing that matters | No |
 | **The listener's device** | See §4: session credential, device-only settings, an offline shelf of finished episodes (IndexedDB), the app shell (service worker) | Until cleared, or until log-out, which empties the shelf |
 | **The browser vendor's speech service** | The audio of a voice search (§151). Chrome sends it to Google, Safari to Apple. FAM never receives or stores the audio; it gets only the recognised words. | Under the vendor's policy, not FAM's |
-| **Outside services** | Viral Loops holds a waitlisted account's email and referral code once the outbox has sent it (§183). Nothing else FAM sends out is stored by FAM's choice. | Under Viral Loops' policy. Deleting an FAM account does **not** tell Viral Loops (known, §183). |
+| **Outside services** | Viral Loops holds a waitlisted account's email and referral code once the outbox has sent it (§183). The let-in notice (§587) leaves the address and its email with the mail provider, and the number and its one text with Twilio, in their message logs. Nothing else FAM sends out is stored by FAM's choice. | Under Viral Loops' policy. Deleting an FAM account does **not** tell Viral Loops (known, §183). |
 | **`~/.fam/`** (dev machines only) | `env` (API keys), `voices/`, `embed/` | n/a on Render |
 
 **No listener data is stored on RunPod.** The worker receives text and a voice

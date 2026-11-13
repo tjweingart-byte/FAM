@@ -1510,6 +1510,12 @@
   > and DailyFAM's first card claims it in place (`POST /api/free-month/claim`,
   > the link's same stamp) - web `#freeMonthCard`, iOS `FreeMonthCard`, the
   > same words; claimed, it says when the month runs and closes once per device.
+  > **Current (PROBLEMS.md §597, the owner 13/11):** **one text per account,
+  > ever** - only the let-in notice. `accounts.texted_at` is taken (an atomic
+  > UPDATE, `take_text`) before the send, so a retry, a second process or a
+  > second grant finds it gone; it is given back only when the send certainly
+  > failed (`sms.NOT_SENT`: unconfigured, a 4xx, never connected). A timeout
+  > or a 5xx (`sms.UNKNOWN`) may have been delivered and is never retried.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   > **Current (§519, the 11.9 packet):** switched **off again in production**

@@ -231,3 +231,94 @@ def test_both_apps_draw_the_card_with_the_same_words():
                   "It starts the day the full FAM app is published.",
                   "Nothing to pay, and nothing is billed after."):
         assert words in web and words in ios, words
+
+
+# --- one text, ever (§597) --------------------------------------------------
+
+def _phone_user(acc, uid="t", number="+14155550199"):
+    acc.sign_up(uid, f"{uid}@fam.test", PASSWORD)
+    with acc._conn() as c:
+        c.execute("UPDATE accounts SET phone = ? WHERE user_id = ?", (number, uid))
+
+
+def _texts(monkeypatch, *outcomes):
+    sent, answers = [], list(outcomes)
+    def fake(to, body):
+        sent.append(to)
+        return answers.pop(0) if answers else waitlist_notify.sms.SENT
+    monkeypatch.setattr(waitlist_notify.sms, "send", fake)
+    monkeypatch.setattr(waitlist_notify.mail, "send", lambda *a: True)
+    return sent
+
+
+def test_a_texted_account_is_never_texted_again(acc, wl, monkeypatch):
+    _phone_user(acc)
+    sent = _texts(monkeypatch)
+    wl.grant(["t"])
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert sent == ["+14155550199"] and wl.texted("t")
+    # Put back in line and let in again: no second text is even queued.
+    with acc._conn() as c:
+        c.execute("UPDATE accounts SET status = 'waitlisted' WHERE user_id = 't'")
+    wl.grant(["t"])
+    assert _actions(wl, "t").count("notify_sms") == 1
+    # A stray queued row (an older server, a hand-made one) still sends nothing.
+    wl.enqueue("t", waitlist_mod.NOTIFY_SMS)
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert sent == ["+14155550199"]
+
+
+def test_no_answer_from_twilio_is_never_retried(acc, wl, monkeypatch):
+    _phone_user(acc)
+    sent = _texts(monkeypatch, waitlist_notify.sms.UNKNOWN)
+    wl.grant(["t"])
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    for _ in range(3):
+        wl._conn().execute("UPDATE waitlist_outbox SET next_at = 0")
+        waitlist_notify.drain(wl, "https://x", "https://x")
+    assert sent == ["+14155550199"]
+    assert wl.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)["refused"] == 1
+
+
+def test_a_certain_failure_keeps_the_one_text_owed(acc, wl, monkeypatch):
+    _phone_user(acc)
+    sent = _texts(monkeypatch, waitlist_notify.sms.NOT_SENT)
+    wl.grant(["t"])
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert not wl.texted("t")
+    wl._conn().execute("UPDATE waitlist_outbox SET next_at = 0")
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert len(sent) == 2 and wl.texted("t")
+    wl._conn().execute("UPDATE waitlist_outbox SET next_at = 0")
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert len(sent) == 2
+
+
+def test_only_one_claim_on_the_text_wins(acc, wl):
+    _phone_user(acc)
+    assert wl.take_text("t") is True
+    assert wl.take_text("t") is False
+
+
+def test_sms_sorts_its_failures(monkeypatch):
+    import httpx
+    import sms
+    monkeypatch.setattr(sms, "status", lambda: {"available": True, "reason": ""})
+    monkeypatch.setattr(sms, "_token", lambda: "tok")
+    monkeypatch.setattr(sms, "_settings", lambda: type("S", (), {
+        "twilio_account_sid": "AC1", "twilio_from": "+18885550100"})())
+
+    def raising(exc):
+        def post(*a, **k):
+            raise exc
+        return post
+
+    def answering(code):
+        return lambda *a, **k: httpx.Response(code, json={"message": "m"})
+    for post, want in ((raising(httpx.ConnectError("x")), sms.NOT_SENT),
+                       (raising(httpx.ReadTimeout("x")), sms.UNKNOWN),
+                       (answering(400), sms.NOT_SENT),
+                       (answering(503), sms.UNKNOWN),
+                       (answering(201), sms.SENT)):
+        monkeypatch.setattr(httpx, "post", post)
+        assert sms.send("+14155550100", "hi") == want

@@ -587,3 +587,5 @@ and `limit` = Lines.
 | 36108 | 27 | 593. The free month in both apps: a card on DailyFAM that claims it (2026-11-13) |
 | 36135 | 33 | 594. A tour of the app after sign-up (2026-11-13) |
 | 36168 | 37 | 595. The tour, once, for accounts from before it (2026-11-13) |
+| 36205 | 25 | 596. The phone field says what the text is: consent for the carriers (2026-11-13) |
+| 36230 | 31 | 597. One text per account, ever (2026-11-13) |

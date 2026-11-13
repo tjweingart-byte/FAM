@@ -507,7 +507,10 @@ class Waitlist:
         self.ensure_claim_code(user_id)
         if row[0]:
             self.enqueue(user_id, NOTIFY_EMAIL, at=now)
-        if row[1]:
+        # One text per account, ever (§597): never queued twice, and never
+        # for an account already texted.
+        if row[1] and not self.texted(user_id) \
+                and not self.has_action(user_id, NOTIFY_SMS):
             self.enqueue(user_id, NOTIFY_SMS, at=now)
 
     def ensure_claim_code(self, user_id: str) -> str:
@@ -526,6 +529,29 @@ class Waitlist:
         return self._conn().execute(
             "SELECT claim_code FROM accounts WHERE user_id = ?",
             (user_id,)).fetchone()[0]
+
+    # --- one text, ever (§597) --------------------------------------------
+
+    def texted(self, user_id: str) -> bool:
+        row = self._conn().execute(
+            "SELECT texted_at FROM accounts WHERE user_id = ?",
+            (user_id,)).fetchone()
+        return bool(row and row[0])
+
+    def take_text(self, user_id: str, at: float = 0.0) -> bool:
+        """Claim this account's one text before sending it. True for exactly
+        one caller, ever - an atomic UPDATE, so two processes draining at
+        once cannot both win."""
+        cur = self._conn().execute(
+            "UPDATE accounts SET texted_at = ? WHERE user_id = ? AND texted_at = 0",
+            (at or time.time(), user_id))
+        return bool(cur.rowcount)
+
+    def give_text_back(self, user_id: str) -> None:
+        """Only for a send that certainly did not go (Twilio refused it, or
+        it was never handed over): the one text is still owed."""
+        self._conn().execute(
+            "UPDATE accounts SET texted_at = 0 WHERE user_id = ?", (user_id,))
 
     def notice_view(self, user_id: str) -> Optional[dict]:
         """What a notice needs about one account, or None if it is gone."""

@@ -74,11 +74,18 @@ def _fail(words: str) -> bool:
     return False
 
 
-def send(to: str, body: str) -> bool:
-    """Deliver one text now. Never raises; returns whether Twilio took it."""
+#: `send`'s three answers. UNKNOWN is a request that may have reached Twilio
+#: with no answer back (a timeout, a dropped connection): it may have been
+#: delivered, so a caller that must never text twice does not retry it.
+SENT, NOT_SENT, UNKNOWN = "sent", "not_sent", "unknown"
+
+
+def send(to: str, body: str) -> str:
+    """Deliver one text now. Never raises; returns SENT, NOT_SENT (certainly
+    not sent: unconfigured, refused, or never connected) or UNKNOWN."""
     if not status()["available"]:
         log.warning("sms not sent to a listener: %s", status()["reason"])
-        return False
+        return NOT_SENT
     import httpx
     s = _settings()
     sender = s.twilio_from
@@ -88,17 +95,26 @@ def send(to: str, body: str) -> bool:
         r = httpx.post(API.format(sid=s.twilio_account_sid), data=form,
                        auth=(s.twilio_account_sid, _token()),
                        timeout=TIMEOUT_SECONDS)
+    except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+        # Never reached Twilio: certainly not sent.
+        _fail(f"{type(exc).__name__}: {exc}".replace(to, "<recipient>"))
+        return NOT_SENT
     except Exception as exc:  # noqa: BLE001 - a vendor must never break us
-        return _fail(f"{type(exc).__name__}: {exc}".replace(to, "<recipient>"))
+        # Sent, perhaps, with no answer: may have been delivered.
+        _fail(f"{type(exc).__name__}: {exc}".replace(to, "<recipient>"))
+        return UNKNOWN
     if r.status_code >= 300:
         try:
             said = r.json().get("message") or r.text
         except ValueError:
             said = r.text
-        return _fail(f"HTTP {r.status_code}: {said}".replace(to, "<recipient>"))
+        _fail(f"HTTP {r.status_code}: {said}".replace(to, "<recipient>"))
+        # A 4xx is Twilio refusing it: not sent. A 5xx is Twilio failing
+        # part-way, which cannot be ruled out as sent.
+        return NOT_SENT if r.status_code < 500 else UNKNOWN
     with _lock:
         _counts["sent"] += 1
-    return True
+    return SENT
 
 
 def reset_counts() -> None:
