@@ -120,6 +120,7 @@ struct MixView: View {
         }
         .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
             ActivityView(items: shareItems ?? []) { shareItems = nil }
+                .tourCover()
         }
         .famSheet(isPresented: $sharing) {
             MixShareSheet(id: id)

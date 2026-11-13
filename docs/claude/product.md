@@ -139,6 +139,10 @@ control and a card saying what it is. What it keeps to:
   in, asks `/api/preferences` once per device and offers it while
   `tour_done` is false; the account's "done" is then kept on the device.
 `tools/smoke_preview.py` drives it; `tests/test_tour_594.py` holds the flag.
+* **The iPhone app has the same tour** (§605, `ios/FAM/FAM/Tour.swift`): the
+  same twelve steps and words, the same flag, owed/offered/forgotten the same
+  way; its differences are listed in `ios/FAM/PARITY.md`, and
+  `tests/test_ios_app_contract.py` pins its steps to the web's `STEPS`.
 
 <!-- rule:explore-reel -->
 > **Current (PROBLEMS.md §499, the owner's 11.3 packet): exploreFAM is out of the app entirely.** The reel screen, its pill on search's top right and beside Made for you, search's right-to-left swipe, the feed dropdown, "Interested?", the reel's Go Deeper and the comments sheet are all deleted from `static/index.html`, with their script and styles. A category, which opened the reel since §253, plays in the ordinary player (`your-categories`). The server keeps `/api/explore`, the comment endpoints and their tables, because a phone that has not updated still calls them (`old-clients`); nothing in the current page reaches them. "No dislike anywhere" still holds. Bringing any of it back is the owner's call.

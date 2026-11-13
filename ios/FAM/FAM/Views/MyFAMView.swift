@@ -35,6 +35,8 @@ struct MyFAMView: View {
                 // Mixes | Categories (§550, the owner's 11.11 note, "like
                 // Groups | Messages"), outside the scroller with the wordmark.
                 PlayfamTabs(tab: mixes.playfamTab) { showTab($0) }
+                    // `#screen-playfam .pf-tabs`: the tour's "Your mixes".
+                    .tourTarget(.mixTabs)
                 // "Create new mix": on Mixes only.
                 if mixes.state == .ready && mixes.playfamTab == .mixes {
                     Button { path.append(.new) } label: {

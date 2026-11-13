@@ -2709,7 +2709,7 @@ extension FAMAPI {
     }
 
     /// Any of: city, region, country, profile_interests, topics, interests,
-    /// searches_public, private_search, intro_done.
+    /// searches_public, private_search, intro_done, tour_done.
     @discardableResult
     func savePreferences(_ body: [String: Any]) async throws -> MyPreferences {
         try await send("POST", "api/v1/preferences", body: body, as: MyPreferences.self)
@@ -2906,6 +2906,11 @@ struct MyPreferences: Decodable {
     let searchesPublic: Bool?
     let privateSearch: Bool?
     let introDone: Bool?
+    /// The tour was finished or skipped on this account (§594): written by
+    /// the tour, read so another phone does not offer it again (§595).
+    let tourDone: Bool?
+    /// The answer is an account's own (`saved`), not a guest's defaults.
+    let saved: Bool?
 }
 
 struct PlaceInfo: Decodable, Equatable {

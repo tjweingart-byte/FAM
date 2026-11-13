@@ -36652,3 +36652,48 @@ minutes of 47). **On CI** (still Postgres 16.16) the job went from 4h07m and
 (run 43474880201), each stretch of the run at #266's pace or better and none
 growing: 50% at 48 minutes where Main took 97. That run's 27 failures were
 the reloaded `app.WAITLIST` above, fixed by keeping live schemas.
+
+## 605. iOS build 8: the tour, and what Main gave the app since build 7 (2026-11-13)
+
+**Asked.** "Add the tour to the iOS app and get build 8 ready", after a full
+audit of what changed since build 7 ("Things have been changed").
+
+**The audit** (every PR merged after build 7, #278-#288, web and server
+against the Swift): one gap - the tour (§594/§595) was web only. Everything
+else a listener sees was already in the app: the date-of-birth crash fix
+(§589), the 11.12 notes (§590), the loading screens (§591/§592), the free
+month's card (§593). The rest is admin, server or web only on purpose
+(§585-§588, §596/§597). The server since build 7 only added fields and
+routes, so build 7 keeps working against it.
+
+**Built.**
+* `Tour.swift`: the web's `Tour` - its twelve steps and words, the spotlight
+  gliding 380 ms between the real controls (`.tourTarget`), the card below,
+  above or over a tall target, Back through the steps shown, Skip, "n of N"
+  over the steps that apply, the friends step passed over when there are no
+  faces, `seq` against late callbacks, Reduce Motion fading only. Owed when
+  the first run ends, offered once on every way in signed in (one
+  `/api/preferences` read; `tour_done`), forgotten when the phone forgets an
+  account, paused under every sheet and cover (`.tourCover()`), never during
+  a survey; Settings' "Take the tour". Its card scrolls one copy
+  (`ScrollsWhenTall`, §589). Differences in `ios/FAM/PARITY.md`.
+* The AI question's card scrolls one copy as well (d9cc23cc, written on
+  another branch as a second §593 and never merged): `ViewThatFits` is gone
+  from `ios/`.
+* "A friend" for a friend with neither name nor handle in "N listened", as
+  the web says it (the app said "@").
+* The free month's claim says a failure as a toast, as the web does; the web
+  now reads the server's `error` as well as `detail`, so it says why.
+* `CURRENT_PROJECT_VERSION` 8; `releases/contracts/ios-1.0.0.json` recut with
+  `--force` (one route more, `/api/free-month/claim`; `tour_done`,
+  `free_month` in the shapes); the registry's build is 8. Build 8 replaces
+  build 7 in review, as 1.0.0.
+
+**Main since (#289-#292).** Merged in before the build: #291 (§601, a shared
+link sent from iMessage and Email as the picture tile, `RichLink.swift`) is
+the app's; its share sheet is the one the tour already pauses under. #289,
+#290 and #292 are admin and server only.
+
+**Not verified here.** No Xcode in this container: the Mac build in CI
+(`.github/workflows/ios.yml`) compiles it; the glide, the card at large text
+and VoiceOver want a phone.
