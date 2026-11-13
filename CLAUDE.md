@@ -63,7 +63,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - The from-knowledge cover half on search is deleted (§108); search's wait is
   in front of the first word and honest - five loading steps from the
   server's marks, each ≥2s (first ≥0.5s, §263), audio held to the fifth; a replay skips them (§148). [search-no-cover]
-- DailyFAM tiles load on a dial, mixes glide (§509): no steps, audio never held. [browse-loaders]
+- DailyFAM's picture develops or gathers friends (§589); mixes glide; audio never held [browse-loaders]
 - **The spec: type a question, and within about a second audio starts giving
   the answer.** Seconds in front of the first word are wrong. [one-sentence-spec]
 - **Amended for search only**, at the owner's direction (§82, §108, §129): EI

@@ -181,31 +181,34 @@
   @keyframes famLdPulse{ 0%,100%{ opacity:.3; } 50%{ opacity:1; } }
   @keyframes famLdUp{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
 
-  /* Option 5, the tuning dial: the needle sweeps the categories on the rail
-     the tile came from, overshoots, and settles on the tile's own. */
-  .fam-dial{ position:relative; width:100%; max-width:280px; height:88px; border-radius:14px;
-    border:1px solid var(--border-strong); background:var(--surface); overflow:hidden; }
-  .fam-dial-ticks{ position:absolute; left:12px; right:12px; top:14px; height:24px; opacity:.7;
-    background:repeating-linear-gradient(90deg, var(--text-faint) 0 1px, transparent 1px 8px) bottom/100% 11px no-repeat,
-               repeating-linear-gradient(90deg, var(--text-muted) 0 1px, transparent 1px 40px) bottom/100% 24px no-repeat; }
-  .fam-dial-labels{ position:absolute; left:6px; right:6px; top:46px; display:grid;
-    grid-template-columns:repeat(var(--n, 5), minmax(0, 1fr)); font-family:'Geist Mono', monospace;
-    font-size:8.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-faint); }
-  .fam-dial-labels span{ text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 2px; }
-  .fam-dial-labels .on{ font-weight:600; animation:famDialLock .3s 1.05s both; }
-  @keyframes famDialLock{ from{ color:var(--text-faint); } to{ color:var(--copper); } }
-  .fam-dial-needle{ position:absolute; top:7px; bottom:7px; width:2px; margin-left:-1px; border-radius:1px;
-    background:var(--deeper); box-shadow:0 0 10px var(--deeper); left:var(--stop, 50%);
-    animation:famDialSweep 1.1s cubic-bezier(.5,0,.3,1) both, famDialHold 1.6s 1.15s ease-in-out infinite; }
-  @keyframes famDialSweep{ 0%{ left:6%; } 55%{ left:90%; } 78%{ left:var(--stop2, 45%); } 100%{ left:var(--stop, 50%); } }
-  @keyframes famDialHold{ 0%,100%{ transform:translateX(0); } 50%{ transform:translateX(1px); } }
-  .fam-dial-noise{ position:absolute; left:12px; right:12px; bottom:9px; height:12px; display:flex;
-    gap:2px; align-items:flex-end; animation:famDialQuiet .4s 1s both; }
-  .fam-dial-noise i{ flex:1; background:var(--text-muted); opacity:.5; height:var(--h, 60%);
-    animation:famDialStatic .18s steps(2) infinite; animation-delay:var(--d, 0s); }
-  @keyframes famDialStatic{ from{ transform:scaleY(.3); } to{ transform:scaleY(1); } }
-  @keyframes famDialQuiet{ to{ opacity:.12; } }
-  .fam-dial-tune{ font-family:'Geist Mono', monospace; font-size:11px; color:var(--text-muted); }
+  /* DailyFAM's wait (§589, the owner's pick from the 13 November deck):
+     option 1, the tile's picture coming into focus from a soft grey blur,
+     a light sweeping across it - or, when friends have listened, option 3,
+     the picture with their faces landing on its corner and a line naming
+     them. Painted by `paintLoadingVariant("daily")`. */
+  .fam-dev{ position:relative; width:100%; max-width:280px; aspect-ratio:4/3; }
+  .fam-dev-pic{ position:absolute; inset:0; border-radius:16px; overflow:hidden;
+    background:var(--surface-2); box-shadow:0 14px 30px -14px rgba(0,0,0,.45); }
+  .fam-dev-pic img{ display:block; width:100%; height:100%; object-fit:cover; }
+  .fam-dev.develop .fam-dev-pic{ animation:famDevelop 2.4s cubic-bezier(.2,.7,.2,1) both; }
+  .fam-dev.develop .fam-dev-pic::after{ content:""; position:absolute; inset:0;
+    background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.5) 50%, transparent 65%);
+    transform:translateX(-120%); animation:famDevSheen 1.6s .4s ease-in-out infinite; }
+  @keyframes famDevelop{ from{ filter:blur(16px) grayscale(1) brightness(1.4); transform:scale(.94); }
+    to{ filter:none; transform:none; } }
+  @keyframes famDevSheen{ to{ transform:translateX(120%); } }
+  .fam-dev.friends{ margin-bottom:16px; }
+  .fam-dev-faces{ position:absolute; left:12px; bottom:-18px; display:flex; z-index:2; }
+  .fam-dev-faces .src-mark{ width:44px; height:44px; font-size:14px; margin-left:-10px;
+    border:3px solid var(--bg); animation:famFaceIn .6s cubic-bezier(.2,1.3,.4,1) both; }
+  .fam-dev-faces .src-mark:first-child{ margin-left:0; --fx:-130px; --fy:-170px; animation-delay:.12s; }
+  .fam-dev-faces .src-mark:nth-child(2){ --fx:40px; --fy:-230px; animation-delay:.28s; }
+  .fam-dev-faces .src-mark:nth-child(3){ --fx:190px; --fy:-130px; animation-delay:.44s; }
+  .fam-dev-faces .src-mark img{ opacity:0; }
+  @keyframes famFaceIn{ from{ transform:translate(var(--fx, 0px), var(--fy, -160px)) scale(.4); opacity:0; } }
+  .fam-dev-names{ font-size:13px; color:var(--text-muted); max-width:280px;
+    animation:famLdUp .3s .7s both; }
+  .fam-dev-names b{ color:var(--text); font-weight:600; }
 
   /* Option 3, the mix gliding along: its episodes in order, the last one
      marked Heard, this one slid to the middle and lifted. */
@@ -243,10 +246,10 @@
     .fam-loading-mark .chev{ animation:none; opacity:1; }
     .fam-loading-dots i{ animation:none; opacity:.7; }
     .fam-steps li.active .fam-step-dot{ animation:none; }
-    .fam-ld-title, .fam-ld-status::before, .fam-dial-labels .on, .fam-dial-needle, .fam-dial-noise,
-    .fam-dial-noise i, .fam-glide-track, .fam-glide-card.on, .fam-glide-dots i.on{ animation:none; }
-    .fam-dial-labels .on{ color:var(--copper); }
-    .fam-dial-noise{ opacity:.12; }
+    .fam-ld-title, .fam-ld-status::before, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
+    .fam-dev-faces .src-mark, .fam-dev-names,
+    .fam-glide-track, .fam-glide-card.on, .fam-glide-dots i.on{ animation:none; }
+    .fam-dev.develop .fam-dev-pic::after{ display:none; }
     .fam-glide-track{ transform:translateX(var(--to, 0px)); }
     .fam-glide-dots i.on{ width:18px; }
   }

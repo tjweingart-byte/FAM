@@ -50,19 +50,22 @@ final class LoadingModel: ObservableObject {
     /// five steps. It holds nothing - audio starts the moment it arrives,
     /// after the 0.45 s minimum.
     @Published private(set) var glide: Glide?
-    /// A DailyFAM tile: the tuning dial (§509, `paintLoadingVariant("dial")`)
-    /// instead of the five steps. Like the glide it holds nothing.
+    /// A DailyFAM tile's wait (§589, `paintLoadingVariant("daily")`):
+    /// its picture developing, or friends' faces gathering on it, instead
+    /// of the five steps. Like the glide it holds nothing. (Still called
+    /// `dial` in the plumbing: §509's tuning dial was the first to use it.)
     @Published private(set) var dial: Dial?
 
     struct Dial: Hashable {
         /// The rail's heading, one line ("" when the tile is on no rail).
         var heading: String
-        /// Up to four neighbouring tags and the tile's own, at `at`.
-        var labels: [String]
-        var at: Int
-        /// "Money & markets": the tile's facet in full (`dialWord`).
-        var tune: String
+        /// The tile's picture (`thumb`); nil draws the plain surface.
+        var picture: URL?
         var title: String
+        /// Up to three friends who listened; none develops the picture.
+        var faces: [FriendFace] = []
+        /// "Maya, Jordan and 4 others listened" (`friendsListenedLine`).
+        var friendsLine: String = ""
     }
 
     /// The dial and the glide have no steps and hold no audio.
@@ -269,7 +272,7 @@ struct LoadingView: View {
             } else if let dial = loading.dial {
                 VStack(spacing: 22) {
                     FAMLetters(capHeight: 40).opacity(0.92).padding(.bottom, 10)
-                    DialView(dial: dial, still: reduceMotion, note: loading.note)
+                    DailyLoadingView(dial: dial, still: reduceMotion, note: loading.note)
                 }
                 .padding(.horizontal, 32)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -633,36 +636,44 @@ private struct PulsingDot: View {
     }
 }
 
-/// The tuning dial (§509, option 5, `paintLoadingVariant("dial")` and CSS
-/// `.fam-dial*`): "DAILYFAM · {rail}", a 280 x 88 dial whose needle sweeps
-/// the rail's tags, overshoots and settles on the tile's own, which locks
-/// copper at 1.05 s while the static under it quietens; then "Tuning in to
-/// {facet}", the title and "Getting your episode ready". The screen goes
-/// the moment audio arrives, wherever the needle has got to.
-struct DialView: View {
+/// DailyFAM's wait (§589, the owner's pick from the 13 November deck, web
+/// `paintLoadingVariant("daily")` and CSS `.fam-dev*`): option 1, the
+/// tile's picture coming into focus from a soft grey blur with a light
+/// sweeping across it - or, when friends have listened, option 3, the
+/// picture with up to three of their faces landing on its corner and a line
+/// naming them. Then the title and "Getting your episode ready". The screen
+/// goes the moment audio arrives, wherever the animation has got to.
+struct DailyLoadingView: View {
     let dial: LoadingModel.Dial
     let still: Bool
     /// `genStatusNote`, in place of the status when the server has one.
     var note: String = ""
 
-    @State private var shownAt = Date()
+    @State private var shown = false
 
     private static let width: CGFloat = 280
-    private static let height: CGFloat = 88
+    /// Where each face flies in from (`.fam-dev-faces` --fx / --fy).
+    private static let flyFrom: [CGSize] = [CGSize(width: -130, height: -170),
+                                             CGSize(width: 40, height: -230),
+                                             CGSize(width: 190, height: -130)]
+
+    private var friends: Bool { !dial.faces.isEmpty }
+    private var settled: Bool { shown || still }
 
     var body: some View {
         VStack(spacing: 14) {
             kicker
-            TimelineView(.animation(paused: still)) { context in
-                let t = still ? 10 : context.date.timeIntervalSince(shownAt)
-                face(t)
+            picture
+                .padding(.bottom, friends ? 18 : 0)
+            if friends {
+                Text(friendsText)
+                    .font(FAMFont.body(13))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: Self.width)
+                    .opacity(settled ? 1 : 0)
+                    .animation(still ? nil : .easeOut(duration: 0.3).delay(0.7), value: shown)
             }
-            .frame(maxWidth: Self.width)
-            .frame(height: Self.height)
-            Text("Tuning in to " + dial.tune)
-                .font(FAMFont.mono(11))
-                .foregroundStyle(FAMColor.textMuted)
-                .multilineTextAlignment(.center)
             Text(dial.title)
                 .font(FAMFont.heading(19, .semibold))
                 .foregroundStyle(FAMColor.text)
@@ -678,10 +689,24 @@ struct DialView: View {
                     .foregroundStyle(FAMColor.textMuted)
             }
         }
-        .onAppear { shownAt = Date() }
+        .onAppear { shown = true }
         .id(dial)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Tuning in to \(dial.tune). \(dial.title). " + (note.isEmpty ? "Getting your episode ready" : note))
+        .accessibilityLabel((friends ? dial.friendsLine + ". " : "") + "\(dial.title). "
+                            + (note.isEmpty ? "Getting your episode ready" : note))
+    }
+
+    /// The names in the text's own weight, as the web's `<b>`.
+    private var friendsText: AttributedString {
+        var out = AttributedString(dial.friendsLine)
+        for face in dial.faces {
+            let name = face.name.isEmpty ? "@" + (face.handle ?? "") : face.name
+            if let range = out.range(of: name) {
+                out[range].foregroundColor = FAMColor.text
+                out[range].font = FAMFont.body(13, .semibold)
+            }
+        }
+        return out
     }
 
     /// "DAILYFAM · {heading}", the heading in copper (`.fam-ld-kick`).
@@ -699,136 +724,66 @@ struct DialView: View {
             .truncationMode(.tail)
     }
 
-    private func face(_ t: Double) -> some View {
-        let count = max(1, dial.labels.count)
-        let stop = (Double(dial.at) + 0.5) / Double(count)
-        let needle = Self.needle(t, stop: stop)
-        let locked = t >= 1.05
-        let quiet = Self.quiet(t)
-        return GeometryReader { geo in
-            let w = geo.size.width
-            ZStack(alignment: .topLeading) {
-                ticks
-                    .frame(width: w - 24, height: 24)
-                    .offset(x: 12, y: 14)
-                labels(locked: locked)
-                    .frame(width: w - 12)
-                    .offset(x: 6, y: 46)
-                noise(t)
-                    .frame(width: w - 24, height: 12)
-                    .opacity(quiet)
-                    .offset(x: 12, y: Self.height - 9 - 12)
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(FAMColor.deeper)
-                    .frame(width: 2, height: Self.height - 14)
-                    .shadow(color: FAMColor.deeper, radius: 5)
-                    .offset(x: w * needle - 1, y: 7)
+    private var picture: some View {
+        // Only option 1 develops; with friends the picture is sharp and the
+        // faces are the movement.
+        let develop = !friends && !still
+        let soft = develop && !shown
+        return ZStack(alignment: .bottomLeading) {
+            ZStack {
+                FAMColor.surface2
+                if let url = dial.picture {
+                    AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                }
+                if develop { DevelopSheen() }
             }
-            .frame(width: w, height: Self.height, alignment: .topLeading)
+            .frame(width: Self.width, height: Self.width * 0.75)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .blur(radius: soft ? 16 : 0)
+            .saturation(soft ? 0 : 1)
+            .brightness(soft ? 0.3 : 0)
+            .scaleEffect(soft ? 0.94 : 1)
+            .animation(develop ? .timingCurve(0.2, 0.7, 0.2, 1, duration: 2.4) : nil, value: shown)
+            .shadow(color: .black.opacity(0.22), radius: 14, y: 10)
+            if friends { faces.offset(x: 12, y: 18) }
         }
-        .background(FAMColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.borderStrong))
     }
 
-    /// Minor ticks every 8 pt (11 tall, faint), majors every 40 (24 tall),
-    /// standing on one line, at 70%.
-    private var ticks: some View {
-        Canvas { context, size in
-            var minor = Path()
-            var x: CGFloat = 0
-            while x < size.width {
-                minor.addRect(CGRect(x: x, y: size.height - 11, width: 1, height: 11))
-                x += 8
-            }
-            var major = Path()
-            x = 0
-            while x < size.width {
-                major.addRect(CGRect(x: x, y: 0, width: 1, height: size.height))
-                x += 40
-            }
-            context.fill(minor, with: .color(FAMColor.textFaint))
-            context.fill(major, with: .color(FAMColor.textMuted))
-        }
-        .opacity(0.7)
-    }
-
-    private func labels(locked: Bool) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(dial.labels.enumerated()), id: \.offset) { i, word in
-                let on = i == dial.at
-                Text(word)
-                    .font(FAMFont.mono(8.5, bold: on))
-                    .tracking(0.425)
-                    .textCase(.uppercase)
-                    .foregroundStyle(on && locked ? FAMColor.copper : FAMColor.textFaint)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 2)
-                    .frame(maxWidth: .infinity)
+    private var faces: some View {
+        HStack(spacing: -10) {
+            ForEach(Array(dial.faces.prefix(3).enumerated()), id: \.offset) { i, face in
+                let from = Self.flyFrom[min(i, Self.flyFrom.count - 1)]
+                Face(name: face.name, handle: face.handle ?? "", avatar: face.avatar ?? "",
+                     size: 44, initialsSize: 14)
+                    .overlay(Circle().stroke(FAMColor.background, lineWidth: 3))
+                    .offset(settled ? .zero : from)
+                    .scaleEffect(settled ? 1 : 0.4)
+                    .opacity(settled ? 1 : 0)
+                    .animation(still ? nil : .spring(response: 0.5, dampingFraction: 0.6)
+                                   .delay(0.12 + Double(i) * 0.16), value: shown)
             }
         }
     }
+}
 
-    /// Thirty-six bars of static, each flickering on its own beat.
-    private func noise(_ t: Double) -> some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach(0..<36, id: \.self) { i in
-                let h = Double(30 + (i * 37) % 70) / 100
-                let delay = Double(i) * 0.137
-                let phase = Int(((t + delay) / 0.09).rounded(.down)) % 2
-                let k = still ? 1.0 : (phase == 0 ? 0.3 : 1.0)
-                Rectangle()
-                    .fill(FAMColor.textMuted.opacity(0.5))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 12 * h * k)
-            }
-        }
-        .frame(maxHeight: .infinity, alignment: .bottom)
-    }
+/// The light sweeping across a developing picture (`famDevSheen`): a soft
+/// white band, left to right every 1.6 s after 0.4 s.
+private struct DevelopSheen: View {
+    @State private var across = false
 
-    /// The static fades to .12 from 1.0 s to 1.4 s (`famDialQuiet`).
-    static func quiet(_ t: Double) -> Double {
-        if t <= 1.0 { return 1 }
-        if t >= 1.4 { return 0.12 }
-        return 1 - (t - 1.0) / 0.4 * 0.88
-    }
-
-    /// Where the needle is, as a fraction of the dial (`famDialSweep`: 6%,
-    /// 90% at 55%, the overshoot back at 78%, the stop at 1.1 s, each leg
-    /// eased by cubic-bezier(.5,0,.3,1); then `famDialHold`'s 1 pt sway).
-    static func needle(_ t: Double, stop: Double) -> CGFloat {
-        let stop2 = max(0.03, stop - 0.06)
-        let f = t / 1.1
-        if f >= 1 {
-            let sway = (1 - cos((t - 1.15) / 1.6 * 2 * .pi)) / 2
-            return CGFloat(stop) + CGFloat(t > 1.15 ? sway : 0) / width
+    var body: some View {
+        GeometryReader { geo in
+            LinearGradient(colors: [.clear, .white.opacity(0.5), .clear],
+                           startPoint: .leading, endPoint: .trailing)
+                .frame(width: geo.size.width * 0.3)
+                .rotationEffect(.degrees(15))
+                .offset(x: across ? geo.size.width * 1.2 : -geo.size.width * 0.5)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 1.6).delay(0.4).repeatForever(autoreverses: false)) {
+                        across = true
+                    }
+                }
         }
-        let keys: [(Double, Double)] = [(0, 0.06), (0.55, 0.90), (0.78, stop2), (1, stop)]
-        var i = 0
-        while i < keys.count - 2 && f > keys[i + 1].0 { i += 1 }
-        let a = keys[i]
-        let b = keys[i + 1]
-        let local = (f - a.0) / (b.0 - a.0)
-        let eased = bezier(local, 0.5, 0, 0.3, 1)
-        return CGFloat(a.1 + (b.1 - a.1) * eased)
-    }
-
-    /// CSS cubic-bezier(x1, y1, x2, y2) at progress `x`.
-    static func bezier(_ x: Double, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) -> Double {
-        if x <= 0 { return 0 }
-        if x >= 1 { return 1 }
-        func curve(_ s: Double, _ p1: Double, _ p2: Double) -> Double {
-            let u = 1 - s
-            return 3 * u * u * s * p1 + 3 * u * s * s * p2 + s * s * s
-        }
-        var lo = 0.0
-        var hi = 1.0
-        var s = x
-        for _ in 0..<24 {
-            s = (lo + hi) / 2
-            if curve(s, x1, x2) < x { lo = s } else { hi = s }
-        }
-        return curve(s, y1, y2)
+        .allowsHitTesting(false)
     }
 }

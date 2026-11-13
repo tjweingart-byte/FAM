@@ -1288,7 +1288,7 @@ final class AppModel: ObservableObject {
     // MARK: - Playing
 
     /// A DailyFAM tile: written ahead, at the browse length (`op-taste-scoring`),
-    /// behind the tuning dial (§509, `startBankTopic`): no steps, audio
+    /// behind DailyFAM's wait (§589, `startBankTopic`): no steps, audio
     /// never held. `railKey` is the rail the card was tapped on.
     /// `faces` is the face book of the page the card is on, so the player
     /// draws the tile's friends at once (§543); none leaves it to ask.
@@ -1355,12 +1355,11 @@ final class AppModel: ObservableObject {
         nowPlaying.replaceRailQueue(rest)
     }
 
-    /// What the dial shows (`paintLoadingVariant("dial")`): the heading of
-    /// the rail the tile is on, up to four neighbouring tags from that rail
-    /// (every rail when it is on none) with the tile's own at most fourth,
-    /// its facet named in full, and its title.
+    /// What DailyFAM's wait shows (§589, `paintLoadingVariant("daily")`):
+    /// the heading of the rail the tile is on, its picture, its title, and
+    /// up to three friends who listened - kept for it by `noteTileFaces`,
+    /// so with none the picture develops instead.
     func dial(for tile: Tile, railKey: String) -> LoadingModel.Dial {
-        let tag = tile.tagText.isEmpty ? "DailyFAM" : tile.tagText
         var key = ""
         let holds: (Rail) -> Bool = { rail in rail.topics.contains(where: { other in other.id == tile.id }) }
         // The first rail holding the tile, in the page's order, whichever
@@ -1369,47 +1368,27 @@ final class AppModel: ObservableObject {
             key = found.key
         }
         let heading = key == "from_history" ? madeForTitle(multiline: false) : Self.sectionTitle(key)
-        var pool: [Tile] = []
-        if key.isEmpty {
-            for rail in rails { pool.append(contentsOf: rail.topics) }
-        } else if let rail = rails.first(where: { $0.key == key }) {
-            pool = rail.topics
-        }
-        var seen: Set<String> = [tag.lowercased()]
-        var others: [String] = []
-        for other in pool {
-            let word = other.tagText
-            if word.isEmpty || seen.contains(word.lowercased()) || others.count >= 4 { continue }
-            seen.insert(word.lowercased())
-            others.append(word)
-        }
-        let at = min(3, others.count)
-        var labels = Array(others.prefix(at))
-        labels.append(tag)
-        labels.append(contentsOf: others.dropFirst(at))
         var title = tile.title
         if title.hasSuffix(" \u{00B7} today") { title = String(title.dropLast(" \u{00B7} today".count)) }
-        return LoadingModel.Dial(heading: heading, labels: labels, at: at,
-                                 tune: dialWord(tag), title: title)
+        let friends = nowPlaying.tileFriends[tile.id]
+        let faces = Array((friends?.faces ?? []).prefix(3))
+        return LoadingModel.Dial(heading: heading, picture: api.picture(tile.thumb), title: title,
+                                 faces: faces,
+                                 friendsLine: faces.isEmpty ? ""
+                                     : Self.friendsListenedLine(faces, count: friends?.count ?? faces.count))
     }
 
-    /// A tag as words a person reads (`dialWord`): a facet's own name
-    /// ("Money & markets"), then the category tree's label, else the tag
-    /// with each word capitalised (left alone if it has capitals already).
-    func dialWord(_ tag: String) -> String {
-        if let named = mixes.tagLabels[tag.lowercased()] { return named }
-        if let page = mixes.categories {
-            if let facet = page.facets.first(where: { $0.id == tag }), facet.label != tag { return facet.label }
-            if let node = page.all.first(where: { $0.id == tag }), node.label != tag { return node.label }
-        }
-        if tag.contains(where: { $0.isUppercase }) { return tag }
-        var out = ""
-        var start = true
-        for ch in tag {
-            out += start ? String(ch).uppercased() : String(ch)
-            start = ch == " " || ch == "-" || ch == "/"
-        }
-        return out
+    /// "Maya listened", "Maya and Jordan listened", "Maya, Jordan and 4
+    /// others listened" (the web's `friendsListenedLine`).
+    static func friendsListenedLine(_ faces: [FriendFace], count: Int) -> String {
+        let names = faces.map { $0.name.isEmpty ? "@" + ($0.handle ?? "") : $0.name }
+        let n = max(faces.count, count)
+        guard let first = names.first else { return "" }
+        if n <= 1 { return first + " listened" }
+        if n == 2 && names.count >= 2 { return names[0] + " and " + names[1] + " listened" }
+        let shown = Array(names.prefix(2))
+        let rest = n - shown.count
+        return shown.joined(separator: ", ") + " and \(rest) " + (rest == 1 ? "other" : "others") + " listened"
     }
 
     /// A sample on the waiting screen: a replay, nothing written.

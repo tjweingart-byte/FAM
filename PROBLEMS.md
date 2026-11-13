@@ -35889,3 +35889,46 @@ iOS matches: `LoadingModel.Glide.pictures` (from `api.picture(item.picture)`
 in both places a glide is built) and `GlideView`'s card draws it above the
 topic; its line under the row already used the topic. Not built here - no
 Swift toolchain in this container; the Mac build in CI compiles it.
+
+## 589. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13)
+
+The owner reopened §509's choice for DailyFAM and asked for a new set of
+options. A twelve-slide deck (Slides artifact, each option playing live in a
+phone) offered six: Picture Develop, Hook Card, Friends Gather, Edition
+Stack, Broadcast Rings, Living Mark, against today's Tuning Dial. **The
+owner's pick: "Default to 1, but do three if friends have listened as
+well."**
+
+**Now** `startBankTopic` (a tile on the rails, View more and Play all) and
+`playNotifiedStory` set `loader: "daily"`, and `paintLoadingVariant("daily")`
+draws, under the §542 FAM mark and the "DAILYFAM · {rail}" kicker:
+
+- *No friends:* the tile's `thumb` in a 4:3 frame that comes into focus from
+  `blur(16px) grayscale(1)` over 2.4 s, a light band sweeping across it every
+  1.6 s (`famDevelop`, `famDevSheen`).
+- *Friends listened* (the tile's own `friendKeys`, resolved in
+  `FRIEND_FACE_BOOK` - mutual friends only, as on the card and the player):
+  the picture sharp, up to three faces (`friendFaceHtml`) flying in to its
+  bottom-left corner, staggered, and a line under it built by
+  `friendsListenedLine`: "Maya listened", "Maya and Jordan listened",
+  "Maya, Jordan and 4 others listened".
+
+Then the title and "Getting your episode ready", as before. A story opened
+from a notification has no tile: it develops onto the player's own picture,
+asked once from `/api/episode/card` and dropped if the screen has moved on,
+and never gathers faces (asking `/api/listened` mid-wait would swap screens
+under the listener). Nothing about holding is new: no steps, the audio never
+waits for the animation, a ready episode shows the first 0.45 s.
+
+The dial is gone: its CSS (`.fam-dial*`), `dialWord` and
+`LOADING_DIAL_NEIGHBOURS` are removed from the web. iOS: `DialView` is
+replaced by `DailyLoadingView`; `LoadingModel.Dial` keeps its name in the
+plumbing but now carries the picture, the faces and the line, built by
+`AppModel.dial(for:)` from `tile.thumb` and `nowPlaying.tileFriends`
+(`friendsListenedLine`, as the web's). `dialWord` goes on iOS too: nothing
+else called it. **Not compiled here** - no Swift
+toolchain in this container; the Mac CI build is its first compile.
+
+**Tests:** the smoke check now plays a tile with no friends (develops) and
+the same tile with two named friends of five (gathers, "Maya, Jordan and 3
+others listened").

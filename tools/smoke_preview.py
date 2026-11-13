@@ -3742,19 +3742,25 @@ def main() -> int:
             page.evaluate("stopSpeech(); clearGenOverlay()")
 
         def the_browse_waits_have_their_own_screens():
-            """A DailyFAM tile loads on the tuning dial, a mix's episode on the
-            mix gliding along, and neither shows or waits for the five steps
-            (§509, the owner's picks). Search keeps them - checked above.
+            """A DailyFAM tile's picture develops - or, when friends have
+            listened, their faces gather on it and are named (§589) - and a
+            mix's episode glides along the mix (§509); none shows or waits
+            for the five steps. Search keeps them - checked above.
             """
             watch = """() => {
                 var el = document.getElementById("famLoading");
-                var seen = window.__alt = { dial: false, glide: "", stepped: false, played: 0 };
+                var seen = window.__alt = { develop: false, friends: 0, names: "", glide: "", stepped: false, played: 0 };
                 if (window.__altWatch) window.__altWatch.disconnect();
                 window.__altWatch = new MutationObserver(function () {
                     if (!el.classList.contains("active")) return;
                     if (el.classList.contains("stepped")) seen.stepped = true;
                     if (!el.classList.contains("alt")) return;
-                    if (el.querySelector(".fam-dial .fam-dial-labels .on")) seen.dial = true;
+                    if (el.querySelector(".fam-dev.develop .fam-dev-pic")) seen.develop = true;
+                    var faces = el.querySelectorAll(".fam-dev.friends .fam-dev-faces .src-mark").length;
+                    if (faces) {
+                        seen.friends = faces;
+                        seen.names = (el.querySelector(".fam-dev-names") || {}).textContent || "";
+                    }
                     var on = el.querySelector(".fam-glide-card.on");
                     if (on) {
                         seen.glide = el.querySelector(".fam-ld-kick").textContent;
@@ -3769,13 +3775,33 @@ def main() -> int:
             ensure_account()
             page.evaluate("openMyFamTab()")
             page.wait_for_selector("#myfamFeed .seed-card[data-topic]", timeout=10000)
+            # A tile nobody's friends have heard: its picture develops.
+            plain = page.evaluate("""() => Object.keys(myFamTopics).filter(function (k) {
+                return !(myFamTopics[k].friendKeys || []).length; })[0]""")
             page.evaluate(watch)
-            page.evaluate("startBankTopic(Object.keys(myFamTopics)[0])")
+            page.evaluate("id => startBankTopic(id)", plain)
             page.wait_for_selector("#screen-player.active", timeout=15000)
             seen = page.evaluate("() => window.__alt")
-            assert seen["dial"], "a DailyFAM tile did not load on the tuning dial"
+            assert seen["develop"] and not seen["friends"], \
+                f"a DailyFAM tile with no friends did not develop its picture: {seen!r}"
             assert not seen["stepped"], "a DailyFAM tile showed search's five steps"
             page.evaluate("stopSpeech(); clearGenOverlay()")
+
+            # Two friends on a tile: their faces gather and are named.
+            page.evaluate("""id => {
+                FRIEND_FACE_BOOK["@smokemaya"] = { name: "Maya", handle: "smokemaya" };
+                FRIEND_FACE_BOOK["@smokejordan"] = { name: "Jordan", handle: "smokejordan" };
+                myFamTopics[id].friendKeys = ["@smokemaya", "@smokejordan"];
+                myFamTopics[id].friends_listened = 5;
+            }""", plain)
+            page.evaluate(watch)
+            page.evaluate("id => startBankTopic(id)", plain)
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            seen = page.evaluate("() => window.__alt")
+            assert seen["friends"] == 2 and "Maya, Jordan and 3 others listened" in seen["names"], \
+                f"a DailyFAM tile friends heard did not gather and name them: {seen!r}"
+            page.evaluate("""id => { myFamTopics[id].friendKeys = []; myFamTopics[id].friends_listened = 0;
+                                     stopSpeech(); clearGenOverlay(); }""", plain)
 
             page.evaluate("openPlayFAM()")
             page.wait_for_selector(".mix-card", timeout=10000, state="attached")
@@ -4325,7 +4351,7 @@ def main() -> int:
         check("Go Deeper waits for a new listener", go_deeper_waits_for_a_new_listener)
         check("myFAM's header stays put while the rails scroll", myfam_header_stays_put)
         check("The loading screen can be cancelled", the_loading_screen_can_be_cancelled)
-        check("DailyFAM loads on a dial, a mix glides along", the_browse_waits_have_their_own_screens)
+        check("DailyFAM's picture develops or gathers friends; a mix glides", the_browse_waits_have_their_own_screens)
         check("Messages show faces and typing", messages_show_faces_and_typing)
         check("A file can be attached to a search", attachments)
         check("Searching shows the loading screen", loading_screen_on_a_search)
