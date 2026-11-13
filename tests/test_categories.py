@@ -227,12 +227,15 @@ def test_a_later_sighting_does_not_drag_a_placed_node_back_up(tree):
 def test_no_key_still_grows_a_real_tree(tree):
     """The rule `episode_intelligence` is built on, applied to a vocabulary:
     this layer may add resolution and may never take the page away."""
-    texts = (_asked("what nvidia is doing with data centre chips", 5)
-             + _asked("why nvidia is worth so much", 5))
+    texts = (_asked("what nvidia blackwell is doing for data centres", 5)
+             + _asked("why nvidia blackwell sells so well", 5))
     result = asyncio.run(C.sweep(tree, texts))
     assert result["minted"] >= 1 and result["placed"] == 0
-    assert tree.get("nvidia") is not None
-    assert tree.get("nvidia").degraded, "and it says which half placed it"
+    assert tree.get("nvidia blackwell") is not None
+    assert tree.get("nvidia blackwell").degraded, "and it says which half placed it"
+    # §599: a lone searched word waits for a placer that can say it is not
+    # a subject - with no key, nothing is there to ask.
+    assert tree.get("nvidia") is None
 
 
 def test_the_sweep_is_the_only_thing_that_can_call_a_model():

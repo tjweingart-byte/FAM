@@ -31,6 +31,7 @@ import re
 import threading
 from typing import Optional
 
+from agents import roster
 from agents.handoffs import PLUGINS, ArchiveRequest, PluginCall, ResearchPlan
 
 log = logging.getLogger("fam.agents")
@@ -548,8 +549,11 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
             model_setting="contextualizer_model", rule_book="c3p0.md", schema=SearchPlan,
             instructions=instructions(), material=tuple(material),
             carries_listener_words=True,
-            timeout=float(settings.ei_ahead_timeout_seconds if ahead
-                          else settings.ei_timeout_seconds),
+            # The brief's own limit, as his call is its search half - none
+            # by default (§602), which the roster reads as the client's own
+            # request timeout: the agent layer refuses a call without one.
+            timeout=float(roster.get("contextualizer").ceiling(
+                "ahead" if ahead else "search")[0]),
             max_tokens=int(settings.ei_max_tokens),
             effort=str(settings.ei_ahead_effort if ahead else settings.ei_effort),
             surface="ahead" if ahead else "search")

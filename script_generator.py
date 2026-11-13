@@ -801,6 +801,11 @@ class ScriptNotes:
     #: for an episode written ahead of the tap (§369). `netenyahu.OFF` while
     #: `AGENTS=0`. No agent reads it yet.
     agents: object = None
+    #: The brief whose framing is still on its way (§603), so a listener
+    #: who leaves before `prepare` finishes takes the call with them.
+    pending_brief: object = None
+    #: Set by `prepare` (§603): it will await the framing before the writer.
+    framing_later: bool = False
     #: C3P0's `ResearchPlan` for this episode (§370): built in code from the
     #: brief and the code routes once the contextualizer works on it. None
     #: otherwise. Nothing reads it yet.
@@ -2856,8 +2861,13 @@ class ScriptGenerator:
         return failed
 
     async def understand(self, plan: EpisodePlan,
-                         notes: ScriptNotes | None = None) -> EpisodePlan:
+                         notes: ScriptNotes | None = None,
+                         defer_framing: bool = False) -> EpisodePlan:
         """Work out what this request is, before anything is retrieved.
+
+        `defer_framing` (§603): searchFAM's `prepare` takes the brief once
+        the routing and search parts are in and awaits the framing
+        (`episode_intelligence.finish`) after the evidence. Nobody else asks.
 
         Skipped in one case only: **a plan that already has a brief**, built
         by prefetch before the tap, which is the whole point of prefetch.
@@ -2943,6 +2953,10 @@ class ScriptGenerator:
         # The reading the listener chose (§426), only when there is one.
         if plan.reading:
             extra["reading"] = plan.reading
+        # The framing finished beside the research (§603): only where a
+        # listener waits and `prepare` will finish it.
+        if (defer_framing or getattr(notes, "framing_later", False)) and not ahead:
+            extra["defer_framing"] = True
         try:
             brief = await episode_intelligence.understand(
                 plan.query, plan.minutes, plan.context, notes, **extra)
@@ -2955,6 +2969,9 @@ class ScriptGenerator:
             raise
         if plan.reading:
             brief.reading = plan.reading
+        if notes is not None and getattr(brief, "framing_task", None) is not None:
+            # So a listener who leaves takes the framing call with them.
+            notes.pending_brief = brief
         _publish_title(notes, brief)
         _take_c3p0_title(notes, brief)
         # Contextualised (§311): where the request sits in the category
@@ -3025,6 +3042,18 @@ class ScriptGenerator:
 
     async def prepare(self, plan: EpisodePlan,
                       notes: ScriptNotes | None = None) -> EpisodePlan:
+        """`_prepare`, and a framing left running is never left behind
+        (§603): a listener who leaves, or a step that raises, cancels it."""
+        try:
+            return await self._prepare(plan, notes)
+        except BaseException:
+            episode_intelligence.abandon(getattr(notes, "pending_brief", None))
+            if notes is not None:
+                notes.pending_brief = None
+            raise
+
+    async def _prepare(self, plan: EpisodePlan,
+                       notes: ScriptNotes | None = None) -> EpisodePlan:
         """Everything that happens before a word is written.
 
         Understand, then look up, then retrieve - in that order, because each
@@ -3041,6 +3070,11 @@ class ScriptGenerator:
             writer_warm.warm_if_cold(self.client, notes)
         _mark(notes, "brief_start")
         try:
+            # The framing finished beside the research (§603), asked on the
+            # notes so any `understand` - a subclass's, a test's - is called
+            # exactly as before.
+            if notes is not None:
+                notes.framing_later = True
             plan = await self.understand(plan, notes)
             # Already marked when the understanding half answered (§288); a
             # warmed, degraded or switched-off brief is understood here.
@@ -3318,6 +3352,15 @@ class ScriptGenerator:
         # (§264), one row for /admin. In memory; written off this path.
         live_routing.record(plan.query, plan.brief,
                             routed_miss if plan.live is None else plan.live)
+        # The brief's framing (§603): finished beside the research, awaited
+        # here, before anything reads it - the writer, Shakespeare, the
+        # quality record. Usually already in; at once when there is none.
+        if getattr(plan.brief, "framing_task", None) is not None:
+            _mark(notes, "framing_wait")
+            await episode_intelligence.finish(plan.brief)
+            _mark(notes, "framing_ready")
+        if notes is not None:
+            notes.pending_brief = None
         # Shakespeare's plan (§437), last: once both packets are in.
         return await _with_editor(plan, notes)
 

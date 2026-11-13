@@ -1413,11 +1413,15 @@ struct SharedLink: Decodable {
     /// which keeps `card`.
     let storySticker: String?
     let storyImage: String?
+    /// The link's own picture (`/api/share/<id>/preview.jpg`), handed to
+    /// Messages and Mail with the link as a rich link (§601). Absent from
+    /// an older server: the link then goes bare and Messages reads the page.
+    let preview: String?
     /// False when the server has no public address: the link only works
     /// on its own network.
     let `public`: Bool?
 
-    enum CodingKeys: String, CodingKey { case url, targets, card, storySticker, storyImage, `public` }
+    enum CodingKeys: String, CodingKey { case url, targets, card, storySticker, storyImage, preview, `public` }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -1426,6 +1430,7 @@ struct SharedLink: Decodable {
         card = try c.decodeIfPresent(String.self, forKey: .card)
         storySticker = try c.decodeIfPresent(String.self, forKey: .storySticker)
         storyImage = try c.decodeIfPresent(String.self, forKey: .storyImage)
+        preview = try c.decodeIfPresent(String.self, forKey: .preview)
         `public` = try c.decodeIfPresent(Bool.self, forKey: .`public`)
     }
 }
