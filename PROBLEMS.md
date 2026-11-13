@@ -35883,3 +35883,38 @@ longer says "eight agents".
 
 **Tests:** `tests/test_egan_580.py`
 (`test_he_has_his_own_section_on_the_admin_page`).
+
+## 589. The iPhone crashed as the date of birth was tapped (2026-11-13)
+
+**Seen.** A screen recording of "A few things before you start" on the
+iPhone: town typed with the keyboard up, Woman picked, then a tap toward the
+date of birth (still today's date, never set). The keyboard dropped, the card
+jumped from the top of the screen to its middle, and iOS said "FAM by APALI
+Crashed". Continue was still off, so nothing reached the server.
+
+**Why (reasoned from the code, no crash log).** `ActivationCard` drew its
+form through `ViewThatFits(in: .vertical) { form; ScrollView { form } }` - two
+copies, each with its own `DatePicker`. With the keyboard up the scrolling
+copy was showing. The tap took focus from the town box, the keyboard began
+to leave, and the compact picker began to present its calendar popover; the
+card then fitted again and SwiftUI swapped in the plain copy, removing the
+picker the popover was anchored to. UIKit raises on a popover whose source
+view has left the window.
+
+**Built.**
+* `ScrollsWhenTall` (`SocialParts.swift`): one `ScrollView` holding one
+  copy of the content, held to its measured height,
+  `.scrollBounceBehavior(.basedOnSize)`: it hugs the content when it fits
+  and scrolls when it does not, and nothing is ever swapped out from under
+  the picker. The activation card and What's next (whose search box lost
+  focus the same way when the keyboard came up) both use it.
+* Until a date is picked the field reads "Select your birthday" rather than
+  showing today as though it were an answer. The picker stays under the
+  words at 0.02 opacity (UIKit ignores taps below 0.01) so a tap still opens
+  its calendar; VoiceOver hears "Date of birth, Not set".
+
+**Not verified here.** No Xcode in this container: not built, not run. To
+check on a phone: open the card, type in the town box, then tap the date. The
+same for What's next: type in its search box on a small phone. The two-copy
+`ViewThatFits` remains only in `SearchParts.swift` (the consent card:
+buttons, no inputs).

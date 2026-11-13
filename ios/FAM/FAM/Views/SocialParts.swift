@@ -348,6 +348,35 @@ struct ModalCard<Content: View>: View {
     }
 }
 
+/// A card's content that scrolls only when it outgrows the room it is
+/// given, and otherwise hugs its own height (`large-text`). One copy of the
+/// content, never a `ViewThatFits` of two: the keyboard coming or going
+/// swapped one copy for the other, dropping a text field's focus and once
+/// removing a date picker from under its opening calendar, which crashed
+/// the app (§589).
+struct ScrollsWhenTall<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    @State private var height: CGFloat = 0
+
+    var body: some View {
+        ScrollView {
+            content().background(GeometryReader { g in
+                Color.clear.preference(key: ContentHeightKey.self, value: g.size.height)
+            })
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxHeight: height)
+        .onPreferenceChange(ContentHeightKey.self) { height = $0 }
+    }
+}
+
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 /// The modal's buttons (`.modal-btn`): 34 tall, radius 20, Geist 12 bold.
 struct ModalButton: View {
     let label: String

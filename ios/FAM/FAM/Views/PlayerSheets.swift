@@ -920,14 +920,10 @@ struct NextUpOverlay: View {
         return now.nextUpLeft > 0 ? "First one starts in \(now.nextUpLeft)" : "Starting\u{2026}"
     }
 
-    /// With the episode check open the card can outgrow a small phone:
-    /// it scrolls then, and only then.
+    /// With the episode check open, or the keyboard up for the search box,
+    /// the card can outgrow a small phone: it scrolls then, and only then.
     private var card: some View {
-        ViewThatFits(in: .vertical) {
-            cardContent
-            ScrollView { cardContent }
-                .scrollBounceBehavior(.basedOnSize)
-        }
+        ScrollsWhenTall { cardContent }
         .padding(18)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong))
