@@ -35746,7 +35746,43 @@ window really yields the status bar. Tests: eight `..._584` tests in
 `tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
 one in `test_client_contracts.py`.
 
-## 585. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13)
+## 585. The category tree out to another reader and back (2026-11-13)
+
+**Asked.** The owner looked at the tree on /admin's Categories page for the
+first time and found clear errors. They wanted to download it, have a
+different Claude chat (on high effort) correct it, and upload the result -
+the way pronunciations already go out and come back (§549).
+
+**The catch.** The tree is not a file: it is grown. The seed is minted at
+every boot, the sweep mints what listeners searched for and the writer's
+words, the placer reparents what it mints, and prune drops what went quiet.
+A fix written straight into the `categories` table would be undone - a
+removed seed node is back at the next boot, a removed grown one at the next
+sweep, a moved one by the next placer answer about it.
+
+**Built.**
+* `category_review.py`: `export_csv` (every node with its path, parent,
+  depth, children, source, episodes there and below, listeners, owner edit),
+  `PROMPT`, `read_upload` (proposals in file order, so an add precedes the
+  moves under it; refusals in words; a chat's code fence and prose stripped)
+  and `apply`.
+* `categories.py`: a `category_owner` table and `owner_add/move/remove/
+  rename/undo`. `mint` refuses a removed or merged phrase from any source but
+  the owner; `apply_paths` leaves owner-placed nodes; `prune` keeps them;
+  merged phrases become aliases; `apply_owner` (run by `apply_seed`) restores
+  owner adds and placements after a wipe or on a fresh database.
+* `/api/admin/categories/export`, `/review-prompt`, `/import`, `/edit`,
+  `/edits` (GET, DELETE one) and the panel under the tree: Download tree,
+  Copy the prompt, Upload edits (or paste), Accept / Skip / Accept all high
+  confidence, and "Your edits to the tree" with Forget.
+* `tests/test_category_review_585.py`.
+
+**Not verified here.** No real tree: this container has the seed only, so
+the errors the owner saw were not seen. Other app workers read the edits at
+their next tree reload.
+
+
+## 586. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13)
 
 The owner recorded a reference in Voice Memos and /admin's Voice bank would
 not take it: the file picker said `.wav` only and `check_recording` reads

@@ -225,6 +225,15 @@ SOURCE_SEED = "seed"
 #: A category the writer named on two or more episodes that the tree could
 #: not place (§235, `writer_subjects`).
 SOURCE_WRITER = "writer"
+#: A node the owner added by hand, through the tree's review round trip
+#: (`category_review`, PROBLEMS.md §585). Never pruned.
+SOURCE_OWNER = "owner"
+
+#: The owner's decisions about the tree (§585), by kind. `removed` is a
+#: phrase nothing may mint again (sweep, writer, seed alike); `merged` is a
+#: removal whose phrase now reads as another node; `placed` is a node the
+#: placer may not move; `added` marks the owner's own node.
+OWNER_ACTIONS = ("added", "placed", "removed", "merged")
 
 _WORD = re.compile(r"[a-z0-9]+")
 
@@ -282,7 +291,8 @@ def _silenced(phrase: str, source: str) -> bool:
     keeps its grown source."""
     if not frozenset(phrase.split()) & _never_alone():
         return False
-    return source != SOURCE_SEED and phrase not in _seed_phrases()
+    # The owner's own phrases (§585) are theirs, like the seed's.
+    return source not in (SOURCE_SEED, SOURCE_OWNER) and phrase not in _seed_phrases()
 
 
 def normalise(phrase: str) -> str:
@@ -495,6 +505,20 @@ class CategoryStore:
                     pass
             conn.execute("CREATE INDEX IF NOT EXISTS category_audit_at"
                          " ON category_audit(at)")
+            # §585: the owner's edits, kept apart from the rows they edit so
+            # that what grows the tree (the sweep, the writer, the seed at
+            # every boot, the placer) can be told no. A wipe keeps them: they
+            # are decisions, not something derived from listening.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS category_owner (
+                       id      TEXT PRIMARY KEY,
+                       action  TEXT NOT NULL,
+                       target  TEXT NOT NULL DEFAULT '',
+                       at      REAL NOT NULL,
+                       reason  TEXT NOT NULL DEFAULT ''
+                   )"""
+            )
+        self._owner: dict[str, tuple[str, str]] = {}
         self.reload()
 
     def _conn(self) -> sqlite3.Connection:
@@ -525,6 +549,12 @@ class CategoryStore:
         nodes = {r[0]: Node(r[0], r[1], r[2], int(r[3]), r[4], float(r[5]),
                             float(r[6]), int(r[7]), int(r[8]), bool(r[9]))
                  for r in rows}
+        try:
+            owner = {r[0]: (r[1], r[2]) for r in self._conn().execute(
+                "SELECT id, action, target FROM category_owner").fetchall()}
+        except Exception:  # noqa: BLE001 - the tree reads without them
+            log.exception("could not read the owner's tree edits")
+            owner = dict(getattr(self, "_owner", {}))
         # **The check (§513).** A grown node holding a `NEVER_ALONE` word -
         # "lead", or "world record", "power grid" - is not a category: it is
         # left out of the tree as read, so it never matches, `get` never
@@ -583,7 +613,11 @@ class CategoryStore:
         # answered as the node they name with its ancestry. Never a node
         # themselves, so nothing else in the tree ever sees one.
         aliases: dict[str, str] = {}
-        for phrase, target in _seed_aliases().items():
+        # A phrase the owner merged into another node (§585) reads as that
+        # node, exactly like a seed alias: episodes that named it still land.
+        merged = {phrase: target for phrase, (action, target) in owner.items()
+                  if action == "merged" and target}
+        for phrase, target in list(_seed_aliases().items()) + list(merged.items()):
             phrase, target = normalise(phrase), normalise(target)
             alias_words = frozenset(phrase.split())
             if (not phrase or phrase in nodes or target not in nodes
@@ -603,6 +637,7 @@ class CategoryStore:
         self._nodes, self._index, self._words, self._ancestry, self._aliases = (
             nodes, index, words, ancestry, aliases)
         self._silenced = silenced
+        self._owner = owner
         self._loaded_at = time.time()
         return len(nodes)
 
@@ -722,6 +757,11 @@ class CategoryStore:
         # slug is a name `tags_for_text` already scores - see
         # `_reserved_slugs` for what minting either would do to `taste`.
         if phrase in _reserved_slugs():
+            return None
+        if (source != SOURCE_OWNER and phrase not in self._nodes
+                and self._owner.get(phrase, ("",))[0] in ("removed", "merged")):
+            # The owner took it out (§585). Nothing grows it back - not the
+            # sweep, not the writer's words, not the seed at the next boot.
             return None
         if _silenced(phrase, source) and phrase not in self._nodes:
             # An everyday word (`category_seed.NEVER_ALONE`), alone or in a
@@ -844,7 +884,8 @@ class CategoryStore:
         parents = {n.parent_id for n in self._nodes.values() if n.parent_id}
         stale = [n.id for n in self._nodes.values()
                  if now - n.last_seen > NODE_TTL and n.id not in parents
-                 and n.source != SOURCE_SEED]
+                 and n.source not in (SOURCE_SEED, SOURCE_OWNER)
+                 and n.id not in self._owner]
         if not stale:
             return 0
         try:
@@ -883,6 +924,122 @@ class CategoryStore:
             return 0
         self.reload()
         return gone
+
+    # --- the owner's edits (§585) -------------------------------------------
+
+    def owner_decisions(self) -> dict[str, tuple[str, str]]:
+        """phrase -> (action, target) for every edit the owner has made."""
+        return dict(self._owner)
+
+    def placed_by_owner(self, node_id: str) -> bool:
+        """Whether the owner put this node where it is: the placer leaves it."""
+        return self._owner.get(node_id, ("",))[0] in ("added", "placed")
+
+    def _record(self, node_id: str, action: str, target: str = "",
+                reason: str = "") -> None:
+        self._conn().execute(
+            "INSERT INTO category_owner (id, action, target, at, reason)"
+            " VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET"
+            " action = excluded.action, target = excluded.target,"
+            " at = excluded.at, reason = excluded.reason",
+            (node_id, action, target, time.time(), reason[:200]))
+
+    def _is_place(self, parent_id: str) -> bool:
+        return parent_id in _facet_slugs() or parent_id in self._nodes
+
+    def owner_add(self, phrase: str, parent_id: str, reason: str = "") -> Node:
+        """Add a node by hand under a facet or another node. Raises ValueError
+        with a sentence an admin can act on."""
+        phrase, parent_id = normalise(phrase), normalise(parent_id)
+        if not self._is_place(parent_id):
+            raise ValueError(f"'{parent_id}' is not a facet or a category in the tree")
+        if phrase in self._nodes:
+            raise ValueError(f"'{phrase}' is already in the tree - move it instead")
+        if phrase in _facet_slugs() or phrase in _reserved_slugs():
+            raise ValueError(f"'{phrase}' is a name the fixed vocabulary already uses")
+        if self._owner.get(phrase, ("",))[0] in ("removed", "merged"):
+            self._conn().execute("DELETE FROM category_owner WHERE id = ?", (phrase,))
+            self.reload()
+        node = self.mint(phrase, parent_id=parent_id, source=SOURCE_OWNER)
+        if node is None:
+            raise ValueError(
+                f"'{phrase}' cannot be a category: 1-{MAX_PHRASE_WORDS} words, "
+                f"each at least {MIN_WORD} letters, no numbers")
+        self._record(phrase, "added", parent_id, reason)
+        self.reload()
+        return node
+
+    def owner_move(self, node_id: str, parent_id: str, reason: str = "") -> bool:
+        """Put a node (and everything below it) under another; the placer
+        never moves it back. Raises ValueError."""
+        node_id, parent_id = normalise(node_id), normalise(parent_id)
+        node = self._nodes.get(node_id)
+        if node is None:
+            raise ValueError(f"'{node_id}' is not in the tree")
+        if not self._is_place(parent_id):
+            raise ValueError(f"'{parent_id}' is not a facet or a category in the tree")
+        if parent_id == node_id or node_id in self.ancestors(parent_id):
+            raise ValueError(f"'{parent_id}' is below '{node_id}' - that would be a loop")
+        if node.parent_id != parent_id and not self.reparent(node_id, parent_id):
+            raise ValueError(f"'{node_id}' could not be moved")
+        # An owner's own node stays "added", now under its new parent, so a
+        # wipe restores it there.
+        added = self._owner.get(node_id, ("",))[0] == "added"
+        self._record(node_id, "added" if added else "placed", parent_id, reason)
+        self.reload()
+        return True
+
+    def owner_remove(self, node_id: str, into: str = "", reason: str = "") -> int:
+        """Take a node out of the tree for good. What sat below it moves up
+        to its parent, or into `into` when it is merged there - and then its
+        phrase reads as `into`. Returns how many children moved. Raises
+        ValueError."""
+        node_id, into = normalise(node_id), normalise(into)
+        node = self._nodes.get(node_id)
+        if node is None:
+            raise ValueError(f"'{node_id}' is not in the tree")
+        if into:
+            if into == node_id or not self._is_place(into):
+                raise ValueError(f"'{into}' is not a facet or another category in the tree")
+            if node_id in self.ancestors(into):
+                raise ValueError(f"'{into}' is below '{node_id}' - merge it the other way")
+        home = into or node.parent_id
+        children = [n.id for n in self._nodes.values() if n.parent_id == node_id]
+        for child in children:
+            self.reparent(child, home)
+        try:
+            self._conn().execute("DELETE FROM categories WHERE id = ?", (node_id,))
+        except Exception as exc:  # noqa: BLE001
+            log.exception("could not remove %r", node_id)
+            raise ValueError(f"'{node_id}' could not be removed") from exc
+        self._record(node_id, "merged" if into else "removed", into, reason)
+        self.reload()
+        return len(children)
+
+    def owner_rename(self, node_id: str, new: str, reason: str = "") -> Node:
+        """A node under a new phrase: the new one takes its place and its
+        children, and the old phrase reads as the new one. Raises ValueError."""
+        node_id, new = normalise(node_id), normalise(new)
+        node = self._nodes.get(node_id)
+        if node is None:
+            raise ValueError(f"'{node_id}' is not in the tree")
+        if new == node_id:
+            raise ValueError("the new name is the same phrase")
+        if new in self._nodes:
+            raise ValueError(f"'{new}' is already in the tree - merge into it instead")
+        added = self.owner_add(new, node.parent_id, reason)
+        self.owner_remove(node_id, into=new, reason=reason)
+        return self._nodes.get(new, added)
+
+    def owner_undo(self, node_id: str) -> bool:
+        """Forget one owner decision. A removed phrase may be grown again; the
+        tree itself is not changed back."""
+        node_id = normalise(node_id)
+        if node_id not in self._owner:
+            return False
+        self._conn().execute("DELETE FROM category_owner WHERE id = ?", (node_id,))
+        self.reload()
+        return True
 
     # --- the categorisation audit (§209) -----------------------------------
 
@@ -1021,6 +1178,35 @@ def apply_seed(store: "CategoryStore", at: float = 0.0) -> int:
             continue
         if store.mint(phrase, parent_id=parent, source=SOURCE_SEED, at=at):
             added += 1
+    return added + apply_owner(store, at)
+
+
+def apply_owner(store: "CategoryStore", at: float = 0.0) -> int:
+    """The owner's additions and placements (§585), put back where a wipe or
+    a fresh database lost them; removals need nothing, since `mint` refuses
+    them. Idempotent, run after the seed at every boot. Returns nodes added."""
+    decisions = getattr(store, "owner_decisions", None)
+    if decisions is None:
+        return 0
+    added = 0
+    pending = {k: v for k, v in decisions().items() if v[0] in ("added", "placed")}
+    # Parents before children, without knowing the order: a pass that adds
+    # nothing new ends it.
+    for _ in range(len(pending) + 1):
+        progress = False
+        for phrase, (action, parent) in list(pending.items()):
+            if parent and parent not in _facet_slugs() and store.get(parent) is None:
+                continue
+            node = store.get(phrase)
+            if node is None and action == "added":
+                if store.mint(phrase, parent_id=parent, source=SOURCE_OWNER, at=at):
+                    added += 1
+            elif node is not None and node.parent_id != parent:
+                store.reparent(phrase, parent)
+            pending.pop(phrase)
+            progress = True
+        if not progress:
+            break
     return added
 
 
@@ -1549,6 +1735,11 @@ def build_placer_prompt(subjects: list[str], facets: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _owner_placed(store, node_id: str) -> bool:
+    check = getattr(store, "placed_by_owner", None)
+    return bool(check and check(node_id))
+
+
 def apply_paths(store: "CategoryStore", rows: Iterable[dict],
                 now: Optional[float] = None) -> int:
     """Mint the intermediate levels and hang the subjects off them.
@@ -1591,9 +1782,13 @@ def apply_paths(store: "CategoryStore", rows: Iterable[dict],
                 level, parent_id=parent, source=SOURCE_MODEL, at=now)
             if node is None:
                 continue
-            if node.parent_id != parent and node.source == SOURCE_MODEL:
+            if (node.parent_id != parent and node.source == SOURCE_MODEL
+                    and not _owner_placed(store, level)):
                 store.reparent(level, parent)
             parent = level
+        if _owner_placed(store, subject):
+            # The owner put it where it is (§585); a model does not move it.
+            continue
         if store.reparent(subject, parent):
             moved += 1
     return moved
