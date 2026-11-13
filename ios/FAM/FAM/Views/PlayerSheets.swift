@@ -557,10 +557,11 @@ struct QueueSheet: View {
                     }
                     ForEach(Array(now.queue.enumerated()), id: \.element.id) { index, entry in
                         queueRow(entry, place: index + 1)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            // `removeRow`: left 45 % and faded, then folded.
+                            .transition(.rowRemoval)
                     }
                 }
-                .animation(.easeOut(duration: 0.22), value: now.queue)
+                .animation(.rowFold, value: now.queue)
             }
             Button { dismiss() } label: {
                 Text("Close")

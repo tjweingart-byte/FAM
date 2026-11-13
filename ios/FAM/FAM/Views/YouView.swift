@@ -425,6 +425,7 @@ struct YouView: View {
     private func vibeTile(_ v: MyVibe, at index: Int) -> some View {
         PicTile(thumb: v.thumb ?? "", title: v.title ?? v.query, titleLines: nil)
             .contentShape(Rectangle())
+            .tapSqueeze()
             .onTapGesture {
                 model.youPath.append(.vibePosts(VibePostsOpen(handle: "", index: index, fromYou: true)))
             }

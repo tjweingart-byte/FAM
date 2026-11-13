@@ -254,6 +254,7 @@ struct MyFAMView: View {
                 // that must not open the mix as well.
                 ForEach(results) { mix in
                     MixCard(mix: mix, trailing: mix.mine ? .none : .add)
+                        .tapSqueeze()
                         .onTapGesture { path.append(.publicMix(mix.id)) }
                         .accessibilityElement(children: .contain)
                         .accessibilityAddTraits(.isButton)
@@ -537,6 +538,7 @@ struct MixHeader<Trailing: View>: View {
             WebIcon(path: Icons.back, size: 20, line: 2.6).foregroundStyle(FAMColor.text)
                 .frame(width: 36, height: 36)
         }
+        .buttonStyle(.press)
         .accessibilityLabel(backLabel)
     }
 

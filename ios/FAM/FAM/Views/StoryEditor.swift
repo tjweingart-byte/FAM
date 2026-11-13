@@ -1671,7 +1671,7 @@ struct StoryEditor: View {
             .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(name.isEmpty ? "@" + handle : name)
         .accessibilityAddTraits(on ? .isSelected : [])
     }

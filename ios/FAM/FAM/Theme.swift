@@ -663,6 +663,13 @@ enum Icons {
 
 // MARK: - Shared pieces
 
+extension View {
+    /// `.press`'s squeeze on a drawn button style's label.
+    func pressSqueeze(_ pressed: Bool) -> some View {
+        PressedLabel(label: self, pressed: pressed, dims: false)
+    }
+}
+
 /// The copper pill (`Create account`, `Sign up`).
 struct CopperButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -672,6 +679,8 @@ struct CopperButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: 46)
             .background(FAMColor.copper, in: Capsule())
             .opacity(configuration.isPressed ? 0.85 : 1)
+            // Squeezes as every button does (`.press`).
+            .pressSqueeze(configuration.isPressed)
     }
 }
 
@@ -685,5 +694,6 @@ struct OutlineButtonStyle: ButtonStyle {
             .frame(minHeight: 40)
             .overlay(Capsule().stroke(FAMColor.borderStrong))
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .pressSqueeze(configuration.isPressed)
     }
 }

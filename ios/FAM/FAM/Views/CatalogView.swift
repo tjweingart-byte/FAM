@@ -21,6 +21,7 @@ struct CatalogView: View {
                 Button { dismiss() } label: {
                     WebIcon(path: Icons.back, size: 20, line: 2.6).foregroundStyle(FAMColor.text)
                 }
+                .buttonStyle(.press)
                 .accessibilityLabel("Back")
                 Text("Search DailyFAM").font(FAMFont.heading(19, .medium)).foregroundStyle(FAMColor.text)
                 Spacer()

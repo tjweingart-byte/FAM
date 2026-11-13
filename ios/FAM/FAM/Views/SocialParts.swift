@@ -532,8 +532,10 @@ struct FollowerPopup: View {
             }
             .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
             .liftsIn()
+            .dropsOnLeave()
         }
-        .transition(.famDim(reduceMotion: UIAccessibility.isReduceMotionEnabled))
+        // Out over 150 ms, the card dropping 8 pt (`mo-drop`).
+        .transition(.famOverlay(reduceMotion: UIAccessibility.isReduceMotionEnabled))
     }
 }
 

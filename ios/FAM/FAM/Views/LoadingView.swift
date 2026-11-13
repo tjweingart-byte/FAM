@@ -313,6 +313,7 @@ struct LoadingView: View {
                                 in: Circle())
                     .overlay(Circle().stroke(FAMColor.borderStrong))
             }
+            .buttonStyle(.press)
             .padding(.top, 18)
             .padding(.trailing, 18)
             .accessibilityLabel("Cancel this episode")

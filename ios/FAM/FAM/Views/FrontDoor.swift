@@ -112,6 +112,7 @@ struct EntryButtonStyle: ButtonStyle {
             .background(primary ? FAMColor.copper : Color.clear, in: Capsule())
             .overlay(Capsule().stroke(primary ? FAMColor.copper : FAMColor.borderStrong))
             .opacity(configuration.isPressed ? 0.85 : 1)
+            .pressSqueeze(configuration.isPressed)
     }
 }
 
@@ -212,7 +213,8 @@ struct SampleCarousel: View {
         let url = model.api.picture(tile.thumb)
         return ZStack(alignment: .bottomLeading) {
             if let url {
-                Picture(url: url)
+                // `.seed-img`: blurs up when it lands late.
+                Picture(url: url, blurUp: true)
             } else {
                 Rectangle().fill(FAMColor.thumb)
                 SeedThumb(icon: tile.icon)

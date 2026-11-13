@@ -501,8 +501,9 @@ struct PlayerView: View {
             OverlayModal(close: { popup = nil }) {
                 popupContent(which)
             }
-            // In over 200 ms (the card lifting, `OverlayModal`), out over 150.
-            .transition(.famDim(reduceMotion: reduceMotion))
+            // In over 200 ms (the card lifting, `OverlayModal`), out over
+            // 150, the card dropping 8 pt.
+            .transition(.famOverlay(reduceMotion: reduceMotion))
             .zIndex(5)
         }
     }
@@ -616,6 +617,7 @@ struct BareCircleStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(Circle().fill(FAMColor.text.opacity(configuration.isPressed ? 0.08 : 0)))
+            .pressSqueeze(configuration.isPressed)
     }
 }
 
@@ -1071,6 +1073,9 @@ struct MiniPlayer: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.borderStrong))
         .contentShape(Rectangle())
+        // The web's squeeze on the bar's tap (`.press`), let go as soon as
+        // the finger moves away.
+        .tapSqueeze()
         .onTapGesture {
             // The player grows out of this picture (`pictured` finds
             // `#nowThumb` inside the bar).
