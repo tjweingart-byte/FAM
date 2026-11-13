@@ -41,7 +41,7 @@ struct PlayerView: View {
     @State private var friendsOpen = false
     /// How the player comes and goes (`PlayerEntrance`): where its picture
     /// is, and whether a copy flying to or from it covers it now.
-    @EnvironmentObject private var stage: PlayerStage
+    @EnvironmentObject private var playerStage: PlayerStage
     @Environment(\.playerPictureHidden) private var pictureHidden
 
     var body: some View {
@@ -209,8 +209,8 @@ struct PlayerView: View {
                     .background(GeometryReader { pic in
                         let frame = pic.frame(in: .global)
                         Color.clear
-                            .onAppear { stage.pictureFrame = frame }
-                            .onChange(of: frame) { _, now in stage.pictureFrame = now }
+                            .onAppear { playerStage.pictureFrame = frame }
+                            .onChange(of: frame) { _, now in playerStage.pictureFrame = now }
                     })
                     .opacity(pictureHidden ? 0 : 1)
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
