@@ -35235,5 +35235,13 @@ set from `AppLinks.swift`, and two `opacity(1 - 0.45 * x)` with a CGFloat
 `x` were ambiguous - both already on Main, so build 6 would not have
 compiled even with its redeclaration fixed.
 
+A third, from the motion work: a generic `PressedLabel` cannot hold a
+static stored property. With those fixed the iOS build is green on this
+branch (run 43350266249) - the first build of the app on a compiler since
+§538. PARITY.md's "Done, unbuilt" rows (Play all, the friends pill, vibe
+posts, the background refresh) now say they compile; none has run on a
+phone. What the compiler cannot say - that the shared screen, the ribbon's
+window or the new squeezes behave on a device - is unverified.
+
 `CURRENT_PROJECT_VERSION` is 7. Tests: five `..._575` tests in
 `tests/test_ios_app_contract.py`.
