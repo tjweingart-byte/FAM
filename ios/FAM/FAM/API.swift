@@ -1197,6 +1197,17 @@ struct ServerHealth: Decodable {
         if credentials?.state == "rejected" { return "The server's API key was rejected\u{2026}" }
         return ""
     }
+
+    /// The web's `env-ribbon`: "Staging" or "Zero spend", then the client
+    /// (always named here: this is never `web/live`); "" for any other server.
+    func ribbon(client: String) -> String {
+        guard environment?.name == "staging" || environment?.zeroSpend == true else { return "" }
+        return (environment?.name == "staging" ? "Staging" : "Zero spend") + " \u{00B7} " + client
+    }
+
+    /// `body.demo-mode`: the sample script stands in (`mode == "demo"`), or
+    /// the key was rejected.
+    var demoMode: Bool { mode == "demo" || credentials?.state == "rejected" }
 }
 
 struct ServerHealthEnvironment: Decodable {
@@ -1351,6 +1362,8 @@ struct SavedState: Decodable { let saved: Bool }
 /// `POST /api/share`: the link, and per-target wording.
 struct SharedLink: Decodable {
     let url: String
+    /// Keyed as the server keys them (`instagram_story`, `snapchat_story`),
+    /// whatever the decoder's key strategy did to a dictionary's keys.
     let targets: [String: ShareTarget]?
     /// The story card (`/api/share/card?share=`), absolute where the server
     /// knows its own address, else a path on it.
@@ -1358,6 +1371,16 @@ struct SharedLink: Decodable {
     /// False when the server has no public address: the link only works
     /// on its own network.
     let `public`: Bool?
+
+    enum CodingKeys: String, CodingKey { case url, targets, card, `public` }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        url = try c.decode(String.self, forKey: .url)
+        targets = ShareTarget.serverKeyed(try c.decodeIfPresent([String: ShareTarget].self, forKey: .targets))
+        card = try c.decodeIfPresent(String.self, forKey: .card)
+        `public` = try c.decodeIfPresent(Bool.self, forKey: .`public`)
+    }
 }
 
 /// One destination (`sharing._rendered`): its label, the words, and where
@@ -1374,6 +1397,32 @@ struct ShareTarget: Decodable {
     /// on a story destination when the server has the platform's id; nil
     /// keeps iOS's share sheet.
     let handoff: StoryHandoff?
+
+    /// The targets keyed as the server sends them. `.convertFromSnakeCase`
+    /// may turn a dictionary's `instagram_story` into `instagramStory`
+    /// (Foundation's behaviour has differed between releases), which
+    /// `ShareTargetRows.order`, its glyphs and the story hand-off would miss:
+    /// every key goes back to snake_case, so it holds either way.
+    static func serverKeyed(_ targets: [String: ShareTarget]?) -> [String: ShareTarget]? {
+        guard let targets else { return nil }
+        var out: [String: ShareTarget] = [:]
+        for (key, value) in targets { out[snakeKey(key)] = value }
+        return out
+    }
+
+    /// `instagramStory` -> `instagram_story`; `instagram_story`, `sms` as they are.
+    static func snakeKey(_ key: String) -> String {
+        var out = ""
+        for ch in key {
+            if ch.isUppercase {
+                if !out.isEmpty { out.append("_") }
+                out.append(contentsOf: ch.lowercased())
+            } else {
+                out.append(ch)
+            }
+        }
+        return out
+    }
 }
 
 /// A story destination's native hand-off: the card goes on the pasteboard
@@ -1785,7 +1834,7 @@ struct Mix: Decodable, Identifiable, Equatable {
         id = try c.decode(String.self, forKey: .id)
         name = (try? c.decode(String.self, forKey: .name)) ?? ""
         items = (try? c.decode([MixItem].self, forKey: .items)) ?? []
-        `public` = (try? c.decode(Bool.self, forKey: .public)) ?? false
+        `public` = (try? c.decode(Bool.self, forKey: .`public`)) ?? false
         cover = (try? c.decode(String.self, forKey: .cover)) ?? ""
         sourceId = (try? c.decode(String.self, forKey: .sourceId)) ?? ""
         listenAt = (try? c.decode(String.self, forKey: .listenAt)) ?? ""
@@ -1981,9 +2030,20 @@ struct MixInvite: Decodable {
 struct MixShare: Decodable {
     let url: String
     let `public`: Bool
+    /// Keyed as the server keys them (`ShareTarget.serverKeyed`).
     let targets: [String: ShareTarget]?
     /// The mix's story card (`/api/mixes/{id}/card`).
     let card: String?
+
+    enum CodingKeys: String, CodingKey { case url, `public`, targets, card }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        url = try c.decode(String.self, forKey: .url)
+        `public` = try c.decode(Bool.self, forKey: .`public`)
+        targets = ShareTarget.serverKeyed(try c.decodeIfPresent([String: ShareTarget].self, forKey: .targets))
+        card = try c.decodeIfPresent(String.self, forKey: .card)
+    }
 }
 
 struct PushStatus: Decodable {

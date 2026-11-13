@@ -120,6 +120,12 @@ final class AppModel: ObservableObject {
     /// (`welcomePlaying`): its question, "" when none; and the line under it.
     @Published private(set) var sampleQuery = ""
     @Published private(set) var sampleNote = ""
+    /// A staging or zero-spend server says so on every screen (`.env-ribbon`,
+    /// §172): "Staging · ios/1.0+7"; "" for any other server.
+    @Published private(set) var envRibbon = ""
+    /// The server has no working key (`body.demo-mode`): the player's
+    /// "not your episode" badge shows.
+    @Published private(set) var demoMode = false
     /// A shared episode (`/s/<id>`) opened by somebody not let in yet - signed
     /// out or on the waitlist: the listen page's own screen
     /// (`static/listen.html`) over the front door or the status page (§575).
@@ -590,6 +596,10 @@ final class AppModel: ObservableObject {
     private func loadHealthNote() async {
         guard let health = try? await api.health() else { return }
         loading.note = health.loadingNote
+        // The staging ribbon on every screen and the player's "not your
+        // episode" badge (`.env-ribbon`, `body.demo-mode`), as the web's.
+        envRibbon = health.ribbon(client: FAMAPI.client)
+        demoMode = health.demoMode
     }
 
     /// The loading screen gave up (§497): the audio stops and the episode

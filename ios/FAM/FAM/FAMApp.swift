@@ -123,6 +123,8 @@ struct RootView: View {
             // A link held since a cold start, once the server has said who
             // this is; let in, the shared screen gives way to the app.
             .onChange(of: model.stage) { _, _ in model.stageSettled() }
+            // A staging server's ribbon over every screen (`.env-ribbon`).
+            .onChange(of: model.envRibbon) { _, words in EnvRibbonWindow.show(words) }
             .onChange(of: model.entry) { _, step in
                 if model.stage == .waiting && step == .interests { model.entry = nil }
             }

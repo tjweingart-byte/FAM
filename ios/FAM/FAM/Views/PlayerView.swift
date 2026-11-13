@@ -166,6 +166,7 @@ struct PlayerView: View {
                     .foregroundStyle(FAMColor.text)
                     .frame(width: 44, height: 44)
             }
+            .buttonStyle(.press)
             .accessibilityLabel("Minimise the player")
             Spacer(minLength: 0)
             Button { openGoDeeper() } label: {
@@ -184,6 +185,7 @@ struct PlayerView: View {
                     .foregroundStyle(FAMColor.text)
                     .frame(width: 44, height: 44)
             }
+            .buttonStyle(.press)
             .accessibilityLabel("More options")
         }
         .padding(.horizontal, 12)
@@ -222,6 +224,13 @@ struct PlayerView: View {
                         .padding(.top, friendsTop(stage: geo.size.height, picture: wide * 3 / 4))
                         .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
                         .transition(.opacity)
+                }
+                // `.p-demo`: 6 pt from the stage's top, centred, on a server
+                // with no working key (`body.demo-mode`).
+                if model.demoMode {
+                    DemoBadge()
+                        .padding(.top, 6)
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                 }
                 if now.captionsOn {
                     CaptionsCard()
