@@ -591,3 +591,131 @@ def test_mix_rows_show_todays_episode_title_570():
     assert 'item.title + (who.isEmpty ? "" : " \\u{00B7} " + who)' in view
     model = (SWIFT / "AppModel.swift").read_text()
     assert "!item.episodeTitle.isEmpty ? item.episodeTitle" in model
+
+
+# --- Build 7 (§575) ---------------------------------------------------------
+
+def _swift(*parts: str) -> str:
+    return (SWIFT.joinpath(*parts)).read_text()
+
+
+def _listen_page() -> str:
+    return (ROOT / "static" / "listen.html").read_text()
+
+
+def test_a_shared_episode_plays_before_the_app_is_open_575(monkeypatch):
+    """A `/s/` link opened by somebody signed out or on the waitlist plays on
+    the listen page's own screen, not held until they are let in; its words
+    are the page's, and its audio is the request the gate lets through."""
+    links = _swift("AppLinks.swift")
+    assert "if stage == .signedOut || stage == .waiting, case .episode = link {" in links
+    assert "openSharedListenIfHeld()" in links
+    assert "api.sharedEpisode(id)" in links and "api.shareOpened(id)" in links
+    # Exactly the shared length (1.5 stays 1.5), the share surface, nothing else.
+    assert ('api.audio(query: share.question, minutes: share.minutes, surface: "share")'
+            in links)
+    root = _swift("FAMApp.swift")
+    assert "SharedListenLayer()" in root and "model.stageSettled()" in root
+    assert "model.askSignUp" in _swift("Views", "FrontDoor.swift")
+    view = _swift("Views", "SharedListenView.swift")
+    page = _listen_page()
+    for words in ["Shared with you", "A FAM episode", "Nothing to play",
+                  "This link has expired", " min listen", "Want to hear more?",
+                  "This is one episode. FAM makes them about anything you ask.",
+                  "Ask your own question", "Browse episodes",
+                  "FAM makes an episode about anything you ask.",
+                  "Ask FAM anything of your own and it will make you an episode."]:
+        assert words in page, words
+        assert words in view, words
+    assert "Be a part of the conversation with FAM &rarr;" in page
+    assert "Be a part of the conversation with FAM \\u{2192}" in view
+    for words in ["Starting the episode", "That", "s the episode.",
+                  "That episode could not be played just now."]:
+        assert words in page and words in links, words
+    assert "FAMAPI.minutes(share.minutes)" in view
+    # The request the app builds for that tap passes the waitlist's gate.
+    body = re.search(r"func audio\(query.*?\n    \}", _api(), re.S).group(0)
+    assert 'URLQueryItem(name: "fmt", value: "opus")' in body
+    monkeypatch.setattr(appmod.SHARES, "is_shared",
+                        lambda q, minutes: q == "why is the sky blue" and minutes == "1.5")
+    values = {"q": "why is the sky blue", "minutes": "1.5", "fmt": "opus",
+              "link": "1", "surface": "share"}
+    request = Request({"type": "http", "method": "GET", "path": "/api/audio",
+                       "query_string": urlencode(values).encode(), "headers": []})
+    assert appmod._shared_episode_request(request)
+    # Swift's `FAMAPI.minutes(1.5)` is "1.5", never "1".
+    assert "value == value.rounded() ? String(Int(value)) : String(value)" in _api()
+    read = Request({"type": "http", "method": "GET", "path": "/api/share/abc123",
+                    "query_string": b"", "headers": []})
+    assert appmod._shared_episode_request(read)
+
+
+def test_settings_password_note_is_the_webs_575():
+    """Settings' note under the account rows is `passwordSettingsNote()`:
+    it depends on `has_password` and on `/api/auth/reset`'s `available`."""
+    web = (ROOT / "static" / "index.html").read_text()
+    settings = _swift("Views", "SettingsView.swift")
+    for words in ["Set a password so you can sign back in on any device",
+                  "; password reset isn\\u2019t available yet. ",
+                  "Password reset isn\\u2019t available yet, so keep your password somewhere safe. "]:
+        assert words in web, words
+        assert words.replace("\\u2019", "\\u{2019}") in settings, words
+    assert "resetReady = (try? await model.api.resetStatus())?.available ?? false" in settings
+    assert "passwordNote(hasPassword: you.account?.hasPassword, resetReady: resetReady)" in settings
+    assert 'fetch("/api/auth/reset")' in web
+
+
+def test_share_targets_are_keyed_as_the_server_keys_them_575():
+    """`.convertFromSnakeCase` may rewrite a dictionary's keys; the share
+    targets are put back to the server's snake_case wherever they are read,
+    so `instagram_story` / `snapchat_story` reach the sheet's order and
+    hand-off either way."""
+    import sharing
+    api = _api()
+    assert "static func serverKeyed(" in api and "static func snakeKey(" in api
+    assert api.count("targets = ShareTarget.serverKeyed(") == 2
+    social = _swift("Views", "SocialShare.swift")
+    for key in ("instagram_story", "snapchat_story"):
+        assert key in inspect.getsource(sharing)
+        assert f'"{key}"' in social
+
+    def snake(key: str) -> str:  # SnakeKey, as written in Swift
+        return re.sub(r"(?<!^)([A-Z])", r"_\1", key).lower()
+
+    assert snake("instagramStory") == "instagram_story"
+    assert snake("instagram_story") == "instagram_story"
+    assert snake("sms") == "sms"
+
+
+def test_staging_ribbon_and_demo_badge_575():
+    """A staging or zero-spend server's ribbon on every screen and the
+    player's "not your episode" badge on a server with no working key."""
+    web = (ROOT / "static" / "index.html").read_text()
+    assert '(env.name === "staging" ? "Staging" : "Zero spend")' in web
+    assert ">not your episode</span>" in web
+    api = _api()
+    assert '(environment?.name == "staging" ? "Staging" : "Zero spend") + " \\u{00B7} " + client' in api
+    assert 'var demoMode: Bool { mode == "demo" || credentials?.state == "rejected" }' in api
+    model = _swift("AppModel.swift")
+    assert "envRibbon = health.ribbon(client: FAMAPI.client)" in model
+    assert "demoMode = health.demoMode" in model
+    ribbon = _swift("Views", "EnvRibbon.swift")
+    assert 'Text("not your episode")' in ribbon
+    assert "EnvRibbonWindow.show(words)" in _swift("FAMApp.swift")
+    assert "if model.demoMode {" in _swift("Views", "PlayerView.swift")
+    health = TestClient(appmod.app).get("/api/v1/health").json()
+    assert "mode" in health and "environment" in health
+
+
+def test_an_empty_search_plays_the_demo_like_the_web_575():
+    """Return in an empty box: the web's `generate("spacex")`, its title as
+    the question, at the search page's Length, on searchFAM."""
+    web = (ROOT / "static" / "index.html").read_text()
+    assert 'if(!typed){ sendSearch("", ""); return; }' in web
+    assert 'generate("spacex");' in web
+    assert "spacex:{title:\"SpaceX Starship: This Week's Test Flight\"" in web
+    model = _swift("AppModel.swift")
+    assert "static let demoQuestion = \"SpaceX Starship: This Week's Test Flight\"" in model
+    assert "EpisodeKey(query: Self.demoQuestion, minutes: minutes)" in model
+    search = _swift("Views", "SearchView.swift")
+    assert "guard !typed.isEmpty || !attach.isEmpty else { return }" not in search

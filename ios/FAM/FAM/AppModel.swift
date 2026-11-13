@@ -145,6 +145,9 @@ final class AppModel: ObservableObject {
     static let referralKey = "fam.referral"
     /// This phone finished the first run (`fam.prefs` `entry: "done"`).
     static let entryKey = "fam.entryDone"
+    /// The web's demo episode (`TOPICS.spacex`), played by Return in an
+    /// empty search box: its title is its question.
+    static let demoQuestion = "SpaceX Starship: This Week's Test Flight"
     /// The account on this phone was last let in (`stage == .ready`): the
     /// next open draws the app at once, the remembered page on it, while
     /// `/api/auth/me` is asked behind it (§546, a faster start).
@@ -1491,9 +1494,14 @@ final class AppModel: ObservableObject {
         var question = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let typed = !question.isEmpty
         if !typed && !attach.isEmpty { question = AttachModel.summarise }
-        // Nothing typed and nothing attached sends nothing (the web plays
-        // its demo episode here; quirk 1 not copied).
-        guard !question.isEmpty else { return false }
+        // Nothing typed and nothing attached: the web's demo episode
+        // (`generate("spacex")`), its curated title, at the search's Length.
+        guard !question.isEmpty else {
+            play(Episode(key: EpisodeKey(query: Self.demoQuestion, minutes: minutes),
+                         title: Self.demoQuestion, surface: "search",
+                         picture: nil, titleOverridden: true))
+            return true
+        }
         let shown: String
         if !typed && !attach.isEmpty {
             shown = attachments.firstName
