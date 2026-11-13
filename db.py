@@ -60,6 +60,7 @@ import socket
 import sqlite3
 import threading
 import time
+import weakref
 from functools import lru_cache
 from typing import Optional
 from urllib.parse import unquote, urlparse
@@ -75,6 +76,13 @@ _FLOAT_MINUTES: set = set()
 _CREATE_TABLE = re.compile(r"\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)", re.I)
 #: Schemas this process has created (or found), so CREATE SCHEMA runs once.
 _SCHEMAS: set = set()
+#: schema -> the directory of the store file it was opened for, so the test
+#: suite can drop what one test made (`drop_schemas_under`, §604).
+_DIRS: dict = {}
+#: Every `Connection` still reachable, so a schema something can still use is
+#: never dropped (`drop_schemas_under`).
+_LIVE: "weakref.WeakSet" = weakref.WeakSet()
+_LIVE_LOCK = threading.Lock()
 #: Idle connections kept open beyond this many are closed.
 IDLE_KEPT = 8
 #: How often the pool looks for connections idle past `idle_seconds()` (§574).
@@ -460,6 +468,9 @@ class _Slot:
         #: background share, while it is out of the pool.
         self.owner: Optional[int] = None
         self.background = False
+        #: `close_all` ran while it was out: closed when it comes back,
+        #: never under the thread still using it.
+        self.retired = False
 
 
 class _Pool:
@@ -567,7 +578,7 @@ class _Pool:
         from psycopg.pq import TransactionStatus
 
         try:
-            if slot.pg.closed:
+            if slot.pg.closed or slot.retired:
                 return self.discard(slot)
             if slot.pg.info.transaction_status != TransactionStatus.IDLE:
                 slot.pg.execute("ROLLBACK")
@@ -578,13 +589,17 @@ class _Pool:
             self._background.discard(slot)
             slot.owner, slot.background = None, False
             slot.last_used = time.monotonic()
-            self._idle.append(slot)
+            if slot.retired:  # `close_all` ran since the look above
+                surplus.append(slot)
+            else:
+                self._idle.append(slot)
             if len(self._idle) > IDLE_KEPT:
                 surplus.append(self._idle.pop(0))
             surplus += self._stale_locked(slot.last_used)
             for old in surplus:
-                self._count -= 1
-                self._all.discard(old)
+                if old in self._all:
+                    self._all.discard(old)
+                    self._count -= 1
             self._cond.notify_all()
         _close(surplus)
 
@@ -646,18 +661,21 @@ class _Pool:
             self._cond.notify_all()
 
     def close_all(self) -> int:
+        """Close the idle connections now and every lent one as it comes
+        back (§604): closing a connection another thread is mid-statement on
+        failed that statement ("got no result from the query"), and zeroing
+        the counts while slots were out let the pool's books drift."""
         with self._cond:
-            slots, self._idle = list(self._all), []
-            self._all.clear()
-            self._background.clear()
-            self._count = 0
+            idle, self._idle = self._idle, []
+            for slot in idle:
+                self._all.discard(slot)
+                self._count -= 1
+            lent = list(self._all)
+            for slot in lent:
+                slot.retired = True
             self._cond.notify_all()
-        for slot in slots:
-            try:
-                slot.pg.close()
-            except Exception:  # noqa: BLE001
-                pass
-        return len(slots)
+        _close(idle)
+        return len(idle) + len(lent)
 
     def stats(self) -> dict:
         with self._cond:
@@ -713,6 +731,8 @@ class Connection:
 
     def __init__(self, schema: str, implicit: bool = False):
         self.schema = schema
+        with _LIVE_LOCK:
+            _LIVE.add(self)
         self.row_factory = None  # rows answer by index and by name already
         # sqlite3's default isolation: a write opens a transaction that stays
         # open until commit. `isolation_level=None` (most stores) is autocommit.
@@ -983,15 +1003,77 @@ def connect(path, *args, **kwargs):
     # sqlite3's default isolation_level is "" (implicit transactions); the
     # stores that pass None asked for autocommit.
     isolation = kwargs.get("isolation_level", args[1] if len(args) > 1 else "")
-    return Connection(schema_for(path), implicit=isolation is not None)
+    schema = schema_for(path)
+    _DIRS.setdefault(schema, os.path.dirname(os.path.abspath(path)))
+    return Connection(schema, implicit=isolation is not None)
 
 
 def close_all() -> int:
-    """Close every Postgres connection this process holds.
+    """Close every Postgres connection this process holds: the idle ones
+    now, and each one a thread still holds when it gives it back (§604).
 
-    `tests/conftest.py` calls this after each test: a run makes stores in new
-    directories thousands of times. Returns how many were closed."""
+    `tests/conftest.py` calls this after each test. Returns how many were
+    closed or will be."""
     return _POOL.close_all()
+
+
+def drop_schemas_under(directory: str) -> int:
+    """Drop the schemas of every store opened under `directory`, and forget
+    what this process remembered about them. How many were dropped.
+
+    For the test suite (§604): each test makes its stores in a directory of
+    its own, about fifteen schemas a test, and a run of seven thousand tests
+    left a hundred thousand of them - so everything that walks the catalogue
+    (the health check's sizes, `pg_database_size`) got slower test by test.
+    A schema a live `Connection` still names is kept: something can still
+    use it. Never raises: one a straggling thread locks is left behind."""
+    if not enabled():
+        return 0
+    import psycopg
+
+    root = os.path.abspath(str(directory))
+    with _LIVE_LOCK:
+        # A store something still holds - a module reloaded inside a test
+        # keeps its stores for the rest of the run - keeps its schema.
+        held = {conn.schema for conn in list(_LIVE)}
+    names = sorted(s for s, d in list(_DIRS.items())
+                   if (d == root or d.startswith(root + os.sep)) and s not in held)
+    if not names:
+        return 0
+    dropped = 0
+    try:
+        slot = _POOL.acquire(None)
+    except (sqlite3.Error, psycopg.Error, DatabaseRefused):
+        return 0
+    try:
+        # Briefly: a lock held past this is a thread the test left running.
+        slot.pg.execute("SET lock_timeout = '2s'")
+        for name in names:
+            try:
+                slot.pg.execute(f'DROP SCHEMA IF EXISTS "{name}" CASCADE')
+                dropped += 1
+            except psycopg.Error as exc:
+                log.warning("left schema %s: %s", name, exc)
+                continue
+            _forget_schema(name)
+        slot.pg.execute(f"SET lock_timeout = '{LOCK_TIMEOUT}'")
+        slot.schema = None
+    except psycopg.Error:
+        pass  # the pool throws a broken connection away on release
+    finally:
+        _POOL.release(slot)
+    return dropped
+
+
+def _forget_schema(name: str) -> None:
+    _DIRS.pop(name, None)
+    _SCHEMAS.discard(name)
+    _CREATED.discard(name)
+    for memo in (_KEYS, _IDENTITY):
+        for key in [k for k in memo if k[0] == name]:
+            memo.pop(key, None)
+    for key in [k for k in _FLOAT_MINUTES if k[0] == name]:
+        _FLOAT_MINUTES.discard(key)
 
 
 def has_tables(path: str) -> bool:
