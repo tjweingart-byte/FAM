@@ -426,8 +426,8 @@ Accounts, tiers, sharing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
-- **Tiers built, off for now** (`ENFORCE_QUOTAS=0`, §519; `1`
-  restores §207); admins `unlimited`; no checkout. [tiers-off]
+- **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited`; no
+  checkout [tiers-off]; 5 invites: free month [free-month]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every

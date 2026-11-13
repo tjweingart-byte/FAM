@@ -35205,6 +35205,128 @@ on Postgres 16.
 **Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
 two against a real Postgres, run here on a local 16).
 
+## 575. Shared links: the picture and the audio behind the waitlist, Message between friends, and a Mac build in CI (2026-11-13)
+
+**The report.** The owner, with an iMessage screenshot: a shared FAM link
+showed its title, "familiarize.net" and FAM's icon - no picture - after
+§559 had made the preview a picture. Then: "The waitlist should allow people
+to see the full shared episode, and on that is a link to the waitlist."
+
+**Why there was no picture.** With `WAITLIST=1` (production) the gate
+refused everything under `/api/` that it does not list, and the share
+page's `og:image` (`/api/share/{id}/preview.jpg`) and story card
+(`/api/share/card`) were not listed. Messages' link fetcher has no account,
+so it got a 403 and drew the `apple-touch-icon`. §559's tests ran with the
+waitlist off. `_shared_episode_request` now lets both pictures through
+(GET/HEAD only; each is a 404 for an id that is not a share).
+
+**Why the shared episode did not play.** `ShareStore.is_shared` compared
+`max(1, int(stored))` with the request's length - `int`, missed by §332's
+half-minute change - so a 1.5-minute share (every DailyFAM and myFAM
+episode) was 1 and never matched its own audio. Everybody the link was sent
+to who was not an active member got a page that would not play. It is
+`as_minutes` now. `GET /api/share/{id}` also passes the gate, so the app can
+play a `/s/` link for somebody signed out or waitlisted (the app's screen
+for it is build 7, §576).
+
+**Message only between friends, on the web too.** The social audit found
+the web drew Message on any profile, and opened a chat from a face with no
+handle, though the server refuses a one-to-one send to anybody who is not a
+mutual follow (§520); the app already followed the rule. The owner: "Change
+the web to match the app." The profile's Message, `openCircleFace` and New
+message's label ("Pick one or more friends") now do.
+
+**A Mac build in CI.** Build 6 failed in Xcode ("Invalid redeclaration of
+'stage'", §572) after every check here passed: nothing in this repository
+compiled Swift. `.github/workflows/ios.yml` runs `xcodegen` and an unsigned
+Release device build of the FAM scheme on `macos-15` for every push or PR
+touching `ios/`. It is not yet a required check - that is the owner's
+branch-protection setting.
+
+**The audit behind it.** Seven read-only audits of the app against the web
+and server (animations, sharing and links, the API contract, compile risks,
+account screens, listening screens, social), in the session's scratchpad
+as `audit3-*.md`. Their fixes are build 7 (§576).
+
+**Tests:** `tests/test_waitlist.py` (`..._previews_behind_the_waitlist_575`,
+`..._one_and_a_half_minutes_575`, both run with the waitlist on, both fail
+without the fix); `tests/test_message_friends_575.py`.
+
+## 576. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13)
+
+**What was asked.** The owner: "These still sound choppy to me. Is there a
+chance that the dashes in the pronunciations are making their way into the
+scripts and making the audio-player pause on the dashes".
+
+**Yes, twice over.** Traced to what Chatterbox is actually given (its own
+clean-up, `punc_norm` in chatterbox-tts 0.1.7, runs inside every `generate`,
+and `chatterbox_speed` calls the same function):
+
+- **Every respelled name.** `pronunciation.voiced` handed the voice
+  "Sah-gah-poh-loo-teh-leh": six pieces glued by hyphens, a shape the model
+  almost never saw in the text it learned from. Now each word's syllables run
+  together ("Sahgahpohlootehleh"), except where joining two syllables would
+  make a new sound (`_DIGRAPHS`: "mat-hew" stays, not "mathew"). Captions,
+  titles and the lexicon keep the hyphenated respelling; only the voice's
+  text changes.
+- **Every dash in a script.** `punc_norm` softens " - " into a comma and
+  *then* turns "—" and "–" into "-", so "The Eagles won—again—on Sunday"
+  reached the model as "won-again-on Sunday" (three words as one) and
+  "won – again" as "won - again". Writers use em dashes constantly.
+  `spoken_text._dashes`, the last step of `speakable`, makes a dash used as
+  punctuation (an em dash, or any dash with spaces round it) a comma, and an
+  unspaced en dash between words ("Paris–Roubaix") a space. Hyphenated words
+  ("well-known", "forty-niners") and number ranges (already words by then)
+  are untouched.
+
+Checked against the real `punc_norm`: "Sagapolutele threw—twice—for NVIDIA –
+of all teams." went to the model as "Sagapolutele threw-twice-for NVIDIA - of
+all teams." and now goes as "Sahgahpohlootehleh threw, twice, for Envidia, of
+all teams." `tests/test_dashes_576.py`; ten older tests updated to the
+unhyphenated voice text. Unheard: no voice here.
+
+## 577. Five friends earn a free month (2026-11-13)
+
+**Asked:** the waitlist page should incentivise sharing more clearly: "Share
+the waitlist to five friends to earn a free month!" Then: build the reward;
+"it'll be a free month when the whole app is live."
+
+**Decided with the owner:** a friend counts when they join through the link
+(the same `referred_by` invites that order the line - nobody can use the app
+while waitlisted, so counting only friends who play would mean nobody earns
+it before launch). Earning it is recorded now and becomes a month of "plus"
+from launch day; there is still no checkout, so nothing is billed.
+
+**Built:**
+- `waitlist.FREE_MONTH_INVITES` (5) and `FREE_MONTH_SECONDS` (30 days).
+  `Waitlist.join` calls `credit_free_month(referrer)`, which stamps
+  `accounts.free_month_earned_at` once at five. Stamped, never re-derived:
+  a friend deleting their account drops the count to four and the month
+  stays (the "an eviction that forgets is a creation" lesson). Accounts
+  already at five are stamped at start-up (`_credit_everyone`).
+- The launch day is an admin setting, `waitlist_settings.free_month_starts`,
+  set from `/admin/waitlist` ("App goes live (free months start)",
+  `POST /api/admin/waitlist/free-month`). The admin page counts months
+  earned and marks each row.
+- `AccountStore._with_free_month` raises an earned account's plan to "plus"
+  from launch for 30 days, in `listener_for` and `account()`; never lowers
+  one. The launch day is read with the session, cached for a minute per
+  process (dropped at once in the process that sets it).
+- `/api/waitlist/me` carries `free_month` {needed, invites, remaining,
+  earned, starts, ends}; the share card draws five dots and "2 of 5 friends
+  joined. 3 more for a free month." / "Free month earned. It starts the day
+  FAM opens to everyone." / the dates once launch is set.
+- The iOS waitlist page draws the same (`WaitlistFreeMonthProgress` in
+  `FrontDoor.swift`, `WaitlistFreeMonth` in `API.swift`): five bars and the
+  web's sentences word for word. Not compiled here (no Swift toolchain in
+  the container); the next Xcode build is the check.
+
+**While `ENFORCE_QUOTAS=0`** every tier is unlimited, so the month changes
+nothing a listener can notice until the tiers are on - which is the point:
+it is a promise kept at launch.
+
+**Tests:** `tests/test_free_month.py`.
+
 ## 578. Communities to reach replace FAM on X (2026-11-13)
 
 **What was asked.** The owner: an agent on the admin page that looks across

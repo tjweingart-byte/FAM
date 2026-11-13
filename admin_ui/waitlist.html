@@ -74,6 +74,13 @@
         <button id="grantPicked" type="button" disabled>Let in selected (0)</button>
         <span id="actionNote"></span>
       </div>
+      <!-- The free month (§577): five friends earn it; it starts for everyone
+           on the day the whole app goes live, set here. -->
+      <div class="row" style="margin-top:10px">
+        <label>App goes live (free months start) <input id="freeMonthStarts" type="date"></label>
+        <button id="saveFreeMonth" type="button">Set date</button>
+        <span class="sub" id="freeMonthLine"></span>
+      </div>
     </div>
 
     <div class="card">
@@ -86,7 +93,7 @@
           <thead><tr>
             <th class="pick"><input id="pickAll" type="checkbox" title="Select everyone shown" aria-label="Select everyone shown"></th>
             <th data-k="place" class="sorted asc">Place</th><th data-k="name">Name</th><th data-k="handle">Handle</th>
-            <th data-k="email">Email</th><th data-k="invites">Invites</th><th data-k="profile_complete">Profile</th>
+            <th data-k="email">Email</th><th data-k="invites">Invites</th><th data-k="free_month">Free month</th><th data-k="profile_complete">Profile</th>
             <th data-k="joined">Joined</th><th></th>
           </tr></thead>
           <tbody id="rows"></tbody>
@@ -130,6 +137,7 @@
     $("gateLine").className = DATA.gate ? "sub" : "sub gate-off";
     var stats = [["Waitlisted", n(s.waitlisted)], ["Active", n(s.active)], ["Signups today", n(s.signups_today)],
                  ["Profile complete", s.profile_complete_pct + "%"],
+                 ["Free months earned", n(DATA.free_month.earned)],
                  ["Top inviters", s.top_inviters.length ? s.top_inviters.map(function (t) {
                    return esc(t.handle ? "@" + t.handle : t.email) + " (" + t.invites + ")"; }).join("<br>") : "—"]];
     $("stats").innerHTML = stats.map(function (x) {
@@ -143,6 +151,12 @@
     $("vendor").hidden = !vendorLines.length;
     $("vendor").innerHTML = vendorLines.join("<br>");
     if (document.activeElement !== $("cutoff")) $("cutoff").value = DATA.cutoff;
+    var fm = DATA.free_month;
+    if (document.activeElement !== $("freeMonthStarts"))
+      $("freeMonthStarts").value = fm.starts ? new Date(fm.starts * 1000).toISOString().slice(0, 10) : "";
+    $("freeMonthLine").textContent = fm.starts
+      ? "Earned months run " + new Date(fm.starts * 1000).toLocaleDateString() + " for 30 days."
+      : "Not set: earned months wait for launch.";
 
     var q = $("search").value.trim().toLowerCase().replace(/^@/, "");
     var rows = DATA.rows.filter(function (r) {
@@ -160,6 +174,7 @@
       return "<tr" + (on ? ' class="picked"' : "") + '><td class="pick"><input type="checkbox" data-pick="' + esc(r.user_id) + '"'
         + (on ? " checked" : "") + ' aria-label="Select ' + esc(r.email || r.name) + '"></td><td class=num>' + n(r.place) + "</td><td>" + esc(r.name) + "</td><td>" + (r.handle ? "@" + esc(r.handle) : "") + "</td>"
         + "<td>" + esc(r.email) + "</td><td class=num>" + n(r.invites) + "</td>"
+        + "<td>" + (r.free_month ? "Earned" : "") + "</td>"
         + "<td class=" + (r.profile_complete ? "yes>Yes" : "no>No") + "</td><td>" + day(r.joined) + "</td>"
         + '<td><button class="ghost" data-grant="' + esc(r.user_id) + '" type="button">Grant</button></td></tr>';
     }).join("");
@@ -253,6 +268,14 @@
     if (!(v >= 0)) { note("The cutoff is a number of places.", true); return; }
     api("/api/admin/waitlist/cutoff", { cutoff: v })
       .then(function (d) { note("Cutoff set to " + n(d.cutoff) + "."); return load(); })
+      .catch(function (e) { note(e.message, true); });
+  });
+  $("saveFreeMonth").addEventListener("click", function () {
+    var v = $("freeMonthStarts").value;
+    // Midnight UTC on the chosen day; an empty field puts it back to "not yet".
+    var starts = v ? Date.parse(v + "T00:00:00Z") / 1000 : 0;
+    api("/api/admin/waitlist/free-month", { starts: starts })
+      .then(function (d) { note(d.starts ? "Free months start " + v + "." : "Free month launch date cleared."); return load(); })
       .catch(function (e) { note(e.message, true); });
   });
 })();
