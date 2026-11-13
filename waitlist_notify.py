@@ -49,7 +49,7 @@ def _when(starts: float) -> str:
 def email_body(name: str, link: str, home: str, starts: float,
                can_sign_in: bool = True) -> str:
     """The let-in email. An account that joined with the email alone has
-    no password (§604), so its link is the way in: it signs them in, the
+    no password (§606), so its link is the way in: it signs them in, the
     app's first step is setting one, and it claims the month as well."""
     hello = f"Hi {name}," if name else "Hi,"
     if not can_sign_in:

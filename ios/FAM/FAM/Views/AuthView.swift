@@ -8,7 +8,7 @@ import UIKit
 ///
 /// **Sign up is the web's waitlist join** (decision 1, `signupGoesToWaitlist`):
 /// every web sign-up goes to `/waitlist`, whose form asks for the email
-/// alone (§604, reversing §571's password), then the terms
+/// alone (§606, reversing §571's password), then the terms
 /// box (§228), and carries the invite code a link brought (`referral_code`).
 /// The account is put on the list, then the profile is offered with a way
 /// past it, then the status page. Log in is
@@ -126,12 +126,12 @@ struct AuthView: View {
         }
     }
 
-    // MARK: Sign up: the waitlist join (email, terms; §604)
+    // MARK: Sign up: the waitlist join (email, terms; §606)
 
     private var joinFields: some View {
         VStack(alignment: .leading, spacing: 0) {
             // No visible labels on `/waitlist`: the fields say it (`aria-label`).
-            // The email alone (§604, reversing §571): the password is the
+            // The email alone (§606, reversing §571): the password is the
             // first step once let in (`PasswordFirstView`).
             emailField(prompt: "Enter your email").padding(.top, 18)
             Button {
@@ -336,7 +336,7 @@ struct AuthView: View {
         working = true
         defer { working = false }
         do {
-            // No password (§604): the server makes the account with none.
+            // No password (§606): the server makes the account with none.
             try await model.joinWaitlist(email: address, password: "")
         } catch {
             let words = error.localizedDescription

@@ -20,7 +20,7 @@ enum YouRoute: Hashable {
 /// you are, then your interests. `checking` while the server is asked.
 enum EntryStep: Equatable {
     case checking, identity, interests
-    /// Let in off the waitlist with the email alone (§604): a password
+    /// Let in off the waitlist with the email alone (§606): a password
     /// first, before who you are (`password_needed`).
     case password
 }
@@ -328,7 +328,7 @@ extension AppModel {
     /// (`afterAccount({fromBoot: true})`).
     func beginEntry(handoff: Bool = true) async {
         guard stage == .ready else { return }
-        // A password first (§604), before anything the first run asks.
+        // A password first (§606), before anything the first run asks.
         if listener?.passwordNeeded == true {
             entry = .password
             return

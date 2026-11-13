@@ -564,7 +564,7 @@ class Waitlist:
         if not row:
             return None
         # `can_sign_in`: a password, or Google or Apple. An email-only join
-        # (§604) has neither, and is told its link is where it sets one;
+        # (§606) has neither, and is told its link is where it sets one;
         # never the hash itself.
         return {"email": row[0], "phone": row[1], "name": row[2],
                 "claim_code": row[3], "status": row[4],

@@ -750,7 +750,7 @@ struct Listener: Decodable, Equatable {
     /// answer. `var` so a claim can update it in place.
     var freeMonth: FreeMonthOffer?
     /// Let in off the waitlist with the email alone and no way back in yet
-    /// (§604): the first step is setting a password. `/api/auth/me` only;
+    /// (§606): the first step is setting a password. `/api/auth/me` only;
     /// nil from an older server.
     let passwordNeeded: Bool?
 
@@ -1026,7 +1026,7 @@ struct WaitlistFamPerson: Decodable, Hashable {
 }
 
 /// The status page's own details: `has_password` false for an email-only
-/// join (§604), whose sign-out is warned about first; its password is the
+/// join (§606), whose sign-out is warned about first; its password is the
 /// first step once let in (`PasswordFirstView`).
 struct WaitlistDetails: Decodable, Hashable {
     let email: String?

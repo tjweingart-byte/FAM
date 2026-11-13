@@ -325,7 +325,7 @@ def test_sms_sorts_its_failures(monkeypatch):
 
 
 def test_an_email_only_join_is_told_its_link_sets_the_password(acc, wl, outbox):
-    """§604: the waitlist asks no password, so the let-in notice says its
+    """§606: the waitlist asks no password, so the let-in notice says its
     link is where the password is set, and the text stays one segment."""
     acc.sign_up("np", "np@fam.test", "", passwordless=True)
     with acc._conn() as c:
@@ -342,7 +342,7 @@ def test_an_email_only_join_is_told_its_link_sets_the_password(acc, wl, outbox):
 
 
 def test_a_google_or_apple_account_keeps_sign_in_the_way_you_joined(acc, wl, outbox):
-    """§604: no password hash, but a way in - its notice is not told to set one."""
+    """§606: no password hash, but a way in - its notice is not told to set one."""
     acc.sign_up("g", "g@fam.test", "", passwordless=True)
     with acc._conn() as c:
         c.execute("INSERT INTO identities (provider, subject, user_id, email, created, last_login)"

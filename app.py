@@ -1705,7 +1705,7 @@ def _signs_in_with_provider(user_id: str) -> list[str]:
 
 def _password_needed(user_id: str) -> bool:
     """Whether this account's first step in the app is setting a password
-    (§604): in the app (let in, or the gate is off - launch day lets every
+    (§606): in the app (let in, or the gate is off - launch day lets every
     waitlisted account in at once), joined with the email alone, and with
     no other way back in (no password, no Google or Apple). Never raises.
 
@@ -1726,7 +1726,7 @@ def _password_needed(user_id: str) -> bool:
 
 def _no_password_words(user_id: str) -> str:
     """What the sign-in says for an account that has no password yet
-    (§604), instead of "do not match": how *this* account gets in."""
+    (§606), instead of "do not match": how *this* account gets in."""
     providers = _signs_in_with_provider(user_id)
     if providers:
         return (f"This account signs in with {' or '.join(providers)}. Use that, "
@@ -2688,7 +2688,7 @@ async def auth_me(request: Request) -> dict:
             # is offered the first one directly.
             "has_password": bool(listener.is_authenticated
                                  and _has_password(listener.user_id)),
-            # Let in off the waitlist with the email alone (§604): the app's
+            # Let in off the waitlist with the email alone (§606): the app's
             # first screen is "Set your password", before anything else.
             "password_needed": bool(listener.is_authenticated
                                     and _password_needed(listener.user_id)),
@@ -2906,7 +2906,7 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
             listener = await asyncio.to_thread(ACCOUNTS.log_in_phone, req.phone,
                                                req.password)
     except accounts_mod.NoPasswordYet as exc:
-        # The account is recognised (§604): an email-only waitlist join has
+        # The account is recognised (§606): an email-only waitlist join has
         # never had a password, so say how it gets in, not "do not match".
         raise HTTPException(status_code=401,
                             detail=_no_password_words(exc.user_id)) from exc
@@ -5929,7 +5929,7 @@ async def claim_free_month(code: str, request: Request):
     one account and does one harmless, idempotent thing to it. The month runs
     from the day the real app is published, never in the beta.
 
-    **And it is the way in for an account with no password** (§604): the
+    **And it is the way in for an account with no password** (§606): the
     waitlist asks for the email alone, so somebody let in on another device
     has nothing to sign in with. While the account has no password and no
     Google or Apple (`_password_needed`), the link signs this browser in -
@@ -14278,7 +14278,7 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    #: Not asked for since §604 (the owner, reversing §571): joining is the
+    #: Not asked for since §606 (the owner, reversing §571): joining is the
     #: email and the Terms box, and the password is the first step once let
     #: in. Still taken when sent - §571's web page and iOS builds 6 and 7
     #: send one (`old-clients`) - and set in the INSERT, as it was.
@@ -14338,7 +14338,7 @@ def _admin_previewing_join(req, request: Request):
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own sign-up, then the waitlist half.
 
-    **The email alone** (the owner, PROBLEMS.md §604, reversing §571): the
+    **The email alone** (the owner, PROBLEMS.md §606, reversing §571): the
     account is made with no password (`passwordless`), as a Google-or-Apple
     one is, and the waitlist never asks for one. Let in, the account is
     recognised - this browser's session, or the let-in link (`/claim/<code>`,

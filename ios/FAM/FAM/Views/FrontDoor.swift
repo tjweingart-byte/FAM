@@ -768,7 +768,7 @@ struct WaitlistStatusPage: View {
         }
     }
 
-    /// Joined with the email alone (§604): no password while waiting, so a
+    /// Joined with the email alone (§606): no password while waiting, so a
     /// signed-out member is back in only from the let-in link. Said first.
     private func signOut() {
         if page?.details?.hasPassword == false {
@@ -801,7 +801,7 @@ struct WaitlistStatusPage: View {
     }
 }
 
-/// "You're in. Set your password" (§604, the web's
+/// "You're in. Set your password" (§606, the web's
 /// `#screen-password-first`): the first step for an account let in off the
 /// waitlist with the email alone (`/api/auth/me` `password_needed`). It sets
 /// the first with `/api/auth/password/set`. No X and no skip: without it,
@@ -831,7 +831,7 @@ struct PasswordFirstView: View {
     }
 }
 
-/// The password field, its eye and the Set button (§604's first step).
+/// The password field, its eye and the Set button (§606's first step).
 struct FirstPasswordFields: View {
     @EnvironmentObject private var model: AppModel
     /// What happens once it is set.

@@ -121,7 +121,7 @@ class AuthError(ValueError):
 
 
 class NoPasswordYet(AuthError):
-    """A sign-in to an account that has never had a password (§604): an
+    """A sign-in to an account that has never had a password (§606): an
     email-only waitlist join, or Google or Apple. Its own class so the
     server can say how *that* account gets in - the let-in link, or the
     provider - instead of "do not match", which sends somebody round

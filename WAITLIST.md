@@ -59,7 +59,7 @@ section when a decision changes, including why.
    `WAITLIST=1` - see `docs/claude/constraints.md`, rule `waitlist-gate`.
    Guests are closed out too: a guest door would make the waitlist optional.
 3. **Sign-up is the email and the Terms box - no password** (the owner,
-   13/11, PROBLEMS.md §604, reversing §571): "a user should only have to put
+   13/11, PROBLEMS.md §606, reversing §571): "a user should only have to put
    their email in". Let in, the account is recognised - the browser that
    joined is still signed in, and the let-in link (`/claim/<code>`) signs a
    passwordless account in on any device - and the app's first screen is

@@ -896,8 +896,8 @@ def test_motion_matches_the_web_where_audit_4_found_it_did_not_584():
     assert "withAnimation(.easeIn(duration: 0.2)) { banner = nil }" not in social
 
 
-def test_the_join_asks_no_password_and_a_let_in_account_sets_one_first_604():
-    """§604: the iPhone's join is the email and the Terms box, and an
+def test_the_join_asks_no_password_and_a_let_in_account_sets_one_first_606():
+    """§606: the iPhone's join is the email and the Terms box, and an
     account let in with no way back in sets a password before anything."""
     auth = _swift("Views", "AuthView.swift")
     join = auth[auth.index("private var joinFields"):auth.index("private var loginFields")]

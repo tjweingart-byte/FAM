@@ -4012,7 +4012,7 @@
            one block that is only an editor's business - the account, and the
            password change on it - is hidden during the first run, where there
            is no password to change yet. -->
-      <!-- Let in off the waitlist (§604): the waitlist asks for the email
+      <!-- Let in off the waitlist (§606): the waitlist asks for the email
            alone, so the first thing the app asks an account with no way back
            in (no password, no Google or Apple; `/api/auth/me`
            `password_needed`) is a password. No X and no skip: without it,
@@ -7877,7 +7877,7 @@
   var activationPending = false;
   function inFirstRun(){
     var here = document.querySelector(".screen.active");
-    // "Set your password" (§604) holds it as sign-up's steps do.
+    // "Set your password" (§606) holds it as sign-up's steps do.
     return !!(here && (firstRunStep(here.id.replace("screen-", ""))
                        || here.id === "screen-password-first"));
   }
@@ -7890,7 +7890,7 @@
     });
   }
   function releaseActivation(id){
-    // Held behind "Set your password" too (§604): that comes first.
+    // Held behind "Set your password" too (§606): that comes first.
     if(!activationPending || firstRunStep(id) || id === "password-first") return;
     activationPending = false;
     checkActivation();
@@ -16646,7 +16646,7 @@
     });
   }
 
-  // "You're in. Set your password" (§604): the first screen for an account
+  // "You're in. Set your password" (§606): the first screen for an account
   // let in off the waitlist with no way back in. Set, `/api/auth/me` is read
   // again and the app carries on from the top, as if just opened.
   function openPasswordFirst(){
@@ -24602,7 +24602,7 @@
       showScreen("welcome");
       return;
     }
-    // Let in off the waitlist with the email alone (§604): setting a
+    // Let in off the waitlist with the email alone (§606): setting a
     // password comes before anything else, the first run included.
     if(AUTH.password_needed){ openPasswordFirst(); return; }
     // Signed in on a device that never finished the first run - most often

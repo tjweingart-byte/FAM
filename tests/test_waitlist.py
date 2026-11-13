@@ -787,7 +787,7 @@ def test_the_profile_keeps_birth_date_phone_and_location(world):
 
 
 def test_the_waitlist_page_asks_for_the_email_alone_and_says_the_place():
-    """§604 (reversing §571): the join form is the email, then the Terms box -
+    """§606 (reversing §571): the join form is the email, then the Terms box -
     no password - and the join sends none."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     form = page.split('<form id="joinForm"', 1)[1].split("</form>", 1)[0]
@@ -1217,7 +1217,7 @@ def test_a_registered_email_with_a_password_is_still_refused(world):
 
 
 def test_the_status_page_never_asks_for_a_password():
-    """§604 (reversing §571's card): the waitlist needs no password, so the
+    """§606 (reversing §571's card): the waitlist needs no password, so the
     status page offers none; it is the app's first step once let in."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     assert 'id="passwordCard"' not in page and "drawPasswordCard" not in page
@@ -1299,7 +1299,7 @@ def test_the_settings_note_follows_the_password_and_reset():
     assert "passwordSettingsNote()" in page.split("function renderSettings(){", 1)[1]
 
 
-# ---------------------------------------------------------------- §604
+# ---------------------------------------------------------------- §606
 
 
 def _passwordless_let_in(email):
@@ -1310,7 +1310,7 @@ def _passwordless_let_in(email):
 
 
 def test_an_email_only_join_is_asked_for_a_password_first_once_let_in(world):
-    """§604: waiting, nothing asks for a password; let in, `/api/auth/me`
+    """§606: waiting, nothing asks for a password; let in, `/api/auth/me`
     says `password_needed` (the app's first screen), and setting one ends it."""
     member, body = _join("waiting@fam.test", password="")
     assert member.get("/api/auth/me").json()["password_needed"] is False
@@ -1326,7 +1326,7 @@ def test_an_email_only_join_is_asked_for_a_password_first_once_let_in(world):
 
 
 def test_the_let_in_link_signs_a_passwordless_account_in_on_another_device(world):
-    """§604: the account is recognised from its let-in link - a new browser
+    """§606: the account is recognised from its let-in link - a new browser
     is signed in and sent to the app, whose first step is the password. Once
     one is set, the link only claims the month: never a standing way in."""
     _member, body, code = _passwordless_let_in("link@fam.test")
@@ -1353,7 +1353,7 @@ def test_the_let_in_link_never_signs_in_a_waitlisted_or_passworded_account(world
 
 
 def test_signing_in_to_a_passwordless_account_says_how_to_get_in(world, monkeypatch):
-    """§604: recognised, not "do not match" - waiting, it is told the link
+    """§606: recognised, not "do not match" - waiting, it is told the link
     comes when let in; let in, to open that link."""
     import mail
     monkeypatch.setattr(mail, "status", lambda: {"available": False, "reason": "off"})
@@ -1373,7 +1373,7 @@ def test_signing_in_to_a_passwordless_account_says_how_to_get_in(world, monkeypa
 
 
 def test_the_app_opens_on_set_your_password_when_it_is_needed():
-    """§604: `routeFirstScreen` asks for the password before the first run,
+    """§606: `routeFirstScreen` asks for the password before the first run,
     on a screen with no X and no skip."""
     page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     route = page.split("function routeFirstScreen(){", 1)[1].split("\n  }\n", 1)[0]
@@ -1387,7 +1387,7 @@ def test_the_app_opens_on_set_your_password_when_it_is_needed():
 
 
 def test_launch_day_asks_a_waitlisted_account_for_its_password(world, monkeypatch):
-    """§604: `WAITLIST=0` lets every waitlisted account in at once, so one
+    """§606: `WAITLIST=0` lets every waitlisted account in at once, so one
     with no password is asked for it first, as a let-in one is."""
     member, _body = _join("launch@fam.test", password="")
     on = appmod.settings

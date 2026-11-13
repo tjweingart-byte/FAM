@@ -18,7 +18,7 @@
   The pre-launch waitlist (WAITLIST.md). One page, two views:
 
   * /waitlist     - the landing page: the email and the Terms box, nothing
-                    else (§604, reversing §571's password). The password is
+                    else (§606, reversing §571's password). The password is
                     the first step once let in: the app asks for it first,
                     and the let-in link signs a passwordless account in on
                     any device. Signing up here is the app's own sign-up, so the
@@ -581,7 +581,7 @@
     <form id="joinForm" novalidate>
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
              placeholder="Enter your email" aria-label="Email" required>
-      <!-- No password here (§604, the owner: "a user should only have to
+      <!-- No password here (§606, the owner: "a user should only have to
            put their email in"). It is the first step once let in. -->
       <button class="cta label" id="joinBtn" type="submit">
         <span id="joinLabel">Join the waitlist</span>
@@ -1269,7 +1269,7 @@
     loadSamples();
     showAbout();
     if(referral) $("invited").classList.remove("hidden");
-    // The email alone (§604): the account the app opens with later, made
+    // The email alone (§606): the account the app opens with later, made
     // here with no password and put on the list. The password is the first
     // step once let in, never asked for while waiting.
     $("joinForm").addEventListener("submit", function(ev){
@@ -1976,7 +1976,7 @@
       .catch(function(e){ toast(e.message); });
   };
   window.signOut = function(){
-    // Joined with the email alone (§604): no password while waiting, so a
+    // Joined with the email alone (§606): no password while waiting, so a
     // signed-out member is back in only from the let-in link. Said first.
     if(STATE && STATE.details && STATE.details.has_password === false &&
        !window.confirm("You don\u2019t have a password yet, so you can\u2019t sign back in until you\u2019re let in \u2014 we\u2019ll send you a link then. Sign out anyway?")) return;

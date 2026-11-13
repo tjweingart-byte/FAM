@@ -522,7 +522,7 @@ final class AppModel: ObservableObject {
         // often somebody let in off the waitlist): the steps a new account
         // gets (`routeFirstScreen` → `afterAccount({fromBoot})`). The feed
         // is already on its way: it waits on the answer alone.
-        // A password owed (§604) comes first even on a phone that finished
+        // A password owed (§606) comes first even on a phone that finished
         // the first run.
         if stage == .ready && (!UserDefaults.standard.bool(forKey: Self.entryKey)
                                || listener?.passwordNeeded == true) {
@@ -601,7 +601,7 @@ final class AppModel: ObservableObject {
 
     /// `/api/auth/me` again: the waitlist switch and `activation_needed`
     /// are its alone (a log-in's answer leaves them out).
-    /// The first password is set (§604): ask who this is again, so
+    /// The first password is set (§606): ask who this is again, so
     /// `password_needed` is false, and carry on with the first run.
     func passwordSet() async {
         await refreshWho()
