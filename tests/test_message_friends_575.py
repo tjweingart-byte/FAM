@@ -1,4 +1,4 @@
-"""§574: Message only between friends, on the web as in the app (§520).
+"""§575: Message only between friends, on the web as in the app (§520).
 
 The server refuses a one-to-one send to anybody who is not a mutual follow,
 so the web drew a Message button that could only fail. The owner (11.12):

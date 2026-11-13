@@ -1,6 +1,6 @@
 name: iOS build
 
-# The iPhone app compiled on a Mac for every change to it (§574). Nothing
+# The iPhone app compiled on a Mac for every change to it (§575). Nothing
 # else in this repository compiles Swift: build 6 failed in Xcode on a member
 # two merged branches had each declared ("Invalid redeclaration of 'stage'"),
 # after every Python check had passed. This job is that Xcode build, run

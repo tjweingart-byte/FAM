@@ -999,7 +999,7 @@
         <div class="combo-list hidden" id="regionList" role="listbox"></div>
       </div>
       <input class="pinput" id="pCity" maxlength="60" autocomplete="address-level2" placeholder="City" aria-label="City" style="margin-top:8px"></div>
-    <div class="pfield"><span>Phone number <em class="req">(Required)</em></span>
+    <div class="pfield"><span>Phone number <em>(Optional)</em></span>
       <div class="phone-row">
         <select class="pinput phone-cc" id="pPhoneCC" aria-label="Country code"></select>
         <input class="pinput" id="pPhone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Phone number" aria-label="Phone number">
@@ -1674,21 +1674,19 @@
       countryChanged();
     }).catch(function(){});
 
-  // "Skip for now" waits for a name and a phone number (10.8 packet).
-  function phoneDigits(){ return $("pPhone").value.replace(/[^\d]/g, ""); }
+  // "Skip for now" waits for a name; the phone number is optional.
   function missingRequired(){
     var missing = [];
     if(!$("pName").value.trim()) missing.push($("pName"));
-    if(phoneDigits().length < 7) missing.push($("pPhone"));
     return missing;
   }
   function drawRequired(){
     $("skipSetup").setAttribute("aria-disabled", String(missingRequired().length > 0));
-    [$("pName"), $("pPhone")].forEach(function(el){
+    [$("pName")].forEach(function(el){
       if(missingRequired().indexOf(el) === -1) el.classList.remove("missing");
     });
   }
-  ["pName", "pPhone"].forEach(function(id){ $(id).addEventListener("input", drawRequired); });
+  $("pName").addEventListener("input", drawRequired);
   function askForRequired(){
     var missing = missingRequired();
     missing.forEach(function(el){ el.classList.add("missing"); });
@@ -1855,15 +1853,17 @@
     }
     return iso;
   }
-  // Skipping with the required fields in keeps them: the name (on the
+  // Skipping with the required field in keeps it: the name (on the
   // account until a handle goes with it - how the waitlist's search finds
-  // them meanwhile) and the number, and a date of birth or a place if one
-  // was typed.
+  // them meanwhile), and a number, a date of birth or a place if one was
+  // typed.
   window.skipSetup = function(){
     if(missingRequired().length){ askForRequired(); return; }
     var note = $("profileNote"); note.className = "form-note"; note.textContent = "";
     var birth = typedBirth(note); if(birth === null) return;
-    var body = { display_name: $("pName").value.trim(), phone: typedPhone() };
+    var body = { display_name: $("pName").value.trim() };
+    var phone = typedPhone();
+    if(phone) body.phone = phone;
     if(birth) body.birth_date = birth;
     $("skipSetup").disabled = true;
     var place = { country: $("pCountry").value.trim(), region: $("pRegion").value.trim(),

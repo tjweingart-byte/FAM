@@ -517,8 +517,8 @@ def test_anyone_can_listen_to_a_shared_episode(world, monkeypatch):
         assert r.status_code == 403 and r.headers["X-FAM-Waitlist"] == "/waitlist"
 
 
-def test_a_shared_link_previews_behind_the_waitlist_574(world, monkeypatch):
-    """§574: Messages showed a shared link with FAM's icon and no picture,
+def test_a_shared_link_previews_behind_the_waitlist_575(world, monkeypatch):
+    """§575: Messages showed a shared link with FAM's icon and no picture,
     because the gate refused the `og:image` to the preview fetcher, which has
     no account. The page's two pictures pass; nothing else under
     /api/share/ does, and an unknown id is still a 404."""
@@ -540,8 +540,8 @@ def test_a_shared_link_previews_behind_the_waitlist_574(world, monkeypatch):
     assert r.status_code == 403 and r.headers["X-FAM-Waitlist"] == "/waitlist"
 
 
-def test_a_shared_episode_plays_at_one_and_a_half_minutes_574(world, monkeypatch):
-    """§574: every DailyFAM and myFAM episode is 1.5 minutes, and `is_shared`
+def test_a_shared_episode_plays_at_one_and_a_half_minutes_575(world, monkeypatch):
+    """§575: every DailyFAM and myFAM episode is 1.5 minutes, and `is_shared`
     floored it to 1, so the gate refused the shared episode's own audio. The
     app's requests (`/api/v1/`, Opus, `link=1`) and the web page's both pass,
     for a guest and for a waitlisted account, and the app may read the share."""
