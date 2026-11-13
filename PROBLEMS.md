@@ -35134,3 +35134,11 @@ released first, this upload needs 1.0.1 and a recut release record.
 **Tests:** `test_mix_rows_show_todays_episode_title_570` in
 `tests/test_ios_app_contract.py`; tree-sitter finds no ERROR or MISSING node
 in the 56 Swift files. Not compiled here.
+
+**Build 6 failed in Xcode (2026-11-13):** "Invalid redeclaration of 'stage'"
+in `PlayerView`. #265 (the animations) added `@EnvironmentObject private var
+stage: PlayerStage` to a view that already had `private var stage: some View`
+(the picture, captions and side buttons); the two merged textually without a
+conflict, and tree-sitter parses a redeclaration as valid syntax. The object is
+now `playerStage`. A scan of every type in the 56 Swift files for a property
+name declared twice found no other.

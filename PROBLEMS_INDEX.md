@@ -563,4 +563,4 @@ and `limit` = Lines.
 | 34996 | 21 | 569. NVIDIA still choppy: spelled as it sounds, in every case (2026-11-12) |
 | 35017 | 28 | 570. A mix's rows are called by today's episode, not the topic (2026-11-12) |
 | 35045 | 65 | 571. Sign-up asks for a password again (2026-11-12) |
-| 35110 | 28 | 572. Build 6: the iPhone catches up with §570 and §571 (2026-11-12) |
+| 35110 | 36 | 572. Build 6: the iPhone catches up with §570 and §571 (2026-11-12) |
