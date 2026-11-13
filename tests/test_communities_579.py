@@ -279,3 +279,30 @@ def test_nothing_here_can_send_or_sign_in():
     for word in ("graph.facebook.com", "oauth.reddit.com", "api.x.com", "discord.com/api",
                  "slack.com/api", ".post(", "smtp"):
         assert word not in src, word
+
+
+def test_a_card_copies_its_message_and_a_prompt_for_claude():
+    """§598: "Copy message" stays; "Copy for Claude" copies the whole card as
+    one prompt ending in the owner's question, built only from what the
+    card shows - by one shared script, so /admin/groups and Egan's section
+    on /admin copy the same text."""
+    html = (ROOT / "admin_ui" / "groups.html").read_text()
+    assert 'data-act="copy"' in html and ">Copy message<" in html
+    assert 'data-act="claude"' in html and ">Copy for Claude<" in html
+    assert '<script src="/admin/claude-prompt.js"></script>' in html
+    shared = (ROOT / "admin_ui" / "claude_prompt.js").read_text()
+    for part in ("k.how", "k.contact_url", "k.pitches", '"My question:"', "window.famClaudePrompt"):
+        assert part in shared, part
+    tracker = (ROOT / "admin_ui" / "tracker.html").read_text()
+    assert 'data-egan-claude=' in tracker and "/admin/claude-prompt.js" in tracker
+    assert "window.famClaudePrompt(k" in tracker
+
+
+def test_the_shared_prompt_script_is_served_to_admins_only(monkeypatch):
+    client = TestClient(appmod.app)
+    monkeypatch.setattr(appmod, "_admin_configured", lambda: False)
+    assert client.get("/admin/claude-prompt.js").status_code == 404
+    monkeypatch.setattr(appmod, "_admin_configured", lambda: True)
+    r = client.get("/admin/claude-prompt.js")
+    assert r.status_code == 200 and "famClaudePrompt" in r.text
+    assert r.headers["content-type"].startswith("application/javascript")
