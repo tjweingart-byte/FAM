@@ -227,7 +227,7 @@
       + '<dt>Searched</dt><dd>' + esc(k.subject) + ', ' + esc(when(k.found_at)) + '</dd>'
       + '</dl></div>';
     var right = '<div class="col">'
-      + '<div class="label">Episodes to pitch (ideas, not written' + (k.drafted_by === "code" ? "; composed in code" : "") + ')</div>'
+      + '<div class="label">Episodes to pitch (ideas, not written; ' + (k.drafted_by === "code" ? "composed in code" : "by " + esc(k.drafted_by)) + ')</div>'
       + (k.pitches || []).map(function (p) {
           return '<div class="pitch"><b>' + esc(p.title) + '</b><span>' + esc(p.angle) + '</span>'
             + (p.why ? '<span><i>' + esc(p.why) + '</i></span>' : '') + '</div>';

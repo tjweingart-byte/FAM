@@ -155,7 +155,8 @@ FAM_ENVIRONMENT = (
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
     # /admin/groups (§575).
     "COMMUNITIES_MAX_SEARCHES", "COMMUNITIES_DAILY_SEARCHES",
-    "COMMUNITIES_SUBJECTS", "COMMUNITIES_SHORTLIST", "COMMUNITIES_MODEL",
+    "COMMUNITIES_SUBJECTS", "COMMUNITIES_SHORTLIST",
+    "OUTREACH_AGENT", "OUTREACH_MODEL", "OUTREACH_TIMEOUT_SECONDS", "OUTREACH_MAX_TOKENS",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.

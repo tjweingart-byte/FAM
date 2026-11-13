@@ -45,8 +45,15 @@ scrubbed there, and a run says so rather than pretending it found nothing.
 
 **A candidate carries its reason in words** ([candidate-reason]).
 
-**A layer that adds quality must not subtract availability**: with no model
-key the pitches and the message are composed in code, and the card says so.
+**Hermes reads each community** (§576, the outreach agent): the fit, the
+pitches and the message are his, through `agents/models.py` under his
+signed rule book (`hermes.md`), off by default. He never reads about a
+person: the material he is given is `redacted` of names, handles, addresses
+and numbers, and code sends back an answer that carries one.
+
+**A layer that adds quality must not subtract availability**: whenever
+Hermes cannot answer - off, unsigned, held, failed - the pitches and the
+message are composed in code, and the card says why.
 """
 from __future__ import annotations
 
@@ -512,73 +519,99 @@ def suggested_subjects(cache, label_of: Callable[[str], str] = lambda k: "",
 # The pitches and the message
 
 
-READ_SYSTEM = """You help FAM's founders reach the admins of online communities.
+#: Hermes, the outreach agent (§576, `docs/agent_rule_proposals/hermes.md`
+#: until the owner signs it): his role in `agents.names`, his switch and
+#: model settings, and his rule book.
+AGENT = "outreach"
+TASK = "read a community"
 
-FAM turns what people care about into short audio stories, researched and
-written for them, so they can keep up and be part of the conversation. FAM
-offers community admins early access so they can share episodes with their
-members.
+#: The task's fixed instructions, after the preamble and his rule books.
+INSTRUCTIONS = """One community at a time, as a web search saw it, is in the
+<evidence> tags; an episode FAM already has may be in the <archive> tags.
 
-You are given one community, as a web search saw it, and maybe one episode
-FAM already has. Return JSON:
-
-- fit (1-5): how likely this community's members would want audio stories
-  about its subject, and how likely its admin would welcome them. 1-2 for a
-  community that is about selling, support, personal matters, or anything
-  where an outside product would be unwelcome.
-- fit_why: one sentence.
-- pitches: exactly three episodes FAM could make for this community. Each has
-  a title (a story's title, specific, under 70 characters), an angle (one
-  sentence: the question it answers and what makes it a story), and why
-  (one sentence: why this community in particular). These are ideas, not
-  written episodes: never claim a result, score, figure or event you were
-  not given.
-- message: the first direct message from a FAM founder to this community's
-  admin. Under 600 characters. Name the community. Say in one sentence what
-  FAM is, offer free early access to share episodes with their members, and
-  give one pitch as the example. Plain words, no hashtags, no emoji, no
-  superlatives, nothing you were not given about the community, no figures.
-  If an episode is given, the message may offer to send it. End with a
-  question they can answer yes or no to. Do not sign it.
+Answer with:
+- fit: 1-5, and fit_why in one sentence (rule book "always" 2).
+- pitches: exactly three imagined episodes, each a title under 70
+  characters, an angle (the question it answers and what makes it a story)
+  and why this community in particular ("always" 3).
+- message: the first message to the community's admins ("always" 4).
+  Greet no one by name. Never mention a figure, result, date or event the
+  material does not contain. If an episode is given, you may offer to send
+  it.
+- unsure: true when the material does not say what the community is for.
 """
 
-READ_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "fit": {"type": "integer"},
-        "fit_why": {"type": "string"},
-        "pitches": {"type": "array", "items": {
-            "type": "object",
-            "properties": {"title": {"type": "string"},
-                           "angle": {"type": "string"},
-                           "why": {"type": "string"}},
-            "required": ["title", "angle", "why"],
-            "additionalProperties": False}},
-        "message": {"type": "string"},
-    },
-    "required": ["fit", "fit_why", "pitches", "message"],
-    "additionalProperties": False,
-}
+
+try:
+    from pydantic import BaseModel, ConfigDict, Field
+
+    class Pitch(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        title: str = Field(..., max_length=120)
+        angle: str = Field(..., max_length=400)
+        why: str = Field(..., max_length=400)
+
+    class Reading(BaseModel):
+        """Hermes's answer for one community."""
+        model_config = ConfigDict(extra="forbid")
+        fit: int = Field(..., ge=1, le=5)
+        fit_why: str = Field(..., max_length=400)
+        pitches: list[Pitch]
+        message: str = Field(..., max_length=1200)
+        unsure: bool = False
+except ImportError:  # pragma: no cover - pydantic is a dependency
+    Pitch = Reading = None  # type: ignore
 
 
-def read_prompt(lead: Lead) -> str:
+#: What stands in for a person in the material Hermes reads ("never" 1, 2).
+PERSON, ADDRESS = "[a person]", "[an address]"
+_HANDLE = re.compile(r"(?<![\w/])(?:u/|@)[\w.-]{2,30}")
+
+
+def redacted(text: str, people: Iterable[str] = ()) -> str:
+    """`text` with nothing in it that names or reaches a person: phone
+    numbers, email addresses, @handles and u/names, and the names the page
+    gave for its admins. Hermes never reads about a person (rule book
+    "never" 1; every-agent.md "never" 9)."""
+    out = strip_phones(text or "")
+    out = _EMAIL.sub(ADDRESS, out)
+    out = _HANDLE.sub(PERSON, out)
+    for name in sorted({p for p in people if p}, key=len, reverse=True):
+        out = re.sub(re.escape(name), PERSON, out, flags=re.I)
+    return out
+
+
+def material(lead: Lead) -> tuple:
+    """The `(tag, text)` pairs Hermes reads: the community as the search saw
+    it, redacted, and the kept episode if one fits. Never a listener's words,
+    so no `request` tag."""
     plat = PLATFORMS[lead.platform]
-    lines = [
-        "<request>",
+    people = list(lead.admin_hint)
+    evidence = "\n".join([
         f"Platform: {plat.label} ({plat.noun})",
-        f"Community: {lead.name}",
-        f"Searched for: {lead.subject}",
+        f"Community: {redacted(lead.name, people)}",
+        f"Searched for: {redacted(lead.subject, people)}",
         f"Members: {lead.members:,}" if lead.members else "Members: not shown",
-        "</request>",
-        "<evidence>",
-        lead.description or "(the search showed no description)",
-        "</evidence>",
-    ]
+        f"Its page says: {redacted(lead.description, people) or '(nothing shown)'}",
+    ])
+    out = [("evidence", evidence)]
     if lead.episode:
-        lines += ["<archive>",
-                  f"An episode FAM has: “{lead.episode['title']}” "
-                  f"({lead.episode['minutes']} min)", "</archive>"]
-    return "\n".join(lines)
+        out.append(("archive", f"An episode FAM has: \u201c{lead.episode['title']}\u201d "
+                               f"({lead.episode['minutes']} min)"))
+    return tuple(out)
+
+
+def request(lead: Lead):
+    """Hermes's one call for `lead`, through `agents/models.py`."""
+    from agents import models
+
+    return models.AgentRequest(
+        agent=AGENT, task=TASK, switch_setting="outreach_agent",
+        model_setting="outreach_model", rule_book="hermes.md", schema=Reading,
+        instructions=INSTRUCTIONS, material=material(lead),
+        timeout=float(config.settings.outreach_timeout_seconds),
+        max_tokens=int(config.settings.outreach_max_tokens), effort="low",
+        surface="background")
 
 
 def _figures(text: str) -> set:
@@ -640,59 +673,72 @@ def _clean_pitch(p: dict) -> Optional[dict]:
             "why": _line(p.get("why"), 280)}
 
 
-async def read(lead: Lead, client=None) -> tuple[Lead, float]:
-    """The pitches, the message and the fit, from one call; the code's when
-    no model can be asked, said so on the card. Never raises but
-    cancellation. Returns the lead and the call's dollars."""
-    import credentials
-    import metering
+def refused(lead: Lead, reading) -> str:
+    """Why code sends Hermes's answer back, or "" when it stands: not three
+    pitches; a figure the material does not contain; a person's name,
+    address or number in his words."""
+    if len(reading.pitches) != PITCHES:
+        return f"{len(reading.pitches)} pitches, not {PITCHES}"
+    words = " ".join([reading.message, reading.fit_why]
+                     + [f"{p.title} {p.angle} {p.why}" for p in reading.pitches])
+    if _EMAIL.search(words) or _PHONE.search(words) or _HANDLE.search(words):
+        return "his words carry a way to reach a person"
+    given = _figures(" ".join(text for _tag, text in material(lead)))
+    stray = _figures(words) - given
+    if stray:
+        return f"his words name {', '.join(sorted(stray)[:3])}, which the material does not"
+    low = words.lower()
+    for name in lead.admin_hint:
+        if name and name.lower() in low:
+            return "his words name a person"
+    return ""
 
+
+async def read(lead: Lead, ask=None) -> tuple[Lead, float]:
+    """The fit, the pitches and the message: Hermes's (§576), one call and
+    one retry when code sends his answer back; the code's whenever he cannot
+    answer - off, held, unsigned, failed or refused twice - and the card says
+    which. Never raises but cancellation. Returns the lead and his cost."""
     def by_code(why: str) -> tuple[Lead, float]:
         lead.pitches = code_pitches(lead)
         lead.message = code_message(lead, lead.pitches)
         lead.fit, lead.fit_why, lead.drafted_by = CODE_FIT, why, "code"
-        return lead, 0.0
+        return lead, dollars
 
-    if client is None and not credentials.active("ANTHROPIC_API_KEY"):
-        return by_code("no model key, so the pitches were composed in code")
-    model = config.settings.communities_model
+    dollars = 0.0
     try:
-        if client is None:
-            from anthropic_client import build_async_client
+        if ask is None:
+            from agents import models
 
-            client = build_async_client(credentials.active("ANTHROPIC_API_KEY"))
-        response = await client.messages.create(
-            model=model, max_tokens=1200, system=READ_SYSTEM,
-            output_config={"format": {"type": "json_schema", "schema": READ_SCHEMA}},
-            messages=[{"role": "user", "content": read_prompt(lead)}])
-        usage = metering.Usage()
-        usage.add_model_call(model, getattr(response, "usage", None),
-                             source="community outreach")
-        dollars = metering.price_of(usage).total
-        body = json.loads(next(b.text for b in response.content if b.type == "text"))
-        try:
-            lead.fit = max(1, min(5, int(body.get("fit"))))
-        except (TypeError, ValueError):
-            lead.fit = CODE_FIT
-        lead.fit_why = _line(body.get("fit_why"), 300)
-        pitches = [p for p in (_clean_pitch(x) for x in (body.get("pitches") or [])
-                               if isinstance(x, dict)) if p][:PITCHES]
-        lead.pitches = pitches or code_pitches(lead)
-        message = trim(strip_phones(str(body.get("message") or "")))
-        given = _figures(f"{lead.name} {lead.description} "
-                         f"{(lead.episode or {}).get('title', '')} "
-                         + " ".join(p["title"] for p in lead.pitches))
-        stray = _figures(message) - given
-        if not message or stray:
-            # A figure FAM was not given is not said under its name.
-            message = code_message(lead, lead.pitches)
-        lead.message, lead.drafted_by = message, model
+            ask = models.ask
+        built = request(lead)
+        why = ""
+        for _attempt in range(2):
+            result = await ask(built)
+            dollars += float(result.cost_usd or 0.0)
+            if not result.ok:
+                return by_code(f"composed in code: Hermes did not answer "
+                               f"({result.status}: {result.reason})")
+            reading = result.value
+            why = refused(lead, reading)
+            if not why:
+                break
+        else:
+            return by_code(f"composed in code: Hermes's answer was sent back twice ({why})")
+        if reading.unsure:
+            return by_code(f"composed in code: Hermes was unsure what the community is for "
+                           f"({_line(reading.fit_why, 200)})")
+        lead.fit = max(1, min(5, int(reading.fit)))
+        lead.fit_why = _line(reading.fit_why, 300)
+        lead.pitches = [p for p in (_clean_pitch(x.model_dump()) for x in reading.pitches) if p]
+        lead.message = trim(strip_phones(reading.message))
+        lead.drafted_by = f"Hermes ({result.model or 'agent'})"
         return lead, dollars
     except asyncio.CancelledError:
         raise
-    except Exception as exc:  # noqa: BLE001
-        log.warning("communities: the read fell back to code: %s", exc)
-        return by_code("the read could not run, so the pitches were composed in code")
+    except Exception as exc:  # noqa: BLE001 - never costs the card
+        log.warning("communities: Hermes's read fell back to code: %s", exc)
+        return by_code("composed in code: Hermes's read could not run")
 
 
 # --------------------------------------------------------------------------

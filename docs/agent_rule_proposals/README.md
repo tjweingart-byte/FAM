@@ -7,7 +7,23 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-Nothing. Manifest version 8 - `journalism_playbook.md` v2, Part 3's story
+**A new agent: Hermes, the outreach agent** (`hermes.md`, PROBLEMS.md §576),
+who reads each community `/admin/groups` finds - the fit, three imagined
+episodes, a first message to its admins - in place of the code that
+composes them today. `docs/agent_rules/MANIFEST.pending.json` is version 9:
+version 8's books unchanged, plus `hermes.md`. Sign it as below; the upload
+is `hermes.md`, `MANIFEST.json` and `MANIFEST.json.sig` into
+`docs/agent_rules/`. A new book cannot wait in that folder unsigned: the
+lock would hold every agent.
+
+Once it is signed, the session that verifies it also: moves `outreach`
+from `agents/names.PROPOSED` and `agents/roster.PROPOSED` into `AGENTS` and
+`ROSTER`; adds his tab to `docs/FAM_AGENTS.md` (`## 9. Outreach (Hermes)`,
+the same four sub-tabs) and his row to `docs/agent_rules/README.md`; and
+turns `tests/test_hermes_576.py`'s waiting tests into signed ones. He stays
+off until the owner sets `AGENTS=1` and `OUTREACH_AGENT=1`.
+
+Before him: manifest version 8 - `journalism_playbook.md` v2, Part 3's story
 shapes, on top of Main's version 7 - was signed on 2026-11-10 on the
 owner's MacBook Air (OpenSSL 4.1 in a Miniforge `famsign` environment) and
 uploaded to this folder; the session verified it and moved the files into

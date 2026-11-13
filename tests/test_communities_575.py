@@ -10,7 +10,6 @@ The X agent it replaced is gone.
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -116,35 +115,13 @@ def test_screening():
 
 # ------------------------------------------------------------- the read
 
-def test_with_no_model_the_pitches_are_composed_in_code(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+def test_without_hermes_the_pitches_are_composed_in_code():
     lead = C.Lead("reddit", "eagles", "Eagles", "u", "c", "Philadelphia Eagles")
     out, dollars = asyncio.run(C.read(lead))
     assert out.drafted_by == "code" and dollars == 0.0
+    assert "Hermes did not answer" in out.fit_why
     assert len(out.pitches) == C.PITCHES and out.message
     assert "Eagles" in out.message and len(out.message) <= C.MESSAGE_CHARS
-
-
-class _Client:
-    def __init__(self, body):
-        self.body = body
-        self.messages = self
-
-    async def create(self, **kw):
-        self.kw = kw
-        return SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(self.body))],
-                               usage=None)
-
-
-def test_a_figure_the_read_was_not_given_sends_the_message_back_to_codes():
-    lead = C.Lead("facebook", "g", "Eagles Fans", "u", "c", "Eagles")
-    client = _Client({"fit": 5, "fit_why": "fans", "message": "Your 40,000 members will love it.",
-                      "pitches": [{"title": "Why the run defense broke", "angle": "a", "why": "w"}]})
-    out, _ = asyncio.run(C.read(lead, client))
-    assert out.fit == 5 and out.pitches[0]["title"] == "Why the run defense broke"
-    assert "40,000" not in out.message
-    # The community's words go inside the request's material, never loose.
-    assert "<evidence>" in client.kw["messages"][0]["content"]
 
 
 # ------------------------------------------------------------- a run
@@ -221,15 +198,6 @@ def test_a_run_that_fails_halfway_still_counts_its_searches(tmp_path):
         asyncio.run(C.run(None, ["Eagles"], ["reddit"], searcher=searcher,
                           reader=reader, held=held))
     assert held.searches_since(0) == 1
-
-
-def test_the_models_words_carry_no_phone_number():
-    lead = C.Lead("facebook", "g", "Eagles Fans", "u", "c", "Eagles")
-    client = _Client({"fit": 4, "fit_why": "call 215-555-0134",
-                      "message": "Hi, text me on 215 555 0134? Would you like it?",
-                      "pitches": [{"title": "t", "angle": "ring (215) 555-0134", "why": "w"}]})
-    out, _ = asyncio.run(C.read(lead, client))
-    assert "555" not in out.fit_why + out.message + out.pitches[0]["angle"]
 
 
 def test_a_failed_search_is_recorded_and_the_run_goes_on(tmp_path):

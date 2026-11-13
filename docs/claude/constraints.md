@@ -1668,6 +1668,18 @@
   search key ([zero-spend-staging]); with no model key the pitches and the
   message are composed in code and the card says so. Each card carries its
   reason in words ([candidate-reason]). Untouched leads are kept 30 days.
+  > **Current:** since §576 the fit, the pitches and the message are
+  > **Hermes's**, a full agent ([agent-model-layer]): one call per
+  > community through `agents/models.py`, under his own rule book
+  > (`hermes.md`), off by default (`OUTREACH_AGENT`). He never reads about
+  > a person (every-agent.md "never" 9): `communities.redacted` takes
+  > names, handles, addresses and numbers out of his material, and code
+  > sends back an answer that carries one, or a figure the material does
+  > not, once, then composes in code. **Until the owner signs his book**
+  > it waits in `docs/agent_rule_proposals/` with
+  > `MANIFEST.pending.json` and he is `agents.names.PROPOSED`, refused by
+  > the layer; an unsigned book in `docs/agent_rules/` would hold every
+  > agent.
   > **History:** this replaced **FAM on X** (§321-§368, `x_threads.py`,
   > `outreach_intelligence.py`, `/admin/x`), which searched X's API for
   > threads one of FAM's episodes answered and drafted replies a person

@@ -60,8 +60,9 @@ class Agent:
         return None, None
 
 
-def _agent(role, purpose, tasks, surfaces, stage, ceilings, fallback, words):
-    name, book, switch, models = names.AGENTS[role]
+def _agent(role, purpose, tasks, surfaces, stage, ceilings, fallback, words,
+           table=None):
+    name, book, switch, models = (names.AGENTS if table is None else table)[role]
     return Agent(role=role, name=name, purpose=purpose, tasks=tuple(tasks),
                  surfaces=tuple(surfaces), stage=stage, rule_book=book,
                  switch=switch, models=models, ceilings=tuple(ceilings),
@@ -130,6 +131,19 @@ ROSTER: dict = {a.role: a for a in (
            ("watch", "write up an incident", "summarise"), (BACKGROUND,), "monitor",
            ((BACKGROUND, "it_timeout_seconds", "it_max_tokens"),),
            "/admin as it is today; nothing is fixed", False),
+)}
+
+
+#: Agents built and waiting for the owner's signature (`names.PROPOSED`,
+#: §576): their entries, ready to join `ROSTER` with the signed book.
+PROPOSED: dict = {a.role: a for a in (
+    _agent("outreach",
+           "For one online community a web search found: how well FAM fits it, "
+           "three imagined episodes, and a first message a person may send its admins",
+           ("read a community",), (BACKGROUND,), "monitor",
+           ((BACKGROUND, "outreach_timeout_seconds", "outreach_max_tokens"),),
+           "/admin/groups composes the pitches and the message in code, as today",
+           False, table=names.PROPOSED),
 )}
 
 
