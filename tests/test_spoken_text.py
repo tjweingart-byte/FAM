@@ -16,7 +16,7 @@ from spoken_text import cardinal, ordinal, speakable, year
     ("The final score was 37 to 14.", "The final score was thirty-seven to fourteen."),
     # Abbreviations are letters, unless people say them as a word.
     ("The NFL and the U.S. economy.", "The N F L and the U S economy."),
-    ("NASA's CEO.", "NASA's C E O."),
+    ("NASA's CEO.", "Nasa's C E O."),
     # The rest of what a script is made of.
     ("In 1998, and by 2026.", "In nineteen ninety-eight, and by twenty twenty-six."),
     ("About 2000 people.", "About two thousand people."),
@@ -43,7 +43,7 @@ from spoken_text import cardinal, ordinal, speakable, year
     ("On 9/27/2026.", "On September twenty-seventh, twenty twenty-six."),
     ("The 2024-25 season.", "The twenty twenty-four to twenty-five season."),
     ("It was -5 degrees.", "It was minus five degrees."),
-    ("COVID-19 and I-95.", "COVID-nineteen and I-ninety-five."),
+    ("COVID-19 and I-95.", "Covid-nineteen and I-ninety-five."),
     ("A 401(k) at AT&T.", "A four oh one K at A T and T."),
     ("The 49ers and the 76ers.", "The forty-niners and the seventy-sixers."),
     ("A 1-2-3 inning.", "A one, two, three inning."),

@@ -17,11 +17,12 @@
 <!--
   The pre-launch waitlist (WAITLIST.md). One page, two views:
 
-  * /waitlist     - the landing page: the email alone (§296; it was a
-                    password typed twice, 10.2 packet). Signing up here is
-                    the app's own sign-up with no password, so the account
-                    made here is the one the app opens with later, and it
-                    always starts on the waitlist.
+  * /waitlist     - the landing page: the email and a password, then the
+                    Terms box, in one step (§571; §296 had made it the email
+                    alone, which left a signed-out member no way back without
+                    mail). Signing up here is the app's own sign-up, so the
+                    account made here is the one the app opens with later,
+                    and it always starts on the waitlist.
   * /waitlist/me?setup=1 - straight after joining, the profile, the app's
                     sign-up fields: name, handle, photo, date of birth,
                     location, phone and interests, with "Skip for now" at the
@@ -502,6 +503,12 @@
     background:var(--text); color:var(--gold-ink); padding:12px 18px; border-radius:12px; font-size:15px;
     transition:opacity .2s, transform .2s; pointer-events:none; z-index:10; }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .fm{ margin-top:16px; }
+  .fm-dots{ display:flex; gap:8px; }
+  .fm-dots span{ flex:1; height:8px; border-radius:4px; background:rgba(244,239,228,0.14); }
+  .fm-dots span.on{ background:var(--gold); }
+  .fm-line{ margin-top:10px; font-size:15px; line-height:1.4; color:var(--muted); }
+  .fm.earned .fm-line{ color:var(--gold); font-weight:600; }
   .link-row{ display:flex; gap:8px; align-items:center; margin-top:18px; }
   .link-row .link-box{ flex:1; min-width:0; height:44px; font-size:14px; color:var(--muted); }
   .link-row .ghost{ height:44px; flex:none; }
@@ -569,6 +576,9 @@
     <form id="joinForm" novalidate>
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
              placeholder="Enter your email" aria-label="Email" required>
+      <!-- A password, in the same step (§571, reversing §296's email alone):
+           the way back in from any device, with no email needed. -->
+      <div class="pw-row"><input class="field" id="joinPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Choose a password (at least 8 characters)" aria-label="Password"><button class="pw-eye" type="button" data-pw="joinPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
       <button class="cta label" id="joinBtn" type="submit">
         <span id="joinLabel">Join the waitlist</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -893,6 +903,18 @@
     <div class="line2">Founding FAM member <span id="placeTag"></span></div>
   </div>
 
+  <!-- An account with no password - joined with the email alone (§296) -
+       sets one here (§571), since "Forgot password?" needs mail. -->
+  <section class="card hidden" id="passwordCard">
+    <h2>Set a password so you can sign back in</h2>
+    <p>You joined with just your email. Choose a password and you can sign in from any device.</p>
+    <form id="firstPasswordForm" novalidate>
+      <div class="pw-row" style="margin-top:18px"><input class="field" id="firstPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Choose a password (at least 8 characters)" aria-label="New password"><button class="pw-eye" type="button" data-pw="firstPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
+      <button class="cta label" type="submit" id="firstPasswordBtn">Set password</button>
+      <div class="form-note" id="firstPasswordNote" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
   <section class="card" id="placeCard">
     <!-- Their exact place in line (10.2 packet), counted by the server. -->
     <div class="count-row">
@@ -917,7 +939,13 @@
 
   <section class="card" id="shareCard">
     <h2>Move up the list</h2>
-    <p>Share your link. Every person who joins with it moves you up.</p>
+    <p>Share the waitlist to five friends to earn a free month!</p>
+    <!-- The free month (§577): one dot per friend who joined with the link,
+         five to earn it; the month starts the day the whole app goes live. -->
+    <div class="fm hidden" id="freeMonth" aria-live="polite">
+      <div class="fm-dots" id="freeMonthDots" aria-hidden="true"></div>
+      <div class="fm-line" id="freeMonthLine"></div>
+    </div>
     <div class="link-row">
       <input class="pinput link-box" id="shareLink" readonly aria-label="Your invite link" onclick="this.select()">
       <button class="ghost" type="button" onclick="copyLink()">Copy</button>
@@ -983,7 +1011,7 @@
         <div class="combo-list hidden" id="regionList" role="listbox"></div>
       </div>
       <input class="pinput" id="pCity" maxlength="60" autocomplete="address-level2" placeholder="City" aria-label="City" style="margin-top:8px"></div>
-    <div class="pfield"><span>Phone number <em class="req">(Required)</em></span>
+    <div class="pfield"><span>Phone number <em>(Optional)</em></span>
       <div class="phone-row">
         <select class="pinput phone-cc" id="pPhoneCC" aria-label="Country code"></select>
         <input class="pinput" id="pPhone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Phone number" aria-label="Phone number">
@@ -1041,12 +1069,22 @@
     return fetch(path, init).then(function(res){
       return res.json().catch(function(){ return {}; }).then(function(data){
         if(!res.ok){
-          var err = new Error(data.error || data.detail || "Something went wrong. Try again.");
+          var err = new Error(errorSentence(data));
           err.status = res.status; throw err;
         }
         return data;
       });
     });
+  }
+  // A refusal's words. FastAPI's 422 carries `detail` as a list of
+  // objects; that is said as a sentence, never "[object Object]" (§571).
+  function errorSentence(data){
+    var said = data && (data.error || data.detail);
+    if(Array.isArray(said)){
+      var tooLong = said.some(function(d){ return d && /too_long|at most/.test((d.type || "") + " " + (d.msg || "")); });
+      said = tooLong ? "That is too long." : "Check what you typed and try again.";
+    }
+    return typeof said === "string" && said ? said : "Something went wrong. Try again.";
   }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -1237,21 +1275,28 @@
     loadSamples();
     showAbout();
     if(referral) $("invited").classList.remove("hidden");
-    // The email alone (§296): the account the app opens with later, made
-    // here with no password and put on the list. This browser's session is
-    // the way back in; another device uses "Forgot password?" to set one.
+    // The email and a password (§571): the account the app opens with
+    // later, made here with its password in the same step and put on the
+    // list. The password is the app's own rule and the app's own sentences.
     $("joinForm").addEventListener("submit", function(ev){
       ev.preventDefault();
       var note = $("joinNote"); note.className = "form-note"; note.textContent = "";
       var email = $("email").value.trim();
+      var password = $("joinPassword").value;
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
         note.className = "form-note err"; note.textContent = "That doesn’t look like an email address."; return;
+      }
+      if(!password){
+        note.className = "form-note err"; note.textContent = "Enter your password."; return;
+      }
+      if(password.length < 8){
+        note.className = "form-note err"; note.textContent = "Use at least 8 characters for your password."; return;
       }
       if(!$("acceptTerms").checked){
         note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and conditions."; return;
       }
       $("joinBtn").disabled = true;
-      api("/api/waitlist/join", { email: email, referral_code: referral, accept_terms: true })
+      api("/api/waitlist/join", { email: email, password: password, referral_code: referral, accept_terms: true })
         .then(function(d){
           try { sessionStorage.removeItem("famReferral"); } catch(e){}
           // Straight on to the profile - the app's sign-up fields - with a
@@ -1266,10 +1311,13 @@
           // the sign-in, with the address carried over, is the way back.
           if(/already registered/.test(e.message || "")){
             $("toggleLogin").click();
+            // The password typed here is very likely theirs: carried over
+            // with the address, so signing in is one tap.
+            $("loginPassword").value = password;
             $("loginNote").className = "form-note";
             $("loginNote").textContent = canReset
               ? "That email is already on FAM. Sign in, or use Forgot password? if you never set one."
-              : "That email is already on FAM. Sign in on the device you joined from.";
+              : "That email is already on FAM. Sign in with its password, or on the device you joined from.";
           }
         });
     });
@@ -1638,21 +1686,19 @@
       countryChanged();
     }).catch(function(){});
 
-  // "Skip for now" waits for a name and a phone number (10.8 packet).
-  function phoneDigits(){ return $("pPhone").value.replace(/[^\d]/g, ""); }
+  // "Skip for now" waits for a name; the phone number is optional.
   function missingRequired(){
     var missing = [];
     if(!$("pName").value.trim()) missing.push($("pName"));
-    if(phoneDigits().length < 7) missing.push($("pPhone"));
     return missing;
   }
   function drawRequired(){
     $("skipSetup").setAttribute("aria-disabled", String(missingRequired().length > 0));
-    [$("pName"), $("pPhone")].forEach(function(el){
+    [$("pName")].forEach(function(el){
       if(missingRequired().indexOf(el) === -1) el.classList.remove("missing");
     });
   }
-  ["pName", "pPhone"].forEach(function(id){ $(id).addEventListener("input", drawRequired); });
+  $("pName").addEventListener("input", drawRequired);
   function askForRequired(){
     var missing = missingRequired();
     missing.forEach(function(el){ el.classList.add("missing"); });
@@ -1819,15 +1865,17 @@
     }
     return iso;
   }
-  // Skipping with the required fields in keeps them: the name (on the
+  // Skipping with the required field in keeps it: the name (on the
   // account until a handle goes with it - how the waitlist's search finds
-  // them meanwhile) and the number, and a date of birth or a place if one
-  // was typed.
+  // them meanwhile), and a number, a date of birth or a place if one was
+  // typed.
   window.skipSetup = function(){
     if(missingRequired().length){ askForRequired(); return; }
     var note = $("profileNote"); note.className = "form-note"; note.textContent = "";
     var birth = typedBirth(note); if(birth === null) return;
-    var body = { display_name: $("pName").value.trim(), phone: typedPhone() };
+    var body = { display_name: $("pName").value.trim() };
+    var phone = typedPhone();
+    if(phone) body.phone = phone;
     if(birth) body.birth_date = birth;
     $("skipSetup").disabled = true;
     var place = { country: $("pCountry").value.trim(), region: $("pRegion").value.trim(),
@@ -1946,13 +1994,70 @@
   };
   window.signOut = function(){
     // Joined with the email alone (§296): this browser is the only way in
-    // until a password is set, so signing out is said before it is done.
+    // until a password is set (the card on this page, §571), so signing out
+    // is said before it is done.
     if(STATE && STATE.details && STATE.details.has_password === false &&
-       !window.confirm("You joined with just your email, so you have no password yet. To sign back in you’ll set one with Forgot password? on the sign-in. Sign out?")) return;
+       !window.confirm("You have no password yet, so you couldn’t sign back in. Set one on this page first. Sign out anyway?")) return;
     api("/api/auth/logout", {}).catch(function(){}).then(function(){ location.replace("/waitlist"); });
   };
   $("meBtn").addEventListener("click", function(ev){ ev.stopPropagation(); $("menu").classList.toggle("hidden"); });
   document.addEventListener("click", function(){ $("menu").classList.add("hidden"); });
+
+  // "Set a password so you can sign back in" (§571): drawn while the
+  // account has none, and gone once it does.
+  function drawPasswordCard(d){
+    var none = !!(d && d.details && d.details.has_password === false);
+    $("passwordCard").classList.toggle("hidden", !none);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#passwordCard .pw-eye[data-pw]'), function(eye){
+    eye.addEventListener("click", function(){
+      var input = $(eye.getAttribute("data-pw"));
+      var show = input.type === "password";
+      input.type = show ? "text" : "password";
+      eye.setAttribute("aria-pressed", show ? "true" : "false");
+      eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    });
+  });
+  $("firstPasswordForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var note = $("firstPasswordNote"); note.className = "form-note"; note.textContent = "";
+    var pw = $("firstPassword").value;
+    if(!pw){ note.className = "form-note err"; note.textContent = "Enter your password."; return; }
+    if(pw.length < 8){ note.className = "form-note err"; note.textContent = "Use at least 8 characters for your password."; return; }
+    $("firstPasswordBtn").disabled = true;
+    api("/api/auth/password/set", { "new": pw })
+      .then(function(){
+        $("firstPassword").value = "";
+        if(STATE && STATE.details) STATE.details.has_password = true;
+        drawPasswordCard(STATE);
+        toast("Password set. Sign in with it on any device.");
+      })
+      .catch(function(e){ note.className = "form-note err"; note.textContent = e.message; })
+      .then(function(){ $("firstPasswordBtn").disabled = false; });
+  });
+
+  // The free month (§577): how many of the five have joined, or that it is
+  // earned and when it runs. Absent from an older server, then hidden.
+  function drawFreeMonth(d){
+    var fm = d.free_month, box = $("freeMonth");
+    if(!fm){ box.classList.add("hidden"); return; }
+    var have = fm.earned ? fm.needed : Math.min(fm.invites, fm.needed);
+    var dots = "";
+    for(var i = 0; i < fm.needed; i++) dots += '<span' + (i < have ? ' class="on"' : '') + '></span>';
+    $("freeMonthDots").innerHTML = dots;
+    var day = function(t){ return new Date(t * 1000).toLocaleDateString(undefined, { month: "long", day: "numeric", timeZone: "UTC" }); };
+    var line;
+    if(fm.earned){
+      line = fm.starts ? "Free month earned: " + day(fm.starts) + " to " + day(fm.ends) + "."
+                       : "Free month earned. It starts the day FAM opens to everyone.";
+    } else {
+      line = fm.invites + " of " + fm.needed + " friends joined. "
+           + fm.remaining + " more for a free month.";
+    }
+    $("freeMonthLine").textContent = line;
+    box.classList.toggle("earned", !!fm.earned);
+    box.classList.remove("hidden");
+  }
 
   function load(){
     return Promise.all([
@@ -1961,7 +2066,8 @@
       api("/api/preferences")
     ]).then(function(r){
       STATE = r[0];
-      drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]);
+      drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]); drawPasswordCard(STATE);
+      drawFreeMonth(STATE);
       $("shareLink").value = link();
     });
   }

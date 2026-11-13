@@ -65,6 +65,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import categories
 import hashlib
 import image_store
 import io
@@ -857,8 +858,7 @@ def pick(text: str, tags: Iterable[str] = (),
         if hit is None:
             facets = topics.FACETS
             own = ""
-            if category and (category in facets
-                             or tree.get(category) is not None):
+            if category and categories.holds(tree, category):
                 own = category
                 # A league, team or person the words name, on another
                 # branch, is the picture's subject (§282).
@@ -1012,7 +1012,7 @@ def pick_for_player(text: str, key: str = "",
         waiting = False
         candidates = sorted(tree.match(words) if words else (),
                             key=lambda n: (-_depth(tree, n, facets), n))
-        if category and (category in facets or tree.get(category) is not None):
+        if category and categories.holds(tree, category):
             # The named subject first when it outranks the category (§282),
             # so a borrowed picture walks up the subject's branch.
             if not _named_subject(tree, candidates, category, facets):
@@ -1143,10 +1143,21 @@ def _named_subject(tree, words_nodes, category: str, facets) -> str:
     `SUBJECT_DEPTH` or deeper - that is on a different branch from the
     category. A category above or below that subject (the NFL for a
     Seahawks question, or the reverse) keeps the category's picture.
+
+    **Only within the category's own facet** (§510, the owner 11.9, "Rock Lead
+    Theory"). A grown `lead` node under science (the metal) sat two levels
+    deep, so "Scheffler takes a two-stroke lead" outranked a golf episode's
+    own category and the PGA Tour played over a lump of metal. §282's case
+    is a team beside a node of its own sport; a word on another facet's
+    branch is another sense of the word, never the episode's subject.
     """
     if not category:
         return ""
-    ranked = sorted(words_nodes, key=lambda n: (-_depth(tree, n, facets), n))
+    own_facet = _facet_of_node(tree, category, facets)
+    ranked = sorted((n for n in words_nodes
+                     if not own_facet
+                     or _facet_of_node(tree, n, facets) == own_facet),
+                    key=lambda n: (-_depth(tree, n, facets), n))
     if not ranked or _depth(tree, ranked[0], facets) < SUBJECT_DEPTH:
         return ""
     subject = ranked[0]

@@ -65,6 +65,7 @@ def test_the_circle_is_friends_first_and_lit_only_by_what_is_stored(client):
         "somebody who did nothing was drawn with a story ring"
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_an_unread_message_lights_the_senders_ring(client):
     me = signed_in(client, "ian@b.com", "Ian", "ian")
     tj = TestClient(appmod.app)
@@ -83,6 +84,7 @@ def test_nobody_in_the_graph_is_an_empty_circle_not_strangers(client):
 
 # --- messages say what was shared ------------------------------------------
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_a_shared_episode_is_previewed_by_its_subject(client):
     me = signed_in(client, "ian@b.com", "Ian", "ian")
     tj = TestClient(appmod.app)
@@ -96,6 +98,7 @@ def test_a_shared_episode_is_previewed_by_its_subject(client):
     assert last["topic"] == topics_mod.TAG_LABELS["money"]
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_you_finished_it_is_read_off_your_own_completions(client):
     me = signed_in(client, "ian@b.com", "Ian", "ian")
     tj = TestClient(appmod.app)
@@ -172,7 +175,7 @@ def test_the_last_tab_is_yourfam_on_every_tab_bar():
     page = _interface()
     # Six since §181: Messages became a tab with a bar of its own. Five
     # since the 11.3 packet, when exploreFAM's reel and its bar went.
-    assert page.count('<div class="lbl">YourFAM</div>') == page.count('<div class="tabbar">') == 5
+    assert page.count('<div class="lbl">yourFAM</div>') == page.count('<div class="tabbar">') == 5
     assert '<div class="lbl">Profile</div>' not in page
 
 

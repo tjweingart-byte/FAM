@@ -139,6 +139,8 @@ FAM_ENVIRONMENT = (
     # mix's episodes because a developer's shell turned it on.
     "DAILY_EDITION", "DAILY_EDITION_TIMEZONE", "DAILY_EDITION_HOURS",
     "MIX_REMINDERS", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT",
+    "PUSH_BREAKING", "PUSH_BREAKING_FOLLOWED_OUTLETS", "PUSH_BREAKING_EVERYONE_OUTLETS",
+    "PUSH_BREAKING_RATIO", "PUSH_FINALS",
     "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "MAIL_FROM",
     "DAILY_EDITION_MAX_EPISODES",
     "DAILY_EDITION_MAX_DOLLARS", "DAILY_EDITION_RETRY_SECONDS",
@@ -146,14 +148,15 @@ FAM_ENVIRONMENT = (
     "DAILY_EDITION_ACTIVE_HOURS", "EDITION_CONCURRENCY",
     "EDITION_IN_PROGRESS_SECONDS", "RAILS_EDITION", "RAILS_EDITION_HOURS",
     "RAILS_EDITION_MAX_EPISODES", "RAILS_EDITION_MAX_DOLLARS",
+    # §568: the one daily budget for everything written ahead.
+    "AHEAD_DAILY_DOLLARS", "AHEAD_DAILYFAM_SHARE",
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
-    # /admin/x (§321); its token is cleared by `isolated_x_threads`.
-    "X_THREADS_MAX_READS",
-    "X_THREADS_DAILY_READS", "X_THREADS_WINDOW_HOURS", "X_THREADS_SEEDS", "X_THREADS_MIN_ENGAGEMENT",
-    "X_THREADS_REPLY_READS",
-    "X_THREADS_MODEL",
+    # /admin/groups (§579).
+    "COMMUNITIES_MAX_SEARCHES", "COMMUNITIES_DAILY_SEARCHES",
+    "COMMUNITIES_SUBJECTS", "COMMUNITIES_SHORTLIST",
+    "OUTREACH_AGENT", "OUTREACH_MODEL", "OUTREACH_TIMEOUT_SECONDS", "OUTREACH_MAX_TOKENS",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
@@ -213,7 +216,7 @@ FAM_ENVIRONMENT = (
     # Where a share recipient goes when they press anything but play. Unset
     # in a test, or a machine with a real one would draw doors the assertions
     # about the empty state do not expect.
-    "APP_STORE_URL", "APP_HOME_URL", "APPLE_TEAM_ID", "APPLE_KEY_ID", "MODERATION_EMAIL", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
+    "APP_STORE_URL", "INSTAGRAM_APP_ID", "SNAPCHAT_CLIENT_ID", "APP_HOME_URL", "APPLE_TEAM_ID", "APPLE_KEY_ID", "MODERATION_EMAIL", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
     "IMAGE_CHECK_MAX_TOKENS", "IMAGE_CHECK_TIMEOUT_SECONDS",
     "TOPIC_TITLE", "TOPIC_TITLE_MODEL", "TOPIC_TITLE_MAX_TOKENS", "TOPIC_TITLE_TIMEOUT_SECONDS",
     # Which machine speaks, and how it is reached. A developer with a real
@@ -224,7 +227,7 @@ FAM_ENVIRONMENT = (
     "VOICE_BACKEND", "REMOTE_VOICE_TRANSPORT", "REMOTE_VOICE_URL",
     "REMOTE_VOICE_TOKEN", "REMOTE_VOICE_SAMPLE_RATE", "REMOTE_VOICE_TIMEOUT",
     "REMOTE_VOICE_CONNECT_TIMEOUT", "REMOTE_VOICE_CONCURRENCY",
-    "REMOTE_VOICE_ID", "REMOTE_VOICE_WAKE_INTERVAL",
+    "REMOTE_VOICE_ID", "REMOTE_VOICE_WAKE_INTERVAL", "REMOTE_VOICE_ACTIVE_WORKERS",
     "RUNPOD_ENDPOINT_ID", "RUNPOD_API_KEY", "RUNPOD_BASE_URL",
     # How the worker is *found* rather than what it is (§112). A developer
     # with VOICE_REGISTRY_TOKEN or RUNPOD_POD set must not run a suite whose
@@ -256,7 +259,7 @@ FAM_ENVIRONMENT = (
     "EDITOR_AHEAD_TIMEOUT_SECONDS", "EDITOR_MAX_TOKENS", "SUPERVISOR_TIMEOUT_SECONDS",
     "SUPERVISOR_MAX_TOKENS", "HOUSEKEEPER_TIMEOUT_SECONDS", "HOUSEKEEPER_MAX_TOKENS",
     "SUPERVISOR_ENFORCE", "SUPERVISOR_REPAIR_TIMEOUT_SECONDS", "SUPERVISOR_MAX_REPAIRS",
-    "EDITOR_EFFORT", "EDITOR_TRIAL", "EDITOR_TANDEM", "EDITOR_TANDEM_OPENING_WORDS", "EDITOR_TANDEM_WAIT_SECONDS", "SUPERVISOR_JUDGE_MODEL", "SUPERVISOR_JUDGE_TIMEOUT_SECONDS",
+    "EDITOR_EFFORT", "EDITOR_TRIAL", "EDITOR_TANDEM", "EDITOR_TANDEM_OPENING_WORDS", "EDITOR_TANDEM_WAIT_SECONDS", "EDITOR_WORKED_PLANS", "EXAMPLE_MATCHING", "AHEAD_WRITER_EFFORT", "TEACHING_PAIRS", "SUPERVISOR_JUDGE_MODEL", "SUPERVISOR_JUDGE_TIMEOUT_SECONDS",
     "SUPERVISOR_JUDGE_MAX_TOKENS", "SUPERVISOR_REVIEW_PER_RUN", "SUPERVISOR_GROUNDING",
     "SUPERVISOR_GROUNDING_HIGH", "SUPERVISOR_GROUNDING_LOW",
     "SUPERVISOR_SCREEN_TIMEOUT_SECONDS", "SUPERVISOR_SCREEN_MAX_TOKENS",
@@ -306,7 +309,7 @@ DATA_ENVIRONMENT = (
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
     "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB",
-    "EPISODE_QUALITY_DB", "AGENTS_DB",
+    "EPISODE_QUALITY_DB", "AGENTS_DB", "SURVEYS_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -616,8 +619,14 @@ def isolated_provider_usage(tmp_path, monkeypatch):
     monkeypatch.setenv("PROVIDER_USAGE_DB",
                        str(tmp_path / "stores" / "provider_usage.db"))
     provider_usage.reset()
+    # The day's spend written ahead (§568) lives in the same store.
+    import ahead_budget
+
+    ahead_budget.reset()
+    ahead_budget._ANNOUNCED.clear()
     yield
     provider_usage.reset()
+    ahead_budget.reset()
 
 
 @pytest.fixture(autouse=True)
@@ -820,19 +829,23 @@ def isolated_thumbnails(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def isolated_x_threads(tmp_path, monkeypatch):
-    """`/admin/x`'s cards (§321) per test: `x_threads._STORE` is a
+def isolated_communities(tmp_path, monkeypatch):
+    """`/admin/groups`' leads (§579) per test: `communities._STORE` is a
     process-global, like the tile pictures above."""
-    import x_threads
+    import communities
+    import community_sources
 
-    monkeypatch.setenv("X_THREADS_DB", str(tmp_path / "stores" / "x_threads.db"))
-    # Read through `credentials`, not config.py: a developer's X token must
-    # not let a test reach api.x.com.
-    monkeypatch.delenv("X_BEARER_TOKEN", raising=False)
-    monkeypatch.delenv("X_BEARER_TOKENS", raising=False)
-    x_threads.reset()
+    monkeypatch.setenv("COMMUNITIES_DB", str(tmp_path / "stores" / "communities.db"))
+    # Read through `credentials`, not config.py: a developer's Reddit or X
+    # key must not let a test reach their APIs (§581).
+    for name in ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "X_BEARER_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name + "S", raising=False)
+    communities.reset()
+    community_sources.reset_token()
     yield
-    x_threads.reset()
+    communities.reset()
+    community_sources.reset_token()
 
 
 @pytest.fixture(autouse=True)
@@ -890,3 +903,27 @@ def _agent_writes_inline(monkeypatch):
 
     monkeypatch.setattr(agent_models, "RECORD_OFF_LOOP", False)
     monkeypatch.setattr(agent_netenyahu, "HOLD_OFF_LOOP", False)
+
+
+@pytest.fixture
+def everyone_friends(monkeypatch):
+    """For tests about conversations, groups, replies and notifications rather
+    than about who may message whom: everybody counts as friends. The rule
+    itself - one-to-one messages and new groups only between people who
+    follow each other (PROBLEMS.md §520) - has its own tests in
+    tests/test_friends_and_messages.py."""
+    import app as appmod
+
+    monkeypatch.setattr(appmod, "_mutual", lambda me, other: True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _pronouncing_dictionary_loaded():
+    """`spoken_text` asks the CMU dictionary whether capitals are a word
+    (§567), and answers the old way until it has loaded - in a thread, so
+    the voice never waits. Loaded before any test here, so no test's result
+    depends on whether a background load happened to finish first."""
+    import hard_words
+
+    hard_words.warm()
+    yield

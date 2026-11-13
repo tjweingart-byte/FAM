@@ -58,7 +58,13 @@ section when a decision changes, including why.
    "an account gates what is kept, never what is heard" for as long as
    `WAITLIST=1` - see `docs/claude/constraints.md`, rule `waitlist-gate`.
    Guests are closed out too: a guest door would make the waitlist optional.
-3. **Sign-up is the email alone** (the owner, 21/10, PROBLEMS.md §296; it
+3. **Sign-up is the email and a password, then the Terms box, in one step**
+   (the owner, 12/11, PROBLEMS.md §571, reversing §296): the password is set
+   on the account as it is made. A join with no password (an installed
+   client) still works as §296 made it; such an account is offered "Set a
+   password so you can sign back in" on the status page and "Set a password"
+   in Settings. `/admin` shows whether "Forgot password?" is on.
+   *§296 (superseded):* **Sign-up is the email alone** (the owner, 21/10; it
    was email and password). No password is asked for: the account is made
    with none, signed in on the browser that joined, and another device gets
    in by "Forgot password?", which sets the first one - so SMTP must be
@@ -186,7 +192,20 @@ section when a decision changes, including why.
     (typed MM/DD/YYYY) and the place. Country and state are lists that can be
     typed into, the state's list the country's own (`static/places.json`,
     written by `tools/build_places.py`); the city stays typed.
-21. **Still open (ask the owner):** what each unlock gives (the tiers are
+21. **Five friends earn a free month** (the owner, 13/11, PROBLEMS.md §577).
+    The share card says "Share the waitlist to five friends to earn a free
+    month!" and draws five dots, one per friend who joined with the link
+    (`referred_by`, the invites that already order the line). The fifth
+    stamps `accounts.free_month_earned_at`, once, never cleared - a friend
+    deleting their account does not take it back. The month is a month of
+    "plus" and runs from **the day the whole app goes live**, the same
+    month for everyone, set by an admin on `/admin/waitlist`
+    (`waitlist_settings.free_month_starts`, `POST
+    /api/admin/waitlist/free-month`). Until then it is earned and waiting.
+    It only ever raises a plan (`AccountStore._with_free_month`). While
+    `ENFORCE_QUOTAS=0` every tier is unlimited, so nothing changes until the
+    tiers are on.
+22. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.
 

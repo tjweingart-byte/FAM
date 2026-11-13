@@ -32188,3 +32188,3596 @@ Deeper's. These two screens hold nothing: `startGenSteps(free)` still polls
 screen is up for `GEN_MIN_VISIBLE_MS` (450 ms) and the dial is cut off
 mid-sweep; that is the rule (§292), not a bug. Reduced motion shows each at
 rest: needle on the category, row on the episode.
+
+## 510. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09)
+
+The owner's note (11.9): a PGA Tour episode played over the `lead` node's
+picture - a lump of grey metal in a workshop - and the theory was that a
+player "in the lead" put it there. **The theory was right**, reproduced
+against the seed: the tree grew `lead` from listeners' questions and the
+placer filed it under science (the metal). Placed two levels deep (e.g.
+under `materials science`), it reached `SUBJECT_DEPTH`, so §282's
+`_named_subject` - written for a Seahawks episode filed under sports
+betting - read "Scheffler takes a two-stroke lead" as naming a deeper
+subject on another branch and drew it **even when the episode's own
+category was golf**. Placed one level deep it still wins whenever the
+episode has no category yet (while it is being written) and the words
+name nothing deeper than `golf`.
+
+What decides the picture, in order (`thumbnails.pick_for_player`): the
+episode's category (Nando's node, else the writer's `<<CATEGORY:>>`) unless
+the words name a deeper subject (`_named_subject`); with no category, the
+deepest node the words name (`categories.match`: whole words, in order,
+no stemming - "leads" and "leading" never matched, "lead" did); then the
+nearest node by meaning; then a painted ancestor; then the facets; else
+none (§507).
+
+The fix: **a named subject outranks the category only on the category's
+own facet.** §282's case is a team beside a node of its own sport; a word
+on another facet's branch is another sense of the word. The uncategorised
+case is unchanged - it is a vocabulary problem (an everyday word grown as
+a node), not a ranking one, and is left open: `lead`, like the team names
+in `LEFT_TO_GROW`, should probably not match as a bare word.
+`tests/test_implementations_1015.py::test_a_word_on_another_facet_never_outranks_the_category`.
+
+## 511. "lead" is never a category on its own (2026-11-09)
+
+§510 left one case open: an episode with no category yet whose words say
+"lead" still matched the grown `lead` node (the metal, under science) and
+wore its picture. At the owner's word ("stop 'lead' from matching on its
+own too"), `category_seed.NEVER_ALONE` lists words that are a subject only
+inside a longer phrase - for now only `lead`. `CategoryStore.mint` refuses
+one alone, and `CategoryStore.match` drops a one-word node named there
+from its candidates, so the `lead` row already on the deployment reads as
+nothing without a migration or a wipe (its picture stays in the store,
+unreached). "lead poisoning" still grows and matches. The §510 test now
+uses another cross-facet word (`irons`); `test_lead_is_never_a_category_on_its_own`
+pins this. Add a word to the list rather than a stopword: a stopword would
+also stop "lead poisoning" from ever growing (`phrases_in` breaks runs on
+stopwords).
+
+## 512. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09)
+
+The owner: "add any other everyday words that show the wrong picture".
+**The deployed tree is not readable from a development container**, so the
+words that have actually grown there could not be listed; the thumbnail
+review page (`/admin`) and the new report can. What was added is chosen by
+§511's rule, not from sightings: a word a headline uses every day as a verb
+or a plain noun, whose subject senses sit on different facets - `record`,
+`draft`, `strike`, `pitch`, `court`, `match`, `race`, `trade`, `bond`,
+`stock`, `charge`, `shot`, `drive`, `iron`, `fire`, `plant`, `star`, `club`,
+`spring`, `fall`, `net`, `bowl`, `cup`, `crane`, `seal`, `bat`, `suit`,
+`cell`, `power`, `tank`, `current`, `ring`, `round`, `cap`, `base`, `field`,
+`table` (each with its senses in `category_seed.NEVER_ALONE`). Left off on
+purpose: a word whose one sense is the subject ("golf", "inflation"), a
+company or product ("apple", "amazon" - real, frequent subjects), and
+anything the seed or `ALIASES` names (a test pins that none is). The cost
+of a word on the list is that it never grows alone; its phrases
+("wildfire", "power grid", "world record") still do.
+
+`python tools/categories_report.py --alone` (or `--alone --json`) lists
+every one-word node the tree grew, most listeners first, with its branch
+and whether the list already silences it - run it on the deployment to
+find the next word; adding one is a line in `NEVER_ALONE`.
+
+## 513. No grown phrase holding an everyday word is a category (2026-11-09)
+
+The owner, on §512's "its phrases ('wildfire', 'power grid', 'world
+record') still do": "There should be a way that the categories tree is
+checked so that longer phrases can't be categories. These are not
+important categories to have."
+
+**The check is in `CategoryStore.reload`**, where the tree is read: a
+grown node whose phrase holds any `NEVER_ALONE` word is left out of
+`_nodes`, the match index and the ancestry closure, so it never matches,
+`get` returns None (an episode whose stored category it was falls back to
+the words, as for a node the tree no longer holds), `nodes()` omits it and
+`category_near` never offers it. `mint` refuses such a phrase unless it is
+already a node. A child of a silenced node keeps its place, its ancestry
+skipping the silenced one. **The rows stay on disk** - no wipe, no
+migration - so taking a word off the list brings its phrases back;
+`CategoryStore.silenced()` lists them and `categories_report.py --alone`
+prints them, marked.
+
+**The seed is exempt, by name as well as by source**: "super bowl", "world
+cup", "stanley cup", "stock market", "bond market", "supreme court", "trade
+policy", "draft prospects" and "fusion power" hold listed words and are the
+owner's vocabulary; a row first grown before the seed named it keeps a
+grown source, so the source alone would have hidden it. The aliases ("ryder
+cup", "governor race") come from the seed and are never nodes. "wildfire"
+is one word, not "fire", and still grows.
+
+The cost, said plainly: a grown "nfl draft", "trade deadline", "salary cap"
+or "power outage" is now never a node - such an episode is placed by its
+other words (the league, the team) or the facet. A phrase worth keeping is
+added to the seed, where the check does not reach.
+
+## 514. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10)
+
+The owner, after §513 named them as its cost: "add nfl draft, trade
+deadline and salary cap to the seed". Each holds a `NEVER_ALONE` word, so
+the seed is the only place they can live. `nfl draft` sits under `nfl`
+(beside the teams) so it is deeper than the league and wins the picture
+for a draft episode; `trade deadline` and `salary cap` belong to every
+league and sit directly under `sports`, beside the sports. They are
+painted by the next thumbnail sweep like any new node.
+`test_the_owners_phrases_with_everyday_words_are_seeded`.
+
+## 515. "world cup qualifiers" and "power outage" seeded (2026-11-10)
+
+The owner: "add world cup qualifiers and power outage to the seed". Both
+hold `NEVER_ALONE` words ("cup", "power"), so only the seed can hold them
+(§513). `world cup qualifiers` sits under `world cup`, so a qualifying
+episode is deeper than the tournament and wins the picture.
+`power outage` sits under `local news` and joins `LOCAL_NODES`: an outage
+is nearly always a town's question, so the writer is offered it first when
+the brief names a town (`stories.writer_vocabulary`) and the scene writer
+paints it as an ordinary town (`thumbnails.WRITER_SYSTEM`).
+`test_world_cup_qualifiers_and_power_outage_are_seeded`.
+
+## 516. "power grid" and "world record" seeded (2026-11-10)
+
+The owner: "add power grid and world record to the seed". Both hold
+`NEVER_ALONE` words, so only the seed can hold them (§513). `power grid`
+sits under `energy security` beside `oil supply`; `world record` belongs
+to every sport and sits directly under `sports`. `test_category_seed`
+bans "record" from seed names because a category names a subject, never a
+claim ("record high"); "world record" is a subject and is exempted by
+name, the ban otherwise unchanged. §513's tests used both phrases as
+examples of grown phrases the check hides; they now use "record label"
+and "power bill". `test_power_grid_and_world_record_are_seeded`.
+
+## 517. "nfl trade rumors" seeded (2026-11-10)
+
+The owner: "add nfl trade rumors to the seed". It holds "trade", a
+`NEVER_ALONE` word, so only the seed can hold it (§513). It sits under
+`nfl`, beside `nfl draft`, so it is deeper than the league and wins the
+picture. Matching is the phrase in order (§209): "NFL trade rumors"
+matches; "Steelers trade rumors" does not (that is the team's node).
+`test_nfl_trade_rumors_is_seeded`.
+
+## 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10)
+
+**What happened.** A production deploy, then a restart, failed at startup:
+`AttachmentStore()` timed out waiting for a lock (`canceling statement due to
+lock timeout`, `attachments.py` line 260, its `CREATE TABLE IF NOT EXISTS`).
+Render kept the running server, so the site stayed up, but nothing newer
+could replace it - the Google client id added to the environment included.
+
+**Why.** `db.py` keeps SQLite's writing rules on Postgres: every write to a
+store holds that store's advisory lock until it commits. `AttachmentStore`
+was the one store opened with sqlite3's implicit transactions (no
+`isolation_level=None`), and its `forget` - part of account deletion,
+5.1.1(v) - wrote with `self._conn().execute(...)` outside `with conn:`, so
+nothing ever committed. The owner deleted an account from the iOS app's
+waiting screen shortly before the first failed deploy; the running server
+has held the attachments lock since, on a thread-local connection that is
+never reused for a commit. A new server's first write to the store waits
+10 s (`LOCK_TIMEOUT`) and the import fails. On SQLite the same miss held a
+write transaction on the file until the thread's connection closed.
+
+**What changed.** `AttachmentStore` opens autocommit like every other
+account store, and `forget` writes inside `with conn:` as well. A test
+deletes an account and checks no transaction is left open
+(`test_deleting_an_account_leaves_no_transaction_open`; it fails on the old
+code). `tools/db_sessions.py` lists the database's sessions, their
+transaction age and the store locks they hold, and `--end` ends idle ones
+holding a lock - the way to release a held lock without taking the site
+down.
+
+**How production was brought back.** A restart, and a suspend and resume,
+failed the same way: the abandoned session outlived its server. Production
+now sets `ATTACHMENTS_PATH=/app/attachments_v2.db`, a new schema and so a
+new lock; attachments live six hours, so nothing was lost. The old schema's
+session can be ended with `tools/db_sessions.py --end` and the variable left
+as it is.
+
+**Still open.** Other stores open with implicit transactions (`weather`,
+`places`, `story_store`, `local_news`, `push`, `gdelt`, `history_archive`,
+`wikimedia`, `demographic_totals`, the agents' stores). None is touched by
+account deletion; each should be read for a write outside `with conn:`. A
+store's startup DDL waiting on a lock a running server can hold is itself a
+deploy hazard worth a guard.
+
+## 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10)
+
+The owner's 11.9 "Implementations" PDF, seven items with screenshots from a phone.
+
+**1. Go Deeper on a myFAM episode erased the rest of the mix.** The cause was
+one line doing its job against the wrong case. `populatePlayer` ends a
+playlist whenever something that is not the playlist's episode starts (§134:
+"the listener went and chose something"), and a Go Deeper follow-up is not
+`fromMix`, so `mixPlay` was dropped and the queue sheet's "Next from Morning"
+disappeared with the next button. But a Go Deeper is not choosing something
+else - it is staying with this episode a little longer. Now `startFollowUp`
+marks the follow-up `mixDetour` (the playlist episode it left, via
+`mixDetourFor`, which also carries the mark through a Go Deeper on the
+follow-up), `populatePlayer` keeps `mixPlay` for a detour with `nextUp` off,
+and its end - played through, skipped (the next button still advances the
+playlist) or failed (`mixItemFailed`, read from `lastGenerate` because a
+follow-up can fail before the player is populated) - calls
+`advanceMix(<the playlist episode>)`. The queue sheet's Now playing row says
+"Going deeper · Morning carries on after".
+
+**2. The queue sheet "looks too zoomed in".** Its rows had 2px of horizontal
+padding inside a sheet with none, 13px titles and nothing beside them, so on a
+phone the text ran to both edges. Now: a "Queue" heading, rows inset 22px, a
+42px picture (the episode's, else its place in line), a title over what the
+row is (the mix's name, "Queued").
+
+**3. Share, vibe and save sat on the sources pill.** `.p-side` bottom 10px →
+34px.
+
+**4. The transport row.** The ±15 and next were outlined circles at 38px with
+an 8px number, the next button hung off the side absolutely. Now five slots
+on a grid - four that shrink with the screen and a 74px middle one for play
+(66px) - the first slot empty to balance next, every glyph bare (no circle), a redrawn ±15 arrow with the 15 at
+10.5px bold, a solid next glyph. Scoped to `#screen-player`; play-all and the
+mini bar are unchanged.
+
+**5. Tab labels spelled as the wordmarks:** dailyFAM, myFAM, yourFAM. Only
+the tab bar; the swapped meanings (§185) are unchanged.
+
+**6. Captions "more prominent and easy", and a better display.** They were a
+strip of 8.5px capitals at the very bottom of the player that had to be slid
+up, and open they covered the transport. Now a labelled **CC Captions** pill
+sits beside the queue; on, the captions are read over the picture on a dark
+card - the sentence being spoken in 24px Bricolage (still one sentence at a
+time, §127), a copy button and an X in the corner, a swipe down closes it -
+with the title, scrubber and transport untouched below, and share/vibe/save
+above it. The choice is remembered on the device (`fam.captions`), so somebody
+who reads along does not turn them on again for every episode; it used to
+reset to off on each one.
+
+**7. The daily limit screen: removed for now.** "Until I change it, I want
+everyone to have unlimited access." `render.yaml` sets `ENFORCE_QUOTAS=0` on
+`fam` - explicitly, so turning the §207 ceiling back on is one value. Nothing
+else changed: the limit screen, quotas, admin `unlimited` and
+`/api/admin/plan` all stay built and tested, and the plans sheet already words
+itself from `/api/plans` `enforced` ("Everything is free for now."). Spend per
+listener stays visible in metering, not capped - the trade §81 named.
+Takes effect when this reaches `Main` and production redeploys.
+
+Pinned by `tests/test_packet_119_510.py` and the smoke check "Go Deeper keeps a
+playlist going; captions are a pill".
+
+**Found in the double-check before handing over.** Two things the 390px
+screenshots could not show. The first transport used five fixed 52px columns
+with 14px gaps - 316px - which is wider than the desktop preview's phone
+(312px across) and a 320px phone, so the next button was cut off at the right
+edge; the four outer columns now shrink (`minmax(0,1fr)`, 48px glyphs, the
+row at most 330px). And the player's bottom padding was 60px because the old
+captions strip lived there; with captions on the picture that was a blank band
+under the controls, now 22px. Checked, and fine: stopping the playlist's
+episode for a detour never fires its end (`FamAudio.stop` bumps the token,
+and `advanceMix` ignores a stale key), so the mix does not jump ahead when the
+follow-up starts.
+
+## 520. Messages only between friends (2026-11-10)
+
+**The gap.** `POST /api/messages` checked blocks, suspension and the
+waitlist, but not the follow graph for a one-to-one message: any account
+that knew another listener's id could message them. The web never shows an
+id, so it took effort to exploit, but an id is not a permission, and App
+Review weighs unwanted contact.
+
+**The owner's rule:** one-to-one messages, and new group chats, only between
+people who follow each other (friends, `op-follow-graph`). `app._mutual`
+decides; a refused send answers 403 "You can message people who follow you
+back."; a group with a non-friend answers 400 "You can start a group with
+people who follow you back.". Existing groups keep their members. A reply
+or ❤️ to the story of someone you follow who does not follow you back is a
+message, so it is refused the same way.
+
+The web's New message picker, the share sheet's people row and story tags
+now offer friends only (they offered everyone you follow, and followers for
+tags), and the picker's empty sentence says how to become friends. Tests:
+`test_knowing_an_id_does_not_open_a_conversation`, and the one-way follow
+refused in `test_two_listeners_can_find_follow_and_message_each_other`.
+Tests about threads, groups, replies and notifications (not about who may
+message whom) use the `everyone_friends` fixture in `tests/conftest.py`.
+
+**Groups, refined the same day (the owner).** A group may hold people who
+are not friends with each other; whoever makes it must be friends with
+everyone in it (already so: `messages_new_group` checks each pick against
+the maker's friends), and groups gain no members after they are made. Each
+member who is not friends with everyone is told: `_group_view` marks every
+member `friend` (mutual with the viewer) and composes `warning` - "You’re
+not friends with Ben. Everyone in this group can see what you send here." -
+which the web (`threadWarnHTML`, `.thread-warn`) and iOS (`ChatView`) draw
+at the top of the conversation. Test:
+`test_a_group_may_hold_strangers_and_tells_each_member_who`.
+
+## 521. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09)
+
+The owner (2026-11-09): "Do 1, 3 and 4" of seven proposals for training
+Shakespeare. §437 found his outline did not yet make the writing measurably
+better at 1.5 minutes (Opus mean 2.82 / 2.84 / 2.87, every interval across
+zero) and storytelling 1.5-1.9 of 5 in every arm, and left unmeasured
+whether the writer followed the plan at all. The proposals not taken: an
+outline with a named turn and a because / therefore / but link per beat (2),
+best of three plans ahead of the tap (5), planted failure cases and a
+nightly Opus review as Mclovin has (6), and listening-driven playbook
+revisions (7).
+
+**1. Whether the writer followed his plan** (`episode_quality.plan_following`,
+code, no model). His outline now leaves the sentences he chose on the
+episode's notes, in memory only (`agents.editor.plan_texts`,
+`notes.editor["plan"]`). Where the episode is cached, `note` measures four
+parts and keeps the numbers in the row's `measures` JSON as `plan` - never
+the sentences, which are provider text:
+
+- `opening`: an open-on sentence used in the first two sentences;
+- `beats`: the share of his parts with any sentence used anywhere;
+- `order`: of the parts used, the share of pairs told in his order;
+- `landing`: a land-on sentence used in the last two;
+- `score`, the mean of those that apply, and `surface` - "ahead", or
+  "tandem" on searchFAM, where the opening was written before his plan
+  existed (§456) and is not counted.
+
+A plan sentence is *used* by a script sentence sharing at least two of its
+content words and a quarter of them (`PLAN_SHARED_WORDS`,
+`PLAN_SHARED_SHARE`): the writer retells the sources, so names, numbers
+and nouns carry over where the phrasing does not. It is a crude reader,
+pinned by tests on a followed script, a reordered one and a near-miss -
+read it as a trend, not a verdict on one episode. `python
+tools/editor_trial.py` prints it first, ahead and tandem apart
+(`plan_following_report`); `tools/editor_eval.py` reports `plan:*` per arm.
+**Unmeasured until it runs with the key**: what the numbers are. If the
+writer does not follow the plan, `writer_block` is the next thing to fix,
+before anything about the plan itself.
+
+**3. Worked plans** (`agents/worked_plans.py`, `examples/plans/`). His
+`<teaching>` held the finished examples and never a plan. Eight worked
+plans now follow them - 1-blue-sky, 2-apollo-13, 2-autoimmune,
+2-fed-raises-rates, 2-house-music, 2-passkeys, 2-singapore-sprint,
+2-suez-canal: sports, money, tech, science, health, culture and world. Each
+is a packet numbered exactly as his packets are, his answer in his own
+shape (`EditorAnswer`), and one line on what it teaches; the episode it
+became is the example of the same name. **FAM's own words, never provider
+text** (§437 keeps the frozen packets outside the repository for that
+reason): the sentences are the example's own facts written as a source
+states them, plus a line or two each plan leaves out - a preview, a
+forecast, advice, something beside the point - so every plan shows
+choosing, not only ordering (a test fails if one keeps every sentence).
+Checked in code at load: every number resolves, no beat would be dropped,
+the example exists and has a facet; a plan that fails is left out and
+logged. His instructions gained one sentence saying what worked plans are.
+`python tools/editor_teaching.py --check` prints the checks; `--draft
+<example>` (with the key) has Opus 5.5 draft the plan for an example that
+has none - 2-flight-cancellations, 2-marathon-distance, 4-noise-cancelling
+and 5-financial-crisis today - written only if it passes, to be read
+before it is committed. Cost: about 15,000 characters more of his input,
+roughly 4,000 tokens a plan. `EDITOR_WORKED_PLANS=0` restores the examples
+alone. His signed rule book is unchanged: he still names sentences by
+number, and the worked plans are teaching, never evidence.
+
+**4. Examples matched to the story.** `examples/facets.json` gives every
+example its facet (`topics.FACETS`; a test fails on an example without
+one). `script_generator.episode_facet` reads the episode's facet in code -
+the brief's category path (§311), then its category or subject against the
+tree, then the question's words - and `example_hint` names the one or two
+examples of that facet, the nearest the episode's length first, in the
+writer's **request**, never the cached system block, which stays byte for
+byte the same ([writer-savings]). Shakespeare's worked plans name the ones
+of the same kind. `EXAMPLE_MATCHING=0` leaves the request exactly as it was.
+Business has one example and no worked plan, local news none.
+
+And new examples proposed from listening (`episode_quality.example_candidates`,
+`python tools/example_candidates.py`): per facet, the written episodes with
+20 or more listens (`CANDIDATE_MIN_LISTENS`), the most heard to 85% first,
+then the fewest left in 20 s, the facets with fewest examples first. `--write`
+puts them in `~/.fam/example_candidates/` in the examples' format, **never in
+`examples/`**: the owner reads, edits and moves the ones worth keeping
+([examples-lever]; no hand-scoring - choosing an example is not scoring an
+episode). None qualify here: this container's store has no listens.
+
+**Measuring it.** `tools/editor_eval.py` gained two arms on §437's frozen
+packets: `none_matched` (no editor, the writer matched) and `haiku_taught`
+(Haiku 5.5 high with worked plans, the writer matched). The original three
+now run with both switches off, so they stay §437's comparison, and their
+results already on disk are the baseline:
+
+    AGENTS=1 EDITOR_AGENT=1 python tools/editor_eval.py --run --arms none_matched,haiku_taught
+
+About $7 for the two arms with grading (§437: $10.45 for three). No key
+here, so neither the plan-following numbers nor the comparison has been run.
+
+Settings (new): `EDITOR_WORKED_PLANS` (1), `EXAMPLE_MATCHING` (1), in
+`config.py`, `.env.example` and `tests/conftest.py`.
+
+Tests: `tests/test_plan_following_521.py` (a followed script scores one;
+each part on its own; a part never told; one shared word is not a use;
+tandem's opening not counted; numbers kept, never sentences; the report by
+surface; his outline leaves his sentences on the notes),
+`tests/test_worked_plans_521.py` (every plan passes his checks; the facets
+covered; each leaves something out; a broken plan left out and said why;
+numbered as his packets; off, none; in his teaching after the examples; the
+checker runs with no key), `tests/test_examples_matched_521.py` (every
+example has a facet; the facet from the brief first; nearest length first;
+named in the request, the system block unchanged; off, as it was;
+candidates by listening, fewest-example facets first, written in the
+examples' format, never a listener).
+
+## 522. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09)
+
+The owner (2026-11-09), on seven ways to train the writer as a
+professional script writer: "1. For when nobody waits, it's supposed to be
+haiku high. 2. Rewriting cost are something we want to avoid, that is why we
+want to train rather than draft/rewrite. 3. This is a great way to train the
+model early on, we absolutely can't use opus to rewrite episodes after
+launch. 4. Implement this. 5. ... what is the best way to do this. 6. Good
+7. Don't do." So: no rewrite pass on any episode (2), and no automated
+search over the writer's instructions (7). Story shapes (5) are answered,
+not built.
+
+**1. The writer at high effort where nobody waits** (`AHEAD_WRITER_EFFORT`,
+high). It was Haiku 5.5 at `EFFORT` (low) everywhere - `EDITION_WRITER_*`
+existed for the editions but was unset. `writer_for` now gives
+`AHEAD_WRITER_EFFORT` wherever `nobody_waits(notes)`: an edition
+(`notes.edition`), an episode written ahead of the tap (`notes.ahead`), or
+a prefetch script warm (`notes.prefetch`). searchFAM stays at `EFFORT`, so
+the first word is not moved; `EDITION_WRITER_EFFORT`, when set, still wins
+for an edition. `MAX_OUTPUT_TOKENS` is 16,000, the room §437 found Haiku
+high needs. `/api/health` reports `ahead_writer_effort` and its source, and
+`edition_writer.effort` now reads what is actually used. Not in the cache
+key. Cost unmeasured: high effort spends thinking tokens on every edition
+and warm (§455's editor call at high cost ~2.7x low).
+
+**6. The ear, checked in code** (`episode_quality.ear`, inside `measure`,
+so every quality row and `tools/editor_eval.py`, as `code:ear`, carry it).
+The journalism playbook's Part 2, the parts a pattern can see: `long`
+(over 40 words), `front_loaded` (a subordinate lead of 12+ words before the
+first comma - never a time or place phrase), `monotone` (4+ sentences within
+3 words of each other's length), `said_after` (the speaker named after the
+quote), `figures` (two or more figures in a sentence), `visual`, `brackets`,
+`long_list` (five or more short items). `score` is the share of sentences
+no check flagged. **Tuned on the house examples**, which the checks must
+pass: at a 30-word limit and with time phrases counted as leads they
+flagged a quarter of the owner's own sentences; as set, the twelve examples
+score 0.75-1.0 (mean ~0.92), and the one front-loaded lead still flagged
+genuinely is. Never one of the six graded metrics, never enforced.
+
+**4. Where listeners stop** (`episode_quality.drop_off`,
+`python tools/drop_off.py`). For every sentence, of the listeners who
+reached it, the share who stopped there and heard nothing after (a listen
+of `FINISHED_SHARE` stopped nowhere). Reported: the sentences with the
+highest exit rate that at least 10 listeners reached, with their ear flags;
+the opening, middle and landing; and per ear check, flagged against passed
+sentences - whether listeners act on each rule. Positions: `episode_audio`
+keeps each sentence's start (`starts`) but only for the audio's week, so
+`pipeline._keep_audio` now copies them to the quality row as shares of the
+episode (`note_starts`, a new `starts` column widened like `editor_arm`) -
+shares, not seconds, because another voice reads at another pace and a
+listen records only how far through it got. Without them, positions come
+from word counts. Numbers and FAM's own sentences only, never a listener.
+A stop is not always the sentence's fault; read rates over many listens.
+
+**3. Before-and-after pairs, before launch only** (`tools/teaching_pairs.py`,
+`examples/pairs/`, `TEACHING_PAIRS`). `--propose` reads the scripts
+`tools/editor_eval.py` wrote from its frozen packets - never a listener's
+episode, the cache or the quality store - and takes those the code flags
+most (weak opening, recap/tease/question ending, signposts, repeats, facts
+joined by "and", the ear checks). Opus 5.5 rewrites each from the same
+packet under the house rules, told the flaws. Kept only if the code finds
+fewer flaws with no story or ear score lower, and the grader marks it at
+least 0.3 higher (mean of six) with no more unsupported claims. Kept pairs
+land in `~/.fam/teaching_pairs/` with a reason line built in code from the
+flaws fixed; the owner moves the ones worth teaching into `examples/pairs/`,
+where the writer's cached instructions show up to six. **It refuses to run
+on a deployed service** (`RENDER` / `RENDER_SERVICE_ID`), nothing on the
+server imports it and no schedule runs it - the owner's line, as code. No
+pairs are committed yet, so the writer's instructions are byte for byte
+what they were.
+
+**5. Story shapes - the answer given, not built.** Recommended: a closed
+set of about six shapes (the result, the explainer, why now, state of play,
+the profile, the turn), each defined in the playbook by its skeleton in
+because / therefore / but terms, how it opens and how it lands - the
+playbook is signed, so the owner signs the list; **chosen in code from the
+brief** (outcome-dependent and finished → the result; in progress → state
+of play; "why/how" → explainer; a person → profile), so searchFAM gets one
+with no wait; Shakespeare may override it ahead of the tap with an enum
+field (no fact can be written into it); the writer reads the shape's name
+in its request and the skeletons in its cached block; one example per
+shape (the twelve cover three or four); measured by `drop_off` and the
+comparison per shape.
+
+Settings (new): `AHEAD_WRITER_EFFORT` (high), `TEACHING_PAIRS` (1), in
+`config.py`, `.env.example` and `tests/conftest.py`. CLAUDE.md's
+[small-calls-haiku] line and its topic file note the change.
+
+Tests: `tests/test_writer_training_522.py` (high only where nobody waits;
+an edition's own effort wins; copied and reported; each ear check named;
+a run of one length; a time phrase is not a lead; the house examples pass;
+every measure carries the ear; exit rates per sentence, by place and ear
+check; words without timings; starts kept once, as shares; the pipeline
+keeps them; a pair round-trips into the writer's block, off removes it; no
+pairs, no change; the reason from what was fixed; flaws named; refused on a
+deployed server; nothing on the server imports it).
+
+## 523. Story shapes, drafted for the owner (2026-11-09)
+
+The owner: "Draft the story shapes list" (proposal 5 of §522). The draft is
+`docs/story_shapes.md`: not signed, not wired - nothing reads it.
+
+**What it found first.** FAM already has shapes: `episode_intelligence.STRUCTURES`,
+nine of them, picked from a closed list by the brief inside its own call
+(no wait), with `in_progress` reached only from evidence (§88). §522's
+answer described choosing in code as if it were new; it is not. So the draft
+**revises that list rather than adding a second one**. It names five
+problems with today's shapes:
+- three endings invite a forecast or a summary (`breaking`'s "what happens
+  next", `business`'s "what it implies", `explainer`'s "the way to think about
+  it afterwards"), against [endings-do-not-tease] and [speak-from-inside];
+- no shape says how to open or land;
+- no shape says how its parts connect (because / therefore / but);
+- a person and a comparison have no shape;
+- no example is tied to a shape.
+
+**The draft:** ten shapes plus `general`. Each has six parts: chosen, opens
+on, moves, lands on, never, example. The keys are unchanged where a shape
+survives (`breaking`, `business`, `sports_recap`, `sports_preview`,
+`in_progress`, `explainer`, `historical`, `trend`); two are new (`profile`,
+`comparison`). Town news and the weather are left out, because §194's
+composed order already governs them. The twelve examples cover four shapes;
+six shapes have none, the news story among them, and the gaps are listed.
+
+**Once signed:** the shapes go into the playbook's Part 3, and the code
+follows the signed text. The brief keeps choosing, at no wait.
+Shakespeare may correct the shape ahead of the tap through an enum field.
+The writer's request carries the shape's opening, moves and landing, never
+the cached block. Each example names its shape. Measured per shape with
+`tools/editor_eval.py` and `tools/drop_off.py`. Four questions for the owner
+close the draft.
+
+## 524. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09)
+
+The owner, on `docs/story_shapes.md` (§523): "Add profile and comparison,
+let Shakespeare change the shape" - questions 2 and 3 of the draft. Question
+1 (the list's other changes) and 4 (the wording, to be signed into the
+playbook) are still open, so the other shapes' wording is unchanged.
+
+**Two shapes** in `episode_intelligence.STRUCTURES`, which the brief may
+pick (`PICKABLE_STRUCTURES`):
+- `profile`: why they are talked about now, who they are, the turns that got
+  them here, where they stand now from dated reporting, landing on the most
+  concrete current fact;
+- `comparison`: the difference that decides it, each side in its own terms,
+  where they differ and why, landing on the fact that separates them, never
+  which to choose.
+
+Intent `comparison` now defaults to `comparison` (it was `explainer`). The
+brief's instructions name when each applies. The quality row's `structure`
+carries them, so `drop_off` and the comparison can read them per shape.
+
+**Shakespeare changes the shape ahead of the tap.** His answer gains
+`shape`: an enum of every `STRUCTURES` key plus "" (keep the brief's). There
+is no field a fact could go into. `in_progress` is included: the brief may
+not pick it, because it has read nothing (§88), but he has read the packets
+and can see that nothing has finished. His `<evidence>` now opens with the
+brief's shape and every shape's parts. His instructions say to keep it, or
+to name a better fit, above all `in_progress` when no sentence reports a
+result. `script_generator._with_shape` applies a changed shape to a copy of
+the brief (a warmed brief is shared), so the writer's shape note
+(`build_structure_note`) and the quality row follow him. It records
+`shape_from` on his notes and counts `shape_changed`. Not in the cache key.
+**On searchFAM the brief's shape stands**, because in tandem the opening is
+written to it before his plan exists (`shape` is "" there).
+`tools/editor_eval.py` applies his shape as the editions do.
+
+His signed rule book is unchanged: choosing the shape is part of outlining
+the story ("always" 3), and he still states no fact.
+
+Tests: `tests/test_story_shapes_524.py` (both shapes pickable, comparison's
+default, `in_progress` still not; his list is exactly the brief's
+vocabulary; he is shown the brief's shape and every shape; ahead, his shape
+reaches the writer's prompt, the shared brief untouched, counted; an empty or
+the same shape keeps the brief's; on search the brief's stands; no brief, no
+change).
+
+## 525. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09)
+
+The owner: "Keep the list as drafted and sign the wording" - the last two
+questions of `docs/story_shapes.md` (§523).
+
+**The wording is in place where the writer reads it.** Each of the ten
+shapes in `episode_intelligence.STRUCTURES` is now the draft's, as one line:
+what it opens on, how its parts follow (because, therefore, but), what it
+lands on, and what it never does. The three endings §523 found against the
+rules are gone: `breaking`'s "what happens next", `business`'s "what it
+implies" and `explainer`'s "the way to think about it afterwards". The
+writer reads a shape through `build_structure_note`, unchanged, in its
+request rather than the cached block, and still with "drop any part you
+have nothing real for". Keys are unchanged, so nothing stored moves.
+
+**Signing is the owner's.** The key is held outside the repository, and no
+session makes, reads or asks for it (§348). The playbook is a signed book (the
+manifest covers it with `shakespeare.md`), and a session never edits a
+signed book. So the proposed playbook waits whole in
+`docs/agent_rule_proposals/journalism_playbook.md`: v2, with Part 3's new
+"Story shapes", which holds each shape's chosen, shape and example lines.
+`docs/journalism_playbook.md` is the signed v1, byte for byte, so
+`--verify` passes and every agent may run. This session first edited the
+signed playbook in place, which would have held Shakespeare and failed
+`test_the_repositorys_rule_books_are_signed_or_every_agent_is_held`. The
+proposals README's rule caught it, and the edit was moved.
+`docs/agent_rules/MANIFEST.pending.json` is version 7: only the playbook's
+fingerprint differs from version 6, and it is the proposal's.
+
+`tests/test_story_shapes_525.py` holds the code to the playbook as it will
+be signed - the proposal while it waits, the signed book after - word for
+word, with every key named in both, every shape opening, landing and saying
+what it never does, and the three old endings absent.
+
+**For the owner** (the proposals README, with one difference: the playbook
+lives in `docs/`, not `docs/agent_rules/`): download the proposal and the
+pending manifest (renamed `MANIFEST.json`), sign the manifest, then upload
+`journalism_playbook.md` to `docs/` and `MANIFEST.json` and
+`MANIFEST.json.sig` to `docs/agent_rules/`. Then the session verifies, deletes
+the proposal and the pending manifest, and the owner updates the held copy.
+
+## 526. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09)
+
+The owner signed `MANIFEST.pending.json` (version 7, §525) on a new
+computer, a MacBook Air that had no `conda` and only LibreSSL 3.3.6. LibreSSL
+cannot make an Ed25519 signature, as §470 found. Miniforge was installed in
+the home folder (no admin password); `conda create -n famsign -c conda-forge
+openssl` gave OpenSSL 4.1.0, and `conda activate famsign` works there from
+now on. The key was saved from TextEdit to the home folder, never the iCloud
+Desktop, and deleted with `rm -P` after signing. Both files' SHA-256 were
+checked before signing.
+
+A changed way of uploading: the owner uploaded only `MANIFEST.json` and
+`MANIFEST.json.sig`, to `docs/agent_rule_proposals/` (4300301, two files, no
+stray). The proposed playbook was already there byte for byte, so the
+owner had nothing to upload for it. The session then verified the signature
+with `owner.pub` before moving anything: `MANIFEST.json` is the pending
+manifest byte for byte (version 7; the commit message says 8). It then
+moved, in one commit, the playbook to `docs/`, and the manifest and
+signature to `docs/agent_rules/`, and deleted the pending manifest. A
+signature covers the files' contents, not where they sit, and the build was
+green throughout, since the signed books never changed before the
+signature arrived. `python tools/rulebook_manifest.py --verify`: manifest
+version 7, every agent may run.
+
+`tests/test_story_shapes_525.py` now reads the signed playbook (the proposal
+is gone), and the writer's shapes are its words. The owner updates the copy
+held outside Claude: the three files from the Desktop `famsign` folder go to
+`current/`, and version 6's set to `archive/`.
+
+## 527. The §521 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10)
+
+Run in this session with the environment's keys (`FAM_ANTHROPIC_KEY`, the
+search keys). §437's frozen packets were gone with their container (as
+§450 found before), so the 50 questions were researched again into
+`~/.fam/editor_eval_501/` (~$0.50). Every arm writes from those same
+packets, so arms pair by question. The writer is Haiku 5.5 at high effort
+(§522), with the signed shapes (§526), and Opus 5.5 grades blind. The owner
+chose Opus grading over cheaper options. One run stopped at this session's
+two-hour background limit and another at a container restart; both
+resumed where they stopped, because the tool skips what is written.
+
+**Run 1** (`--arms none,none_matched,haiku,haiku_taught`, 200 scripts, no
+grade failures, $6.16: writing $1.15, grading $5.01). Opus mean of six,
+paired by question, 95% bootstrap:
+
+| | difference | interval | better / worse |
+|---|---|---|---|
+| none_matched - none (matched examples) | +0.03 | [-0.12, +0.18] | 18 / 23 |
+| haiku_taught - haiku (worked plans) | +0.07 | [-0.06, +0.20] | 23 / 19 |
+| haiku - none (Shakespeare) | +0.07 | [-0.11, +0.24] | 23 / 21 |
+| haiku_taught - none | +0.14 | [-0.03, +0.31] | 27 / 18 |
+
+- **Matched examples cost repetition**: -0.37 [-0.71, -0.04], 20 worse and 13
+  better; nothing else clears zero. **Turned off** (`EXAMPLE_MATCHING=0`).
+- **Worked plans**: repetition +0.40 [0.00, +0.76] and hook +0.24
+  [-0.02, +0.50], both at the edge; nothing worse. Kept.
+- **Whether the writer follows his plan**, measured for the first time
+  (haiku / haiku_taught): opening 0.63 / 0.62, parts 0.79 / 0.80, order
+  0.82 / 0.82, **landing 0.35 / 0.40**, score 0.63 / 0.65. The landing is
+  where the plan is lost.
+- Every arm graded far above §437 (mean of six ~3.6 against 2.82;
+  storytelling 2.9-3.2 against 1.5-1.9; unsupported claims 0.4-0.6 against
+  3.6). Run 2 says that is not the writer's effort; new packets, the shapes
+  and the grader's own drift are not told apart here.
+
+**Run 2** (`~/.fam/editor_eval_507/`, the same packets; 100 scripts, $2.97):
+two changes and one new arm.
+- `none_low` (new arm in `tools/editor_eval.py`): no editor, the writer at
+  low effort as before §522. **High minus low, mean of six: +0.05 [-0.10,
+  +0.20]**, better 27, worse 20. It leans, without clearing zero, towards
+  storytelling (+0.24), repetition (+0.25) and fewer unsupported claims
+  (+0.22 [-0.02, +0.46]; 0.60 against 0.82 a script). It costs twice the
+  writing ($0.0035 against $0.0017 an episode) and 15 s more, ahead of the
+  tap where nobody waits. Kept: nothing is worse, and the claims lean the
+  right way.
+- **The landing as the last sentence** (`writer_block`: "What it lands on
+  is your last sentence: decide that sentence first, head for it, and stop
+  once it is said"; "Land on - your last sentence tells this, and the
+  episode ends there:"). **No effect**: landing 0.40 to 0.42, plan score
+  0.65 to 0.63, mean of six -0.08 [-0.21, +0.06], hook -0.26 [-0.54, +0.04]
+  (22 worse, 11 better), at the edge in the wrong direction. Wording does
+  not move the landing. Either the writer decides its last line by itself
+  whatever the plan says, or the measure misses landings told in other
+  words. The two are not told apart yet, because results keep the numbers,
+  never the plan's sentences (provider text).
+
+Tests: `tests/test_eval_findings_527.py` (matching off by default; the
+plan's landing worded as the last sentence; `none_low` at low effort, the
+other arms high, and the settings taken back after).
+
+## 528. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10)
+
+The owner: "Do 1 and 2" of §527's next steps.
+
+**1. The landing wording is back as it was.** "Land on:" again, with no
+"your last sentence" line: §527 measured no gain (landing 0.40 to 0.42) and
+a hook leaning worse (-0.26 [-0.54, +0.04]).
+
+**2. The measure, checked by reading.** Shakespeare (worked plans) wrote 10
+of the frozen questions again with no grading (~$0.08). His chosen sentences
+and each episode's last two sentences were kept in the session's scratchpad
+only, because they are provider text. The questions: Fed, Gaza talks, oil,
+jobs report, Eagles, F1, Nvidia, Apple, bird flu, Roman Empire. Read by hand,
+the writer **landed on his planned material in 6 of 10** (jobs, Nvidia,
+Eagles, Roman Empire, and, in the second-to-last sentence, Gaza and the
+Fed); oil partly (the same move, another source's figures); F1, Apple and
+bird flu not. **The measure said 0 of 10.** The writer follows the landing
+far more than §521-§527 reported, and their landing figures (0.35-0.42) are
+too low.
+
+Why it missed:
+- **numbers read out**: the writer says "seven point nine percent", the
+  source prints "7.9%", and the measure compared digits only;
+- **long source "sentences"**: a standings table or a press release's
+  header has dozens of words, and a quarter of them had to appear;
+- **broken sentences**: "10, but they continue almost daily." - the
+  packet's splitter (`editor._split`) cuts after a number.
+
+**The fix** (`episode_quality`): figures are read printed or spoken, through
+`figure_guard`'s own reader (`_plan_numbers`), and a shared figure counts
+as a use - twice when it is distinctive (a decimal, or above twelve). Number
+words count only as numbers. A long source sentence is judged against at
+most eight of its words (`PLAN_WORDS_CAP`). On the ten, the measure now
+agrees with the reading on **8 of 10** (it agreed on 4). The two
+disagreements: Gaza's planned landing is a broken half-sentence, and Apple
+ended on a different product at the same $299 - a shared distinctive figure
+taken as a landing, a borderline case.
+
+**Not redone:** §521-§527's plan-following figures stand as measured and
+are too low. The scripts' plan sentences were never kept (provider text),
+so they cannot be measured again; the next comparison measures with the
+fix.
+
+**Seen on the way, not fixed here:** Shakespeare's landings were sometimes
+page furniture - a press release's header, a markdown standings table, a
+sentence carrying a link. The numbered packet keeps whatever lines the
+source gave (`editor._split`). Cleaning the packet is Consuela's and
+Sonic's job, upstream of him.
+
+Tests: `tests/test_plan_landing_528.py` (a figure read out is the figure
+printed; a long table matched by its names and numbers; a distinctive figure
+counts twice and a small one once; an unrelated ending is no landing);
+`tests/test_eval_findings_527.py` (the wording back as it was).
+
+## 529. The packet Shakespeare numbers, cleaned (2026-11-10)
+
+The owner: "Start on 1" - §528's next step: clean the sources before
+Shakespeare reads them, because the writer mostly follows what he chooses
+(§528).
+
+**What he was choosing from**, measured on the 50 frozen packets
+(`~/.fam/editor_eval_501/`): 2,735 numbered sentences, as `editor._split`
+cut the sources' raw lines.
+- **17 of the 50 had a "live state" source made entirely of FAM's own
+  guidance to the writer.** `number_packets` numbered `live.as_prompt_block()`,
+  and a lookup with no facts renders only guidance: "This question turns on a
+  live markets state...", "**Not knowing is not the same as nothing having
+  happened.** You do not know...". 204 lines, numbered P1.1-P1.12 as if they
+  were a source he could plan from, with every real source numbered one
+  later.
+- 143 sentences carried markup: markdown links with their addresses,
+  `**bold**`, bare URLs.
+- Sentences glued with no space ("agreed to.The efforts..."), sentences cut
+  at "Oct." ("10, but they continue almost daily."), repeats, and
+  "Add NBC News to Google" lines.
+
+**Now** (`agents/editor.py`):
+- the live state gives him only what the provider found: its status
+  ("Status: final.") and each fact. A lookup with no facts gives him no
+  source; the writer still reads the whole block, as before;
+- each source is split by Consuela's own splitter
+  (`evidence_digest.split_sentences`, mended at abbreviations by
+  `housekeeper._whole`, §466), so a sentence is never cut at "Oct." or
+  "p.m." and a piece under 25 characters joins its neighbour;
+- markup comes off (links keep their words, addresses go, half-cut links
+  too, emphasis and list markers), and glued sentences are parted. **Never
+  a word changed**: what he points at, and what the writer is shown in
+  `writer_block`, are still the publisher's words;
+- left out, and counted in his health block (`packet_*`): invitations
+  ("click here", "add ... to Google", "skip to content"), fragments (under
+  four words and not ending like a sentence: "Inflation remains elevated."
+  stays, "The newest thing" goes), pages dumped whole (over 150 words: a full
+  league table, a transactions log) and repeats within a source.
+- **Tables stay.** A first version dropped every table row and every piece
+  over 60 words. That cut the standings a sports episode lands on (the
+  Eagles, §528) and real long sentences - a central bank's directive, a long
+  quote, the China tariff extension - so the rules were narrowed to the
+  above.
+
+On the 50 packets: 2,475 numbered sentences; no guidance lines, no markup;
+5 fragments, 11 repeats, 3 invitations and 4 whole-page dumps left out.
+Unmeasured: whether his plans, and the episodes written from them, are
+better for it - §528's next step 2, the combined comparison.
+
+Tests: `tests/test_packet_cleaning_529.py` (markup off, the words kept; a
+half link and a bare address; glued and cut sentences mended; tables kept,
+invitations, fragments and dumps out, a short true sentence kept; a repeat
+once; the live block gives facts and status, never guidance, and nothing
+when it found nothing). Three fixtures in §521/§524/§527's tests now use a
+longer second sentence: "Two members dissented." is joined to its
+neighbour by Consuela's splitter, so the fixtures' P1.2 no longer existed.
+
+## 530. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10)
+
+(Written as §511 on its branch, where §510 was taken by Main's 11.9 packet,
+later Main's §519; every section of the branch was renumbered after Main's
+§519 at the merge, §532.)
+
+The owner: "Run the combined comparison" (§529's next step). Both arms were
+written fresh into `~/.fam/editor_eval_509/` on the same 50 packets: `none`,
+and `haiku_taught` - Shakespeare as he stands, with worked plans, the cleaned
+packet (§529), the writer at high effort and the signed shapes. Opus graded
+blind; no grade failures. $3.07, paused once at the owner's word ("how much
+money has been spent... we gotta stop that") and resumed at it. **The branch's
+model spend in all: ~$13.40** (§521 $6.16, §527 $2.97, §530 $3.07, the 50
+questions researched again ~$0.50, §528's reading ~$0.10). From now on a paid
+run is asked for first, with its cost.
+
+**Shakespeare against no editor: no measurable difference, a third time.**
+Mean of six +0.03 [-0.11, +0.17], better on 24 questions and worse on 21
+(§437: +0.03; §521: +0.07). Nothing clears zero: repetition +0.20,
+storytelling +0.12, fewer unsupported claims +0.12 (0.48 against 0.60 a
+script), depth -0.10. He costs $0.004 more an episode and 20 s more, ahead
+of the tap.
+
+**The same arm twice** (`none` here against `none` in §521, the same packets
+and code): +0.07 [-0.08, +0.22], and **information +0.27 [+0.02, +0.54]
+clears zero** - pure chance, since nothing differs but the run. So with eight
+measures and several pairs read at 50 questions, one measure clearing zero
+is expected by chance. §521's two single-measure findings - matched examples
+costing repetition (-0.37), worked plans helping it (+0.40) - are no stronger
+than that. Matched examples stay off (they showed no gain either way), and
+worked plans stay on (no harm seen); neither is shown to matter.
+
+**The cleaned packet** (Shakespeare here against Shakespeare in §521): mean
+of six -0.04 [-0.15, +0.08], 21 better and 21 worse - no change in the
+episodes. Plan-following reads higher (score 0.65 to 0.76; opening 0.62 to
+0.80; parts 0.80 to 0.98; landing 0.40 to 0.46). But §521 was measured
+before §528's fix and this run after, so most of that rise is the measure's.
+Only the run-to-run part is the cleaning's, and it cannot be separated now.
+
+**What it says.** At 1.5 minutes, from these packets, Opus's grades cannot
+tell an episode Shakespeare planned from one the writer planned alone, in
+three comparisons. These comparisons detect a difference of about 0.15 at
+best, and a run's own chance spread is about that size. Spending more on them
+buys no more certainty. The test that can decide is listening: the editions
+trial (`EDITOR_TRIAL=1`, §454), read by `tools/editor_trial.py` and
+`tools/drop_off.py`, and free.
+
+## 531. The whole branch double-checked: what the review found, and what was fixed (2026-11-10)
+
+The owner: "We dont want the editor trial. I want the changes made here now...
+it is time to double check all changes made in this branch." The editor
+trial stays off. The branch (19 commits, 49 files against its merge-base with
+Main, e744c8a) was reviewed with the code-review skill at high effort:
+line by line, removed behaviour, callers, reuse, simplification,
+efficiency, altitude and CLAUDE.md conventions. Eight findings, all fixed,
+each with a test in `tests/test_branch_review_fixes.py`:
+
+1. **Years counted as shared figures** in the plan-following measure
+   (§528's `_plan_numbers` read "2026" through `_read_number`), so any two
+   stories from this year "matched": a landing on "The 2026 season begins
+   in March" scored as following "Shares... rose in 2026". Numbers are now
+   read after `figure_guard._without_scaffolding`, which removes years,
+   dates and clock times as it does for its own material.
+2. **The question's own words counted as use.** "The Federal Reserve... rate"
+   in a plan beat matched any sentence naming the Federal Reserve and rates,
+   which is every sentence of a Fed episode. That, not the writer, is the
+   likeliest reason §530's "parts followed" read 0.98. The question's words
+   are no longer counted (`plan_following(query=...)`, passed by `note` and
+   the comparison). Raising the cap from 8 to 12 was tried first: it did not
+   stop that false match, and it dropped agreement with §528's hand reading
+   from 8 of 10 to 5. The cap stays 8; agreement with the reading stays 8 of
+   10.
+3. **The worked plans and the shapes went into the searchFAM tandem call**,
+   whose plan must land inside the 7 s wait (§456), and they were never
+   timed there. The shape he names on search is not used either. Both are
+   now ahead of the tap only; on search he reads the examples alone, as
+   before §521.
+4. **Live facts lost their age.** §529 gave him the facts and the status
+   without the "observed ... ago" the writer's block carries. The status
+   line now says it: "Status: in progress, observed 40 minutes ago."
+5. **A rewrite kept the old text's sentence timings.** `record` now clears
+   `starts` when the same key and sourced stamp are written with different
+   sentences, as it already dropped the owner's labels.
+6. **A link cut inside its address left a "["** in the numbered sentence.
+   It is now cleaned in two passes.
+7. **The facet was looked up on every plan** for a line that matching (off)
+   alone reads. It is looked up only while `EXAMPLE_MATCHING` is on.
+8. **No test widened an existing store with `starts`**, as §454's test did
+   for `editor_arm`. Added; on SQLite and, in CI, Postgres.
+
+§530's plan-following figures were measured before 1 and 2. They read too
+high (beats especially) and stand as measured.
+
+The review found nothing against the rules in CLAUDE.md. The settings are
+copied (`.env.example` and `config.py` agree), no key is in source, and
+nothing new runs a paid call on its own.
+
+## 532. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10)
+
+The owner: "Double check all changes, then get this branch ready to merge
+into main. Do not complete the merge, but you can open a PR." The branch
+(`claude/awesome-dijkstra-smyqz7`) forked from Main at e744c8a, where Main
+had §500. Main has since reached §519, and seven commits came in: Nando's
+training, picture variety, the operations handbook, the 11.9 packet and
+more.
+
+**Renumbered.** The branch's sections were written as §501-§509, §511 and
+§512 and became §520-§530 at this merge, and **§521-§531** after Main's
+own §520 arrived (§535): 501→521, 502→522, 503→523, 504→524, 505→525,
+506→526, 507→527, 508→528, 509→529, 511→530, 512→531.
+Every reference the branch itself added (code, comments, docs, the
+examples' `_what`, tests) was renumbered with them, in its own lines only -
+Main's own §501-§519 references are untouched. Its test files were
+renamed to match: `test_worked_plans_521.py`,
+`test_examples_matched_521.py`, `test_plan_following_521.py`,
+`test_writer_training_522.py`, `test_story_shapes_524.py` and `_525.py`,
+`test_eval_findings_527.py`, `test_plan_landing_528.py`,
+`test_packet_cleaning_529.py`; `test_branch_review_fixes.py` keeps its name.
+The code merged without a conflict; the conflicts were the log, its index,
+the proposals README, the manifest's signature and the previews.
+
+**Two version 7s.** The owner signed the branch's playbook v2 as that
+branch's manifest version 7 (§526). Main had meanwhile signed its own version
+7 (`nando.md` rule 12, Main's §505), and neither signature covers both
+changes. So the merged branch keeps Main's signed version 7 and the v1
+playbook it covers: every agent runs, and `--verify` passes. The playbook v2
+waits whole in `docs/agent_rule_proposals/journalism_playbook.md`, with
+its version line now naming §525.
+`docs/agent_rules/MANIFEST.pending.json` is **version 8**: Main's version 7
+with only the playbook's fingerprint changed
+(`b3147196...` for v2). Until the owner signs it, the writer reads the
+shapes from `episode_intelligence.STRUCTURES` (unchanged, word for word the
+proposal; `test_story_shapes_525.py` reads the proposal while it waits) and
+Shakespeare reads v1. Signing is Main's way now (`tools/sign_rulebooks.py`,
+Main's §504, Python alone), and the signed files go to the proposals folder
+for the session to move, as §526 did.
+
+The previews are Main's until rebuilt after the merge.
+
+## 533. The second review, independent, before the pull request (2026-11-10)
+
+A fresh reviewer (a subagent given the code and the project's rules, never
+the first review's conclusions) read the whole branch read-only. It ran the
+new tests (129 passed) and reproduced each finding. **Nothing breaks the
+episode path, the cache key, the first word on searchFAM, or Postgres.** It
+checked in particular that `AHEAD_WRITER_EFFORT` reaches only editions,
+the write-ahead and prefetch warms, never a tap, the tandem or Mclovin's
+rewrite. It also checked that `_with_shape` never touches a shared brief, a
+late tandem plan is never measured, the `starts` widening is mapped on
+Postgres, and the settings agree with `.env.example`.
+
+Six low findings, all fixed in `tests/test_branch_review_fixes.py`:
+1. **`drop_off` under-counted finished listens.** A listener who heard 87%
+   never "reached" a landing starting at 93%, so landings rarely reported. A
+   finished listen now reaches every sentence and stops nowhere.
+2. **A listen with no sourced stamp went to the oldest version of a key** in
+   `drop_off`, but to the newest in `_listening`. Both now take the newest.
+3. **Clock times and ordinals still counted as figures** in the
+   plan-following measure ("2 p.m.", "4 pm", "the 3rd"). They are now
+   removed with the years and dates.
+4. **"Subscribe to the..." was taken for page clutter**, so a story about
+   households subscribing lost its key sentence from his packet. Only the
+   page's own voice ("subscribe to our", "sign up for our") is clutter now;
+   Consuela's own filter is unchanged.
+5. **The search call was told about shapes it never sees.** The shape
+   paragraph (`SHAPE_INSTRUCTIONS`) now goes ahead of the tap only, with
+   the shapes themselves (§531 already moved those).
+6. **His live status lost the market-closed and delayed-feed warnings.**
+   The status line now carries them beside the age: "Status: final,
+   observed 5 minutes ago, the market is closed, the feed runs 15 minutes
+   behind."
+
+## 534. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10)
+
+The owner signed `MANIFEST.pending.json` (version 8, §532) on the MacBook
+Air, as for §526: the `famsign` Miniforge environment (OpenSSL 4.1), the
+old set cleared from the Desktop folder first, and both files' SHA-256
+checked before signing. They uploaded `MANIFEST.json` and
+`MANIFEST.json.sig` to `docs/agent_rule_proposals/` (f0b30a4, exactly two
+files). The session verified the signature against `owner.pub` before
+moving anything; `MANIFEST.json` is the pending manifest byte for byte. It
+then moved, in one commit, the playbook v2 to `docs/` and the manifest and
+signature to `docs/agent_rules/`, and deleted the pending manifest.
+`python tools/rulebook_manifest.py --verify`: manifest version 8, every
+agent may run. Both changes are now signed together: `nando.md` rule 12
+(Main's §505) and the playbook's story shapes (§525).
+`test_story_shapes_525.py` now reads the signed playbook. The owner
+updates the copy held outside Claude.
+
+## 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10)
+
+The owner asked again for the branch to be double-checked and made ready
+to merge into Main, with a pull request but no merge (PR #240 was already
+open). Main had gained one commit since §532: "Messages only between
+friends", which took **§520**. That commit's code conflicts with nothing
+here; only the log and its index conflicted. So every section this branch
+wrote moves up by one, §520-§533 becoming **§521-§534**. Every reference
+the branch added was shifted with them, in its own lines only - Main's
+references are untouched - and its test files were renamed
+(`test_worked_plans_521.py` ... `test_packet_cleaning_529.py`).
+
+**The signed books are not touched.** `docs/journalism_playbook.md` v2,
+signed as manifest version 8 (§534), says in its version line that Part 3's
+shapes are "PROBLEMS.md §524": that section is now **§525**. Correcting it
+would change a signed book and need another signature for one number, so
+the signed text stands as signed, to be corrected at the next signing.
+`--verify`: manifest version 8, every agent may run.
+
+**Double-checked since the second review (§533):** the only changes are the
+signing (§534: the files verified against `owner.pub` and moved into place)
+and these two merges. The first review's 8 findings (§531) and the second's
+6 (§533) are fixed with tests, and neither found anything in Main's code
+that this branch changes.
+
+## 536. Go Deeper in a mix resumes the interrupted episode (2026-11-10)
+
+**The owner's rule.** A myFAM playlist is a queue that Go Deeper only
+interrupts. §519 made a Go Deeper a detour rather than the end of the
+playlist, but when the follow-up ended the playlist went on to its *next*
+episode, so the rest of the episode that was interrupted was never heard.
+Now the interrupted episode comes back where it was left - the same audio,
+replayed by its episode id (`heard-is-kept`), sought to the position once
+that much has arrived (`pendingResumeSeek`, as Pick up does) - and when it
+ends the playlist carries on. Nothing in a playlist is skipped by a detour.
+
+`noteMixInterrupted` keeps the position and episode id when a Go Deeper
+leaves the playlist's own episode (nothing when it had already played
+through); `resumeMix` replaces `advanceMix` wherever a detour ends - its
+end, its failure ("That follow-up couldn’t play — back to your playlist.")
+and a skip on the follow-up - and falls back to the next episode when there
+is nothing to resume. A Go Deeper on the follow-up stays on the same detour
+and keeps the first resume point. The iOS app does the same. Smoke check:
+the §519 detour check now also skips the follow-up and expects the
+interrupted episode back.
+
+## 537. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09)
+
+**What was asked.** The owner walked App Store Connect with Claude for the
+first TestFlight and App Store submission, then asked for the audio spike
+(`IOS_APP.md` stage 2). The production voice has been heard many times, so
+stage 0 is met.
+
+**App Store Connect, as left.** App Information (name, subtitle "Keep up with
+audio stories", News / Entertainment), App Privacy published with eleven data
+types (all linked, none tracking - `APP_STORE.md` Part C's table), the
+privacy policy URL, age rating questionnaire (Apple calculated 13+, matching
+the terms; Social Media yes, under-13 gating no), pricing free in 174
+countries (China off; trader status verified so the EU stays on), the 1.0
+product page text written from the pitch script's problem, solution and
+mission, and TestFlight Test Information. Still open: Content Rights, the
+demo and second reviewer accounts (sign-in left blank for now), screenshots
+and a build. The Routing App Coverage File stays empty: FAM gives no
+directions.
+
+**The spike** is `ios/FAMSpike`, an XcodeGen project (`project.yml`; the
+.xcodeproj is generated, not committed) with bundle id `net.familiarize.fam`
+so a build can go straight to internal TestFlight. It plays the sign-up
+samples - `/api/v1/welcome`, then `/api/v1/audio` with `cached_only=true`,
+`minutes=1.5`, `fmt=pcm` - because that is the one request a guest may make
+past the waitlist and it wakes no voice; *Keep going* chains them so one
+session runs past ten minutes. `StreamPlayer` schedules the PCM on an
+`AVAudioPlayerNode` in quarter-second buffers, starts at half a second, and
+logs what iOS does to it: lock, background, interruptions, headphones out,
+engine configuration changes, and dropped streams (three reconnects,
+skipping the bytes already taken - which assumes a replay is the same bytes
+every time; a join that sounds wrong is that assumption failing).
+
+**Not compiled.** Written on Linux; the first build is on the owner's Mac.
+`tests/test_ios_spike_contract.py` holds the Swift to the server: both paths
+route, `Sample` decodes only tile keys, and the audio request passes
+`app._welcome_sample_request` - change its shape and a guest would get a 403.
+The phone test and its pass line are in `ios/FAMSpike/README.md`.
+
+**The phone test (2026-11-09, the owner's iPhone, Xcode 27.2).** It compiled
+first time once signing was sorted (Apali team, device registered, Developer
+Mode on; the stale Apple Development certificate had to be revoked on the
+portal before Xcode would make one with a key in this Mac's keychain). Only
+one sample was offered, so *Keep going* replayed it. Locked for ten minutes:
+no gaps, no stops. Lock-screen pause/play, a phone call (paused, resumed on
+hang-up) and an AirPod out (paused) all behaved. Airplane mode: silent while
+it was on, then played smoothly once it was off. The log was cleared by
+accident, so whether that was the buffer running dry or a reconnect is not
+recorded; redo it with the log before calling reconnects proven. **Stage 2
+passes**: background PCM streaming on `AVAudioPlayerNode` is the approach.
+
+**The log, read after the test, found a bug the ear could not.** At 14:16:19
+a call interrupted the episode and the route changed twice; each change
+emptied the player node, every queued buffer reported itself played, and
+the player logged `finished: 1:30 heard` 17 seconds early and started the
+next sample. With one sample looping it sounded like a resume. Fixed in
+`StreamPlayer`: every sample that arrives is kept, the node only ever holds
+a copy, a buffer's completion counts only for the current filling (`epoch`),
+and pause, an interruption or a route change refills the node from the
+heard position (`refill(from:play:)`). Also from the log: first audio in
+0.36-0.93 s on a cache hit, the whole 1:30 arriving in about a second, the
+server sending 24 kHz (read from `X-Sample-Rate`), and no "interruption
+over" ever logged - iOS did not send one after the call, so resuming then is
+the listener's tap. "App came back" is now logged on `didBecomeActive`, so it
+reads `[fg]`.
+
+**The retest restarted the episode on a call all the same.** iOS empties the
+node's queue a moment *before* the interruption notification arrives, so in
+that moment the queue was empty, the whole episode had arrived (a replay
+lands in about a second) and the phase still said playing: an ending, by
+the old test. An ending is now the node's own clock at the last sample
+(`reachedEnd`: engine running, node playing, heard within a quarter-second
+of the end). A queue emptied anywhere else is logged as "emptied … not at
+the end", given 0.4 s for the notification to pause it, and otherwise
+refilled from the heard position.
+
+**Player 3 on the phone: the call test passes.** (The first retest ran the
+old build - the code had not been re-downloaded; the on-screen version line
+now makes that visible.) Two calls in a row: `interrupted at 0:33` → iOS
+said resume after the call → `resumed at 0:33`; `interrupted at 0:38` →
+`resumed at 0:38`. Route changes after each resume refilled from the same
+second, and once the queue emptied short of the end it was logged as
+"emptied at 0:38, not at the end" instead of being taken for an ending. iOS
+did send "interruption over; resume" this time, so a call resumes on its
+own.
+
+## 538. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09)
+
+**What was asked.** With the spike passed (§537), the owner asked to start the
+real app. `ios/FAM` is an XcodeGen project (`project.yml`, bundle id
+`net.familiarize.fam`, build 2, so it replaces the spike on a phone) that
+links `ios/FAMSafety`.
+
+**What is in it.** `API.swift` is the whole client: `/api/v1/...` only,
+`X-FAM-Client` and `X-FAM-TZ` on every request, the bearer token in the
+Keychain (`AfterFirstUnlockThisDeviceOnly`, so a locked phone that is playing
+can still ask for the next episode), and the server's refusals turned into
+four cases - waitlisted (`X-FAM-Waitlist`), the AI question
+(`X-FAM-Consent: ai`), signed out (401), or the server's own sentence.
+`AppModel` decides the screen from `/api/auth/me` on every open: sign in,
+waiting (today's samples, as the exact replay the waitlist lets through),
+or the three tabs. DailyFAM is `/api/myfam`'s sections as rows of 4:3 cards;
+a tap plays at `BROWSE_MINUTES` with `surface=myfam` and the `topic_id`.
+Search asks the AI question before the tap (`consent.ensure()`), sends
+`surface=search` and the chosen length (back to 1.5 whenever the app
+returns), and a refusal on the audio itself asks and retries. The player
+is the spike's, kept as it passed, plus `seek(to:)` clamped to what has
+arrived, ±15 s, and the lock screen's skip and scrub. You holds
+`PrivacyAndSafetySection`, sign out, and delete account (5.1.1(v)).
+
+**A bug found in FAMSafety on the way.** `aiConsentSheet` read the model
+through a plain parameter, so nothing redrew when `ensure()` began asking
+and the consent question would never have appeared. It is now a
+`ViewModifier` that observes the model.
+
+**Not compiled here.** `tests/test_ios_app_contract.py` checks every call
+routes with its method, `Listener`/`Rail`/`Tile` decode only what the server
+sends (signed in and not), sign-up sends `accept_terms`, the browse length
+is the server's, a tile names its surface and topic, and the waiting
+screen's sample request passes `_welcome_sample_request`.
+
+**Stage 1 ran on the owner's iPhone, and "it looks nothing like the web app"
+(the owner).** It used iOS's stock look. The look is now the web's, taken
+from `static/index.html` and photographed with `tools/shots.py` at 390 pt:
+`Theme.swift` holds the light theme's colours, the three typefaces
+(Bricolage Grotesque, Geist, Geist Mono - static instances cut from the
+Google Fonts variable files with fontTools, OFL licences beside them), and
+the wordmark drawn from the web's own SVG paths (F, the chevron A, M, one
+cap height, copper). The bottom bar is `.tabbar` (mono labels, the copper
+pill under the chosen icon, the raised round search button); DailyFAM has
+the centred `daily` wordmark, rail headings in Bricolage 20 and `.seed-card`
+cards (150 pt, 96 pt picture with the subject chip, title never cut, the
+hook); Search is the FAM mark, the rounded bar with the copper go, the
+Length bubble (never printing the choice) and TRENDING SEARCHES from
+`/api/searches/trending`; the player is the Home mark, the 4:3 picture, the
+title, the copper scrubber and ±15 either side of the copper play; sign-up
+and log-in are the web's form; YourFAM wears the `your` wordmark. myFAM,
+Messages, GO DEEPER, Voice, Private, the mic and attach are left off until
+they work (`no-dead-controls`). The project now names the Apali team, so a
+regenerated project keeps its signing.
+
+**"The loading screens do not look like they do in the demo… a lot of things
+are being left out" (the owner).** True: the app showed "Writing your
+episode…" in the player, where the web shows its loading screen over the app
+and checks off five steps from `/api/progress`, holding the audio until the
+fifth. Ported (`Views/LoadingView.swift`): the same five labels, the same
+clock (2 s a step, the first 0.5 s, 0.7 s polls after a 0.25 s first, 0.4 s
+on the last check, a replay all done after 0.45 s), the light theme's wash,
+the rising chevrons, FAMiliarizing… (slanted in code - Bricolage has no
+italic, the browser slants it too) and the X that cancels. `StreamPlayer`
+gained the web's `startGate`: `holdStart`, `onReady(cacheHit)`, `release()`.
+`tests/test_ios_app_contract.py` now reads the timings and labels out of
+`static/index.html`, so the two screens cannot drift, and checks the progress
+request carries the audio request's key fields. **`ios/FAM/PARITY.md`** lists
+every web feature against the iOS app so nothing more is left out silently;
+the gaps it makes plain first are play events for the taste model, Report and
+Block, and Sign in with Apple.
+
+**"The audio player looks wrong, and it's changing the total time" (the
+owner).** Both true: the total was the seconds arrived so far, and the
+player was an outline of the web's. A specification of the web player was
+written from the code first (every control, request, state and wording),
+and the player rebuilt from it: full screen; the Home mark, GO DEEPER (the
+thread from `/api/next`, typed follow-ups as `own`, 1-5 lengths) and the ⋯
+menu (share, VIBE!, save, captions, queue, Report through FAMSafety); the
+picture full width, 4:3 and faded, with share/vibe/save on the dark glass
+circles; the title with the explicit E and the writer's title replacing a
+typed question's; the sources strip and sheet; the scrubber with the
+requested length as the total until complete, the arrived part drawn and
+seeks clamped 2 s short (`TAIL_MARGIN`), with "Caught up with the writing";
+±15 and the copper play; speed 0.5-2x keeping pitch (`AVAudioUnitTimePitch`)
+and a search's length rebuild; the queue; captions; the What's next grid with
+its 15 s countdown. **Listening is now recorded from iOS**: `complete` at 85%,
+`skip` past 5 s, `search` on follow-ups, `POST /api/progress` every 15 s and on
+pause, and the history row - without these Made for you could not learn from
+the phone. Still not ported, in PARITY.md: the full VIBE! story editor,
+sending inside FAM, Add to myFAM Playlist, the save/vibe burst.
+
+**DailyFAM, combed through against the web (the owner: "make sure everything
+related to dailyfam has transferred over").** A second specification, of
+`screen-myfam`, was written from the code and the screen rebuilt from it:
+the time-of-day heading ("Made for you, Monday evening", "Start here" with
+no history), the five rails' headings and server empty sentences, the full
+card (save bookmark, ⋯ with Share / Add to Queue / Go to Queue / Not
+interested, ready badge, friends' faces and "N friends listened", the title
+stepping down past 48 and 72 characters, a game's live line with its age,
+each rail's fallback hook), VIEW MORE and the View more screen (16 at a time,
+Refresh, wrap and caught-up notes, Trending by continent), Pick up where you
+left off (resume with its seek, threads, X dismissing for good), the friends'
+stories row and viewer (reply and heart), and the library behind search's
+bookshelf. Not yet, in PARITY.md: Add to myFAM Playlist, Find new friends,
+offline, the rails' arrival animation. **Found on the way, not changed:**
+`saved.progress()` returns `int(minutes)` and the column is `INTEGER`, so a
+1.5-minute episode resumed from Pick up is asked as 1 minute - a different
+cache key - on the web as on the phone. The fix is a schema change
+(SQLite stores 1.5 as REAL in an INTEGER column, Postgres rounds it), so it is
+the owner's call.
+
+**Sign in with Apple and Google on iOS.** `/api/auth/provider` was built
+(§222, `oauth.py`) and waiting. The app draws Continue with Apple
+(`SignInWithAppleButton`: a fresh nonce per sign-in, its SHA-256 to Apple and
+the raw value to the server, which accepts either; Apple's one-time
+`authorization_code` sent so `apple_tokens.py` can revoke on deletion) and
+Continue with Google (the GoogleSignIn package, its nonce echoed raw) above
+the email form, both held until the terms box is ticked on sign-up, as the
+form is (§228). The web has neither on purpose - they only complete on a
+phone. **Two settings only the owner can make:** the server's
+`APPLE_CLIENT_IDS` must contain `net.familiarize.fam`, and Google needs an iOS
+OAuth client for that bundle id in Google Cloud, its id put in `project.yml`
+(`GOOGLE_IOS_CLIENT_ID` and the reversed `GOOGLE_REVERSED_CLIENT_ID`) and added
+to the server's `GOOGLE_CLIENT_IDS`. Until the client id is set the Google
+button is not drawn (`no-dead-controls`). `/api/health` > `oauth` says which
+provider the server can verify.
+
+## 539. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10)
+
+**What happened.** On the phone, signed out, the owner tapped Sign in with
+Apple. The button still read "Sign up with Apple" (Apple's button sets its
+words once; switching Log in / Sign up did not redraw it), and the server
+made a new, waitlisted account for that Apple ID - although an account with
+the same email already existed.
+
+**Why, and why it stays.** `ACCOUNTS.sign_in_with` never joins accounts by
+email, on purpose: a provider's email is not proof of owning a FAM account
+(Apple's private relay addresses differ anyway, and an email someone typed
+at sign-up was never verified). A new provider identity reaches an existing
+account in one way only - by signing in with it while already signed in to
+that account (the "link" case).
+
+**What changed (iOS only).**
+- Apple's button takes `.id("apple-<making>-<linking>")`, so its words follow
+  Log in / Sign up.
+- YourFAM has **Sign-in methods**: email and password, Apple, Google (when
+  configured), each linked or with its button ("Continue with Apple") to
+  link. `AppModel.link` sends the provider sign-in with the session's token;
+  if the identity already had its own account the app says so, since the
+  server signs in to that one. Unlink appears when another way in remains
+  (the server's `unlink_identity` rule).
+- The waiting screen has **Delete this account** - `/api/account` is open
+  past the waitlist, and 5.1.1(v) wants every account deletable in the app.
+  Deleting revokes the Apple token kept at sign-in.
+
+Recovery for the owner's case: delete the Apple-made account on the waiting
+screen, log in with email and password, YourFAM → Sign-in methods → Continue
+with Apple. Contract test: `test_sign_in_methods_decode_what_the_account_sends`.
+
+## 540. The iOS app, stage 2: myFAM (2026-11-10)
+
+The mixes surface - shown as **myFAM**, coded as DailyFAM mixes
+(`names-swapped`) - ported from a control-by-control specification of
+`screen-playfam`, `screen-newmix`, `screen-mixdetail`, `screen-addtopics` and
+`screen-publicmix` (19 mix routes plus push, the catalogue and the episode's
+topic). `ios/FAM/PARITY.md` lists every row.
+
+**Kept from the web**: made by naming it, empty, then filled from its page
+(`mix-made-by-naming`); public by default, copies private; members edit
+topics only (`joint-mixes`); add and remove are operations; a typed topic is
+sent untitled so the server names it short (`mix-topic-title`); a mix plays
+as a playlist of today's edition on the `dailyfam` surface at each item's
+own length, behind the glide (§509), and its end shows the finished overlay
+rather than What's next.
+
+**Not copied, on purpose** (the web's quirks the spec found): Delete asks
+first; Rename starts from the current name; the page updates in place
+instead of being pushed again; "Remove from this playlist" sends `remove`
+rather than the whole list, and is offered only for a mix of yours.
+
+**Not yet**: the category filter chips that live on the web's myFAM tab
+(§500 - they filter today's cached episodes, not mixes); the cover
+position-and-zoom editor; joining from a `/j/` link (universal links);
+story cards for a mix. **The listen time's notification is Web Push only**:
+the server has no APNs kind yet, so the app saves the time and says
+notifications on iPhone come later.
+
+Written without a compiler (§538); `tests/test_ios_app_contract.py` now
+checks interpolated paths (`/api/mixes/{id}/open`) against the routes with
+their methods, every mix field against the server, and how a mix plays.
+
+**Second pass, the same day.** The owner found the first port bland: the
+category chips missing, the topic rows wrong. It had ported what each
+control does, not how it looks. The second pass started from phone-size
+screenshots of every web screen and measured sizes, colours and icons
+(`getComputedStyle`), and from now on every ported screen starts that way.
+It added the category chips, panel and Find a category; the web's 48 subject
+icons, generated from `CAT_ICONS` by `tools/ios_icons.py` (a contract test
+runs `--check`, so the two cannot drift); and the measured rows, handles,
+buttons and fields.
+
+## 541. Ready for the iOS launch, on the server: universal links for invites, the iOS 1.0.0 release, two web wordings (2026-11-10)
+
+**Universal links.** `/.well-known/apple-app-site-association` named `/s/*`
+and `/m/*`, so a joint mix's invite (`/j/<token>`) opened Safari - the web
+app, which joins the mix - even on a phone with the app, which reads `/j/`
+links already (`AppLinks.swift`). It now names `/j/*` too. The file is still
+answered only when both ids are set, as JSON at the exact path with no
+redirect (Apple's CDN follows none); a test asks with redirects off and
+checks the content type. Production's ids are in `render.yaml` for `fam`
+(`APPLE_TEAM_ID` 484A7YD2S3, `IOS_BUNDLE_ID` net.familiarize.fam) rather
+than `sync: false`: neither is a secret, the file itself publishes both.
+Staging names neither, so a staging link never opens the App Store build;
+a test pins both halves.
+
+**The iOS 1.0.0 release** (`old-clients`). Cut with the tooling, as an iOS
+release is meant to be: `python tools/cut_release.py --platform ios
+--version 1.0.0 --build 2 --source <ios/FAM/FAM>`, which wrote
+`releases/contracts/ios-1.0.0.json` (51 routes, 21 response shapes; two
+unrouted literals noted, `/api/image` and `/api/v1/` - prefixes of real
+routes, never checked) and the registry entry. The source was the iOS
+branch's `ios/FAM/FAM` as it stood that day; Main does not carry the app
+yet. The header the app sends is `ios/1.0.0+<build>` (`client_versions`
+parses the build after `+`), and the registry matches on the version
+alone - so raising `CURRENT_PROJECT_VERSION` for each upload changes nothing
+here, and `build` ("2") is a record, to be set to the build Apple approves.
+If the app's routes change before 1.0.0 ships, recut with `--force` from the
+submitted commit: it has not shipped, so the contract is not yet a promise.
+Widening `tests/test_ios_app_contract.py` to every Swift file under
+`ios/FAM/FAM` belongs with that test, which lives on the iOS branch beside
+the app, not here.
+
+**Two web wordings** (decision 7). Friends' counts printed "1 friends" and
+"1 followers"; they go through `plural()` like the profile's counts already
+did. The View more Refresh button's label still said "Show eight different
+episodes" after §363 made it deal sixteen; it says 16, and a test pins the
+label to `SECTION_PAGE` so the two cannot drift again
+(`tests/test_web_wording_541.py`).
+
+## 542. The FAM mark above the dial and the glide (2026-11-10)
+
+The owner, from a screenshot of a mix's glide with the FAM mark drawn in
+above it: keep the DailyFAM and myFAM loading screens as they are, but put
+the FAM logo above both. Since §509 the `.alt` loading screen hid every
+child but the X and `#famLoadingAlt`, the wordmark with them. Now the
+wordmark (`.fam-loading-wm`, the same F, chevron A and M as everywhere) is
+exempt from that rule and drawn at 46px glyphs instead of search's 26px,
+with 10px more room under it. Search's and Go Deeper's screen is unchanged.
+The iOS app's `LoadingView` does the same: `FAMLetters(capHeight: 40)` in a
+stack above `GlideView` and `DialView`. Nothing else about the two waits
+moves - no steps, audio never held (`browse-loaders`).
+
+## 543. Play all on a rail; friends' faces on the player (2026-11-11)
+
+The owner's 11.11 note, two ideas, with a mock-up of "PLAY ALL" beside
+"Made for you" and "Trending", and a face circled on the player's picture:
+
+1. **Play all.** "If you want to go through and listen to all the things in
+   that row, they'll just play one after the other, so the user can have a
+   hands-off experience." Every myFAM rail with episodes now has a Play all
+   pill beside its heading (`playRailAll`). The first tile plays exactly as a
+   tap on it would (`startBankTopic`, so the dial loader and the browse
+   length); the rest of the rail goes into the ordinary queue (§190) marked
+   `fromRail`, so the full player plays each straight after the last, Go to
+   Queue shows them and each is removable. It behaves like a category's Play
+   all (§500): a second Play all replaces what the first queued, anything else
+   starting ends it (`generate` now clears `fromRail` beside `fromCategory`),
+   and what the listener queued themselves stays. A guest's rail plays only
+   tiles already made; offline, only what is on the device. The heading keeps
+   at least 12em of its row and the pill wraps under it rather than squeezing
+   it (§499's large-text rule).
+
+2. **Faces on the player.** The DailyFAM card's "friends who listened"
+   (§393/§394) now shows on the player too, top left of the picture as in
+   the mock-up (its top edge worked out from the stage's width with `cqw`,
+   never above the stage), under the captions. A tile already carries its
+   faces, so a tap from DailyFAM draws them at once; anything else asks the
+   new `GET /api/listened?q=` - the same `_mark_friends_listened`, matched by
+   the normalised question like every listen count, friends only, accounts
+   only, never an id, empty rather than an error. Never on a private search
+   or an attached episode. Tapping the faces opens the same "Friends who
+   listened" sheet.
+
+   **Caught in review:** the endpoint takes any question, so as first written
+   anyone could learn what a friend had searched by searching the same words
+   and seeing the face - past `searches_public` (§282), which is the only
+   thing that lets the player name a searcher. A listen with no tile behind
+   it (a search, a replay) now counts on the player only for friends who made
+   their searches public (`friends_who_listened(untiled=...)`,
+   `_mark_friends_listened(public_searches_only=True)`); the cards are
+   unchanged, their questions being FAM's own.
+
+Tests: `tests/test_play_all_and_player_faces.py`.
+
+## 544. A mix card in the list is its picture, its name and an arrow (2026-11-10)
+
+**The owner's direction (11.10), with a screenshot of two mix cards:** "get
+rid of the unnecessary stuff here: # of briefings, daily, and public. Remove
+all of that" - and, for the whole row, "we just want the thumbnail of the
+playlist, the title of the playlist, and an arrow pointing right on the right
+side". So the list on the mixes screen (the one the listener reads as
+**myFAM**, `names-swapped`) draws each mix as its cover (or the folder), its
+name, and the chevron. Gone from the row: the briefing count, "daily",
+public/private, "from" a copied mix's owner, the joint label and the topic
+preview line. Every one of them is still on the mix's own page, one tap in.
+
+The guest's example card (`sampleMixCardHTML`) is drawn the same way, so a
+first look at the screen matches what an account sees. `jointLabel` and the
+`.mix-public` / `.mix-private` styles had no other reader and are deleted.
+Public mixes found by search keep their owner line: there it is what tells
+two listeners' mixes of the same name apart. Nothing on the server changed;
+`/api/mixes` still serves every field, for installed clients
+(`old-clients`). Test: `tests/test_mix_card_minimal.py`; the smoke check
+that adds somebody's public mix now expects the copy in the list without a
+"from @mike" on its card.
+
+This is the first step of the owner's rethink of how myFAM shows what is new
+today; the signal concepts (round two's lit edge and topic chip, round
+three's variations) are being redrawn on top of this plainer card and are
+not built.
+
+**The iOS app too** (merged from Main with this pull request): its `MixCard`
+draws your own mixes the same way - picture, name, arrow - and keeps the
+owner, count and topic line for a public mix found in search, as the web
+does. Written without a Swift compiler to hand, like the rest of the iOS
+code (§538); a SwiftUI `if` on `trailing != .chevron`, nothing else.
+
+## 545. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11)
+
+**The owner's picks** from five rounds of signal designs (the slideshows are
+artifacts, not in the repo): **R5** on the myFAM mix card and **Q5** inside the
+mix. The brief throughout: someone who listened yesterday should open the
+mixes screen and see at once that something in their topics is trending or
+has a major update, without the screen shouting on days when nothing has.
+
+**R5, the card.** When one of a mix's topics changed since the listener last
+heard it, the card leads with the story's picture (`app._picture_url`, the
+player's own picker) with the mix's cover small in its corner, ringed in the
+signal's colour; under the name, one line naming the topic and the story; and
+where the arrow was, a pill saying "Trending" or "Major update". No picture
+approved for the story: the mix's own cover takes the ring and nothing sits
+in the corner. Any other day the card is §544's picture, name and arrow.
+
+**Q5, inside the mix.** Each changed topic's row is outlined and says
+"Trending · since you last listened" (or "Major update"), then two bubbles
+joined by an arrow: the day and title of the episode of that topic the
+listener last heard, and the title of today's (the written episode's, else
+the story's). Never heard it before: one bubble, never an invented "before".
+The play button becomes "Start with what changed" (`playWhatChanged`: the
+changed topics first in the mix's order, then the rest), with "or play all N
+from the top" as a link under it.
+
+**What counts, in `signals.py`.** Two measurements, never a result
+(`tile-title-angle`):
+
+* *Trending*: a story naming a subject the mix follows is in this slot's
+  Trending edition, or in the live pool carried by at least
+  `TRENDING_MIN_OUTLETS` (15, a starting value to tune against the
+  deployment's pool), and appeared after the listener last heard that topic.
+* *Major update*: a game the mix follows went `final` after the listener last
+  heard that topic. The pool had no clock for that - `live_as_of` moves on
+  every sweep - so `stories.Story.status_at` is new: set when a status first
+  appears or changes (`_seen_again`), kept otherwise, default 0 so stories
+  saved before it load as they were.
+
+"Names a subject the mix follows" is `topics.episode_subject`, the reading the
+player's (+) uses, kept to its specific answers (a named team or company, a
+subject named by its label or id, or its subtag); its facet-wide last resort
+is refused (`signals.specific_subject`), §155's rule that a field is not a
+subject - "Bond yields climb" is money news, not news about Stocks & Economy.
+A whole subject ("NFL") takes its teams' stories; a narrowed one ("NFL ·
+Eagles") only its own. Typed topics carry no signal: nothing short of a model
+call can tell a subject from a kind of thing (`mixes.TYPED_HEAD`).
+
+Quiet by default and quiet once heard: an item whose today's episode is in the
+listener's history carries nothing; a topic never heard reaches back one day
+(`NEVER_HEARD_WINDOW`); a card shows one signal, a result before a trend, then
+wider coverage. "Last heard" is the history's newest row whose question is one
+of the item's earlier dated prompts (`mixes.earlier_prompts`, thirteen days);
+the day is shown in the listener's clock (`listener-clock`).
+
+**Where it runs.** `app._mix_signals`, from `GET /api/mixes`, on what is held:
+the history (one read), the Trending edition and the pool in memory
+(`stories_in_memory`, `pool().held` - not `live`, whose variety cap could hide
+the one story about this listener's team), and the script cache for today's
+title. Nothing waits, nothing is written, and any failure leaves the list as
+it was and is logged. New fields only (`signal` on a mix; `signal` and `since`
+on its items), so installed clients are unaffected (`old-clients`).
+
+Light and dark each get the colours as tokens (`--sig-tr`, `--sig-up`,
+`--sig-ink`): dark's gold and a lighter coral so small text reads on the
+card, light's darker pair. The fixture preview shows both signals on Morning
+and At the gym, its pictures cropped from the landing page's tiles.
+
+Tests: `tests/test_signals_545.py` (matching, both signals' timing, quiet once
+heard, one per mix, the status clock, the bubbles, the route, a failure never
+taking the list down, both themes' tokens).
+
+**A picture on every topic row** (the owner, the same day: "add pictures to
+each topic row too" - Q5's mockup had them). `app._mix_pictures` gives each
+item the picture the player would draw for it (`_picture_url` over the item's
+words: "NFL Eagles" for a narrowed subject, the typed words for a typed
+topic), and the row draws it beside the title, ringed in the signal's colour
+when the topic changed; with nothing approved, the subject's own catalogue
+icon on paper (`catIcon`). Pictures and signals now come from `_mix_out`
+itself, so every route answering with a mix carries them - before, a reorder
+or an added topic would have dropped the bubbles until the list reloaded. The
+arrow now opens the "Today" bubble, so on a row narrowed by its picture the
+two bubbles stack cleanly.
+
+**Merged with Main before the pull request (2026-11-11).** Main had gained
+its own §537-§543 (the iOS launch, the loading mark, play-all on a rail)
+while this branch was open, so this branch's two sections, written as §537
+and §538, are §544 and §545, and every reference in its code, tests and
+notes was renumbered with them; `tests/test_signals_538.py` is
+`tests/test_signals_545.py`.
+
+**Two fixes from reviewing the branch before its pull request.** The list
+read the listening history once per mix when the signals moved into
+`_mix_out`; it reads it once per request now (`_mix_history`, passed down),
+and a test counts the reads. And a story held from before `status_at` existed
+would have taken the first sweep after the deploy as its status time,
+reporting last night's result as new to somebody who listened this morning;
+it takes its last known time (`live_as_of`, else `first_seen`) instead.
+
+## 546. The app starts dark, and draws itself before the server answers (2026-11-11)
+
+**What was asked.** The owner, after build 3 reached TestFlight: "I want to
+make dark mode the standard version that new users have, with the option to
+change to light mode", and "It still takes way too long to load the app when
+you first open it. Please think of more ways to help this, and make sure the
+fixes from yesterday are in."
+
+**Dark by default, in the app.** `FAMTheme.standard` is dark: a phone with no
+`fam.theme` is drawn dark, "light" is the only stored value that draws light,
+and Settings' "Dark mode" reads On for anything else (`FAMTheme.isDark`). The
+launch screen (`LaunchBackground`) is the dark `--bg`, #2A2733. A phone that
+never touched the switch turns dark with this build. The web keeps light
+(§250); the rule's note says so (`docs/claude/constraints.md`, typefaces).
+
+**Yesterday's start-up work is in build 3**: the remembered page, rails
+first, tabs that load on first look, warming behind the feed, the poll after
+it, the 429 retry and the picture cache.
+
+**What still waited.** Every open showed the wordmark until `/api/auth/me`
+answered, then played the 1.8 s intro, then drew the app. Now a phone whose
+account was last let in (`fam.lastReady`, set by `arrive`, cleared on any
+sign-out) with its first run done draws the app at once, the remembered
+page on it and the intro over it, and asks `/api/auth/me` behind it; the
+answer still decides - signed out or waiting replaces the app the moment it
+lands. The first feed still waits on that answer (`firstFeed` awaits
+`whoTask`), so the two are still never asked together (the owner's earlier
+call), and the first-run steps and the Terms check run after it without
+holding the feed. The first open after updating behaves as before, once.
+
+
+**The DailyFAM page refreshed while the app is closed (iOS only).** To make
+the first open faster still, the remembered page is kept recent in the
+background: `FeedRefresh` (a `BGAppRefreshTask`, `net.familiarize.fam.feed`,
+registered with SwiftUI's `.backgroundTask(.appRefresh(...))`; `fetch` beside
+`audio` in `UIBackgroundModes`, the id under
+`BGTaskSchedulerPermittedIdentifiers`). The next run is asked for, no sooner
+than an hour away, each time the app goes to the background and after every
+run; iOS decides when it comes. A run is one read - `FAMAPI.railsData()`,
+the same `/api/v1/myfam` query with the Keychain's token and the read pace's
+one patient retry - kept with the same `rememberFeed` a successful draw uses,
+only if it decodes, and only while a token exists and the account was last
+let in (`AppModel.readyKey`, asked again before keeping); a sign-out cancels
+the request. Nothing on the audio path, no episode, no event; a failure keeps
+nothing. A page refreshed this way is drawn at the next open by
+`showRememberedFeed`, and the fresh feed replaces it as before.
+
+**§543 in the iOS app.** Every DailyFAM rail with episodes has the web's Play
+all pill beside its heading (`RailPlayAll`, `RailHeadLayout`: the heading
+keeps 12 em, scaled with the text, and the pill wraps under it when it would
+not). `AppModel.playRailAll` plays the first tile exactly as a tap does (the
+dial, the browse length) and queues the rest (`NowPlayingModel.replaceRailQueue`,
+`fromRail`): a second Play all replaces them and a category's, anything else
+starting drops them with a category's (`dropCategoryQueue`), and what the
+listener queued stays. Offline, only tiles on the phone ("None of these are on
+your device yet"); the web's guest rule has nothing to act on, the app being
+an account's alone. The friends who listened show top left of the player's
+picture, under the captions (`PlayerFriendsPill`): a DailyFAM tap hands over
+the tile's own faces (`AppModel.noteTileFaces`), anything else asks
+`/api/v1/listened` (`ListenedPage`), never for a private search or an
+attached episode; a tap opens the same "N friends listened" card, whose
+profile rows take the player down first. Unbuilt here (no Swift compiler).
+
+## 547. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11)
+
+The owner's "Vibes as Posts" note: *"The episodes that are displayed on my
+profile as a vibe, I wanna create a new player for those… almost like an
+Instagram post. I want them to appear more as posts rather than episodes. So
+it shows the day that I vibe with the episode. This is only for when I click
+on the ones on my profile or a friend's profile."* Two rounds of mock-ups
+(ten designs, then six blends of the three the owner picked - 03 Playable
+Post, 08 The Line, 10 Conversation); the owner chose **C, "Compact Trio"**:
+all three at feed size.
+
+**What a tap on a grid does now.** `playProfileVibe` and `playPersonVibe`
+open `screen-vibeposts` at the tile tapped instead of starting the episode:
+that person's vibes, newest first, as posts. A friend's page needs a handle
+to ask by; without one the old play stays. Nothing else changed - a story,
+My Vibe's list and every other surface still play the episode, and the
+press-and-hold delete on your own grid (§499) is untouched.
+
+**A post** (`vibePostHTML`): face, handle, "Vibed yesterday" (the catalogue's
+calendar, §499, from the vibe's age); the picture with the line across its
+foot in quotes; a play button, a bar with the line's stretch in gold, the
+times, and a gold chip with the line's start; heart, reply, send (the share
+sheet), save; then "n likes · heard by n friends" with faces, the title, the
+caption, the top reply and "View all n replies" / "Add a reply". ⋯ is
+Delete vibe on yours (the same `DELETE /api/vibe`) and Report vibe on a
+friend's.
+
+**The line.** VIBE!'s editor has a **Line** tool: the episode's own
+sentences (the player's captions if it is the episode playing, else
+`/api/transcript`), each with its start time, measured when the server
+measured it (§127) and otherwise the captions' character estimate. Picking
+one sends `line` and `line_at` with the vibe. Stored on the echo row
+(`line`, `line_at`); a vibe that sends neither keeps what the row had, so an
+installed client or a re-vibe that picked nothing never wipes it. Cut to
+`social.MAX_LINE` (300), slurs out, time clamped to 15 minutes, negative
+means "no time". The line is not drawn on the story; it is the post's.
+
+**Playing in place.** A post's play is the ordinary `generate` with
+`inPlace: true` on the topic; `onGenerationStarted` does not open the full
+player while the posts screen is showing. The bar is painted from
+`refreshProgressNow` and the button from `setPlayState`/`markPlaying`
+(`paintVibePostTransport`), so there is still one transport; dragging the
+playing post's bar is the player's own `makeScrubbable`. The chip seeks the
+playing episode (never past what is written) or starts it with
+`pendingResumeSeek`, the wait a resumed episode keeps. Leaving the screen
+does not stop it; the mini bar carries it on the tab screens.
+
+**Likes and replies, and who sees them.** A like is per post
+(`vibe_likes`, keyed on the vibe's row, an account's). Replies are
+**public to whoever may see the vibe** - its owner, or anyone who may open
+the owner's profile (reachable, not blocked either way, not suspended) and
+is not kept out of a close-friends vibe. That is a product change from
+§282, where a reply to a vibe was a private message; the story's reply row
+is unchanged and still sends a message. A post's reply is a comment filed
+under the vibe: `comments.echo_id` (0 is an episode's own thread, Explore's,
+which now filters on it, as does `comment_counts_many`), so the reply code,
+likes on replies, reports (`comment`) and deletion are the comment code; the
+poster may also delete any reply on their own post. Deleting a vibe takes
+its likes and replies (`_drop_post`); deleting an account takes the likes it
+gave and the posts of its vibes.
+
+**Who heard it** is `_mark_friends_listened(public_searches_only=True)` per
+post, the player's faces (§543) with the same caution.
+
+Endpoints: `GET /api/vibe/posts` (`handle`, `before`, `limit`),
+`POST /api/vibe/{id}/like`, `GET`/`POST /api/vibe/{id}/replies`,
+`POST /api/vibe/replies/{reply}/like` and `DELETE /api/vibe/replies/{reply}`. No person ids in any response. Both
+previews answer them. Not built: the iOS client's posts screen, and a
+notice to the poster when someone replies (a reply is not a message).
+
+**Caught in review** (a second read of the whole branch, at the owner's
+request):
+
+- `vibe_posts` and `echo_row` said `int(minutes)`, so a 1.5-minute vibe -
+  the browse length - came back as 1: another episode's key. Its post
+  played or wrote the wrong episode, never showed as playing, could not be
+  deleted, and filed its replies where the post did not read them. Both now
+  say `as_minutes` (§332), which also mends a moderator's removal of a
+  half-minute vibe (`echo_row` was already `int` before this).
+- Dragging the bar of a post that was not playing seeked the episode that
+  was: `makeScrubbable` seeks on release whatever the paint callback does.
+  A post's own `pointerdown`, registered first, now stops the drag unless
+  its episode is the one playing.
+- A reply under a vibe could be liked by anybody who guessed its id
+  (`/api/comments/{id}/like` checked only that it existed); it now asks
+  `_visible_vibe` first and answers 404 as for a missing reply.
+- A guest on a friend's page was gated where the tap used to play: a guest
+  now plays it as before.
+- A like's or the reply sheet's late answer redrew the post at its old
+  index after a delete had moved the list: posts are found again by id.
+- "No line" sent nothing, so a re-vibe kept the old line; it now sends "",
+  and is always offered.
+- The sheet liked and deleted replies through `/api/comments/...`, which
+  §499 keeps out of the page (`test_explorefam_is_gone_from_the_app`):
+  a vibe's replies have their own paths, `/api/vibe/replies/{id}/like` and
+  `DELETE /api/vibe/replies/{id}`, each asking `_visible_vibe` first.
+
+**A second review** (the whole branch against Main, at the owner's request):
+
+- The line chip on a post whose episode was not the one loaded usually
+  played from 0:00: the previous episode's mini-bar ticker saw a seek for
+  another episode and dropped it before the new bar was up. The chip now
+  brings the old bar down before it starts (`hideNowBar`).
+- A reply's author lost the way to delete their own reply once the vibe's
+  owner blocked them; `DELETE /api/vibe/replies/{id}` lets the author through.
+- `SocialStore.comment` said `int(minutes)` too (a reported reply under a
+  1.5 vibe showed 1 minute); it is `as_minutes` now.
+- Deleting or reporting from a post's menu could remove the last post if
+  the list had been reloaded meanwhile; it removes only the post itself.
+- Preview mocks: a friend's posts have ids of their own, and the live
+  preview's vibe delete takes its likes and replies.
+
+Known and left as they are: a post's episode ending with something in the
+Queue plays the Queue in the full player, as every episode does; and where
+the server never measured an episode's sentences, a line's time is the
+captions' estimate against the episode's length ceiling, so on an episode
+that ended early it can land late (the seek never passes the end).
+
+Tests: `tests/test_vibe_posts.py`.
+
+## 548. myFAM in a handful of statements, off the event loop (2026-11-11)
+
+A profiling pass for the iOS launch (a seeded deployment: 400 listeners,
+3,000 cached episodes, 28k events) found `GET /api/myfam` doing 0.6 s
+(SQLite) to 1.5 s (Postgres) of synchronous work inside an `async def` -
+about 1,100 SQL statements a draw - so every other request on the worker
+waited behind it: a launch's client-status, health and auth queued behind
+somebody else's page. Four causes, fixed in this order, with **the response
+unchanged**: the same JSON, byte for byte, for 26 listeners on the seed,
+before and after, on SQLite and on Postgres (and for View more's five rails
+and a guest's page).
+
+1. **A cache probe per candidate tile** (~976 a draw). Each crowd rail asks
+   whether every tallied question is cached at the browse length, one
+   `SELECT ... WHERE key = ?` at a time, after a `plan_episode` that logged
+   "SEARCH yes" for each. Now the three probes share one per-request reader
+   (`app._FeedProbe`) over a new batch read, `ScriptCache.rows_many` (one
+   `WHERE key IN (...)` per 500 keys; `holds_many` beside it). The rankers
+   prime it with the tiles they are about to ask about (`topics._prime`:
+   `ready_first`, `repeats`, and `_crowd_tiles` in batches of 64 growing
+   fourfold), and each answer comes from `cache.ProbeRow`, which *is*
+   `SqliteScriptCache.holds` now, so the batch and the single-key read cannot
+   drift. Still per request, never kept. The key is still `_episode_key`'s
+   (`[prefetch-same-key]`): `_browse_key` only remembers its answers, keyed
+   on the question, the length, every settings object and function that
+   reads into it, and never under `SEARCH_MODE=auto`; `plan_episode`'s line
+   is quiet on that thread while it does (`_QUIET_PLANS`). A crowd tile is
+   built (tags and all) only once it is kept (`_tile_ref`).
+2. **The crowd's listens read four times a draw, for every listener.**
+   Most played (24 h), What you missed (3-7 days), the friends rail and the
+   friends' faces (14 days) each read `listens_between` and `heard_since`.
+   One snapshot of the widest window (`CROWD_SPAN`) now serves every rail and
+   every listener, filtered in memory by exactly the bounds each read asked
+   for, in the order the database returned them - so it answers what a fresh
+   read answers. It is thrown away when this process writes a play, a
+   completion or a heard listen, or forgets or clears the log
+   (`_crowd_changed`); re-read when the newest play, completion or heard
+   listen in the database is not the one it saw (`_crowd_mark`, asked at most
+   once a second); and re-read every `CROWD_REFRESH_SECONDS` (30) regardless.
+   `_norm_question` is memoised.
+   **The one semantic change, stated:** with more than one worker, another
+   worker's new play reaches this worker's crowd rails within a second rather
+   than at once, and a row another worker *deleted* (an account deletion) or
+   wrote with an older time than its newest can stay on them up to 30 s. In
+   one process nothing changed: a play recorded here is on the next draw
+   (tested). `[heard-not-tapped]`, `[missed-rail]`, `[two-crowd-rows]` and
+   `[friends-listened]` are otherwise untouched - same windows, same
+   thresholds, same tallies.
+3. **The page drawn twice.** `prefetch.schedule_cycle` ran `FeedSource`,
+   which called `build_feed` again on the loop - a whole draw's stall right
+   after the first open. The draw now hands its page to the cycle
+   (`schedule_cycle(user, minutes, feed)` -> `run_once(feed=)` ->
+   `plan(feed=)` -> `FeedSource.candidates(feed=)`, only the rails' keys,
+   titles and tiles' ids and questions kept). The same rails, ranks, weights
+   and reasons; and the tiles are now exactly the ones the listener was shown
+   - the parallel build had none of the page's cache, place, account or
+   interests inputs, so it could warm tiles nobody saw. Without a page (a
+   tool, a test) it builds one as before.
+4. **On the event loop.** The draw (`_draw_myfam`, and a guest's,
+   `_draw_guest_myfam`) runs in `asyncio.to_thread`; the story sweep,
+   vocabulary growth and the prefetch cycle are still scheduled on the loop
+   first and after. Every store keeps a connection per thread (`_conn`, the
+   Postgres pool is locked), the story pool is replaced whole, and the new
+   memos are written whole or under a lock.
+
+And **/api/health** (~25 ms a call, ~1 s the first): built in a thread
+(`_health_report`); the cache totals, which scan every script, kept 15 s
+(`_health_memo`, and read once rather than twice); the HTTP client
+`http2_enabled` inspects built once per setting. The databases' real reads
+and `build` still run on every call (`[verify-not-inspect]`,
+`[server-says-build]`). The agents' modules, the house style's pictures and
+the ranker's semantic model are loaded at boot in a thread
+(`_warm_first_calls`).
+
+Measured with uvicorn, one worker, the iOS launch requests (`measure.py`;
+medians of five, warm unless marked):
+
+| | SQLite before | SQLite after | Postgres before | Postgres after |
+|---|---:|---:|---:|---:|
+| myfam | 595 ms | 218 ms | 1,552 ms | 215 ms |
+| SQL statements a draw (in process) | 1,124 | 29 (11 cache) | 1,114 | 40 |
+| feed on screen (client-status + health + me, then myfam) | 543-824 ms | 201-274 ms | 1,360-1,522 ms | 263-356 ms |
+| a 2 ms request's worst wait while myfam draws | 667 ms | 142 ms | 1,494 ms | 203 ms |
+| health | 20.5 ms | 13.8 ms | 33 ms | 30 ms |
+| first health / first myfam, 8 s after boot | 134 / 1,064 ms | 19 / 730 ms | | |
+
+What is left of the wait while a draw runs is the GIL, not the loop: the
+draw's thread is pure Python, and the loop gets it back every switch
+interval. The tallies themselves (`_tally_listens`, per listener for What you
+missed) are now the largest part of a draw.
+
+Tests: `tests/test_feed_speed_548.py` - the batch read against each
+single-key read, a draw's cache statements (at most 12, none by single key,
+on a fixture with hundreds of candidates), the batched draw equal to the one
+a key at a time and the snapshot draw equal to fresh reads, a play here and
+another worker's play both seen, prefetch handed the page, the page drawn
+where no loop runs, health's 15 s and its client built once.
+
+## 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11)
+
+**What was asked.** The owner: "Pronunciation is still a massive problem in
+episodes, how can we cross check our names pronunciation list against another
+source to changes the answers. My first idea is to download the whole list of
+names in somewhere(maybe a regular fable claude chat), have it edit the list,
+then put it back in here". Then: "both, build the export/import and give me
+the command" (for the stress experiment below).
+
+**Why Wikipedia may not be enough.** Not measured: the guess is that many
+names on file are sports players whose article lead has no pronunciation, so
+the writer's or the brief's guess stands (§289, §324). The download's
+`wikipedia_status` column counts it.
+
+**The round trip** (`pronounce_review.py`, /admin → How names are said →
+"Checked by another reader"):
+
+- **Download list** - `GET /api/admin/pronunciations/export`, a CSV of every
+  respelling with its source, Wikipedia's reading and status, and a sentence the
+  name was met in (from the `CONTEXT_EPISODES` most recent episodes) with its
+  episode, so the reviewer can tell which Nguyen is meant.
+- **Copy the prompt** - `pronounce_review.PROMPT`, fixed so every run asks the
+  same thing: the lexicon's respelling rules (hyphenated syllables, stressed
+  syllable in capitals, as many words as the name), the evidence order (the
+  person, the leagues' media pronunciation guides, Wikipedia's IPA, broadcast
+  usage), and a reply of only the rows it would change, `name,say,confidence,reason`.
+- **Upload corrections** (or paste the reply) - `POST
+  /api/admin/pronunciations/import` reads the CSV (a ``` fence or a line of
+  prose around it is fine; a file edited in place is read from `current_say`)
+  into proposals beside what is on file, high confidence first. **It changes
+  nothing.** Unchanged rows are counted, unusable ones refused with the reason.
+  A change of stress alone is a change: rows are compared exactly, case and all.
+- Each proposal is **Accepted** (saved through the admin's own save, so as
+  `admin`), **Skipped**, or **Heard 4 ways** first; "Accept all high
+  confidence" asks before it saves. Nothing accepts the whole file blind,
+  because an admin's respelling is never replaced afterwards - not by a model,
+  not by Wikipedia (`[op-voice]`) - so a reviewer's wrong guess accepted
+  blind would be permanent.
+
+**The voice never hears the stress.** `pronunciation.voiced` lowercases every
+respelling before the voice gets it (capitals would be read as letters by
+`spoken_text`), so "sah-gah-poh-loo-TEH-leh" reaches Chatterbox as
+"Sah-gah-poh-loo-teh-leh". The lexicon records stress and the voice gets none
+of it. A corrected list may still be said with the stress in the wrong place. Unheard; to be
+measured, not assumed: `pronounce_review.stress_variants` writes one
+respelling four ways - `now` (today's), `joined` (syllables run together),
+`accent` (an acute on the stressed vowel), `spaced` (each syllable a word,
+the stressed one capitalised) - and two ways to hear them, both keeping
+nothing:
+
+- /admin: **Hear 4 ways** on every name and every proposal
+  (`POST /api/admin/pronunciations/hear-variants`, an optional `say` to hear a
+  proposal as proposed);
+- `python tools/stress_trial.py --csv <download> --limit 10`: the names with a
+  marked stress and three or more syllables, bare and in a sentence, written
+  to `stress-trial/<stamp>/index.html` to listen to.
+
+If one variant wins by ear, `voiced` changes to it - one function, on the
+synthesis path for every chunk - and the lexicon's format stays as it is.
+Until then `voiced` is unchanged. Tests: `tests/test_pronunciation_review_549.py`.
+
+## 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes | Categories, the morning dot, the pop-ups (2026-11-11)
+
+Six screenshots from the owner, five changes.
+
+1. **Back an episode** ("on myFAM mixes, add a way to go backwards an
+   episode too, not just forward"). The player's empty first slot, kept since
+   §519 to balance next, now holds a mirrored next glyph (`#mixPrevBtn`,
+   `prevMixItem`), drawn only while a myFAM playlist plays - the queue has no
+   "before". It plays the playlist's previous episode, which replays from
+   what is kept (the same dated prompt, so the same cache key); on the first
+   episode it starts that one again. Off a Go Deeper follow-up (§536), back
+   is the playlist's episode it came off, as skip is.
+
+2. **A vibe holds the playlist** ("it should not automatically skip to the
+   next episode in the queue while I'm taking a second to make the vibe
+   post"). An episode that ends while the VIBE! editor is open keeps what
+   would have come next - the mix's next, the queue's, the countdown - in
+   `heldForVibe`, and `closeVibeComposer` runs it, posted or backed out of.
+   Anything else starting in the meantime (`generate`) drops it. The audio
+   itself is not paused: only the moving on waits, as under Go Deeper (10.1).
+
+3. **Mixes | Categories** ("change the layout so there's two tabs", with the
+   Groups | Messages screenshot). Two equal tabs under the wordmark, a copper
+   rule under the one on (`.pf-tabs`, `showPlayfamTab`). Mixes is Create new
+   mix, the search and the cards; Categories is §500's chip row without All
+   over a list of categories (`#catHome`, `renderCategoryHome`: followed with
+   today's count, then the facets with what is under them). A chip or a row
+   opens the category in place, its X back to that list. Arrival opens on
+   Mixes (§500 review's rule, now with a reason the tab makes visible). The
+   owner's note says "Mixed"; the tab says Mixes, the word the app uses.
+
+4. **The morning dot** ("add a notification thing to myFAM in the morning
+   encouraging them to click on the new myFAM mix"). `GET /api/mixes/fresh`
+   answers which of the listener's mixes (own and joined) this morning's
+   DailyFAM edition wrote and nobody has played since: the edition's slot
+   must be `ready` (a dot for a mix nobody wrote would invite a wait), the
+   mix active (§359 - a dormant mix was not written) and `played_at` before
+   the edition's `built_at`. A guest gets an empty answer, never a 401; any
+   failure is no dot. Every tab bar's myFAM tab carries a copper dot
+   (`data-mix-dot`), asked with the notifications, on returning to the app
+   and every quarter hour; looking at the tab clears it for that edition
+   (kept on the device, so it is back tomorrow and not twice today), and the
+   mix's card says "New today" until it is played. In-app only; the push is
+   still §448's at the mix's listen time.
+
+5. **The pop-ups** ("CHANGE THE POP UP NOTIFICATIONS!!!", over a "Sent to
+   Beth" across a friend's vibe). §299's plain line sat on a fade of the
+   page's own colour; over the dark story viewer that fade was a white band
+   across the picture and the Play episode button. Toast and snack are now one
+   floating card: the surface colour, a hairline border, a shadow, a copper
+   dot, sized to its words and centred above the mini player or tabs, the
+   action (Undo, Open) to the right of the words. It reads the same over any
+   screen. The drop-down banner (`.notif`) is unchanged.
+
+Tests: `tests/test_owner_notes_550.py`; §229's, §108's, 10.23's tests and
+the smoke run's category and playlist checks follow the new layout and
+check back by a real click.
+
+**Merged with Main before the pull request (2026-11-11).** Main had gained
+its own §546-§549 (the app starts dark, vibes as posts, myFAM's
+statements, the pronunciation list) while this branch was open, so this
+section, written as §546, is §550, with every reference in its code, tests
+and notes renumbered; `tests/test_owner_notes_546.py` is
+`tests/test_owner_notes_550.py`. Both sides added CSS at the end of the
+stylesheet; both are kept.
+
+**From reviewing the branch.** As first written, `/api/mixes/fresh` counted
+a mix made after the morning's edition ran - active, never played - as new,
+a dot for a mix nobody wrote. It now takes only mixes made before the
+edition's `built_at`, active as of then.
+
+## 551. The app catches up with #247, #249 and #252 (2026-11-11)
+
+**What was asked.** The owner merged #247 (mix cards and what changed since
+you last listened, §544-§545), #249 (vibes as posts, §547) and #250 (the feed
+off the event loop, §548), then: update the app from those changes before the
+next build. #250 is server-only.
+
+**#247 on iOS.** A mix with a `signal` draws as R5 (`MixSignalCard`,
+`Views/MixSignals.swift`): the story's picture ringed in the signal's colour
+with the mix cover in its corner, one line naming the topic and the story,
+and the Trending / Major update pill where the arrow was. Inside the mix
+(Q5) a changed topic's row is outlined with its tag and the two bubbles
+(`MixBubbles`), "Start with what changed" plays the changed topics first
+(`AppModel.playMixChangedFirst`, the web's `playWhatChanged`), and "or play
+all N from the top" plays in order. Every topic row carries its picture
+(`MixTopicPic`). The minimal card's name now fills its row as the web's
+`flex:1`. The guest's example card has no counterpart: the app requires an
+account.
+
+**#249 on iOS.** A tap on a vibe in yourFAM's grid or a friend's profile opens
+the posts screen (`Views/VibePosts.swift`, the web's `screen-vibeposts`) at
+that vibe: its line across the picture's foot, the post's own player and
+the chip that plays from the line, likes, replies (a sheet with answers,
+likes, Delete and Report), save and share, More vibes. The VIBE! editor gains
+the Line tool (sent as `line` / `line_at`). Where iOS differs it is named in
+`ios/FAM/PARITY.md`: an E mark sits before a caption rather than inside it,
+and the posts screen inside a social cover draws its own loading screen.
+
+**#252 on iOS (§550).** Back an episode: the player's first slot holds
+next's glyph mirrored while a myFAM playlist plays (`AppModel.prevMixItem`:
+the item before, by the same dated prompt, so a replay; the first again from
+the start; off a Go Deeper detour, the interrupted episode, as skip does). A
+vibe holds the playlist: an episode ending while the story editor is up keeps
+its carry-on (`NowPlayingModel.heldForVibe`), run when the editor goes and
+dropped by anything else starting. Mixes | Categories: `PlayfamTabs` under the
+wordmark; Categories is the chip row without All over `CategoryHome` (followed
+with today's count, then the facets with what is under them), and every
+arrival opens on Mixes. The morning dot: `GET /api/v1/mixes/fresh`
+(`FreshMixes`) asked beside the notifications, on return and every quarter
+hour; a copper dot on the myFAM tab until the screen is looked at that
+edition (`fam.mixDotSeen`), "New today" on the card until played. The toast is
+the floating card. The web's "New today" chip also matches an older
+`.mix-new` rule and stretches across the card; the app draws it as §550's rule
+writes it, and `ios/FAM/PARITY.md` says so.
+
+Unbuilt here (no Swift compiler); every changed file parses with tree-sitter
+and every new name resolves.
+
+## 552. Keith's "science, world are not in the tree" was the check, not Nando (2026-11-12)
+
+Keith held an URGENT open since 11.6 (seen 1355 times): "2 node(s) Nando
+filed episodes under are not in the tree: science, world".
+`agent_checks.nando_nodes_exist` asked `tree.get(node)` of every node Nando
+filed, but the eight facets are the tree's roots and never rows in it
+(`categories.mint` refuses them as reserved slugs), and Nando's last step
+files an episode at its facet - "broader, never wrong". Every episode filed
+at a facet read as a dead node. The check now skips `topics.FACETS`; a test
+pins that `science` and `world` are not a breach. The old test's fake tree
+held `markets` as a row, which is why it never showed. Nothing was wrong with
+the episodes; the alert closes on the next whole pass.
+
+## 553. The seed tree doubled: 322 nodes to 677, from outside the bank (2026-11-12)
+
+The owner, reading the categories review page: Nando filed "nothing" for
+magic, a children's hospital raising money, Australian schools, a virus
+study and sexual abuse support - "clear categories to me ... we should start
+this with more nodes on the tree". The seed had been written from the bank
+and the day's news: no religion, history, theatre, education, crime,
+hospitals, infectious disease, psychology, wildlife, hobbies, travel,
+parenting, pets, cricket or rugby.
+
+`category_seed.SEED` gains 355 nodes across all eight facets, each a subject
+a listener asks about by name, read from outside FAM (what a general
+listener's questions cover), never from the bank. The rules kept:
+
+* **No countries.** A country is named in questions on every facet; as a
+  node it outranks the subject (India's cricket, China's carmakers). The
+  Middle East nodes (§187) stay; nothing else joins them.
+* **A one-word node only where the word means the subject.** Left out:
+  "chemistry" (a team's), "evolution" (of anything), "dating" (carbon),
+  "hunting" (jobs, houses), "puzzles" (the verb), "weather" (it would tie
+  with `extreme weather` and move §194's questions), "athletics" (Oakland).
+* **`magic` at depth one**, with `orlando magic` an alias of `nba`: the
+  tree breaks a tie by depth, so a basketball question holding both is
+  `nba`; Nando's facet-first steps keep it there anyway. Not a collision
+  (§373): a collision with nothing deciding it files nothing, and "why are
+  people fascinated by magic" has no cue.
+* **Aliases for number and apostrophes.** The tree does not stem, so
+  `hospitals` is reached by "hospital"; and "women's" tokenises as
+  "women s", so the old `womens health` never matched "women's health" -
+  `women health` is now its alias (the same for men's, children's books,
+  women's rights).
+
+Seeding is still quadratic in the file (`mint` reloads per row): 0.48s for
+322, about 1.9s for 677 at first boot only; the test's bound is 5s.
+Existing deployments take the new nodes on the next boot (`apply_seed`
+adds what is missing and moves nothing).
+
+**Nando's list.** With nothing below a facet in the words, Nando shows the
+model the whole tree while it is at most `WHOLE_TREE_NODES` (§388: 36 of 40
+right, against 20 with the level under the facets). That was 400; at 677
+the whole tree would have dropped off the list and the change would have
+made Nando worse. Raised to 1000. The cost is about 2,000 more input tokens
+on the brief's call in front of a search - unmeasured here (no key); §388
+measured 303 nodes at +0.2 s median; `tools/nando_eval.py` (§388's
+harness) measures it again with a key.
+
+Not done: a company ("Nvidia") is an entity for `category_vocabulary.json`
+(§374), never a node - and that file is still empty in production, its 303
+drafted entries pending review.
+
+## 554. The category tree on /admin (2026-11-12)
+
+The owner: "a categories tree on the admin page ... digestible ... very
+aesthetic". The Categories page now opens on **The tree**: a tile per facet
+(its colour, how many categories, how many kept episodes filed), then a card
+per facet with its subjects in collapsible branches, busiest first, guide
+lines in the facet's colour, a child count, and a bar for the episodes filed
+at a node and below (square-root scaled, so a branch of three still shows
+beside one of eighty). An amber dot marks a node grown from listeners; the
+rest were seeded. A search box shows each match with its branch and the
+words marked; "Filed only" hides what nothing is filed under; "Open all".
+Columns, not a grid, so a short facet never leaves a gap beside Sport.
+
+`GET /api/admin/categories/tree` (admin only, read-only, no model) is
+`categories.outline(tree, counts)`: every node exactly once under its facet;
+a facet's own count is episodes filed at the facet (Nando's last step,
+§552); a node whose parent is gone is counted as `orphans` and said on the
+page, never silently dropped. Counts are one grouped read,
+`ScriptCache.node_counts()`, on both caches. Checked in a browser at desktop
+and phone width: no page errors, no sideways scroll.
+
+## 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12)
+
+§552 fixed Keith's dead-node check for the facets. The same question -
+"is this node somewhere an episode can be filed?" - was asked in twelve
+places, half with `node in FACETS or tree.get(node)` and half with
+`tree.get(node)` alone. Two of the second half were live bugs:
+
+* **`tag_sync.check_episode`**: every episode filed at a facet was a
+  "dead node" in Keith's nightly sync, and `repair` skips dead nodes, so
+  its storage tags were never pushed.
+* **`housekeeping.where_now` / `surviving`**: a fact kept at a facet "was
+  not in the tree", so its nearest surviving ancestor was looked for - and
+  the facet itself failed the same test, so the fact was unfiled (node "").
+  A fact whose branch was pruned to the facet was unfiled too. Live once the
+  housekeeper runs out of dry run.
+
+Now `categories.holds(tree, node)` is the one answer: a facet, or a node the
+tree holds; takes anything with `get` (the tests' dicts); never raises. Every
+site uses it: Keith (§552), the tag sync, the housekeeper (three places),
+Nando's candidate list, the answer key's judgement, the old-episode re-file
+report, both picture lookups, and `app._category_known` / the browse filing.
+`training._nearest_surviving` already counted facets and reads its own dict.
+
+**Why the tests never showed it:** every one handed in a fake tree that held
+the facets as ordinary rows, which the real tree never does.
+`tests/test_category_holds_555.py` runs on the real seeded tree and checks
+every checker against everything Nando can file - every facet, every node,
+and what `categorizer.suggest`/`place` return for `tools/nando_eval.py`'s
+questions. With the old code put back, four of its eight tests fail.
+
+## 556. Keith's dead-node alert explains itself (2026-11-12)
+
+The §552 alert stood six days, seen 1355 times, and told the owner to hold
+a healthy agent: it named two nodes and nothing else, and every agent
+breach carried the same plan ("Hold the agent ... and look at what it
+did"). Nothing on it said the nodes were facets, how many episodes, or
+whether Nando was still doing it.
+
+Now the finding carries what Keith read. `nando_nodes_exist` keeps, beside
+each pass's nodes, how many episodes are filed under each, the newest's key
+and the day it was written (`_NANDO["found"]`, kept a pass over like the
+nodes, so the words never go blank on the round after). The alert names
+each missing node with its episodes, the newest episode's title and day,
+and says which of two things it is:
+
+* **Nando filed one in the last two days** (`NANDO_STILL_FILING`): he is
+  naming nodes the tree does not hold. Plan: hold Nando and read his filing.
+* **Only older filings**: the tree changed under them (a prune, rename or
+  re-seed); Nando did nothing and holding him would not help. Plan:
+  Consuela's re-file, with whether she is off, in dry run or will move them
+  - or put the node back in the seed if it was dropped by mistake.
+
+"A listener notices" now says what happens - the writer's category words
+place the episode instead (§371). `_breach(..., plan=)` lets any check
+replace the generic plan's fields where it knows better. Tests in
+`tests/test_agent_checks_491.py`.
+
+## 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12)
+
+CI's `postgres` job (§243) has failed on Main since #250: 3 failed, 7057
+passed, all in `tests/test_feed_speed_548.py`. Two counted the statements a
+draw issues with `sqlite3.Connection.set_trace_callback`, which `db.Connection`
+does not have; one played another worker by opening the store's file with
+`sqlite3.connect(path)`, which under Postgres is an empty file with no
+`events` table. None was a fault in the code they test.
+
+Made portable rather than marked `sqlite_file`, so Postgres keeps the
+coverage: `_trace(conn, seen)` uses SQLite's hook or wraps `db.Connection.execute`
+(either way, the statements the store issued), and the other worker opens
+the same store with `db.connect(path)` - the file in SQLite, its schema in
+Postgres. Run against a local Postgres 16 and against SQLite: 14 of 14 on
+both. This branch's own category tests also pass on Postgres (72).
+
+## 558. Instagram and Snapchat stories go straight into the platform's app (2026-11-12)
+
+**The report.** With the app in TestFlight, the owner: sharing an episode only
+works as a link; Instagram, Snapchat and the rest do not. The two story tiles
+drew the server's card to a PNG and handed it to iOS's share sheet, hoping
+Instagram's and Snapchat's share extensions would take it for a story. That is
+two extra choices at best, and not a story editor at all at worst. Instagram's
+own route, `instagram-stories://share`, has needed a Facebook App ID since
+January 2023, and FAM had none (PARITY.md said so); Snapchat's needs a Snap Kit
+client id.
+
+**What changed.** The server owns the hand-off, as every other destination's
+(`api-before-screen`): `sharing.story_handoffs` turns `INSTAGRAM_APP_ID` and
+`SNAPCHAT_CLIENT_ID` into a `handoff` on the `instagram_story` and
+`snapchat_story` targets of `/api/share` and a mix's share (`platform`, `url`,
+and the id); `/api/share/targets` says `has_handoff` and `/api/health` lists
+which are on (`sharing.story_handoffs`). Both ids are public identifiers that
+ship inside any app, so they are settings, not credentials; an id of the wrong
+shape (Meta's are digits, Snap's letters, digits and dashes) gives no hand-off
+and a warning, rather than a URL that fails inside the other app with no word
+about why. The iOS app (`StoryHandoff.swift`) asks `canOpenURL` (the two
+schemes are now in `LSApplicationQueriesSchemes`), puts the card on the
+pasteboard under the platform's keys - Meta's
+`com.instagram.sharedSticker.backgroundImage`; Snap's Creative Kit Lite keys
+with the client id and the caption, opened at
+`snapchat://creativekit/preview/1` with the pasteboard's change count - and
+opens the scheme. No SDK. Nothing unset, no app on the phone, or a refused
+open: the share sheet as before. A new optional field, so installed builds are
+unchanged and a TestFlight build with this code turns on when the server's
+settings do.
+
+**What it still needs from the owner.** A Meta app (its Facebook App ID) and a
+Snap Kit app registered with `net.familiarize.fam`; Snap's Development id posts
+only from Demo Users until Snap approves the app. Neither platform lets a
+third-party app pre-attach a tappable link any more, so the person adds the
+link sticker themselves.
+
+Unbuilt here (no Swift compiler); every changed Swift file parses with
+tree-sitter. Not tried on a phone.
+
+**Reddit and Threads** (the owner, the same day). Two more `link`
+destinations, both URL hand-offs needing no id: Reddit's submit page
+(`reddit.com/submit?url=&title=`; the words are the post's title, 300 at
+most, with no address in them because the link is its own field) and
+Threads' web intent (`threads.net/intent/post?text=`, 500, the link in the
+words as on X). Each opens the platform's app where it is installed. The
+trim in `_rendered` now re-attaches the link only where it was in the words
+to begin with - otherwise a long Reddit title would have had the URL glued
+onto it. Both clients draw the two tiles (`r/`, `Th`); an installed build
+already shows any key it does not know, with the arrow glyph.
+
+## 559. A shared link previews with the episode's picture, like a Spotify link (2026-11-12)
+
+**The report.** The owner, with a Spotify link in a group chat beside it: a
+FAM link should look like that - a picture with the title under it - rather
+than a line of words. Four options were drawn (a deck: episode art, a cover
+card, the picture with a play button, the sharer's face on top) and the
+owner chose the first with the third's play button.
+
+**Why it was words.** The share page's `og:image` was the Instagram story
+card (`/api/share/card`): SVG, 1080x1920. Messages and most link previewers
+draw only JPEG or PNG and want a square or wide picture, so they skipped it.
+
+**What changed.** `link_preview.draw` makes a 1200x1200 JPEG: the episode's
+picture (`_player_picture`, the one the player shows), cropped square, the
+FAM badge top left and a copper play button bottom right; with no picture,
+the title on FAM's dark ground with the length and the same button.
+`GET /api/share/{id}/preview.jpg` serves it, drawn on request and kept in a
+small memory (`PREVIEW_MEMORY`), nothing stored; `landing_head` names it as
+`og:image` (with type and size) ahead of the card, still only when absolute.
+Fonts are the iOS bundle's copies; a machine without them draws in Pillow's
+default face. Server-only, so every installed build and every app the link
+is pasted into gets it at once. Whether Messages prints the description
+line under the title for this site is still to be seen on a phone.
+
+## 560. Optional surveys: the episode check, the day-3 check-in and the two-week wrap-up (2026-11-12)
+
+The 11.11 beta meeting asked for surveys inside the app, for the beta and
+after it. It agreed on the format (multiple choice with an optional "Other:
+___" box), on what to ask about first (episode quality, what frustrates
+people, whether FAM sticks), on Quinn's 1-10 "part of your daily routine"
+question, and on asking about single episodes first and the whole app
+later. It left open whether the app survey comes at three days or two weeks.
+This build asks at both: a short check-in at day 3 and a wrap-up at day 13.
+
+**Three surveys, one module** (`surveys.py`):
+
+- **episode** - "How was that episode?" (Loved it / Good / Meh / Didn't
+  work), and when it was not loved, "What was off?" (pick any, including
+  "Mispronounced a name" with its own "Which name?" box and "Took too long
+  to start"). It rides on the What's next card, after a listener's first
+  finished episode, then every fifth (`EPISODE_EVERY`), never twice in
+  `ONCE_A_DAY`. Touching it pauses the countdown, as the search box there
+  does. "Loved it" is the whole answer and sends itself.
+- **day3** - age (skipped when the account already holds a date of birth),
+  what describes you, where you keep up now, what you have used, what has
+  frustrated you, the 1-10, and when you would listen.
+- **wrap** - "How would you feel if you could no longer use FAM?", the 1-10
+  again (to compare with day 3), whether FAM gave you something to bring up
+  with people (the social-information claim, §199, tested directly), what you
+  would miss, what you would pay a month (for the margin work), and one thing
+  to change. Somebody past day 13 who never answered the check-in is offered
+  this one instead, never both.
+
+**The server decides which survey, if any, and when.** `POST
+/api/surveys/offer {moment}` is asked only at a moment the client *can* show
+one: `episode_end` while the What's next card is up, or `open` when the app
+is in front on a main screen with nothing playing and nothing else open. An
+offer counts as offered, so the same survey is not offered again for a day.
+The app surveys open as a small invite above the bars (Start / Not now),
+never as the survey itself. "Not now" (`/api/surveys/dismiss`) offers it again
+a day later; after the third it is never offered again.
+
+**Accounts only.** A guest's events are never logged (`app._remembers`), and
+an answer is the most personal event there is. Answers are not taste signals
+and nothing ranks on them. Free text stays in `surveys.db` and is never sent
+to a model. Deleting an account anonymises its answers: they stay in the
+totals and lose the link to the person (as `feedback.py` does).
+
+**Answers are checked against the survey.** An unknown question or option is
+refused, not dropped: a client sending one is drawing a different survey,
+and that should fail where people can see it. A follow-up question that
+should not have been shown is not kept. Text is kept only where the question
+has a box.
+
+**Reading them:** /admin -> Surveys shows, per survey, how often it was offered
+and put off, a bar per answer, the mean and spread of each 1-10, and every
+typed line (with the episode's title for the episode check).
+`/api/admin/surveys/<id>.csv` gives one row per response with `user_id`, so
+answers can be joined to what that listener did (Ask the database).
+
+`GET /api/surveys` returns every definition for a client that caches them.
+The iOS screens are §561. The preview offers the episode
+check on every What's next card and the check-in once per page, except under
+the smoke run (`navigator.webdriver`).
+
+**Found on reviewing the branch, and fixed:** an answer of the wrong type
+(an object where an option id belongs) raised inside the validator and came
+back as a 500; it is a 400 with a sentence now. A typed line starting
+= + - @ would have been a formula in the CSV when opened in a spreadsheet;
+it is kept as text. The episode check could replace an app survey whose
+invite was still waiting, so Start would have opened the wrong survey; it
+now waits its turn (web and iOS). The web invite stayed over the player;
+it now waits off any screen it may not be offered on and comes back.
+
+Not yet: the push alert that brings a lapsed tester back to answer. That
+waits for push notifications on the phone (the meeting's other task).
+
+## 561. The iOS app catches up with §560: the surveys (2026-11-12)
+
+The three surveys on the iPhone, drawn as the web draws them (`ios/FAM/PARITY.md`,
+"Surveys").
+
+- **`Surveys.swift`.** `SurveysModel` (owned by `AppModel`, `model.surveys`)
+  holds what is offered, the answers and the one send; `SurveyQuestionView`
+  draws a question (chips that wrap in `FlowRow`, the 1-10 row with its end
+  labels, the Other box and an option's own box, a free line);
+  `SurveyPulse` is the episode check; `SurveyInvite` the card above the bars;
+  `SurveySheet` the day-3 / two-week survey. The answer shape and what is
+  sent are the web's (`surveyPayload`): only questions showing, only boxes
+  showing.
+- **The episode check** sits above the What's next grid (`NextUpOverlay`),
+  asked for when the card appears with the player's `X-FAM-Episode` and
+  title, cleared when it goes. Touching it, or any answer changing, pauses
+  the countdown. "Loved it" sends itself. The card is wrapped in
+  `ViewThatFits`, so it scrolls only when the check makes it taller than the
+  phone.
+- **The app surveys** are asked for from `MainTabs` on the same clock as the
+  notifications (`scenePhase == .active && feedDrawn`): six seconds after the
+  app settles, then each minute up to fifteen times while
+  `surveyMomentFree` is false (signed in, on a tab other than search, nothing
+  playing, connecting or buffering, no player, View more, follower card,
+  social cover, queue or playlist-end card). A device asks at most once in 30
+  minutes; the server keeps the real limit. The sheet is carried by
+  `SurveySheetHost`, because `MainTabs` does not observe the survey model.
+  Swiping the sheet away is Not now, as the X is.
+- **API.swift**: `offerSurvey`, `answerSurvey`, `dismissSurvey` on
+  `/api/v1/surveys/...`; `SurveyOffer`, `Survey`, `SurveyQuestion`,
+  `SurveyOption` and `SurveyShowIf` decode the definitions. The decoder's
+  snake-case conversion would rename a `detail` key containing an underscore;
+  none has one, and `test_ios_app_contract` fails if one is added. That test
+  also checks that every question key the server sends is one the app decodes,
+  and that the answers the app sends are kept.
+
+Not built here (no Swift compiler). Every changed file parses with tree-sitter.
+Nobody has seen these screens on a phone yet.
+
+## 562. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12)
+
+**What the owner asked.** "Push notifications to people's phones when they
+have the app and notifications on": a reminder of their daily playlists, **one
+per user, not per playlist**, and one "when a massive story drops". After a
+brainstorm the owner chose: the reminder's time **learned, with an override**;
+its words **headline first**; big stories **mixed** (automatic to people who
+follow a subject the story names, everyone only after the owner approves);
+and **quiet hours 22-08, followed game finals, and backing off when ignored**.
+Not chosen: a per-person cap on story pushes.
+
+**What changed.** `push.py` no longer sends one notification per mix at each
+mix's listen time (§184, §448). It sends one per person:
+
+* *When* - `daily_time`: the time chosen (Settings' Daily reminder, or the row
+  under any mix, which is now the same one); else an installed client's
+  per-mix `listen_at` (the earliest) until they choose here (`push_prefs.
+  daily_chosen`); else `learned_time` - the median minute of the day's first
+  play over `LEARN_DAYS` (14), once `LEARN_MIN_DAYS` (3) days have one; else
+  `DEFAULT_DAILY_AT` (07:30). §448's 0-15 minute spread keys on the person.
+* *Whether* - not on a day they already played something before it; after
+  `BACKOFF_AFTER` (3) reminders in a row with no play after them, every other
+  day; after `GIVE_UP_AFTER` (8), not until they play (`ignored_streak`).
+  Still only once the edition is written; a person whose mixes are all
+  dormant (§359) has nothing written, so theirs says "Your myFAM is waiting",
+  never "ready", and does not wait for the edition.
+* *What* - `message_for`: "Your myFAM is ready" (names swapped, §185) and the
+  title the edition's report holds for the first item of their most recently
+  played mix, "and N more across M mixes"; with no written title, a count.
+
+`push_stories.py` is new:
+
+* **Big stories.** Every 15 minutes (GDELT's clock) `GdeltSignals`' own
+  clustering runs over the last three hours of the export copy on disk - no
+  model, no request (§211). `judge`: every cluster past
+  `PUSH_BREAKING_FOLLOWED_OUTLETS` (15) is held as `watching`; the biggest is
+  `proposed` only past `PUSH_BREAKING_EVERYONE_OUTLETS` (40) **and**
+  `PUSH_BREAKING_RATIO` (2.0) times the next - a busy day is not one massive
+  story. Sweeps' clusters are one story when their keywords overlap by half.
+  A follower is told automatically; everybody only once `/admin/push`'s Send
+  to everyone marks it `approved`; Dismiss stops it.
+* **Followed finals.** A sports story the sweep marked `final` is noted once
+  and told to whoever follows a team in it, "Eagles 27–24 Cowboys · Final" /
+  "The recap is ready". It rode §191's sweep unchanged: if nobody drew myFAM
+  while the game was on, the sweep did not run and the final was not told.
+  (The owner widened the sweep for these followers the same day: §563.)
+* **Follows are chosen, never inferred** (`app._push_follows`): subjects in
+  their mixes (`f:nfl~Eagles` follows "Eagles", `f:nfl` "NFL"; typed questions
+  and bank topics follow nothing) and chosen interests that name a subject.
+  Matched as whole in-order phrases against the headline and keywords; a
+  field's own words ("football") never vouch.
+* **Written first.** Before anyone is told, the story's query is written at
+  `BROWSE_MINUTES` into the shared cache through `daily_edition.run_slot`
+  (slot `push@<id>`), so the tap (`/?listen=<query>&title=...`,
+  `openNotificationLink` -> `playNotifiedStory`) is a cache hit. No writer, or
+  a failed write: nothing is sent, and `/admin/push` shows why.
+* **Quiet hours** (`push.in_quiet_hours`, 22-08 in the listener's zone) hold
+  both story kinds; a breaking story still seen by the detector in the last
+  three hours goes at 08:00, otherwise not at all.
+
+**Choices.** `push_prefs` (one row per person: daily, daily_at, breaking,
+finals, tz) and `push_log` (person, kind, thing) live beside the
+subscriptions in `mixes.db`; an erased account takes all three. `/api/push`
+returns `prefs` with the resolved `daily_time` and its `daily_source`;
+`POST /api/push/prefs` changes them; a subscription carries the zone.
+Settings gains a Notifications group: Daily reminder (a sheet: when I usually
+listen, eight times, off), Big stories, Your teams' final scores.
+
+**Kept for installed clients.** The mix `listen_at` / `listen_tz` fields and
+`PATCH /api/mixes` accept and return them as before; the iOS app's per-mix
+row still saves, and its time stands for the person until they choose one on
+the web. The APNs kind is still not built.
+
+**Unverified here.** No VAPID keys or GDELT copy in this container: the
+outlet bars (15 / 40 / 2x) are first guesses to be read off `/admin/push`
+against a real day's clusters.
+
+## 563. The sports sweep runs for people with finals on (2026-11-12)
+
+**What the owner asked.** "Sweep scores for followers with finals on" - the
+follow-up §562 left open: a final was told only if somebody happened to draw
+myFAM while the game was on, because only then did §191's sweep run.
+
+**What changed.** A person who has finals notifications on and somewhere to
+receive them is demand for the sweep, **for their own teams' games only**:
+
+* `push_stories.publish_finals_followed` (in the push loop, every 5 minutes)
+  hands `stories.note_finals_followed` the names those people chose to follow
+  - mix subjects and named interests, as §562 matches finals - and nothing
+  when `PUSH_FINALS=0`. `stories.finals_followed` forgets the list after
+  `FINALS_FOLLOWED_SECONDS` (15 min), so a server whose push loop stopped (no
+  VAPID keys, staging) stops sweeping for it.
+* `balldontlie_scores.Signals.idle` lets the sweep run with nobody drawing
+  myFAM while that list is non-empty. `Signals.due`, in that case, reads a
+  league only while a game on or about to start names a followed team
+  (`followed_game`, matched as whole words against the teams' names; a soccer
+  row whose teams the catalogue has not named yet counts, rather than missing
+  a club's final). `watching` already stops once the sweep sees the game
+  final - that last read is the one that raises the notification.
+* With myFAM demand nothing changes: every game on is watched.
+
+**Cost.** Each swept league's card is still read once per UTC day to know what
+is on (about a dozen requests a day with nobody looking, where it was zero),
+then one league read per `STORIES_SPORTS_INTERVAL_SECONDS` while a followed
+team plays. No new endpoint and no request per listener.
+
+**Rule changed.** rule:sweep-on-demand carries a Current note; the CLAUDE.md
+line says it.
+
+**Review of §562-§563 (2026-11-12).** A read of the branch's whole diff found
+four faults, each fixed with a test in `tests/test_push_552.py`:
+
+* *The learned time crept later.* A first play that answered the reminder
+  was read as habit, so every answered reminder moved the next one later by
+  its own 0-15 minute spread. `learned_time` now counts a first play within
+  `PROMPTED_SECONDS` (an hour) of a sent reminder at the time that reminder
+  was due (`reminders_for`: sent time less its spread).
+* *A story still running after twelve hours told its followers again.*
+  Sweeps were matched against stories *first* seen in the last twelve hours,
+  so a long-running one became a new row. `note_breaking` matches on when a
+  story was last seen (`seen_since`, three hours); the twelve hours only
+  limit how long it may be sent.
+* *Every subscriber's plays were read every minute.* The learned time is
+  kept once per person per local day (`_LEARNED`), and plays are read only
+  when a reminder is due or a time must be learned.
+* *Subscribers from before zones were kept had quiet hours on New York's
+  clock.* `/api/push` fills an empty zone from the request's `X-FAM-TZ`
+  (never overwriting); a zone pinned in Settings is sent to the push
+  choices; an unreadable zone never erases a kept one.
+
+Also: a final whose pool story has no query is not noted (nothing could be
+written for it), and the boot chain calls `openNotificationLink()` with no
+argument rather than the previous step's result. Not changed: on the day this
+deploys, someone already sent a per-mix "ready" that morning may get the new
+daily one too - the old `push_sent` log is keyed by mix, the new one by person.
+## 564. The app before build 4: #256 and #257 reviewed, #258's notifications on the iPhone (2026-11-12)
+
+**Why.** Three PRs merged since the iOS app was last checked, and the owner
+is about to build it for TestFlight / App Store. #256 (story hand-offs,
+Reddit, Threads) and #257 (the surveys) were written by other sessions that
+also changed the app; #258 (§562-§563) changed only the web and the server.
+There is no Swift compiler in this container, so the review is by reading and
+by tree-sitter (every file under `ios/FAM/FAM` parses with no ERROR or
+MISSING node), and the bar is compile-safety first.
+
+**#256 reviewed.** `StoryHandoff.swift`, the `handoff` on `ShareTarget`, the
+two new tiles and `LSApplicationQueriesSchemes: [instagram-stories,
+snapchat]` are sound and match the web (`shareGlyph` r/ and Th, the server's
+order, Reddit and Threads opening their `destination` as X does). One
+compile risk taken out: `available` read `guard let url = URL(string: url)`,
+a local shadowing the property inside its own initialiser - now `target`
+from `self.url` (and `self.url` in the two senders). project.yml is still
+valid XcodeGen and nothing regressed: two schemes (FAM, FAM Staging), the
+Staging config, `applinks:familiarize.net`, `UIBackgroundModes: [audio,
+fetch]`, `BGTaskSchedulerPermittedIdentifiers`. `StoryHandoff` joins the
+contract test's decoded structs.
+
+**#257 reviewed.** `Surveys.swift` and its wiring compile on reading (every
+name resolves; `ViewThatFits`, `scrollBounceBehavior` and the two-argument
+`onChange` are iOS 17). Fixed:
+
+* `MainTabs.surveyMomentFree` was one twelve-term `&&` of optionals and `==`
+  - the shape Swift's type checker gives up on ("unable to type-check this
+  expression in reasonable time"). Now one test a line, same meaning.
+* The web toasts "Thanks — that helps" when an app survey is sent from its
+  sheet; iOS closed the sheet silently. `SurveysModel.say`, wired by
+  `AppModel`, says it.
+* The episode check could arrive after What's next had gone (the web checks
+  the card is still up): the offer is dropped when the task was cancelled or
+  another survey arrived meanwhile.
+* Other turned off with no option's own box showing clears its words, as
+  `surveyTap` does.
+
+**#258 on the iPhone.** iPhone notifications (APNs) come after 1.0 - the
+owner's decision - so nothing #258 sends reaches this phone. What is ported
+is the server-side choices, which are the listener's and govern any browser
+where they allowed FAM's notifications:
+
+* `/api/v1/push` decodes `prefs` (`PushPrefs`: daily, daily_at, breaking,
+  finals, daily_time, daily_source; every field tolerant) and
+  `POST /api/v1/push/prefs` saves them with the listener's zone
+  (`PushPrefsAnswer`). Both structs are in the contract test, with a live
+  test that the server sends exactly the keys the app decodes.
+* The mix page's bell row is the web's **Daily reminder** (`mixWhenHTML`):
+  the pill shows the chosen time, else when it goes; **Auto** returns to the
+  learned time; a pick saves `daily: true, daily_at` - no longer a mix's
+  `listen_at`, as the web stopped writing it.
+* Settings gets **Notifications** (accounts only, after Listening): Daily
+  reminder (the web's menu - When I usually listen, the eight times, Off,
+  ticked), Big stories, Your teams' final scores, and the web's note; the
+  server's reason alone where it cannot deliver. Pinning a time zone sends
+  it to the choices, as `setTimeZone` does.
+* `no-dead-controls`: each of these is real server state, but none reaches
+  this phone. So the existing honest sentence - "Notifications on iPhone come
+  in a later version." - is on the mix row's note, after the Settings
+  group's note (with "Your choices here are kept, and reach any browser
+  where you allowed FAM's notifications."), and in the toast after a time is
+  saved unless a browser of theirs is subscribed. The web's notification
+  taps (`/?mixes=1`, `/?listen=`) are not universal links, so the app has
+  nothing to open.
+
+**Left as it is, on purpose.** The web draws "Hey FAM" after the
+Notifications group, under its heading; iOS keeps it under Listening. If the
+owner would rather the Notifications rows not appear on the iPhone until APNs
+exists, removing `NotificationRows` from `SettingsView.body` is one line;
+the mix row's note keeps the honest sentence either way.
+
+**Riskiest for the first Xcode build** (no compiler here): `PushPrefs`'
+hand-written decoder (keys in camelCase under `convertFromSnakeCase`, as
+`Mix` does), the `.daily` case added to `SettingsSheet` (one exhaustive
+switch, updated), and `StoryHandoff`'s `@MainActor` async senders called
+from a view's `Task`.
+
+## 565. Build 4 made ready for TestFlight and review (2026-11-12)
+
+**What was asked.** The owner, with #253 and five more merged (#255-#258):
+"take into account those changes. Then, we will get ready to put the new
+build into the testflight/app store app. Also, let me know what else needs to
+be done to officially apply to the app store", then "draft the store text and
+privacy answers".
+
+**The app.** #255 is server-only. #256, #257 and #258 are §564. The build
+number is raised in the code, `CURRENT_PROJECT_VERSION` 4, so a download of
+Main builds as it is.
+
+**The iOS release record.** `releases/contracts/ios-1.0.0.json` was cut
+before most of the app's routes existed; it is recut from `ios/FAM/FAM`
+with `tools/cut_release.py --platform ios --version 1.0.0 --build 4 --source
+ios/FAM/FAM --force` (58 routes, 25 response shapes). 1.0.0 is not on
+anyone's phone, so a recut changes no promise (`old-clients`); once Apple
+approves a build, its number goes into the registry and the contract is
+frozen.
+
+**Privacy.** `PrivacyInfo.xcprivacy` adds Customer Support (feedback
+reports), Other Diagnostic Data (a report's build and device) and Analytics
+on Other User Content (survey answers), so the manifest agrees with the App
+Privacy answers drafted in `APP_STORE.md` Part C, rewritten with the listing,
+age rating and review notes as the app now is (no Explore, no phone number on
+sign-up, vibes as posts, surveys).
+
+## 566. Tiingo credited in the episode and the sources (2026-11-12)
+
+**What was asked.** When Tiingo is used in an episode, say "market data
+powered by Tiingo" at the very end of the script, and list Tiingo in the
+sources at the bottom right.
+
+**What was already true.** A Tiingo lookup that answered was already in the
+episode's provenance (`provenance.from_live`, label "Tiingo", tier "live
+feed"), as was Tiingo data recalled from the archive (§313). But the
+player's corner draws only the first three marks, in the order sources were
+found, so on a markets episode with three articles Tiingo sat behind "+N".
+
+**What changed.** One record decides both: `provenance.credits_tiingo`.
+`Provenance.as_dict` (what `/api/sources` serves) puts Tiingo first, so it is
+always one of the corner's marks. `script_generator.market_credit` returns
+`provenance.TIINGO_CREDIT` ("Market data powered by Tiingo.") when the
+record names Tiingo - or, with no notes, when the plan's own lookup Tiingo
+answered - and both write paths append it last: `stream_prepared` (after a
+refusal too) and `sentences_from_message`. Composed in code, never by the
+writer, so it is the same words every time and stored with the script.
+Rule `tiingo-credit` in `docs/claude/constraints.md`;
+`tests/test_tiingo_credit_566.py`.
+
+**Not done.** Episodes already cached keep their scripts without the credit
+until rewritten. The voice reads "Tiingo" as spelled; if it is mispronounced
+when heard, an admin lexicon fix is the remedy (§165). With `ALLOW_TOPUPS=1`
+a top-up would come after the credit.
+
+## 567. Words in capitals: NASCAR and NVIDIA said as words, not letters (2026-11-12)
+
+**What was asked.** The owner: "THe main pronunciation problem seems to be
+with words that are in all caps(NASCAR, NVIDIA). It really doesn't get the
+timing right on all of these and the words are very choppy and sound like
+acronyms. WHat is the best way to fix this", then "yes build 1-4".
+
+**Why.** Not the lexicon: `spoken_text._caps` spelled every word of two to
+six capitals that was not in `SAID_AS_WORDS` (about 50 words), so the voice
+was handed "N A S C A R drivers" and "N V I D I A stock" - six letters, each
+said on its own. DOGE, LIV and EBITDA the same. Seven or more capitals were
+passed as written.
+
+**1. The CMU dictionary decides** (`spoken_text._said_as_word`), from four
+letters: an entry that is exactly its letters' names (ESPN, HBO, CNN, NFL,
+NAACP - `_LETTER_PHONES`, `_spelled_as_letters`) is spelled; any other entry
+is a word (NASCAR, NVIDIA, DOGE, UNESCO, AWOL, HIPAA); a word not in it is
+spelled up to six letters (UCLA, NCAA, TSMC, MSNBC) and a word from seven, as
+before. Two or three letters stay spelled unless listed: the dictionary
+would make AI, WHO, SEC and SAT into "eye", "who", "sec" and "sat".
+`SAID_AS_LETTERS` holds the four-letter-plus ones it has as ordinary words
+(WNBA, AARP, tickers); `SAID_AS_WORDS` gains what it lacks or misses (LIV,
+EBITDA, CAPTCHA, SPAC, DACA, FAFSA, HIPAA, FAANG, FOX, ARM, PAC, ZIP, AXIOS,
+and NVIDIA, NASCAR and DOGE by name). `tests/test_caps_said_567.py`
+pins 42 words either way.
+
+**Never in front of a sentence.** The dictionary is about 0.6 s and 17 MB to
+load. The server loads it at boot in a thread (`hard_words.warm`, beside the
+autocorrect list); `spoken_text` only asks `hard_words.peek()`, which answers
+None until it is loaded - the old rule holds until then - and starts the
+load in a thread in any process that never warmed it (write.py, a pod's
+tools). The tests load it first (`tests/conftest.py`) so no result depends
+on when a background load finished.
+
+**2.** The list additions above.
+
+**3. Ordinary case.** `spoken_text.WORD_CASE` hands a word said as a word
+to the voice in ordinary case ("Nascar", "Nvidia's", "Nato", "Breaking") -
+"title", decided without the trial at the owner's direction ("Just make
+the changes that you know are right, and I will come back here to let you
+know if it still needs work"): a voice learned from ordinary text, where
+capitals mean letters or shouting, and the owner's complaint was exactly
+that the words sounded like acronyms. "upper" restores capitals.
+`SAID_AS` gives the few with a form of their own: OK "okay", OPENAI
+"Open A I", USAID "U S Aid", CSPAN "C Span". Initialisms keep "F B I" -
+not reported as a problem, and the alternatives are for the ear.
+
+**4. The trial.** `python tools/stress_trial.py --caps` says each word five
+ways - letters apart ("F B I", today's for an initialism), dotted, the
+letters' names ("eff bee eye"), as written and ordinary
+case (today's for a word) - past `spoken_text`, bare and in a sentence, and
+marks today's. `pronounce_review.caps_variants`, `caps_choice`,
+`hear_caps`. If a column beats today's, it is a one-line change. Unheard:
+this container has no voice.
+
+**On /admin, because the Mac could not.** The owner ran the trial on a Mac
+with no route to the voice worker and got the placeholder tone. The same
+trial is now a box on /admin → How names are said, "Words in capitals":
+type a word, **Hear 5 ways** (`POST /api/admin/pronunciations/hear-caps`,
+optionally in a sentence) says it on the production voice, today's marked,
+nothing kept. Found while drawing it: `.ways` did not span the name row's
+grid, so #251's "Hear 4 ways" results were squeezed into its narrow second
+column; one rule fixes both.
+
+**Today, without a deploy:** a respelling on /admin (`NVIDIA = en-VID-ee-uh`)
+is applied before `spoken_text` and already overrides any of this.
+
+## 568. One daily budget for everything written ahead, and seeing it on /admin (2026-11-12)
+
+**What was asked.** The owner: different maximum numbers of episodes written
+ahead per day for DailyFAM (cards) and myFAM (mixes), one total maximum spend
+a day for everything written ahead, and to see it on the admin page. And a
+decision: `PREFETCH_LEVEL=script` is set in Render - DailyFAM's other cards
+are written whole ahead of the tap, within caps. That closes the question
+`dec-prefetch` left open (Current note there; CLAUDE.md's core line says
+"answered").
+
+**Names.** As everywhere a listener or the owner reads (`names-swapped`):
+the mixes are **myFAM** on the screen and `daily_edition` / "dailyfam" in
+code; the rails and cards are **DailyFAM** on the screen and `rails_edition`
+/ prefetch / "myfam" in code. The admin card uses the screen's names and
+says so.
+
+**Three writers, their own ceilings unchanged.** The mixes' edition
+(`DAILY_EDITION_MAX_EPISODES` / `_DOLLARS`, per edition, once a day), the
+rails edition (`RAILS_EDITION_MAX_EPISODES` / `_DOLLARS`, per edition, at
+05:00 and 17:00 - so twice that a day), prefetch (`PREFETCH_DAILY_EPISODES`
+50, `_BRIEFS` 400, `_DOLLARS` 2.0, a rolling day in the process). The
+per-episode maximums the owner asked for already exist as these; nothing
+about them changed. The card shows each as a per-day maximum (an edition's
+times its editions a day) beside its env var name.
+
+**Built: `ahead_budget.py`.**
+- `AHEAD_DAILY_DOLLARS` (default 0 = no shared ceiling, so nothing changes
+  until it is set): one dollar budget a day for all three. Each writer checks
+  it beside its own ceilings before every episode (`daily_edition.run_slot`
+  for both editions, `schedule_mix` for a saved or opened mix, `Prefetcher.warm`
+  for prefetch) and stops at whichever comes first.
+- **The day is the edition day** (`daily_edition.edition_day`): 05:00 to
+  05:00 on `DAILY_EDITION_TIMEZONE`, never a listener's clock, so both rails
+  editions fall in one day and the budget resets as the morning edition
+  starts.
+- **The dollars are metering's**, the same figures each writer's own dollar
+  ceiling already counted (`prefetch._dollars` -> `metering.price_of`; an
+  edition's `spent`, a batch's reserve swapped for the real price). They are
+  kept as they move (`ahead_budget.Tally`) in a small table, `ahead_spend`,
+  in the provider-usage store beside the day's model spend - so a redeploy
+  mid-day does not hand the budget back and every worker reads one figure.
+  Like metering, never wiped. As with each writer's own dollar ceiling, it can
+  be passed by the episodes already in flight (`EDITION_CONCURRENCY`).
+- **A writer stopped says why** (failures-visible): `stopped` on its row for
+  the day - the shared budget, the reserve, its own episode/dollar/brief
+  ceiling, or "could not be read" (a spending cap fails closed) - a warning
+  logged once a day, and an edition's report carries
+  `skipped_for_shared_budget` and `stopped`.
+- **The reserve, `AHEAD_DAILYFAM_SHARE`** (0-1, default 0 = none): the
+  fraction of the shared budget only DailyFAM's writers (rails edition and
+  prefetch) may spend. The mixes' edition counts DailyFAM's spend as at least
+  the reserve, so the 05:00 mixes' edition cannot spend it before the news is
+  written; DailyFAM's writers may spend the reserve and whatever else is left.
+  Simple enough to be correct, so it is in.
+
+**Seen.** `/api/health` -> `written_ahead` (each writer's day, its ceilings
+and env names, the shared budget; no history). `/api/admin/tracker` ->
+`written_ahead` adds the last 7 days' cost per episode written ahead (per
+writer, from `ahead_spend`) against a searchFAM episode (metering's ledger:
+`surface = 'search'`, not a cache hit, less the voice) and prefetch's hit
+rate (taps that found a ready script, by source - the ledger `dec-prefetch`
+asked for; in-process since the server started). /admin's "Outside service
+requests" page has a new card, **Written ahead today**, under "Claude's
+spend, by what spent it": one row per writer - "myFAM mixes (05:00
+edition)", "DailyFAM news (05:00 and 17:00 editions)", "DailyFAM cards
+(written after a page is drawn)" - with episodes / max, spend / max, a bar,
+and writing or stopped-and-why; the shared total with the reserve; the cost
+per episode tiles; the hit rate. Every setting's value is printed with its
+env var name. Read-only.
+
+**Settings.** `config.py` and `.env.example` agree (`settings-copied`).
+`render.yaml` sets no values for `fam`; `PREFETCH_LEVEL`,
+`AHEAD_DAILY_DOLLARS` and `AHEAD_DAILYFAM_SHARE` are listed with
+`sync: false`, as the other owner-chosen settings are (asked for in the
+dashboard, never in the repo). Staging spends nothing whatever they say: no
+key, so no writer runs, and the budget only counts.
+
+**Not under the shared budget:** the Trending edition (ten stories twice a
+day, `edition:trending`) and push stories (`edition:push`). The owner named
+the three writers above; Trending is small and bounded by its own edition
+size. Both still show in "Claude's spend, by what spent it".
+
+**Tests:** `tests/test_ahead_budget_568.py` - the shared budget stops each
+writer and records why, 0 is no ceiling, each writer's own ceilings work
+alone, the lower of the two binds, one writer's spend counts against the
+others, the reserve, the report's shape, health and the tracker carry it, and
+the card draws on the real page.
+
+## 569. NVIDIA still choppy: spelled as it sounds, in every case (2026-11-12)
+
+**What was asked.** The owner, after §567 merged: "Merged, NVIDIA still
+sounds choppy".
+
+**Two reasons, both fixed here.** §567 handed the word over in ordinary case,
+"Nvidia" - and no English word opens "Nv", so a voice trained on English
+text stumbles on the first sound. And news style already writes "Nvidia",
+which the capitals rule never sees: most episodes were never reached by §567
+at all. `spoken_text.SPELLED_AS_SOUNDED` (`{"nvidia": "Envidia"}`) replaces
+the whole word in any case, just before the capitals rule; only the voice's
+text changes.
+
+**The /admin entry can be the cause.** §567's reply suggested saving
+`NVIDIA = en-VID-ee-uh` on /admin as a stopgap. A lexicon entry is applied
+before `spoken_text` and wins, and `pronunciation.voiced` hands it over as
+"En-vid-ee-uh" - four hyphenated pieces, which may itself be the choppiness.
+If that entry was saved, it must be removed (or set to `envidia`) for this
+to apply to the capitalised form. Whether hyphens make every respelled name
+choppy is the stress trial's "Run together" column (§549), still unheard.
+
+## 570. A mix's rows are called by today's episode, not the topic (2026-11-12)
+
+**The owner, 11.12:** "the episodes in peoples myFAM mixes should have
+episode titles, not the category names, that are new with each story every
+day." A mix's page listed each row by its topic ("Eagles", "Stocks &
+Economy") every day, although every day is a new episode with its own title
+from the writer's `<<TITLE:>>`.
+
+**Now** every mix response (`_mix_out` - list, create, PATCH, join - and the
+single public mix) gives each row `episode_title`: today's episode's title,
+read from the cache by the same dated prompt and length a tap sends
+(`_today_title`, which the §545 bubbles already used). The row draws it,
+with the topic on the line under it ("Eagles", or "Eagles · Added by you" on
+a joint mix), and the player opens on it instead of "Eagles · today". Until
+the edition has written today's episode the row shows the topic as before -
+never a guessed title. The title changes every day because the prompt is
+dated, so each day is a different cache key and a different episode.
+
+`title` stays the topic's name on purpose: a reorder sends the items back
+(`_merged_topics`), and a row renamed after one day's story would rename the
+topic for good. Old clients read `title` and see what they always did.
+
+A cache read per row (a hash and `holds`), never a write or a model call; a
+failure leaves the row on its topic. Not added to `/api/mixes/public` search
+results, which draw no rows.
+
+**Tests:** `tests/test_mix_episode_titles_570.py`.
+
+## 571. Sign-up asks for a password again (2026-11-12)
+
+The owner tried the waitlist join and called it very confusing. §296 made it
+the email alone: the account was made with no password, so once its owner
+signed out the only way back was "Forgot password?" - which is drawn only
+where mail is configured, and production has no SMTP. Signed out was locked
+out. Option A, at the owner's direction, reversing §296's "email alone" for
+the join:
+
+**Sign-up is the email, a password, then the Terms box, in one step** - on
+`/waitlist` (`static/waitlist.html`), on the app's Sign Up (which goes to
+`/waitlist`; a preview with no server keeps its own form, which always had a
+password), and on iOS (`AuthView`'s join form). One password field with the
+log-in's show/hide eye, `autocomplete="new-password"`. The rule is the app's
+own - `accounts.check_password`, `MIN_PASSWORD` 8 - checked on the page first
+with the app's own sentences ("Enter your password.", "Use at least 8
+characters for your password.") and again on the server, before the INSERT,
+which stores the hash in the same statement that makes the account: a refused
+password makes nothing, and there is no moment when the account exists
+without it. An address already registered is refused as before and the page
+opens its sign-in, now with the typed password carried over, so signing in
+is one tap.
+
+**Installed clients keep working** (`old-clients`): `password` was always on
+`WaitlistJoinRequest`, optional since §296. A join that sends none - an iOS
+build from §296's weeks - is made passwordless exactly as before. No contract
+was edited; `/api/auth/me` gains `has_password` (a superset).
+
+**Accounts already made with no password** are offered the first one where
+they look:
+* the waitlist status page (`/waitlist/me`, and iOS's `WaitlistStatusPage` (`FrontDoor.swift`)) shows a
+  card, **Set a password so you can sign back in**, while
+  `/api/waitlist/me` `details.has_password` is false; it posts
+  `/api/auth/password/set` and goes away. The Sign out warning now points at
+  it instead of at "Forgot password?".
+* Settings' row reads **Set a password**, not Change password, whenever the
+  account has none (`/api/auth/me` `has_password` on the web, `/api/account`
+  on iOS), and opens the first-password flow directly. Google and Apple
+  accounts are served by the same row.
+
+**Setting the first password is one conditional UPDATE** (`accounts.
+set_password`: `... WHERE user_id = ? AND password = ''`, refused when it
+changes no row), so two "first" passwords sent at once cannot overwrite each
+other; and `/api/auth/password/set` emails the address "A password was set on
+your FAM account" when mail can be sent, as a reset does. Settings' note under
+the rows says why to set one, and that reset is unavailable only while it is
+(`RESET_READY`). The waitlist page says a 422's list-shaped `detail` as a
+sentence, and its password fields stop at `MAX_PASSWORD` (1024).
+
+**/admin shows whether "Forgot password?" exists.** The tracker's overview
+has a tile, **Forgot password?**, On or Off; off, it says "Forgot password?
+is off: <reason>" from `mail.status()` (`admin_tracker._password_reset`,
+never raising) - so the owner sees that the card above is the only way back
+until `SMTP_HOST` and `MAIL_FROM` are set on `fam`.
+
+Sign in with Apple and Google are unchanged. Still true from §296: nothing
+verifies that the joiner owns the address.
+
+Tests: `tests/test_waitlist.py` (the form's order and sentences, a join with
+a password signs in elsewhere, a short password makes no account, a join
+without one still works for an installed client and is offered the first,
+a registered address is still refused, the status-page card, the Settings
+row, the tracker's tile); `tools/smoke_preview.py` checks the Settings row
+for an account with no password.
+
+## 572. Build 6: the iPhone catches up with §570 and §571 (2026-11-12)
+
+**What was asked.** The owner, after #268 and the other branches merged:
+"get the build ready for that." Build 5 (1.0.0) is with App Review; it was
+archived after #262, so this build carries what has merged since.
+
+**Since build 5.** #263 (the ahead budget, §568) and #264 (NVIDIA, §569)
+are server-only. #265 (the web's animations) was already iOS work. #268
+(§571, a password at sign-up) has its iPhone half on this branch (the join's
+password, the status page's card, "Set a password" in Settings and Edit
+profile). #266 (§570) was web-only and is ported here:
+
+- `MixItem.episodeTitle` decodes `episode_title`, "" from an older server.
+  `shownTitle` is what a row draws: today's episode, else the topic.
+- `MixView.subLine` is the web's `mixTopicSub`: the topic under an episode
+  title, then " · Added by ..." on a joint mix; unchanged when no title.
+- `playMixItem` opens the player on the episode's title instead of
+  "{topic} · today".
+- `title` stays the topic's name, so a whole-list write (`entry`) never
+  renames a topic after one day's story.
+
+`CURRENT_PROJECT_VERSION` is 6. The version stays 1.0.0: if build 5 is
+released first, this upload needs 1.0.1 and a recut release record.
+
+**Tests:** `test_mix_rows_show_todays_episode_title_570` in
+`tests/test_ios_app_contract.py`; tree-sitter finds no ERROR or MISSING node
+in the 56 Swift files. Not compiled here.
+
+**Build 6 failed in Xcode (2026-11-13):** "Invalid redeclaration of 'stage'"
+in `PlayerView`. #265 (the animations) added `@EnvironmentObject private var
+stage: PlayerStage` to a view that already had `private var stage: some View`
+(the picture, captions and side buttons); the two merged textually without a
+conflict, and tree-sitter parses a redeclaration as valid syntax. The object is
+now `playerStage`. A scan of every type in the 56 Swift files for a property
+name declared twice found no other.
+
+## 573. The phone number is optional at sign-up (2026-11-13)
+
+The owner: "The phone number shouldn't be required for signing." The 10.8
+packet had made a name **and** a phone number the first run's required
+fields, on both the app's identity step (`screen-identity`) and the waitlist's
+profile; "Skip for now" stayed disabled until seven digits were typed.
+
+Now only the name is required. The phone field stays on both first runs,
+labelled optional, and a blank one is not sent - `saveIdentityAccount` and the
+waitlist's `skipSetup` leave `phone` out of the body rather than posting `""`,
+so skipping never clears a number already on the account. The server never
+required one (`/api/signup` takes an email or a phone; `update_profile`
+accepts no phone), and the iPhone app's identity step never asked.
+
+**Tests:** `test_skip_waits_for_a_name_and_the_phone_is_optional` and
+`test_the_apps_first_run_offers_an_optional_phone_and_gates_skip_on_the_name`
+in `tests/test_implementations_108.py`.
+
+## 574. fam-db's memory was its connections (2026-11-13)
+
+**What was asked.** The owner, on Keith's open incident "render: fam-db
+memory at 83% of 0.26843546 GB (reopened 9 times)" with no more than two
+people ever on the app at once: what is in that memory, and the long-term
+fixes. Then: "build 1, 2 and 4, and walk me through 3".
+
+**Why.** Each server connection is a Postgres process with memory of its
+own, busy or idle. The pool (§243) opened up to 20 and kept up to 8 idle for
+ever; what fills it is not listeners (they share the pool over HTTP) but
+background work - editions, sweeps, Keith's rounds - all at once. So the
+database's memory followed the busiest moment of FAM's own schedule and
+never came back down. Not measured on production from here (no key): the
+`pg_stat_activity` query in POSTGRES.md confirms it, and Keith now reads it.
+
+**1. Idle connections close** (`db.idle_seconds()`, `DATABASE_IDLE_SECONDS`,
+300). On release and by a reaper thread every minute, so a quiet server
+hangs up too. None is kept back: one left open could be the one the
+server's `idle_session_timeout` closes, failing the next statement.
+
+**2. Background work has a share** (`db.background_connections()`,
+`DATABASE_BACKGROUND_CONNECTIONS`, 4, never all of the pool). A request is
+marked by `app.carry_the_session` (`db.for_request()`, a context variable
+the request's threads inherit); anything else waits for the share, and says
+so if it times out. Two exemptions, both to avoid a wait on oneself: a
+thread already holding a background connection, and the event loop (a wait
+there stops every request). A task a request spawns counts as the request.
+
+**4. Keith says who holds connections** (`db.server_connections()`: every
+client connection by state, FAM's by `application_name = 'fam'`, the
+server's `max_connections`, this pool). The Render monitor adds a "fam-db
+connections" figure against `max_connections` and hangs the count on the
+memory figure; the memory incident's plan names idle connections before a
+plan when more than two of FAM's sit idle. Sizes read as the plan names
+them: "256 MB", not "0.26843546 GB" (`incidents._quantity`).
+
+**3. The owner's step** (POSTGRES.md, "The database's own safety net"):
+`ALTER ROLE CURRENT_USER SET idle_session_timeout = '15min'` from fam-db's
+PSQL, longer than FAM's five minutes. Tried here as a non-superuser owner
+on Postgres 16.
+
+**Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
+two against a real Postgres, run here on a local 16).
+
+## 575. Shared links: the picture and the audio behind the waitlist, Message between friends, and a Mac build in CI (2026-11-13)
+
+**The report.** The owner, with an iMessage screenshot: a shared FAM link
+showed its title, "familiarize.net" and FAM's icon - no picture - after
+§559 had made the preview a picture. Then: "The waitlist should allow people
+to see the full shared episode, and on that is a link to the waitlist."
+
+**Why there was no picture.** With `WAITLIST=1` (production) the gate
+refused everything under `/api/` that it does not list, and the share
+page's `og:image` (`/api/share/{id}/preview.jpg`) and story card
+(`/api/share/card`) were not listed. Messages' link fetcher has no account,
+so it got a 403 and drew the `apple-touch-icon`. §559's tests ran with the
+waitlist off. `_shared_episode_request` now lets both pictures through
+(GET/HEAD only; each is a 404 for an id that is not a share).
+
+**Why the shared episode did not play.** `ShareStore.is_shared` compared
+`max(1, int(stored))` with the request's length - `int`, missed by §332's
+half-minute change - so a 1.5-minute share (every DailyFAM and myFAM
+episode) was 1 and never matched its own audio. Everybody the link was sent
+to who was not an active member got a page that would not play. It is
+`as_minutes` now. `GET /api/share/{id}` also passes the gate, so the app can
+play a `/s/` link for somebody signed out or waitlisted (the app's screen
+for it is build 7, §584).
+
+**Message only between friends, on the web too.** The social audit found
+the web drew Message on any profile, and opened a chat from a face with no
+handle, though the server refuses a one-to-one send to anybody who is not a
+mutual follow (§520); the app already followed the rule. The owner: "Change
+the web to match the app." The profile's Message, `openCircleFace` and New
+message's label ("Pick one or more friends") now do.
+
+**A Mac build in CI.** Build 6 failed in Xcode ("Invalid redeclaration of
+'stage'", §572) after every check here passed: nothing in this repository
+compiled Swift. `.github/workflows/ios.yml` runs `xcodegen` and an unsigned
+Release device build of the FAM scheme on `macos-15` for every push or PR
+touching `ios/`. It is not yet a required check - that is the owner's
+branch-protection setting.
+
+**The audit behind it.** Seven read-only audits of the app against the web
+and server (animations, sharing and links, the API contract, compile risks,
+account screens, listening screens, social), in the session's scratchpad
+as `audit3-*.md`. Their fixes are build 7 (§584).
+
+**Tests:** `tests/test_waitlist.py` (`..._previews_behind_the_waitlist_575`,
+`..._one_and_a_half_minutes_575`, both run with the waitlist on, both fail
+without the fix); `tests/test_message_friends_575.py`.
+
+## 576. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13)
+
+**What was asked.** The owner: "These still sound choppy to me. Is there a
+chance that the dashes in the pronunciations are making their way into the
+scripts and making the audio-player pause on the dashes".
+
+**Yes, twice over.** Traced to what Chatterbox is actually given (its own
+clean-up, `punc_norm` in chatterbox-tts 0.1.7, runs inside every `generate`,
+and `chatterbox_speed` calls the same function):
+
+- **Every respelled name.** `pronunciation.voiced` handed the voice
+  "Sah-gah-poh-loo-teh-leh": six pieces glued by hyphens, a shape the model
+  almost never saw in the text it learned from. Now each word's syllables run
+  together ("Sahgahpohlootehleh"), except where joining two syllables would
+  make a new sound (`_DIGRAPHS`: "mat-hew" stays, not "mathew"). Captions,
+  titles and the lexicon keep the hyphenated respelling; only the voice's
+  text changes.
+- **Every dash in a script.** `punc_norm` softens " - " into a comma and
+  *then* turns "—" and "–" into "-", so "The Eagles won—again—on Sunday"
+  reached the model as "won-again-on Sunday" (three words as one) and
+  "won – again" as "won - again". Writers use em dashes constantly.
+  `spoken_text._dashes`, the last step of `speakable`, makes a dash used as
+  punctuation (an em dash, or any dash with spaces round it) a comma, and an
+  unspaced en dash between words ("Paris–Roubaix") a space. Hyphenated words
+  ("well-known", "forty-niners") and number ranges (already words by then)
+  are untouched.
+
+Checked against the real `punc_norm`: "Sagapolutele threw—twice—for NVIDIA –
+of all teams." went to the model as "Sagapolutele threw-twice-for NVIDIA - of
+all teams." and now goes as "Sahgahpohlootehleh threw, twice, for Envidia, of
+all teams." `tests/test_dashes_576.py`; ten older tests updated to the
+unhyphenated voice text. Unheard: no voice here.
+
+## 577. Five friends earn a free month (2026-11-13)
+
+**Asked:** the waitlist page should incentivise sharing more clearly: "Share
+the waitlist to five friends to earn a free month!" Then: build the reward;
+"it'll be a free month when the whole app is live."
+
+**Decided with the owner:** a friend counts when they join through the link
+(the same `referred_by` invites that order the line - nobody can use the app
+while waitlisted, so counting only friends who play would mean nobody earns
+it before launch). Earning it is recorded now and becomes a month of "plus"
+from launch day; there is still no checkout, so nothing is billed.
+
+**Built:**
+- `waitlist.FREE_MONTH_INVITES` (5) and `FREE_MONTH_SECONDS` (30 days).
+  `Waitlist.join` calls `credit_free_month(referrer)`, which stamps
+  `accounts.free_month_earned_at` once at five. Stamped, never re-derived:
+  a friend deleting their account drops the count to four and the month
+  stays (the "an eviction that forgets is a creation" lesson). Accounts
+  already at five are stamped at start-up (`_credit_everyone`).
+- The launch day is an admin setting, `waitlist_settings.free_month_starts`,
+  set from `/admin/waitlist` ("App goes live (free months start)",
+  `POST /api/admin/waitlist/free-month`). The admin page counts months
+  earned and marks each row.
+- `AccountStore._with_free_month` raises an earned account's plan to "plus"
+  from launch for 30 days, in `listener_for` and `account()`; never lowers
+  one. The launch day is read with the session, cached for a minute per
+  process (dropped at once in the process that sets it).
+- `/api/waitlist/me` carries `free_month` {needed, invites, remaining,
+  earned, starts, ends}; the share card draws five dots and "2 of 5 friends
+  joined. 3 more for a free month." / "Free month earned. It starts the day
+  FAM opens to everyone." / the dates once launch is set.
+- The iOS waitlist page draws the same (`WaitlistFreeMonthProgress` in
+  `FrontDoor.swift`, `WaitlistFreeMonth` in `API.swift`): five bars and the
+  web's sentences word for word. Not compiled here (no Swift toolchain in
+  the container); the next Xcode build is the check.
+
+**While `ENFORCE_QUOTAS=0`** every tier is unlimited, so the month changes
+nothing a listener can notice until the tiers are on - which is the point:
+it is a promise kept at launch.
+
+**Tests:** `tests/test_free_month.py`.
+
+## 578. An always-on worker cost $40 a day: chunks queued behind it booted flex workers (2026-11-13)
+
+Reported by the owner: RunPod's automatic top-up took $40 on each of the two
+days after the endpoint `FAM` was given an active (always-on) worker. One
+active 24 GB worker is ~$0.47/h, ~$11.30 a day (`docs/SCALING_TIMELINE.md`);
+$40 is ~$1.67/h, about 3.5 times that.
+
+**Why, from the code** (the console's billing was not readable from the
+session). Two things FAM sends assumed a pay-per-second endpoint with nothing
+running:
+
+1. **Four chunks in flight** (`REMOTE_VOICE_CONCURRENCY=4`). A worker voices
+   one chunk at a time, so with one active worker three of every episode's
+   four wait in RunPod's queue - and a queued job is what makes RunPod start
+   a flex worker (up to the endpoint's 6), billed at the flex rate for its
+   cold boot (~73 s, §329), the chunk, and the 180 s idle timeout after it.
+2. **A wake job on every episode** (§497, `wake(force=True)`), plus the app
+   open's. An active worker is never asleep; a wake that lands while it is
+   voicing someone else's chunk queues too, and boots a flex worker of its
+   own to answer an empty job.
+
+**Now:** `REMOTE_VOICE_ACTIVE_WORKERS` (default 0; `render.yaml` sets `1` for
+`fam`, and it must be kept equal to the console). Above 0, on the RunPod
+transport: `wake()` sends nothing, and at most that many chunks are in
+flight (the lower of it and `REMOTE_VOICE_CONCURRENCY`) - the semaphore is
+the class's, so the cap is across every listener in the process. Nothing
+queues at RunPod, so nothing boots a flex worker. `/api/health`'s
+`remote_voice` reports `active_workers` and the effective `concurrency`.
+
+**The cost of it:** listeners voiced at the same moment share the active
+worker's card in turn, in FAM's queue rather than RunPod's. When that wait
+matters, raise the console's Active workers and this setting together; do
+not raise the concurrency above the active workers, which is this bill again.
+
+**Console, told to the owner, not changed:** Max workers 1-2 and Idle timeout
+~5 s stop flex workers costing much even before this deploys (the idle
+timeout never applies to an active worker). Check the endpoint's GPU list
+holds only the 24 GB class, and that Active workers reads 1.
+
+`tests/test_remote_voice.py` (an active worker is never woken; active
+workers cap the chunks in flight; with none, the fan-out and the wake stay;
+nothing changes for an http pod; a negative count is refused).
+
+## 579. Communities to reach replace FAM on X (2026-11-13)
+
+**What was asked.** The owner: an agent on the admin page that looks across
+Facebook groups, finds their admins and their contact information
+(Facebook handle, email, phone number), and hypothesises episodes to show
+them - not written - so FAM can offer admins access to share episodes with
+their groups. After a workshop: "go with the public-channels version,
+Facebook and Reddit. Also do X, delete the current X agent in there and do
+the same thing. Discord and slack good too".
+
+**The workshop's answer, and why.** Collecting admins' personal emails and
+phone numbers from Facebook means a signed-in scrape, which Meta's terms
+forbid and enforce against, and messaging private people at addresses they
+never gave FAM (TCPA for texts, CAN-SPAM for email, GDPR in Europe), while
+App Review reads FAM's privacy story. It is also worse outreach: an admin
+reached through their own group, with something made for it, listens. So:
+discovery is a web search through FAM's research backends; the contact is
+the community's own public channel; a person sends.
+
+**What was built.** `communities.py` and `/admin/groups` ([community-outreach]):
+- Five platforms (`PLATFORMS`): Facebook groups, subreddits, X Communities,
+  Discord servers (invites, DISBOARD), Slack communities. One search per
+  subject per platform, held to its domains (`_search_blocking`, down the
+  research ladder's web rungs). Subjects are typed, or the categories of
+  FAM's most played kept episodes.
+- `community_of` recognises a community in a URL or a passage (a platform's
+  own pages excluded); `contact_url` is the community's way to its admins
+  (`/members/admins`, modmail compose, `/moderators`, the invite).
+- `strip_phones` over every text kept, the notes too. `public_contacts`
+  keeps an email only in the same sentence as "contact", "admins" and the
+  like, and only on the community's own page; `admin_hints` a name only as
+  that page states it.
+- One small-model call per shortlisted lead (`COMMUNITIES_MODEL`, Haiku):
+  fit 1-5, three pitches, a first message under 600 characters; a figure it
+  was not given sends the message back to the code's. With no key, all of
+  it in code. Fit under 3 is set aside.
+- A kept episode that matches (embeddings 0.6, shared words 0.4, at 0.35)
+  is offered, linkable once heard (`/api/admin/groups/listen`).
+- Statuses new -> contacted -> replied -> invited -> joined, or passed;
+  notes and the admin's handle as the person found it. Invited points at
+  `/admin/waitlist` to let them in once they sign up.
+- Ceilings `COMMUNITIES_MAX_SEARCHES` (20) and `COMMUNITIES_DAILY_SEARCHES`
+  (60); `COMMUNITIES_DB`; untouched leads pruned after 30 days.
+
+**What was removed.** `x_threads.py`, `outreach_intelligence.py`,
+`admin_ui/x.html`, `/admin/x` and its endpoints, `tools/x_agent_eval.py`,
+their tests, the `X_THREADS_*` settings and X's row on the services report.
+`X_BEARER_TOKEN` stays in `spend_guard.PAID_CREDENTIALS` so an old deploy's
+key is still scrubbed on staging. The tracker links "Communities" where it
+linked "FAM on X". The rule [x-threads] became [community-outreach].
+
+**Found on review.** Searches were not in the day's spend (§481): each is
+now `metering.Usage().add_research`, the run under `spend_source("community
+outreach")`. A run that failed halfway did not record the searches it had
+spent; it is recorded in a `finally`. `x.com` matched inside `fox.com`. The
+community's name and the model's words were not phone-stripped. The page's
+eight-second poll recomputed the suggested subjects from 200 episodes each
+time; they are kept for ten minutes, and asked fresh on a run.
+
+**Not verified here.** No search or model key in this container: no real
+search was run, so how often a platform's communities show up in Parallel
+and Perplexity results is unmeasured. Discord and Slack are the likeliest
+to come back thin (invites live on directories and in passages). The model
+call is not an agent under `agents/models.py`: like the X agent it replaces,
+it is an admin tool calling the small model directly, metered.
+
+**Tests:** `tests/test_communities_579.py`.
+
+## 580. Egan: the outreach reader becomes a full agent (2026-11-13)
+
+**What was asked.** The owner, on §579's note that `/admin/groups`' model
+call went straight to Claude rather than through `agents/models.py`: "make
+it a full agent with a rule book".
+
+**What was built.** Egan (role `outreach`; named by the owner,
+2026-11-13, first built as "Hermes"). His one call per community goes through
+`agents/models.py` (`communities.request`, schema `communities.Reading`,
+material tagged `evidence` and `archive` - never `request`, because it is a
+community's page and not a listener's words). Settings with the other
+agents': `OUTREACH_AGENT` (off), `OUTREACH_MODEL`
+(`anthropic:claude-haiku-5-5`), `OUTREACH_TIMEOUT_SECONDS` (45),
+`OUTREACH_MAX_TOKENS` (1,200). `COMMUNITIES_MODEL` is gone. Code sends his
+answer back once - not three pitches, a way to reach a person, a person's
+name, a figure the material does not contain - then composes in code;
+"unsure" is composed in code too. The card says whose words they are and,
+when code's, why.
+
+**The rule book, and every-agent.md "never" 9.** "Research or describe a
+private person" rules out what §579's prompt allowed: the admins are
+private people. So Egan is never given an admin's name, handle, address
+or number (`communities.redacted` over all his material), never greets
+anyone by name, and an answer that names or reaches a person is refused.
+`docs/agent_rule_proposals/egan.md`: seven "always", seven "never".
+
+**Waiting for the signature, without holding anyone.** The lock holds
+every agent while the signed folder has a book its manifest does not
+cover, and the tests require every `names.AGENTS` entry to have a signed
+book there. So the book waits in `docs/agent_rule_proposals/`, and
+`docs/agent_rules/MANIFEST.pending.json` (version 9) is version 8 with
+`egan.md` added and nothing else changed - a test pins that, and that it
+is the exact bytes the lock will compute. He is `agents.names.PROPOSED` and
+`agents.roster.PROPOSED`: the model layer refuses his calls as "not an
+agent", so until he is signed the page composes in code, as before. The
+activation steps are in the proposals README.
+
+**Also.** `tests/test_agents_model_layer.py`'s import allow-list gains
+`communities.py: {models}`: an admin page's button, never a listener's path.
+
+**Tests:** `tests/test_egan_580.py`; `tests/test_communities_579.py`
+updated (its direct-client tests went with the direct client).
+
+## 581. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13)
+
+**What was asked.** The owner, after hearing that Egan sees only what a web
+search has indexed: "add the Reddit API and X API. Also, I want to be able
+to send groups to egan so he can figure out contact info and a good
+message, so it shouldn't be sourcing the groups by itself only, but can be
+helped by us".
+
+**The APIs** (`community_sources.py`). Reddit: app-only OAuth
+(`client_credentials`, `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`), the token
+held in memory until a minute before it expires, then
+`/subreddits/search` (adults-only excluded and dropped again in code) and
+`/r/<name>/about`; a descriptive User-Agent naming FAM's tool and nobody's
+address. X: `X_BEARER_TOKEN` (§321's key) and v2's `/communities/search`
+and `/communities/<id>` with `member_count`, `access`, `join_policy`. Both
+read-only: one POST in the module, Reddit's token, and a test pins that
+nothing reads a moderator, member, user or post. Each request is counted on
+the services report (Reddit and X rows back) and in the day's spend as
+unpriced - their rates are not known here, so never as $0. A run uses a
+platform's API when its key is set and falls back to the web search when it
+fails; with only an API key the page can still search. Staging scrubs all
+three keys.
+
+**Sending a group** (`communities.lookup`, `POST /api/admin/groups/send`,
+the "Send a group to Egan" box). Paste a Facebook group, subreddit, X
+Community, Discord invite or Slack link, optionally a subject and a note.
+Code reads it through its API, else a web search for its address (the
+page's own contact email and named admin, as §579 keeps them); the contact
+route is the community's own (`contact_url`); Egan reads it, the note
+included and redacted like everything he reads; it is kept in To contact
+**whatever its fit** - a person chose it - unless its subject is one FAM
+does not pitch (`AVOID`: refused, with why). One already on the page is
+returned as it is; a set-aside one is read again, keeping the person's
+notes. A lookup is one search against `COMMUNITIES_DAILY_SEARCHES`. Nothing
+found still gives a card: Egan reads its address alone, and the card says so.
+
+**Egan's rule book, still unsigned, widened** before signing: his job and
+"always" 1 now name groups FAM's team sends and their note.
+`MANIFEST.pending.json` (version 9) was rewritten for it.
+
+**Not verified here.** No Reddit or X key in this container: the clients are
+tested against a fake network built from the APIs' documented shapes. X's
+Communities search endpoint and its fields should be confirmed against the
+account's API access on the first real run; a refusal is shown on the page
+and the run falls back to the web.
+
+**Tests:** `tests/test_community_sources_581.py`.
+
+## 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13)
+
+At the owner's request every change on the branch was read again, by the
+session and by an independent reviewer that saw the code and not the
+session's conclusions. The reviewer's findings, each verified with a probe
+and each now a test in `tests/test_community_sources_581.py`:
+
+- **Emails were stored in descriptions, notes and handles**: only phones
+  were stripped. `communities.scrub` now keeps no email but the
+  community's published contact, everywhere text is kept (search results,
+  Reddit and X descriptions and names, sent notes, the person's notes and
+  handle).
+- **A member's post counted as the community's page**: a URL naming the
+  community (`/r/nfl/comments/...`, `/groups/x/posts/...`) gave a
+  "published" contact and an admin from a member's words. `own_page`: only
+  the community's address, its about, members, info or rules page. Any other
+  page gives the address alone, with only its host as where it was found.
+- **A sent adults-only subreddit became a card.** Refused now (`NotPitched`).
+- **Names reached Egan**: the team's note was not redacted for people, and
+  profile links (`reddit.com/u/...`, `x.com/<name>`, `facebook.com/<name>`)
+  and handles said in words ("her handle is ...") passed. `note_people`,
+  `_PROFILE` and `_CALLED` take them out; the note box asks for no names or
+  contacts. `refused` sends back an answer carrying a profile link.
+- **`_ADMIN` missed "Admin: Sarah", "Dr. Jane Smith", lists, and matched
+  "Moderators: Fantasy Football Talk"** - which then redacted the
+  community's own name and made Egan's every answer "name a person". A
+  separator is required now, lists and titles are read, and a "name" made of
+  the community's words or words like "fans", "team" is no person.
+- **Phone numbers in international shapes passed** (+91 98765 43210,
+  06 12 34 56 78, 555-1234). `_PHONE` now reads digit groups and
+  `_is_phone` decides: 7-15 digits, not a date; bare digits only at 10-11;
+  never inside a URL or an id.
+- **The daily ceiling could be overshot** while a run was going: searches
+  were recorded at its end. Each search is now counted as it is made
+  (`start_run`, `count_search`), a run re-checks before each search, and a
+  lookup that asked nothing is not counted.
+- **Prune deleted leads a person had worked on.** Only searched leads with
+  no note, handle or move go after 30 days (`leads.source`).
+- **`/send` mapped any `LookupError` (a stray `KeyError`) to "searches used
+  up"** and any `ValueError` to 409: its own exception types now.
+- Smaller: the server enforces the page's status moves (`MOVES`); the
+  store reads, the catalogue's embeddings and `health()` run in threads,
+  never on the event loop; " : r/name" leaves Reddit titles; stale
+  "no platform token" wording in config.py and the module docstring.
+
+The `leads.source` and `runs.id` columns are in the tables' first shape:
+neither table has shipped.
+
+## 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13)
+
+The owner signed `MANIFEST.pending.json` (version 9, §580, rewritten in
+§581) on their MacBook Air with `tools/sign_rulebooks.py` - after OpenSSL
+could not find a key file the key had never been saved to (the Python
+signer reads the key from the clipboard and never writes it) - and
+uploaded `egan.md`, `MANIFEST.json` and `MANIFEST.json.sig` to
+`docs/agent_rules/` on the branch (c39d755), exactly those three.
+Verified in a separate checkout before anything else touched it:
+`python tools/rulebook_manifest.py --verify` passes, every one of the eight
+agents may still run, the signed manifest is the pending one byte for byte,
+and `egan.md` is the proposal byte for byte.
+
+**Registered.** `outreach` moved from `agents.names.PROPOSED` and
+`agents.roster.PROPOSED` (both empty now) into `AGENTS` and `ROSTER`; his
+tab is `docs/FAM_AGENTS.md` "## 9. Outreach (Egan)" with the four sub-tabs;
+his row in `docs/agent_rules/README.md`; the proposal and the pending
+manifest deleted; `tests/test_egan_580.py`'s waiting tests are signed
+ones (his lock passes, his request is his own). He stays **off** until the
+owner sets `AGENTS=1` and `OUTREACH_AGENT=1`; until then the page composes
+in code and the card says "off".
+
+## 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13)
+
+**What was asked.** The owner's standing rule - "Everything we've put in the
+app has been intentional, do not leave things out due to your judgement" -
+against the third round of audits (account, social, listening, API), and
+first of all: a `/s/` link opened on an iPhone by somebody signed out or on
+the waitlist was held until they were let in, so it never played. §575 made
+the server let the share and its audio through; this is the app's half.
+
+**A shared episode (`AppLinks.swift`, `Views/SharedListenView.swift`).**
+`openLink` still follows a link at once when the app is open on its tabs.
+For `.signedOut` or `.waiting` a `/s/<id>` link now opens the listen page
+itself, natively, over the front door or the status page - and so does a
+link held since a cold start, once `/api/auth/me` has answered
+(`RootView`'s `onChange(of: stage)` -> `stageSettled`). Word for word
+`static/listen.html`: its palette, the wordmark, "Shared with you", the
+title, the question, "N min listen", play / pause, ±15 s, the bar clamped to
+what is voiced, the times, the status line, "Want to hear more?" and "Be a
+part of the conversation with FAM →", the two App Store doors when there is
+an App Store link, the expired state. The audio is `api.audio(query:
+share.question, minutes: share.minutes, surface: "share")` - the request the
+gate's `_shared_episode_request` lets through, 1.5 kept as "1.5" - on the
+app's player, routed as a front-door sample's is (`shareQuery`). The open is
+counted (`shareOpened`). Every door goes where the page's goes, `/waitlist`:
+Sign up for somebody signed out (`askSignUp`), the status page for somebody
+already in line. Let in, the screen gives way and `/s/` plays in the app as
+before. The link is taken by the screen, so nothing replays it after a
+sign-up.
+
+**Settings' password note** is `passwordSettingsNote()` again (§571 made the
+web's conditional; the app kept the old sentence): `has_password` and
+`/api/auth/reset`'s `available`, asked when Settings opens.
+
+**Share targets.** `.convertFromSnakeCase` is documented to convert keyed
+containers' keys; whether a `[String: T]`'s keys escape it has differed
+between Foundation releases. `SharedLink` and `MixShare` now put every
+target key back to snake_case (`ShareTarget.serverKeyed`), so
+`instagram_story` / `snapchat_story` reach the sheet's order, glyphs and
+story hand-off either way.
+
+**Staging and demo.** `/api/health` was read only for the loading note. The
+web's `.env-ribbon` ("Staging" / "Zero spend" · the client) is now on every
+screen, covers included (its own touchless window, `EnvRibbon.swift`), and
+the player's "not your episode" badge shows on a demo server or a rejected
+key.
+
+**Account.** "Say Hey FAM" sits after Notifications; the survey invite only
+on the web's `SURVEY_OPEN_SCREENS` (searchFAM now included; Settings, View
+more, topics, profiles, conversations not); the join has no step marks, its
+arrow, its error under the button, and the waitlist page's toggle ("Already
+on the list? Sign in" / "New here? Get early access"); Log in's password
+says "at least 8 characters"; the reset form's back arrow is
+`backToWelcome`; the interests picker's "Nothing on the list matches" uses
+the lower-cased term.
+
+**Social.** iOS-only extras removed: the tappable ring on a friend's
+profile, "No listener by that handle.", See who's here's per-member ⋯ and
+"Not your friend" (Report and Block stay on the profile), the story viewer's
+swipe-down close, the group rename alert's note, the editor X's "Close" in
+note mode. The web said "1 people"; it now says "1 person", as the app did.
+
+**Motion.** Every mix menu and question, the status page's gear menu and
+the remove-a-public-mix question are FAM's action sheet, not
+`confirmationDialog`; Rename mix and "Name your new playlist" are the web's
+modal card (`textModal`), not an alert. The squeeze reaches the controls
+that lacked it and the drawn pills (`pressSqueeze`, `tapSqueeze`). A removed
+Queue or Saved row slides 45 % left and fades over 180 ms, then folds over
+200 (`rowRemoval`, `rowFold`); the player's cards and the follower popup
+drop 8 pt as they close (`famOverlay`); the welcome samples blur up.
+
+**Listening.** Return in an empty search box plays the web's demo episode
+(`generate("spacex")`), which PARITY.md had called a quirk not to copy;
+PARITY.md's stale rows (the glide's note, faces drawn as initials) are
+corrected.
+
+**Listed, not built:** push notifications (APNs, after 1.0, §564); the
+waitlist profile form's date of birth, phone, place combos and interests
+(the app's identity step stands in); the status page's admin note and its
+in-page explainer, and iOS's "Check again"; Search DailyFAM closing under
+the player; the Daily reminder's wheel; mid-sentence autocorrect; the
+attach menu's second sheet; "Hey FAM" in the background; the DailyFAM
+card's full picture and hook (the owner's call, to confirm); the VIBE!
+composer's cover against the web's instant open, and the mini bar's drop
+timing.
+
+**A compiler, at last.** `.github/workflows/ios.yml` (merged from the other
+branch) builds the app on a Mac for every push. Its first run here found
+what tree-sitter cannot: the shared screen's state was `private(set)` but
+set from `AppLinks.swift`, and two `opacity(1 - 0.45 * x)` with a CGFloat
+`x` were ambiguous - both already on Main, so build 6 would not have
+compiled even with its redeclaration fixed.
+
+A third, from the motion work: a generic `PressedLabel` cannot hold a
+static stored property. With those fixed the iOS build is green on this
+branch (run 43350266249) - the first build of the app on a compiler since
+§538. PARITY.md's "Done, unbuilt" rows (Play all, the friends pill, vibe
+posts, the background refresh) now say they compile; none has run on a
+phone. What the compiler cannot say - that the shared screen, the ribbon's
+window or the new squeezes behave on a device - is unverified.
+
+`CURRENT_PROJECT_VERSION` is 7. Tests: five `..._575` tests in
+`tests/test_ios_app_contract.py`.
+
+**Second audit (addendum).** Six read-only audits of build 7 (runtime,
+sharing, account, social, API, motion) found what the first pass left.
+Fixed: a shared or sample play no longer asks for the full player behind
+its own screen (it opened over the tabs after a sign-up); the shared screen
+loads with no waiting state or entrance, squeezes only its play button
+(0.95, 120 ms `ease`, the page's one motion), seeks once on release and
+leaves a vertical drag to the scroll, says "--:--" for a dead link, sets
+its footnote at `.doors p`'s 13.5, and keeps the status bar dark in the
+light theme. The staging ribbon's window no longer freezes the status bar
+(restyled with the theme, private search and the shared screen) and goes
+back on the live scene after a reconnect. A dead `/s/` link for a member
+is the page's "Nothing to play"; `/j/` signed out is the web's sheet (the
+invite line, Sign up, Log in); a link on a phone drawn ahead waits for
+`/api/auth/me`, so an expired session lands on the shared screen. The mix
+invite shares words and link as two items; the waitlist share carries the
+subject "FAM"; legal links in sentences open in the app's Safari sheet.
+Log in says the app's "New to FAM? Sign up"; the join has no title row or
+visible labels; passwords cap at 1024 as the pages' `maxlength`, with no
+iOS-only sentences; the free-month line is 15 pt and the status page's
+three icons are the page's paths. **The web follows the app** on New
+message (§575): a typed handle to a non-friend gets "You can message
+people who follow you back." and the card stays open; and both sides now
+refuse only once the friends list has loaded (`notAFriend` /
+`mayNotMessage` - the web's `friendsData.friends` started as `[]`, so it
+refused before its list arrived, against its own comment). Social and
+motion details are the web's (rename, "0 people", the member row, the
+save label, the playlist-done and What's next cards, the banner, the row
+fold, three missing squeezes, the Replies sheet). `release_contracts` now
+reads the app's relative `api/v1/...` literals, which it never matched, so
+`ios-1.0.0.json` is recut from this source (still unapproved; the registry
+records build 7). Survey `detail` and the catalogue's tag dictionaries go
+back to the server's keys, as the share targets do.
+
+Listed, not built: Report / Block on a one-to-one with somebody who has no
+handle (neither side has it; the owner's call under §222);
+`www.familiarize.net` is accepted by the app but not in the entitlement;
+the phone field on the identity step (APP_STORE gap 12). For a device:
+the chained sheets (a row's sheet opening the next one 0.45 s later, on
+iOS 17 and 18), the vibe tile's hold and scroll under its squeeze, the
+shared screen's bar inside its scroll view, and whether the ribbon's
+window really yields the status bar. Tests: eight `..._584` tests in
+`tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
+one in `test_client_contracts.py`.
+
+## 585. The category tree out to another reader and back (2026-11-13)
+
+**Asked.** The owner looked at the tree on /admin's Categories page for the
+first time and found clear errors. They wanted to download it, have a
+different Claude chat (on high effort) correct it, and upload the result -
+the way pronunciations already go out and come back (§549).
+
+**The catch.** The tree is not a file: it is grown. The seed is minted at
+every boot, the sweep mints what listeners searched for and the writer's
+words, the placer reparents what it mints, and prune drops what went quiet.
+A fix written straight into the `categories` table would be undone - a
+removed seed node is back at the next boot, a removed grown one at the next
+sweep, a moved one by the next placer answer about it.
+
+**Built.**
+* `category_review.py`: `export_csv` (every node with its path, parent,
+  depth, children, source, episodes there and below, listeners, owner edit),
+  `PROMPT`, `read_upload` (proposals in file order, so an add precedes the
+  moves under it; refusals in words; a chat's code fence and prose stripped)
+  and `apply`.
+* `categories.py`: a `category_owner` table and `owner_add/move/remove/
+  rename/undo`. `mint` refuses a removed or merged phrase from any source but
+  the owner; `apply_paths` leaves owner-placed nodes; `prune` keeps them;
+  merged phrases become aliases; `apply_owner` (run by `apply_seed`) restores
+  owner adds and placements after a wipe or on a fresh database.
+* `/api/admin/categories/export`, `/review-prompt`, `/import`, `/edit`,
+  `/edits` (GET, DELETE one) and the panel under the tree: Download tree,
+  Copy the prompt, Upload edits (or paste), Accept / Skip / Accept all high
+  confidence, and "Your edits to the tree" with Forget.
+* `tests/test_category_review_585.py`.
+
+**Not verified here.** No real tree: this container has the seed only, so
+the errors the owner saw were not seen. Other app workers read the edits at
+their next tree reload.
+

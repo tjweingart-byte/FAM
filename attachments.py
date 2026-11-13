@@ -272,7 +272,12 @@ class AttachmentStore:
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = store_db.connect(self.path, check_same_thread=False)
+            # Autocommit, as every other store: each write commits on its
+            # own. With sqlite3's implicit transactions a write that is not
+            # inside `with conn:` stays open - on Postgres holding this
+            # store's lock until the process dies, so no new server could
+            # start (PROBLEMS.md §518).
+            conn = store_db.connect(self.path, check_same_thread=False, isolation_level=None)
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
         return conn
@@ -341,8 +346,9 @@ class AttachmentStore:
         removed = 0
         for table in ('attachments',):
             try:
-                cur = self._conn().execute(
-                    f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+                with self._conn() as conn:
+                    cur = conn.execute(
+                        f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
                 removed += cur.rowcount or 0
             except Exception:
                 log.exception("could not erase %s for %r", table, user_id)

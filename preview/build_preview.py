@@ -258,6 +258,11 @@ def load_fixtures() -> dict:
         ],
         "starters": [{"name": n, "topic_ids": list(i)} for n, i in mixes_mod.STARTER_MIXES],
     }
+    # What changed since the listener last heard each mix (§545), the shape
+    # `app._mix_signals` serves: R5 on Morning's card (trending) and At the
+    # gym's (a result in), Q5's bubbles on the items. Invented, like every
+    # fixture; the pictures are crops of the landing page's own tiles.
+    _signal_fixtures(mixes["mixes"])
 
     # Other listeners' public mixes, for DailyFAM's search and their
     # profiles - the shape `/api/mixes/public` answers in, owner included.
@@ -377,7 +382,11 @@ def load_fixtures() -> dict:
         for t in (topics_mod.BANK_BY_ID[i] for i in sample_ids)])
 
     import time as _time
+    import surveys as surveys_mod
     return {
+        # The optional surveys (surveys.py), drawn from the real definitions.
+        "/api/surveys": {"surveys": [surveys_mod.definition(sid)
+                                     for sid in surveys_mod.SURVEYS]},
         "/api/interest": interest,
         "/api/myfam": myfam,
         "/api/myfam:guest": guest_myfam,
@@ -813,6 +822,58 @@ MIX_ITEMS_JS = r"""
 """
 
 
+def _tile_crop(name: str) -> str:
+    """A square crop of a landing tile's painted picture, as a data URL -
+    a preview has no approved photos, and R5 is a picture-led card."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    tile = ROOT / "tools" / "landing" / "tiles" / f"{name}.jpg"
+    with Image.open(tile) as im:
+        buf = io.BytesIO()
+        im.convert("RGB").crop((100, 68, 188, 156)).save(buf, "JPEG", quality=85)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+#: Each fixture topic's picture (§545), by item id - crops of the landing
+#: page's tiles standing in for the approved pictures a preview lacks. The
+#: typed council topic has none, so the row shows its icon, as the app does
+#: when nothing is approved.
+ROW_PICTURES = {
+    "f:stocks~Nvidia": "friends-2", "f:ai": "friends-3", "fed-next-move": "trending-5",
+    "f:nfl~Eagles": "trending-4", "f:nfl": "friends-1", "f:basketball~Lakers": "foryou-3",
+    "sleep-science": "trending-6",
+}
+
+
+def _signal_fixtures(mixes: list) -> None:
+    by_id = {m["id"]: m for m in mixes}
+    crops: dict = {}
+    for m in mixes:
+        for item in m["items"]:
+            tile = ROW_PICTURES.get(item["id"])
+            item["picture"] = crops.setdefault(tile, _tile_crop(tile)) if tile else ""
+    morning, gym = by_id["m1"], by_id["m2"]
+    nvidia = next(i for i in morning["items"] if i["id"].startswith("f:stocks~"))
+    nvidia["signal"] = {"kind": "trending", "label": "Trending",
+                        "headline": "Why chip stocks had their worst day since 2022"}
+    nvidia["since"] = {"then": {"day": "Mon", "title": "An export rule on chips is rumoured"},
+                       "now": {"title": "The rule passed and chip stocks fell"}}
+    morning["signal"] = {"kind": "trending", "label": "Trending", "item_id": nvidia["id"],
+                         "topic": nvidia["title"],
+                         "headline": nvidia["signal"]["headline"],
+                         "picture": _tile_crop("friends-2")}
+    eagles = next(i for i in gym["items"] if i["id"].startswith("f:nfl~"))
+    eagles["signal"] = {"kind": "update", "label": "Major update",
+                        "headline": "Eagles beat the Cowboys in overtime"}
+    eagles["since"] = {"then": None, "now": {"title": "Eagles beat the Cowboys in overtime"}}
+    gym["signal"] = {"kind": "update", "label": "Major update", "item_id": eagles["id"],
+                     "topic": eagles["title"], "headline": eagles["signal"]["headline"],
+                     "picture": _tile_crop("trending-4")}
+
+
 def mix_items_js() -> str:
     sys.path.insert(0, str(ROOT))
     import mixes as mixes_mod
@@ -1099,6 +1160,26 @@ __PREVIEW_PICTURE__
              name: p.name || "", handle: p.handle || "", avatar: p.avatar || "",
              likes: likeCount(c), liked: !!c.likers.me, mine: c.user_id === "me" };
   }
+  // Replies under a vibe's post (§547): the same thread shape, by vibe.
+  var VIBE_POSTS = {};
+  (function () {
+    var at = Date.now() / 1000;
+    COMMENTS.push({ id: NEXT_COMMENT++, user_id: "u_beth", query: "", minutes: 0, echo_id: 5000,
+                    parent_id: 0, text: "This is the clearest version of it I have heard.",
+                    at: at - 7200, likers: { fan1: 1, fan2: 1 } });
+    COMMENTS.push({ id: NEXT_COMMENT++, user_id: "u_mike", query: "", minutes: 0, echo_id: 5000,
+                    parent_id: 0, text: "Sending this to my dad.", at: at - 3600, likers: {} });
+  })();
+  function vibeReplyBody(echoId) {
+    var tops = [], byId = {};
+    COMMENTS.filter(function (c) { return c.echo_id === echoId; }).slice()
+      .sort(function (a, b) { return a.at - b.at; }).forEach(function (c) {
+        var d = commentDict(c);
+        if (c.parent_id) { if (byId[c.parent_id]) byId[c.parent_id].replies.push(d); return; }
+        d.replies = []; byId[c.id] = d; tops.push(d);
+      });
+    return tops.sort(function (a, b) { return (b.likes - a.likes) || (b.at - a.at); });
+  }
   function commentsBody(q, m) {
     var tops = [], byId = {};
     commentRows(q, m).slice().sort(function (a, b) { return a.at - b.at; }).forEach(function (c) {
@@ -1363,6 +1444,29 @@ __PREVIEW_PICTURE__
       cAi.given = !!cAsk.allow;
       cAi.answered_version = cAi.version;
       return json({ ai: cAi, terms: cAll.terms });
+    }
+    // The optional surveys (surveys.py). The preview offers the episode check
+    // on every What's next card and the day-3 check-in once per page, so both
+    // can be seen - but not under the smoke run (navigator.webdriver), whose
+    // checks press tiles the invite would sit over, unless a check asks.
+    if (path.indexOf("/api/surveys/") === 0) {
+      var svBody = (typeof body === "object" && body) ? body
+        : JSON.parse((init && init.body) || "{}");
+      if (path === "/api/surveys/offer") {
+        var svWant = svBody.moment === "episode_end" ? "episode" : "day3";
+        var svOk = PREVIEW_AUTHED() && (!navigator.webdriver || window.FAM_PREVIEW_SURVEYS)
+          && !(svWant === "day3" && window.__famSurveyOpened);
+        if (svOk && svWant === "day3") window.__famSurveyOpened = true;
+        return json({ survey: svOk ? FIXTURES["/api/surveys"].surveys.filter(function (x) {
+          return x.id === svWant; })[0] : null });
+      }
+      if (path === "/api/surveys/answer") {
+        if (!svBody.answers || !Object.keys(svBody.answers).length)
+          return json({ error: "Pick at least one answer, or tap Not now." }, 400);
+        (window.__famSurveyAnswers = window.__famSurveyAnswers || []).push(svBody);
+        return json({ ok: true, id: "preview" });
+      }
+      return json({ ok: true });
     }
     if (path === "/api/report" && method === "POST") {
       return json({ ok: true, id: "preview", hidden: true,
@@ -1811,6 +1915,87 @@ __PREVIEW_PICTURE__
       return json({ thumb: previewPicture((qs.get("q") || "") + " " + (qs.get("title") || "")),
                     fallback: false, searcher: "" });
     }
+    // ---- a vibe as a post (§547): `/api/vibe/posts`' shape, from the same
+    // vibes the grids draw; likes and replies kept on the page, replies in
+    // COMMENTS under the vibe's id (`echo_id`) so they never reach an
+    // episode's own thread.
+    if (path === "/api/vibe/posts") {
+      var vph = String(qs.get("handle") || "").replace(/^@/, "");
+      var vsrc = vph ? PEOPLE.published(vph)
+                     : { name: "You", handle: "you", avatar: "", vibes: PEOPLE.vibes };
+      if (!vsrc) return json({ error: "No listener by that handle." }, 404);
+      var vlines = ((FIXTURES["/api/transcript"] || {}).sentences || []);
+      var vnow = Date.now() / 1000;
+      return json({ person: { name: vsrc.name, handle: vsrc.handle, avatar: vsrc.avatar || "",
+                              explicit: false },
+                    mine: !vph, more: false,
+                    posts: (vsrc.vibes || []).map(function (v, i) {
+        // A friend's posts get ids of their own, apart from each other
+        // friend's and from yours (yours are under 5000).
+        var pid = vph ? 5000 + (PEOPLE.all.concat(PEOPLE.others).map(function (x) {
+                          return x.handle; }).indexOf(vph) + 1) * 100 + i
+                      : (v.id || i + 1);
+        var st = VIBE_POSTS[pid] || (VIBE_POSTS[pid] = { likes: (i * 5 + 3) % 9, liked: false });
+        var rows = COMMENTS.filter(function (c) { return c.echo_id === pid; });
+        var tops = vibeReplyBody(pid);
+        var line = vlines.length && i % 2 === 0
+          ? { text: vlines[(i * 2 + 1) % vlines.length], at: 12 + i * 9 } : null;
+        return { id: pid, query: v.query, title: v.title || v.query, minutes: v.minutes || 3,
+                 at: v.at || vnow - (i * 2 + 1) * 86400, caption: v.caption || "",
+                 line: line, likes: st.likes, liked: st.liked, replies: rows.length,
+                 top_reply: tops[0] || null,
+                 heard: { count: i % 3, faces: [] },
+                 thumb: previewPicture(v.query + " " + (v.title || "")),
+                 topic: "" };
+      }) });
+    }
+    var vplike = /^\/api\/vibe\/(\d+)\/like$/.exec(path);
+    if (vplike) {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var vpl = JSON.parse((init && init.body) || "{}");
+      var vps = VIBE_POSTS[Number(vplike[1])] || (VIBE_POSTS[Number(vplike[1])] = { likes: 0, liked: false });
+      var von = vpl.on !== false;
+      if (von !== vps.liked) vps.likes = Math.max(0, vps.likes + (von ? 1 : -1));
+      vps.liked = von;
+      return json({ id: Number(vplike[1]), likes: vps.likes, liked: von });
+    }
+    var vrl = /^\/api\/vibe\/replies\/(\d+)\/like$/.exec(path);
+    if (vrl) {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var vrlb = JSON.parse((init && init.body) || "{}");
+      var vrlr = COMMENTS.filter(function (c) { return c.id === Number(vrl[1]) && c.echo_id; })[0];
+      if (!vrlr) return json({ detail: "That reply is not here any more." }, 404);
+      if (vrlb.on === false) delete vrlr.likers.me; else vrlr.likers.me = 1;
+      return json({ id: vrlr.id, likes: likeCount(vrlr), liked: vrlb.on !== false });
+    }
+    var vrd = /^\/api\/vibe\/replies\/(\d+)$/.exec(path);
+    if (vrd && method === "DELETE") {
+      var vrdId = Number(vrd[1]);
+      var vrdRow = COMMENTS.filter(function (c) { return c.id === vrdId && c.echo_id; })[0];
+      if (!vrdRow || (vrdRow.user_id !== "me" && vrdRow.echo_id >= 5000)) return json({ ok: false });
+      COMMENTS = COMMENTS.filter(function (c) { return c.id !== vrdId && c.parent_id !== vrdId; });
+      return json({ ok: true });
+    }
+    var vprep = /^\/api\/vibe\/(\d+)\/replies$/.exec(path);
+    if (vprep && method === "GET") {
+      var vrid = Number(vprep[1]);
+      return json({ replies: vibeReplyBody(vrid),
+                    count: COMMENTS.filter(function (c) { return c.echo_id === vrid; }).length,
+                    mine: vrid < 5000 });
+    }
+    if (vprep && method === "POST") {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var vrb = JSON.parse((init && init.body) || "{}");
+      var vrt = String(vrb.text || "").replace(/\s+/g, " ").trim().slice(0, 500);
+      if (!vrt) return json({ detail: "Write something first." }, 400);
+      var vhost = vrb.parent_id ? COMMENTS.filter(function (c) {
+        return c.id === Number(vrb.parent_id) && c.echo_id === Number(vprep[1]); })[0] : null;
+      var vrow = { id: NEXT_COMMENT++, user_id: "me", query: "", minutes: 0,
+                   echo_id: Number(vprep[1]), parent_id: vhost ? (vhost.parent_id || vhost.id) : 0,
+                   text: vrt, at: Date.now() / 1000, likers: {} };
+      COMMENTS.push(vrow);
+      return json(commentDict(vrow));
+    }
     if (path === "/api/vibes") {
       var vfiles = window.__famVibeFiles || {};
       return json({ vibes: PEOPLE.vibes.map(function (v) {
@@ -1882,6 +2067,13 @@ __PREVIEW_PICTURE__
       }, qs));
     }
     if (path === "/api/mixes" && method === "GET") return json(mixes);
+    // The morning's new mix (§550): the fixture's first mix is this
+    // morning's, so the dot on the myFAM tab can be seen.
+    if (path === "/api/mixes/fresh") {
+      var firstMix = (mixes.mixes || [])[0];
+      return json({ fresh: firstMix ? [firstMix.id] : [],
+                    edition: firstMix ? new Date().toISOString().slice(0, 10) + "T05:00" : "" });
+    }
     // "Recommended topics" in the listener's order (11.7 packet). A preview
     // has no listening history, so it is the catalogue's own order - what
     // the server answers for somebody who has played nothing.

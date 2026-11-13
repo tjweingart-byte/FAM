@@ -257,6 +257,13 @@ class Budget:
             return False
         return self.briefs_left(now) > 0 if level == "brief" else episodes > 0
 
+    def why_not(self, level: str = "", now: Optional[float] = None) -> str:
+        """Which of its own ceilings stopped a warm (`ahead_budget.WHY`)."""
+        episodes, dollars = self.remaining(now)
+        if dollars <= 0:
+            return "own_dollars"
+        return "own_briefs" if level == "brief" else "own_episodes"
+
     def spend(self, dollars: float, now: Optional[float] = None,
               level: str = "") -> None:
         self._roll(now)
@@ -569,7 +576,7 @@ class Prefetcher:
 
     # --- what to warm ------------------------------------------------------
     def plan(self, listener: str = "", limit: int = 0,
-             minutes: int = 0) -> list:
+             minutes: int = 0, feed: Optional[dict] = None) -> list:
         """Candidates to warm, best first, deduped and already-cached removed.
 
         Sources are **interleaved**, not concatenated, so one source cannot
@@ -587,7 +594,13 @@ class Prefetcher:
         what a cycle run from a tool or a test wants.
         """
         limit = limit or settings.prefetch_per_cycle
-        per_source = [list(s.candidates(listener, limit) or []) for s in _SOURCES]
+        # `feed` is the page that scheduled this cycle, when one did (§548):
+        # a source that reads the feed (`takes_feed`) is handed it rather
+        # than drawing the same page a second time.
+        per_source = [list((s.candidates(listener, limit, feed=feed)
+                            if feed is not None and getattr(s, "takes_feed", False)
+                            else s.candidates(listener, limit)) or [])
+                      for s in _SOURCES]
 
         interleaved: list = []
         for rank in range(limit):
@@ -640,6 +653,14 @@ class Prefetcher:
         if not self.quiet_enough():
             return "busy"
         if not self.budget.allows(level=level):
+            _note_stopped(self.budget.why_not(level))
+            return "budget"
+        # And the day's shared budget for everything written ahead (§568).
+        import ahead_budget
+
+        ok, why = ahead_budget.allows("prefetch")
+        if not ok:
+            _note_stopped(why)
             return "budget"
 
         async with self._lock:
@@ -706,7 +727,7 @@ class Prefetcher:
 
         if level == "brief":
             spent = _dollars(notes)
-            self.budget.spend(spent, level="brief")
+            self._charge(spent, level="brief")
             # Only a brief that was actually kept counts as warmed. A degraded
             # one is dropped by the store, so counting it would report a
             # saving that no tap can ever collect.
@@ -722,7 +743,7 @@ class Prefetcher:
         import script_generator
 
         if script_generator.ambiguous_readings(plan, notes)[0]:
-            self.budget.spend(_dollars(notes), level="brief")
+            self._charge(_dollars(notes), level="brief")
             log.info("prefetch left %r unwritten: a name in it means more than "
                      "one thing (%s)", candidate.query, candidate.source)
             return "ambiguous"
@@ -750,7 +771,7 @@ class Prefetcher:
                 or getattr(plan.brief, "place", ""):
             # Charged as a brief, because a brief is what it bought: the warm
             # stopped before a word was written.
-            self.budget.spend(_dollars(notes), level="brief")
+            self._charge(_dollars(notes), level="brief")
             self.ledger.skipped_volatile += 1
             log.info("prefetch kept only the brief for %r (%s): the answer is a "
                      "result, so a warmed script would be stale on arrival",
@@ -763,7 +784,7 @@ class Prefetcher:
             return "failed"
 
         spent = _dollars(notes)
-        self.budget.spend(spent)
+        self._charge(spent)
 
         if key and self.cache is not None:
             from cache import ttl_for
@@ -833,6 +854,16 @@ class Prefetcher:
                      candidate.reason, spent)
         return "script"
 
+    def _charge(self, dollars: float, level: str = "") -> None:
+        """Spend from this prefetcher's own budget and, in the same breath,
+        count it in the day's figure for everything written ahead (§568)."""
+        self.budget.spend(dollars, level=level)
+        import ahead_budget
+
+        brief = level == "brief"
+        ahead_budget.record("prefetch", episodes=0 if brief else 1,
+                            briefs=1 if brief else 0, usd=float(dollars or 0.0))
+
     async def _key(self, plan) -> str:
         from pipeline import key_for
 
@@ -845,7 +876,8 @@ class Prefetcher:
         return bucket_for(plan)
 
     # --- a cycle -----------------------------------------------------------
-    async def run_once(self, listener: str = "", minutes: int = 0) -> dict:
+    async def run_once(self, listener: str = "", minutes: int = 0,
+                       feed: Optional[dict] = None) -> dict:
         """Warm one cycle's worth. Returns what happened to each candidate.
 
         Stops early on `budget` or `busy` - both mean every later candidate
@@ -860,7 +892,7 @@ class Prefetcher:
         self._running = True
         outcomes: dict = {}
         try:
-            for candidate in self.plan(listener, minutes=minutes):
+            for candidate in self.plan(listener, minutes=minutes, feed=feed):
                 result = await self.warm(candidate)
                 outcomes[result] = outcomes.get(result, 0) + 1
                 if result in ("budget", "busy", "off"):
@@ -887,6 +919,16 @@ class Prefetcher:
             "briefs_held": len(self.briefs),
             **self.ledger.as_dict(),
         }
+
+
+def _note_stopped(why: str) -> None:
+    """Say on /admin that prefetch stopped for today, and why (§568)."""
+    try:
+        import ahead_budget
+
+        ahead_budget.note_stopped("prefetch", why)
+    except Exception:  # noqa: BLE001 - a note never stops anything
+        log.exception("prefetch: could not record why it stopped")
 
 
 def _dollars(notes) -> float:
@@ -972,7 +1014,8 @@ def warm_brief(query: str, minutes: int, context: str = ""):
     return item.brief
 
 
-def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
+def schedule_cycle(listener: str = "", minutes: int = 0,
+                   feed: Optional[dict] = None) -> bool:
     """Warm a cycle in the background. Returns whether one was started.
 
     **The thing that was missing.** `run_once` has existed since the framework
@@ -993,6 +1036,10 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
     * **It refuses cheaply and often.** Off, no prefetcher, no running loop,
       or this listener warmed recently - each is a dictionary lookup or a
       subtraction, because this runs on every page draw.
+
+    `feed` is the page just drawn for this listener (§548). The feed source
+    reads it instead of building the same page again on the loop; only the
+    rails' keys, titles and each tile's id and question are kept.
     """
     if _PREFETCHER is None or not settings.prefetch:
         return False
@@ -1018,6 +1065,13 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
     # Before the task rather than after it, so a page drawn twice in the same
     # tick schedules one cycle and not two.
     pf.note_cycle(listener)
+    drawn = None
+    if feed is not None:
+        drawn = {"sections": [
+            {"key": sec.get("key", ""), "title": sec.get("title", ""),
+             "topics": [{"id": t.get("id", ""), "query": t.get("query", "")}
+                        for t in sec.get("topics", [])]}
+            for sec in feed.get("sections", [])]}
 
     async def _cycle() -> None:
         # Started by a page draw, written for everybody: never on the clock of
@@ -1028,7 +1082,9 @@ def schedule_cycle(listener: str = "", minutes: int = 0) -> bool:
 
         metering.attribute_task("prefetch")
         try:
-            outcome = await pf.run_once(listener, minutes=minutes)
+            outcome = await pf.run_once(
+                listener, minutes=minutes,
+                **({"feed": drawn} if drawn is not None else {}))
             if outcome.get("outcomes"):
                 log.info("prefetch cycle for %s: %s", listener or "everybody",
                          outcome["outcomes"])

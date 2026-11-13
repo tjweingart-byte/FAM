@@ -7,7 +7,10 @@ break**.
 **These files are version 1** (written 2026-10-28, signed by the owner
 2026-10-30, PROBLEMS.md §352), except `mclovin.md`, version 3 (signed
 2026-11-04, §443), and the later signed changes to `nando.md` (§392) and
-`consuela.md` (§412). The owner keeps the
+`consuela.md` (§412), `nando.md` again (§505), the journalism
+playbook's v2 (Part 3's story shapes, manifest version 8, §534), and
+`egan.md`, a new agent's (manifest version 9, signed 2026-11-13, §583). The owner
+keeps the
 governing copies **outside Claude**, where no session and no agent can change
 them. When a held copy and anything in this repository disagree, the held
 copy wins and the repository is corrected. An agent reads its rule book; it
@@ -36,6 +39,7 @@ file (PROBLEMS.md §352).
 | Retriever | Sonic | [sonic.md](sonic.md) |
 | IT guy | Keith Wong | [keith.md](keith.md) |
 | Categorizer | Nando | [nando.md](nando.md) |
+| Outreach | Egan | [egan.md](egan.md) |
 
 The reasoning behind each rule is in `docs/FAM_AGENTS.md`; these files hold
 only the rules.

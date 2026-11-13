@@ -289,56 +289,91 @@ The common reasons a first submission stalls, as they apply to FAM:
 
 ## Part C - The answers App Store Connect asks for
 
-### Listing (drafts)
+### Listing (drafts, updated for build 4 - §565)
 
-* **Name** (30 characters): `FAM: Audio Stories`. Alternates:
-  `FAM - Keep Up in Audio`, `FAM Audio`.
+* **Name** (30 characters): `FAM by APALI` (as App Store Connect has it).
+  Alternate: `FAM: Audio Stories`.
 * **Subtitle** (30): `Keep up, in short audio`
 * **Category**: primary **News**, secondary **Entertainment**. A News app
   needs a licence in mainland China; leave the China storefront off.
-* **Keywords** (100, commas, no spaces):
-  `news,audio,podcast,briefing,sports,stories,daily,explainer,catchup,trending,listen,current events`
+* **Keywords** (100, commas):
+  `news,audio,stories,briefing,sports,daily,explainer,catch up,trending,listen,current events,mix`
 * **Promotional text** (170): `Ask about anything and hear the story in a
   couple of minutes. Follow what you care about and FAM has it ready every
   morning.`
-* **Description**: what it does in the first two lines ("Type a question,
-  and FAM tells you the story in audio, researched and current"), then the
-  three surfaces, then accounts and privacy. No prices, no "best", no other
-  apps' names, no claims of live scores until a provider returns them
-  (`live-facts`).
+* **Description**:
+
+  > Type a question, and FAM tells you the story in audio, researched from
+  > current sources and ready in seconds.
+  >
+  > Keeping up takes work, so it's easy to miss the conversation. FAM turns
+  > what you care about into short audio stories, so you can be part of it.
+  >
+  > ASK ANYTHING - Search by typing or by voice. Choose a length from one to
+  > five minutes. Every episode is researched first, and its sources are shown
+  > on the player. Go Deeper picks up where an episode leaves off.
+  >
+  > DAILYFAM - Stories made for you, what's trending around the world, the
+  > most played episodes today, and what your friends are listening to. Play a
+  > whole row hands-free with Play all.
+  >
+  > MYFAM - Make a mix of the subjects and teams you follow, and FAM has it
+  > written for you every morning. Browse categories, and see what changed
+  > since you last listened.
+  >
+  > WITH FRIENDS - Follow friends, send episodes in messages and group chats,
+  > and share a vibe: a line from an episode, posted to your story.
+  >
+  > YOUR FAM - Save episodes for later, pick up where you left off, and choose
+  > light or dark.
+  >
+  > You can report any message, profile or vibe, and block anyone. Episodes are
+  > written with AI only after you agree.
+
+  No prices, no "best", no other apps' names, no claims of live scores until a
+  provider returns them (`live-facts`).
 * **Support URL**: `https://familiarize.net/support`. **Privacy policy URL**:
   `https://familiarize.net/privacy`. **Marketing URL**: `https://familiarize.net`.
 
 ### Age rating
 
-Apple's questionnaire now has 4+, 9+, 13+, 16+ and 18+, and counts AI
-features, user-generated content and messaging. Answer honestly:
-user-generated content **yes**, messaging **yes**, unrestricted web content
-**no** (FAM does not show web pages), profanity **infrequent** (swearing is
-kept, `slurs-only`), mature themes **infrequent** (news). Expect **16+ or
-18+**. Answering low and being corrected in review costs a round.
+Apple's questionnaire has 4+, 9+, 13+, 16+ and 18+, and counts AI features,
+user-generated content and messaging. Answer honestly: user-generated content
+**yes**, messaging **yes**, AI-generated content **yes**, unrestricted web
+access **no** (FAM does not show web pages), profanity **infrequent/mild**
+(swearing is kept and marked E, `slurs-only`), mature themes and realistic
+violence **infrequent/mild** (news), medical information **no**. Expect
+**13+ or 16+**; an under-13 date of birth already deletes the account (§410).
+Answering low and being corrected in review costs a round.
 
 ### App privacy ("nutrition labels"), from what the code stores
 
 Tracking: **No.** FAM shows no ads, shares nothing with data brokers and
-combines nothing with other companies' data.
+combines nothing with other companies' data. Everything below is linked to
+the user and none of it is used for tracking. It must agree with
+`ios/FAM/FAM/PrivacyInfo.xcprivacy` (build 4 added Customer Support, Other
+Diagnostic Data and Analytics on Other User Content).
 
-| Apple's type | What FAM stores | Linked to the user | Purposes |
-|---|---|---|---|
-| Contact Info: Name | display name | Yes | App functionality |
-| Contact Info: Email address | account email | Yes | App functionality |
-| Contact Info: Phone number | account phone | Yes | App functionality |
-| User Content: Photos | avatar, cover photo, attached images | Yes | App functionality |
-| User Content: Other | comments, messages, vibe captions, attached documents | Yes | App functionality |
-| User Content: Customer support | feedback reports | Yes | App functionality |
-| Search history | `events.text` for `search` | Yes | App functionality, product personalization |
-| Identifiers: User ID | the server-minted listener id | Yes | App functionality |
-| Usage data: Product interaction | plays, finishes, skips, picks, shares, saves, vibes | Yes | Product personalization, analytics |
-| Location: Coarse location | the typed town or region (never sensed, `preferences.clean_place`) | Yes | App functionality, product personalization |
-| Diagnostics: Other | build, screen and device string on a feedback report | Yes | App functionality |
+| Apple's type | What FAM stores | Purposes |
+|---|---|---|
+| Contact Info: Name | display name | App functionality |
+| Contact Info: Email address | account email | App functionality |
+| User Content: Photos or videos | profile, cover and group photos, attached images | App functionality |
+| User Content: Emails or text messages | messages and group chats | App functionality |
+| User Content: Customer support | feedback reports | App functionality |
+| User Content: Other | vibes and their lines, replies and likes on vibes, survey answers, attached documents and links | App functionality, analytics |
+| Search history | `events.text` for `search`, spoken searches as text | App functionality, product personalization |
+| Identifiers: User ID | the server-minted listener id | App functionality |
+| Usage data: Product interaction | plays, finishes, skips, picks, shares, saves, vibes, follows | Product personalization, analytics |
+| Location: Coarse location | the typed town or region (never sensed, `preferences.clean_place`) | App functionality, product personalization |
+| Diagnostics: Other diagnostic data | build and device string on a feedback report | App functionality |
+| Other data types | date of birth and gender from the activation step (counting, can be turned off) | App functionality, analytics |
 
-Revisit this table whenever a store is added (`DATABASE.md`). Purchases is
-added the day in-app purchase is.
+Not collected from the app: phone number (off on iPhone sign-up for 1.0),
+precise location, contacts, audio (speech is turned into text on the phone
+where it can be and never stored), purchases, health, financial and browsing
+data, crash data (no crash SDK). Revisit this table whenever a store is added
+(`DATABASE.md`). Purchases is added the day in-app purchase is.
 
 ### Info.plist purpose strings (drafts)
 
@@ -349,30 +384,31 @@ added the day in-app purchase is.
 * Photos: use `PHPickerViewController`, which needs no permission prompt.
 * `UIBackgroundModes`: `audio`.
 
-### Review notes (template)
+### Review notes (template, updated for build 4)
 
 > FAM writes a short audio story in answer to a question. Episodes are
-> written by AI (Anthropic's Claude) from current sources and spoken by our
-> own voice model; sources are shown on the player.
+> written with AI (Anthropic's Claude) from current sources and read by our
+> own voice model; the sources are shown on the player.
 >
 > Demo account: `<email>` / `<password>`. It is a full member, so it skips the
-> pre-launch waitlist that new sign-ups see.
+> pre-launch waitlist that new sign-ups see. A second account, `<email2>`, is
+> its friend, for trying messages.
 >
-> To try it: type a question on Search (e.g. "how does a heat pump work") and
-> audio starts after a short loading screen. myFAM and DailyFAM are written
-> ahead of time and start immediately. Explore shows episodes other listeners
-> searched.
->
-> User content: comments, messages, profiles, vibes and episodes can be
-> reported from their ⋯ menu, and anybody can be blocked from their profile
-> or a chat (Settings > Blocked people undoes it). Reports reach a person
-> through our moderation inbox and are acted on within 24 hours; questions go
-> to `<SUPPORT_EMAIL>`. The terms are at `<host>/terms`.
+> To try it: on searchFAM, type a question (for example "how does a heat pump
+> work"). A first play shows a short loading screen while the episode is
+> written; replays start at once. DailyFAM and myFAM are written ahead of time
+> and start immediately.
 >
 > Before the first search the app asks permission to send the question to
-> Anthropic to write the episode.
+> Anthropic to write the episode; nothing is sent without that yes.
 >
-> Account deletion: `<where Delete account is in the iOS app>`.
+> User content: messages, profiles, vibes and replies can be reported from
+> their ⋯ menu, and anyone can be blocked from their profile or a chat
+> (yourFAM > Settings > Blocked people undoes it). Reports reach a person
+> through our moderation inbox and are acted on within 24 hours. Support:
+> `<SUPPORT_EMAIL>`. Terms: `https://familiarize.net/terms`.
+>
+> Account deletion: yourFAM > Settings > Delete account.
 
 Fill the bracketed parts, keep every sentence true on the day it is sent, and
 keep the backend warm from submission until approval.

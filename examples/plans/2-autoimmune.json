@@ -1,0 +1,76 @@
+{
+ "example": "2-autoimmune",
+ "teaches": "A health question: plan the facts and the mechanism, never what the listener should do; the self-help line is left out; land on the most concrete fact about treatment, not on advice.",
+ "packet": [
+  {
+   "packet": "plugin",
+   "title": "What autoimmune disease is",
+   "published": "reference",
+   "sentences": [
+    "The body destroys most of the immune cells it makes in the bone marrow and thymus before they are released.",
+    "Cells that react to the body's own tissue are removed in that screening.",
+    "An autoimmune disease occurs when a self-reactive cell escapes that check and attacks the body's own tissue.",
+    "Rheumatoid arthritis affects the lining of the joints, type one diabetes the insulin-making cells of the pancreas, and alopecia areata the hair follicles.",
+    "More than eighty diseases are classed as autoimmune."
+   ]
+  },
+  {
+   "packet": "plugin",
+   "title": "Causes and treatment",
+   "published": "reference",
+   "sentences": [
+    "Researchers point to a combination of genes that make the screening leaky and environmental triggers such as infections.",
+    "The conditions cluster in families without being simply inherited.",
+    "Steroids reduce inflammation broadly.",
+    "Biologic drugs each block one specific immune signal, so a drug that works for one disease may not work for another.",
+    "Anyone with symptoms should speak to their doctor about testing."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "what an autoimmune disease is and why it happens",
+  "summary": [
+   "P1.1",
+   "P1.2",
+   "P1.3",
+   "P1.4",
+   "P1.5",
+   "P2.1",
+   "P2.2",
+   "P2.3",
+   "P2.4"
+  ],
+  "opening": [
+   "P1.1",
+   "P1.2"
+  ],
+  "beats": [
+   {
+    "purpose": "what happens when the check misses one",
+    "sentences": [
+     "P1.3",
+     "P1.4",
+     "P1.5"
+    ]
+   },
+   {
+    "purpose": "why it fails in one person and not another",
+    "sentences": [
+     "P2.1",
+     "P2.2"
+    ]
+   },
+   {
+    "purpose": "therefore: treatment turns down the attack",
+    "sentences": [
+     "P2.3"
+    ]
+   }
+  ],
+  "landing": [
+   "P2.4"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}

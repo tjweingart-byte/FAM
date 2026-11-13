@@ -135,6 +135,67 @@ LEFT_TO_GROW = (
     "chicago bulls", "chicago bears", "buffalo bills", "orlando magic",
 )
 
+#: Words that are a subject only inside a longer phrase (the owner 11.9,
+#: "Rock Lead Theory", PROBLEMS.md §511). "lead" is the metal, and it is
+#: also who is winning: grown alone and filed under science, every golf
+#: leader wore a lump of grey metal. The same rule as `LEFT_TO_GROW`, for
+#: words rather than teams.
+#:
+#: **Nor any grown phrase holding one** (§513): "lead poisoning", "world
+#: record" and "power grid" are refused at mint, and a grown node already on
+#: disk is left out of the tree as read (`categories.CategoryStore.reload`).
+#: The seed's own phrases are exempt: a phrase worth keeping is seeded here
+#: ("super bowl", "nfl draft", "power grid").
+#:
+#: The rest (§512): words a headline uses every day as a verb or a plain
+#: noun, whose subject senses sit on different facets - so grown alone and
+#: placed under one, they paint the other's episodes. Not on the list: a
+#: word whose one sense is the subject ("golf", "inflation"), a company or
+#: product ("apple", "amazon"), or anything the seed or `ALIASES` names.
+#: `tools/categories_report.py --alone` lists the one-word nodes a deployment
+#: has grown, to find the next one.
+NEVER_ALONE = frozenset({
+    "lead",      # the metal; who is winning
+    "record",    # a music record; a world record; "record high"
+    "draft",     # the NFL draft; a draft bill
+    "strike",    # a labour strike; a military strike; a baseball strike
+    "pitch",     # a football pitch; a baseball pitch; a sales pitch
+    "court",     # a law court; a basketball or tennis court
+    "match",     # a game; a match that lights
+    "race",      # a horse or car race; an election race; race
+    "trade",     # a player trade; trade policy
+    "bond",      # a government bond; James Bond
+    "stock",     # a share; soup stock; "in stock"
+    "charge",    # a criminal charge; a battery charge; a fee
+    "shot",      # a vaccine shot; a basketball shot; a gunshot
+    "drive",     # a golf drive; a hard drive; driving
+    "iron",      # the metal; a golf club; a clothes iron
+    "fire",      # a wildfire; fired from a job
+    "plant",     # a factory; a houseplant; a power plant
+    "star",      # a celebrity; a star in the sky
+    "club",      # a football club; a nightclub; a golf club
+    "spring",    # the season; a water spring; spring training
+    "fall",      # the season; a market fall
+    "net",       # a tennis net; net income
+    "bowl",      # the Super Bowl; a dish
+    "cup",       # the World Cup; a cup of coffee
+    "crane",     # the bird; the machine
+    "seal",      # the animal; a seal of approval
+    "bat",       # the animal; a baseball bat
+    "suit",      # a lawsuit; clothing
+    "cell",      # biology; a prison cell; a phone
+    "power",     # electricity; political power
+    "tank",      # the weapon; a fish tank; "shares tanked"
+    "current",   # the present; an ocean or electric current
+    "ring",      # a boxing ring; jewellery
+    "round",     # a golf round; a funding round
+    "cap",       # the salary cap; a hat
+    "base",      # a military base; a baseball base
+    "field",     # a playing field; a field of study
+    "table",     # a league table; furniture
+})
+
+
 NFL_TEAMS = _teams(
     "bengals", "steelers", "baltimore ravens", "cleveland browns",
     "indianapolis colts", "jacksonville jaguars", "tennessee titans",
@@ -172,15 +233,28 @@ NHL_TEAMS = _teams(
 
 SEED: dict[str, dict] = {
     "sports": {
+        # §514: every league's, so beside the sports rather than under one.
+        # Seeded because each holds a `NEVER_ALONE` word and the tree would
+        # otherwise never grow it (§513).
+        "trade deadline": {}, "salary cap": {},
+        # §516: every sport's.
+        "world record": {},
         # §187: the leagues, so a question about one files it as a subject
         # (depth two) rather than as the whole of a sport. §202: and their
         # teams, a level below.
         "american football": {"college football": {}, "super bowl": {},
-                              "quarterback play": {}, "nfl": NFL_TEAMS},
+                              "quarterback play": {},
+                              # §514: under the league, so the draft
+                              # outranks "nfl" for its own episodes.
+                              "nfl": {**NFL_TEAMS, "nfl draft": {},
+                                      # §517: "trade" is never alone.
+                                      "nfl trade rumors": {}}},
         "basketball": {"playoff basketball": {}, "draft prospects": {},
                        "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
-                     "world cup": {}, "premier league": {},
+                     # §515: seeded, as "cup" is never alone (§513).
+                     "world cup": {"world cup qualifiers": {}},
+                     "premier league": {},
                      "bundesliga": {}, "major league soccer": {},
                      # 11.9: so an episode is filed below "football"
                      # rather than wearing its one picture.
@@ -189,43 +263,85 @@ SEED: dict[str, dict] = {
         "baseball": {"mlb": MLB_TEAMS, "world series": {}},
         "ice hockey": {"nhl": NHL_TEAMS, "stanley cup": {}},
         "golf": {"major championship": {}},
-        "tennis": {},
-        "motorsport": {"formula one": {}, "nascar": {}},
-        "combat sports": {"boxing": {}, "mixed martial arts": {}, "ufc": {}},
-        "olympic sport": {},
+        "tennis": {"australian open": {}, "french open": {}},
+        "motorsport": {"formula one": {}, "nascar": {}, "indycar": {}},
+        "combat sports": {"boxing": {}, "mixed martial arts": {}, "ufc": {},
+                          "professional wrestling": {}},
+        "olympic sport": {"summer olympics": {}, "winter olympics": {},
+                          "paralympics": {}},
         "athletic training": {"injury recovery": {}},
         "team ownership": {"stadium funding": {}, "sports stadiums": {},
                            "player contracts": {}, "sports franchise": {}},
         "high school sports": {},
+        # 11.12, the owner: "start with more nodes on the tree". The sports
+        # beyond the four leagues and football, each a subject a listener
+        # follows on its own.
+        "cricket": {"test cricket": {}, "indian premier league": {}},
+        "rugby": {"rugby union": {}, "rugby league": {}, "six nations": {}},
+        "cycling": {"tour france": {}},
+        "track and field": {"marathons": {}},
+        "winter sports": {"skiing": {}, "figure skating": {},
+                          "snowboarding": {}},
+        "swimming": {},
+        "horse racing": {"kentucky derby": {}},
+        "college sports": {"college basketball": {}, "march madness": {},
+                           "ncaa": {}},
+        "sports betting": {"fantasy sports": {}},
+        "sports media": {"sports broadcasting": {}},
+        "pickleball": {},
+        "volleyball": {},
     },
     "tech": {
         "artificial intelligence": {"language models": {}, "machine learning": {},
                                     "autonomous vehicles": {},
-                                    "tech regulation": {}},
+                                    "tech regulation": {},
+                                    "chatbots": {}, "deepfakes": {},
+                                    "data centers": {}, "image generation": {}},
         "semiconductors": {"semiconductor manufacturing": {},
                            "chip manufacturing": {},
                            "chip export controls": {}},
-        "consumer hardware": {"smartphones": {}, "wearables": {}},
-        "software business": {"cloud computing": {}, "cybersecurity": {},
-                              "open source": {}},
+        "consumer hardware": {"smartphones": {}, "wearables": {},
+                              "laptops": {}, "virtual reality": {},
+                              "smart home": {}},
+        "software business": {"cloud computing": {},
+                              "cybersecurity": {"ransomware": {},
+                                                "data breaches": {},
+                                                "hacking": {}},
+                              "open source": {}, "programming": {}},
         "social platforms": {"content moderation": {}, "creator economy": {}},
         "crypto": {"digital currency": {}},
         "space technology": {"reusable rockets": {}, "satellite internet": {}},
         "quantum computing": {},
-        "robotics": {},
+        "robotics": {"drones": {}},
+        # 11.12: the rest of what "tech" is asked about.
+        "big tech": {"tech antitrust": {}, "tech earnings": {}},
+        "data privacy": {"surveillance technology": {}},
+        "biotechnology": {"gene editing": {}},
+        "telecommunications": {"mobile networks": {}, "broadband": {}},
+        "search engines": {},
     },
     "money": {
         "central banks": {"federal reserve": {}, "interest rates": {},
                           "inflation": {}},
         "markets": {"stock market": {}, "bond market": {},
-                    "market volatility": {}},
+                    "market volatility": {}, "index funds": {},
+                    "earnings season": {}, "ipos": {}},
         "housing market": {"house prices": {}, "mortgage rates": {},
                            "rental market": {}},
         "commodity prices": {"oil price": {}, "gold price": {},
                              "food prices": {}},
-        "personal finance": {"retirement saving": {}, "household debt": {}},
+        "personal finance": {"retirement saving": {}, "household debt": {},
+                             "budgeting": {}, "investing": {},
+                             "student loans": {}, "credit scores": {}},
         "taxation": {},
         "currency markets": {},
+        # 11.12: the economy as a subject of its own, beside the Fed.
+        "economy": {"recession": {}, "jobs report": {}, "unemployment": {},
+                    "consumer spending": {}, "national debt": {},
+                    "economic growth": {}},
+        "banking": {"bank failures": {}, "digital banking": {},
+                    "credit cards": {}},
+        "wealth inequality": {"billionaires": {}},
     },
     "business": {
         "startups": {"venture capital": {}, "founder stories": {}},
@@ -234,50 +350,152 @@ SEED: dict[str, dict] = {
         "retail business": {"ecommerce": {}, "luxury goods": {}},
         "energy business": {"oil companies": {}, "renewable energy": {},
                             "electricity grids": {}},
-        "airlines": {"air travel": {}, "flights": {}},
-        "automotive industry": {"electric vehicles": {}},
-        "advertising": {},
-        "labour market": {"remote work": {}},
+        "airlines": {"air travel": {}, "flights": {}, "aviation safety": {}},
+        "automotive industry": {"electric vehicles": {}, "car recalls": {}},
+        "advertising": {"marketing": {}},
+        "labour market": {"remote work": {}, "labor unions": {},
+                          "minimum wage": {}, "labor strikes": {}},
         "streaming business": {},
         "local business": {},
+        # 11.12: industries a listener asks about by name.
+        "corporate governance": {"executive pay": {}, "corporate scandals": {},
+                                 "shareholder activism": {}},
+        "pharmaceutical industry": {"drug pricing": {}},
+        "manufacturing": {"factory jobs": {}},
+        "logistics": {"shipping industry": {}, "trucking": {}},
+        "agriculture": {"farming": {}, "farm subsidies": {}},
+        "commercial real estate": {"office space": {}},
+        "tourism industry": {"hotels": {}, "cruise industry": {}},
+        "insurance industry": {},
+        "defense industry": {"defense contractors": {}},
+        "food industry": {"fast food": {}, "restaurant chains": {}},
+        "small business": {},
+        "nonprofit sector": {"philanthropy": {}, "charity fundraising": {}},
     },
     "culture": {
         "film": {"hollywood": {}, "box office": {}, "awards season": {},
-                 "film franchises": {}},
-        "television": {"streaming shows": {}, "reality television": {}},
-        "music industry": {"pop music": {}, "live touring": {}, "hip hop": {}},
-        "celebrity": {"celebrity comeback": {}},
-        "books": {"publishing": {}},
+                 "film franchises": {}, "documentaries": {}, "animation": {},
+                 "horror films": {}, "superhero films": {},
+                 "film festivals": {}, "independent film": {}},
+        "television": {"streaming shows": {}, "reality television": {},
+                       "sitcoms": {}, "late night television": {},
+                       "anime": {}},
+        "music industry": {"pop music": {}, "live touring": {}, "hip hop": {},
+                           "country music": {}, "rock music": {},
+                           "classical music": {}, "jazz music": {},
+                           "kpop": {}, "music streaming": {}},
+        "celebrity": {"celebrity comeback": {}, "celebrity scandals": {},
+                      "royal family": {}},
+        "books": {"publishing": {}, "novels": {"science fiction": {},
+                                               "fantasy novels": {},
+                                               "literary fiction": {}},
+                  "poetry": {}, "comics": {}, "childrens books": {}},
         # §235: a town's own table, painted as its main street.
         "food culture": {"restaurants": {}, "fine dining": {},
-                         "food scene": {}, "local restaurants": {}},
+                         "food scene": {}, "local restaurants": {},
+                         "cooking": {"baking": {}, "recipes": {}},
+                         "wine": {}, "coffee": {}, "craft beer": {}},
         "local events": {},
-        "fashion": {},
-        "video games": {},
-        "internet trends": {"short video": {}},
-        "art world": {},
+        "fashion": {"streetwear": {}, "beauty industry": {"skincare": {}}},
+        "video games": {"esports": {}, "indie games": {}, "game consoles": {}},
+        "internet trends": {"short video": {}, "memes": {}, "influencers": {},
+                            "conspiracy theories": {}},
+        "art world": {"museums": {}, "photography": {}, "architecture": {},
+                      "street art": {}, "graphic design": {}},
+        # 11.12, the owner: "a lot of these are clear categories to me
+        # (magic ...)". The rest of what a culture listener asks about.
+        # `magic` sits at depth one so `nba` (two, via "orlando magic")
+        # is deeper and wins a basketball question that holds both.
+        "magic": {},
+        "performing arts": {"theatre": {"broadway": {}}, "comedy": {},
+                            "dance": {"ballet": {}}, "opera": {},
+                            "circus": {}},
+        "history": {"ancient history": {}, "military history": {},
+                    "world war": {}, "american history": {}},
+        "religion": {"christianity": {"catholic church": {}}, "islam": {},
+                     "judaism": {}, "buddhism": {}, "hinduism": {}},
+        "philosophy": {"ethics": {}},
+        "mythology": {"folklore": {}},
+        "true crime": {},
+        "podcasts": {},
+        "news media": {"journalism": {}, "press freedom": {},
+                       "local newspapers": {}},
+        "relationships": {"dating apps": {}, "marriage": {}, "weddings": {},
+                          "friendship": {}},
+        "family life": {"parenting": {}, "childcare": {}, "screen time": {}},
+        "home and garden": {"gardening": {}, "interior design": {},
+                            "home improvement": {}},
+        "pets": {"pet care": {}},
+        "travel": {"travel destinations": {}, "budget travel": {},
+                   "theme parks": {}},
+        "hobbies": {"board games": {}, "chess": {}, "crossword puzzles": {},
+                    "collecting": {}},
+        "outdoor recreation": {"hiking": {}, "camping": {}, "fishing": {}},
+        "unexplained mysteries": {"ufos": {}, "paranormal": {}},
+        "languages": {"linguistics": {}},
     },
     "health": {
         "nutrition": {"weight loss": {}, "protein intake": {},
                       "ultra processed food": {}},
         "mental health": {"anxiety": {}, "burnout": {},
-                          "focus and attention": {}},
+                          "focus and attention": {}, "depression": {},
+                          "adhd": {}, "therapy": {}, "loneliness": {},
+                          "eating disorders": {}, "psychedelic therapy": {}},
         "sleep quality": {"sleep research": {}},
-        "exercise science": {"strength training": {}, "endurance training": {}},
-        "medicine": {"vaccines": {}, "cancer research": {}, "public health": {}},
+        "exercise science": {"strength training": {}, "endurance training": {},
+                             "yoga": {}},
+        "medicine": {"vaccines": {}, "cancer research": {}, "public health": {
+                         "food safety": {}},
+                     # 11.12: "hospital fundraising" had nowhere to go.
+                     "hospitals": {"emergency rooms": {}},
+                     "infectious disease": {"pandemics": {}, "flu season": {},
+                                            "covid": {}, "measles": {},
+                                            "bird flu": {}},
+                     "chronic disease": {"diabetes": {}, "heart disease": {},
+                                         "dementia": {}, "obesity": {}},
+                     "dental health": {}},
         "ageing": {"longevity research": {}},
         "habit formation": {},
-        "womens health": {},
+        "womens health": {"menopause": {}, "pregnancy": {}, "fertility": {}},
+        "mens health": {"testosterone": {}},
+        "child health": {"pediatrics": {}},
+        "medical research": {"clinical trials": {}},
+        "healthcare system": {"health insurance": {}, "health policy": {},
+                              "medicare": {}, "medicaid": {}, "nursing": {}},
+        "prescription drugs": {"weight loss drugs": {}, "antibiotics": {},
+                               "drug approvals": {}},
+        "addiction": {"opioids": {}, "alcohol": {}, "vaping": {},
+                      "gambling addiction": {}},
+        "disability": {"accessibility": {}},
     },
     "science": {
         "space science": {"mars missions": {}, "telescopes": {},
-                          "black holes": {}},
-        "climate science": {"extreme weather": {}, "carbon removal": {}},
-        "biology": {"genetics": {}, "neuroscience": {}, "microbiome": {}},
-        "physics": {"particle physics": {}, "fusion power": {}},
-        "earth science": {"earthquakes": {}, "ocean science": {}},
+                          "black holes": {}, "moon missions": {},
+                          "asteroids": {}, "exoplanets": {},
+                          "solar system": {}},
+        "climate science": {"extreme weather": {}, "carbon removal": {},
+                            "climate change": {}, "deforestation": {}},
+        "biology": {"genetics": {}, "neuroscience": {}, "microbiome": {},
+                    "virology": {}, "evolutionary biology": {},
+                    "human origins": {}},
+        "physics": {"particle physics": {}, "fusion power": {},
+                    "quantum physics": {}},
+        "earth science": {"earthquakes": {}, "ocean science": {},
+                          "volcanoes": {}, "geology": {}},
         "materials science": {},
-        "archaeology": {},
+        "archaeology": {"ancient egypt": {}},
+        # 11.12: the sciences a curious listener asks about by name.
+        "psychology": {"human behavior": {}, "cognitive biases": {},
+                       "memory research": {}},
+        "wildlife": {"endangered species": {}, "animal behavior": {},
+                     "marine life": {}, "insects": {}, "bird migration": {}},
+        "paleontology": {"dinosaurs": {}},
+        "environmental protection": {"conservation": {}, "pollution": {
+                                         "plastic pollution": {}},
+                                     "recycling": {}},
+        "mathematics": {},
+        "nobel prizes": {},
+        "research funding": {},
     },
     "world": {
         # §187: the Middle East's own subjects, so a question about one of
@@ -296,17 +514,50 @@ SEED: dict[str, dict] = {
                                    "parliament": {},
                                    "national elections": {}},
         "trade policy": {"tariffs": {}, "sanctions": {}},
-        "immigration": {},
-        "energy security": {"oil supply": {}},
-        "urban policy": {"urban housing": {}, "public transport": {}},
+        "immigration": {"border security": {}, "asylum seekers": {},
+                        "deportations": {}},
+        "energy security": {"oil supply": {},
+                            # §516: seeded, as "power" is never alone.
+                            "power grid": {}},
+        "urban policy": {"urban housing": {}, "public transport": {},
+                         "homelessness": {}},
         "food supply": {},
         # §235: what one town is talking about - its council, its schools,
         # what is being built - under the heading it is, never the globe.
         "local news": {"town council": {}, "local schools": {},
                        "school board": {}, "local elections": {},
-                       "zoning": {}},
-        "international law": {},
-        "global development": {},
+                       "zoning": {},
+                       # §515: a town's question, and "power" is never
+                       # alone (§513).
+                       "power outage": {}},
+        "international law": {"war crimes": {}},
+        "global development": {"global poverty": {}, "foreign aid": {},
+                               "humanitarian aid": {}},
+        # 11.12, the owner: "start with more nodes on the tree". Public life
+        # beyond elections and wars. No countries: a country's name is in
+        # questions on every facet (India's cricket, China's carmakers), and
+        # as a node it would outrank the subject.
+        "crime and justice": {"policing": {}, "gun violence": {},
+                              "prisons": {}, "organized crime": {},
+                              "sexual abuse": {}, "fraud": {},
+                              "cybercrime": {}, "criminal trials": {}},
+        "education": {"education policy": {}, "higher education": {},
+                      "teachers": {}, "school safety": {},
+                      "standardized testing": {}},
+        "human rights": {"refugees": {}, "civil rights": {},
+                         "free speech": {}, "lgbtq rights": {},
+                         "womens rights": {}},
+        "military": {"nato": {}, "nuclear weapons": {},
+                     "defense spending": {}},
+        "terrorism": {},
+        "diplomacy": {"foreign policy": {}, "united nations": {}},
+        "social policy": {"abortion policy": {}, "gun control": {},
+                          "welfare programs": {}, "drug policy": {}},
+        "climate policy": {"climate agreements": {}, "carbon emissions": {}},
+        "natural disasters": {"wildfires": {}, "floods": {},
+                              "disaster relief": {}},
+        "infrastructure": {"roads and bridges": {}, "water systems": {}},
+        "protests": {},
     },
 }
 
@@ -319,7 +570,7 @@ SEED: dict[str, dict] = {
 LOCAL_NODES = ("local news", "town council", "local schools",
                "school board", "local elections", "zoning", "food scene",
                "local restaurants", "local events", "local business",
-               "high school sports")
+               "high school sports", "power outage")
 
 
 #: Other names for a node, matched as the node (11.9, `categories.match`):
@@ -373,6 +624,38 @@ ALIASES: dict[str, str] = {
     "snap election": "national elections",
     "general election": "national elections",
     "confidence vote": "parliament",
+    # 11.12, the nodes added that day. The tree does not stem, so a node
+    # in one number is reached in the other here, and an apostrophe splits
+    # a word ("women's" is "women s"), so the possessive is spelled out.
+    "magician": "magic", "magicians": "magic", "illusionist": "magic",
+    "illusionists": "magic",
+    # The basketball team, never the craft: deeper than `magic`, so it wins.
+    "orlando magic": "nba",
+    "theater": "theatre", "comedian": "comedy", "comedians": "comedy",
+    "hospital": "hospitals", "virus": "infectious disease",
+    "viruses": "infectious disease", "pandemic": "pandemics",
+    "alzheimer": "dementia", "women health": "womens health",
+    "men health": "mens health", "women rights": "womens rights",
+    "children books": "childrens books", "teacher": "teachers",
+    # Plural only: "school" alone is in "high school football". No
+    # "university": a science story names one in nearly every study.
+    "schools": "education",
+    "refugee": "refugees", "museum": "museums", "podcast": "podcasts",
+    "documentary": "documentaries", "chatbot": "chatbots",
+    "data center": "data centers", "billionaire": "billionaires",
+    "meme": "memes", "influencer": "influencers", "dinosaur": "dinosaurs",
+    "volcano": "volcanoes", "asteroid": "asteroids", "exoplanet": "exoplanets",
+    "math": "mathematics", "maths": "mathematics", "nobel prize": "nobel prizes",
+    "nasa": "space science", "soccer": "football", "wildfire": "wildfires",
+    "protest": "protests", "protesters": "protests",
+    # No "flood": "a flood of new apps". "computer virus" is software, and
+    # ties `infectious disease` at depth two, winning by name.
+    "computer virus": "cybersecurity",
+    "animal behaviour": "animal behavior",
+    "human behaviour": "human behavior", "labour unions": "labor unions",
+    "trade unions": "labor unions", "pope": "catholic church",
+    "vatican": "catholic church", "opioid": "opioids",
+    "global warming": "climate change", "olympics": "olympic sport",
 }
 
 

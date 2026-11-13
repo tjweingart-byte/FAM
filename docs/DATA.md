@@ -115,6 +115,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **saved.db** (`SAVED_DB`) | `saved.py` | `folders`, `items`, `vibe_files`, `progress`, `history`, `dismissed` | Yes | History 14 days | Erased · kept |
 | **shares.db** (`SHARES_DB`) | `sharing.py` | `shares` | Yes | Forever | Erased · kept |
 | **feedback.db** (`FEEDBACK_DB`) | `feedback.py` | `reports` | Account id only | Forever | **Anonymised** · kept |
+| **surveys.db** (`SURVEYS_DB`) | `surveys.py` | `responses`, `offers` | Account id only (guests are never surveyed) | Forever | Answers **anonymised**, offers erased · kept |
 | **consent.db** (`CONSENT_DB`) | `consent.py` | `consents` | Yes | 1 row per listener per scope (`ai`, `terms`, and since §411 `demographics` - being counted in the totals, a yes recorded when the activation step is finished, a no from Settings) | Erased · kept |
 | **moderation.db** (`MODERATION_DB`) | `moderation.py` | `reports`, `blocks`, `suspended`, `hidden_episodes` | Yes | Forever | Erased (blocks, suspension) · reports **anonymised** · kept |
 | **mixes.db** (`MIXES_DB`) | `mixes.py`, `push.py`, `daily_edition.py` | `mixes`, `push_subscriptions`, `push_sent`, `daily_editions` | Yes (mixes, push) | ≤ 30 mixes per listener | Erased · `daily_editions` **wiped** |
@@ -130,7 +131,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **live_routing.db** (`LIVE_ROUTING_DB`, §264) | `live_routing.py` | `episodes` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py`; `incidents.py` (§488) | `errors`, `steps`, `refusals`; Keith's `incidents` (one row per cause, kept 90 days after closing) and `incident_fixes` (the fix report, §490: every fix and every "would", kept 90 days) | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **episode_quality.db** (`EPISODE_QUALITY_DB`, §309) | `episode_quality.py` (`QualityStore`) | `episodes`, `listens`, `labels` | `listens` only (the account that listened); `episodes` holds the typed question | 180 days (`KEEP_DAYS`); the evidence text until graded, at most 14 days (`EVIDENCE_DAYS`) | `listens` erased · **Wiped** |
-| **x_threads.db** (`X_THREADS_DB`, §321) | `x_threads.py` (`Store`) | `candidates`, `runs` | No listener; holds public X posts and their authors' handles | 7 days (`KEEP_DAYS`); runs 30 days | n/a · kept |
+| **communities.db** (`COMMUNITIES_DB`, §579) | `communities.py` (`Store`) | `leads`, `runs` | No listener; holds public community pages, a contact a community publishes, and the admin's notes | Untouched leads 30 days (`KEEP_DAYS`); a lead a person moved is kept; runs 30 days | n/a · kept |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
@@ -254,7 +255,7 @@ was playing: transcript ≤ 30,000 chars, ≤ 30 sources, §175), `resolved_at`,
 - `daily_editions`: the 05:00 Eastern edition's build ledger (claimed, built).
 
 **quotas.db**: `counters` and per-episode `charges` per window. Enforced in
-production since §207 (`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`).
+production from §207 until §519, which set `ENFORCE_QUOTAS=0` on `fam` (everyone unlimited for now).
 
 **metering.db**: `usage`, one row per episode: tokens (including
 `cache_read_tokens`/`cache_write_tokens`, §179), web searches (`web_searches`; renamed from the first vendor's name in §279), live calls,
@@ -391,16 +392,23 @@ and live records stay. When Nando's tree prunes or moves a node, facts,
 intake records and readings filed under it are re-filed to the nearest
 surviving ancestor (`housekeeper.db`, `refiles`, records each one).
 
-**x_threads.db** (`x_threads.Store`, §321): `/admin/x`'s cards. `candidates`,
-one row per public X post a search found worth replying to - its text, the
-author's handle, name and follower count, the episode it matched, the drafted
-reply, and the admin's verdict (and, once approved, the words handed to X);
-since §368 also the relevance judgement (`assess`, `relevance`), up to five
-public replies read as context (`replies`), and when the admin heard the
-episode through its link (`listened_at`).
-`runs`, what each search asked and how many posts it read, which is how the
-daily read ceiling is counted. No listener's data; pruned after 7 days. Read
-only by `/admin/x`.
+**communities.db** (`communities.Store`, §579): `/admin/groups`' leads.
+`leads`, one row per Facebook group, subreddit, X Community, Discord server
+or Slack community a web search found: its name, public page, member count,
+the public way to its admins (the group's admin list, modmail, its
+moderators page), an email only when the community publishes one as its
+contact on that page, an admin's name or handle only when that page states
+it, the three hypothesised episodes and the drafted first message, a kept
+episode that fits, and the admin's status, notes and the handle they found;
+since §581 whether a run found it or a person sent it to Egan (`source`),
+the sender's note (phone numbers removed) and what its facts were read from
+(Reddit's or X's API, or a web search).
+**No phone number is ever stored** (`communities.strip_phones` runs over
+every text kept, the notes included). `runs`, what each search asked and how
+many searches it spent, counted as each is made (§582), which is how the
+daily ceiling is counted. No
+listener's data; untouched leads pruned after 30 days. Read only by
+`/admin/groups`. (Replaced `x_threads.db`, §321, removed in §579.)
 
 **episode_quality.db** (`episode_quality.QualityStore`, §309): how well each
 written episode was written. `episodes`, one row per episode cached anywhere
@@ -584,7 +592,7 @@ is never accepted from the client (`listener-id-server`).
 | BALLDONTLIE | Per minute, from the plan (`BALLDONTLIE_TIER`: free 5, all-star 60, goat 600) | `balldontlie.PER_MINUTE` |
 | GDELT export copy | 24 hours kept, 1,500 articles per file, 8 files backfilled, polled every 900 s; stale after 1 h (§211; the breaker is deleted) | `config.py:820-831`, `gdelt.STALE_AFTER_SECONDS` |
 | Pace per listener | 1 generation per 3 s, burst 3; 60 reads per window | `config.py:1456-1466` |
-| Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **On in production** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |
+| Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **Off in production for now** (`ENFORCE_QUOTAS=0` in `render.yaml`, §519; on from §207), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |
 | Waitlist referrals | ≤ 20 credited per code per hour | `WAITLIST_REFERRALS_PER_HOUR` |
 | Admin SQL | Read-only SELECT, 500 rows, 4 s | `admin_tracker.py:62-64` |
 | Account visibility | A listener id is only ever taken from the server-minted session, never from a parameter | `app._listener` |

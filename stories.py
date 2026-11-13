@@ -479,6 +479,10 @@ class Story:
     live_line: str = ""
     live_status: str = ""
     live_as_of: float = 0.0
+    #: When `live_status` last changed - first set, or moved on - as this
+    #: server saw it (§545). `live_as_of` moves on every sweep, so it cannot
+    #: say "the result came in after you last listened"; this can.
+    status_at: float = 0.0
     #: The category-tree node this story is about (`categories`), chosen by
     #: the composer and resolved against the tree in code
     #: (`resolve_category`). What the tile's picture and its facet label are
@@ -726,6 +730,47 @@ def recent_demand(now: Optional[float] = None) -> bool:
     return bool(_DEMAND[0]) and now - _DEMAND[0] <= float(settings.stories_demand_seconds)
 
 
+#: §562 (the owner, 11.12, "sweep scores for followers with finals on"): the
+#: names followed by people who have finals notifications on and somewhere
+#: to receive them, published by the push loop (`push_stories.tick`). The
+#: sports sweep counts them as demand - for games naming one of them only
+#: (`balldontlie_scores`). Stale after `FINALS_FOLLOWED_SECONDS`, so a push
+#: loop that stopped stops the sweep it asked for.
+_FINALS_FOLLOWED: dict = {"names": (), "at": 0.0}
+FINALS_FOLLOWED_SECONDS = 15 * 60.0
+
+
+def note_finals_followed(names, now: Optional[float] = None) -> None:
+    """The push loop's current list. Never raises."""
+    now = time.time() if now is None else now
+    _FINALS_FOLLOWED["names"] = tuple(sorted({str(n).strip() for n in names or ()
+                                              if str(n).strip()}))
+    _FINALS_FOLLOWED["at"] = now
+
+
+def finals_followed(now: Optional[float] = None) -> tuple:
+    """The names whose games the sweep may follow for finals, or () when
+    nobody wants one (or the list is stale)."""
+    now = time.time() if now is None else now
+    if now - float(_FINALS_FOLLOWED["at"] or 0.0) > FINALS_FOLLOWED_SECONDS:
+        return ()
+    return _FINALS_FOLLOWED["names"]
+
+
+_NAME_WORD = re.compile(r"[a-z0-9]+")
+
+
+def names_a_followed(text: str, names) -> bool:
+    """Whether any of `names` is in `text` as whole words, in order."""
+    have = _NAME_WORD.findall((text or "").lower())
+    for name in names or ():
+        want = _NAME_WORD.findall(str(name).lower())
+        n = len(want)
+        if n and any(have[i:i + n] == want for i in range(len(have) - n + 1)):
+            return True
+    return False
+
+
 def register(source: StorySource) -> None:
     _SOURCES.append(source)
     log.info("stories: registered %s (%s)", source.name, source.domain)
@@ -830,6 +875,7 @@ def reset() -> None:
     _HELD.clear()
     _LAST_SWEPT.clear()
     _DEMAND[0] = 0.0
+    _FINALS_FOLLOWED.update(names=(), at=0.0)
     _SOURCES.clear()
 
 
@@ -1110,6 +1156,7 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
         live_line=signal.live_line,
         live_status=signal.live_status,
         live_as_of=now if signal.live_line else 0.0,
+        status_at=now if signal.live_status else 0.0,
         minor_league=bool(getattr(signal, "minor_league", False)),
         observation=signal.observation,
         observed_at=now,
@@ -1874,6 +1921,13 @@ def _seen_again(previous: Story, signal, now: float,
         live_line=live_line,
         live_status=live_status,
         live_as_of=now if signal.live_line else previous.live_as_of,
+        # A story held from before `status_at` existed takes its last known
+        # time, not this sweep's, so a result that came in last night is not
+        # reported as new to somebody who listened this morning.
+        status_at=(now if signal.live_status and signal.live_status != previous.live_status
+                   else (previous.status_at
+                         or ((previous.live_as_of or previous.first_seen)
+                             if live_status else 0.0))),
         outcome_pending=(bool(signal.outcome_pending) if signal.live_status
                          else previous.outcome_pending),
         query=query,

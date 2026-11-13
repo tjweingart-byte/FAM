@@ -17,6 +17,7 @@ import dataclasses
 import hmac
 import html
 import os
+import sys
 import json
 import logging
 import random
@@ -26,7 +27,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from urllib.parse import quote
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from typing import Annotated, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -66,6 +67,7 @@ import oauth
 import apple_tokens
 import quotas
 import feedback as feedback_mod
+import surveys as surveys_mod
 import consent as consent_mod
 import activation as activation_mod
 import image_check
@@ -100,7 +102,7 @@ import autocorrect as autocorrect_mod
 import categories as categories_mod
 import topics as topics_mod
 import thumbnails as thumbnails_mod
-import x_threads
+import communities
 import accounts as accounts_mod
 import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
@@ -109,6 +111,7 @@ import mixes as mixes_mod
 import topic_title
 import mail as mail_mod
 import push as push_mod
+import push_stories
 import listener_clock
 import preferences as prefs_mod
 import social as social_mod
@@ -632,6 +635,17 @@ def _rails_edition_report() -> dict:
         return {"enabled": bool(settings.rails_edition), "error": str(exc)}
 
 
+def _written_ahead_report() -> dict:
+    """`ahead_budget.report()` without its history, never able to break the
+    health page."""
+    try:
+        import ahead_budget
+
+        return ahead_budget.report(history=False)
+    except Exception as exc:  # noqa: BLE001 - health must always answer
+        return {"error": str(exc)}
+
+
 def _write_mix_on_open(mix) -> bool:
     """A dormant mix was opened: write its episodes now, in the background
     (§359). A mix the edition is keeping (played in the last 48 hours) is
@@ -654,6 +668,20 @@ def _trending_bank_report() -> dict:
         return {"enabled": bool(settings.trending_bank), "error": str(exc)}
 
 
+def _warm_first_calls() -> None:
+    """Load at boot what the first health check and the first myFAM draw
+    would load on a listener's time (§548). Never raises: each is loaded
+    again, on demand, if this did not."""
+    for name, warm in (("agents", agent_models.health),
+                       ("thumbnail styles", thumbnails_mod.style_references),
+                       ("semantic ranker", taste_vectors.enabled),
+                       ("http client", http2_enabled)):
+        try:
+            warm()
+        except Exception:  # noqa: BLE001 - a warm-up is never worth a boot
+            log.exception("could not warm the %s at boot", name)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Whether zero spend's network guard can see this loop's connections
@@ -667,6 +695,11 @@ async def lifespan(_: FastAPI):
     # The autocorrect word list, likewise (§142) - in a thread and not
     # awaited, so it costs startup nothing and the first word typed nothing.
     asyncio.get_running_loop().run_in_executor(None, autocorrect_mod.warm)
+    # The pronouncing dictionary `spoken_text` asks whether capitals are a
+    # word (§567): about half a second, never spent before a sentence.
+    import hard_words as _hard_words
+
+    asyncio.get_running_loop().run_in_executor(None, _hard_words.warm)
     # Before a listener finds out the hard way.
     await _verify_credentials()
     await _verify_small_models()
@@ -831,15 +864,18 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(rails_edition.run_forever(
             generator=_EDITION_WRITER, cache=SCRIPT_CACHE,
             initial_delay=3 * settings.boot_stagger_seconds)))
-    # "Your mix is ready" at each mix's listen time, once its edition is
+    # "Your myFAM is ready" once a day per person, once the edition is
     # written (`push.py`). Started only where it can deliver; a server
-    # without keys logs why once and keeps every listen time for later.
+    # without keys logs why once and keeps every choice for later.
     push_ready = push_mod.status()
     if push_ready["available"]:
+        # §562: one daily reminder per person, and big stories and followed
+        # finals (`push_stories.py`), each written before it is told.
         _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(
-            MIXES, PUSH, allowed=_may_be_notified)))
+            MIXES, PUSH, allowed=_may_be_notified, plays=_push_plays,
+            stories=_push_stories_pass)))
     else:
-        log.info("mix notifications: off - %s", push_ready["reason"])
+        log.info("notifications: off - %s", push_ready["reason"])
     # How the voice is found, and a loop that keeps that answer fresh. Both
     # are no-ops unless VOICE_BACKEND=remote: an in-process card is not
     # somewhere that can move.
@@ -857,6 +893,10 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
     # Unheard episodes drawn from an older bank draw again (§333).
     _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
+    # What the first /api/health and the first myFAM would otherwise pay
+    # (§548): the agents' modules, the house style's pictures and the
+    # ranker's semantic model, loaded in a thread while nobody waits.
+    _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_warm_first_calls)))
     # The server's own size once a minute, and a full report in the log the
     # first time each boot it crosses each watch line (§334).
     _BACKGROUND.add(asyncio.create_task(_watch_memory_forever()))
@@ -1056,7 +1096,35 @@ def _make_pipeline(voice: Optional[str] = None,
                            author=author)
 
 
+#: How long /api/health keeps a report that only counts things (§548).
+HEALTH_REPORT_SECONDS = 15.0
+_HEALTH_MEMO: dict = {}
+
+
+def _health_memo(name: str, ident: tuple, build):
+    """`build()`, kept `HEALTH_REPORT_SECONDS` while `ident` is unchanged.
+
+    For the reports that count rows and nothing else - the cache's totals
+    scan every script. Never for a check that performs the real action
+    ([verify-not-inspect]: the databases' reads, the build) - those run on
+    every call, off the event loop."""
+    clock = time.monotonic()
+    held = _HEALTH_MEMO.get(name)
+    if held is not None and held[0] == ident and clock - held[1] < HEALTH_REPORT_SECONDS:
+        return held[2]
+    value = build()
+    _HEALTH_MEMO[name] = (ident, clock, value)
+    return value
+
+
 def _cache_report() -> dict:
+    return _health_memo(
+        "cache", (id(SCRIPT_CACHE), settings.audio_cache, settings.cache_vector,
+                  settings.cache_semantic_key),
+        _cache_report_now)
+
+
+def _cache_report_now() -> dict:
     if SCRIPT_CACHE is None:
         return {"enabled": False}
     report = {"enabled": True, "semantic_key": settings.cache_semantic_key}
@@ -1071,9 +1139,10 @@ def _cache_report() -> dict:
     # voice engine, and how much of the ceiling that audio is using - the
     # disk it lives on is shared with every other database.
     report["audio"] = settings.audio_cache
+    stats = None
     if settings.audio_cache:
         try:
-            held = SCRIPT_CACHE.stats()
+            held = stats = SCRIPT_CACHE.stats()
         except Exception:
             held = {}
         report["audio_entries"] = held.get("audio_entries")
@@ -1085,7 +1154,8 @@ def _cache_report() -> dict:
         report["threshold"] = settings.cache_vector_threshold
         report["overlap"] = settings.cache_vector_overlap
     if isinstance(SCRIPT_CACHE, (MemoryScriptCache, SqliteScriptCache)):
-        report.update(SCRIPT_CACHE.stats())
+        # The one read above, when there was one: it is the same moment.
+        report.update(stats if stats is not None else SCRIPT_CACHE.stats())
     return report
 
 
@@ -1139,6 +1209,7 @@ def _database_report() -> list[dict]:
         ("quotas", "QUOTAS_DB", QUOTAS.path),
         ("metering", "METERING_DB", METER.path),
         ("feedback", "FEEDBACK_DB", FEEDBACK.path),
+        ("surveys", "SURVEYS_DB", SURVEY_STORE.path),
         ("consent", "CONSENT_DB", CONSENT.path),
         ("moderation", "MODERATION_DB", MODERATION.path),
         # The grown ranking vocabulary. Reported like the rest rather than
@@ -1214,10 +1285,10 @@ def _database_report() -> list[dict]:
                            thumbnails_mod.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
-    # Conversations on X (§321): created by the first search on /admin/x.
-    if x_threads._exists():
+    # Communities to reach (§579): created by the first search on /admin/groups.
+    if communities._exists():
         try:
-            stores.append(("x threads", "X_THREADS_DB", x_threads.store().path))
+            stores.append(("communities", "COMMUNITIES_DB", communities.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
     # Requests per outside service per day (§179). Created by the first
@@ -1785,6 +1856,12 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not anonymise feedback for %r", user_id)
         removed["feedback_anonymised"] = -1
+    # Survey answers stay in the totals, unnamed (`surveys.py`).
+    try:
+        removed["survey_answers_anonymised"] = SURVEY_STORE.forget(user_id)
+    except Exception:
+        log.exception("could not anonymise survey answers for %r", user_id)
+        removed["survey_answers_anonymised"] = -1
     try:
         removed["usage_rows_anonymised"] = METER.anonymise(user_id)
     except Exception:
@@ -2064,6 +2141,14 @@ def _usage_monitors_health() -> dict:
 
 @app.get("/api/health")
 async def health(request: Request) -> dict:
+    """What this server is running and whether each part of it works.
+
+    Built in a worker thread (§548): it reads every store, and on the event
+    loop each call held up every other request for its whole length."""
+    return await asyncio.to_thread(_health_report, request)
+
+
+def _health_report(request: Request) -> dict:
     # Built once and read twice: the list and the summary over it have to
     # describe the same moment, and calling the report a second time would
     # stat every database again to say the same thing.
@@ -2151,6 +2236,9 @@ async def health(request: Request) -> dict:
         "thumbnails": thumbnails_mod.health(),
         "daily_edition": _daily_edition_report(),
         "rails_edition": _rails_edition_report(),
+        # Everything written ahead today, per writer, against its own
+        # ceilings and the shared budget (§568); /admin has the history.
+        "written_ahead": _written_ahead_report(),
         # The ranking vocabulary, and how much of it this deployment grew
         # rather than inherited. Worth reporting for the reason every other
         # optional layer here is: a tree that had stopped growing, or one
@@ -2236,11 +2324,17 @@ async def health(request: Request) -> dict:
             # What an edition's episode is actually written on now - an
             # unavailable model has already fallen back (review, §269).
             "model": writer_for(ScriptNotes(edition=True))[0],
-            "effort": settings.edition_writer_effort or settings.effort,
+            "effort": writer_for(ScriptNotes(edition=True))[1],
             "configured": settings.edition_writer_model or "",
             "own": bool(settings.edition_writer_model
                         or settings.edition_writer_effort),
         },
+        # The writer's effort wherever nobody waits (§522): the editions,
+        # the write-ahead and prefetch warms. searchFAM is `writer_effort`.
+        "ahead_writer_effort": writer_for(ScriptNotes(ahead=True))[1],
+        "ahead_writer_effort_source": ("AHEAD_WRITER_EFFORT env var"
+                                       if os.environ.get("AHEAD_WRITER_EFFORT", "").strip()
+                                       else "config.py default"),
         # The two writer savings (§179), with where each came from: either
         # left at 0 in a dashboard would quietly undo it on every push.
         "writer_savings": {
@@ -2363,6 +2457,15 @@ async def health(request: Request) -> dict:
             # state, not a misconfiguration - see `sharing.landing_doors`.
             "landing_doors": sharing.landing_doors(settings.app_store_url),
             "targets": list(sharing.TARGET_KEYS),
+            # Which stories go straight into Instagram / Snapchat from the
+            # iOS app (INSTAGRAM_APP_ID, SNAPCHAT_CLIENT_ID); the rest take
+            # iOS's share sheet. Settable only here, so said here.
+            "story_handoffs": sorted(_story_handoffs()),
+            # An id that is set but not the shape the platform issues: the
+            # story goes through the share sheet, and this says why.
+            "story_handoff_problems": sharing.story_handoff_problems(
+                instagram_app_id=settings.instagram_app_id,
+                snapchat_client_id=settings.snapchat_client_id),
         },
         # "Your mix is ready" (push.py): whether this server can deliver, and
         # if not, the sentence the mix page shows.
@@ -2520,7 +2623,12 @@ async def auth_me(request: Request) -> dict:
             # Whether the activation step is still to do (§411): read here,
             # because this is what every open asks first. An old client
             # ignores it and keeps working.
-            "activation_needed": _activation_needed(listener)}
+            "activation_needed": _activation_needed(listener),
+            # Whether Settings offers "Set a password" or "Change password"
+            # (§571): an account made with none - a §296 join, Google, Apple -
+            # is offered the first one directly.
+            "has_password": bool(listener.is_authenticated
+                                 and _has_password(listener.user_id))}
 
 
 def _activation_needed(listener) -> bool:
@@ -2890,11 +2998,20 @@ async def auth_password_set(req: NewPasswordRequest, request: Request) -> dict:
     legitimate first set and sometimes an attempt to skip the check.
     """
     _rate_limit(request)
+    user = _require_account(request)
     try:
-        await asyncio.to_thread(ACCOUNTS.set_password,
-                                _require_account(request), req.new)
+        await asyncio.to_thread(ACCOUNTS.set_password, user, req.new)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Told, as a reset is (§571): a password set by somebody holding this
+    # session is not a silent one. Only where mail can be sent.
+    account = ACCOUNTS.account(user) or {}
+    if account.get("email") and mail_mod.status().get("available"):
+        mail_mod.send_later(
+            account["email"], "A password was set on your FAM account",
+            "A password was just set on your FAM account, so you can now sign "
+            "in with this address and that password on any device.\n\n"
+            "If that was not you, reset it from the log-in screen now.\n")
     return {"ok": True}
 
 
@@ -3116,6 +3233,12 @@ def _in_graph(me: str, other: str) -> bool:
     """Whether either of these two follows the other."""
     return bool(me and other and (SOCIAL.is_following(me, other)
                                   or SOCIAL.is_following(other, me)))
+
+
+def _mutual(me: str, other: str) -> bool:
+    """Friends: each follows the other (`op-follow-graph`)."""
+    return bool(me and other and me != other
+                and SOCIAL.is_following(me, other) and SOCIAL.is_following(other, me))
 
 
 def _reachable(me: str, other: str) -> bool:
@@ -3568,14 +3691,37 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
         members.append({"name": person.get("name") or "",
                         "handle": person.get("handle") or "",
                         "avatar": person.get("avatar") or "",
-                        "me": uid == me})
+                        "me": uid == me,
+                        # Whether this listener and that member follow each
+                        # other. Whoever made the group is friends with all
+                        # of it; the others may not be (§520).
+                        "friend": uid != me and _mutual(me, uid)})
     others = [m for m in members if not m["me"]]
     name = group.get("name") or ", ".join(
         _first_name(m) for m in others[:4]) + (" +%d" % (len(others) - 4)
                                                if len(others) > 4 else "")
     return {"user_id": gid, "group": True, "name": name or "Group",
             "named": bool(group.get("name")), "handle": "",
-            "avatar": group.get("avatar") or "", "members": members}
+            "avatar": group.get("avatar") or "", "members": members,
+            "warning": _group_warning([m for m in others if not m["friend"]])}
+
+
+def _group_warning(strangers: list[dict]) -> str:
+    """The sentence a member reads when the group holds people they are not
+    friends with (§520): who, and what that means. Composed here so every
+    client says the same thing; "" when they are friends with everyone."""
+    if not strangers:
+        return ""
+    names = [_first_name(m) or ("@" + m["handle"] if m.get("handle") else "someone")
+             for m in strangers]
+    if len(names) == 1:
+        who = names[0]
+    elif len(names) <= 3:
+        who = ", ".join(names[:-1]) + " and " + names[-1]
+    else:
+        who = ", ".join(names[:2]) + " and %d others" % (len(names) - 2)
+    return (f"You’re not friends with {who}. "
+            "Everyone in this group can see what you send here.")
 
 
 def _topic_label(query: str, title: str = "") -> str:
@@ -3893,6 +4039,12 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     if not messages_mod.is_group(req.to) and (
             MODERATION.is_apart(user, req.to) or MODERATION.is_suspended(req.to)):
         raise HTTPException(status_code=403, detail="You can't message this person.")
+    # A one-to-one message goes only between friends - two people who follow
+    # each other (the owner's rule, PROBLEMS.md §520). An id is not a
+    # permission: knowing somebody's id must not open a conversation.
+    if not messages_mod.is_group(req.to) and not _mutual(user, req.to):
+        raise HTTPException(status_code=403, detail=(
+            "You can message people who follow you back."))
     waiting = (WAITLIST.waitlisted_among([user] + recipients)
                if settings.waitlist else set())
     if waiting:
@@ -3949,12 +4101,13 @@ async def messages_new_group(req: GroupRequest, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     _require_can_post(user)
-    graph = {p["user_id"] for p in _without_apart(
-        user, SOCIAL.following(user) + SOCIAL.followers(user))}
+    # Friends only, as one-to-one (§520): a group is not a way round it.
+    graph = {p["user_id"] for p in _without_apart(user, SOCIAL.following(user))
+             if _mutual(user, p["user_id"])}
     picked = [u for u in dict.fromkeys(req.user_ids) if u in graph]
     if len(picked) != len(set(req.user_ids) - {user}):
         raise HTTPException(status_code=400, detail=(
-            "You can start a group with people you follow."))
+            "You can start a group with people who follow you back."))
     waiting = (WAITLIST.waitlisted_among([user] + picked)
                if settings.waitlist else set())
     if waiting:
@@ -4224,6 +4377,24 @@ def _share_url(share_id: str, request: Request | None = None) -> tuple[str, bool
     return (f"{base}/s/{share_id}" if base else f"/s/{share_id}"), bool(base)
 
 
+def _story_handoffs() -> dict[str, dict]:
+    """Instagram's and Snapchat's native hand-offs, from this server's ids."""
+    return sharing.story_handoffs(instagram_app_id=settings.instagram_app_id,
+                                  snapchat_client_id=settings.snapchat_client_id)
+
+
+def _with_handoffs(rendered: dict[str, dict]) -> dict[str, dict]:
+    """Each rendered story destination with its hand-off, where it has one.
+
+    A new optional field: a build that does not know it keeps the share
+    sheet, so no installed client changes (`old-clients`).
+    """
+    for key, handoff in _story_handoffs().items():
+        if key in rendered:
+            rendered[key]["handoff"] = handoff
+    return rendered
+
+
 @app.get("/api/share/targets")
 async def share_targets(request: Request) -> dict:
     """Where an episode can be sent, and what each destination can carry.
@@ -4233,13 +4404,17 @@ async def share_targets(request: Request) -> dict:
     destinations take the card from `/api/share/card` instead of the text.
     """
     _read_limit(request)
+    handoffs = _story_handoffs()
     return {"targets": [
         {"key": t.key, "label": t.label, "kind": t.kind,
          "needs_image": t.needs_image, "max_chars": t.max_chars,
          # Whether this destination has a URL to open at all. The rendered
          # one, with the wording in it, comes back from `/api/share`; this
          # only says which kind of hand-off a client should be ready for.
-         "has_destination": bool(t.destination)}
+         "has_destination": bool(t.destination),
+         # Whether the iOS app can hand a story straight to the platform's
+         # app (`sharing.story_handoffs`) rather than the share sheet.
+         "has_handoff": t.key in handoffs}
         for t in sharing.TARGETS]}
 
 
@@ -4277,7 +4452,7 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # it. The web app fetches either happily.
         "card": _card_url(share["id"], request)
                 or f"/api/share/card?share={quote(share['id'])}",
-        "targets": rendered,
+        "targets": _with_handoffs(rendered),
     }
 
 
@@ -4326,6 +4501,7 @@ async def share_read(share_id: str, request: Request) -> dict:
         record,
         url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request),
+        image_url=_preview_url(share_id, request),
         app_store=settings.app_store_url,
     )
 
@@ -4365,6 +4541,78 @@ def _card_url(share_id: str, request: Request | None = None) -> str:
     return f"{base}/api/share/card?share={quote(share_id)}" if base else ""
 
 
+def _preview_url(share_id: str, request: Request | None = None) -> str:
+    """The link preview's address, absolute or "" - the same refusal as
+    `_card_url`: a relative Open Graph image is no image at all."""
+    base = _public_base(request)
+    return f"{base}/api/share/{quote(share_id)}/preview.jpg" if base else ""
+
+
+#: Drawn previews, newest last: (share id, title) -> (drawn at, JPEG). A
+#: link is previewed once per app it is pasted into, all within minutes, so
+#: a few, briefly, are enough (each is a few hundred KB); nothing is stored.
+#: A hit skips the picture read as well as the drawing.
+_PREVIEWS: "OrderedDict[tuple, tuple[float, bytes]]" = OrderedDict()
+PREVIEW_MEMORY = 32
+PREVIEW_SECONDS = 600
+
+
+def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
+    """The episode's picture as the player draws it: (row id, bytes), or
+    ("", None) when there is none. Never raises."""
+    try:
+        import thumbnails
+
+        found = _player_picture(record.get("query") or "",
+                                record.get("title") or "",
+                                as_minutes(record.get("minutes")))
+        row = found.get("picture") or found.get("node") or ""
+        if not row or not thumbnails._exists():
+            return "", None
+        got = thumbnails.store().image(row)
+        return (row, got[0]) if got else ("", None)
+    except Exception:  # noqa: BLE001 - the cover is always there
+        log.exception("link preview: could not read the episode's picture")
+        return "", None
+
+
+@app.get("/api/share/{share_id}/preview.jpg")
+async def share_preview(share_id: str, request: Request) -> Response:
+    """The picture a shared link previews with (`link_preview`, §559).
+
+    Fetched by Messages, WhatsApp, X and the rest when the link is pasted:
+    the episode's picture, square, with FAM's badge and a play button, or
+    its title on FAM's ground when it has no picture. Public, like the link.
+    """
+    _read_limit(request)
+    record = SHARES.get(share_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="No such share.")
+    key = (share_id, record.get("title") or "")
+    now = time.time()
+    kept = _PREVIEWS.get(key)
+    if kept and now - kept[0] < PREVIEW_SECONDS:
+        _PREVIEWS.move_to_end(key)
+        data = kept[1]
+    else:
+        import link_preview
+
+        _row, picture = await asyncio.to_thread(_preview_picture, record)
+        data = await asyncio.to_thread(
+            link_preview.draw, picture, record.get("title") or "",
+            as_minutes(record.get("minutes"), 1))
+        if data is None:
+            raise HTTPException(status_code=404, detail="No preview.")
+        _PREVIEWS[key] = (now, data)
+        _PREVIEWS.move_to_end(key)
+        while len(_PREVIEWS) > PREVIEW_MEMORY:
+            _PREVIEWS.popitem(last=False)
+    # As briefly as the page that names it: a re-written title is a new
+    # picture within minutes, not an hour.
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
 #: Read once. The landing page is one small file and re-reading it per request
 #: would be a disk hit in front of a stranger's first second of FAM - which is
 #: the second this product cares about most.
@@ -4382,9 +4630,10 @@ def _landing_template() -> str:
 def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
     """What iOS reads from this domain to trust the app (APP_STORE.md).
 
-    `applinks`: a shared episode (`/s/<id>`) or mix (`/m/<id>`) opens in the
-    app when it is installed, and in the browser - the landing page, which
-    plays it - when it is not. `webcredentials`: the app may offer a FAM
+    `applinks`: a shared episode (`/s/<id>`), a mix (`/m/<id>`) or a joint
+    mix's invite (`/j/<token>`, §541) opens in the app when it is installed,
+    and in the browser - the landing page, which plays it, or the web app,
+    which joins the mix - when it is not. `webcredentials`: the app may offer a FAM
     password saved in iCloud Keychain. None until both ids are configured.
     """
     if not (team_id and bundle_id):
@@ -4393,7 +4642,7 @@ def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
     return {
         "applinks": {"details": [{
             "appIDs": [app_id],
-            "components": [{"/": "/s/*"}, {"/": "/m/*"}],
+            "components": [{"/": "/s/*"}, {"/": "/m/*"}, {"/": "/j/*"}],
         }]},
         "webcredentials": {"apps": [app_id]},
     }
@@ -4436,6 +4685,7 @@ async def share_open(share_id: str, request: Request):
     payload = sharing.landing_payload(
         record or {}, url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request) if record else "",
+        image_url=_preview_url(share_id, request) if record else "",
         app_store=settings.app_store_url,
     )
     return HTMLResponse(
@@ -4903,6 +5153,114 @@ async def admin_remove_pronunciation(name: str, request: Request) -> dict:
     return {"ok": pronunciation.lexicon().remove(name)}
 
 
+class PronunciationUpload(BaseModel):
+    csv: str = Field(..., max_length=2_000_000)
+
+
+class StressTrialRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+    #: A respelling to hear instead of the one on file - an uploaded proposal.
+    say: Optional[str] = Field(None, max_length=120)
+    sentence: bool = False
+
+
+@app.get("/api/admin/pronunciations/export")
+async def admin_export_pronunciations(request: Request) -> Response:
+    """Every respelling on file as a CSV, with Wikipedia's reading and a
+    sentence each name was met in, for a reviewer outside FAM (§549)."""
+    _require_admin(request)
+    import pronounce_review
+
+    body = await asyncio.to_thread(
+        pronounce_review.export_csv, voice_bank.bank(), SCRIPT_CACHE)
+    stamp = time.strftime("%Y-%m-%d")
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-pronunciations-{stamp}.csv"'})
+
+
+@app.get("/api/admin/pronunciations/review-prompt")
+async def admin_pronunciation_review_prompt(request: Request) -> dict:
+    """The fixed prompt that goes with a download (§549)."""
+    _require_admin(request)
+    import pronounce_review
+
+    return {"prompt": pronounce_review.PROMPT}
+
+
+@app.post("/api/admin/pronunciations/import")
+async def admin_import_pronunciations(req: PronunciationUpload,
+                                      request: Request) -> dict:
+    """Read a reviewer's CSV into proposals beside what is on file (§549).
+    Changes nothing: an admin accepts each one, which saves it as theirs."""
+    _require_admin(request)
+    import pronounce_review
+
+    stored = {r["name"]: (r["say"], r["source"]) for r in voice_bank.bank().pronunciations()}
+    try:
+        return pronounce_review.read_upload(req.csv, stored)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/admin/pronunciations/hear-variants")
+async def admin_hear_stress_variants(req: StressTrialRequest,
+                                     request: Request) -> dict:
+    """Say one name's respelling four ways - as the voice gets it now, and
+    three spellings that might carry its stress - and hear each back (§549).
+    Keeps nothing."""
+    _require_admin(request)
+    import pronounce_review
+    import voice_check
+
+    say = None
+    if req.say:
+        pair = pronunciation.clean(req.name, req.say)
+        if not pair:
+            raise HTTPException(status_code=400, detail=(
+                f"{req.say} is not a respelling the voice can use."))
+        say = pair[1]
+    try:
+        rows = await pronounce_review.hear_variants(
+            req.name.strip(), say=say, sentence=req.sentence)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except voice_check.VoiceCheckUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - the voice's own words
+        raise HTTPException(status_code=502, detail=(
+            f"The voice could not be heard: {exc}")[:400]) from exc
+    for row in rows:
+        row.pop("wav", None)
+    return {"name": req.name.strip(), "variants": rows}
+
+
+class CapsTrialRequest(BaseModel):
+    word: str = Field(..., min_length=2, max_length=12, pattern=r"^\s*[A-Za-z]{2,12}\s*$")
+    sentence: bool = False
+
+
+@app.post("/api/admin/pronunciations/hear-caps")
+async def admin_hear_caps(req: CapsTrialRequest, request: Request) -> dict:
+    """Say one word in capitals five ways - letters apart, dotted, the
+    letters' names, as written and in ordinary case - and hear each back
+    (§567), marking the one the voice is handed today. Keeps nothing."""
+    _require_admin(request)
+    import pronounce_review
+    import voice_check
+
+    word = req.word.strip().upper()
+    try:
+        rows = await pronounce_review.hear_caps(word, sentence=req.sentence)
+    except voice_check.VoiceCheckUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - the voice's own words
+        raise HTTPException(status_code=502, detail=(
+            f"The voice could not be heard: {exc}")[:400]) from exc
+    for row in rows:
+        row.pop("wav", None)
+    return {"word": word, "today": pronounce_review.caps_choice(word), "variants": rows}
+
+
 # ---------------------------------------------------------------- feedback
 #
 # Instant feedback (`feedback.py`): the button under the phone on the demo
@@ -5184,6 +5542,116 @@ async def admin_resolve_feedback(report_id: str, req: FeedbackResolve,
     if report is None:
         raise HTTPException(status_code=404, detail="No report with that id.")
     return {"ok": True, "report": report, "counts": FEEDBACK.counts()}
+
+
+# ---------------------------------------------------------------- surveys
+# Optional surveys (`surveys.py`, PROBLEMS.md §560): the episode check on the
+# What's next card, the day-3 check-in and the two-week wrap-up. Accounts
+# only; the server decides which one, if any, and when.
+
+class SurveyOffer(BaseModel):
+    moment: str = Field("open", max_length=20)
+
+
+class SurveyEpisode(BaseModel):
+    id: str = Field("", max_length=200)
+    title: str = Field("", max_length=300)
+
+
+class SurveyAnswer(BaseModel):
+    survey: str = Field(..., max_length=20)
+    answers: dict = Field(default_factory=dict)
+    episode: Optional[SurveyEpisode] = None
+    build: str = Field("", max_length=200)
+
+
+class SurveyDismiss(BaseModel):
+    survey: str = Field(..., max_length=20)
+
+
+def _survey_account(request: Request) -> Optional[dict]:
+    """The asker's account, or None for a guest - who is never surveyed."""
+    if not _has_account(request):
+        return None
+    return ACCOUNTS.account(_listener(request))
+
+
+@app.get("/api/surveys")
+async def list_surveys(request: Request) -> dict:
+    """Every survey as the client draws it, for a client that wants to cache
+    them (iOS). Which one to show is `/api/surveys/offer`'s answer."""
+    account = _survey_account(request) or {}
+    return {"surveys": [surveys_mod.definition(sid, known=account)
+                        for sid in surveys_mod.SURVEYS]}
+
+
+@app.post("/api/surveys/offer")
+async def offer_survey(req: SurveyOffer, request: Request) -> dict:
+    """The survey to show at this moment, or `survey: null`.
+
+    Asked by the client when it *can* show one - the app came to the front
+    with nothing playing (`open`), or the What's next card is up
+    (`episode_end`) - because an answer here is recorded as offered, and the
+    same survey is not offered again for a day.
+    """
+    account = _survey_account(request)
+    if account is None or req.moment not in surveys_mod.MOMENTS:
+        return {"survey": None}
+    try:
+        created = account.get("created")
+        sid = SURVEY_STORE.offer(_listener(request), req.moment,
+                                 account_created=float(created) if created else None)
+    except Exception:
+        log.exception("could not decide a survey; offering none")
+        return {"survey": None}
+    return {"survey": surveys_mod.definition(sid, known=account) if sid else None}
+
+
+@app.post("/api/surveys/answer")
+async def answer_survey(req: SurveyAnswer, request: Request) -> dict:
+    """Keep one response. Every answer is optional; an empty one is refused
+    with a sentence saying so."""
+    user = _require_account(request)
+    ep = req.episode or SurveyEpisode()
+    try:
+        row = SURVEY_STORE.answer(
+            user, req.survey, req.answers, episode_id=ep.id,
+            episode_title=ep.title,
+            build=" @ ".join(x for x in (req.build.strip(),
+                                         _build_report()["short"]) if x))
+    except surveys_mod.SurveyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "id": row["id"]}
+
+
+@app.post("/api/surveys/dismiss")
+async def dismiss_survey(req: SurveyDismiss, request: Request) -> dict:
+    """'Not now': offered again in a day, and never after the third."""
+    user = _require_account(request)
+    if not SURVEY_STORE.dismiss(user, req.survey):
+        raise HTTPException(status_code=400, detail="There is no such survey.")
+    return {"ok": True}
+
+
+@app.get("/api/admin/surveys")
+async def admin_surveys(request: Request) -> dict:
+    """Each survey's tallies: offered, put off, answered, and per question."""
+    _require_admin(request)
+    return {"surveys": SURVEY_STORE.summary()}
+
+
+@app.get("/api/admin/surveys/{survey_id}.csv")
+async def admin_surveys_csv(survey_id: str, request: Request) -> Response:
+    """Every response to one survey, one row each, with the listener id so it
+    can be joined to what they did (Ask the database)."""
+    _require_admin(request)
+    try:
+        body = SURVEY_STORE.csv(survey_id)
+    except surveys_mod.SurveyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-survey-{survey_id}.csv"',
+        "Cache-Control": "no-store"})
 
 
 # ---------------- Reporting and blocking (App Store 1.2) ----------------
@@ -5650,6 +6118,7 @@ MESSAGES = messages_mod.MessageStore()
 SAVED = saved_mod.SavedStore()
 SHARES = sharing.ShareStore()
 FEEDBACK = feedback_mod.FeedbackStore()
+SURVEY_STORE = surveys_mod.SurveyStore()
 CONSENT = consent_mod.ConsentStore()
 MODERATION = moderation_mod.ModerationStore()
 REPORT_ALERTS = moderation_mod.ReportAlerts()
@@ -5812,6 +6281,9 @@ def carry_the_session(app):
         if scope["type"] != "http":
             await app(scope, receive, send)
             return
+        # Somebody sent this: its database work never waits on the share
+        # background work is held to (§574).
+        db_mod.for_request()
         request = Request(scope, receive)
         path = request.url.path
         wants_identity = path == "/" or (
@@ -5924,6 +6396,21 @@ def _shared_episode_request(request: Request) -> bool:
     """
     path = request.url.path
     if path.startswith("/api/share/") and path.endswith("/open"):
+        return True
+    # The share itself (`share_read`), which the app reads to play a
+    # `/s/<id>` link it was opened with (§575) - the web page has it in its
+    # HTML. Public by construction, and a 404 for anything that is not one.
+    if (request.method in ("GET", "HEAD") and path.startswith("/api/share/")
+            and path.count("/") == 3 and path != "/api/share/card"):
+        return True
+    # The pictures the page names in its head (§575): the link preview's
+    # JPEG and the story card. They are fetched by Messages, WhatsApp, X and
+    # the rest - none of which has an account - so behind the gate a shared
+    # link drew only its title and FAM's icon. Both are public by design and
+    # each is a 404 for any id that is not a share.
+    if request.method in ("GET", "HEAD") and (
+            path == "/api/share/card"
+            or (path.startswith("/api/share/") and path.endswith("/preview.jpg"))):
         return True
     if path != "/api/audio":
         return False
@@ -6572,19 +7059,69 @@ async def list_mixes(request: Request):
     # can only refuse (`old-clients`).
     wants_joint = request.query_params.get("joint") == "1"
     joint = MIXES.joint_ids([m.id for m in own])
+    # A mix added from somebody else's says whose it was; a joint mix
+    # (11.7 packet) says who is in it and who added what - the ones this
+    # listener owns, then the ones they were invited into.
+    shown = list(own) + ([m for m in MIXES.joined(user)
+                          if not MODERATION.is_apart(m.user_id, user)]
+                         if wants_joint else [])
+    # One read of the listening history for every mix's signals (§545).
+    history = _mix_history(user)
     return {
-        # A mix added from somebody else's says whose it was; a joint mix
-        # (11.7 packet) says who is in it and who added what - the ones this
-        # listener owns, then the ones they were invited into.
-        "mixes": [_mix_out(m, user, people, m.id in joint) for m in own]
-                 + ([_mix_out(m, user, people, True) for m in MIXES.joined(user)
-                     if not MODERATION.is_apart(m.user_id, user)]
-                    if wants_joint else []),
+        # Each with its pictures and what changed since this listener last
+        # heard it (§545), via `_mix_out`.
+        "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user, history)
+                  for m in shown],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
             for name, ids in mixes_mod.STARTER_MIXES
         ],
     }
+
+
+def _fresh_mix_ids(mixes: list, now: Optional[float] = None) -> list:
+    """The mixes whose episodes this morning's edition wrote and nobody has
+    played since (§550): what the dot on the myFAM tab invites a tap on.
+
+    Only an edition that finished counts - a dot for a mix nobody wrote
+    would be an invitation to a wait - and neither a mix made after it ran
+    nor one dormant when it ran is in it, because the edition wrote neither.
+    A read of what is stored; [] on any failure (a dot is never worth an
+    error)."""
+    now = time.time() if now is None else now
+    try:
+        slot = daily_edition.last_slot(now)
+        status = daily_edition.store().status(daily_edition.slot_id(slot)) or {}
+        if status.get("status") != daily_edition.READY:
+            return []
+        built = float(status.get("built_at") or slot.timestamp())
+        return [m.id for m in mixes
+                if getattr(m, "items", None)
+                and float(getattr(m, "created_at", 0.0) or 0.0) < built
+                and daily_edition.is_active(m, built)
+                and float(getattr(m, "played_at", 0.0) or 0.0) < built]
+    except Exception:  # noqa: BLE001
+        log.exception("could not read which mixes are new this morning")
+        return []
+
+
+@app.get("/api/mixes/fresh")
+async def fresh_mixes(request: Request) -> dict:
+    """Which of this listener's mixes have a new edition waiting (§550), and
+    the edition it is - the client draws one dot per edition and clears it
+    once the listener has looked. A guest has no mixes: an empty answer,
+    never a 401, because the tab bar asks on every screen."""
+    _read_limit(request)
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated:
+        return {"fresh": [], "edition": ""}
+    user = listener.user_id
+    shown = list(MIXES.list_for_user(user)) + [
+        m for m in MIXES.joined(user) if not MODERATION.is_apart(m.user_id, user)]
+    now = time.time()
+    fresh = _fresh_mix_ids(shown, now)
+    edition = daily_edition.slot_id(daily_edition.last_slot(now)) if fresh else ""
+    return {"fresh": fresh, "edition": edition}
 
 
 @app.get("/api/mixes/sample")
@@ -6770,7 +7307,50 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
     return out
 
 
-def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
+def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None) -> dict:
+    """One mix as this viewer sees it, with each topic's picture and what
+    changed since they last heard it (§545) - on every route that answers
+    with a mix, so adding or reordering a topic never drops either.
+
+    `history` is the viewer's listening history when the caller has already
+    read it (the list reads it once for every mix); None reads it here."""
+    body = _mix_body(mix, viewer, people, joint)
+    _mix_pictures(mix, body)
+    _mix_episode_titles(body)
+    _mix_signals(viewer, [(mix, body)], history)
+    return body
+
+
+def _mix_episode_titles(body: dict) -> None:
+    """Each row called by today's episode, not its topic (§570, the owner
+    11.12): once the edition has written a topic's episode for today, the row
+    carries that episode's own title as `episode_title` - a new one every
+    day, because every day is a new episode. The topic's name stays in
+    `title`, because a reorder sends it back as the item (`_merged_topics`)
+    and must never rename the topic after one day's story. Absent when
+    today's episode is not written yet; the client then shows the topic.
+    A cache read per row, never a write or a model call; never fails the mix."""
+    for out in body.get("items") or ():
+        try:
+            title = _today_title(out.get("prompt") or "", out.get("minutes"))
+        except Exception:  # noqa: BLE001 - a missing title is no title
+            title = ""
+        if title:
+            out["episode_title"] = title
+
+
+def _mix_pictures(mix, body: dict) -> None:
+    """Each topic row's picture (§545): the player's own picker over the
+    item's words, so a row, its episode in the player and the card that
+    leads with it never disagree. "" when nothing is approved; the client
+    draws the subject's icon. Never fails the mix."""
+    for item, out in zip(mix.items, body.get("items") or ()):
+        words = item.title if item.title.lower() in (item.query or "").lower() else \
+            f"{item.query} {item.title}".strip()
+        out["picture"] = _picture_url(words, item.title)
+
+
+def _mix_body(mix, viewer: str, people: dict, joint: bool) -> dict:
     """One mix as this viewer sees it.
 
     The owner sees everything (`as_dict`); a member of a joint mix sees what
@@ -6804,6 +7384,91 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool) -> dict:
         if who in index:
             out["added_by"] = index[who]
     return body
+
+
+def _mix_history(user: str) -> list:
+    """The listening history `_mix_signals` reads; [] when it cannot be read
+    (a signal is never worth an error)."""
+    try:
+        return SAVED.history(user, limit=400) if user else []
+    except Exception:  # noqa: BLE001
+        log.exception("could not read the history for mix signals")
+        return []
+
+
+def _mix_signals(user: str, pairs: list, history=None) -> None:
+    """Mark what changed in each mix since this listener last heard it (§545).
+
+    `pairs` is `[(Mix, served dict), ...]`; each served dict gains `signal`
+    (R5 on the card: kind, label, topic, headline, picture) when one of its
+    items has one, and each such item gains `signal` and `since` (Q5's
+    bubbles). A read of what is held - the listening history, the Trending
+    edition and story pool in memory, the script cache - so nothing here
+    waits or writes, and **nothing here may fail the list**: any error leaves
+    the mixes as they were and is logged.
+    """
+    from datetime import datetime
+
+    import signals as signals_mod
+
+    try:
+        now = time.time()
+        rows = _mix_history(user) if history is None else history
+        heard_by_query: dict = {}
+        for row in rows:                       # newest first: keep the first
+            heard_by_query.setdefault(normalize_query(row.get("query") or ""), row)
+        edition = trending_bank.stories_in_memory(now)
+        try:
+            pool = stories_mod.pool().held(now)
+        except Exception:  # noqa: BLE001 - no pool is no trending, not an error
+            pool = []
+        zone = listener_clock.zone()
+        for mix, body in pairs:
+            found_all = []
+            for item, out in zip(mix.items, body.get("items") or ()):
+                if not getattr(item, "follow", False):
+                    continue
+                prompt = out.get("prompt") or ""
+                heard = signals_mod.Heard()
+                if normalize_query(prompt) in heard_by_query:
+                    heard.today = True
+                else:
+                    for earlier in mixes_mod.earlier_prompts(prompt, signals_mod.SINCE_DAYS):
+                        row = heard_by_query.get(normalize_query(earlier))
+                        if row:
+                            heard.at = float(row.get("at") or 0.0)
+                            heard.title = (row.get("title") or "").strip()
+                            break
+                found = signals_mod.item_signal(item, edition, pool, heard, now)
+                if found is None:
+                    continue
+                found_all.append(found)
+                out["signal"] = {"kind": found.kind, "label": signals_mod.LABELS[found.kind],
+                                 "headline": found.headline}
+                day = (datetime.fromtimestamp(heard.at, zone).strftime("%a")
+                       if heard.at else "")
+                out["since"] = signals_mod.bubbles(
+                    heard, _today_title(prompt, out.get("minutes")) or found.headline, day)
+            best = signals_mod.strongest(found_all)
+            if best is not None:
+                best.picture = _picture_url(best.query, best.headline)
+                body["signal"] = best.card()
+    except Exception:  # noqa: BLE001 - a signal is never worth the mixes list
+        log.exception("could not work out what changed in this listener's mixes")
+
+
+def _today_title(prompt: str, minutes) -> str:
+    """The title of today's episode of a mix item, when it is written; ""
+    otherwise. A cache read, never a write."""
+    if not prompt or SCRIPT_CACHE is None:
+        return ""
+    try:
+        key = _episode_key(_validated_plan(prompt, as_minutes(minutes or BROWSE_MINUTES)))
+        if not key or not _cache_holds(key):
+            return ""
+        return (SCRIPT_CACHE.title(key) or "").strip()
+    except Exception:  # noqa: BLE001 - a missing title is no title
+        return ""
 
 
 def _record_mix_adds(mix, before=None, by: str = "") -> None:
@@ -6880,27 +7545,101 @@ def _may_be_notified(user_id: str) -> bool:
         return False
 
 
-# ---------------- "Your mix is ready" (the 10.1 packet, third set) ----------------
+# ---------------- Notifications (the 10.1 packet, third set; §562) ----------------
 #
-# A mix's listen time is when this server tells the listener's phone the mix
-# is ready; it never moves when the episodes are written. `push.py` has the
-# rules. These three let a page (or, later, the native app) say whether this
-# server can deliver at all, and hand over or take back where to deliver.
+# One daily reminder per person ("Your myFAM is ready"), big stories, and
+# followed finals. `push.py` and `push_stories.py` have the rules. These let
+# a page (or the native app) say whether this server can deliver at all,
+# hand over or take back where to deliver, and keep the listener's choices.
 
 class PushSubscription(BaseModel):
     #: The browser's PushSubscription.toJSON(): {endpoint, keys: {p256dh, auth}}.
     subscription: dict = Field(default_factory=dict)
+    #: The listener's IANA zone (§562), kept with their choices so the daily
+    #: time and quiet hours are on their clock. Unreadable reads as unset.
+    tz: Optional[str] = Field(None, max_length=64)
+
+
+class PushPrefs(BaseModel):
+    daily: Optional[bool] = None
+    #: "HH:MM", or "" to go back to the learned time.
+    daily_at: Optional[str] = Field(None, max_length=8)
+    breaking: Optional[bool] = None
+    finals: Optional[bool] = None
+    tz: Optional[str] = Field(None, max_length=64)
+
+
+def _push_plays(user_id: str) -> list:
+    """When this person played anything, newest first: what the daily
+    reminder learns its time from, and how it knows it was ignored."""
+    return [e.at for e in EVENTS.for_user(user_id, 400)
+            if e.kind in ("play", "complete")]
+
+
+def _push_follows(user_id: str) -> list:
+    """What this person chose to follow (§562): the subjects in their mixes
+    and their chosen interests that name one. Never what they were inferred
+    to like - a phone is told only about what they asked to hear about."""
+    names: list = []
+    for mix in MIXES.list_for_user(user_id):
+        for item in mix.items:
+            names.extend(push_stories.names_of_item(item))
+    try:
+        names.extend(push_stories.names_of_interests(PREFS.get(user_id).interests))
+    except Exception:  # noqa: BLE001 - the mixes still count
+        log.exception("push: could not read the interests of %r", user_id)
+    return names
+
+
+async def _push_stories_pass() -> None:
+    await push_stories.tick(PUSH, _push_follows, allowed=_may_be_notified,
+                            generator=_EDITION_WRITER, cache=SCRIPT_CACHE)
+
+
+def _push_choices(user_id: str) -> dict:
+    """Their switches, and when the daily reminder goes and why."""
+    prefs = PUSH.prefs(user_id)
+    mixes = [m for m in MIXES.list_for_user(user_id) if m.items]
+    at, _zone, source = push_mod.daily_time(prefs, mixes, _push_plays(user_id), time.time(),
+                                            push_mod.reminders_for(user_id, PUSH))
+    return {"daily": prefs["daily"], "daily_at": prefs["daily_at"],
+            "breaking": prefs["breaking"], "finals": prefs["finals"],
+            "daily_time": at, "daily_source": source}
 
 
 @app.get("/api/push")
 async def push_status(request: Request):
-    """Whether this server sends notifications, its public key if so, and
-    whether this listener has anywhere to receive one."""
+    """Whether this server sends notifications, its public key if so,
+    whether this listener has anywhere to receive one, and their choices."""
     _read_limit(request)
     body = push_mod.status()
     user = _listener(request)
-    body["subscribed"] = bool(user) and _has_account(request) and bool(PUSH.subscriptions(user))
+    account = bool(user) and _has_account(request)
+    body["subscribed"] = account and bool(PUSH.subscriptions(user))
+    if account:
+        # Somebody who subscribed before their zone was kept with their
+        # choices (§562) gets it from the clock every request carries, so
+        # their quiet hours and daily time are on their own clock, not the
+        # edition's. Only filled, never overwritten: Settings can pin one.
+        zone = push_mod.clean_zone(request.headers.get(listener_clock.HEADER, ""))
+        if zone and not PUSH.prefs(user)["tz"]:
+            PUSH.set_prefs(user, tz=zone)
+        body["prefs"] = await asyncio.to_thread(_push_choices, user)
     return body
+
+
+@app.post("/api/push/prefs")
+async def push_prefs(req: PushPrefs, request: Request):
+    """Change what this listener is told and when (§562)."""
+    _read_limit(request)
+    account = _require_account(request)
+    try:
+        PUSH.set_prefs(account, daily=req.daily, daily_at=req.daily_at,
+                       breaking=req.breaking, finals=req.finals,
+                       tz=req.tz if push_mod.clean_zone(req.tz) else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "prefs": await asyncio.to_thread(_push_choices, account)}
 
 
 @app.post("/api/push/subscribe")
@@ -6911,6 +7650,8 @@ async def push_subscribe(req: PushSubscription, request: Request):
         raise HTTPException(status_code=409, detail=push_mod.status()["reason"])
     try:
         PUSH.subscribe(account, req.subscription)
+        if push_mod.clean_zone(req.tz):  # unreadable never erases a kept zone
+            PUSH.set_prefs(account, tz=req.tz)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True}
@@ -7123,7 +7864,9 @@ async def public_mix(mix_id: str, request: Request) -> dict:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
     added = MIXES.added_from(viewer) if viewer and _has_account(request) else set()
-    return _public_mix(mix, viewer, added)
+    body = _public_mix(mix, viewer, added)
+    _mix_episode_titles(body)
+    return body
 
 
 @app.post("/api/mixes/{mix_id}/add")
@@ -7187,8 +7930,9 @@ async def share_mix(mix_id: str, request: Request) -> dict:
         "url": url,
         "public": public,
         "card": (base + card) if base else card,
-        "targets": {t.key: sharing.render_mix(t.key, name=mix.name, topics=titles, url=url)
-                    for t in sharing.TARGETS},
+        "targets": _with_handoffs(
+            {t.key: sharing.render_mix(t.key, name=mix.name, topics=titles, url=url)
+             for t in sharing.TARGETS}),
     }
 
 
@@ -7665,6 +8409,7 @@ def _mark_guest_tiles(tiles: list[dict], minutes: int) -> None:
     `playable` is the cheap half of `_guest_play_gated`: written script and
     kept audio, read from SQLite. Never a model call, never the voice."""
     written = _written_probe(minutes)
+    written.prime([tile.get("query", "") for tile in tiles])
     for tile in tiles:
         tile["cached"] = written(tile.get("query", ""))
         tile["playable"] = bool(tile["cached"]
@@ -7972,15 +8717,16 @@ async def myfam_section(request: Request,
         body["algo"] = EVENTS.algo_stamp()
         return topics_mod.page_section(body, _seen_ids(seen), page_size,
                                        wrap=not cycling)
-    written = _written_probe(minutes)
+    shared = _FeedProbe(minutes)  # one batch reader for the three (§548)
+    written = _written_probe(minutes, shared)
     try:
         place = _place_for(request)
         circle = SOCIAL.circle_of(user)
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
             circle=circle, written=written,
-            written_at=_written_at_probe(minutes),
-            episode_info=_episode_info_probe(minutes),
+            written_at=_written_at_probe(minutes, shared),
+            episode_info=_episode_info_probe(minutes, shared),
             authored=_authored_by_circle(circle),
             place=place.words, place_name=place.label,
             has_account=_has_account(request),
@@ -8023,7 +8769,8 @@ async def myfam_section(request: Request,
     return body
 
 
-def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
+def _mark_friends_listened(user: str, tiles: list[dict],
+                           public_searches_only: bool = False) -> list[dict]:
     """Who of your friends listened, on a DailyFAM card (the owner's 10.31
     notebook; faces in place of "N friends listened" at the owner's
     direction): `friends_listened` (the count, kept for installed clients)
@@ -8036,12 +8783,19 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     picture is up to `social.MAX_AVATAR` and one friend may be on a dozen
     cards. Name, handle, picture and the E mark (`explicit`, §224) only -
     what a friend's own profile already shows a friend - and never an id. A tile nobody listened to
-    carries no field. Never raises: social proof is never worth a page."""
+    carries no field. Never raises: social proof is never worth a page.
+
+    `public_searches_only` (the player, §543): a friend's listen with no
+    tile behind it - their own search, a replay - counts only if they made
+    their searches public (`searches_public`, §282)."""
     if not user or not tiles:
         return []
     try:
         people = {p["user_id"]: p for p in SOCIAL.friends(user)}
-        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles)
+        untiled = ([uid for uid in people if PREFS.get(uid).searches_public]
+                   if public_searches_only else None)
+        listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles,
+                                                   untiled=untiled)
     except Exception:  # noqa: BLE001 - the cards draw without it
         log.exception("could not read friends' listens")
         return []
@@ -8066,34 +8820,236 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     return faces
 
 
+@app.get("/api/listened")
+async def listened(request: Request,
+                   q: str = Query("", max_length=600,
+                                  description="The episode's question")):
+    """**Who of your friends listened**, on the player (the owner's 11.11
+    note): the same faces a DailyFAM card shows (`_mark_friends_listened`),
+    for whatever episode is playing, matched by its normalised question the
+    way every listen count is. Friends only, an account only, and an empty
+    answer rather than an error: social proof is never worth a page. It
+    answers any question, so a friend's own search shows only if their
+    searches are public (§282) - or anyone could learn what a friend
+    searched by searching it."""
+    _read_limit(request)
+    user = _listener(request)
+    if not user or not _has_account(request) or not q.strip():
+        return {"count": 0, "faces": []}
+    tile = {"id": "_player", "query": q.strip()}
+    faces = _mark_friends_listened(user, [tile], public_searches_only=True)
+    shown = [faces[i] for i in tile.get("friends_faces", []) if i < len(faces)]
+    return {"count": int(tile.get("friends_listened") or 0), "faces": shown}
+
+
 def _cycles_cached(key: str, cycle: str) -> bool:
     """Whether this View more deals written episodes only and ends "all
     caught up" (§286): Made for you, when the client asks for it."""
     return key == "from_history" and (cycle or "").strip().lower() == "cached"
 
 
-def _written_probe(minutes: int):
+#: The script_generator logger's lines are quiet on this thread while it is
+#: set: a browse page computes a key for every candidate tile, and
+#: `plan_episode` says "SEARCH yes" for each one - a thousand log lines a
+#: draw, about episodes nobody asked for (§548). Per thread, so a search
+#: being planned beside a draw still logs.
+_QUIET_PLANS = threading.local()
+
+
+class _QuietPlans(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not getattr(_QUIET_PLANS, "on", False)
+
+
+logging.getLogger("script_generator").addFilter(_QuietPlans())
+
+#: `(query, minutes, ...) -> cache key` for browse tiles, kept across
+#: requests (§548). A key is a pure function of the question, the length and
+#: the settings `_episode_key` reads, so every one of those is in the memo's
+#: own key - and the functions themselves, so a test that swaps one is never
+#: answered from the other's memo. Never under `SEARCH_MODE=auto`, where
+#: whether an episode is researched can depend on the day. None means the
+#: question is unaskable (`_validated_plan` refused it); "" that it has no
+#: shared identity. Still `_episode_key` and nothing else: this remembers its
+#: answers, it does not compute keys of its own ([prefetch-same-key]).
+_BROWSE_KEYS: dict = {}
+_BROWSE_KEYS_MAX = 50_000
+_BROWSE_KEYS_LOCK = threading.Lock()
+
+
+def _browse_key(query: str, minutes) -> Optional[str]:
+    # The settings each step reads, wherever it reads them from: a frozen
+    # settings object is replaced, never changed, so its identity says
+    # whether anything in it moved.
+    planned = getattr(sys.modules.get(getattr(plan_episode, "__module__", "")),
+                      "settings", settings)
+    keyed = getattr(sys.modules.get(getattr(cache_key, "__module__", "")),
+                    "settings", settings)
+    mode = getattr(planned, "search_mode", "always")
+    memo = (query, minutes, mode, id(settings), id(planned), id(keyed),
+            settings.model, settings.target_wpm, settings.cache_semantic_key,
+            settings.min_minutes, settings.max_minutes, plan_episode,
+            cache_key, is_shareable, _episode_key, _validated_plan)
+    if mode != "auto":
+        try:
+            return _BROWSE_KEYS[memo]
+        except KeyError:
+            pass
+    was = getattr(_QUIET_PLANS, "on", False)
+    _QUIET_PLANS.on = True
+    try:
+        plan = _validated_plan(query, minutes)
+    except HTTPException:
+        key = None
+    else:
+        key = _episode_key(plan)
+    finally:
+        _QUIET_PLANS.on = was
+    if mode != "auto":
+        with _BROWSE_KEYS_LOCK:
+            if len(_BROWSE_KEYS) >= _BROWSE_KEYS_MAX:
+                _BROWSE_KEYS.clear()
+            _BROWSE_KEYS[memo] = key
+    return key
+
+
+#: A batch read that failed, so the probes answer what their single-key
+#: forms answer on a broken database.
+_PROBE_FAILED = object()
+
+
+class _FeedProbe:
+    """One request's answers from the shared cache, read in batches (§548).
+
+    The three probes below (`written`, `written_at`, `episode_info`) used
+    to make a round trip per candidate tile - ~1,000 a draw. With a cache that
+    has `rows_many` they share this: `prime(queries)` reads every row a batch
+    of tiles needs in one statement, and each probe answers from the row
+    exactly what its single-key read answers (`cache.ProbeRow`). A query not
+    primed is read on its own, as before. Per request, never kept: "is this
+    cached" must not go stale. A cache without `rows_many` (a test's) is asked
+    the old way, one key at a time.
+    """
+
+    def __init__(self, minutes: int):
+        self.minutes = minutes
+        self.cache = SCRIPT_CACHE
+        self.batch = (self.cache is not None
+                      and callable(getattr(self.cache, "rows_many", None)))
+        self.rows: dict = {}
+
+    def prime(self, queries) -> None:
+        if not self.batch:
+            return
+        keys = []
+        for query in queries:
+            if not query:
+                continue
+            try:
+                key = _browse_key(query, self.minutes)
+            except Exception:  # noqa: BLE001 - asked again, alone, and raised there
+                continue
+            if key and key not in self.rows:
+                keys.append(key)
+        self._load(keys)
+
+    def _load(self, keys: list) -> None:
+        keys = list(dict.fromkeys(keys))
+        if not keys:
+            return
+        try:
+            found = self.cache.rows_many(keys)
+        except Exception:  # noqa: BLE001 - each probe says what a failure reads as
+            log.exception("cache probe failed for %d tiles", len(keys))
+            for key in keys:
+                self.rows[key] = _PROBE_FAILED
+            return
+        for key in keys:
+            self.rows[key] = found.get(key)
+
+    def row(self, key: str):
+        if key not in self.rows:
+            self._load([key])
+        return self.rows[key]
+
+    def written(self, query: str) -> bool:
+        if not self.batch:
+            return _topic_is_written(query, self.minutes)
+        if not query:
+            return False
+        key = _browse_key(query, self.minutes)
+        if not key:
+            return False
+        row = self.row(key)
+        return bool(row is not None and row is not _PROBE_FAILED
+                    and row.holds(time.time()))
+
+    def written_at(self, query: str) -> Optional[float]:
+        if not query:
+            raise ValueError("a tile with no question cannot be dated")
+        if not self.batch:
+            key = _episode_key(_validated_plan(query, self.minutes))
+            if not key:
+                raise ValueError(f"no episode key for {query!r}")
+            return SCRIPT_CACHE.written_at(key)
+        key = _browse_key(query, self.minutes)
+        if not key:
+            raise ValueError(f"no episode key for {query!r}")
+        row = self.row(key)
+        if row is _PROBE_FAILED:
+            raise RuntimeError(f"could not read the cache for {query!r}")
+        return None if row is None else row.written_at(time.time())
+
+    def episode_info(self, query: str):
+        if not self.batch:
+            return _cached_episode(query, self.minutes)
+        if not query:
+            return None
+        key = _browse_key(query, self.minutes)
+        if not key:
+            return None
+        row = self.row(key)
+        if row is None or row is _PROBE_FAILED:
+            return None
+        now = time.time()
+        if not row.holds(now):
+            return None
+        try:
+            title = row.title_text(now)
+            found = provenance_mod.Provenance.from_json(row.sources_text(now))
+        except Exception:  # noqa: BLE001 - a browse row is never worth a 500
+            log.exception("cache probe failed; treating %r as unwritten", query)
+            return None
+        feeds = tuple(item.label for item in found.items
+                      if getattr(item, "kind", "") == provenance_mod.LIVE)
+        return topics_mod.CachedEpisode(title=title, live_feeds=feeds)
+
+
+def _written_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> already in the cache?` for one request.
 
     The rankers ask about every candidate they consider and the endpoint then
     asks again about the ones that survived, so the same handful of queries
     comes up several times on one page load. Each answer is a local SQLite
-    read - cheap, and cheaper still done once. Memoised per request rather
-    than globally, because "is this cached" is exactly the sort of answer that
-    must not be allowed to go stale.
+    read - cheap, and cheaper still done once, and cheaper again read in one
+    batch (`prime`, §548). Memoised per request rather than globally, because
+    "is this cached" is exactly the sort of answer that must not be allowed
+    to go stale.
     """
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, bool] = {}
 
     def probe(query: str) -> bool:
         key = query or ""
         if key not in answers:
-            answers[key] = _topic_is_written(key, minutes)
+            answers[key] = shared.written(key)
         return answers[key]
 
+    probe.prime = shared.prime
     return probe
 
 
-def _written_at_probe(minutes: int):
+def _written_at_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> when its live script was written, or None`, or
     None when this cache cannot say.
 
@@ -8107,37 +9063,36 @@ def _written_at_probe(minutes: int):
     reader = getattr(SCRIPT_CACHE, "written_at", None)
     if reader is None:
         return None
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, Optional[float]] = {}
 
     def probe(query: str) -> Optional[float]:
         if query not in answers:
-            if not query:
-                raise ValueError("a tile with no question cannot be dated")
-            key = _episode_key(_validated_plan(query, minutes))
-            if not key:
-                raise ValueError(f"no episode key for {query!r}")
-            answers[query] = reader(key)
+            answers[query] = shared.written_at(query)
         return answers[query]
 
+    probe.prime = shared.prime
     return probe
 
 
-def _episode_info_probe(minutes: int):
+def _episode_info_probe(minutes: int, shared: Optional[_FeedProbe] = None):
     """A memoised `query -> topics.CachedEpisode | None` for one request.
 
     What the three crowd rails read - they show cached episodes only, and
     "What you missed last week" also refuses one written from a live feed.
     None when the script is not in the cache at this length, which is also
-    the answer for anything unaskable. Two local reads per episode (the
-    sentences, then the title and provenance of a hit), never a model call.
+    the answer for anything unaskable. Read in batches (`prime`, §548), never
+    a model call.
     """
+    shared = shared or _FeedProbe(minutes)
     answers: dict[str, Optional[topics_mod.CachedEpisode]] = {}
 
     def probe(query: str) -> Optional[topics_mod.CachedEpisode]:
         if query not in answers:
-            answers[query] = _cached_episode(query, minutes)
+            answers[query] = shared.episode_info(query)
         return answers[query]
 
+    probe.prime = shared.prime
     return probe
 
 
@@ -8494,12 +9449,7 @@ def _label_word(word: str, at: int) -> str:
 
 
 def _category_known(node: str) -> bool:
-    if node in topics_mod.TAG_LABELS:
-        return True
-    try:
-        return topics_mod.category_tree().get(node) is not None
-    except Exception:  # noqa: BLE001
-        return False
+    return categories_mod.holds(topics_mod.category_tree(), node)
 
 
 def _category_children(node: str) -> list[str]:
@@ -8535,7 +9485,7 @@ def _filed_under(entry: dict) -> tuple[str, frozenset]:
         tags = set(topics_mod.tags_for_text(text))
     except Exception:  # noqa: BLE001 - a filing is never worth a failure
         return "", frozenset()
-    placed = [t for t in tags if t in topics_mod.TAG_LABELS or tree.get(t)]
+    placed = [t for t in tags if categories_mod.holds(tree, t)]
     if not placed:
         return "", frozenset()
 
@@ -8970,6 +9920,68 @@ class EventRequest(BaseModel):
     episode: str = Field("", max_length=80)
 
 
+def _draw_guest_myfam(user: str, minutes: int) -> dict:
+    """A guest's myFAM: the bank on every rail (see `myfam`). Synchronous, so
+    the endpoint draws it in a worker thread (§548)."""
+    SOCIAL.seen(user)
+    feed = topics_mod.guest_feed()
+    for section in feed["sections"]:
+        _mark_guest_tiles(section["topics"], minutes)
+    feed["minutes"] = minutes
+    feed["algo"] = EVENTS.algo_stamp()
+    return feed
+
+
+def _draw_myfam(request: Request, user: str, minutes: int, interests: str,
+                remembers: bool) -> dict:
+    """An account's myFAM, ranked and marked (see `myfam`). Synchronous and
+    awaits nothing, so the endpoint draws it in a worker thread (§548); it
+    reads the request's headers and nothing that needs the event loop."""
+    # One batch reader behind all three probes (§548): the rankers prime it
+    # with the tiles they are about to ask about, so a draw is a handful of
+    # cache statements rather than one per candidate.
+    shared = _FeedProbe(minutes)
+    written = _written_probe(minutes, shared)
+    place = _place_for(request)
+    circle = SOCIAL.circle_of(user)
+    feed = topics_mod.build_feed(
+        EVENTS, user, interests=_interests_for(request, interests),
+        circle=circle, written=written,
+        written_at=_written_at_probe(minutes, shared),
+        episode_info=_episode_info_probe(minutes, shared),
+        authored=_authored_by_circle(circle),
+        place=place.words, place_name=place.label,
+        has_account=_has_account(request),
+        country=_country_for(request, place))
+    # Every tile says whether it would replay or generate, the same way the
+    # "view more" screen already did. A listener browsing is choosing between
+    # things to hear, and "this one starts instantly" is a real difference
+    # between two of them - and it is free to say, because the ranking asked
+    # the same question a moment ago and this is the memoised answer.
+    for section in feed["sections"]:
+        section["topics"] = _drop_removed(user, section["topics"], minutes)
+        for topic in section["topics"]:
+            topic["cached"] = written(topic.get("query", ""))
+        _name_written_tiles(section["topics"], minutes)
+    feed["friend_faces"] = _mark_friends_listened(
+        user, [t for sec in feed["sections"] for t in sec["topics"]])
+    feed["minutes"] = minutes
+    # Logged here rather than inside build_feed, which stays a pure function of
+    # the log - the whole ranking design is "computed on read, never stored",
+    # and a ranker that writes cannot be tested by calling it. The impression
+    # is a fact about this *request*, so it belongs at the request boundary.
+    SOCIAL.seen(user)
+    if remembers:
+        EVENTS.record_impressions(
+            user,
+            [(section["key"], topic["id"])
+             for section in feed["sections"] for topic in section["topics"]],
+        )
+    feed["algo"] = EVENTS.algo_stamp()
+
+    return feed
+
+
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200),
                 minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
@@ -9006,13 +10018,8 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # impressions, which a guest does not keep anyway. A tap on one of these
     # tiles plays kept audio or asks for an account; see `_guest_play_gated`.
     if not _has_account(request):
-        SOCIAL.seen(user)
-        feed = topics_mod.guest_feed()
-        for section in feed["sections"]:
-            _mark_guest_tiles(section["topics"], minutes)
-        feed["minutes"] = minutes
-        feed["algo"] = EVENTS.algo_stamp()
-        return feed
+        # Off the event loop like an account's draw below (§548).
+        return await asyncio.to_thread(_draw_guest_myfam, user, minutes)
 
     # One refresh serves every listener, so this is scheduled rather than
     # awaited: myFAM renders from whatever the shared pool holds and stays
@@ -9039,43 +10046,15 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         # normal.
         asyncio.create_task(_warm_stories())
 
-    written = _written_probe(minutes)
-    place = _place_for(request)
-    circle = SOCIAL.circle_of(user)
-    feed = topics_mod.build_feed(
-        EVENTS, user, interests=_interests_for(request, interests),
-        circle=circle, written=written,
-        written_at=_written_at_probe(minutes),
-        episode_info=_episode_info_probe(minutes),
-        authored=_authored_by_circle(circle),
-        place=place.words, place_name=place.label,
-        has_account=_has_account(request),
-        country=_country_for(request, place))
-    # Every tile says whether it would replay or generate, the same way the
-    # "view more" screen already did. A listener browsing is choosing between
-    # things to hear, and "this one starts instantly" is a real difference
-    # between two of them - and it is free to say, because the ranking asked
-    # the same question a moment ago and this is the memoised answer.
-    for section in feed["sections"]:
-        section["topics"] = _drop_removed(user, section["topics"], minutes)
-        for topic in section["topics"]:
-            topic["cached"] = written(topic.get("query", ""))
-        _name_written_tiles(section["topics"], minutes)
-    feed["friend_faces"] = _mark_friends_listened(
-        user, [t for sec in feed["sections"] for t in sec["topics"]])
-    feed["minutes"] = minutes
-    # Logged here rather than inside build_feed, which stays a pure function of
-    # the log - the whole ranking design is "computed on read, never stored",
-    # and a ranker that writes cannot be tested by calling it. The impression
-    # is a fact about this *request*, so it belongs at the request boundary.
-    SOCIAL.seen(user)
-    if _remembers(request):
-        EVENTS.record_impressions(
-            user,
-            [(section["key"], topic["id"])
-             for section in feed["sections"] for topic in section["topics"]],
-        )
-    feed["algo"] = EVENTS.algo_stamp()
+    # **Drawn off the event loop** (§548). Ranking is a few hundred
+    # milliseconds of reads and arithmetic with nothing to await, and on the
+    # loop it held up every other request on this worker - a launch's
+    # client-status, health and auth waited for somebody else's page. In a
+    # worker thread it costs this request what it always did and nobody else
+    # anything: every store keeps a connection per thread (`_conn`), and the
+    # shared memos it touches are written whole or under a lock.
+    feed = await asyncio.to_thread(_draw_myfam, request, user, minutes,
+                                   interests, _remembers(request))
 
     # Guess what this listener might tap, and pay for the *understanding* of it
     # now rather than when they are waiting (PROBLEMS.md §105).
@@ -9090,7 +10069,10 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # `minutes` is passed because it is part of the key. The browse length is
     # this header's own control, so warming at the interface default would
     # produce briefs nobody ever looks up for any listener who changed it.
-    prefetch.schedule_cycle(user, minutes)
+    #
+    # And the page itself, so the feed source warms what was just shown
+    # rather than drawing it a second time on the loop (§548).
+    prefetch.schedule_cycle(user, minutes, feed)
     return feed
 
 
@@ -9149,6 +10131,13 @@ class EchoRequest(BaseModel):
     tags: Optional[list[dict]] = Field(None, max_length=social_mod.MAX_TAGS)
     #: "" for everybody who follows, "close" for close friends only.
     audience: Optional[str] = Field(None, max_length=10)
+    #: The sentence of the episode the poster picked (§547), shown across
+    #: the post's picture; "" takes it off. Omitted (None) keeps the row's,
+    #: so an installed client - or a re-vibe that picked nothing - never
+    #: wipes it. Cut to `social.MAX_LINE`, never refused.
+    line: Optional[str] = Field(None, max_length=2000)
+    #: Where that sentence starts in the audio, in seconds.
+    line_at: Optional[float] = Field(None, ge=0, le=3600)
 
 
 async def _check_photo(request: Request, user: str, data_url: Optional[str],
@@ -9229,7 +10218,7 @@ async def post_echo(req: EchoRequest, request: Request):
     try:
         echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread,
                            caption=req.caption, style=req.style, tags=tags,
-                           audience=audience)
+                           audience=audience, line=req.line, line_at=req.line_at)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Somebody tagged hears about it the way a share arrives: one message,
@@ -9415,6 +10404,190 @@ async def delete_vibe(request: Request, q: str = Query("", max_length=300),
     return await delete_echo(request, q, minutes)
 
 
+# --- a vibe as a post (§547) -----------------------------------------------
+#
+# The owner's "Vibes as Posts" (option C, "Compact Trio"): a vibe tapped on
+# your own YourFAM grid or a friend's opens as a post - the day it was
+# vibed, the line the poster picked over the picture, a player under it, a
+# like count, the friends who heard it, and replies under it.
+#
+# Who may see a post is exactly who may see the vibe: its owner, or somebody
+# who could open the owner's profile (`/api/person`'s rules - reachable, not
+# blocked either way, not suspended) and is not kept out of a close-friends
+# vibe. A reply is a comment filed under the vibe (`comments.echo_id`), so
+# reading it, liking it, reporting it and deleting it are the comment code
+# (§203) - and a reply is public to that audience, which is what makes it a
+# post's reply rather than a message.
+def _vibe_post_owner(request: Request, handle: str) -> str:
+    """Whose vibes these are: the listener's own with no handle, else the
+    person the handle names if this listener may open their profile."""
+    me = _listener(request)
+    if not handle.strip():
+        return me
+    target = _person_by_handle(handle)
+    if not target:
+        return ""
+    if target == me:
+        return me
+    if not _reachable(me, target) or MODERATION.is_apart(me, target) \
+            or MODERATION.is_suspended(target):
+        return ""
+    return target
+
+
+def _visible_vibe(request: Request, echo_id: int) -> dict:
+    """The vibe behind a like or a reply, if this listener may see it - else
+    404, the same answer as for a vibe that is not there."""
+    me = _listener(request)
+    row = SOCIAL.echo_row(echo_id)
+    if row and row["user_id"] != me:
+        owner = row["user_id"]
+        if (not _reachable(me, owner) or MODERATION.is_apart(me, owner)
+                or MODERATION.is_suspended(owner)
+                or (row.get("audience") and me not in SOCIAL.close_friends(owner))):
+            row = None
+    if not row:
+        raise HTTPException(status_code=404, detail="That vibe is not here any more.")
+    return row
+
+
+@app.get("/api/vibe/posts")
+async def vibe_posts(request: Request,
+                     handle: str = Query("", max_length=social_mod.MAX_HANDLE + 1),
+                     before: float = Query(0.0, ge=0),
+                     limit: int = Query(12, ge=1, le=30)) -> dict:
+    """Somebody's vibes as posts (§547), newest first; no handle is your own.
+
+    Each post: the vibe (`id`, question, title, length, `at` - the moment it
+    was vibed, which the post shows), its caption, its `line` (`text` and
+    `at` in seconds, or null), the picture the player draws, its likes and
+    whether you liked it, how many replies and the one shown under it, and
+    `heard` - which of your friends heard the episode, the player's faces
+    (§543) with the same caution: a friend's own search counts only if their
+    searches are public. No ids of people anywhere (`listener-id-server`).
+    """
+    _read_limit(request)
+    me = _listener(request)
+    owner = _vibe_post_owner(request, handle)
+    if not owner:
+        raise HTTPException(status_code=404, detail="No listener by that handle.")
+    hidden = {int(c) for c in MODERATION.reported_by(me, "comment") if c.isdigit()}
+    posts = SOCIAL.vibe_posts(owner, viewer=me, limit=limit + 1, before=before,
+                              exclude_users=MODERATION.apart(me), exclude_ids=hidden)
+    more = len(posts) > limit
+    posts = posts[:limit]
+    for post in posts:
+        post["thumb"] = _picture_url(post["query"], post["title"], post["minutes"])
+        post["topic"] = _topic_label(post["query"], post["title"])
+    faces: list[dict] = []
+    if me and _has_account(request) and posts:
+        tiles = [{"id": str(p["id"]), "query": p["query"]} for p in posts]
+        faces = _mark_friends_listened(me, tiles, public_searches_only=True)
+        for post, tile in zip(posts, tiles):
+            shown = [faces[i] for i in tile.get("friends_faces", []) if i < len(faces)]
+            post["heard"] = {"count": int(tile.get("friends_listened") or 0),
+                             "faces": shown[:3]}
+    for post in posts:
+        post.setdefault("heard", {"count": 0, "faces": []})
+    person = SOCIAL.person(owner)
+    return {"person": {"name": person["name"], "handle": person["handle"],
+                       "avatar": person["avatar"],
+                       "explicit": person.get("explicit", False)},
+            "mine": owner == me, "posts": posts, "more": more}
+
+
+class VibeLikeRequest(BaseModel):
+    on: bool = True
+
+
+@app.post("/api/vibe/{echo_id}/like")
+async def like_vibe_post(echo_id: int, req: VibeLikeRequest, request: Request) -> dict:
+    """Like a vibe's post, or take the like back (§547). An account's: a
+    like is kept, and kept things take one (`account-gates-kept`)."""
+    _read_limit(request)
+    user = _require_account(request)
+    _visible_vibe(request, echo_id)
+    try:
+        return SOCIAL.like_vibe(user, echo_id, on=req.on)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/vibe/{echo_id}/replies")
+async def vibe_replies(echo_id: int, request: Request) -> dict:
+    """A vibe's replies (§547): most liked first, each with its answers -
+    the comments sheet's shape, minus the blocked and the reported."""
+    _read_limit(request)
+    viewer = _listener(request)
+    row = _visible_vibe(request, echo_id)
+    hidden = {int(c) for c in MODERATION.reported_by(viewer, "comment") if c.isdigit()}
+    rows = SOCIAL.comments(row["query"], row["minutes"], viewer=viewer, echo_id=echo_id,
+                           exclude_users=MODERATION.apart(viewer), exclude_ids=hidden)
+    return {"replies": rows, "count": sum(1 + len(c.get("replies") or []) for c in rows),
+            "mine": row["user_id"] == viewer}
+
+
+class VibeReplyRequest(BaseModel):
+    #: Cut to `social.MAX_COMMENT` rather than refused.
+    text: str = Field(..., max_length=2000)
+    #: The reply this answers, or 0 for a new one.
+    parent_id: int = Field(0, ge=0)
+
+
+@app.post("/api/vibe/{echo_id}/replies")
+async def post_vibe_reply(echo_id: int, req: VibeReplyRequest, request: Request) -> dict:
+    """Reply under a vibe (§547). An account's, not a suspended one's."""
+    _read_limit(request)
+    user = _require_account(request)
+    _require_can_post(user)
+    row = _visible_vibe(request, echo_id)
+    try:
+        return SOCIAL.add_comment(user, row["query"], row["minutes"], req.text,
+                                  parent_id=req.parent_id, echo_id=echo_id)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _vibe_reply(request: Request, comment_id: int, own_ok: bool = False) -> dict:
+    """A reply under a vibe this listener may see, else 404. `own_ok`: the
+    reply's author may reach their own words even if the vibe has since
+    gone out of their sight (blocked, off a close-friends list) - to delete
+    them."""
+    found = SOCIAL.comment(comment_id)
+    if not found or not found.get("echo_id"):
+        raise HTTPException(status_code=404, detail="That reply is not here any more.")
+    if own_ok and found.get("user_id") == _listener(request):
+        return found
+    try:
+        _visible_vibe(request, found["echo_id"])
+    except HTTPException:
+        raise HTTPException(status_code=404, detail="That reply is not here any more.") from None
+    return found
+
+
+# A vibe's replies have their own paths (§547) rather than Explore's
+# `/api/comments/...`, which the app no longer reaches (§499) and which stay
+# for installed clients (`old-clients`).
+@app.post("/api/vibe/replies/{comment_id}/like")
+async def like_vibe_reply(comment_id: int, req: VibeLikeRequest,
+                          request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    _vibe_reply(request, comment_id)
+    try:
+        return SOCIAL.like_comment(user, comment_id, on=req.on)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/api/vibe/replies/{comment_id}")
+async def delete_vibe_reply(comment_id: int, request: Request) -> dict:
+    """Your own reply, or any reply on your own vibe."""
+    _read_limit(request)
+    _vibe_reply(request, comment_id, own_ok=True)
+    return {"ok": SOCIAL.delete_comment(_listener(request), comment_id)}
+
+
 # --- comments (10.5 packet #8) ---------------------------------------------
 #
 # Explore's comments sheet. A comment is about an episode - `(query,
@@ -9468,6 +10641,15 @@ async def like_comment(comment_id: int, req: CommentLikeRequest,
                        request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
+    # A reply under a vibe (§547) is liked only by somebody who may see the
+    # vibe; otherwise it answers as a reply that is not there.
+    found = SOCIAL.comment(comment_id)
+    if found and found.get("echo_id"):
+        try:
+            _visible_vibe(request, found["echo_id"])
+        except HTTPException:
+            raise HTTPException(status_code=404,
+                                detail="That comment is not here any more.") from None
     try:
         return SOCIAL.like_comment(user, comment_id, on=req.on)
     except social_mod.SocialError as exc:
@@ -10131,12 +11313,13 @@ def _explore_rail_entries(request: Request, listener: str, feed: str,
         else:
             place = _place_for(request)
             circle = SOCIAL.circle_of(listener)
+            shared = _FeedProbe(BROWSE_MINUTES)
             tiles = topics_mod.build_section(
                 EVENTS, listener, key,
                 interests=_interests_for(request, ""), circle=circle,
-                written=_written_probe(BROWSE_MINUTES),
-                written_at=_written_at_probe(BROWSE_MINUTES),
-                episode_info=_episode_info_probe(BROWSE_MINUTES),
+                written=_written_probe(BROWSE_MINUTES, shared),
+                written_at=_written_at_probe(BROWSE_MINUTES, shared),
+                episode_info=_episode_info_probe(BROWSE_MINUTES, shared),
                 authored=_authored_by_circle(circle),
                 place=place.words, place_name=place.label,
                 has_account=True,
@@ -11676,6 +12859,103 @@ async def admin_categories(request: Request) -> dict:
     return await asyncio.to_thread(_categories_panel)
 
 
+def _category_outline() -> dict:
+    """The tree for the admin's Categories page (11.12): every node under
+    its facet, with the kept episodes Nando filed there."""
+    counts = SCRIPT_CACHE.node_counts() if hasattr(SCRIPT_CACHE, "node_counts") else {}
+    return categories_mod.outline(topics_mod.category_tree(), counts)
+
+
+@app.get("/api/admin/categories/tree")
+async def admin_categories_tree(request: Request) -> dict:
+    """The whole category tree, drawn on the admin's Categories page
+    (11.12). Read-only; no model is asked."""
+    _require_admin(request)
+    return await asyncio.to_thread(_category_outline)
+
+
+@app.get("/api/admin/categories/export")
+async def admin_export_categories(request: Request) -> Response:
+    """Every node of the tree as a CSV - path, source, episodes filed - for
+    a reviewer outside FAM (§585), as the pronunciations go out (§549)."""
+    _require_admin(request)
+    import category_review
+
+    counts = SCRIPT_CACHE.node_counts() if hasattr(SCRIPT_CACHE, "node_counts") else {}
+    body = await asyncio.to_thread(
+        category_review.export_csv, topics_mod.category_tree(), counts)
+    stamp = time.strftime("%Y-%m-%d")
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-categories-{stamp}.csv"'})
+
+
+@app.get("/api/admin/categories/review-prompt")
+async def admin_category_review_prompt(request: Request) -> dict:
+    """The fixed prompt that goes with a tree download (§585)."""
+    _require_admin(request)
+    import category_review
+
+    return {"prompt": category_review.PROMPT}
+
+
+class CategoryUpload(BaseModel):
+    csv: str = Field(..., max_length=2_000_000)
+
+
+@app.post("/api/admin/categories/import")
+async def admin_import_categories(req: CategoryUpload, request: Request) -> dict:
+    """Read a reviewer's CSV into proposed edits (§585). Changes nothing: an
+    admin accepts each one."""
+    _require_admin(request)
+    import category_review
+
+    try:
+        return await asyncio.to_thread(
+            category_review.read_upload, req.csv, topics_mod.category_tree())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class CategoryEdit(BaseModel):
+    action: str = Field(..., min_length=1, max_length=20)
+    node: str = Field(..., min_length=1, max_length=120)
+    target: str = Field("", max_length=120)
+    reason: str = Field("", max_length=200)
+
+
+@app.post("/api/admin/categories/edit")
+async def admin_edit_category(req: CategoryEdit, request: Request) -> dict:
+    """One accepted edit, saved as the owner's (§585): nothing that grows the
+    tree undoes it."""
+    _require_admin(request)
+    import category_review
+
+    try:
+        return await asyncio.to_thread(category_review.apply, topics_mod.category_tree(),
+                                       req.action, req.node, req.target, req.reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/admin/categories/edits")
+async def admin_category_edits(request: Request) -> dict:
+    """The owner's edits to the tree (§585), newest first."""
+    _require_admin(request)
+    decisions = topics_mod.category_tree().owner_decisions() \
+        if hasattr(topics_mod.category_tree(), "owner_decisions") else {}
+    return {"edits": [{"node": k, "action": a, "target": t}
+                      for k, (a, t) in sorted(decisions.items())]}
+
+
+@app.delete("/api/admin/categories/edits/{node}")
+async def admin_forget_category_edit(node: str, request: Request) -> dict:
+    """Forget one owner edit: a removed phrase may grow again, a placed node
+    may be moved by the placer. The tree is not changed back."""
+    _require_admin(request)
+    tree = topics_mod.category_tree()
+    return {"ok": bool(hasattr(tree, "owner_undo") and tree.owner_undo(node))}
+
+
 @app.get("/api/admin/categories/queue")
 async def admin_categories_queue(request: Request, limit: int = 20) -> dict:
     """Episodes for the owner to file by hand (§503), disagreements first,
@@ -12133,85 +13413,192 @@ async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
             "room_today": room}
 
 
-# --- Conversations on X (§321, x_threads.py) ---------------------------------
-# Threads on X one of FAM's episodes could add to, found from the episodes
-# FAM already has. A person approves each reply and posts it in X; FAM holds
-# a read-only search credential and never posts ([no-social-posting]).
-
-#: One search at a time: a second press while one runs would spend X's
-#: per-read billing twice on the same threads.
-_X_RUNNING: list = []
-
-
-@app.get("/admin/x", include_in_schema=False)
-async def admin_x_page(request: Request):
-    """The review page. A shell, like `/admin/thumbnails`; every card on it
-    is fetched from the endpoints below, which are what check who is asking."""
+@app.get("/admin/push", include_in_schema=False)
+async def admin_push_page(request: Request):
+    """Big stories (§562): what the detector found, and the one button that
+    sends a story to everybody. A shell; the endpoints check who is asking."""
     if not _admin_configured():
         raise HTTPException(status_code=404, detail="Not found")
-    page = PROJECT_ROOT / "admin_ui" / "x.html"
+    page = PROJECT_ROOT / "admin_ui" / "push.html"
     return HTMLResponse(page.read_text(encoding="utf-8"),
                         headers={"Cache-Control": "no-store",
                                  "X-Robots-Tag": "noindex"})
 
 
-@app.get("/api/admin/x")
-async def admin_x(request: Request, status: str = "") -> dict:
-    """Every card (newest run first, waiting before decided), whether X can
-    be asked, what today's reads have used, and what the last run did."""
+@app.get("/api/admin/push")
+async def admin_push(request: Request) -> dict:
     _require_admin(request)
-    if status and status not in x_threads.STATUSES:
+    state = push_mod.status()
+    stories = await asyncio.to_thread(push_stories.admin_list, PUSH)
+    return {"available": state["available"], "reason": state["reason"],
+            "stories": stories}
+
+
+class PushDecision(BaseModel):
+    id: str = Field(..., min_length=1, max_length=80)
+    status: str = Field(..., pattern=r"^(approved|dismissed)$")
+
+
+@app.post("/api/admin/push/decide")
+async def admin_push_decide(req: PushDecision, request: Request) -> dict:
+    """Send a big story to everybody, or dismiss it. Sending happens on the
+    next pass, once its episode is written - never from this request."""
+    _require_admin(request)
+    row = push_stories.store().get(req.id)
+    if row is None or row["kind"] != push_stories.BREAKING:
+        raise HTTPException(status_code=404, detail="No such story.")
+    return {"ok": True, "story": push_stories.store().decide(req.id, req.status, time.time())}
+
+
+# --- Communities to reach (§579, communities.py) -----------------------------
+# Facebook groups, subreddits, X Communities, Discord servers and Slack
+# communities whose admins might share FAM with their members. Found by web
+# search; each card says how a person reaches the admins through the
+# community's own public channel. FAM never messages anybody
+# ([no-social-posting], [community-outreach]).
+
+#: One search at a time: a second press while one runs would bill the same
+#: searches twice.
+_GROUPS_RUNNING: list = []
+
+
+@app.get("/admin/groups", include_in_schema=False)
+async def admin_groups_page(request: Request):
+    """The outreach page. A shell; every card on it is fetched from the
+    endpoints below, which are what check who is asking."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "groups.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+#: `(when, subjects)`: the suggestions, worked out at most every ten
+#: minutes. The page polls every eight seconds, and each poll reading 200
+#: cached episodes and their categories is database work for nothing (§574).
+_GROUPS_SUGGESTED: list = [0.0, []]
+GROUPS_SUGGESTED_SECONDS = 600
+
+
+def _groups_suggested() -> list:
+    """Subjects to search when the person names none: the categories of the
+    most played kept episodes."""
+    now = time.time()
+    if now - _GROUPS_SUGGESTED[0] < GROUPS_SUGGESTED_SECONDS:
+        return list(_GROUPS_SUGGESTED[1])
+    found = communities.suggested_subjects(
+        SCRIPT_CACHE, lambda key: _category_label(_episode_category(key)))
+    _GROUPS_SUGGESTED[:] = [now, found]
+    return list(found)
+
+
+@app.get("/api/admin/groups")
+async def admin_groups(request: Request, status: str = "", platform: str = "") -> dict:
+    """Every lead (to contact first, best first), whether a search can run,
+    today's searches, the last run, and subjects to suggest."""
+    _require_admin(request)
+    if status and status not in communities.STATUSES and status != communities.SET_ASIDE:
         raise HTTPException(status_code=422, detail="Unknown status.")
-    cards, rejected = [], []
-    if x_threads._exists():
-        cards = await asyncio.to_thread(x_threads.store().all, status)
-        # What the agent turned away and why (§368), for a person to audit:
-        # never actionable, never shown as a card.
-        rejected = await asyncio.to_thread(x_threads.store().all,
-                                           x_threads.SET_ASIDE, "", 40)
-    return {"health": x_threads.health(), "running": bool(_X_RUNNING),
-            "cards": cards, "rejected": rejected, "kinds": x_threads.KINDS}
+    if platform and platform not in communities.PLATFORMS:
+        raise HTTPException(status_code=422, detail="Unknown platform.")
+    leads = []
+    if communities._exists():
+        leads = await asyncio.to_thread(communities.store().all, status, platform)
+    suggested = await asyncio.to_thread(_groups_suggested)
+    health = await asyncio.to_thread(communities.health)
+    return {"health": health, "running": bool(_GROUPS_RUNNING),
+            "leads": leads, "suggested": suggested}
 
 
-@app.post("/api/admin/x/run")
-async def admin_x_run(request: Request) -> dict:
-    """Look for threads now, in the background, inside the read ceilings.
+class GroupsRun(BaseModel):
+    subjects: list[str] = Field(default_factory=list, max_length=20)
+    platforms: list[str] = Field(default_factory=list, max_length=5)
+
+
+@app.post("/api/admin/groups/run")
+async def admin_groups_run(req: GroupsRun, request: Request) -> dict:
+    """Look for communities now, in the background, inside the ceilings.
     Returns at once; the page polls the list to watch the cards arrive."""
     _require_admin(request)
-    ok, why = x_threads.available()
+    ok, why = communities.available()
     if not ok:
-        raise HTTPException(status_code=409, detail=f"Cannot search X: {why}.")
-    if _X_RUNNING:
+        raise HTTPException(status_code=409, detail=f"Cannot search: {why}.")
+    if _GROUPS_RUNNING:
         raise HTTPException(status_code=409, detail="A search is already running.")
+    unknown = [p for p in req.platforms if p not in communities.PLATFORMS]
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown platform: {unknown[0]}.")
+    subjects = [" ".join(s.split())[:80] for s in req.subjects if s and s.strip()]
+    if not subjects:
+        # Asked fresh: a run is a press, not a poll.
+        _GROUPS_SUGGESTED[0] = 0.0
+        subjects = await asyncio.to_thread(_groups_suggested)
+    if not subjects:
+        raise HTTPException(status_code=422, detail=(
+            "Name a subject to search for: FAM has no played episodes to suggest one from."))
 
     async def _run() -> None:
         try:
-            report = await x_threads.run(SCRIPT_CACHE)
-            log.info("x threads (admin run): %s",
-                     {k: v for k, v in report.items() if k != "seeds"})
+            report = await communities.run(SCRIPT_CACHE, subjects, req.platforms)
+            log.info("communities (admin run): %s",
+                     {k: v for k, v in report.items() if k != "screened"})
         except Exception:  # noqa: BLE001 - recorded, never raised into nothing
-            log.exception("x threads: the run failed")
+            log.exception("communities: the run failed")
         finally:
-            _X_RUNNING.clear()
+            _GROUPS_RUNNING.clear()
 
-    _X_RUNNING.append(time.time())
+    _GROUPS_RUNNING.append(time.time())
     _BACKGROUND.add(asyncio.create_task(_run()))
-    return {"started": True}
+    return {"started": True, "subjects": subjects}
 
 
-class XCard(BaseModel):
-    post_id: str = Field(..., min_length=1, max_length=40, pattern=r"^[0-9]+$")
+class GroupsSend(BaseModel):
+    #: The community's link, as the person copied it.
+    url: str = Field(..., min_length=8, max_length=500)
+    #: What to pitch it on; its name when empty.
+    subject: str = Field("", max_length=80)
+    #: Anything the person knows about it, for Egan.
+    note: str = Field("", max_length=600)
 
 
-def _x_episode_link(card: dict, request: Request) -> str:
-    """The card's episode as a share link FAM owns, or "" when the card has
-    no episode. One link per episode however many threads it is offered on
-    (`ShareStore.create` is once per sharer, question and length)."""
-    episode = card.get("episode") or {}
-    if not episode.get("query"):
-        return ""
+@app.post("/api/admin/groups/send")
+async def admin_groups_send(req: GroupsSend, request: Request) -> dict:
+    """Send one community to Egan (§581): looked up through its platform's
+    API or the web, its public way to the admins worked out, judged and
+    drafted for. Kept as a lead to contact whatever its fit; nothing is sent
+    to anybody."""
+    _require_admin(request)
     try:
-        share = SHARES.create(x_threads.SHARER, episode["query"],
+        return await communities.lookup(SCRIPT_CACHE, req.url, req.subject, req.note)
+    except communities.NotACommunity as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except communities.DailyCeiling as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except communities.NotPitched as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class GroupsLead(BaseModel):
+    id: str = Field(..., min_length=3, max_length=140, pattern=r"^[a-z]+:[A-Za-z0-9._:-]+$")
+
+
+@app.post("/api/admin/groups/listen")
+async def admin_groups_listen(req: GroupsLead, request: Request) -> dict:
+    """The card's kept episode as a share link FAM owns, to hear before it
+    goes in a message: nobody vouches for audio they have not heard."""
+    _require_admin(request)
+    if not communities._exists():
+        raise HTTPException(status_code=404, detail="No leads yet")
+    held = communities.store()
+    lead = await asyncio.to_thread(held.get, req.id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="No such lead")
+    episode = lead.get("episode") or {}
+    if not episode.get("query"):
+        raise HTTPException(status_code=409, detail="This lead has no kept episode.")
+    try:
+        share = SHARES.create(communities.SHARER, episode["query"],
                               as_minutes(episode.get("minutes") or 1),
                               episode.get("title") or "")
     except sharing.ShareError as exc:
@@ -12220,105 +13607,47 @@ def _x_episode_link(card: dict, request: Request) -> str:
     if not public:
         raise HTTPException(status_code=409, detail=(
             "This server does not know its public address, so the episode "
-            "link would not open on X. Set PUBLIC_BASE_URL."))
-    return link
-
-
-@app.post("/api/admin/x/listen")
-async def admin_x_listen(req: XCard, request: Request) -> dict:
-    """The episode's link, to hear it before approving - the playbook's
-    "add a checked episode": nobody vouches for audio they have not heard."""
-    _require_admin(request)
-    if not x_threads._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    card = await asyncio.to_thread(x_threads.store().get, req.post_id)
-    if card is None:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    link = _x_episode_link(card, request)
-    if not link:
-        raise HTTPException(status_code=404, detail="This card has no episode.")
-    # Heard through the very link the reply will carry: listening is also
-    # testing the link (§368). Approve with a link waits for this.
-    await asyncio.to_thread(x_threads.store().listened, req.post_id, time.time())
+            "link would not open for anybody else. Set PUBLIC_BASE_URL."))
+    await asyncio.to_thread(held.listened, req.id, time.time(), link)
     return {"url": link}
 
 
-@app.post("/api/admin/x/match")
-async def admin_x_match(req: XCard, request: Request) -> dict:
-    """A card's proposed episode, once a person has written it in FAM: the
-    kept episode that answers the proposal goes on the card, unheard (§368)."""
+class GroupsMove(BaseModel):
+    id: str = Field(..., min_length=3, max_length=140, pattern=r"^[a-z]+:[A-Za-z0-9._:-]+$")
+    status: str = Field(..., pattern="^(new|contacted|replied|invited|joined|passed)$")
+    #: What the person found or agreed, in their words.
+    notes: Optional[str] = Field(None, max_length=2000)
+    #: The admin's handle on the platform, as the person found it there.
+    handle: Optional[str] = Field(None, max_length=120)
+
+
+@app.post("/api/admin/groups/move")
+async def admin_groups_move(req: GroupsMove, request: Request) -> dict:
+    """Move a lead along: contacted, replied, invited, joined or passed.
+    Nothing is sent from here; the person reached the admin themselves."""
     _require_admin(request)
-    if not x_threads._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    try:
-        card = await asyncio.to_thread(x_threads.attach_written, SCRIPT_CACHE,
-                                       req.post_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    except LookupError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {"card": card}
-
-
-class XDecision(BaseModel):
-    post_id: str = Field(..., min_length=1, max_length=40, pattern=r"^[0-9]+$")
-    action: str = Field(..., pattern="^(approve|skip|reopen)$")
-    #: The reply as the person edited it on the card; the stored draft if empty.
-    text: str = Field("", max_length=1000)
-    #: Leave the episode's link off this reply even when it has one.
-    no_link: bool = False
-    #: The person checked every claim in the words (§368): no approval without.
-    verified: bool = False
-
-
-@app.post("/api/admin/x/decide")
-async def admin_x_decide(req: XDecision, request: Request) -> dict:
-    """A person's verdict on one card. Approve makes the episode's share link
-    (owned by FAM, never a listener), puts the reply together, and hands back
-    X's compose screen with the words in it - the page opens it and copies
-    the words. Nothing is posted from here."""
-    _require_admin(request)
-    if not x_threads._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    held = x_threads.store()
-    card = await asyncio.to_thread(held.get, req.post_id)
-    if card is None:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    now = time.time()
-    if req.action != "approve":
-        status = x_threads.SKIPPED if req.action == "skip" else x_threads.WAITING
-        await asyncio.to_thread(held.decide, req.post_id, status, now)
-        return {"post_id": req.post_id, "status": status}
-    words = " ".join((req.text or card["draft"] or "").split())
-    if not words:
-        raise HTTPException(status_code=422, detail="There is no reply to post.")
-    if not req.verified:
-        raise HTTPException(status_code=422, detail=(
-            "Check every claim in the reply first, then tick that you did."))
-    link = ""
-    if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
-        if card.get("relevance", 0) < x_threads.EPISODE_RELEVANCE:
-            # Only a 4 or 5 against the original post carries an episode
-            # (§368); a card read in code, or from before the scale, does not.
-            raise HTTPException(status_code=409, detail=(
-                "Only a card scored 4 or 5 against the original post may link "
-                "an episode. Tick no link to send the comment alone."))
-        if not card.get("listened_at"):
-            # Nobody vouches for audio they have not heard (§368).
-            raise HTTPException(status_code=409, detail=(
-                "Listen to the episode through its link before linking it "
-                "(Listen first), or untick the link."))
-        link = _x_episode_link(card, request)
-    try:
-        text = x_threads.compose(words, link)
-    except x_threads.TooLong as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    await asyncio.to_thread(held.decide, req.post_id, x_threads.APPROVED, now,
-                            posted=text, share_url=link)
-    return {"post_id": req.post_id, "status": x_threads.APPROVED, "text": text,
-            "share_url": link,
-            "intent_url": x_threads.intent_url(req.post_id, text),
-            "post_url": card["post"]["url"]}
+    if not communities._exists():
+        raise HTTPException(status_code=404, detail="No leads yet")
+    held = communities.store()
+    lead = await asyncio.to_thread(held.get, req.id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="No such lead")
+    if lead["status"] == communities.SET_ASIDE:
+        raise HTTPException(status_code=409, detail="A set-aside lead is for audit only.")
+    if (req.status != lead["status"]
+            and req.status not in communities.MOVES.get(lead["status"], set())):
+        raise HTTPException(status_code=409, detail=(
+            f"A lead that is {lead['status']} cannot move to {req.status}."))
+    # The person's own words, kept without a phone number or an email that
+    # is not the community's published contact ([community-outreach]).
+    keep = lead.get("public_contact") or []
+    handle = req.handle
+    if handle is not None:
+        handle = communities.scrub(" ".join(handle.split()), keep)
+    notes = communities.scrub(req.notes, keep) if req.notes is not None else None
+    await asyncio.to_thread(held.move, req.id, req.status, time.time(),
+                            notes=notes, handle=handle)
+    return {"lead": await asyncio.to_thread(held.get, req.id)}
 
 
 @app.exception_handler(HTTPException)
@@ -12655,8 +13984,11 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    #: Not asked for since §296: joining is the email alone. A page or client
-    #: that still sends one makes the account with it, as before.
+    #: Asked for again since §571 (the owner, reversing §296's email alone):
+    #: the join form is the email, a password and the Terms box, and the
+    #: password is set on the account in the same INSERT that makes it. Still
+    #: optional here: an installed client that sends none (`old-clients`)
+    #: gets §296's passwordless join, unchanged.
     password: str = Field("", max_length=accounts_mod.MAX_PASSWORD)
     referral_code: str = Field("", max_length=64)
     want_token: bool = False
@@ -12713,11 +14045,14 @@ def _admin_previewing_join(req, request: Request):
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own sign-up, then the waitlist half.
 
-    **The email alone** (the owner, PROBLEMS.md §296): no password is asked
-    for, so the account is made with none (`passwordless`), exactly as a
-    Google-or-Apple one is. This browser's session is the way in; another
-    device gets in by "Forgot password?" (§244), which sets the first one.
-    A request that still carries a password is the old join, unchanged.
+    **The email and a password** (the owner, PROBLEMS.md §571, reversing
+    §296's email alone): the password is checked by the same rule as every
+    other (`accounts.check_password`) and stored in the INSERT that makes
+    the account, so a join never leaves an account half made. A join with
+    no password - an installed client from §296's weeks - is still made
+    with none (`passwordless`), as a Google-or-Apple one is; its way back in
+    is setting one (`/api/auth/password/set`, offered on the status page
+    and in Settings) or "Forgot password?" (§244) where mail is set up.
 
     The same account the app will open with later - `ACCOUNTS.sign_up` on the
     session this browser already has - so granting access changes one column
@@ -12801,6 +14136,8 @@ async def waitlist_me(request: Request) -> dict:
         "invites": len(invites),
         "unlock": waitlist_mod.next_unlock(
             len(invites), waitlist_mod.parse_unlocks(settings.waitlist_unlocks)),
+        # Five friends earn a free month, from the day the app goes live (§577).
+        "free_month": WAITLIST.free_month(user, invites=len(invites)),
         "fam": [{"name": p["name"], "handle": p["handle"], "avatar": p["avatar"],
                  "initials": _initials(p["name"], p["handle"]),
                  "invited": p["user_id"] in order,
@@ -13029,6 +14366,7 @@ async def admin_waitlist(request: Request) -> dict:
                      "name": profile["name"] or row["display_name"],
                      "handle": profile["handle"], "email": row["email"],
                      "invites": row["invites"],
+                     "free_month": row.get("free_month", False),
                      "profile_complete": profile["complete"],
                      "joined": row["joined"]})
     counts = WAITLIST.counts()
@@ -13041,6 +14379,11 @@ async def admin_waitlist(request: Request) -> dict:
                                       "email": r["email"], "invites": r["invites"]}
                                      for r in top]},
         "cutoff": WAITLIST.cutoff(),
+        # The free month (§577): who has earned it, and the launch day it
+        # starts on for all of them (None until an admin sets it).
+        "free_month": {"needed": waitlist_mod.FREE_MONTH_INVITES,
+                       "earned": sum(1 for r in rows if r["free_month"]),
+                       "starts": WAITLIST.free_month_starts() or None},
         "gate": settings.waitlist,
         "viral_loops": {"configured": VIRAL_LOOPS.configured,
                         **WAITLIST.outbox_summary()},
@@ -13106,6 +14449,26 @@ class AdminCutoffRequest(BaseModel):
 async def admin_waitlist_cutoff(req: AdminCutoffRequest, request: Request) -> dict:
     _require_admin(request)
     return {"cutoff": WAITLIST.set_cutoff(req.cutoff)}
+
+
+class AdminFreeMonthRequest(BaseModel):
+    #: Seconds since the epoch the whole app goes live, or 0 for "not yet".
+    starts: float = Field(..., ge=0, le=10_000_000_000)
+
+
+@app.post("/api/admin/waitlist/free-month")
+async def admin_waitlist_free_month(req: AdminFreeMonthRequest,
+                                    request: Request) -> dict:
+    """The day the whole app goes live, which is the day every earned free
+    month starts (§577). Until it is set the month is earned and waiting."""
+    _require_admin(request)
+    try:
+        starts = WAITLIST.set_free_month_starts(req.starts)
+    except waitlist_mod.WaitlistError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    log.info("admin set the free month to start at %s", starts)
+    return {"starts": starts or None,
+            "ends": (starts + waitlist_mod.FREE_MONTH_SECONDS) if starts else None}
 
 
 # Also resolved from the project root, and for the same reason as the

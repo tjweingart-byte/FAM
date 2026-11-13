@@ -1,0 +1,1162 @@
+import FAMSafety
+import PhotosUI
+import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
+
+/// Something to report from a conversation: the person or the group from
+/// the ⋯, a member from See who's here, or one message held down - which
+/// the web has no control for, though the server takes it (quirk 1, 1.2).
+struct ReportTarget: Identifiable {
+    let id = UUID()
+    let subject: ReportSubject
+    var messageID: Int? = nil
+}
+
+/// An episode a message carries, as Go Deeper builds on it before it has
+/// been played (`goDeeperOnShared`).
+struct SharedEpisode: Equatable, Identifiable {
+    let query: String
+    let title: String
+    let minutes: Double
+    var id: String { query + "|" + FAMAPI.minutes(minutes) }
+}
+
+/// A conversation (`#screen-thread`, shots 11-27): the header on the
+/// surface colour, the messages - day separators, bubbles, episode cards
+/// with Listen / GO DEEPER / save, story replies and likes, the "You
+/// finished it" receipt, a group's system lines and sender names, the
+/// typing dots - and the composer, where Return is a new line and only
+/// the arrow sends (§142). Live every 2 s while on screen.
+struct ChatScreen: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var social: SocialModel
+    @Environment(\.inSocialCover) private var inCover
+    @StateObject private var chat: ChatModel
+
+    @State private var person: PersonPage?
+    @State private var sheet: SheetSpec?
+    @State private var reporting: ReportTarget?
+    @State private var renaming = false
+    @State private var newName = ""
+    @State private var showMembers = false
+    @State private var pickingLibrary = false
+    @State private var pickingFile = false
+    @State private var takingPhoto = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var deeper: SharedEpisode?
+    @State private var popReady = false
+    /// FAM's word-by-word autocorrect behind the keyboard (`acInstall` on
+    /// `#threadInput`), made once the screen has the app's speller.
+    @State private var corrector: LiveCorrector?
+    @FocusState private var typing: Bool
+
+    init(api: FAMAPI, open: ChatOpen) {
+        _chat = StateObject(wrappedValue: ChatModel(api: api, who: open))
+    }
+
+    private var who: ChatOpen { chat.who }
+    /// On screen: in a cover, or on the Messages tab while it is the tab
+    /// shown (the tabs stay alive underneath each other).
+    private var live: Bool { inCover || social.onMessagesTab }
+    private var first: String { socialFirstName(who.name, handle: who.handle) }
+
+    var body: some View {
+        pickers(presentations(screen))
+    }
+
+    private var screen: some View {
+        VStack(spacing: 0) {
+            header
+            messages
+        }
+        .background(FAMColor.background)
+        .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        .toolbar(.hidden, for: .navigationBar)
+        // Polls only while on screen (`THREAD_POLL_MS`): leaving the tab
+        // stops it, coming back starts it again.
+        .task(id: live) {
+            guard live else { return }
+            await start()
+        }
+        .onAppear { if live { social.chatOnScreen = who.with } }
+        .onChange(of: live) { _, on in
+            if on {
+                social.chatOnScreen = who.with
+            } else if social.chatOnScreen == who.with {
+                social.chatOnScreen = nil
+            }
+        }
+        .onDisappear { if social.chatOnScreen == who.with { social.chatOnScreen = nil } }
+    }
+
+    /// The ⋯ sheets, the report and block, Go Deeper and the confirmations.
+    private func presentations<V: View>(_ content: V) -> some View {
+        content
+            .famSheet(item: $sheet) { spec in FAMActionSheet(spec: spec) }
+            .famSheet(item: $reporting) { target in reportSheet(target) }
+            .famSheet(isPresented: $showMembers) { membersSheet }
+            .famSheet(item: $deeper) { base in deeperSheet(base) }
+            .alert("Name this group", isPresented: $renaming) {
+                // `window.prompt`: no placeholder.
+                TextField("", text: $newName)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") { rename() }
+            }
+    }
+
+    /// The group photo's three sources.
+    private func pickers<V: View>(_ content: V) -> some View {
+        content
+            .photosPicker(isPresented: $pickingLibrary, selection: $photoItem, matching: .images)
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                photoItem = nil
+                Task { await load(item) }
+            }
+            .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.image]) { result in
+                picked(file: result)
+            }
+            .fullScreenCover(isPresented: $takingPhoto) {
+                CameraPicker { data in
+                    takingPhoto = false
+                    if let data { upload(data) }
+                }
+                .ignoresSafeArea()
+            }
+    }
+
+    private func reportSheet(_ target: ReportTarget) -> some View {
+        let app = model
+        return FAMReportSheet(api: model.safety, subject: target.subject,
+                              say: { app.nowPlaying.say($0) }) { receipt in
+            // A reported message leaves this listener's thread at once.
+            if let id = target.messageID, receipt?.hidden == true { chat.remove(messageID: id) }
+        }
+    }
+
+    private func deeperSheet(_ base: SharedEpisode) -> some View {
+        // Labelled: a trailing closure here would be matched against the
+        // later `close` parameter by Swift 5's backward scan.
+        GoDeeperSheet(base: base, onGo: { words, minutes, typed in
+            followUp(base, words: words, minutes: minutes, typed: typed)
+        })
+        .environmentObject(model)
+        .environmentObject(model.nowPlaying)
+    }
+
+    private func load(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            model.nowPlaying.say("Could not read that file")
+            return
+        }
+        upload(data)
+    }
+
+    private func start() async {
+        if social.me == nil { Task { await social.loadMe() } }
+        if !who.group && !who.handle.isEmpty && person == nil {
+            Task { person = try? await model.api.person(handle: who.handle) }
+        }
+        let app = model
+        chat.say = { [weak app] text in app?.nowPlaying.say(text) }
+        await chat.run()
+    }
+
+    // MARK: - Header (`.yf-thread-head`)
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                SocialBackButton(label: "Back to messages") { social.back() }
+                Button(action: whoTapped) { whoLabel }
+                    .buttonStyle(.press)
+                    // The web's who button (`aria-label="View profile"`).
+                    .accessibilityLabel(who.group ? displayName : "View profile")
+                    .accessibilityHint(who.group ? "See who\u{2019}s here" : "")
+                if who.group {
+                    Button { photoMenu() } label: {
+                        // Search's paperclip, as the web draws it here.
+                        RoundIcon { WebIcon(path: SearchIcons.attach, size: 17, line: 2) }
+                    }
+                    .buttonStyle(.press)
+                    .accessibilityLabel(who.avatar.isEmpty ? "Add a group photo" : "Change the group photo")
+                }
+                Button { openMenu() } label: {
+                    RoundIcon { WebFill(path: Icons.dots(1.7), size: 17) }
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel("More")
+            }
+            if !who.group && !chipLabels.isEmpty {
+                FlowRow(spacing: 7) {
+                    ForEach(person?.topics ?? [], id: \.self) { topic in
+                        InterestChipButton(topic: topic) { social.open(.topic($0)) }
+                    }
+                    if inCommon > 0 {
+                        InterestChip(label: "\(inCommon) in common", common: true)
+                    }
+                }
+                .padding(.top, 11)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(FAMColor.surface.ignoresSafeArea(edges: .top))
+        .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+    }
+
+    private var whoLabel: some View {
+        HStack(spacing: 10) {
+            Face(name: who.name, handle: who.handle, avatar: who.avatar, size: 42, initialsSize: 14)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(displayName)
+                        .font(FAMFont.heading(18, .medium))
+                        .foregroundStyle(FAMColor.text)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if who.explicit { ExplicitBadge() }
+                }
+                Text(subLine)
+                    .font(FAMFont.mono(10))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var displayName: String {
+        if !who.name.isEmpty { return who.name }
+        if !who.handle.isEmpty { return "@" + who.handle }
+        return who.group ? "Group" : "Someone"
+    }
+
+    /// "View profile", or "N people · See who's here" - "0 people" while
+    /// the group's people are not known yet, as the web counts them.
+    private var subLine: String {
+        guard who.group else { return "View profile" }
+        let n = who.members.count
+        return "\(n) \(n == 1 ? "person" : "people") \u{00B7} See who\u{2019}s here"
+    }
+
+    private var chipLabels: [String] { person?.interestLabels ?? [] }
+    private var inCommon: Int { social.inCommon(chipLabels) }
+
+    /// `openThreadProfile`: a group's people, else the profile by handle -
+    /// with no handle, "They have not chosen a handle yet".
+    private func whoTapped() {
+        if who.group { showMembers = true; return }
+        openProfile()
+    }
+
+    private func openProfile() {
+        guard !who.handle.isEmpty else {
+            model.nowPlaying.say("They have not chosen a handle yet")
+            return
+        }
+        social.openPerson(handle: who.handle, userID: who.with, name: who.name, avatar: who.avatar)
+    }
+
+    // MARK: - The messages (`#thread-body`)
+
+    private var messages: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    bodyContent
+                    Color.clear.frame(height: 1).id("bottom")
+                }
+                .padding(.horizontal, 13)
+                .padding(.vertical, 14)
+                .animation(popReady ? .easeOut(duration: 0.26) : nil, value: chat.rows.map(\.id))
+                .animation(.easeOut(duration: 0.2), value: chat.typing)
+            }
+            .defaultScrollAnchor(.bottom)
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: chat.rows.count) { _, _ in
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                if chat.state == .loaded && !popReady {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                        popReady = true
+                    }
+                }
+            }
+            .onChange(of: chat.typing) { _, on in
+                if on { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
+            }
+            .onChange(of: typing) { _, on in
+                if on {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                        withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var bodyContent: some View {
+        if who.group && !who.warning.isEmpty {
+            // The server's sentence: who in this group the listener is not
+            // friends with (§520).
+            Text(who.warning)
+                .font(FAMFont.body(11.5))
+                .foregroundStyle(FAMColor.text)
+                .lineSpacing(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 11)
+                .background(FAMColor.copper.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.copper))
+                .padding(.top, 4)
+                .padding(.bottom, 12)
+                .accessibilityAddTraits(.isStaticText)
+        }
+        if chat.rows.isEmpty {
+            switch chat.state {
+            case .idle, .loading: SocialNote(text: "Loading\u{2026}")
+            case .failed: SocialNote(text: "Could not open that conversation.")
+            case .loaded: SocialNote(text: "Nothing here yet. Say something, or share an episode with the (+).")
+            }
+        } else {
+            let lines = chatLines
+            ForEach(lines) { line in
+                ChatLineView(line: line, group: who.group, otherFirst: first,
+                             saved: savedFor(line.row.message),
+                             listen: { listen(line.row.message) },
+                             goDeeper: { goDeeper(line.row.message) },
+                             save: { save(line.row.message) },
+                             report: { reportMessage(line.row.message) })
+                    .transition(.scale(scale: 0.6, anchor: line.row.message.mine == true ? .bottomTrailing : .bottomLeading)
+                        .combined(with: .opacity))
+            }
+        }
+        if chat.typing {
+            HStack {
+                TypingBubble()
+                Spacer(minLength: 0)
+            }
+            .transition(.opacity)
+        }
+    }
+
+    /// Each row with its day separator and, in a group, the sender's first
+    /// name over the first of each run (`renderThreadBody`): a separator
+    /// only when the day changes, never on a system line, which also leaves
+    /// the last day alone; the name over cards as well as bubbles, a run
+    /// broken by a system line, by your own message or by another sender -
+    /// never by a new day.
+    private var chatLines: [ChatLine] {
+        var out: [ChatLine] = []
+        var lastDay: Date?
+        var lastFrom = ""
+        for row in chat.rows {
+            let m = row.message
+            if who.group && m.kind == "system" {
+                lastFrom = ""
+                out.append(ChatLine(row: row, day: "", from: ""))
+                continue
+            }
+            var from = ""
+            if who.group && m.mine != true {
+                let name = socialFirstName(m.from?.name ?? "", handle: m.from?.handle ?? "")
+                if name != lastFrom { from = name }
+                lastFrom = name
+            } else {
+                lastFrom = ""
+            }
+            var day = ""
+            if let at = m.at {
+                let when = SocialTime.date(at)
+                let same = lastDay.map { Calendar.current.isDate($0, inSameDayAs: when) } ?? false
+                if !same {
+                    lastDay = when
+                    day = SocialTime.day(at)
+                }
+            }
+            out.append(ChatLine(row: row, day: day, from: from))
+        }
+        return out
+    }
+
+    private func savedFor(_ m: ChatMessage) -> Bool {
+        guard m.kind == "episode", let q = m.query else { return false }
+        return model.isSaved(query: q, minutes: m.minutes ?? FAMAPI.browseMinutes)
+    }
+
+    // MARK: - Card actions
+
+    /// Listen: the sender's exact episode (§288), else the question.
+    private func listen(_ m: ChatMessage) {
+        guard let q = m.query, !q.isEmpty else { return }
+        let minutes = m.minutes ?? FAMAPI.browseMinutes
+        let title = m.title ?? ""
+        let episode = m.episode ?? ""
+        let app = model
+        social.closeCover { app.playShared(query: q, minutes: minutes, title: title, episode: episode) }
+    }
+
+    private func goDeeper(_ m: ChatMessage) {
+        guard let q = m.query, !q.isEmpty else { return }
+        deeper = SharedEpisode(query: q, title: m.title ?? q, minutes: m.minutes ?? FAMAPI.browseMinutes)
+    }
+
+    /// A follow-up of the shared episode: its title is the context.
+    private func followUp(_ base: SharedEpisode, words: String, minutes: Double, typed: Bool) {
+        let app = model
+        let covers = social
+        Task {
+            // `startFollowUp`, as from the player: the listener's own words
+            // corrected at send (FAM's suggestion is sent as written), a
+            // search event unless private search is on - then it is private
+            // too (§285): no event, no history, nobody's name on it.
+            var question = words
+            if typed {
+                let fixed = await app.speller.correct(words)
+                question = fixed.query
+            }
+            let hush = app.privateSearch
+            let asked = question
+            if !hush { Task { await app.api.event("search", text: asked) } }
+            var ep = Episode(key: EpisodeKey(query: question, minutes: minutes, context: base.title),
+                             title: NowPlayingModel.titleFromPrompt(question), surface: "other",
+                             own: typed, picture: nil, titleOverridden: false)
+            ep.isPrivate = hush
+            let chosen = ep
+            covers.closeCover { app.play(chosen) }
+        }
+    }
+
+    private func save(_ m: ChatMessage) {
+        guard let q = m.query, !q.isEmpty else { return }
+        model.toggleSaved(query: q, minutes: m.minutes ?? FAMAPI.browseMinutes, title: m.title ?? "")
+    }
+
+    private func reportMessage(_ m: ChatMessage) {
+        guard m.id > 0 else { return }
+        reporting = ReportTarget(subject: .message(id: m.id), messageID: m.id)
+    }
+
+    // MARK: - The composer (`.yf-composer`)
+
+    private var composer: some View {
+        HStack(alignment: .bottom, spacing: 7) {
+            Button { shareInto() } label: {
+                RoundIcon { WebIcon(path: Icons.plus, size: 17, line: 2.4) }
+            }
+            .buttonStyle(.press)
+            .accessibilityLabel("Share an episode")
+            TextField("", text: $chat.draft, prompt: Text(placeholder).foregroundColor(FAMColor.textMuted),
+                      axis: .vertical)
+                .font(FAMFont.body(12.5))
+                .foregroundStyle(FAMColor.text)
+                .lineLimit(1...5)
+                .textInputAutocapitalization(.sentences)
+                .focused($typing)
+                .accessibilityLabel("Message")
+                .padding(.horizontal, 13)
+                .padding(.vertical, 9)
+                .frame(minHeight: 36)
+                .frame(maxHeight: 112)
+                .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
+                .onChange(of: chat.draft) { old, now in
+                    chat.noteTyping()
+                    let box = chat
+                    corrector?.changed(from: old, to: now, read: { box.draft }, write: { box.draft = $0 })
+                }
+                .onAppear { if corrector == nil { corrector = LiveCorrector(speller: model.speller) } }
+            Button { chat.sendText() } label: {
+                RoundIcon(gold: true) { WebIcon(path: Icons.arrow, size: 16, line: 2.4) }
+            }
+            .buttonStyle(.press)
+            .accessibilityLabel("Send")
+        }
+        // `.yf-composer`: 10 on top, 12 at the sides, 14 under.
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
+        .background(FAMColor.background.ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+    }
+
+    private var placeholder: String {
+        who.group ? "Message the group" : "Message " + first
+    }
+
+    /// `shareIntoThread`: up to seven episodes, nobody twice - the one
+    /// playing, Saved for Later, your vibes. Mixes are not sent from here.
+    private func shareInto() {
+        Task {
+            var items: [(ep: SharedEpisode, why: String, episode: String)] = []
+            var seen: Set<String> = []
+            func offer(_ query: String, _ title: String, _ minutes: Double, _ why: String, _ episode: String) {
+                let key = query.lowercased() + "|" + FAMAPI.minutes(minutes)
+                guard !query.isEmpty, !seen.contains(key), items.count < 7 else { return }
+                seen.insert(key)
+                items.append((SharedEpisode(query: query, title: title, minutes: minutes), why, episode))
+            }
+            if let now = model.nowPlaying.episode, model.player.isLoaded {
+                offer(now.key.query, model.nowPlaying.title, now.key.minutes, "playing", model.player.episodeID)
+            }
+            let saved = (try? await model.api.savedItems()) ?? []
+            for s in saved { offer(s.query, s.title ?? "", s.minutes, "saved", "") }
+            if social.me == nil { await social.loadMe() }
+            for e in social.me?.echoes ?? [] {
+                offer(e.query, e.title ?? "", e.minutes ?? FAMAPI.browseMinutes, "vibed", "")
+            }
+            guard !items.isEmpty else {
+                model.nowPlaying.say("Play or save an episode, then share it here")
+                return
+            }
+            let actions = items.map { item in
+                SheetAction(label: (item.ep.title.isEmpty ? item.ep.query : item.ep.title) + " \u{00B7} " + item.why) {
+                    chat.sendEpisode(query: item.ep.query, minutes: item.ep.minutes,
+                                     title: item.ep.title, episode: item.episode)
+                }
+            }
+            sheet = SheetSpec(header: "Share with " + (who.group ? displayName : first), actions: actions)
+        }
+    }
+
+    // MARK: - The ⋯ (`openThreadMenu`)
+
+    private func openMenu() {
+        var actions: [SheetAction] = []
+        if who.group {
+            actions.append(SheetAction(label: "See who\u{2019}s here") { showMembers = true })
+            actions.append(SheetAction(label: "Name the group") {
+                newName = who.named ? who.name : ""
+                renaming = true
+            })
+            actions.append(SheetAction(label: who.avatar.isEmpty ? "Add a group photo" : "Change group photo") {
+                photoMenu()
+            })
+            actions.append(SheetAction(label: "Leave group", danger: true) { askLeave() })
+            actions.append(SheetAction(label: "Delete chat", danger: true) { askDelete() })
+            actions.append(SheetAction(label: "Report this chat", danger: true) {
+                reporting = ReportTarget(subject: .group(id: who.with))
+            })
+        } else {
+            actions.append(SheetAction(label: "View profile") { openProfile() })
+            actions.append(SheetAction(label: "Delete chat", danger: true) { askDelete() })
+            if !who.handle.isEmpty {
+                let name = who.name.isEmpty ? "@" + who.handle : who.name
+                let handle = who.handle
+                actions.append(SheetAction(label: "Report " + name, danger: true) {
+                    reporting = ReportTarget(subject: .person(handle: handle))
+                })
+                actions.append(SheetAction(label: "Block " + name, danger: true) {
+                    askBlock(name: name, handle: handle)
+                })
+            }
+        }
+        sheet = SheetSpec(actions: actions)
+    }
+
+    /// The web's action sheets (`blockPerson`, `confirmDeleteChat`,
+    /// `confirmLeaveGroup`): the sentence as the sheet's group line, then
+    /// the one coral row.
+    private func askBlock(name: String, handle: String) {
+        sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked() }
+    }
+
+    private func askDelete() {
+        let them = who.group ? "everybody else" : first
+        let header = "Delete this chat? It goes from your messages only \u{2014} " + them + " still has it."
+        sheet = SheetSpec(header: header, actions: [SheetAction(label: "Delete chat", danger: true) { deleteChat() }])
+    }
+
+    private func askLeave() {
+        let header = "Leave " + displayName + "? You won\u{2019}t get its messages any more, and the others are told."
+        sheet = SheetSpec(header: header, actions: [SheetAction(label: "Leave group", danger: true) { leaveGroup() }])
+    }
+
+    /// After a block (a 1:1 chat's ⋯): "Blocked", the graph and inbox
+    /// re-read, and the chat closes (`blockPerson(..., goBack)`).
+    private func blocked() {
+        model.nowPlaying.say("Blocked")
+        Task {
+            await social.loadGraph()
+            await social.loadInbox()
+        }
+        social.back()
+    }
+
+    private func deleteChat() {
+        let with = who.with
+        Task {
+            do {
+                let answer = try await model.api.deleteChat(with: with)
+                social.dropThread(with, unread: answer.unread)
+                social.back()
+                model.nowPlaying.say("Chat deleted")
+            } catch {
+                model.nowPlaying.say(SocialModel.sentence(error, else: "Could not delete that chat"))
+            }
+        }
+    }
+
+    private func leaveGroup() {
+        let gid = who.with
+        Task {
+            do {
+                let answer = try await model.api.leaveGroup(gid)
+                social.dropThread(gid, unread: answer.unread)
+                social.back()
+                model.nowPlaying.say("You left the group")
+            } catch {
+                model.nowPlaying.say(SocialModel.sentence(error, else: "Could not leave that group"))
+            }
+        }
+    }
+
+    private func rename() {
+        // Sent as typed (`renameGroup`): the server trims and caps it.
+        let name = newName
+        let gid = who.with
+        Task {
+            do {
+                let answer = try await model.api.renameGroup(gid, name: name)
+                if let g = answer.group { chat.apply(g) }
+                // The "named the group" line at once (`pollThread`).
+                await chat.pollNow()
+            } catch {
+                model.nowPlaying.say(SocialModel.sentence(error, else: "Could not rename it"))
+            }
+        }
+    }
+
+    // MARK: - The group photo (shot 26)
+
+    private func photoMenu() {
+        var actions = [SheetAction(label: "Choose from library") { pickingLibrary = true }]
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            actions.append(SheetAction(label: "Take a photo") { takingPhoto = true })
+        }
+        actions.append(SheetAction(label: "Choose a file") { pickingFile = true })
+        if !who.avatar.isEmpty {
+            actions.append(SheetAction(label: "Remove photo", danger: true) { setPhoto("") })
+        }
+        sheet = SheetSpec(header: who.avatar.isEmpty ? "Add a group photo" : "Change the group photo",
+                          actions: actions)
+    }
+
+    private func picked(file result: Result<URL, Error>) {
+        guard case let .success(url) = result else {
+            model.nowPlaying.say("Could not read that file")
+            return
+        }
+        let open = url.startAccessingSecurityScopedResource()
+        defer { if open { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else {
+            model.nowPlaying.say("Could not read that file")
+            return
+        }
+        upload(data)
+    }
+
+    private func upload(_ data: Data) {
+        guard let url = GroupPhoto.dataURL(from: data) else {
+            model.nowPlaying.say("That file is not an image FAM can read")
+            return
+        }
+        setPhoto(url)
+    }
+
+    /// The server checks the photo (Anthropic) and may refuse in a sentence.
+    private func setPhoto(_ avatar: String) {
+        let gid = who.with
+        Task {
+            do {
+                let answer = try await model.api.setGroupPhoto(gid, avatar: avatar)
+                if let g = answer.group { chat.apply(g) }
+                await chat.pollNow()
+            } catch {
+                model.nowPlaying.say(SocialModel.sentence(error, else: "Could not change the photo"))
+            }
+        }
+    }
+
+    // MARK: - See who's here (shot 25)
+
+    private var membersSheet: some View {
+        GroupMembersSheet(name: displayName, members: who.members,
+                          open: { m in
+                              social.openPerson(handle: m.handle, name: m.name, avatar: m.avatar)
+                          })
+            .environmentObject(model)
+    }
+}
+
+extension ChatModel {
+    /// A group's new name or photo, from the server's answer.
+    func apply(_ w: ChatWith) {
+        var next = who
+        if let n = w.name, !n.isEmpty { next.name = n }
+        next.avatar = w.avatar ?? next.avatar
+        next.named = w.named ?? next.named
+        if let m = w.members, !m.isEmpty { next.members = m }
+        if let warn = w.warning { next.warning = warn }
+        who = next
+    }
+}
+
+// MARK: - One line of a conversation
+
+struct ChatLine: Identifiable {
+    let row: ChatModel.Row
+    /// The day separator above it, or "".
+    let day: String
+    /// A group's sender name over it, or "".
+    let from: String
+    var id: String { row.id }
+}
+
+/// A row as the web draws it (`renderThreadBody`).
+struct ChatLineView: View {
+    let line: ChatLine
+    let group: Bool
+    let otherFirst: String
+    let saved: Bool
+    let listen: () -> Void
+    let goDeeper: () -> Void
+    let save: () -> Void
+    let report: () -> Void
+
+    private var m: ChatMessage { line.row.message }
+    private var mine: Bool { m.mine == true }
+    private var text: String { m.text ?? "" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !line.day.isEmpty {
+                Text(line.day)
+                    .font(FAMFont.mono(9))
+                    .tracking(0.36)
+                    .foregroundStyle(FAMColor.textFaint)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 10)
+            }
+            if !line.from.isEmpty {
+                Text(line.from)
+                    .font(FAMFont.mono(9.5))
+                    .tracking(0.57)
+                    .foregroundStyle(FAMColor.textMuted)
+                    .padding(.top, 6)
+                    .padding(.bottom, 2)
+                    .padding(.leading, 4)
+            }
+            content
+        }
+        .opacity(line.row.pending ? 0.55 : 1)
+    }
+
+    @ViewBuilder private var content: some View {
+        if m.kind == "system" {
+            Text(systemText)
+                .font(FAMFont.body(11))
+                .foregroundStyle(FAMColor.textMuted)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+        } else if m.kind == "episode" {
+            episode
+        } else {
+            side { reportable(TextBubble(text: text, mine: mine, selectable: mine || m.id <= 0)) }
+                .padding(.bottom, 10)
+        }
+    }
+
+    /// "You named the group Book club", "Theo changed the group photo".
+    private var systemText: String {
+        let who = mine ? "You" : socialFirstName(m.from?.name ?? "", handle: m.from?.handle ?? "")
+        return who + " " + text
+    }
+
+    /// The card, then the words or the big heart on the same side, then
+    /// the receipt for an episode sent to you that you finished.
+    @ViewBuilder private var episode: some View {
+        side { reportable(SharedEpisodeCard(message: m, mine: mine, label: cardLabel, saved: saved,
+                                      listen: listen, goDeeper: goDeeper, save: save)) }
+            .padding(.bottom, 10)
+        if text == FAMAPI.storyLike {
+            side {
+                Text(FAMAPI.storyLike)
+                    .font(.system(size: 30))
+                    .padding(.horizontal, 4)
+                    .accessibilityLabel("Liked")
+            }
+            .padding(.bottom, 10)
+        } else if !text.isEmpty {
+            side { TextBubble(text: text, mine: mine) }
+                .padding(.bottom, 10)
+        }
+        if m.finished == true {
+            HStack {
+                Spacer(minLength: 0)
+                HStack(spacing: 6) {
+                    WebIcon(path: Icons.check, size: 13)
+                        .foregroundStyle(FAMColor.sage)
+                    Text("You finished it \u{00B7} \(FAMAPI.minutes(m.minutes ?? FAMAPI.browseMinutes)) min")
+                        .font(FAMFont.body(10))
+                        .foregroundStyle(FAMColor.textMuted)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                // `.msg-receipt`: radius 11, a dashed rgba(fg, .22) line.
+                .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 11))
+                .overlay(RoundedRectangle(cornerRadius: 11)
+                    .stroke(FAMColor.text.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+            }
+            .padding(.top, -2)
+            .padding(.bottom, 10)
+        }
+    }
+
+    /// "YOU SHARED AN EPISODE", "BETH REPLIED TO YOUR VIBE", "RACHEL LIKED
+    /// YOUR VIBE" - in a group, the sender's first name.
+    private var cardLabel: String {
+        let like = text == FAMAPI.storyLike
+        if mine {
+            if like { return "You liked their vibe" }
+            return text.isEmpty ? "You shared an episode" : "You replied to their vibe"
+        }
+        let name = group ? socialFirstName(m.from?.name ?? "", handle: m.from?.handle ?? "") : otherFirst
+        if like { return name + " liked your vibe" }
+        return name + (text.isEmpty ? " shared an episode" : " replied to your vibe")
+    }
+
+    /// Theirs on the left, yours on the right, never wider than 75%.
+    private func side<Inner: View>(@ViewBuilder _ inner: () -> Inner) -> some View {
+        HStack(spacing: 0) {
+            if mine { Spacer(minLength: 88) }
+            inner()
+            if !mine { Spacer(minLength: 88) }
+        }
+    }
+
+    /// Held down, somebody else's message can be copied or reported
+    /// (quirk 1). Their words are not text-selectable as well: selection's
+    /// own long-press menu would take the gesture and hide Report.
+    @ViewBuilder private func reportable<Inner: View>(_ inner: Inner) -> some View {
+        if !mine && m.id > 0 {
+            inner.contextMenu {
+                if !text.isEmpty && text != FAMAPI.storyLike {
+                    Button {
+                        UIPasteboard.general.string = text
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                    }
+                }
+                Button(role: .destructive, action: report) {
+                    Label("Report", systemImage: "flag")
+                }
+            }
+        } else {
+            inner
+        }
+    }
+}
+
+/// `.msg-bubble`: Geist 12.5 / 17.5, padding 9/13, radius 15 with the tail
+/// corner 5; theirs on surface-2, yours copper with ink at 500.
+struct TextBubble: View {
+    let text: String
+    let mine: Bool
+    var selectable = true
+
+    var body: some View {
+        if selectable {
+            bubble.textSelection(.enabled)
+        } else {
+            bubble
+        }
+    }
+
+    private var bubble: some View {
+        Text(text)
+            .font(FAMFont.body(12.5, mine ? .medium : .regular))
+            .foregroundStyle(mine ? FAMColor.ink : FAMColor.text)
+            .lineSpacing(5)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 9)
+            .background(mine ? FAMColor.copper : FAMColor.surface2, in: ChatShape.bubble(mine: mine))
+    }
+}
+
+enum ChatShape {
+    /// Radius 15, the tail corner 5 on the sender's side.
+    static func bubble(mine: Bool) -> UnevenRoundedRectangle {
+        UnevenRoundedRectangle(topLeadingRadius: 15, bottomLeadingRadius: mine ? 15 : 5,
+                               bottomTrailingRadius: mine ? 5 : 15, topTrailingRadius: 15,
+                               style: .continuous)
+    }
+}
+
+/// `.yf-ep`: the copper label with the share mark, then the card - meta,
+/// the title, Listen / GO DEEPER / save - at most 236 wide.
+struct SharedEpisodeCard: View {
+    let message: ChatMessage
+    let mine: Bool
+    let label: String
+    let saved: Bool
+    let listen: () -> Void
+    let goDeeper: () -> Void
+    let save: () -> Void
+
+    private var meta: String {
+        let topic = message.topic ?? ""
+        let minutes = FAMAPI.minutes(message.minutes ?? FAMAPI.browseMinutes) + " min"
+        return topic.isEmpty ? minutes : topic + " \u{00B7} " + minutes
+    }
+
+    private var title: String {
+        let t = message.title ?? ""
+        return t.isEmpty ? (message.query ?? "") : t
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
+                WebIcon(path: Icons.menuShare, size: 12)
+                Text(label).monoLabel(9, color: FAMColor.copper, tracking: 0.36)
+            }
+            .foregroundStyle(FAMColor.copper)
+            card
+        }
+        .frame(maxWidth: 236, alignment: .leading)
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(meta).monoLabel(8.5, tracking: 0.68)
+            Text(title)
+                .font(FAMFont.heading(15.5, .medium))
+                .foregroundStyle(FAMColor.text)
+                .lineSpacing(1.5)
+                .fixedSize(horizontal: false, vertical: true)
+            actions
+        }
+        .padding(11)
+        .frame(maxWidth: 236, alignment: .leading)
+        .background(FAMColor.surface2, in: ChatShape.bubble(mine: mine))
+        .overlay(ChatShape.bubble(mine: mine).stroke(FAMColor.text.opacity(0.14)))
+    }
+
+    private var actions: some View {
+        HStack(spacing: 6) {
+            Button(action: listen) {
+                HStack(spacing: 7) {
+                    WebFill(path: Icons.rowPlay, size: 11)
+                    Text("Listen").font(FAMFont.body(11, .bold))
+                }
+                .foregroundStyle(FAMColor.ink)
+                .padding(.horizontal, 11)
+                .frame(minHeight: 30)
+                .background(FAMColor.copper, in: Capsule())
+            }
+            .buttonStyle(.press)
+            Button(action: goDeeper) {
+                Text("GO DEEPER")
+                    .font(FAMFont.body(11, .medium))
+                    .foregroundStyle(FAMColor.text)
+                    .padding(.horizontal, 11)
+                    .frame(minHeight: 30)
+                    .overlay(Capsule().stroke(FAMColor.borderStrong))
+            }
+            .buttonStyle(.press)
+            Button(action: save) {
+                ZStack {
+                    if saved {
+                        Glyph(path: Icons.bookmark, box: CGRect(x: 0, y: 0, width: 24, height: 24))
+                            .fill(FAMColor.copper)
+                            .frame(width: 14, height: 14)
+                    }
+                    WebIcon(path: Icons.bookmark, size: 14)
+                        .foregroundStyle(saved ? FAMColor.copper : FAMColor.text)
+                }
+                .frame(width: 30, height: 30)
+                .overlay(Circle().stroke(saved ? FAMColor.copper : FAMColor.borderStrong))
+            }
+            .buttonStyle(.press)
+            // The web's `aria-label`, saved or not.
+            .accessibilityLabel("Save for later")
+            .accessibilityAddTraits(saved ? .isSelected : [])
+        }
+    }
+}
+
+/// `.msg-typing`: three 6 pt dots in an incoming bubble, rising 3 pt and
+/// brightening in turn every 1.2 s (static at .7 with reduced motion).
+struct TypingBubble: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { i in
+                    let k = reduceMotion ? 0.55 : TypingBubble.pulse(t - Double(i) * 0.15)
+                    Circle()
+                        .fill(FAMColor.textMuted)
+                        .frame(width: 6, height: 6)
+                        .offset(y: -3 * k)
+                        .opacity(0.35 + 0.65 * k)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(width: 54, height: 30)
+        .background(FAMColor.surface2, in: ChatShape.bubble(mine: false))
+        .padding(.bottom, 10)
+        .accessibilityLabel("Typing")
+    }
+
+    /// 0 → 1 → 0 over the first half of each 1.2 s beat.
+    static func pulse(_ t: Double) -> Double {
+        let beat = 1.2
+        var p = t.truncatingRemainder(dividingBy: beat) / beat
+        if p < 0 { p += 1 }
+        guard p < 0.6 else { return 0 }
+        let x = p / 0.6
+        return x < 0.5 ? x * 2 : (1 - x) * 2
+    }
+}
+
+/// See who's here (shot 25, `openGroupMembers`): each other member's face,
+/// name and @handle opens their profile - where Report and Block are - then
+/// the web's last row, "You", which does nothing but close.
+struct GroupMembersSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let name: String
+    let members: [ChatMember]
+    let open: (ChatMember) -> Void
+
+    private var others: [ChatMember] { members.filter { !$0.me } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SheetGroupLabel(text: "\(name) \u{00B7} \(members.count) \(members.count == 1 ? "person" : "people")")
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(others, id: \.self) { m in row(m) }
+                    youRow
+                }
+            }
+            SheetCancelButton { dismiss() }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(FAMColor.surface)
+    }
+
+    private func row(_ m: ChatMember) -> some View {
+        HStack(spacing: 12) {
+            // A row with no handle only closes the sheet, as the web's does.
+            Button { if m.handle.isEmpty { dismiss() } else { after { open(m) } } } label: {
+                HStack(spacing: 12) {
+                    Face(name: m.name, handle: m.handle, avatar: m.avatar, size: 34, initialsSize: 12)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(m.name.isEmpty ? "@" + m.handle : m.name)
+                            .font(FAMFont.body(13.5, .semibold))
+                            .foregroundStyle(FAMColor.text)
+                            .lineLimit(1)
+                        if !m.handle.isEmpty {
+                            Text("@" + m.handle)
+                                .font(FAMFont.body(11))
+                                .foregroundStyle(FAMColor.textMuted)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.press)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 9)
+    }
+
+    /// `openGroupMembers`' last item: "You", a row whose tap only closes.
+    private var youRow: some View {
+        Button { dismiss() } label: {
+            Text("You")
+                .font(FAMFont.body(13.5, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                .padding(.horizontal, 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+    }
+
+    /// Close the sheet, then act once it has gone.
+    private func after(_ action: @escaping () -> Void) {
+        dismiss()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            action()
+        }
+    }
+}
+
+/// A group's photo as the web sends it: cut square from the middle, 256
+/// pixels (`AVATAR_PX`), JPEG at .85, as a `data:` URL.
+enum GroupPhoto {
+    static let side: CGFloat = 256
+
+    static func dataURL(from data: Data) -> String? {
+        guard let source = UIImage(data: data), source.size.width > 0, source.size.height > 0 else { return nil }
+        let edge = min(source.size.width, source.size.height)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+        let scale = side / edge
+        let x = (source.size.width - edge) / 2
+        let y = (source.size.height - edge) / 2
+        let square = renderer.image { _ in
+            source.draw(in: CGRect(x: -x * scale, y: -y * scale,
+                                   width: source.size.width * scale, height: source.size.height * scale))
+        }
+        guard let jpeg = square.jpegData(compressionQuality: 0.85) else { return nil }
+        return "data:image/jpeg;base64," + jpeg.base64EncodedString()
+    }
+}
+
+/// "Take a photo": the camera, handing back the picture's data.
+struct CameraPicker: UIViewControllerRepresentable {
+    let done: (Data?) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(done: done) }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ vc: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let done: (Data?) -> Void
+
+        init(done: @escaping (Data?) -> Void) { self.done = done }
+
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            let image = info[.originalImage] as? UIImage
+            done(image?.jpegData(compressionQuality: 0.9))
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            done(nil)
+        }
+    }
+}

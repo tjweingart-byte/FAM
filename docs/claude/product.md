@@ -208,6 +208,44 @@ replaced when the same episode is vibed again.
 > with the account. In the viewer it has no Play, no share-to-your-story and
 > no episode menu; a reply or heart is a text message quoting it.
 
+<!-- rule:vibe-posts -->
+**A vibe tapped on a YourFAM grid opens as posts** *(PROBLEMS.md §547, the
+owner's "Vibes as Posts", option C of two rounds of ten and six)*. Only
+from the two grids - your own and a friend's; a story, My Vibe's list and
+everything else still play the episode as before, and pressing and holding
+a tile on your own grid still offers delete (§499). The screen is that
+person's vibes newest first (`GET /api/vibe/posts`, `?handle=` for a
+friend), opened at the tile tapped. Each post: face and handle, **"Vibed"
+and the day** on the catalogue's calendar (`episodeDayLabel`), the
+picture with **the line** across it, a small player with the line marked
+in gold and a chip that plays from it, heart / reply / send / save, then
+likes and the friends who heard it, the title, the caption, the top reply
+and "View all n replies".
+
+- **The line** is one sentence the poster picks from the episode's own
+  captions in VIBE!'s **Line** tool - never typed - with where it starts
+  (measured, §127, else the captions' estimate). `echoes.line` and
+  `line_at`; omitted on a vibe it keeps the row's (installed clients, a
+  re-vibe that picked nothing); cut to `social.MAX_LINE`, slurs out, time
+  clamped. A vibe without one shows no strip.
+- **It plays where it sits**: a tap is the ordinary `generate` (so every
+  replay and quota rule holds) marked `inPlace`, which keeps the full player
+  from opening over the posts; the post's bar is painted by the one progress
+  clock and its button by `setPlayState` (`transport`). The line chip
+  seeks the playing episode, or starts it with `pendingResumeSeek`.
+- **Likes** are per post, not per episode (`vibe_likes`, an account's).
+- **Replies are public to whoever may see the vibe** - the owner, or anyone
+  who may open their profile and is not kept out of a close-friends vibe.
+  They are comments filed under the vibe (`comments.echo_id`; 0 is an
+  episode's own thread, which never shows them), so posting takes an
+  account and not a suspended one, likes, report (`comment`) and delete are
+  the comment code under their own paths (`/api/vibe/replies/{id}`, never
+  the `/api/comments` the app left in §499); the poster may also delete any
+  reply on their own post.
+  Deleting a vibe or an account takes its likes and replies.
+- **Who heard it** is the player's faces (§543), friends only and a friend's
+  own search only if their searches are public.
+
 <!-- rule:group-chats -->
 **Group chats (§213).** Pick two or more people you follow under the
 Messages (+) and start typing. A group is the one thread whose id is
@@ -226,6 +264,7 @@ Responses name members and carry no listener ids.
 > reported group takes the photo down.
 
 <!-- rule:names-swapped -->
+> **Current (PROBLEMS.md §519):** the tab bar spells them as the wordmarks do - **dailyFAM**, **myFAM**, **yourFAM** - lower-case first letter; the other listener-facing sentences are unchanged.
 **The listener sees myFAM and DailyFAM with their names swapped (§185), at
 the owner's direction.** The rails screen (the first tab, `screen-myfam`) is
 labelled **DailyFAM**; the mixes screen (`screen-playfam`) is labelled
@@ -290,7 +329,8 @@ server's marks are still polled, only to move the give-up time (§497), and the
 screen goes the moment audio arrives, wherever the needle has got to (§292).
 Chosen by `loader` on the topic (`dial` in `startBankTopic`, `glide` in
 `playMixItem`); drawn by `paintLoadingVariant` from what is already on the
-listener's screen, never invented.
+listener's screen, never invented. Both show the FAM mark above them,
+larger than search's (§542, the owner's direction).
 
 <!-- rule:search-no-cover -->
 **On search that once meant two calls at once, and no longer does**
@@ -407,6 +447,7 @@ speculative brief costs a fraction of a cent and a speculative episode costs an
 episode. See the settled constraint below.
 
 <!-- rule:rails-edition -->
+> **Current (PROBLEMS.md §568):** "No ceiling by default" below is still true of the rails edition's own ceilings, and they still apply per edition. On top of them, `AHEAD_DAILY_DOLLARS` (0 = none) is one daily budget the rails edition shares with the mixes' edition and prefetch (`ahead_budget.py`); whichever ceiling comes first stops it, and /admin says which.
 **The rails edition** *(PROBLEMS.md §359, at the owner's direction).* The
 rails (myFAM in code, "DailyFAM" on the listener's screen) are written whole
 before anybody taps, so a rail tap pays only for the voice:
@@ -650,6 +691,32 @@ fell to a facet). Four changes, none of which moves the §209 rules above:
   school - never a globe or the view from space. Pictures already painted
   keep theirs until regenerated (`tools/thumbnails.py`).
 
+<!-- rule:tree-review -->
+**The tree goes out to another reader and comes back as edits** *(PROBLEMS.md
+§585, at the owner's direction)*, the pronunciation round trip (§549) for
+categories. /admin's Categories page downloads every node as a CSV (path,
+parent, source, episodes filed there and below, listeners, any edit already
+made) with a fixed prompt (`category_review.PROMPT`) for a Claude chat on high
+effort, which returns `action,node,target,confidence,reason` rows: move,
+remove, merge, rename, add.
+
+* **An upload changes nothing.** It is read into proposals checked against the
+  tree as it stands (a loop, a missing node, a parent that is not a facet or
+  node is refused in words); an admin accepts each, or the high-confidence
+  ones together.
+* **An accepted edit is the owner's and nothing that grows the tree undoes
+  it** (`category_owner` table, `CategoryStore.owner_*`): a removed or merged
+  phrase is refused by `mint` whatever its source - the sweep, the writer's
+  words, the seed at every boot; the placer never moves a node the owner
+  placed; an owner's node is never pruned; `apply_owner` re-applies adds and
+  placements after the seed, so a wipe keeps them (they are decisions, not
+  derived from listening).
+* **A merged phrase reads as the node it went into**, like a seed alias, so
+  episodes whose words named it still land there. An episode Nando filed at
+  a removed node falls back as for any node the tree no longer holds.
+* "Forget" on an edit lets a removed phrase grow again and the placer move a
+  node again; it never changes the tree back.
+
 <!-- rule:no-inverted-pyramid -->
 Note this **replaced an earlier rule** that said to open with the answer
 immediately. That was news-writing — the inverted pyramid — and it is the
@@ -786,6 +853,7 @@ to the writer is judged.
 > **Current (PROBLEMS.md §305, the owner 10.23):** the length a search opens on, and returns to every time somebody comes back into the app, is **one minute**, not two (`DEFAULT_LENGTH_MINUTES`); the Length bubble still offers 1-5, and the Voice bubble is unchanged. Where the text below says two minutes, read one.
 
 > **Current (PROBLEMS.md §332, the owner 10.28):** the standard length is **a minute and a half** (`DEFAULT_LENGTH_MINUTES` and `DEFAULT_MINUTES` 1.5): "2 minutes feels too long and 1 minute feels too short". The Length bubble and Go Deeper offer 1, 1.5, 2, 3, 4 and 5. Where the text says one or two minutes, read 1.5.
+> **Current (PROBLEMS.md §510, the owner 11.9, "Rock Lead Theory"):** a named subject outranks the category **only on the category's own facet** - a grown `lead` node under science drew a golf episode "in the lead" as a lump of metal.
 > **Current (PROBLEMS.md §282, the owner 10.15):** a third bubble, **Private**, is searchFAM's incognito for one search (`private-search`); while it is on the search page is charcoal in either theme.
 > **Current (PROBLEMS.md §219):** the Length menu offers **1, 2, 3, 4 and 5 minutes** (`SEARCH_LENGTHS`); the server still accepts up to ten, so no installed client is refused.
 - **The search page is Google's shape** *(PROBLEMS.md §190, the owner's 10.1
@@ -799,6 +867,7 @@ to the writer is judged.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §519, the owner's 11.9 packet):** **closed captions are a labelled CC pill** beside the queue (one tap, on or off, and the choice is remembered on the device for the next episode); on, they are read **over the picture** - one sentence at a time (§127) in large type on a dark card, a copy button and an X in its corner, a swipe down closes it - never a sheet at the bottom, which hid the transport. **The transport** is five slots (four that shrink with the screen, a 74px middle one), play dead centre in the middle one, the ±15 and next glyphs bare (no outlined circles) with the 15 readable inside its arrow; the first slot is empty to balance the next button. Share, vibe and save sit 24px higher, clear of the sources pill. The tab labels read **dailyFAM / myFAM / yourFAM** (lower-case first letter, as the wordmarks).
 > **Current (PROBLEMS.md §507, the owner 11.9, "this rock is everywhere"):** a picture is **borrowed, never hashed**: past the episode's branch and the facets its category and words fall under (strongest first - the category's facet, then the facet of the deepest node the words name, then a named sport, then keyword count; never alphabetical), an episode nothing places has **no picture**, reversing §193's "never missing" and §214's "every tile" for that case. **A broad node holds several pictures** - each facet and each node directly under one, `THUMBNAILS_BROAD_PICTURES` (4) - as rows `node#2`, `node#3` beside the node's own; the sweep paints them after every node has its first, telling the scene writer what the others show. An episode wears one of its node's pictures chosen by a hash of its words (`thumbnails.choose_picture`), so it is random across episodes and the same on its tile, player, vibe and share card.
 > **Current (PROBLEMS.md §363, the owner 10.31):** when the words name several subjects and the deepest is unpainted, the borrowed picture is the **most specific** painted one any of them reaches (a painted team beats another subject's league); an episode's category still walks its own branch first (§209).
 
@@ -842,6 +911,7 @@ to the writer is judged.
   (`rank_similar`, unchanged); clearing the box brings it back.
 
 <!-- rule:your-categories -->
+> **Current (PROBLEMS.md §550, the owner 11.11, "two tabs: Mixes | Categories", like Groups | Messages):** the screen that shows "myFAM" is two tabs under the wordmark. **Mixes** is Create new mix, the search and the mix cards; **Categories** is the chip row without **All** (followed with a star, the facets, More) over a list of rows - "Your categories" with today's count, then the rest of the facets with what is under them. A chip or a row opens the category in place as below; its X goes back to that list. Every arrival on the screen opens on Mixes. Everything §500 says about a category's panel stands.
 > **Current (PROBLEMS.md §500, the owner chose option 2 of the categories deck):** categories are **a row of filter chips** at the top of the screen that shows "myFAM", above the mixes: **All** (the page as it was), the categories this listener follows with a star, the facets not followed, and **More** (finds any node in the tree by a word it starts with, as the grid's search did). A chip filters the page **in place** - `#catPanel` replaces `#mixesPane`, no screen is opened: today's most played in that category as a picture ("Most played in Sport today", tapped it plays), **Play all N · M min** and **Follow**, then the rest as rows with their pictures. Inside a category the row becomes an X (back to All), the category, and the categories one level below that have something today; tapping one narrows, tapping it again widens. The grid under the mixes, the category screen, its sorts (A to Z, most recent), its title search and Shuffle play are gone; the order is most popular. `/api/categories/episodes` now sends each row's `thumb` (`_picture_episodes`, as the catalogue). Everything else below stands: cached only, replay-only taps, following kept for an account and never a taste signal, screened per viewer.
 > **Current (PROBLEMS.md §499, the owner's 11.3 packet):** with exploreFAM gone, a category no longer opens a reel. A tap plays that episode in the player, replay only (`cachedOnly`, as the catalogue plays one), and queues the rest of the page after it in the page's order; Shuffle play does the same from a shuffled copy (`playCategoryList`, the ordinary queue of §190). "You're all caught up" went with the reel. The owner asked for the categories section and page to be redesigned: five options are in a deck for them to choose from, and none is built.
 > **Current (PROBLEMS.md §255, the owner 10.12):** a category's reel does not go round: past its last card, "You're all caught up - Explore a different category?" offers four other categories (followed first, then facets; never this one or its heading), each of which opens and shuffles. Shuffle play is smaller. An episode filed by its words is filed under its deepest match and that branch only - never every facet its words touched - so Shuffle play holds only that category.
@@ -877,6 +947,7 @@ to the writer is judged.
 > `reelFeed`), its back arrow returning to the page; replay only.
 
 <!-- rule:queue -->
+> **Current (PROBLEMS.md §519, the owner's 11.9 packet):** **Go Deeper on a myFAM playlist's episode is a detour, never the end of the playlist**: the follow-up carries `mixDetour` (the playlist episode it left), plays with the playlist waiting behind it, and when it ends, is skipped or fails, the playlist carries on with its next episode (a Go Deeper on the follow-up is the same detour). The queue sheet is laid out with room: a "Queue" heading, rows inset from the edge with a picture (or place in line), a title over what the row is.
 - **The queue** *(PROBLEMS.md §190)*: Add to Queue from the player's menu or a
   DailyFAM tile's three dots (top right, beside save; the same menu less what
   needs a playing episode); Go to Queue lists Now playing, the playlist's

@@ -84,16 +84,17 @@ def test_an_account_already_in_is_not_found_by_its_account_name(world):
 
 # --- the waitlist's profile ---------------------------------------------------
 
-def test_skip_waits_for_a_name_and_a_phone_number():
+def test_skip_waits_for_a_name_and_the_phone_is_optional():
     bar = WAITLIST_PAGE.split('<div class="top setup-only">', 1)[1].split("</div>\n  <div", 1)[0]
     assert 'id="skipSetup" aria-disabled="true" onclick="skipSetup()"' in bar
     assert '.skip-btn[aria-disabled="true"]' in WAITLIST_PAGE
     skip = WAITLIST_PAGE.split("window.skipSetup = function", 1)[1].split("\n  };", 1)[0]
     assert skip.index("if(missingRequired().length){ askForRequired(); return; }") \
         < skip.index('api("/api/account"')
-    assert "display_name:" in skip and "phone: typedPhone()" in skip
+    assert "display_name:" in skip and "if(phone) body.phone = phone;" in skip
     required = WAITLIST_PAGE.split("function missingRequired(){", 1)[1].split("\n  }", 1)[0]
-    assert '$("pName")' in required and "phoneDigits().length < 7" in required
+    assert '$("pName")' in required and "pPhone" not in required
+    assert "Phone number <em>(Optional)</em>" in WAITLIST_PAGE
     # The popup: the one line and an X, and nothing else to press.
     pop = WAITLIST_PAGE.split('id="reqPop"', 1)[1].split("</div>\n</div>", 1)[0]
     assert "Please fill out required fields before continuing" in pop
@@ -133,9 +134,12 @@ def test_no_photo_shows_a_camera():
 
 # --- the app's sign-up profile -------------------------------------------------
 
-def test_the_apps_first_run_asks_for_a_phone_and_gates_skip():
+def test_the_apps_first_run_offers_an_optional_phone_and_gates_skip_on_the_name():
     screen = INDEX.split('<section class="screen" id="screen-identity">', 1)[1].split("</section>", 1)[0]
     assert 'id="identityPhoneField" data-first-run' in screen
+    assert 'Phone <span class="auth-opt">optional</span>' in screen
+    missing = INDEX.split("function identityMissing(){", 1)[1].split("\n  }", 1)[0]
+    assert "identityPhone" not in missing
     assert 'id="identitySkip" role="button" aria-disabled="true"' in screen
     skip = INDEX.split("function skipIdentity(){", 1)[1].split("\n  }", 1)[0]
     assert skip.index("showIdentityRequired()") < skip.index("saveIdentityAccount(true)")
@@ -161,8 +165,8 @@ def test_actions_are_confirmed_by_the_bar_with_somewhere_to_go():
     for gone in ('toast("Added to your queue")', "VIBE! — posted to your story",
                  'toast("Saved for later \\u2713")'):
         assert gone not in INDEX, gone
-    # A plain line since §299 (the owner's pick, 10.21): no box of its own
-    # colours any more, and the pill it sat beside is the same line.
+    # One style for both, no colours of their own (§299); a floating card
+    # on the surface colour since §550.
     assert "--snack-bg:" not in INDEX
     assert ".toast, .snack{" in INDEX and ".toast::before, .snack::before{" in INDEX
 

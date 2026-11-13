@@ -115,6 +115,7 @@ def test_delete_chat_is_on_the_menu_and_share_is_not():
     assert "Share an episode" not in menu
 
 
+@pytest.mark.usefixtures("everyone_friends")
 def test_delete_chat_through_the_app(client):
     ana = signed_in(client, "ana@b.com", "Ana", "ana")
     client.post("/api/auth/logout")

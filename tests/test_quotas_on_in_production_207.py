@@ -1,5 +1,8 @@
 """§207: quotas enforced in production, with the doors an owner needs.
 
+> **Current (§519):** switched back off in production at the owner's
+> direction - everyone has unlimited access for now; the doors below stay.
+
 `ENFORCE_QUOTAS=1` is set on the production service in `render.yaml` and
 nowhere else, so the worst listener is bounded at the free tier's daily
 ceiling rather than ~$2 a minute. There is still no checkout, so two things
@@ -35,10 +38,11 @@ def _env(service: dict) -> dict:
     return {e["key"]: e.get("value") for e in service.get("envVars", [])}
 
 
-def test_production_enforces_and_staging_does_not():
-    """Enforced where strangers can reach it; the code default (and so local
-    runs, tests and staging) stays off."""
-    assert _env(_service("fam")).get("ENFORCE_QUOTAS") == "1"
+def test_production_does_not_enforce_for_now_and_staging_does_not():
+    """The owner's 11.9 packet (§519): everyone has unlimited access until the
+    owner changes it, production included. Set explicitly to "0" on `fam` so
+    turning the §207 ceiling back on is one value; staging never sets it."""
+    assert _env(_service("fam")).get("ENFORCE_QUOTAS") == "0"
     assert "ENFORCE_QUOTAS" not in _env(_service("fam-staging"))
 
 

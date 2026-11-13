@@ -1,0 +1,83 @@
+{
+ "example": "2-suez-canal",
+ "teaches": "Why something matters: open on what it is in one concrete line; the reason in numbers; then the moment it failed and the history that made it contested; the forecast is left out; land where it matters now.",
+ "packet": [
+  {
+   "packet": "plugin",
+   "title": "The Suez Canal and world trade",
+   "published": "reference",
+   "sentences": [
+    "The Suez Canal is about a hundred and twenty miles long and crosses Egypt between the Red Sea and the Mediterranean.",
+    "It spares ships between Asia and Europe the voyage around Africa, which adds thousands of miles and more than a week.",
+    "Roughly twelve percent of world trade passes through it.",
+    "Canal fees are one of Egypt's biggest sources of foreign currency.",
+    "Analysts expect traffic through the canal to grow over the next decade."
+   ]
+  },
+  {
+   "packet": "archive",
+   "title": "Ever Given blocks the canal",
+   "published": "March 2021",
+   "sentences": [
+    "The container ship Ever Given ran aground across the canal in a sandstorm and blocked it for six days.",
+    "Hundreds of ships queued and some turned to sail around Africa."
+   ]
+  },
+  {
+   "packet": "archive",
+   "title": "The Suez crisis",
+   "published": "1956",
+   "sentences": [
+    "Egypt's president Gamal Abdel Nasser nationalised the canal in 1956.",
+    "Britain, France and Israel invaded and withdrew under pressure from the United States and the Soviet Union.",
+    "The canal had opened in 1869."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "why one canal carries so much weight",
+  "summary": [
+   "P1.1",
+   "P1.2",
+   "P1.3",
+   "P1.4",
+   "A1.1",
+   "A1.2",
+   "A2.1",
+   "A2.2",
+   "A2.3"
+  ],
+  "opening": [
+   "P1.1",
+   "P1.2"
+  ],
+  "beats": [
+   {
+    "purpose": "how much of the world's trade takes the shortcut",
+    "sentences": [
+     "P1.3"
+    ]
+   },
+   {
+    "purpose": "but: one channel is one point of failure",
+    "sentences": [
+     "A1.1",
+     "A1.2"
+    ]
+   },
+   {
+    "purpose": "why it has always been fought over",
+    "sentences": [
+     "A2.3",
+     "A2.1",
+     "A2.2"
+    ]
+   }
+  ],
+  "landing": [
+   "P1.4"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}

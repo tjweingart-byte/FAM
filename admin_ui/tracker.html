@@ -41,6 +41,9 @@
   /* Keith's figures (§494): a share of a limit as a bar. */
   .sharebar { height:6px; width:110px; background:var(--surface); border-radius:4px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px; }
   .sharebar i { display:block; height:100%; background:var(--green); }
+  /* Written ahead today (§568): the card's two sub-headings. */
+  .ah { margin:16px 0 6px; font:600 14px var(--sans); color:var(--ink); }
+  #aheadSpend td.ahwrap { white-space:normal; max-width:none; min-width:220px; }
   .sharebar i.warn { background:var(--amber); } .sharebar i.urgent { background:var(--rose); }
   .lvl-warn { color:var(--amber); } .lvl-urgent { color:var(--rose); } .lvl-ok { color:var(--green); }
   .kgrid { display:grid; grid-template-columns:1fr; gap:14px; margin-bottom:14px; }
@@ -97,6 +100,17 @@
   .chip.on { border-color:var(--amber-dk); color:var(--ink); }
   .report { border-top:1px solid var(--line); padding:10px 0; display:flex; gap:12px; align-items:flex-start; }
   .report:first-child { border-top:0; }
+  .svy { border-top:1px solid var(--line); padding:14px 0 6px; }
+  .svy h3 { margin:0 0 2px; font-size:15px; }
+  .svy .ctx { font:11px var(--mono); color:var(--muted); }
+  .svy .q { margin:12px 0 0; }
+  .svy .q b { display:block; font-size:13px; margin-bottom:4px; }
+  .svy .opt { display:grid; grid-template-columns:minmax(120px, 220px) 1fr 44px; gap:8px; align-items:center; font-size:12.5px; margin:2px 0; }
+  .svy .track { height:8px; border-radius:4px; background:var(--line); overflow:hidden; }
+  .svy .fill { height:100%; background:var(--amber); }
+  .svy .num { font:11px var(--mono); color:var(--muted); text-align:right; }
+  .svy .said { margin:6px 0 0; padding-left:16px; font-size:12.5px; color:var(--ink); }
+  .svy .said li { margin:2px 0; }
   .report .body { flex:1; min-width:0; }
   .report .text { white-space:pre-wrap; word-break:break-word; margin:0 0 5px; }
   .report .ctx { font:11px var(--mono); color:var(--muted); }
@@ -210,6 +224,22 @@
   .wikibar b { display:block; }
   .wikibar span { font-size:12.5px; color:var(--muted); }
   .wikibar .go { padding:8px 14px; }
+  .wikibar label.button { display:inline-block; cursor:pointer; padding:8px 14px; }
+  .reviewpaste { margin:0 0 10px; font-size:13px; }
+  .reviewpaste textarea { width:100%; box-sizing:border-box; font:12px/1.4 ui-monospace, monospace; margin:6px 0; }
+  .reviewacts { align-items:center; gap:10px; flex-wrap:wrap; }
+  .reviewrow .conf { font-size:11px; padding:1px 6px; border-radius:6px; border:1px solid var(--line); }
+  .reviewrow .conf.high { border-color:#2e7d32; color:#2e7d32; }
+  .reviewrow .conf.low { opacity:.7; }
+  .reviewrow.done { opacity:.55; }
+  .go.tiny { padding:3px 10px; font-size:11.5px; border-radius:8px; }
+  .capsform { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .capsform input[type=text], #capsWord { width:130px; text-transform:uppercase; }
+  .capssent { font-size:12.5px; color:var(--muted); display:flex; gap:4px; align-items:center; }
+  .way.today { border-color:var(--amber); }
+  .ways { grid-column:1 / -1; display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px; margin:6px 0; }
+  .ways .way { border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:12.5px; }
+  .ways audio { width:100%; height:32px; margin-top:4px; }
   .formrow { display:flex; gap:8px; justify-content:flex-end; }
   .formrow .go { padding:8px 16px; }
   .sayrow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; }
@@ -252,6 +282,54 @@
   .q-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
   .q-bar select { width:auto; margin:0; }
   .q-rubric { font-size:11.5px; color:var(--faint); margin-top:3px; }
+  /* The category tree (11.12): eight facets, each its own colour, the
+     subjects beneath in collapsible branches with guide lines. A bar is the
+     kept episodes filed at a node and below; an amber dot a grown node. */
+  .ct-head { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:flex-end; justify-content:space-between; }
+  .ct-head > div:first-child { flex:1 1 320px; min-width:0; }
+  .ct-tools { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:10px; }
+  .ct-tools input { background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:6px 12px; width:210px; max-width:100%; font-size:12.5px; }
+  .ct-tools .ghost[aria-pressed="true"] { color:var(--ink); border-color:var(--amber-dk); }
+  .ct-summary { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px; margin:4px 0 14px; }
+  .ct-sum { text-align:left; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 11px 10px; position:relative; overflow:hidden; }
+  .ct-sum::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--c); }
+  .ct-sum:hover { border-color:var(--c); }
+  .ct-sum b { display:block; font-family:var(--serif); font-size:22px; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .ct-sum span { display:block; font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--c); }
+  .ct-sum em { display:block; font-style:normal; font-size:11px; color:var(--faint); }
+  /* Columns, not a grid: a short facet sits under a short one, never in
+     a gap beside Sport. */
+  .ct-grid { column-gap:12px; }
+  @media (min-width:900px) { .ct-grid { columns:2; } }
+  .ct-grid > * { break-inside:avoid; margin:0 0 12px; display:block; }
+  .ct-facet { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 12px 10px; min-width:0;
+              background-image:linear-gradient(180deg, color-mix(in srgb, var(--c) 9%, transparent), transparent 90px); }
+  .ct-facet > header { display:flex; align-items:baseline; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .ct-facet h3 { margin:0; font:600 17px var(--serif); color:var(--ink); }
+  .ct-swatch { width:10px; height:10px; border-radius:3px; background:var(--c); align-self:center; box-shadow:0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
+  .ct-meta { font:11px var(--mono); color:var(--faint); margin-left:auto; }
+  .ct-tree, .ct-tree ul { list-style:none; margin:0; padding:0; }
+  .ct-tree ul { margin-left:9px; padding-left:10px; border-left:1px solid color-mix(in srgb, var(--c) 28%, transparent); }
+  .ct-row { display:grid; grid-template-columns:14px minmax(0,1fr) auto 58px 26px; align-items:center; gap:6px; padding:3px 4px; border-radius:6px; font-size:13px; color:var(--ink); min-height:26px; }
+  summary.ct-row { list-style:none; margin:0; font:inherit; color:var(--ink); }
+  summary.ct-row::-webkit-details-marker { display:none; }
+  summary.ct-row:hover, .ct-row.leaf:hover { background:color-mix(in srgb, var(--c) 10%, transparent); }
+  .ct-chev { width:14px; height:14px; color:var(--faint); transition:transform .15s ease; }
+  details[open] > summary .ct-chev { transform:rotate(90deg); color:var(--c); }
+  .ct-row.leaf .ct-chev { visibility:hidden; }
+  .ct-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ct-row.top .ct-name { font-weight:600; }
+  .ct-name mark { background:color-mix(in srgb, var(--amber) 35%, transparent); color:inherit; border-radius:3px; padding:0 1px; }
+  .ct-kids { font:10.5px var(--mono); color:var(--faint); border:1px solid var(--line); border-radius:999px; padding:0 6px; }
+  .ct-kids:empty { visibility:hidden; }
+  .ct-grown { width:6px; height:6px; border-radius:50%; background:var(--amber); display:inline-block; margin-left:6px; vertical-align:middle; }
+  .ct-bar { height:5px; background:color-mix(in srgb, var(--line) 70%, transparent); border-radius:3px; overflow:hidden; }
+  .ct-bar i { display:block; height:100%; background:var(--c); border-radius:3px; }
+  .ct-n { font:11px var(--mono); color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; }
+  .ct-n.zero { color:var(--faint); opacity:.6; }
+  .ct-facet .ct-empty { font-size:12px; color:var(--faint); padding:4px; }
+  .ct-legend { display:flex; flex-wrap:wrap; gap:14px; font:11px var(--mono); color:var(--faint); margin-top:12px; }
+  .ct-legend .ct-bar { width:40px; display:inline-block; vertical-align:middle; margin-right:5px; --c:var(--muted); }
 </style>
 </head>
 <body>
@@ -302,6 +380,7 @@
     <div class="group">Inbox</div>
     <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
     <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
+    <a href="#surveys" data-nav="surveys">Surveys</a>
     <a href="#quality" data-nav="quality">Episode quality</a>
     <a href="#categories" data-nav="categories">Categories (Nando)</a>
     <div class="group">Running costs</div>
@@ -312,7 +391,8 @@
     <div class="group">Other admin pages</div>
     <a href="/admin/waitlist">Waitlist ↗</a>
     <a href="/admin/thumbnails">Thumbnails ↗</a>
-    <a href="/admin/x">FAM on X ↗</a>
+    <a href="/admin/groups">Communities ↗</a>
+    <a href="/admin/push">Notifications ↗</a>
   </nav>
 
   <main id="main" hidden>
@@ -400,7 +480,61 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 
     </div>
 
+    <!-- Optional surveys (surveys.py, PROBLEMS.md §560): what testers said,
+         tallied per question, with every free line and a CSV per survey. -->
+    <div class="page" data-page="surveys" data-title="Surveys" hidden>
+    <section class="card section" id="surveysCard">
+      <h2>Surveys</h2>
+      <p class="sub">The three optional surveys in the app: the <b>episode check</b> on the What&rsquo;s next card (first finished episode, then every fifth, at most once a day), the <b>day-3 check-in</b> and the <b>two-week wrap-up</b> (offered when the app opens, accounts only). &ldquo;Not now&rdquo; offers it again a day later, at most three times. Download a CSV to join answers to what each listener did: <code>user_id</code> is the listener.</p>
+      <div id="surveysList"></div>
+    </section>
+    </div>
+
     <div class="page" data-page="categories" data-title="Categories (Nando)" hidden>
+    <section class="card section" id="treeCard">
+      <div class="ct-head">
+        <div>
+          <h2>The tree <small id="ctCount"></small></h2>
+          <p class="sub">Every category Nando can file an episode under, beneath the eight facets. Open a branch to see
+            what sits below it; the bar is how many kept episodes are filed there and below.</p>
+        </div>
+        <div class="ct-tools">
+          <input id="ctFind" type="search" placeholder="Find a category" aria-label="Find a category">
+          <button class="ghost" type="button" id="ctFiled" aria-pressed="false">Filed only</button>
+          <button class="ghost" type="button" id="ctToggle">Open all</button>
+        </div>
+      </div>
+      <div class="ct-summary" id="ctSummary"></div>
+      <div class="ct-grid" id="ctGrid"><p class="sub">Loading the tree...</p></div>
+      <div class="ct-legend">
+        <span><span class="ct-bar"><i style="width:60%"></i></span>episodes filed there and below</span>
+        <span><span class="ct-grown"></span> grown from listeners; the rest were seeded</span>
+        <span id="ctOrphans"></span>
+      </div>
+      <div class="wikibar" id="ctReviewBar">
+        <div><b>Fixed by another reader</b><span id="ctReviewState">Download the whole tree, give it to another reader (a Claude chat on high effort, with the prompt) and upload the edits that come back: move, remove, merge, rename or add. An upload changes nothing: each edit is listed beside the node as it stands, and only the ones you accept are made - as yours, which the sweep, the seed and the placer never undo.</span></div>
+        <button class="ghost" id="ctReviewDownload" type="button">Download tree</button>
+        <button class="ghost" id="ctReviewPrompt" type="button">Copy the prompt</button>
+        <label class="ghost button">Upload edits<input id="ctReviewFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden></label>
+      </div>
+      <details id="ctReviewPaste" class="reviewpaste">
+        <summary>Or paste the reply</summary>
+        <textarea id="ctReviewText" rows="6" placeholder="action,node,target,confidence,reason"></textarea>
+        <div class="formrow"><button class="go" id="ctReviewRead" type="button">Read edits</button></div>
+      </details>
+      <div id="ctReviewOut" hidden>
+        <div class="formrow reviewacts">
+          <span class="sub" id="ctReviewCount"></span>
+          <button class="go" id="ctReviewAcceptHigh" type="button">Accept all high confidence</button>
+          <button class="ghost" id="ctReviewClear" type="button">Close</button>
+        </div>
+        <div id="ctReviewList"></div>
+      </div>
+      <details id="ctEdits" class="reviewpaste">
+        <summary>Your edits to the tree <span id="ctEditsCount"></span></summary>
+        <div id="ctEditsList"></div>
+      </details>
+    </section>
     <section class="card section">
       <h2>How Nando is graded</h2>
       <p class="sub">The answer key grades a few of Nando's filings each night, only where Nando, the writer and the
@@ -543,6 +677,11 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <p class="sub">Every Claude answer is counted once (§481), priced at metering's list prices - listeners' episodes, each edition, prefetch, each agent. Paid searches, live data and tile pictures are counted beside it, not in Claude's total.</p>
       <div id="claudeSpend"></div>
     </section>
+    <section class="card section" id="aheadCard">
+      <h2>Written ahead today</h2>
+      <p class="sub">Episodes written before anybody taps (§568), by the three writers, named as listeners see them: the mixes are <b>myFAM</b> on the screen (DailyFAM in the code), the cards and news are <b>DailyFAM</b> (myFAM in the code). Each stops at its own ceilings or the shared daily budget, whichever comes first. The day runs from the 05:00 edition to the next. Read-only: every figure is a setting in Render, named beside it.</p>
+      <div id="aheadSpend"></div>
+    </section>
     <section class="card section" id="listensCard">
       <h2>Tapped against heard, last 24 hours</h2>
       <p class="sub">The server starts a <b>play</b> the moment it begins sending audio, before a word is heard. <b>What FAM can't stop playing</b>, <b>What your friends are listening to</b>, the friends' faces on a card and <b>What you missed last week</b> count only a <b>heard</b> listen: past 30 seconds, or 30% of a shorter episode, held to the time since the play began at the player's fastest speed - or finished. A big gap between tapped and heard on a question is people leaving early. Accounts only; nobody is named.</p>
@@ -642,6 +781,34 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         <div><b>Heard back from the voice</b><span id="hearState">Hear sends a name through the production voice exactly as an episode would, and a phoneme recogniser on the same card writes down what it heard. The match is an estimate - listen to the audio before changing anything.</span></div>
         <button class="go" id="hearAll" type="button">Hear every name</button>
       </div>
+      <div class="wikibar" id="capsBar">
+        <div><b>Words in capitals</b><span id="capsState">NASCAR, NVIDIA, FBI: type one and hear it five ways - letters apart, dotted, the letters' names, as written and in ordinary case. The one the voice is handed today is marked. Which sounds smoothest decides how every word in capitals is said.</span></div>
+        <form id="capsForm" class="capsform">
+          <input id="capsWord" placeholder="NASCAR" maxlength="12" autocomplete="off" autocapitalize="characters" required>
+          <label class="capssent"><input id="capsSentence" type="checkbox"> in a sentence</label>
+          <button class="go" id="capsBtn" type="submit">Hear 5 ways</button>
+        </form>
+      </div>
+      <div id="capsOut"></div>
+      <div class="wikibar" id="reviewBar">
+        <div><b>Checked by another reader</b><span id="reviewState">Download every name with Wikipedia's reading and a sentence it was heard in, give it to another reader (a Claude chat, with the prompt) and upload what comes back. An upload changes nothing: each correction is listed beside the respelling it would replace, and only the ones you accept are saved - as yours, which nothing replaces.</span></div>
+        <button class="ghost" id="reviewDownload" type="button">Download list</button>
+        <button class="ghost" id="reviewPrompt" type="button">Copy the prompt</button>
+        <label class="ghost button" id="reviewUploadLabel">Upload corrections<input id="reviewFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden></label>
+      </div>
+      <details id="reviewPaste" class="reviewpaste">
+        <summary>Or paste the reply</summary>
+        <textarea id="reviewText" rows="6" placeholder="name,say,confidence,reason"></textarea>
+        <div class="formrow"><button class="go" id="reviewRead" type="button">Read corrections</button></div>
+      </details>
+      <div id="reviewOut" hidden>
+        <div class="formrow reviewacts">
+          <span class="sub" id="reviewCount"></span>
+          <button class="go" id="reviewAcceptHigh" type="button">Accept all high confidence</button>
+          <button class="ghost" id="reviewClear" type="button">Close</button>
+        </div>
+        <div id="reviewList"></div>
+      </div>
       <form class="login" id="sayForm" style="margin-top:6px">
         <input id="sayName" placeholder="Name as spelled, e.g. Sagapolutele" maxlength="60" required>
         <input id="saySay" placeholder="As said, e.g. sah-gah-poh-loo-TEH-leh" maxlength="120" required>
@@ -719,7 +886,16 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     return '<div class="kpi"><span>' + esc(label) + '</span><b>' + value + '</b>' +
       (note ? '<em>' + note + '</em>' : '') + '</div>';
   }
-  function drawKpis(m) {
+  // "Forgot password?" (§571): drawn only where the server can email a code
+  // (`mail.status()`), so the owner sees here when it is off, and why.
+  function resetKpi(r) {
+    if (!r) return "";
+    return r.available
+      ? kpi("Forgot password?", '<span class="lvl-ok">On</span>', "Reset codes are emailed")
+      : kpi("Forgot password?", '<span class="lvl-urgent">Off</span>',
+            esc("Forgot password? is off: " + (r.reason || "email is not set up.")));
+  }
+  function drawKpis(m, reset) {
     var money = function (v) { return v == null ? "—" : "$" + Number(v).toFixed(2); };
     $("kpis").innerHTML = [
       kpi("Accounts", fmt(m.accounts_total),
@@ -742,7 +918,8 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       kpi("Vibes · saves · shares", fmt(m.vibes) + " · " + fmt(m.saved) + " · " + fmt(m.shares),
         fmt(m.share_opens) + " share-link opens"),
       kpi("Spend, 30 days", money(m.cost_30d),
-        money(m.cost_24h) + " today · " + fmt(m.generated_30d) + " episodes metered")
+        money(m.cost_24h) + " today · " + fmt(m.generated_30d) + " episodes metered"),
+      resetKpi(reset)
     ].join("");
   }
 
@@ -978,6 +1155,65 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       ' &nbsp;·&nbsp; <b>everything counted</b> this month ' + num(all.month, "USD") + '</p>' +
       '<div class="tbl"><table><thead><tr><th>What spent it</th><th class="n">Today</th><th class="n">This month</th>' +
       '<th class="n">Calls today</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+  function drawAhead(a) {
+    var el = $("aheadSpend");
+    if (!el) return;
+    if (!a || !a.writers) { el.innerHTML = '<p class="sub">Nothing written ahead yet.</p>'; return; }
+    function env(name) { return '<code>' + esc(name) + '</code>'; }
+    function cap(v, unit) { return v == null ? 'no ceiling' : num(v, unit); }
+    function ceilingNote(w) {
+      var o = w.own || {}, e = o.env || {}, per = o.per === "edition"
+        ? ' an edition' + (o.editions_per_day > 1 ? ' × ' + o.editions_per_day + ' a day' : '')
+        : ' a day';
+      var parts = [env(e.episodes) + ' = ' + (o.episodes || 0) + (o.episodes ? per : ' (none)'),
+                   env(e.dollars) + ' = ' + (o.dollars || 0) + (o.dollars ? per : ' (none)')];
+      if (e.briefs) parts.push(env(e.briefs) + ' = ' + (o.briefs || 0) + ' briefs a day');
+      if (e.level) parts.push(env(e.level) + ' = ' + esc(o.level || ""));
+      return '<small style="color:var(--muted)">' + parts.join(' · ') + '</small>';
+    }
+    var sh = a.shared || {};
+    var rows = a.writers.map(function (w) {
+      var limit = w.max_dollars_per_day, share = limit ? w.usd / limit : (sh.ceiling ? w.usd / sh.ceiling : null);
+      var stopped = w.stopped ? '<span class="lvl-urgent">stopped ' +
+        (w.stopped.at ? esc(new Date(w.stopped.at * 1000).toLocaleTimeString()) + ': ' : '') + esc(w.stopped.sentence) + '</span>'
+        : '<span class="lvl-ok">writing</span>';
+      return '<tr><td class="ahwrap"><b>' + esc(w.label) + '</b><br>' + ceilingNote(w) + '</td>' +
+        '<td class="n">' + Number(w.episodes || 0).toLocaleString() + ' / ' + cap(w.max_episodes_per_day) +
+        (w.briefs ? '<br><small>' + Number(w.briefs).toLocaleString() + ' briefs</small>' : '') + '</td>' +
+        '<td class="n">' + num(w.usd, "USD") + ' / ' + cap(w.max_dollars_per_day, "USD") + '</td>' +
+        '<td>' + shareBar(share, levelOf(share)) + '</td><td class="ahwrap">' + stopped + '</td></tr>';
+    }).join("");
+    var shareTotal = sh.ceiling ? sh.used / sh.ceiling : null;
+    var total = '<tr><td class="ahwrap"><b>All three, shared</b><br><small style="color:var(--muted)">' + env(sh.env.ceiling) + ' = ' +
+      (sh.ceiling || 0) + (sh.ceiling ? ' a day' : ' (no shared ceiling)') + ' · ' + env(sh.env.reserve) + ' = ' +
+      (sh.reserve_share || 0) + (sh.reserve_usd != null ? ' (' + num(sh.reserve_usd, "USD") + ' held for DailyFAM)' : ' (nothing held back)') +
+      '</small></td><td class="n">' + Number(a.writers.reduce(function (n, w) { return n + (w.episodes || 0); }, 0)).toLocaleString() +
+      '</td><td class="n">' + num(sh.used, "USD") + ' / ' + cap(sh.ceiling, "USD") + '</td><td>' + shareBar(shareTotal, levelOf(shareTotal)) +
+      '</td><td>' + (sh.left != null ? num(sh.left, "USD") + ' left' : '') + '</td></tr>';
+    var cpe = a.cost_per_episode, costHtml = "";
+    if (cpe) {
+      var ah = cpe.ahead || {}, se = cpe.search || {}, bw = cpe.by_writer || {};
+      function cents(v) { return v == null ? '—' : (v * 100).toFixed(2) + '¢'; }
+      costHtml = '<h3 class="ah">Cost per episode, last ' + cpe.days + ' days</h3><div class="kpis">' +
+        '<div class="kpi"><span>Written ahead</span><b>' + cents(ah.per_episode) + '</b><em>' + Number(ah.episodes || 0).toLocaleString() + ' episodes · ' + num(ah.usd, "USD") + '</em></div>' +
+        a.writers.map(function (w) { var b = bw[w.writer] || {}; return '<div class="kpi"><span>' + esc(w.label) + '</span><b>' + cents(b.per_episode) +
+          '</b><em>' + Number(b.episodes || 0).toLocaleString() + ' episodes · ' + num(b.usd, "USD") + '</em></div>'; }).join("") +
+        '<div class="kpi"><span>A searchFAM episode</span><b>' + cents(se && se.per_episode) + '</b><em>' + Number((se && se.episodes) || 0).toLocaleString() + ' searches written</em></div>' +
+        '</div><p class="sub">' + esc(cpe.note || "") + '</p>';
+    }
+    var hr = a.hit_rate || {}, src = hr.by_source || {}, names = Object.keys(src);
+    var rate = function (v) { return v == null ? 'no data yet' : Math.round(v * 100) + '%'; };
+    var hitHtml = '<h3 class="ah">Taps that found a ready script</h3><p class="sub">Scripts prefetch wrote and a tap then played: ' +
+      Number(hr.taken || 0).toLocaleString() + ' of ' + Number(hr.warmed || 0).toLocaleString() + ' (' + rate(hr.hit_rate) +
+      '); briefs used ' + Number(hr.briefs_taken || 0).toLocaleString() + ' of ' + Number(hr.briefs_warmed || 0).toLocaleString() +
+      ' (' + rate(hr.brief_hit_rate) + '). Since this server started.</p>' +
+      (names.length ? '<div class="tbl"><table><thead><tr><th>Source</th><th class="n">Scripts written</th><th class="n">Taken</th><th class="n">Briefs</th><th class="n">Briefs used</th></tr></thead><tbody>' +
+        names.map(function (k) { var r = src[k]; return '<tr><td>' + esc(k) + '</td><td class="n">' + (r.warmed || 0) + '</td><td class="n">' + (r.taken || 0) +
+          '</td><td class="n">' + (r.briefs_warmed || 0) + '</td><td class="n">' + (r.briefs_taken || 0) + '</td></tr>'; }).join("") + '</tbody></table></div>' : '');
+    el.innerHTML = '<p class="sub">Day ' + esc(a.day) + ' (' + esc(a.day_note || "") + ')</p>' +
+      '<div class="tbl"><table><thead><tr><th>Writer</th><th class="n">Episodes / max</th><th class="n">Spend / max</th><th></th><th>Now</th></tr></thead><tbody>' +
+      rows + total + '</tbody></table></div>' + costHtml + hitHtml;
   }
   function drawCost(c) {
     var old = document.querySelectorAll("#kpis .kpi.cost");
@@ -1475,7 +1711,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       signedIn(true);
       if (first) showPage();
       lastAt = s.at;
-      drawKpis(s.metrics || {});
+      drawKpis(s.metrics || {}, s.password_reset);
       drawChart(s.signups);
       drawRecent(s.recent_accounts);
       drawProviders(s.providers);
@@ -1484,6 +1720,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       drawCost(s.cost_per_episode);
       drawUsage(s.usage_monitors);
       drawClaudeSpend(s.claude_spend);
+      drawAhead(s.written_ahead);
       drawAgentsWatch(s.agents_watch);
       keithData.inc = s.incidents;
       drawKeith(keithData.inc, keithData.fixes);
@@ -1503,6 +1740,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       tick();
       if (pageName() === "quality" && !first) loadQuality();
       loadInbox();
+      loadSurveys();
       loadReports();
       loadVoices();
       loadAgents();
@@ -1728,7 +1966,207 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (!parts[0]) return "-";
     return parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + (parts.length > 1 ? " " + parts.slice(1).join(".") : "");
   }
+  // ----------------------------------------------------- the category tree
+  // 11.12: the whole tree, a card per facet. Drawn from /api/admin/categories/tree;
+  // searching and "Filed only" redraw from the copy kept here, never refetch.
+  var CT_COLOURS = { sports: "#6BC2A8", business: "#D4A373", money: "#E9BC63", tech: "#7FA8E8",
+                     science: "#A493EA", health: "#8FD39A", culture: "#DE8FA8", world: "#6FC3D6" };
+  var ctData = null, ctAllOpen = false;
+  var CT_CHEV = '<svg class="ct-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" '
+    + 'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function ctMark(label, q) {
+    if (!q) return esc(label);
+    var i = label.toLowerCase().indexOf(q);
+    if (i < 0) return esc(label);
+    return esc(label.slice(0, i)) + "<mark>" + esc(label.slice(i, i + q.length)) + "</mark>" + esc(label.slice(i + q.length));
+  }
+  // What survives the filters: a node that matches, or holds one that does.
+  function ctPrune(nodes, q, filed) {
+    var out = [];
+    (nodes || []).forEach(function (n) {
+      if (filed && !n.total) return;
+      var kids = ctPrune(n.children, q, filed);
+      var hit = !q || String(n.label || n.id).toLowerCase().indexOf(q) >= 0;
+      if (hit || kids.length) out.push({ n: n, kids: q && !hit ? kids : ctPrune(n.children, "", filed), hit: hit });
+    });
+    return out;
+  }
+  function ctRows(items, max, q, depth) {
+    return items.map(function (it) {
+      var n = it.n, width = n.total ? Math.max(4, Math.round(Math.sqrt(n.total / max) * 100)) : 0;
+      var grown = n.source && n.source !== "seed" && n.source !== "owner"
+        ? '<span class="ct-grown" title="grown from listeners (' + esc(n.source) + ')"></span>' : "";
+      var title = n.label + " - " + n.total + " episode" + (n.total === 1 ? "" : "s")
+        + (n.episodes !== n.total ? " (" + n.episodes + " filed here)" : "");
+      var cells = CT_CHEV + '<span class="ct-name">' + ctMark(n.label || n.id, q) + grown + '</span>'
+        + '<span class="ct-kids">' + (it.kids.length ? it.kids.length : "") + '</span>'
+        + '<span class="ct-bar"><i style="width:' + width + '%"></i></span>'
+        + '<span class="ct-n' + (n.total ? "" : " zero") + '">' + n.total + '</span>';
+      var cls = "ct-row" + (depth === 0 ? " top" : "");
+      if (!it.kids.length) return '<li><div class="' + cls + ' leaf" title="' + esc(title) + '">' + cells + '</div></li>';
+      var open = q || ctAllOpen ? " open" : "";
+      return '<li><details' + open + '><summary class="' + cls + '" title="' + esc(title) + '">' + cells + '</summary>'
+        + '<ul>' + ctRows(it.kids, max, q, depth + 1) + '</ul></details></li>';
+    }).join("");
+  }
+  function drawTree() {
+    if (!ctData) return;
+    var q = String($("ctFind").value || "").trim().toLowerCase();
+    var filed = $("ctFiled").getAttribute("aria-pressed") === "true";
+    var facets = ctData.facets || [];
+    $("ctCount").textContent = "· " + fmt(ctData.nodes) + " categories, " + ctData.max_depth + " levels deep";
+    $("ctSummary").innerHTML = facets.map(function (f) {
+      return '<button type="button" class="ct-sum" data-ct="' + esc(f.id) + '" style="--c:' + (CT_COLOURS[f.id] || "#A79EBA") + '">'
+        + '<span>' + esc(f.label) + '</span><b>' + fmt(f.size) + '</b><em>' + fmt(f.total) + ' episodes filed</em></button>';
+    }).join("");
+    var shown = 0;
+    var cards = facets.map(function (f) {
+      var items = ctPrune(f.children, q, filed);
+      var facetHit = q && String(f.label).toLowerCase().indexOf(q) >= 0;
+      if (facetHit && !items.length) items = ctPrune(f.children, "", filed);
+      if ((q || filed) && !items.length && !facetHit) return "";
+      shown++;
+      var max = Math.max(1, (f.children || []).reduce(function (m, c) { return Math.max(m, c.total); }, 0));
+      var here = f.episodes ? ' · ' + fmt(f.episodes) + ' at the facet itself' : "";
+      return '<article class="ct-facet" id="ct-' + esc(f.id) + '" style="--c:' + (CT_COLOURS[f.id] || "#A79EBA") + '">'
+        + '<header><span class="ct-swatch"></span><h3>' + ctMark(f.label, q) + '</h3>'
+        + '<span class="ct-meta">' + fmt(f.size) + ' categories · ' + fmt(f.total) + ' episodes' + here + '</span></header>'
+        + (items.length ? '<ul class="ct-tree">' + ctRows(items, max, q, 0) + '</ul>'
+                        : '<p class="ct-empty">Nothing beneath it yet.</p>')
+        + '</article>';
+    }).join("");
+    $("ctGrid").innerHTML = shown ? cards
+      : '<p class="empty">' + (q ? 'No category matches "' + esc(q) + '".' : "Nothing filed yet.") + '</p>';
+    $("ctOrphans").textContent = ctData.orphans ? ctData.orphans + " node(s) whose parent the tree no longer holds are not shown" : "";
+    $("ctToggle").textContent = ctAllOpen ? "Close all" : "Open all";
+  }
+  function loadTree() {
+    return api("/api/admin/categories/tree").then(function (d) { ctData = d; drawTree(); })
+      .catch(function (e) { $("ctGrid").innerHTML = '<p class="sub">Could not load the tree: ' + esc(e.message) + '</p>'; });
+  }
+  $("ctFind").addEventListener("input", drawTree);
+  $("ctFiled").addEventListener("click", function () {
+    var on = this.getAttribute("aria-pressed") !== "true";
+    this.setAttribute("aria-pressed", on ? "true" : "false");
+    drawTree();
+  });
+  $("ctToggle").addEventListener("click", function () { ctAllOpen = !ctAllOpen; drawTree(); });
+  $("ctSummary").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-ct]");
+    var card = b && document.getElementById("ct-" + b.getAttribute("data-ct"));
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  // §585: the tree out as a CSV, back as proposed edits, each accepted by hand.
+  var ctRvRows = [], ctRvDone = {}, ctRvErr = {};
+  var CT_VERB = { move: "Move", remove: "Remove", merge: "Merge", rename: "Rename", add: "Add" };
+  function ctRvKey(p) { return p.action + "\u0000" + p.node + "\u0000" + p.target; }
+  function ctRvSays(p) {
+    var n = '<b>' + esc(p.node) + '</b>';
+    if (p.action === "move") return n + ' <span class="faint">' + esc(p.path || p.parent) + '</span> → under <b>' + esc(p.target) + '</b>';
+    if (p.action === "remove") return n + ' <span class="faint">' + esc(p.path) + '</span> → removed' + (p.children ? ' (' + p.children + ' below it move up)' : '');
+    if (p.action === "merge") return n + ' <span class="faint">' + esc(p.path) + '</span> → into <b>' + esc(p.target) + '</b>';
+    if (p.action === "rename") return n + ' <span class="faint">' + esc(p.path) + '</span> → <b>' + esc(p.target) + '</b>';
+    return '<span class="faint">new</span> ' + n + ' under <b>' + esc(p.target) + '</b>';
+  }
+  function drawCtReview(r) {
+    if (r) {
+      ctRvRows = r.proposals || []; ctRvDone = {}; ctRvErr = {};
+      var refused = r.refused || [];
+      $("ctReviewState").textContent = ctRvRows.length + " edit" + (ctRvRows.length === 1 ? "" : "s") + " to look at" +
+        (refused.length ? ", " + refused.length + " refused: " + refused.slice(0, 5).map(function (x) { return (x.node || "line " + x.line) + " (" + x.why + ")"; }).join("; ") + (refused.length > 5 ? "…" : "") : "") + ".";
+    }
+    $("ctReviewOut").hidden = !ctRvRows.length;
+    var left = ctRvRows.filter(function (p) { return !ctRvDone[ctRvKey(p)]; });
+    var high = left.filter(function (p) { return p.confidence === "high"; }).length;
+    $("ctReviewCount").textContent = left.length + " left";
+    $("ctReviewAcceptHigh").disabled = !high;
+    $("ctReviewAcceptHigh").textContent = "Accept all high confidence (" + high + ")";
+    $("ctReviewList").innerHTML = ctRvRows.map(function (p, i) {
+      var k = ctRvKey(p), done = ctRvDone[k];
+      return '<div class="vrow sayrow reviewrow' + (done ? " done" : "") + '"><div class="sayname"><span class="srctag">' + esc(CT_VERB[p.action] || p.action) + '</span> ' +
+        ctRvSays(p) + ' ' + (p.confidence ? '<span class="conf ' + esc(p.confidence) + '">' + esc(p.confidence) + '</span>' : '<span class="conf low">no confidence given</span>') + '</div>' +
+        (p.reason ? '<span class="hardex">' + esc(p.reason) + '</span>' : '') +
+        (p.episodes ? '<span class="hardex">' + p.episodes + ' episode' + (p.episodes === 1 ? '' : 's') + ' filed there and below</span>' : '') +
+        (p.needs ? '<span class="hardex">Needs "' + esc(p.needs) + '" added first</span>' : '') +
+        (ctRvErr[k] && !done ? '<span class="hardex err">' + esc(ctRvErr[k]) + '</span>' : '') +
+        '<div class="sayacts">' + (done ? '<span class="faint">' + esc(done) + '</span>' :
+          '<button class="go tiny" type="button" data-ctrv-accept="' + i + '">Accept</button> ' +
+          '<button class="ghost tiny" type="button" data-ctrv-skip="' + i + '">Skip</button>') + '</div></div>';
+    }).join("");
+  }
+  function acceptCtReview(p) {
+    var k = ctRvKey(p);
+    return api("/api/admin/categories/edit", { action: p.action, node: p.node, target: p.target, reason: p.reason || "" })
+      .then(function (r) { ctRvDone[k] = "Done - " + (r.said || "saved") + ", as yours"; delete ctRvErr[k]; })
+      .catch(function (e) { ctRvErr[k] = "Not made: " + e.message; });
+  }
+  function readCtReview(text) {
+    $("ctReviewState").textContent = "Reading…";
+    api("/api/admin/categories/import", { csv: text })
+      .then(function (r) { drawCtReview(r); })
+      .catch(function (e) { $("ctReviewState").textContent = e.message; });
+  }
+  function loadCtEdits() {
+    return api("/api/admin/categories/edits").then(function (r) {
+      var rows = r.edits || [];
+      $("ctEditsCount").textContent = rows.length ? "(" + rows.length + ")" : "(none yet)";
+      $("ctEditsList").innerHTML = rows.length ? rows.map(function (e) {
+        return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(e.node) + '</b> <span class="faint">' + esc(e.action) +
+          (e.target ? " " + esc(e.target) : "") + '</span></div><div class="sayacts"><button class="ghost tiny" type="button" data-ct-forget="' +
+          esc(e.node) + '" title="Forget this decision: a removed phrase may grow back, a placed node may be moved again. The tree is not changed back.">Forget</button></div></div>';
+      }).join("") : '<p class="sub">Nothing yet.</p>';
+    }).catch(function () {});
+  }
+  $("ctReviewDownload").addEventListener("click", function () {
+    var b = $("ctReviewDownload"); b.disabled = true;
+    fetch("/api/admin/categories/export", { credentials: "same-origin" }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var name = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "fam-categories.csv";
+      return r.blob().then(function (blob) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      });
+    }).catch(function (e) { $("ctReviewState").textContent = "The tree could not be downloaded: " + e.message; })
+      .then(function () { b.disabled = false; });
+  });
+  $("ctReviewPrompt").addEventListener("click", function () {
+    api("/api/admin/categories/review-prompt").then(function (v) {
+      var done = function () { $("ctReviewPrompt").textContent = "Prompt copied"; setTimeout(function () { $("ctReviewPrompt").textContent = "Copy the prompt"; }, 2500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(v.prompt).then(done);
+      $("ctReviewText").value = v.prompt; $("ctReviewPaste").open = true; $("ctReviewText").select();
+    }).catch(function (e) { $("ctReviewState").textContent = e.message; });
+  });
+  $("ctReviewFile").addEventListener("change", function () {
+    var f = $("ctReviewFile").files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () { readCtReview(String(reader.result || "")); $("ctReviewFile").value = ""; };
+    reader.readAsText(f);
+  });
+  $("ctReviewRead").addEventListener("click", function () { readCtReview($("ctReviewText").value); });
+  $("ctReviewClear").addEventListener("click", function () { ctRvRows = []; drawCtReview(); loadTree(); loadCtEdits(); });
+  $("ctReviewAcceptHigh").addEventListener("click", function () {
+    var high = ctRvRows.filter(function (p) { return p.confidence === "high" && !ctRvDone[ctRvKey(p)]; });
+    if (!high.length || !confirm("Make " + high.length + " high-confidence edit" + (high.length === 1 ? "" : "s") + " to the tree? They are kept as yours: nothing that grows the tree undoes them.")) return;
+    $("ctReviewAcceptHigh").disabled = true;
+    high.reduce(function (chain, p) { return chain.then(function () { return acceptCtReview(p); }); }, Promise.resolve())
+      .then(function () { drawCtReview(); loadTree(); loadCtEdits(); });
+  });
+  $("ctReviewList").addEventListener("click", function (ev) {
+    var t = ev.target, i;
+    if ((i = t.getAttribute("data-ctrv-accept")) != null) { t.disabled = true; acceptCtReview(ctRvRows[+i]).then(function () { drawCtReview(); loadTree(); loadCtEdits(); }); return; }
+    if ((i = t.getAttribute("data-ctrv-skip")) != null) { ctRvDone[ctRvKey(ctRvRows[+i])] = "Skipped"; drawCtReview(); }
+  });
+  $("ctEditsList").addEventListener("click", function (ev) {
+    var n = ev.target.getAttribute("data-ct-forget");
+    if (n == null) return;
+    api("/api/admin/categories/edits/" + encodeURIComponent(n), null, "DELETE").then(loadCtEdits);
+  });
+
   function loadCategories() {
+    loadTree();
+    loadCtEdits();
     return Promise.all([api("/api/admin/categories"), api("/api/admin/categories/queue?limit=20")])
       .then(function (got) { drawCategories(got[0]); drawCatQueue(got[1].episodes || []); })
       .catch(function (e) { $("catKpis").innerHTML = '<p class="sub">Could not load: ' + esc(e.message) + '</p>'; });
@@ -1954,6 +2392,43 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       .then(loadInbox)
       .catch(function (e) { b.disabled = false; alert("Could not update the report: " + e.message); });
   });
+  // The surveys (surveys.py): one block per survey, a bar per option, the
+  // mean of a 1-10 question, and every line typed into an "Other" box.
+  function loadSurveys() {
+    return api("/api/admin/surveys").then(function (v) {
+      $("surveysList").innerHTML = (v.surveys || []).map(function (sv) {
+        var qs = (sv.questions || []).map(function (q) {
+          var rows = "";
+          if (q.kind === "scale") {
+            var spread = q.spread || {}, top = 0;
+            Object.keys(spread).forEach(function (k) { top = Math.max(top, spread[k]); });
+            rows = '<div class="ctx">mean ' + (q.mean == null ? "—" : q.mean) + ' of 10 · ' + q.answered + ' answered</div>' +
+              Object.keys(spread).map(function (k) {
+                return '<div class="opt"><span>' + esc(k) + '</span><span class="track"><span class="fill" style="width:' +
+                  (top ? Math.round(100 * spread[k] / top) : 0) + '%"></span></span><span class="num">' + spread[k] + '</span></div>';
+              }).join("");
+          } else if (q.options) {
+            rows = q.options.map(function (o) {
+              var pct = q.answered ? Math.round(100 * o.count / q.answered) : 0;
+              return '<div class="opt"><span>' + esc(o.label) + '</span><span class="track"><span class="fill" style="width:' +
+                pct + '%"></span></span><span class="num">' + o.count + '</span></div>';
+            }).join("");
+          }
+          var said = (q.texts || []).length ? '<ul class="said">' + q.texts.map(function (t) {
+            return '<li>' + esc(t.text) + (t.episode_title ? ' <span class="ctx">· ' + esc(t.episode_title) + '</span>' : '') +
+              ' <span class="ctx">· ' + when(t.created) + '</span></li>';
+          }).join("") + '</ul>' : "";
+          return '<div class="q"><b>' + esc(q.text) + ' <span class="ctx">' + q.answered + ' answered</span></b>' + rows + said + '</div>';
+        }).join("");
+        return '<div class="svy"><h3>' + esc(sv.title) + ' <span class="ctx">' + esc(sv.id) + '</span></h3>' +
+          '<div class="ctx">' + sv.responses + ' responses · offered ' + sv.offered + ' times · put off ' + sv.dismissed + ' times · ' +
+          '<a href="/api/admin/surveys/' + encodeURIComponent(sv.id) + '.csv" style="color:inherit">Download CSV</a></div>' +
+          (sv.responses ? qs : '<p class="sub">No answers yet.</p>') + '</div>';
+      }).join("");
+    }).catch(function (e) {
+      $("surveysList").innerHTML = '<p class="sub err">Could not load the surveys: ' + esc(e.message) + '</p>';
+    });
+  }
   // The voice bank (§147): list, add, remove. Removing never touches an
   // episode's kept audio; the default voice has no remove button because it
   // is not a row - it lives on every worker.
@@ -2040,7 +2515,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(x.name) + '</b> = <code>' + esc(x.say) + '</code> ' +
         '<span class="srctag ' + esc(x.source) + '">' + esc(sourceWord(x.source)) + '</span></div>' + wiki +
         heardHTML(x.voice, heardAudio[x.name]) +
+        waysHTML(x.name) +
         '<div class="sayacts"><button class="ghost tiny" type="button" data-hear="' + esc(x.name) + '">Hear</button> ' +
+        '<button class="ghost tiny" type="button" data-ways="' + esc(x.name) + '" title="The respelling as the voice gets it now, and three spellings that might carry its stress">Hear 4 ways</button> ' +
         '<button class="ghost tiny" type="button" data-say-edit="' + esc(x.name) + '" data-say="' + esc(x.say) + '">Edit</button>' +
         ' <button class="ghost tiny" type="button" data-say-rm="' + esc(x.name) + '">Remove</button></div></div>';
     }).join("") : '<p class="sub">' + (sayRows.length ? "No names match this filter." : "No names on file yet.") + '</p>';
@@ -2192,6 +2669,8 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (hear) { hearOne(t, hear, function () { loadSay(); }); return; }
     var edit = t && t.getAttribute("data-say-edit");
     if (edit) { $("sayName").value = edit; $("saySay").value = t.getAttribute("data-say") || ""; $("saySay").focus(); return; }
+    var ways = t && t.getAttribute("data-ways");
+    if (ways) { hearWays(t, ways, null, drawSay); return; }
     var use = t && t.getAttribute("data-say-use");
     if (use) {
       t.disabled = true;
@@ -2202,6 +2681,140 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     var name = t && t.getAttribute("data-say-rm");
     if (!name || !confirm("Let the voice read " + name + " as spelled again?")) return;
     api("/api/admin/pronunciations/" + encodeURIComponent(name), null, "DELETE").then(loadSay);
+  });
+  // Four ways to hand the voice one respelling (§549): today's has no
+  // stress at all (the voice would spell capitals out as letters).
+  var waysAudio = {};
+  var WAY_WORDS = { now: "As now (no stress)", joined: "Run together", accent: "Accent on the stress", spaced: "Syllables apart, stress capitalised" };
+  function waysHTML(key) {
+    var v = waysAudio[key];
+    if (!v) return "";
+    return '<div class="ways">' + v.map(function (w) {
+      return '<div class="way"><b>' + esc(WAY_WORDS[w.variant] || w.variant) + '</b><br><code>' + esc(w.sent) + '</code>' +
+        (w.heard_say ? '<br><span class="faint">heard <code>' + esc(w.heard_say) + '</code>' + (w.score != null ? " · " + Math.round(w.score * 100) + "% alike" : "") + '</span>' : '') +
+        '<audio controls src="' + esc(w.audio) + '"></audio></div>';
+    }).join("") + '</div>';
+  }
+  function hearWays(btn, name, say, redraw) {
+    var key = say ? name + "\u0000" + say : name;
+    btn.disabled = true; var was = btn.textContent; btn.textContent = "Hearing 4 ways…";
+    api("/api/admin/pronunciations/hear-variants", say ? { name: name, say: say } : { name: name })
+      .then(function (v) { waysAudio[key] = v.variants; redraw(); })
+      .catch(function (e) { alert(e.message); })
+      .then(function () { btn.disabled = false; btn.textContent = was; });
+  }
+  // Words in capitals (§567): one word five ways, today's marked.
+  var CAPS_WORDS = { spaced: "Letters apart", dotted: "Dotted", named: "Letter names",
+                     upper: "As written", title: "Ordinary case" };
+  var capsRuns = [];
+  function drawCaps() {
+    $("capsOut").innerHTML = capsRuns.map(function (r) {
+      return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(r.word) + '</b>' +
+        (r.sentence ? ' <span class="faint">in a sentence</span>' : '') + '</div><div class="ways">' +
+        r.variants.map(function (w) {
+          var today = w.variant === r.today;
+          return '<div class="way' + (today ? ' today' : '') + '"><b>' + esc(CAPS_WORDS[w.variant] || w.variant) + '</b>' +
+            (today ? ' <span class="faint">(today)</span>' : '') + '<br><code>' + esc(w.sent) + '</code>' +
+            (w.heard_say ? '<br><span class="faint">heard <code>' + esc(w.heard_say) + '</code>' + (w.score != null ? " · " + Math.round(w.score * 100) + "% alike" : "") + '</span>' : '') +
+            '<audio controls src="' + esc(w.audio) + '"></audio></div>';
+        }).join("") + '</div></div>';
+    }).join("");
+  }
+  $("capsForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var word = $("capsWord").value.trim().toUpperCase();
+    if (!/^[A-Z]{2,12}$/.test(word)) { $("capsState").textContent = "Letters only, two to twelve of them."; return; }
+    var sentence = $("capsSentence").checked;
+    $("capsBtn").disabled = true; $("capsBtn").textContent = "Hearing 5 ways…";
+    api("/api/admin/pronunciations/hear-caps", { word: word, sentence: sentence }).then(function (r) {
+      capsRuns.unshift({ word: r.word, today: r.today, sentence: sentence, variants: r.variants });
+      capsRuns = capsRuns.slice(0, 6);
+      drawCaps();
+    }).catch(function (e) { $("capsState").textContent = e.message; })
+      .then(function () { $("capsBtn").disabled = false; $("capsBtn").textContent = "Hear 5 ways"; });
+  });
+  // Checked by another reader (§549): out as a CSV, back as proposals.
+  var reviewRows = [], reviewDone = {}, reviewErr = {};
+  function drawReview(r) {
+    if (r) {
+      reviewRows = r.proposals || []; reviewDone = {}; reviewErr = {};
+      var refused = r.refused || [];
+      $("reviewState").textContent = reviewRows.length + " correction" + (reviewRows.length === 1 ? "" : "s") + " to look at" +
+        (r.unchanged ? ", " + r.unchanged + " already as on file" : "") +
+        (refused.length ? ", " + refused.length + " refused: " + refused.slice(0, 5).map(function (x) { return (x.name || "line " + x.line) + " (" + x.why + ")"; }).join("; ") + (refused.length > 5 ? "…" : "") : "") + ".";
+    }
+    $("reviewOut").hidden = !reviewRows.length;
+    var left = reviewRows.filter(function (p) { return !reviewDone[p.name]; });
+    var high = left.filter(function (p) { return p.confidence === "high"; }).length;
+    $("reviewCount").textContent = left.length + " left";
+    $("reviewAcceptHigh").disabled = !high;
+    $("reviewAcceptHigh").textContent = "Accept all high confidence (" + high + ")";
+    $("reviewList").innerHTML = reviewRows.map(function (p, i) {
+      var done = reviewDone[p.name];
+      return '<div class="vrow sayrow reviewrow' + (done ? " done" : "") + '"><div class="sayname"><b>' + esc(p.name) + '</b> ' +
+        (p.new ? '<span class="faint">new</span> ' : '<code>' + esc(p.current) + '</code> <span class="srctag ' + esc(p.current_source) + '">' + esc(sourceWord(p.current_source)) + '</span> → ') +
+        '<code>' + esc(p.say) + '</code> ' + (p.confidence ? '<span class="conf ' + esc(p.confidence) + '">' + esc(p.confidence) + '</span>' : '<span class="conf low">no confidence given</span>') + '</div>' +
+        (p.reason ? '<span class="hardex">' + esc(p.reason) + '</span>' : '') +
+        (p.note ? '<span class="hardex">Note: ' + esc(p.note) + '</span>' : '') +
+        waysHTML(p.name + "\u0000" + p.say) +
+        (reviewErr[p.name] && !done ? '<span class="hardex err">' + esc(reviewErr[p.name]) + '</span>' : '') +
+        '<div class="sayacts">' + (done ? '<span class="faint">' + esc(done) + '</span>' :
+          '<button class="ghost tiny" type="button" data-rv-hear="' + i + '">Hear 4 ways</button> ' +
+          '<button class="go tiny" type="button" data-rv-accept="' + i + '">Accept</button> ' +
+          '<button class="ghost tiny" type="button" data-rv-skip="' + i + '">Skip</button>') + '</div></div>';
+    }).join("");
+  }
+  function acceptReview(p) {
+    return api("/api/admin/pronunciations", { name: p.name, say: p.say })
+      .then(function () { reviewDone[p.name] = "Accepted - saved as yours"; delete reviewErr[p.name]; })
+      .catch(function (e) { reviewErr[p.name] = "Not saved: " + e.message; });
+  }
+  function readReview(text) {
+    $("reviewState").textContent = "Reading…";
+    api("/api/admin/pronunciations/import", { csv: text })
+      .then(function (r) { drawReview(r); })
+      .catch(function (e) { $("reviewState").textContent = e.message; });
+  }
+  $("reviewDownload").addEventListener("click", function () {
+    var b = $("reviewDownload"); b.disabled = true;
+    fetch("/api/admin/pronunciations/export", { credentials: "same-origin" }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var name = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "fam-pronunciations.csv";
+      return r.blob().then(function (blob) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      });
+    }).catch(function (e) { $("reviewState").textContent = "The list could not be downloaded: " + e.message; })
+      .then(function () { b.disabled = false; });
+  });
+  $("reviewPrompt").addEventListener("click", function () {
+    api("/api/admin/pronunciations/review-prompt").then(function (v) {
+      var done = function () { $("reviewPrompt").textContent = "Prompt copied"; setTimeout(function () { $("reviewPrompt").textContent = "Copy the prompt"; }, 2500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(v.prompt).then(done);
+      $("reviewText").value = v.prompt; $("reviewPaste").open = true; $("reviewText").select();
+    }).catch(function (e) { $("reviewState").textContent = e.message; });
+  });
+  $("reviewFile").addEventListener("change", function () {
+    var f = $("reviewFile").files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () { readReview(String(reader.result || "")); $("reviewFile").value = ""; };
+    reader.readAsText(f);
+  });
+  $("reviewRead").addEventListener("click", function () { readReview($("reviewText").value); });
+  $("reviewClear").addEventListener("click", function () { reviewRows = []; drawReview(); loadSay(); });
+  $("reviewAcceptHigh").addEventListener("click", function () {
+    var high = reviewRows.filter(function (p) { return p.confidence === "high" && !reviewDone[p.name]; });
+    if (!high.length || !confirm("Save " + high.length + " high-confidence respelling" + (high.length === 1 ? "" : "s") + " as yours? Nothing replaces an admin's respelling afterwards.")) return;
+    $("reviewAcceptHigh").disabled = true;
+    high.reduce(function (chain, p) { return chain.then(function () { return acceptReview(p); }); }, Promise.resolve())
+      .then(function () { drawReview(); loadSay(); });
+  });
+  $("reviewList").addEventListener("click", function (ev) {
+    var t = ev.target, i;
+    if ((i = t.getAttribute("data-rv-hear")) != null) { var h = reviewRows[+i]; hearWays(t, h.name, h.say, drawReview); return; }
+    if ((i = t.getAttribute("data-rv-accept")) != null) { t.disabled = true; acceptReview(reviewRows[+i]).then(function () { drawReview(); loadSay(); }); return; }
+    if ((i = t.getAttribute("data-rv-skip")) != null) { reviewDone[reviewRows[+i].name] = "Skipped"; drawReview(); }
   });
   $("sayForm").addEventListener("submit", function (ev) {
     ev.preventDefault();

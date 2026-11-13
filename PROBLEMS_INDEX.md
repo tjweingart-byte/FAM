@@ -501,3 +501,79 @@ and `limit` = Lines.
 | 31909 | 93 | 507. "This rock is everywhere": several pictures per broad node, no hashed picture, and headlines' short names (2026-11-09) |
 | 32002 | 144 | 508. A backend operations handbook, for the weeks the owner is away (2026-11-08) |
 | 32146 | 46 | 509. DailyFAM's tuning dial and a mix's glide: two loading screens of their own (2026-11-09) |
+| 32192 | 31 | 510. "Rock Lead Theory": a word on another facet no longer outranks the category's picture (2026-11-09) |
+| 32223 | 16 | 511. "lead" is never a category on its own (2026-11-09) |
+| 32239 | 24 | 512. Thirty-seven more everyday words never a category alone, and a report to find the rest (2026-11-09) |
+| 32263 | 32 | 513. No grown phrase holding an everyday word is a category (2026-11-09) |
+| 32295 | 11 | 514. "nfl draft", "trade deadline" and "salary cap" seeded (2026-11-10) |
+| 32306 | 12 | 515. "world cup qualifiers" and "power outage" seeded (2026-11-10) |
+| 32318 | 12 | 516. "power grid" and "world record" seeded (2026-11-10) |
+| 32330 | 9 | 517. "nfl trade rumors" seeded (2026-11-10) |
+| 32339 | 43 | 518. Deleting an account left the attachments store's lock held, and no new server could start (2026-11-10) |
+| 32382 | 74 | 519. The 11.9 packet: a mix survives Go Deeper, the queue gets room, captions on the picture, and everyone unlimited (2026-11-10) |
+| 32456 | 35 | 520. Messages only between friends (2026-11-10) |
+| 32491 | 111 | 521. Training Shakespeare: whether the writer follows his plan, worked plans, and examples matched to the story (2026-11-09) |
+| 32602 | 97 | 522. Training the writer: high effort where nobody waits, the ear checked in code, where listeners stop, and before-and-after pairs before launch (2026-11-09) |
+| 32699 | 35 | 523. Story shapes, drafted for the owner (2026-11-09) |
+| 32734 | 45 | 524. Story shapes: a person and a comparison, and Shakespeare may change the shape (2026-11-09) |
+| 32779 | 41 | 525. The story shapes' wording, as drafted, waiting for the owner's signature (2026-11-09) |
+| 32820 | 29 | 526. The owner signed manifest version 7: the journalism playbook v2, with the story shapes (2026-11-09) |
+| 32849 | 61 | 527. The §521 comparison, run: what the teaching bought, what the writer does with the plan, and what high effort buys (2026-11-09/10) |
+| 32910 | 54 | 528. The landing wording undone, and the plan-following measure checked by reading - it was the measure (2026-11-10) |
+| 32964 | 58 | 529. The packet Shakespeare numbers, cleaned (2026-11-10) |
+| 33022 | 47 | 530. The combined comparison: Shakespeare with the cleaned packet against no editor - and how much two runs of the same arm differ (2026-11-10) |
+| 33069 | 50 | 531. The whole branch double-checked: what the review found, and what was fixed (2026-11-10) |
+| 33119 | 42 | 532. Main merged into the branch for its pull request; the playbook waits for manifest version 8 (2026-11-10) |
+| 33161 | 33 | 533. The second review, independent, before the pull request (2026-11-10) |
+| 33194 | 17 | 534. The owner signed manifest version 8: the playbook's story shapes on top of Main's version 7 (2026-11-10) |
+| 33211 | 25 | 535. Main merged again: its §520 arrived, so this branch's sections are §521-§534 (2026-11-10) |
+| 33236 | 21 | 536. Go Deeper in a mix resumes the interrupted episode (2026-11-10) |
+| 33257 | 85 | 537. The lock-screen audio spike, written; and App Store Connect filled in (2026-11-09) |
+| 33342 | 128 | 538. The iOS app, stage 1: sign in, DailyFAM, search, the player, You (2026-11-09) |
+| 33470 | 32 | 539. Sign in with Apple made a second account; linking and deleting from the app (2026-11-10) |
+| 33502 | 42 | 540. The iOS app, stage 2: myFAM (2026-11-10) |
+| 33544 | 38 | 541. Ready for the iOS launch, on the server: universal links for invites, the iOS 1.0.0 release, two web wordings (2026-11-10) |
+| 33582 | 13 | 542. The FAM mark above the dial and the glide (2026-11-10) |
+| 33595 | 42 | 543. Play all on a rail; friends' faces on the player (2026-11-11) |
+| 33637 | 33 | 544. A mix card in the list is its picture, its name and an arrow (2026-11-10) |
+| 33670 | 98 | 545. What changed since you last listened: R5 on the mix card, Q5 inside the mix (2026-11-11) |
+| 33768 | 63 | 546. The app starts dark, and draws itself before the server answers (2026-11-11) |
+| 33831 | 120 | 547. Vibes as posts: the line, a player in the post, likes and replies (2026-11-11) |
+| 33951 | 98 | 548. myFAM in a handful of statements, off the event loop (2026-11-11) |
+| 34049 | 61 | 549. The pronunciation list checked by another reader, and whether the voice hears stress (2026-11-11) |
+| 34110 | 71 | 550. The owner's 11.11 notes: back an episode, a vibe holds the playlist, Mixes / Categories, the morning dot, the pop-ups (2026-11-11) |
+| 34181 | 48 | 551. The app catches up with #247, #249 and #252 (2026-11-11) |
+| 34229 | 13 | 552. Keith's "science, world are not in the tree" was the check, not Nando (2026-11-12) |
+| 34242 | 50 | 553. The seed tree doubled: 322 nodes to 677, from outside the bank (2026-11-12) |
+| 34292 | 21 | 554. The category tree on /admin (2026-11-12) |
+| 34313 | 30 | 555. One answer to "is this node real?" - and the checkers held to what Nando files (2026-11-12) |
+| 34343 | 27 | 556. Keith's dead-node alert explains itself (2026-11-12) |
+| 34370 | 16 | 557. Main's Postgres job: three of §544's tests assumed SQLite (2026-11-12) |
+| 34386 | 51 | 558. Instagram and Snapchat stories go straight into the platform's app (2026-11-12) |
+| 34437 | 24 | 559. A shared link previews with the episode's picture, like a Spotify link (2026-11-12) |
+| 34461 | 73 | 560. Optional surveys: the episode check, the day-3 check-in and the two-week wrap-up (2026-11-12) |
+| 34534 | 39 | 561. The iOS app catches up with §560: the surveys (2026-11-12) |
+| 34573 | 77 | 562. Notifications: one daily reminder per person, big stories, followed finals (2026-11-12) |
+| 34650 | 58 | 563. The sports sweep runs for people with finals on (2026-11-12) |
+| 34708 | 78 | 564. The app before build 4: #256 and #257 reviewed, #258's notifications on the iPhone (2026-11-12) |
+| 34786 | 27 | 565. Build 4 made ready for TestFlight and review (2026-11-12) |
+| 34813 | 28 | 566. Tiingo credited in the episode and the sources (2026-11-12) |
+| 34841 | 67 | 567. Words in capitals: NASCAR and NVIDIA said as words, not letters (2026-11-12) |
+| 34908 | 88 | 568. One daily budget for everything written ahead, and seeing it on /admin (2026-11-12) |
+| 34996 | 21 | 569. NVIDIA still choppy: spelled as it sounds, in every case (2026-11-12) |
+| 35017 | 28 | 570. A mix's rows are called by today's episode, not the topic (2026-11-12) |
+| 35045 | 65 | 571. Sign-up asks for a password again (2026-11-12) |
+| 35110 | 36 | 572. Build 6: the iPhone catches up with §570 and §571 (2026-11-12) |
+| 35146 | 18 | 573. The phone number is optional at sign-up (2026-11-13) |
+| 35164 | 44 | 574. fam-db's memory was its connections (2026-11-13) |
+| 35208 | 47 | 575. Shared links: the picture and the audio behind the waitlist, Message between friends, and a Mac build in CI (2026-11-13) |
+| 35255 | 33 | 576. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13) |
+| 35288 | 42 | 577. Five friends earn a free month (2026-11-13) |
+| 35330 | 43 | 578. An always-on worker cost $40 a day: chunks queued behind it booted flex workers (2026-11-13) |
+| 35373 | 68 | 579. Communities to reach replace FAM on X (2026-11-13) |
+| 35441 | 43 | 580. Egan: the outreach reader becomes a full agent (2026-11-13) |
+| 35484 | 48 | 581. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13) |
+| 35532 | 48 | 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
+| 35580 | 22 | 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13) |
+| 35602 | 147 | 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13) |
+| 35749 | 36 | 585. The category tree out to another reader and back (2026-11-13) |

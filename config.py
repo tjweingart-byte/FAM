@@ -387,6 +387,14 @@ class Settings:
     # model each episode was actually written on.
     edition_writer_model: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_MODEL", ""))
+    # **The writer's effort where nobody waits: high** (the owner,
+    # 2026-11-09, §522): the editions, the write-ahead and prefetch's script
+    # warms are written before anybody taps, so the writer may think as hard
+    # as Shakespeare does there (Haiku 5.5 high, §440). searchFAM keeps
+    # `EFFORT` (low), so the first word is not moved. `EDITION_WRITER_EFFORT`,
+    # when set, still wins for an edition's episode. Not in the cache key.
+    ahead_writer_effort: str = field(
+        default_factory=lambda: os.environ.get("AHEAD_WRITER_EFFORT", "high").strip())
     edition_writer_effort: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_EFFORT", ""))
     # Prompt caching on the writer's instructions (§179). The system prompt -
@@ -1173,8 +1181,8 @@ class Settings:
     daily_edition_hours: str = field(
         default_factory=lambda: os.environ.get(
             "DAILY_EDITION_HOURS", "5").strip())
-    # "Your mix is ready" (`push.py`, the 10.1 packet): a mix's listen time
-    # is when the listener's phone is told, never when episodes are written.
+    # "Your myFAM is ready" (`push.py`, §562): one a day per person, at their
+    # chosen or learned time, never when episodes are written.
     # Web Push needs a VAPID key pair (`python tools/vapid_keys.py` makes
     # one) and `requirements-push.txt`; without them every listen time is
     # kept and the interface says notifications are not set up yet.
@@ -1188,6 +1196,20 @@ class Settings:
     # Who a push service contacts about this server's notifications.
     vapid_subject: str = field(
         default_factory=lambda: os.environ.get("VAPID_SUBJECT", "").strip())
+    # Big stories and followed finals on the phone (`push_stories.py`, §562).
+    # A story that names a subject somebody follows is told to them once
+    # this many distinct outlets run it; a story for everybody is proposed in
+    # /admin/push past the second bar and the ratio over the next-biggest,
+    # and goes only once the owner approves it. 0 turns a kind off.
+    push_breaking: bool = field(
+        default_factory=lambda: os.environ.get("PUSH_BREAKING", "1")
+        not in ("0", "false", "False", ""))
+    push_breaking_followed_outlets: int = _env_int("PUSH_BREAKING_FOLLOWED_OUTLETS", 15)
+    push_breaking_everyone_outlets: int = _env_int("PUSH_BREAKING_EVERYONE_OUTLETS", 40)
+    push_breaking_ratio: float = _env_float("PUSH_BREAKING_RATIO", 2.0)
+    push_finals: bool = field(
+        default_factory=lambda: os.environ.get("PUSH_FINALS", "1")
+        not in ("0", "false", "False", ""))
     # Email (`mail.py`, §244): the delivery password reset needs. Any SMTP
     # provider (Resend, Postmark, SES, Gmail); SMTP_PASSWORD is a credential
     # and is read through `credentials`, never from here. Without a host and
@@ -1253,6 +1275,17 @@ class Settings:
             "RAILS_EDITION_HOURS", "5,17").strip())
     rails_edition_max_episodes: int = _env_int("RAILS_EDITION_MAX_EPISODES", 0)
     rails_edition_max_dollars: float = _env_float("RAILS_EDITION_MAX_DOLLARS", 0.0)
+    # --- one budget for everything written ahead (§568, `ahead_budget.py`) --
+    # Dollars a day, shared by the mixes' edition (myFAM on the listener's
+    # screen), the rails edition and prefetch (DailyFAM on the screen). Each
+    # stops at its own ceilings above or this one, whichever comes first, and
+    # /admin says which. The day is the edition day (05:00 to 05:00 on
+    # `DAILY_EDITION_TIMEZONE`). 0 is no shared ceiling: nothing changes.
+    ahead_daily_dollars: float = _env_float("AHEAD_DAILY_DOLLARS", 0.0)
+    # The fraction of it (0-1) only DailyFAM's writers - the rails edition
+    # and prefetch - may spend, so the 05:00 mixes' edition cannot spend it
+    # all first. 0 holds nothing back.
+    ahead_dailyfam_share: float = _env_float("AHEAD_DAILYFAM_SHARE", 0.0)
     # How long to wait before trying a failed edition again.
     daily_edition_retry_seconds: float = _env_float(
         "DAILY_EDITION_RETRY_SECONDS", 1800.0)
@@ -1298,28 +1331,20 @@ class Settings:
     trending_bank_max_age_hours: float = _env_float(
         "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
 
-    # --- Conversations on X (`/admin/x`, x_threads.py, §321) ---------------
-    # A read-only X API bearer token (X_BEARER_TOKEN, read through
-    # `credentials`) is the statement of intent; unset, the page says so.
-    # X bills per post read, so a run and a day are both capped.
-    x_threads_max_reads: int = _env_int("X_THREADS_MAX_READS", 300)
-    x_threads_daily_reads: int = _env_int("X_THREADS_DAILY_READS", 600)
-    # Only posts younger than this: a reply is read while a thread is moving.
-    # X's recent search reaches back seven days and refuses anything older.
-    x_threads_window_hours: float = max(
-        1.0, min(_env_float("X_THREADS_WINDOW_HOURS", 6.0), 168.0))
-    # How many episodes one run looks for conversations about.
-    x_threads_seeds: int = _env_int("X_THREADS_SEEDS", 10)
-    # High engagement is the target (§337): a post with fewer interactions
-    # (likes, replies, reposts and quotes together) is not a card.
-    x_threads_min_engagement: int = max(0, _env_int("X_THREADS_MIN_ENGAGEMENT", 25))
-    # The replies read under each card as context for the read (§368): the
-    # original post sets the subject, replies only say what is debated. X's
-    # least is 10 a request; 0 reads none. Counted inside the ceilings above.
-    x_threads_reply_reads: int = max(0, _env_int("X_THREADS_REPLY_READS", 10))
-    # Drafts the replies a person approves. A short call; the small model.
-    x_threads_model: str = field(
-        default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
+    # --- Communities to reach (`/admin/groups`, communities.py, §579) -------
+    # Facebook groups, subreddits, X Communities, Discord servers and Slack
+    # communities about FAM's subjects, found by web search through the
+    # research backends, and Reddit's and X's read-only APIs where their keys
+    # are set (§581) - never a signed-in scrape.
+    # Each search is billed, so a run and a day are both capped.
+    communities_max_searches: int = max(0, _env_int("COMMUNITIES_MAX_SEARCHES", 20))
+    communities_daily_searches: int = max(0, _env_int("COMMUNITIES_DAILY_SEARCHES", 60))
+    # Subjects one run searches, each on every chosen platform.
+    communities_subjects: int = max(1, _env_int("COMMUNITIES_SUBJECTS", 5))
+    # Leads one run reads (pitches and a message each) and leaves on the page.
+    communities_shortlist: int = max(1, _env_int("COMMUNITIES_SHORTLIST", 12))
+    # The pitches and the first message are Egan's (§580, `outreach_*`
+    # with the other agents' settings); without him they are composed in code.
 
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.
@@ -1763,6 +1788,13 @@ class Settings:
     # each ask is a queued job.
     remote_voice_wake_interval: float = _env_float(
         "REMOTE_VOICE_WAKE_INTERVAL", 60.0)
+    # How many always-on ("active") workers the RunPod endpoint keeps, as set
+    # in its console (§578). 0 is a pure pay-per-second endpoint. Above 0,
+    # nothing is asleep, so no wake job is sent, and at most this many chunks
+    # are in flight at once (the lower of this and REMOTE_VOICE_CONCURRENCY):
+    # a chunk queued behind a busy active worker makes RunPod boot a flex
+    # worker, billed for its boot, the chunk and its idle timeout.
+    remote_voice_active_workers: int = _env_int("REMOTE_VOICE_ACTIVE_WORKERS", 0)
     # --- Finding the worker, rather than being told where it is ----------
     # `voice_control.py` is the whole of this. The settings below decide how
     # hard FAM works to keep its own address for the voice correct while
@@ -2006,6 +2038,18 @@ class Settings:
         default_factory=lambda: os.environ.get("MODERATION_EMAIL", "").strip())
     apple_team_id: str = field(
         default_factory=lambda: os.environ.get("APPLE_TEAM_ID", "").strip())
+    # The two story hand-offs (`sharing.story_handoffs`, SHARING.md). Both
+    # are public identifiers that ship inside the app, not credentials:
+    # Meta's Facebook App ID, which `instagram-stories://share` has required
+    # as `source_application` since January 2023, and the Snap Kit OAuth
+    # client id that Creative Kit Lite's `snapchat://creativekit/preview`
+    # checks against the app's bundle id. Set here rather than built into
+    # the app so a TestFlight build turns them on with no new build. Unset,
+    # the story destinations go through iOS's share sheet as before.
+    instagram_app_id: str = field(
+        default_factory=lambda: os.environ.get("INSTAGRAM_APP_ID", "").strip())
+    snapchat_client_id: str = field(
+        default_factory=lambda: os.environ.get("SNAPCHAT_CLIENT_ID", "").strip())
     # Sign in with Apple's server key (`apple_tokens.py`): the Key ID of a
     # key with "Sign in with Apple" enabled. The key itself is a credential,
     # APPLE_PRIVATE_KEY, read through `credentials` and never from here. With
@@ -2075,6 +2119,12 @@ class Settings:
     it_agent: bool = field(
         default_factory=lambda: os.environ.get("IT_AGENT", "0")
         not in ("0", "false", "False", ""))
+    # Egan, the outreach agent (§580, `/admin/groups`). Waiting for the
+    # owner's signature on his rule book: until it is signed his calls are
+    # refused whatever this says, and the page composes in code.
+    outreach_agent: bool = field(
+        default_factory=lambda: os.environ.get("OUTREACH_AGENT", "0")
+        not in ("0", "false", "False", ""))
     # **Each agent's model, its own setting** (§346, the owner's decisions of
     # 2026-10-30): `vendor:model-id`, an exact model and never a moving
     # alias, and never `MODEL` - an empty value means the agent makes no
@@ -2135,6 +2185,9 @@ class Settings:
     it_summary_model: str = field(
         default_factory=lambda: os.environ.get(
             "IT_SUMMARY_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    outreach_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "OUTREACH_MODEL", "anthropic:claude-haiku-5-5").strip())
     # **The rule-book lock** (§348, `agents/rulebooks.py`). Where the rule
     # books are read from (empty: `docs/agent_rules/`), the owner's public
     # key (always the committed `docs/agent_rules/owner.pub`, whatever
@@ -2205,6 +2258,31 @@ class Settings:
     # word. Off: search is written as it always was.
     editor_tandem: bool = field(
         default_factory=lambda: os.environ.get("EDITOR_TANDEM", "0")
+        not in ("0", "false", "False", ""))
+    # Shakespeare's worked plans (§521): beside the house examples in his
+    # `<teaching>`, a plan for several of them - the packet it was made
+    # from, his answer, and the example it became (`examples/plans/`). Off:
+    # he is shown the finished examples alone, as before.
+    editor_worked_plans: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_WORKED_PLANS", "1")
+        not in ("0", "false", "False", ""))
+    # The house examples matched to the story (§521): the writer's request
+    # names the one or two examples of the episode's facet
+    # (`examples/facets.json`), and Shakespeare is told which worked plans
+    # are closest. In the request, never the cached system block. **Off by
+    # default since §527**: on the 50 frozen questions it bought nothing
+    # (+0.03 [-0.12, +0.18]) and cost repetition (-0.37 [-0.71, -0.04]).
+    # Off: the request is byte for byte what it was.
+    example_matching: bool = field(
+        default_factory=lambda: os.environ.get("EXAMPLE_MATCHING", "0")
+        not in ("0", "false", "False", ""))
+    # Before-and-after pairs in the writer's instructions (§522): each the
+    # same episode twice from the same sources, a flawed draft and the house
+    # voice, made before launch (`tools/teaching_pairs.py`) and approved
+    # into `examples/pairs/`. Fixed text in the cached system block. Off:
+    # the instructions without them.
+    teaching_pairs: bool = field(
+        default_factory=lambda: os.environ.get("TEACHING_PAIRS", "1")
         not in ("0", "false", "False", ""))
     editor_tandem_opening_words: int = _env_int("EDITOR_TANDEM_OPENING_WORDS", 30)
     editor_tandem_wait_seconds: float = _env_float("EDITOR_TANDEM_WAIT_SECONDS", 7.0)
@@ -2285,6 +2363,10 @@ class Settings:
                 "fam,gdelt,tiingo,balldontlie,perplexity,gnews").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
+    # Egan's one call per community (§580): nobody waits on it, a person
+    # pressed a button; one retry when code sends his answer back.
+    outreach_timeout_seconds: float = _env_float("OUTREACH_TIMEOUT_SECONDS", 45.0)
+    outreach_max_tokens: int = _env_int("OUTREACH_MAX_TOKENS", 1200)
     # **Keith's usage monitors** (§483, keith.md "always" 6): the owner's
     # monthly budget per service in dollars, "runpod=300,anthropic=200".
     # Empty: the spend is shown with no share of anything. A warning at
@@ -2403,6 +2485,11 @@ class Settings:
                 raise ValueError(
                     f"REMOTE_VOICE_CONCURRENCY={self.remote_voice_concurrency} "
                     "must be at least 1; zero would deadlock every episode.")
+            if self.remote_voice_active_workers < 0:
+                raise ValueError(
+                    f"REMOTE_VOICE_ACTIVE_WORKERS={self.remote_voice_active_workers} "
+                    "must be 0 (a pay-per-second endpoint) or the number of "
+                    "active workers set in the RunPod console.")
             if str(self.voice_discovery).strip().lower() not in VOICE_DISCOVERY:
                 # Refused rather than treated as `off`: a typo that quietly
                 # switched discovery off would look exactly like the old

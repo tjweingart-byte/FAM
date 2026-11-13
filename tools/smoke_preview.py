@@ -760,6 +760,65 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
+        def go_deeper_keeps_the_mix_and_captions_are_a_pill():
+            """The owner's 11.9 packet (§519): a Go Deeper on a myFAM
+            playlist's episode used to end the playlist - the follow-up was
+            "something else started", so `mixPlay` was dropped and the rest of
+            the mix vanished from the queue. It is a detour now: the playlist
+            waits behind it and carries on after. And captions are a CC pill
+            beside the queue that opens them over the picture."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(300)
+            page.evaluate("document.querySelectorAll('.gd-card')[0].click()")
+            page.wait_for_timeout(1200)
+            page.evaluate(
+                "mixPlay = { name:'Morning', id:'', pos:0, key:currentPlayingTopicKey,"
+                " order:[{id:'a', title:'One'}, {id:'b', title:'NFL'}, {id:'c', title:'Pop'}] };"
+                " startFollowUp('what happens next', currentPlayingTopicKey, 2)")
+            page.wait_for_timeout(1200)
+            assert page.evaluate("!!mixPlay && mixPlay.order.length === 3 && mixPlay.pos === 0"), \
+                "the Go Deeper ended the playlist"
+            assert page.evaluate("TOPICS[currentPlayingTopicKey].mixDetour === mixPlay.key"), \
+                "the follow-up does not know which playlist episode it left"
+            assert not page.eval_on_selector("#mixSkipBtn", "e => e.hidden"), \
+                "the next button went with the playlist"
+            page.evaluate("openQueue()")
+            page.wait_for_timeout(300)
+            text = page.text_content("#sheetCard")
+            assert "Next from Morning" in text and "NFL" in text, \
+                f"the queue lost the playlist's rest: {text!r}"
+            page.evaluate("closeSheet()")
+            # The owner's rule (§536): the detour over, the interrupted
+            # episode comes back - the same playlist position, not the next.
+            # The stand-in playlist episode is a DailyFAM tile; a real one is
+            # a mix item, which is what keeps the playlist when it plays again.
+            page.evaluate(
+                "TOPICS[mixPlay.key].fromMix = true;"
+                " mixPlay.resume = { key: mixPlay.key, at: 0, episode: '',"
+                " query: nowBarState && nowBarState.query, minutes: nowBarState && nowBarState.minutes };"
+                " skipMixItem()")
+            page.wait_for_timeout(1200)
+            assert page.evaluate("!!mixPlay && mixPlay.pos === 0"), \
+                "skipping the follow-up moved the playlist past the interrupted episode"
+            assert page.evaluate("currentPlayingTopicKey === mixPlay.key || (lastGenerate && lastGenerate.key === mixPlay.key)"), \
+                "skipping the follow-up did not go back to the interrupted episode"
+            assert page.evaluate("!mixPlay.resume"), "the resume point was not used up"
+            page.evaluate("mixPlay = null; drawMixSkip(false)")
+            # Captions: a labelled pill beside the queue, opening over the picture.
+            pill = page.query_selector("#screen-player .pc-row2 #ccIcon")
+            assert pill and "Captions" in pill.text_content(), "no CC pill on the player"
+            assert page.query_selector("#playerStage #ccPanel"), \
+                "the captions are not read over the picture"
+            pill.click()
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector("#ccPanel", "e => e.classList.contains('on')"), \
+                "the pill did not turn captions on"
+            assert page.eval_on_selector("#ccIcon", "e => e.getAttribute('aria-pressed')") == "true"
+            pill.click()
+            page.wait_for_timeout(300)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(300)
+
         def the_sources_cluster_shows_three_in_the_corner():
             """It was fetched when an episode *ended* and when Go Deeper
             opened, and nowhere else - so the one moment it is for, somebody
@@ -1068,6 +1127,12 @@ def main() -> int:
                 "the editor's own rows are hidden in the editor"
             rows = page.text_content("#identityAccountRows") or ""
             assert "Change password" in rows, "no way to change a password"
+            # §571: an account with no password is offered the first one.
+            first = page.evaluate("""() => { var had = AUTH.has_password;
+                AUTH.has_password = false; var row = passwordSettingsRow();
+                AUTH.has_password = had; return row; }""")
+            assert "Set a password" in first and "setFirstPassword()" in first, \
+                "an account with no password is not offered one"
             assert not page.query_selector("#identityShared"), \
                 "the old shared-interests block came back"
             assert not page.eval_on_selector("#identityInterests", "e => e.hidden"), \
@@ -1881,6 +1946,16 @@ def main() -> int:
                 page.wait_for_timeout(1200)
                 assert page.evaluate("() => mixPlay && mixPlay.pos") == step, \
                     f"skip did not move to episode {step + 1}"
+            # Back one (§550), by a real click, and forward again.
+            assert page.eval_on_selector("#mixPrevBtn", "e => !e.hidden"), \
+                "no back-an-episode on the playlist's player"
+            page.click("#mixPrevBtn", timeout=3000)
+            page.wait_for_timeout(1200)
+            assert page.evaluate("() => mixPlay && mixPlay.pos") == count - 2, \
+                "back did not go to the episode before"
+            page.click("#mixSkipBtn", timeout=3000)
+            page.wait_for_timeout(1200)
+            assert page.evaluate("() => mixPlay && mixPlay.pos") == count - 1
             page.evaluate("skipMixItem()")
             page.wait_for_timeout(600)
             assert page.evaluate(
@@ -1894,6 +1969,8 @@ def main() -> int:
             assert page.evaluate("() => mixPlay === null"), "the queue kept going"
             assert page.eval_on_selector("#mixSkipBtn", "e => e.hidden"), \
                 "the skip button outlived its playlist"
+            assert page.eval_on_selector("#mixPrevBtn", "e => e.hidden"), \
+                "the back button outlived its playlist"
             page.evaluate("closeMixDone(true)")
             page.wait_for_timeout(300)
 
@@ -2872,7 +2949,9 @@ def main() -> int:
             page.click("#dailySearchX")
             page.wait_for_timeout(300)
             listed = page.inner_text("#mixList").lower()
-            assert "morning brief" in listed and "from @mike" in listed, listed[:400]
+            # The copy is in the list, drawn like any mix card: picture, name,
+            # arrow - no "from @mike" on the card since §544.
+            assert "morning brief" in listed and "from @mike" not in listed, listed[:400]
             # And on somebody's profile, the same (+).
             page.evaluate("openPersonProfile('beth', {name: 'Beth Solomon'})")
             page.wait_for_function("personMixes.length > 0", timeout=5000)
@@ -2932,7 +3011,9 @@ def main() -> int:
             page.wait_for_selector("#shareOverlay.active #shareTargets .sh-target",
                                    timeout=8000)
             assert page.text_content("#shareTitle").strip() == "Share this mix"
-            assert len(page.query_selector_all("#shareTargets .sh-target")) == 9
+            # Every destination the server has: eleven since Reddit and
+            # Threads joined (§558).
+            assert len(page.query_selector_all("#shareTargets .sh-target")) == 11
             assert page.evaluate("mixById(currentMixId).public"), \
                 "the shared mix is still private"
             page.evaluate("closeShareModal(); openPlayFAM()")
@@ -3038,7 +3119,7 @@ def main() -> int:
                 assert not page.query_selector("#screen-profile " + gone), \
                     f"{gone} is still on YourFAM"
             assert page.text_content(
-                "#screen-profile .tabbar .tab.active .lbl").strip() == "YourFAM", \
+                "#screen-profile .tabbar .tab.active .lbl").strip() == "yourFAM", \
                 "the last tab is not YourFAM"
 
         def location_is_collected_and_editable():
@@ -3936,14 +4017,22 @@ def main() -> int:
             assert leftovers == 0, f"{leftovers} old per-screen overlay(s) survive"
 
         def category_chips_filter_the_page_in_place():
-            """The 11.3 packet, option 2: a chip row on the screen that
-            shows "myFAM"; a chip swaps the mixes for that category - a
-            picture, Play all, the rest - and the X brings the mixes back."""
+            """The 11.3 packet, option 2, under §550's tabs: the screen that
+            shows "myFAM" opens on Mixes; Categories lists them with a chip
+            row; a chip shows that category - a picture, Play all, the rest -
+            the X goes back to the list, and Mixes brings the mixes back."""
             page.evaluate("openPlayFAM()")
+            assert page.is_visible("#pfTabMixes.on"), "myFAM did not open on Mixes"
+            assert page.eval_on_selector("#catChips", "e => e.hidden"), \
+                "the category chips showed over the mixes"
+            page.click("#pfTabCats")
             page.wait_for_selector("#catChips .catchip[data-cat]", timeout=10000)
+            page.wait_for_selector("#catHome:not([hidden]) .cath-row", timeout=5000)
+            assert page.eval_on_selector("#mixesPane", "e => e.hidden"), \
+                "the mixes stayed under Categories"
             chips = page.eval_on_selector_all("#catChips .catchip",
                                               "e => e.map(x => x.textContent.trim())")
-            assert chips[0] == "All" and chips[-1] == "More", f"the chip row reads {chips}"
+            assert "All" not in chips and chips[-1] == "More", f"the chip row reads {chips}"
             target = page.eval_on_selector(
                 "#catChips .catchip[data-cat]:not([data-cat=''])",
                 "e => e.getAttribute('data-cat')")
@@ -3952,14 +4041,19 @@ def main() -> int:
                                    timeout=5000)
             assert page.eval_on_selector("#mixesPane", "e => e.hidden"), \
                 "the mixes stayed under the category"
-            assert page.query_selector("#catChips .catchip-x"), "no way back to All"
+            assert page.query_selector("#catChips .catchip-x"), "no way back to the categories"
             if page.query_selector("#catPanel .catp-hero"):
                 assert page.query_selector("#catPanel .catp-play"), "no Play all"
             page.click("#catChips .catchip-x")
             page.wait_for_timeout(200)
             assert page.eval_on_selector("#catPanel", "e => e.hidden"), \
                 "the X left the category showing"
+            assert not page.eval_on_selector("#catHome", "e => e.hidden"), \
+                "the X did not go back to the categories"
+            page.click("#pfTabMixes")
+            page.wait_for_timeout(200)
             assert not page.eval_on_selector("#mixesPane", "e => e.hidden")
+            assert page.eval_on_selector("#catChips", "e => e.hidden")
 
         def not_interested_takes_a_tile_off_the_page():
             """The 11.3 packet #2: a tile's three dots end in Not interested,
@@ -4366,6 +4460,8 @@ def main() -> int:
         check("Report and Block are in the menus", report_and_block_are_in_the_menus)
         check("Forgot password is two steps on the log-in screen",
               forgot_password_is_two_steps_on_the_log_in_screen)
+        check("Go Deeper keeps a playlist going; captions are a pill",
+              go_deeper_keeps_the_mix_and_captions_are_a_pill)
 
         if errors:
             failures.append(f"page errors: {errors}")

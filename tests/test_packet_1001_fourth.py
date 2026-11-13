@@ -125,7 +125,8 @@ def test_opening_go_deeper_does_not_stop_the_episode():
 def test_an_episode_ending_under_go_deeper_starts_nothing_over_it():
     # The player: no album advance, no countdown while the sheet is up.
     # §190 put the queue between the guard and `onEnd`; the guard is first.
-    end = INDEX[INDEX.index("if(goDeeperIsOpen()) return;\n        // Something queued"):]
+    # §550 wrapped what follows in `carryOn`, held while a vibe is made.
+    end = INDEX[INDEX.index("if(goDeeperIsOpen()) return;\n        var carryOn"):]
     assert end.index("if(goDeeperIsOpen()) return;") < end.index("playQueueNext()")
     assert end.index("if(goDeeperIsOpen()) return;") < end.index("maybeOfferNextUp(")
     assert "goDeeperIsOpen()" in _fn("maybeOfferNextUp")

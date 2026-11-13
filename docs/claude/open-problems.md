@@ -78,6 +78,29 @@
    > recogniser on the same card hears it back (`"hear": true` on the wire,
    > never on an episode's chunks). Its verdict is a hint with the audio
    > beside it; nothing changes the lexicon by itself.
+   > **Current (PROBLEMS.md §549, at the owner's direction):** the list goes
+   > out to another reader and comes back as proposals
+   > (`pronounce_review.py`): /admin downloads every respelling with
+   > Wikipedia's reading and a sentence it was heard in, a fixed prompt goes
+   > with it, and an uploaded reply **changes nothing** - each correction is
+   > shown beside what it would replace and saved, as an admin's, only when
+   > accepted. Never accept a whole file blind: an admin's respelling is never
+   > replaced afterwards. `voiced` hands the voice no stress; "Hear 4 ways"
+   > and `tools/stress_trial.py` compare four spellings by ear before it changes.
+   > **Current (PROBLEMS.md §567, at the owner's direction):** words in
+   > capitals are said as words when the CMU dictionary has them as one (from
+   > four letters: NASCAR, NVIDIA) and spelled when it has them as their
+   > letters' names or not at all (ESPN, UCLA); two or three letters are
+   > spelled unless listed. The dictionary loads at boot in a thread and is
+   > never waited for (`hard_words.peek`). A word goes to the voice in
+   > ordinary case ("Nascar"; `WORD_CASE`), captions keep the capitals;
+   > `SAID_AS` holds part-letter forms (USAID "U S Aid"). /admin's "Words in
+   > capitals" box hears any word five ways.
+   > **Current (PROBLEMS.md §576):** no dash reaches the voice as a hyphen:
+   > a respelling's syllables are joined ("Sahgahpohlootehleh", a hyphen kept
+   > only where joining makes a new sound), and a dash used as punctuation is
+   > a comma (Chatterbox's `punc_norm` turned "won—again—on" into
+   > "won-again-on").
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default
@@ -417,6 +440,7 @@
   only what the shared cap shows.
 
 <!-- rule:taste-tree -->
+> **Current (PROBLEMS.md §511, the owner 11.9):** an everyday word that is a subject only inside a phrase is **never a node on its own** (`category_seed.NEVER_ALONE`: `lead` and, §512, thirty-seven more - a word a headline uses every day whose subject senses sit on different facets): never minted alone, and a one-word node already grown under it never matches (`CategoryStore.match`), so a deployed tree needs no migration. **§513, the owner 11.9: nor is any grown phrase holding one** ("world record", "power grid", "lead poisoning" - "not important categories to have"): refused at mint and left out of the tree as read (`CategoryStore.reload`; no match, no `get`, not offered by `category_near`), the row kept on disk so taking a word off the list restores them; the seed's own phrases ("super bowl", "world cup", "stock market", "supreme court"; §514 adds "nfl draft", "trade deadline", "salary cap"; §515 "world cup qualifiers", "power outage"; §516 "power grid", "world record"; §517 "nfl trade rumors") and its aliases are exempt, by name - a phrase worth keeping is seeded. `tools/categories_report.py --alone` lists the one-word nodes a deployment grew and every phrase the check leaves out.
 > **Current (PROBLEMS.md §507, the owner 11.9):** a node may also be matched by **another name** (`category_seed.ALIASES`: "lakers", "pga tour", "senate"), answered as the node with its ancestry and never a node itself. The rule for teams holds for aliases: a short name only where it means nothing but the team or subject - no "kings", "eagles", "spurs", "packers", "governor", "shutdown", and no initials another field owns ("atp", "ucl", "mls", "midterms") - and a test holds the everyday phrases out.
 - **Taste is a subject tree** *(PROBLEMS.md §202, at the owner's direction:
   "If I consistently listen to content about the Cincinnati Bengals, that
@@ -645,6 +669,22 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
+> **Current (PROBLEMS.md §570, the owner 11.12):** on a mix's page each row
+> is called by today's episode (`episode_title`, the writer's title, read from
+> the cache), the topic under it; the topic alone until today's is written.
+> `title` stays the topic's, so a reorder never renames it.
+
+> **Current (PROBLEMS.md §545, the owner 11.11):** a mix whose followed topic
+> is trending or has a major update since the listener last heard it shows R5
+> on its card (the story's picture, the mix's cover in its corner, one line,
+> a "Trending"/"Major update" pill) and Q5 inside (then -> now bubbles, "Start
+> with what changed"). `signals.py`; measurements only; quiet once heard.
+
+> **Current (PROBLEMS.md §544, the owner 11.10):** in the mixes list a mix
+> card is its cover, its name and a right arrow - no briefing count, no
+> "daily", no public/private, no owner or joint label, no topic line. All of
+> it is still on the mix's own page; search results keep their owner line.
+
 **A mix is made by naming it, then filled from its own page** *(PROBLEMS.md
 §498, the 11.7 packet, Spotify's flow)*. The mixes screen's circled (+) is a
 **Create new mix** pill under the myFAM wordmark (still hidden until
@@ -923,6 +963,7 @@ friends and get none.
    cannot reach another listener or Explore. Only PDF needs a package (pypdf,
    optional); .docx is read with `zipfile`.
 <!-- rule:op-identity -->
+> **Current (PROBLEMS.md §571):** a waitlist join asks for a password again (email, password, Terms, one step), so a member is not locked out when mail is not configured; an account with no password is offered "Set a password" on the waitlist status page and in Settings (web and iOS), and `/admin` says whether "Forgot password?" is on (`mail.status()`).
 > **Current (PROBLEMS.md §297):** every log-in offers "Forgot password?" -
 > the app's and the waitlist's as before, and the three admin pages now link
 > to `/reset`, the reset password page (email, then the emailed code and a
@@ -968,6 +1009,42 @@ friends and get none.
   active again. The edition's ceilings are lifted (0, settable), and its
   report counts `dormant_mixes`. `0` hours writes every mix, as before.
 <!-- rule:mix-listen-time -->
+> **Current (PROBLEMS.md §562, at the owner's direction, 11.12):** the phone
+> is told three things, each once, and each only once what it opens is
+> written (`push.py`, `push_stories.py`):
+> - **One daily reminder per person, never one per mix** - "Your myFAM is
+>   ready" (names swapped, §185), headline first: the title of an episode
+>   the edition wrote for their most recently played mix, then "and N more
+>   across M mixes". *When*: the time they chose (Settings, or the row under
+>   any mix - it is the same one); else an old client's per-mix listen time
+>   (the earliest) until they choose here; else **learned** - the median time
+>   of their first play of the day over 14 days, once 3 days have one (a
+>   first play within an hour of a reminder counts at the reminder's due
+>   time, so answering it never drifts the time later); else
+>   07:30. Skipped on a day they already listened. **Backs off**: 3 ignored
+>   reminders in a row (no play after) and it goes every other day; 8 and it
+>   stops until they play. All mixes dormant: "Your myFAM is waiting", never
+>   "ready". The §448 spread now keys on the person.
+> - **Big stories** - GDELT's export copy (§211) clustered every 15 minutes
+>   over 3 hours by Trending's own clustering, no model, no request. **Mixed**:
+>   someone who *chose* to follow a subject the story names (a mix subject,
+>   `f:nfl~Eagles` is "Eagles", or a chosen interest that names a subject;
+>   never inferred taste) is told automatically past
+>   `PUSH_BREAKING_FOLLOWED_OUTLETS`; **everyone only after the owner presses
+>   Send in `/admin/push`**, offered only for the one story past
+>   `PUSH_BREAKING_EVERYONE_OUTLETS` and `PUSH_BREAKING_RATIO` times the next.
+> - **Followed finals** - a game the sports sweep saw end, to whoever follows
+>   a team in it, "<score> · Final - the recap is ready". Since §563 the sweep
+>   also runs for those followers' own teams' games with nobody drawing myFAM
+>   (rule:sweep-on-demand); nothing in the push path asks BALLDONTLIE itself.
+> - **Quiet hours 22:00-08:00** in the listener's zone hold the two story
+>   kinds; a breaking story goes at 08:00 only if the detector still saw it in
+>   the last 3 hours. The daily reminder is not held: its time is theirs.
+> - Every kind has its own switch in Settings. No per-person daily cap on
+>   stories (the owner chose quiet hours and back-off, not caps); a story is
+>   told to each person once. A story whose episode cannot be written is never
+>   sent. The per-mix `listen_at` field stays for installed clients.
+>
 > **Current (PROBLEMS.md §448, at the owner's direction, 11.04):** each
 > mix's "ready" push goes out a fixed 0-15 minutes after its listen time
 > (`push.spread_offset`, from the mix and the day), **never more than

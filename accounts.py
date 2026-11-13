@@ -412,6 +412,10 @@ class AccountStore:
                 # The activation step's gender (§411): one of `GENDERS`, or "".
                 # Never shown to anyone; counted only in groups of 100+.
                 "ALTER TABLE accounts ADD COLUMN gender TEXT NOT NULL DEFAULT ''",
+                # The free month (§577): when five friends had joined with
+                # this account's link. Set once and never cleared, so a
+                # friend deleting their account cannot take it back.
+                "ALTER TABLE accounts ADD COLUMN free_month_earned_at REAL NOT NULL DEFAULT 0",
             ):
                 try:
                     conn.execute(ddl)
@@ -523,7 +527,8 @@ class AccountStore:
             row = self._conn().execute(
                 "SELECT s.user_id, COALESCE(a.email, ''), COALESCE(a.plan, 'free'),"
                 "       COALESCE(a.display_name, ''), COALESCE(a.phone, ''),"
-                "       a.user_id IS NOT NULL, COALESCE(a.status, '')"
+                "       a.user_id IS NOT NULL, COALESCE(a.status, ''),"
+                "       COALESCE(a.free_month_earned_at, 0)"
                 " FROM sessions s"
                 " LEFT JOIN accounts a ON a.user_id = s.user_id"
                 " WHERE s.token_hash = ? AND s.expires > ?",
@@ -545,7 +550,7 @@ class AccountStore:
             )
         except Exception:
             log.exception("could not refresh session; continuing")
-        return Listener(row[0], row[1], entitlements.normalise(row[2]),
+        return Listener(row[0], row[1], self._with_free_month(row[2], row[7], now),
                         row[3], row[4], bool(row[5]), row[6])
 
     def end_session(self, token: str) -> bool:
@@ -578,7 +583,8 @@ class AccountStore:
         try:
             row = self._conn().execute(
                 "SELECT email, created, last_login, plan, display_name, phone,"
-                " status, birth_date, gender FROM accounts WHERE user_id = ?",
+                " status, birth_date, gender, free_month_earned_at"
+                " FROM accounts WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
         except Exception:
@@ -588,9 +594,54 @@ class AccountStore:
             return None
         return {"user_id": user_id, "email": row[0],
                 "created": row[1], "last_login": row[2],
-                "plan": entitlements.normalise(row[3]),
+                "plan": self._with_free_month(row[3], row[9]),
                 "display_name": row[4], "phone": row[5], "status": row[6],
-                "birth_date": row[7] or "", "gender": row[8] or ""}
+                "birth_date": row[7] or "", "gender": row[8] or "",
+                "free_month_earned_at": float(row[9] or 0)}
+
+    # --- the free month (§577) --------------------------------------------
+
+    #: How long the launch date is trusted before it is read again. It is read
+    #: with the session on every request, so it is not a query per request;
+    #: setting it here drops the copy at once, another process within a minute.
+    FREE_MONTH_WINDOW_TTL = 60.0
+
+    def _free_month_starts(self, now: float) -> float:
+        cached = getattr(self, "_fm_window", None)
+        if cached and now - cached[1] < self.FREE_MONTH_WINDOW_TTL:
+            return cached[0]
+        starts = 0.0
+        try:
+            row = self._conn().execute(
+                "SELECT value FROM waitlist_settings"
+                " WHERE name = 'free_month_starts'").fetchone()
+            starts = max(0.0, float(row[0])) if row else 0.0
+        except Exception:
+            starts = 0.0  # no waitlist table in this store: no launch date
+        self._fm_window = (starts, now)
+        return starts
+
+    def forget_free_month_window(self) -> None:
+        self._fm_window = None
+
+    def _with_free_month(self, plan, earned_at, now: float = 0.0) -> str:
+        """The plan, raised to "plus" while an earned free month is running.
+
+        The month runs from the day the whole app goes live
+        (`waitlist_settings.free_month_starts`) for `FREE_MONTH_SECONDS`,
+        the same month for everyone who earned it. It only ever raises a
+        plan: somebody already on "plus" or "unlimited" keeps theirs.
+        """
+        plan = entitlements.normalise(plan or "free")
+        if not earned_at:
+            return plan
+        from waitlist import FREE_MONTH_SECONDS
+        now = now or time.time()
+        starts = self._free_month_starts(now)
+        if starts and starts <= now < starts + FREE_MONTH_SECONDS \
+                and entitlements.rank(plan) < entitlements.rank("plus"):
+            return "plus"
+        return plan
 
     def demographic_rows(self) -> list:
         """(user_id, birth_date, gender) for every account let into the app
@@ -1175,15 +1226,19 @@ class AccountStore:
         """Set a password where there was none - the Google-or-Apple account
         adding a second way in. Separate from `change_password`, which requires
         the current one and would be impossible to satisfy here."""
+        stored = hash_password(check_password(new))
+        # One conditional UPDATE (§571): two "first" passwords sent at once
+        # cannot both land, because only the one that finds '' writes.
+        cur = self._conn().execute(
+            "UPDATE accounts SET password = ? WHERE user_id = ? AND password = ''",
+            (stored, user_id))
+        if cur.rowcount:
+            return
         row = self._conn().execute(
-            "SELECT password FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
+            "SELECT 1 FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
         if not row:
             raise AuthError("That listener has no account.")
-        if row[0]:
-            raise AuthError("This account already has a password. Change it instead.")
-        self._conn().execute(
-            "UPDATE accounts SET password = ? WHERE user_id = ?",
-            (hash_password(check_password(new)), user_id))
+        raise AuthError("This account already has a password. Change it instead.")
 
     # --- sessions the listener can see ------------------------------------
 

@@ -12,6 +12,10 @@
     --page-bg:#1E1B27; --bg:#2A2733; --surface:#38334A; --surface-2:#423C56;
     --copper:#E0B563; --coral:#E2694F; --sage:#8FAE9A; --gold:#E0B563;
     --deeper:#FFD23F;
+    /* What changed since you last listened (§545): trending gold, a major
+       update coral, each with the ink a filled pill takes. Lighter than
+       --copper/--coral in dark so small text on a card reads. */
+    --sig-tr:#E0B563; --sig-up:#F08A6E; --sig-ink:#18151F;
     --text:#F4EFE4; --text-muted:#ABA3C4; --text-faint:#8A83A0;
     --border:rgba(244,239,228,0.10); --border-strong:rgba(244,239,228,0.20);
     --muted:rgba(244,239,228,0.56); --ink-muted:#ABA3C4;
@@ -157,7 +161,11 @@
      the audio: the screen goes the moment the first audio arrives, whatever
      the animation is doing. Painted by `paintLoadingVariant`. */
   .fam-ld-alt{ display:none; }
-  .fam-loading.alt > :not(.fam-loading-x):not(.fam-ld-alt){ display:none !important; }
+  /* The FAM mark stays on both, larger, above the dial or the glide (the
+     owner's direction, §542): the wait is the brand's, as search's is. */
+  .fam-loading.alt > :not(.fam-loading-x):not(.fam-ld-alt):not(.fam-loading-wm){ display:none !important; }
+  .fam-loading.alt .fam-loading-wm{ gap:2px; margin-bottom:10px; }
+  .fam-loading.alt .fam-loading-wm .wm-glyph, .fam-loading.alt .fam-loading-wm .wm-a{ width:46px; height:46px; }
   .fam-loading.alt .fam-ld-alt{ display:flex; flex-direction:column; align-items:center; gap:14px; width:100%; }
   .fam-ld-kick{ font-family:'Geist Mono', monospace; font-size:10.5px; letter-spacing:.1em;
     text-transform:uppercase; color:var(--text-muted); max-width:100%; overflow:hidden;

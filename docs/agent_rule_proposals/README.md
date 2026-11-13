@@ -7,13 +7,20 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-Nothing. Manifest version 7 - `nando.md` rule 12 amended (§502, §503): the
-one-time comparison against a second answer key, and the story composer
-taught its corrected categories - was signed on 2026-11-09 on a borrowed
-computer with `tools/sign_rulebooks.py` (PROBLEMS.md §505). Before that:
-manifest version 6, the merged books (§470); `mclovin.md` v3 (§443,
-version 5); v2 (§441, version 4); `consuela.md` with Perplexity (§412,
-version 3); `nando.md` rule 12 (§392).
+Nothing. Manifest version 9 - `egan.md`, a new agent, Egan (§580-§583) -
+was signed on 2026-11-13 on the owner's MacBook Air with
+`tools/sign_rulebooks.py` and uploaded with the book; the session verified
+it, registered him and deleted the proposal (§583).
+
+Before that: manifest version 8 - `journalism_playbook.md` v2, Part 3's story
+shapes, on top of Main's version 7 - was signed on 2026-11-10 on the
+owner's MacBook Air (OpenSSL 4.1 in a Miniforge `famsign` environment) and
+uploaded to this folder; the session verified it and moved the files into
+place (PROBLEMS.md §534). Before that: version 7, `nando.md` rule 12
+amended (§502, §503), signed on a borrowed computer with
+`tools/sign_rulebooks.py` (§505); version 6, the merged books (§470);
+`mclovin.md` v3 (§443, version 5); v2 (§441, version 4); `consuela.md`
+with Perplexity (§412, version 3); `nando.md` rule 12 (§392).
 
 ## Signing on a computer without OpenSSL 3 (§504)
 

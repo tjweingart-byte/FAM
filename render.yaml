@@ -91,13 +91,13 @@ services:
         sync: false        # set once in the dashboard; never in the repo
       # No DEMO_MODE here: nothing reads it. Demo mode is derived from whether
       # a Claude key is present (§208 removed a `DEMO_MODE=0` that did nothing).
-      # Tier quotas, enforced here and nowhere else (§207): the free tier's
-      # daily ceiling bounds what one listener can spend (~$0.50 a day rather
-      # than ~$2 a minute). Admin accounts (FAM_ADMIN_ACCOUNTS) are unlimited;
-      # POST /api/admin/plan moves anyone else. FREE_EPISODES_PER_DAY and
-      # FREE_EXPLORE_PER_DAY tune the ceiling in the dashboard.
+      # Tier quotas: OFF in production too, at the owner's direction (11.9
+      # packet, §519) - everyone has unlimited access until the owner says
+      # otherwise. "1" turns the §207 ceiling back on (free tier 5 episodes a
+      # day; admins unlimited; POST /api/admin/plan moves anyone else).
+      # Spend per listener stays visible in metering, just not capped.
       - key: ENFORCE_QUOTAS
-        value: "1"
+        value: "0"
       # Kept audio in a Cloudflare R2 bucket (§237, AUDIO_STORE.md). Asked
       # for in the dashboard: `AUDIO_STORE=r2` is set once the bucket and its
       # lifecycle rules exist and `tools/verify_audio_store.py` has passed,
@@ -168,10 +168,11 @@ services:
         sync: false
       - key: APPLE_CLIENT_IDS
         sync: false
+      # Not secrets: /.well-known/apple-app-site-association publishes both.
       - key: APPLE_TEAM_ID
-        sync: false
+        value: 484A7YD2S3
       - key: IOS_BUNDLE_ID
-        sync: false
+        value: net.familiarize.fam
       - key: APPLE_KEY_ID
         sync: false
       - key: APPLE_PRIVATE_KEY
@@ -219,6 +220,11 @@ services:
       # synthesis. A warm one answers a chunk in a couple of seconds.
       - key: REMOTE_VOICE_TIMEOUT
         value: "180.0"
+      # Always-on ("active") workers on the endpoint - keep it equal to the
+      # RunPod console (§578). Above 0: no wake jobs, and no more chunks in
+      # flight than active workers, so none queues and boots a flex worker.
+      - key: REMOTE_VOICE_ACTIVE_WORKERS
+        value: "1"
       # --- Finding the worker when RunPod moves it ----------------------
       #
       # The address of a rented GPU is not a constant, and an app holding a
@@ -386,6 +392,21 @@ services:
       # ANSWER_FIRST is not here because it no longer exists: the
       # from-knowledge cover it switched on was deleted in §108 (see DEPLOY.md
       # and Dockerfile.gpu). Setting it does nothing.
+      #
+      # What is written ahead, and the one budget it shares (§568,
+      # ahead_budget.py). Asked for in the dashboard, never set here: the
+      # owner chooses them. PREFETCH_LEVEL=script writes DailyFAM's other
+      # cards whole (the code's default is brief); AHEAD_DAILY_DOLLARS is one
+      # daily ceiling on the mixes' edition, the rails edition and prefetch
+      # together (unset or 0 = none); AHEAD_DAILYFAM_SHARE (0-1) holds part of
+      # it for DailyFAM's writers. /admin -> "Written ahead today" shows each.
+      # Staging spends nothing whatever these say (spend_guard: no key).
+      - key: PREFETCH_LEVEL
+        sync: false
+      - key: AHEAD_DAILY_DOLLARS
+        sync: false
+      - key: AHEAD_DAILYFAM_SHARE
+        sync: false
     # No disk (§339): it was deleted once every store was in Postgres. The
     # Dockerfile's /data/*.db paths stay as they are - they no longer name
     # files, but each store's Postgres schema is named from its path

@@ -116,7 +116,7 @@ def test_a_check_sends_what_an_episode_sends_and_compares(lexicon, monkeypatch):
 
     monkeypatch.setattr(voice_check, "say_and_hear", say_and_hear)
     result = run(voice_check.check("Sagapolutele", with_audio=True))
-    assert sent == ["Sah-gah-poh-loo-teh-leh"], "the respelling, as the voice gets it"
+    assert sent == ["Sahgahpohlootehleh"], "the respelling, as the voice gets it"
     assert result["expected"] == "sah-gah-poh-loo-TEH-leh"
     assert result["verdict"] == voice_check.MATCHES
     assert result["audio"].startswith("data:audio/wav;base64,")

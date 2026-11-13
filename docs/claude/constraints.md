@@ -533,7 +533,27 @@
   sport is `unknown` and says nothing, so an unverified mapping costs a silent
   game, never a wrong one.
 
+<!-- rule:tiingo-credit -->
+- **Tiingo is credited wherever its data was used.** *(PROBLEMS.md §566, at the
+  owner's direction, 11.12.)* An episode whose provenance names Tiingo - a
+  live lookup Tiingo answered (`provenance.from_live` credits a provider only
+  on facts), or Tiingo's figures recalled from FAM's archive - ends with the
+  sentence `provenance.TIINGO_CREDIT`, "Market data powered by Tiingo.", the
+  very last thing spoken. It is composed in code (`script_generator.market_credit`),
+  never written by the model, and added after everything the writer said, a
+  refusal included, on both write paths: `stream_prepared` (so every stream:
+  searchFAM, prefetch, the editions' live fallback, `write.py`) and
+  `sentences_from_message` (the batched editions). It is stored with the
+  script, so replays and captions carry it. It is the one sentence after
+  "land it and stop" [speak-from-inside]: a licence credit, not a summary or
+  a tease. Tiingo is also listed in the player's sources, and first:
+  `Provenance.as_dict` puts it ahead of every other source, so it is one of
+  the three marks the corner draws rather than hidden behind "+N". Both read
+  the same record, so the voice and the panel cannot disagree; a failed
+  Tiingo lookup is in neither. With `ALLOW_TOPUPS=1` (off by default) a
+  top-up would follow the credit.
 <!-- rule:sweep-on-demand -->
+> **Current (PROBLEMS.md §563, at the owner's direction, 11.12: "sweep scores for followers with finals on"):** somebody with finals notifications on (and somewhere to receive them) is demand too, **for their own teams' games only**. The push loop hands the sweep the team names those people *chose* to follow (`push_stories.publish_finals_followed`, every 5 min; stale after 15, so a stopped loop stops the sweep it asked for). With nobody drawing myFAM, `Signals.idle` lets the sweep run while that list is non-empty, and `Signals.due` reads a league only for a game on or about to start that names one of those teams (`balldontlie_scores.followed_game`; a soccer row whose teams are not named yet counts), until the sweep sees it final. Each league's card is still read once per UTC day to know what is on - about a dozen requests a day with nobody looking - and myFAM demand keeps the old rule (every game on is watched). "Only if myFAM was drawn recently" below is history.
 > **Current (PROBLEMS.md §418):** the markets sweep is Tiingo's alone (`story_sources.TiingoSignals`): the watchlist (`MARKETS_WATCHLIST`, was `FINNHUB_WATCHLIST`) in one request every two hours, swept only while Tiingo is the markets provider. Read "Finnhub" below as the markets sweep.
 > **Current (PROBLEMS.md §290, temporary):** a league API-Sports answers is swept on API-Sports' own day: the sweep stops while `API_SPORTS_LOOKUP_RESERVE` of the sport's requests are left, so listeners' questions keep the end of the day (`api_sports.Client.sweep_may`). With `TIINGO_API_KEY` set, markets are Tiingo's and its sweep (`story_sources.TiingoSignals`) is one request for the whole watchlist; only the markets provider the episodes read is swept.
 > **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed. The sweep is BALLDONTLIE's (`balldontlie_scores.make_signals`): it follows only `balldontlie_scores.SWEPT` (NFL, college football, NBA, men's college basketball, WNBA, MLB, NHL, Champions League, Premier League, La Liga, Bundesliga, World Cup), reads a league's card when due (`Signals.due`, `watching`), only while one of its games is on or about to start and only if myFAM was drawn recently (`Signals.idle`); an endpoint BALLDONTLIE refused is not asked again that day (`balldontlie.Client.refused`). `SWEPT_LEAGUES`, `ApiSportsSignals` and the per-sport budgets below are gone.
@@ -1318,6 +1338,13 @@
   > and stays the composer's, placer's and thumbnails'. Not in the key, so a
   > tap still finds what an earlier writer kept; an account without Haiku
   > writes on `MODEL` (boot check). The photo check stays on `SMALL_MODEL`.
+  >
+  > **Current:** where nobody waits - the editions, the write-ahead and
+  > prefetch's script warms - the writer is Haiku 5.5 at **high**
+  > (`AHEAD_WRITER_EFFORT`, PROBLEMS.md §522, at the owner's direction:
+  > "for when nobody waits, it's supposed to be haiku high"), as Shakespeare
+  > is there (§440). searchFAM stays at `EFFORT` (low), so the first word is
+  > not moved; `EDITION_WRITER_EFFORT`, when set, still wins for an edition.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an
@@ -1417,6 +1444,7 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §571, the owner 11.12, reversing §296's email alone):** joining asks for the **email, a password and the Terms box, in one step** - on `/waitlist`, the app's Sign Up (which goes there) and iOS's join form. The password is the app's own rule (`accounts.check_password`, `MIN_PASSWORD` 8, "Use at least 8 characters for your password." on the page) and is stored in the INSERT that makes the account, so a refused password makes nothing. `/api/waitlist/join` still takes a join with **no** password (`old-clients`: an installed app from §296's weeks), made passwordless exactly as before. An account with none - those joins, Google, Apple - is offered the first one where it looks: the status page's card **Set a password so you can sign back in** (`details.has_password`), and Settings' row reads **Set a password** (not Change password) from `/api/auth/me` `has_password`, opening `/api/auth/password/set` directly. "Already registered" still opens the sign-in, now with the typed password carried. `/admin` shows whether "Forgot password?" exists (`mail.status()`: on, or off and why), since without mail the card is the only way back. Below, §296's "email alone" and "another device gets in by Forgot password?" describe a join no current client makes.
 > **Current (PROBLEMS.md §302, the owner 10.22):** the status page (`/waitlist/me`) plays the same three sign-up samples, above the place card - the landing's section, moved there by `showStatus` - so somebody in line hears FAM, not only reads about it (App Review 2.1/2.2: a waiting person still gets the app's core). The gate already let a waitlisted account's sample replay through; nothing on the server changed.
 > **Current (PROBLEMS.md §296, the owner 10.21):** joining at `/waitlist` is the **email alone** - no password; the account is made with none (`sign_up(..., passwordless=True)`, as Google/Apple ones are), and another device gets in by "Forgot password?", which sets the first. A join that still sends a password is the old join. The email is never a credential: an address with an account is refused and the page opens its sign-in; §233's admin preview is given only to a browser already signed in as that admin.
 > **Current (PROBLEMS.md §282, the owner 10.15):** the status page searches the list for friends (`/api/waitlist/people`): by name or handle, or an email or phone number typed **whole** (a number without its code is tried as +1), returning only name, handle, face and whether they are friends - never what matched; **Add** is a follow (`/api/waitlist/add`), and both ways is Your FAM. This is the one door by which a waitlisted account is found by somebody outside its graph, at the owner's direction; the app's own discovery is unchanged. Only a waitlisted account or an admin may search or add (`_require_waitlist_searcher`); exact lookups are capped at `WAITLIST_EXACT_PER_DAY` terms a day. Nobody found is the **Invite** card. The unlock row ("1 more person until your next unlock") is gone - nothing is locked; `/api/waitlist/me` keeps `unlock` for installed clients. The sign-in has §244's **Forgot password?**, drawn only when mail is configured, as the app's is.
@@ -1453,8 +1481,21 @@
   always delete itself. Profile setup writes only `/api/me` and `/api/preferences`,
   which cannot reach `status`, `referred_by`, place or admin. Launch is
   `WAITLIST=0`.
+<!-- rule:free-month -->
+- **Five friends earn a free month** (PROBLEMS.md §577, the owner 13/11):
+  friends count as invites do (`referred_by`); the fifth stamps
+  `free_month_earned_at` once, never cleared; the month is "plus" from the
+  admin-set launch day (`free_month_starts`) for 30 days, the same month for
+  everyone; it only raises a plan. The page's "five" is pinned to
+  `FREE_MONTH_INVITES` by a test.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
+  > **Current (§519, the 11.9 packet):** switched **off again in production**
+  > at the owner's direction - "until I change it, I want everyone to have
+  > unlimited access." `render.yaml` sets `ENFORCE_QUOTAS=0` on `fam`
+  > (explicitly, so turning it back on is one value); nobody sees the limit
+  > screen. Everything §207 built - admin `unlimited`, `/api/admin/plan`, the
+  > plans sheet worded from `/api/plans` `enforced` - stays.
   > **Current:** switched **on in production** at the owner's direction
   > (§207): `render.yaml` sets `ENFORCE_QUOTAS=1` on `fam`, so the worst
   > listener is bounded (5 episodes a day on free, ~$0.50) rather than ~$2 a
@@ -1590,6 +1631,15 @@
   one; through a `data:` URL rather than a blob URL, because Safari treats an
   SVG from a blob URL as cross-origin and taints the canvas, which is the one
   browser this feature is mostly used from.
+  > **Current:** on iOS a story card goes **straight into Instagram's or
+  > Snapchat's story editor** when the server has the platform's public id
+  > (`INSTAGRAM_APP_ID`, `SNAPCHAT_CLIENT_ID`; `sharing.story_handoffs`,
+  > §558): the PNG on the pasteboard under the platform's keys, then its
+  > scheme. Still a hand-off with the person pressing share, still no token;
+  > unset, or the app not on the phone, it is the share sheet as above.
+  > A pasted link's preview is no longer the story card (§559): `og:image`
+  > is a square JPEG of the episode's picture with a play button
+  > (`link_preview`), because the SVG card was skipped by Messages.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the
@@ -1598,64 +1648,79 @@
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
-  > **Current:** since §321 FAM holds one read-only X search credential
+  > **Current:** since §321 FAM held one read-only X search credential
   > (`X_BEARER_TOKEN`) for its own account's outreach, and still nothing
-  > that can post - see [x-threads].
-<!-- rule:x-threads -->
-- **FAM on X is found by code and posted by a person** (§321, `x_threads.py`,
-  `/admin/x`). A search starts from episodes FAM already has (the Trending
-  edition, then the most played kept episodes) and looks for the threads
-  they answer, so the episode exists before the thread is found. Code
-  screens (age, replies, author size, organisations, grief and flame-war
-  subjects, one author a week) and scores (episode match, engagement per
-  hour, a question, room in the thread, author fit); each card carries its
-  reason in words ([candidate-reason]). A reply links an episode only when
-  the episode is the thread's subject; otherwise it asks a better question.
-  **Every card is about the post it answers** (§326): a one-word name is
-  searched only beside the episode's own subject words; code drops a post
-  that shares a name and nothing else (`on_subject`); the drafting call
-  judges first - not the same subject drops the card, an episode that does
-  not answer this post loses its link - and the reply answers the post.
-  **Approve opens X's own reply box with the words in it and copies them**
-  (`x.com/intent/post?in_reply_to=`); the person presses Post. Nothing here
-  can write to X, and nothing runs on a timer: a search is a button
-  ([sweep-on-demand]), capped per search and per day because X bills per
-  post read; staging scrubs the token ([zero-spend-staging]). With no model
-  key the reply is drafted in code and the card says so. Cards are kept a
-  week.
-  > **Current:** since §337 (`outreach_intelligence.py`) a post needs
-  > `X_THREADS_MIN_ENGAGEMENT` (25) likes, replies, reposts and quotes; it is
-  > matched against every kept episode, not only the one whose search found
-  > it; and the drafting call **reads before it writes** - subject, intent,
-  > which of three offered episodes answers it (from each one's summary and
-  > script opening, not its title), the angle - stored and shown on the
-  > card, then writes in X's voice (curiosity, part of the conversation). A
-  > figure neither the post nor the episode states sends the words back to
-  > the code's.
-  > **Current:** the LinkedIn engine that shared this read (§322, §327,
-  > `/admin/linkedin`) was removed at the owner's direction (§367); X is
-  > the only outreach page. The listener's LinkedIn share button is a
-  > separate feature and stays ([share-link]).
-  > **Current:** since §368 (the owner's guardrails brief) **the original
-  > post anchors everything**: replies under a card are read as context
-  > (`X_THREADS_REPLY_READS`, inside the ceilings) and never set its
-  > subject. Before the reply the read states the author's central message
-  > and a **relevance score 1-5** against the original post, with why, and
-  > answers the **original-author test** (would they see at once why this
-  > relates to what they posted?) - false rejects the card whatever the
-  > score; 1-2 rejects; 3 is a comment only; only 4-5 may link a kept
-  > episode (checked again on the server at approval) or **propose** a
-  > specific one (title, scope, question), which is never mentioned until
-  > written and matched ("Match again"). Outcomes are episode + comment /
-  > comment only / skip; an episode is never required. A code read is worth
-  > 3 and its author test is "not run". A reply that sounds like an ad
-  > (`promotional`) goes back to the code's words, and a card with no link
-  > never keeps words saying FAM has an episode; one sharing no word with
-  > the post is flagged. Approve needs a person's tick that every claim was
-  > checked, and a link needs the episode heard through that link first
-  > (`listened_at`). Rejections are listed for audit, never actionable.
-  > `tools/x_agent_eval.py` is the before-deployment review: real posts
-  > beside FAM's episode and comment.
+  > that could post. Since §579 nothing reads it: outreach is
+  > [community-outreach], by web search, with no platform token at all.
+  > Since §581 it is read again, beside Reddit's app-only
+  > `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`: read-only searches for
+  > communities on `/admin/groups`. Still nothing that can post, message,
+  > vote or follow.
+<!-- rule:community-outreach -->
+- **FAM reaches communities' admins through public channels, and a person
+  does it** (§579, the owner's direction; `communities.py`,
+  `/admin/groups`). Facebook groups, subreddits, X Communities, Discord
+  servers and Slack communities about FAM's subjects are found by **web
+  search through the research backends** (`research.WEB_BACKENDS`, held to
+  each platform's domains), never by signing in to a platform, scraping it,
+  or holding any platform's token. A card says **how to reach the admins
+  through the community's own public channel** - the group's admin list,
+  the subreddit's modmail, the community's moderators page, a server's
+  rules - and a person messages them from FAM's account; nothing here sends
+  anything. **No phone number is ever stored** (`strip_phones` over every
+  text kept, the person's notes included); an email only when the
+  community's own page publishes it as its contact, and an admin's name
+  only when that page states it; nothing looks a person up elsewhere. Each
+  card carries **three hypothesised episodes** (title, angle, why this
+  community), never written, and a kept episode only when one matches; it
+  is linked in a message only after a person heard it through its link.
+  A fit under 3 is set aside for audit, never actionable. Searches are a
+  button ([sweep-on-demand]), capped per run and per day; staging has no
+  search key ([zero-spend-staging]); with no model key the pitches and the
+  message are composed in code and the card says so. Each card carries its
+  reason in words ([candidate-reason]). Untouched leads are kept 30 days.
+  > **Current:** since §580 the fit, the pitches and the message are
+  > **Egan's**, a full agent ([agent-model-layer]): one call per
+  > community through `agents/models.py`, under his own rule book
+  > (`egan.md`), off by default (`OUTREACH_AGENT`). He never reads about
+  > a person (every-agent.md "never" 9): `communities.redacted` takes
+  > names, handles, addresses and numbers out of his material, and code
+  > sends back an answer that carries one, or a figure the material does
+  > not, once, then composes in code. **Until the owner signs his book**
+  > it waits in `docs/agent_rule_proposals/` with
+  > `MANIFEST.pending.json` and he is `agents.names.PROPOSED`, refused by
+  > the layer; an unsigned book in `docs/agent_rules/` would hold every
+  > agent. **Signed by the owner** (manifest v9, §583): he is in
+  > `agents.names.AGENTS` and the roster, off until `AGENTS=1` and
+  > `OUTREACH_AGENT=1`.
+  > **Current:** since §581 (the owner's direction) subreddits and X
+  > Communities are found through **Reddit's and X's own APIs** when their
+  > read-only keys are set (`community_sources.py`: subreddit search and
+  > about pages, X's Communities search and lookup; never a moderator, a
+  > member or a profile; adults-only subreddits never a card), falling back
+  > to the web search; the rest stays web search. And **a person can send
+  > a group to Egan** (`/api/admin/groups/send`, `communities.lookup`): its
+  > link is read through its API or the web, its public contact route
+  > worked out, Egan reads it with the person's note (redacted like the
+  > rest) and it is kept to contact **whatever its fit** - a person chose
+  > it - unless FAM does not pitch its subject (`AVOID`). A lookup is one
+  > search against the day's ceiling.
+  > **Current:** since §582 (a review): `scrub` keeps no email but the
+  > community's published contact anywhere, phone numbers in international
+  > shapes included; only a community's own page (`own_page`) gives a
+  > description, contact or admin, never a member's post; a sent
+  > adults-only community is refused; profile links, handles and the people
+  > a team's note names are redacted before Egan; searches count as they
+  > are made; a lead a person sent, moved or wrote on is never pruned; the
+  > server enforces the page's status moves.
+  > **History:** this replaced **FAM on X** (§321-§368, `x_threads.py`,
+  > `outreach_intelligence.py`, `/admin/x`), which searched X's API for
+  > threads one of FAM's episodes answered and drafted replies a person
+  > posted through X's own compose box, under a relevance score and an
+  > original-author test (§368). The owner removed it in §579; its rule text
+  > is in git history before that change. LinkedIn's engine had gone in
+  > §367. The listener's own share buttons are a separate feature and stay
+  > ([share-link]).
 <!-- rule:app-review-safety -->
 - **Report anything, block both ways, and ask before a listener's words go to
   the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,
@@ -1701,6 +1766,8 @@
   warmed script was nobody's tap, so it belongs to everybody, which is also
   what rows written before the column existed do.
 <!-- rule:typefaces -->
+> **Current (PROBLEMS.md §546, the owner 11.11):** in the iOS app **dark is the default theme** - a phone that never chose is drawn dark, and light is the choice in Settings ("Dark mode" Off), under the same key `fam.theme`; its launch screen is the dark page (#2A2733). The web keeps light as its default (§250) until the owner says otherwise.
+
 > **Current (PROBLEMS.md §363, the owner 10.31):** the three tab headings are lower case - **daily**FAM, **my**FAM, **your**FAM - set by one rule (`.myfam-header h2, .yf-head .wordmark`: Bricolage Grotesque 500, 28px, which is how "my" was already drawn: `.myfam-header h2` outranked `.wordmark`'s 400) and centred over the page. The owner: "make them all look like my". exploreFAM's word on the reel is unchanged.
 
 > **Current (PROBLEMS.md §250):** the words beside the FAM mark ("Daily", "my", "Your", "explore") are all Bricolage Grotesque at its regular 400, matching exploreFAM's, at the owner's direction (the 10.10 packet's picture); they had been 500 with tightened spacing. And **light is the default theme**: dark is the choice in Settings ("Dark mode"), kept on the device under `fam.theme`; a device that cannot store it gets light. Fraunces, Space Grotesk and JetBrains Mono are gone (§204).
