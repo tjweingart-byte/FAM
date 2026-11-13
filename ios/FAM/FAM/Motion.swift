@@ -708,7 +708,7 @@ private struct UnderPush: ViewModifier {
         let t = reduceMotion ? 0 : state.shown
         content
             .offset(x: -0.28 * width * t)
-            .opacity(1 - 0.45 * t)
+            .opacity(Double(1 - 0.45 * t))
             .animation(state.curve, value: state.shown)
     }
 }
@@ -1093,7 +1093,7 @@ struct UnderPlayer: ViewModifier {
         let width = UIScreen.main.bounds.width
         content
             .offset(x: -0.28 * width * stage.under)
-            .opacity(1 - 0.45 * stage.under)
+            .opacity(Double(1 - 0.45 * stage.under))
             .animation(stage.underCurve, value: stage.under)
     }
 }

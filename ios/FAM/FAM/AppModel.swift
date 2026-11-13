@@ -135,11 +135,11 @@ final class AppModel: ObservableObject {
     @Published var askSignUp = false
     /// The shared episode's question while its audio is the player's, "" when
     /// none (as `sampleQuery`); the line under the player and how it ended.
-    @Published private(set) var shareQuery = ""
-    @Published private(set) var shareNote = ""
-    @Published private(set) var shareNoteBad = false
-    @Published private(set) var shareStarted = false
-    @Published private(set) var shareEnded = false
+    @Published var shareQuery = ""
+    @Published var shareNote = ""
+    @Published var shareNoteBad = false
+    @Published var shareStarted = false
+    @Published var shareEnded = false
     /// An invite code a link carried (`referralCode`), kept until an
     /// account is made with it (the web's `famReferral`).
     static let referralKey = "fam.referral"
