@@ -584,4 +584,9 @@ and `limit` = Lines.
 | 35922 | 116 | 590. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13) |
 | 36038 | 27 | 591. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13) |
 | 36065 | 43 | 592. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13) |
-| 36108 | 89 | 593. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |
+| 36108 | 27 | 593. The free month in both apps: a card on DailyFAM that claims it (2026-11-13) |
+| 36135 | 33 | 594. A tour of the app after sign-up (2026-11-13) |
+| 36168 | 37 | 595. The tour, once, for accounts from before it (2026-11-13) |
+| 36205 | 25 | 596. The phone field says what the text is: consent for the carriers (2026-11-13) |
+| 36230 | 30 | 597. One text per account, ever (2026-11-13) |
+| 36260 | 89 | 598. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |

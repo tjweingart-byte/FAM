@@ -21,6 +21,24 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var stage: Stage = .opening
     @Published private(set) var listener: Listener?
+    /// The claimed free-month card closed on this phone (§593), under the
+    /// web's own key, as `fam.theme` is.
+    @Published var freeMonthClosed = UserDefaults.standard.bool(forKey: "fam.freeMonthClosed") {
+        didSet { UserDefaults.standard.set(freeMonthClosed, forKey: "fam.freeMonthClosed") }
+    }
+
+    /// The card's Claim button (§593). Returns the sentence to show when it
+    /// fails, nil when the month is claimed.
+    func claimFreeMonth() async -> String? {
+        do {
+            let offer = try await api.claimFreeMonth()
+            listener?.freeMonth = offer
+            nowPlaying.say("Free month claimed")
+            return nil
+        } catch {
+            return (error as? LocalizedError)?.errorDescription ?? "Could not claim it. Try again."
+        }
+    }
     @Published private(set) var rails: [Rail] = []
     @Published private(set) var railsProblem = ""
     @Published private(set) var loadingRails = false

@@ -174,3 +174,151 @@ def test_admin_counts_notices_apart_from_viral_loops(acc, wl):
     wl.grant(["e"])
     assert wl.outbox_summary()["pending"] == 1  # the flag
     assert wl.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)["pending"] == 1
+
+
+# --- the free month in the apps (§593) --------------------------------------
+
+def test_offer_only_for_somebody_let_in(acc, wl):
+    acc.sign_up("w", "w@fam.test", PASSWORD)
+    assert wl.claim_offer("w") is None          # still waiting
+    acc.sign_up("old", "old@fam.test", PASSWORD)
+    with acc._conn() as c:
+        c.execute("UPDATE accounts SET status = 'active' WHERE user_id = 'old'")
+    assert wl.claim_offer("old") is None        # let in before notices existed
+    assert wl.claim_for("old") is None
+    wl.grant(["w"])
+    assert wl.claim_offer("w") == {"claimed": False, "starts": None, "ends": None}
+
+
+def test_claiming_in_the_app_is_the_links_claim(acc, wl):
+    acc.sign_up("w", "w@fam.test", PASSWORD)
+    wl.grant(["w"])
+    assert wl.claim_for("w", at=500.0)["claimed"] is True
+    assert acc.account("w")["free_month_earned_at"] == 500.0
+    code = wl.notice_view("w")["claim_code"]
+    assert wl.claim_free_month(code, at=900.0) == "w"
+    assert acc.account("w")["free_month_earned_at"] == 500.0  # still once
+    wl.set_free_month_starts(10 * DAY)
+    assert wl.claim_offer("w") == {"claimed": True, "starts": 10 * DAY,
+                                   "ends": 10 * DAY + waitlist_mod.FREE_MONTH_SECONDS}
+
+
+def test_auth_me_carries_it_and_the_button_claims(world):
+    c = TestClient(appmod.app)
+    r = c.post("/api/waitlist/join", json={"email": "m@fam.test", "password": PASSWORD})
+    assert r.status_code == 200, r.text
+    user = appmod.WAITLIST.ordered()[0]["user_id"]
+    assert c.get("/api/auth/me").json().get("free_month") is None
+    appmod.WAITLIST.grant([user])
+    assert c.get("/api/auth/me").json()["free_month"] == {
+        "claimed": False, "starts": None, "ends": None}
+    r = c.post("/api/v1/free-month/claim")
+    assert r.status_code == 200 and r.json()["free_month"]["claimed"] is True
+    assert c.get("/api/v1/auth/me").json()["free_month"]["claimed"] is True
+    assert TestClient(appmod.app).post("/api/free-month/claim").status_code in (401, 403)
+
+
+def test_both_apps_draw_the_card_with_the_same_words():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    web = open(os.path.join(root, "static", "index.html"), encoding="utf-8").read()
+    ios = open(os.path.join(root, "ios", "FAM", "FAM", "Views", "DailyView.swift"),
+               encoding="utf-8").read()
+    api = open(os.path.join(root, "ios", "FAM", "FAM", "API.swift"), encoding="utf-8").read()
+    assert 'id="freeMonthCard"' in web and "/api/free-month/claim" in web
+    assert "FreeMonthCard()" in ios and "api/v1/free-month/claim" in api
+    for words in ("Claim your free month of FAM Plus", "Claim free month",
+                  "A month of FAM Plus is yours",
+                  "It starts the day the full FAM app is published.",
+                  "Nothing to pay, and nothing is billed after."):
+        assert words in web and words in ios, words
+
+
+# --- one text, ever (§597) --------------------------------------------------
+
+def _phone_user(acc, uid="t", number="+14155550199"):
+    acc.sign_up(uid, f"{uid}@fam.test", PASSWORD)
+    with acc._conn() as c:
+        c.execute("UPDATE accounts SET phone = ? WHERE user_id = ?", (number, uid))
+
+
+def _texts(monkeypatch, *outcomes):
+    sent, answers = [], list(outcomes)
+    def fake(to, body):
+        sent.append(to)
+        return answers.pop(0) if answers else waitlist_notify.sms.SENT
+    monkeypatch.setattr(waitlist_notify.sms, "send", fake)
+    monkeypatch.setattr(waitlist_notify.mail, "send", lambda *a: True)
+    return sent
+
+
+def test_a_texted_account_is_never_texted_again(acc, wl, monkeypatch):
+    _phone_user(acc)
+    sent = _texts(monkeypatch)
+    wl.grant(["t"])
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert sent == ["+14155550199"] and wl.texted("t")
+    # Put back in line and let in again: no second text is even queued.
+    with acc._conn() as c:
+        c.execute("UPDATE accounts SET status = 'waitlisted' WHERE user_id = 't'")
+    wl.grant(["t"])
+    assert _actions(wl, "t").count("notify_sms") == 1
+    # A stray queued row (an older server, a hand-made one) still sends nothing.
+    wl.enqueue("t", waitlist_mod.NOTIFY_SMS)
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert sent == ["+14155550199"]
+
+
+def test_no_answer_from_twilio_is_never_retried(acc, wl, monkeypatch):
+    _phone_user(acc)
+    sent = _texts(monkeypatch, waitlist_notify.sms.UNKNOWN)
+    wl.grant(["t"])
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    for _ in range(3):
+        wl._conn().execute("UPDATE waitlist_outbox SET next_at = 0")
+        waitlist_notify.drain(wl, "https://x", "https://x")
+    assert sent == ["+14155550199"]
+    assert wl.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)["refused"] == 1
+
+
+def test_a_certain_failure_keeps_the_one_text_owed(acc, wl, monkeypatch):
+    _phone_user(acc)
+    sent = _texts(monkeypatch, waitlist_notify.sms.NOT_SENT)
+    wl.grant(["t"])
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert not wl.texted("t")
+    wl._conn().execute("UPDATE waitlist_outbox SET next_at = 0")
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert len(sent) == 2 and wl.texted("t")
+    wl._conn().execute("UPDATE waitlist_outbox SET next_at = 0")
+    waitlist_notify.drain(wl, "https://x", "https://x")
+    assert len(sent) == 2
+
+
+def test_only_one_claim_on_the_text_wins(acc, wl):
+    _phone_user(acc)
+    assert wl.take_text("t") is True
+    assert wl.take_text("t") is False
+
+
+def test_sms_sorts_its_failures(monkeypatch):
+    import httpx
+    import sms
+    monkeypatch.setattr(sms, "status", lambda: {"available": True, "reason": ""})
+    monkeypatch.setattr(sms, "_token", lambda: "tok")
+    monkeypatch.setattr(sms, "_settings", lambda: type("S", (), {
+        "twilio_account_sid": "AC1", "twilio_from": "+18885550100"})())
+
+    def raising(exc):
+        def post(*a, **k):
+            raise exc
+        return post
+
+    def answering(code):
+        return lambda *a, **k: httpx.Response(code, json={"message": "m"})
+    for post, want in ((raising(httpx.ConnectError("x")), sms.NOT_SENT),
+                       (raising(httpx.ReadTimeout("x")), sms.UNKNOWN),
+                       (answering(400), sms.NOT_SENT),
+                       (answering(503), sms.UNKNOWN),
+                       (answering(201), sms.SENT)):
+        monkeypatch.setattr(httpx, "post", post)
+        assert sms.send("+14155550100", "hi") == want

@@ -36105,7 +36105,159 @@ toolchain in this container; the Mac CI build is its first compile.
 the same tile with two named friends of five (gathers, "Maya, Jordan and 3
 others listened").
 
-## 593. The Postgres job's slowdown was the test run's own catalogue (2026-11-13)
+## 593. The free month in both apps: a card on DailyFAM that claims it (2026-11-13)
+
+**Asked:** "the iPhone app should show the claim link too."
+
+**Built** (web first, as the app follows it - `PARITY.md`):
+- `Waitlist.claim_offer(user_id)`: {claimed, starts, ends} for an active
+  account with a `claim_code` (let in since §587), else None.
+  `claim_for(user_id)` claims with the account's own code, so the button and
+  the emailed link are one claim and one stamp.
+- `/api/auth/me` carries `free_month` (absent/None for everyone else - old
+  clients ignore it); `POST /api/free-month/claim` (also `/api/v1/...`)
+  claims for the signed-in account: 401 signed out, 404 with nothing to claim.
+- Web: `#freeMonthCard`, the first thing on DailyFAM, drawn from
+  `refreshAuth`. Unclaimed: "You're off the waitlist / Claim your free month
+  of FAM Plus", when it runs, and **Claim free month**. Claimed: "A month of
+  FAM Plus is yours" and when it runs, with an X that closes it on this
+  device (`fam.freeMonthClosed`).
+- iOS: `FreeMonthCard` in `DailyView.swift` above the faces row,
+  `Listener.freeMonth`, `API.claimFreeMonth`, `AppModel.claimFreeMonth`,
+  the same words and the same key. **Not compiled here** (no Swift
+  toolchain in the container); the next Xcode build is the check.
+- Wording: "It starts the day the full FAM app is published." until the
+  launch day is set, then "It runs <date> to <date>." - never in the beta.
+
+**Tests:** four more in `tests/test_waitlist_notify.py`, one pinning the
+same words in both apps.
+
+## 594. A tour of the app after sign-up (2026-11-13)
+
+**Asked.** "A tutorial for FAM when someone first opens the app. This should
+walk them through all of the features, flow smoothly (with proper animations),
+and be skippable at any time."
+
+**Built.** Rule `tour` (`docs/claude/product.md`).
+* `Tour` in `static/index.html`: twelve steps over the real screens, a
+  spotlight hole (one element, its shadow dims the rest) that glides between
+  controls, a card above or below it (over the bottom of a control too tall
+  for either, the dailyFAM feed, with the hole cut short), a progress bar
+  counted over the steps that apply, Back, Next, Skip on every card,
+  Escape / arrow keys. It pauses under any sheet or modal and resumes on the
+  same step. Optional steps (friends' vibes) are passed over when their
+  control is not drawn. Trending searches was a step and became a sentence on
+  "Ask anything": it loads only when searchFAM opens, so the count changed
+  part-way.
+* Started by `finishIntro` (owed on the device, offered when clear) and from
+  `routeFirstScreen` after a reload; "Take the tour" in Settings replays it.
+  `surveyMomentFree` waits for it.
+* `preferences.tour_done` (column added like the others), written on finish
+  or skip, read back by `/api/preferences`, so another device does not offer
+  it again. The iOS client can read the same flag.
+* `tests/test_tour_594.py`; a smoke check that it opens after the first run,
+  Next walks to searchFAM, Back goes back, a sheet pauses it, Skip lands on
+  dailyFAM and is remembered.
+* CLAUDE.md was at its budget: four lines reworded to make room, no rule
+  changed.
+
+**Not verified here.** On a phone: the card's placement with large text, and
+the feel of the glide. The preview is a guest, so Messages and yourFAM show
+their sign-up doors behind the card; an account sees its own.
+
+## 595. The tour, once, for accounts from before it (2026-11-13)
+
+**Asked.** "Show it to existing users once too" (after §594, which offered
+the tour only at the end of sign-up).
+
+**Built.** `Tour.offerOnce`, called from `routeFirstScreen` (opening the app
+signed in) and `finishEntry` (signing in, or the first run ending). Owed on
+the device: offered. Otherwise, signed in and nothing remembered here: one
+`/api/preferences` read; `tour_done` false makes it owed and offers it,
+true is kept on the device as "done" so the server is not asked again.
+Finishing or skipping writes `tour_done` as before, so it is once per account,
+not per device. It still waits behind anything else on screen - in the
+preview the new-followers popup opened first and the tour followed it.
+`owe()` now marks a new account's first run owed even where an earlier
+account on the device had taken it. Rule `tour`; `tests/test_tour_594.py`.
+
+**Not verified here.** Against a real server with real accounts; the fetch
+was stubbed in the browser.
+
+**Double-checked (same day).** Four faults found reading it again, fixed:
+two quick taps past an optional step ran two moves at once and duplicated
+the Back history (a `seq` counter now drops any late callback, and Back
+walks the history down past the current step); a card with large text
+could run off the screen (`max-height`, scrolls inside); signing out kept
+the device's "done", so a second existing account on the phone was never
+offered it (`Tour.forget` on log-out); and a tour waiting to start could
+open for the next person to sign in (re-checked at the moment it starts,
+and an answer from `/api/preferences` is dropped if the account changed).
+Postgres: a duplicate column maps to the `OperationalError` already caught.
+
+**Moved onto Main.** Written as §586/§587 while Main took those numbers
+(the voice memo, the waitlist notices); renumbered §594/§595 on top of it,
+with `tests/test_tour_594.py`. The smoke check closes the new-followers
+popup that sign-up raises before it looks for the tour - the tour waits
+behind it, which the check now asserts - and a later check that runs the
+first run a second time marks its tour taken.
+
+## 596. The phone field says what the text is: consent for the carriers (2026-11-13)
+
+**Asked:** "yes add the consent wording to the phone field" - US carriers
+check, before they deliver texts from a toll-free number (Twilio's
+Toll-Free Verification), that the number was given with consent to a
+described message.
+
+**Changed:**
+- `static/waitlist.html`, under the profile's phone number (the one field
+  whose number gets the §587 let-in text): "By adding your number, you agree
+  FAM may text you once, when you're let off the waitlist, with a link to
+  claim your free month. Msg & data rates may apply. Reply STOP to opt out,
+  HELP for help. See our Privacy Policy." (`#smsConsent`, the input's
+  `aria-describedby`).
+- `pages/privacy.html`: Twilio in the providers table, the email provider's
+  row names the let-in email, and a **Text messages** section - one text,
+  STOP/HELP, and that no mobile information is shared for marketing (the
+  carriers' required sentence).
+- `docs/DATA.md`: the let-in email and text stay in the providers' logs.
+
+**Not changed:** the app's own phone fields (sign-up, the first run's
+identity step) - numbers given there come after the let-in, and FAM sends
+them nothing; iOS asks for no phone number (PARITY.md). If FAM ever texts
+anything else, this wording and the privacy section must change first.
+
+## 597. One text per account, ever (2026-11-13)
+
+**Asked:** "we want to only send one text to users, when they are off the
+waitlist, and never again."
+
+**Found:** three ways §587 could text somebody twice. A timeout after Twilio
+took the message read as a failure and was retried hourly; the drain's lock
+is per process, so two processes could send one queued text; and nothing on
+the account said it had been texted, so a second grant queued a second one.
+
+**Changed:**
+- `accounts.texted_at`, set once. `Waitlist.take_text` claims it with
+  `UPDATE ... WHERE texted_at = 0` before the send - exactly one caller wins,
+  across processes. `give_text_back` clears it only after a send that
+  certainly did not go.
+- `sms.send` answers `SENT`, `NOT_SENT` (unconfigured, a 4xx, never
+  connected) or `UNKNOWN` (a timeout, a dropped connection, a 5xx: it may
+  have been delivered). `UNKNOWN` is finished with the error kept
+  (`mark_given_up`, "refused" on /admin) and never retried: at most once
+  beats at least once here.
+- `grant` queues a text only for an account never texted and with no text
+  ever queued.
+
+**The trade:** an UNKNOWN that in fact never arrived is not resent; the
+email and the in-app card (§593) still carry the claim link. The guard is
+per account: a person who deletes their account and joins again is a new
+account (a number cannot be kept after deletion without keeping it).
+
+**Tests:** five more in `tests/test_waitlist_notify.py`.
+
+## 598. The Postgres job's slowdown was the test run's own catalogue (2026-11-13)
 
 **What was asked.** CI's Postgres job went from about two hours to 4h07m
 and slowed as it ran, ending `1 failed, 7272 passed, 68 skipped, 1 error`
@@ -36181,7 +36333,7 @@ catalogue it walks either way.
    every bound in the file is kept, and a stubbed wait moved outside its
    span still shows up as `unaccounted`. The tolerance is not widened.
 
-**Tests:** `tests/test_db_tests_593.py` (the pool with faked dialling; three
+**Tests:** `tests/test_db_tests_598.py` (the pool with faked dialling; three
 against a real Postgres); `tests/test_stage_marks.py` on its own clock;
 `test_every_http_request_is_marked_as_one` now
 checks the app leaks no mark from a context of its own.

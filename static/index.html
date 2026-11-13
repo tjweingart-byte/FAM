@@ -171,6 +171,70 @@
     margin-top:-0.55em; padding:0; }
   .fam-handoff .wm-glyph, .fam-handoff .wm-a{ will-change:transform, opacity; }
 
+  /* The tour (§594): a guided look round the app the first time it opens
+     after sign-up. A spotlight - one rounded hole whose shadow dims the
+     rest - glides from feature to feature over the real screens, and a card
+     says what each one is. The overlay takes every tap while it is up, so
+     nothing underneath is touched by accident; Skip is on every card.
+     Every movement is 380 ms or less (rule `motion`); with reduced motion
+     the hole jumps and the card only fades. */
+  .fam-tour{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0;
+    z-index:470; overflow:hidden; touch-action:none; }
+  .fam-tour[hidden], .fam-tour.paused{ display:none; }
+  .tour-hole{ position:absolute; border-radius:18px; pointer-events:none;
+    box-shadow:0 0 0 2px rgba(255,210,63,0.9), 0 0 0 9999px rgba(10,9,18,0.72);
+    transition:top 380ms cubic-bezier(.2,.8,.2,1), left 380ms cubic-bezier(.2,.8,.2,1),
+      width 380ms cubic-bezier(.2,.8,.2,1), height 380ms cubic-bezier(.2,.8,.2,1),
+      border-radius 380ms cubic-bezier(.2,.8,.2,1), box-shadow 380ms ease; }
+  .tour-hole.none{ box-shadow:0 0 0 0 rgba(255,210,63,0), 0 0 0 9999px rgba(10,9,18,0.72); }
+  .tour-card{ position:absolute; left:16px; right:16px; max-width:420px; margin:0 auto;
+    background:var(--surface); color:var(--text); border:1px solid var(--border-strong);
+    border-radius:20px; padding:18px 18px 14px; box-sizing:border-box;
+    max-height:calc(100% - 32px); overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y;
+    box-shadow:0 18px 48px rgba(0,0,0,0.45);
+    transition:top 380ms cubic-bezier(.2,.8,.2,1); }
+  .tour-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .tour-kicker{ flex:1; font-family:'Geist Mono', monospace; font-size:10.5px;
+    letter-spacing:0.14em; text-transform:uppercase; color:var(--copper); }
+  .tour-skip{ background:none; border:none; padding:6px 2px 6px 10px; cursor:pointer;
+    color:var(--text-muted); font-family:'Geist', sans-serif; font-size:13px; font-weight:500; }
+  .tour-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500;
+    font-size:21px; line-height:1.2; margin:0 0 6px; }
+  .tour-body{ font-family:'Geist', sans-serif; font-size:14px; line-height:1.5;
+    color:var(--text-muted); margin:0; }
+  .tour-art{ display:flex; justify-content:center; margin:4px 0 14px; }
+  .tour-art[hidden], .tour-skip[hidden]{ display:none; }
+  .tour-art .fam-logo{ padding:0; font-size:34px; }
+  .tour-player{ width:100%; display:flex; flex-direction:column; gap:8px; align-items:stretch;
+    background:var(--bg); border:1px solid var(--border); border-radius:14px; padding:10px; }
+  .tour-player .tp-row{ display:flex; align-items:center; gap:8px; }
+  .tour-player .tp-pill{ font-family:'Geist Mono', monospace; font-size:9.5px; font-weight:700;
+    letter-spacing:0.08em; padding:4px 9px; border-radius:20px; background:var(--deeper); color:var(--ink); }
+  .tour-player .tp-pill.cc{ background:none; color:var(--text); border:1px solid var(--border-strong); }
+  .tour-player .tp-pic{ height:54px; border-radius:9px;
+    background:linear-gradient(135deg, var(--surface-2), var(--copper)); opacity:0.85; }
+  .tour-player .tp-icons{ margin-left:auto; display:flex; gap:10px; color:var(--text-muted); }
+  .tour-player .tp-bar{ height:3px; border-radius:2px; background:var(--border-strong); overflow:hidden; }
+  .tour-player .tp-bar i{ display:block; width:38%; height:100%; background:var(--copper); }
+  .tour-foot{ display:flex; align-items:center; gap:10px; margin-top:16px; }
+  .tour-back{ height:40px; padding:0 14px; border-radius:20px; cursor:pointer;
+    background:none; border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Geist', sans-serif; font-size:13.5px; font-weight:600; }
+  .tour-back[hidden]{ display:none; }
+  .tour-progress{ flex:1; display:flex; flex-direction:column; gap:5px; min-width:0; }
+  .tour-count{ font-family:'Geist Mono', monospace; font-size:10px; color:var(--text-faint); }
+  .tour-track{ height:3px; border-radius:2px; background:var(--border-strong); overflow:hidden; }
+  .tour-fill{ height:100%; width:0; background:var(--copper); border-radius:2px;
+    transition:width 380ms cubic-bezier(.2,.8,.2,1); }
+  .tour-next{ height:40px; padding:0 18px; border-radius:20px; cursor:pointer;
+    background:var(--copper); border:1px solid var(--copper); color:var(--ink);
+    font-family:'Geist', sans-serif; font-size:13.5px; font-weight:700; white-space:nowrap; }
+  .tour-next:focus-visible, .tour-back:focus-visible, .tour-skip:focus-visible{
+    outline:2px solid var(--deeper); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce){
+    .tour-hole, .tour-card, .tour-fill{ transition:none; }
+  }
+
   .screen{ display:none; flex-direction:column; flex:1; min-height:0; }
   .screen.active{ display:flex; }
   /* Every screen paints its own status bar: a strip pulled up over the
@@ -444,6 +508,21 @@
   .seed-card.not-offline .seed-thumb{ opacity:0.35; filter:grayscale(0.7); }
   .seed-card.not-offline .seed-card-body{ opacity:0.5; }
   .is-offline .seed-card .seed-acts{ display:none; }
+  /* The free month somebody let off the waitlist may claim (§593): the
+     first thing on DailyFAM until it is claimed, then a line they close. */
+  .fm-card{ margin:0 0 14px; padding:14px 15px 15px; border-radius:14px;
+    background:var(--surface); border:1px solid var(--copper); position:relative; }
+  .fm-card[hidden]{ display:none; }
+  .fm-kicker{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--copper); font-weight:700; }
+  .fm-title{ font-family:'Bricolage Grotesque', sans-serif; font-size:19px; font-weight:500;
+    line-height:1.2; margin:6px 28px 6px 0; color:var(--text); }
+  .fm-body{ font-size:12.5px; line-height:1.45; color:var(--text-muted); margin:0; }
+  .fm-card .pf-acts{ padding-top:12px; }
+  .fm-x{ position:absolute; top:10px; right:10px; width:30px; height:30px; border-radius:50%;
+    border:0; background:none; color:var(--text-muted); display:flex; align-items:center;
+    justify-content:center; cursor:pointer; }
+  .fm-x[hidden]{ display:none; }
   .offline-bar{ margin:0 16px 10px; padding:9px 12px; border-radius:12px;
     background:var(--surface); border:1px solid var(--border); font-size:12px;
     color:var(--text-muted); }
@@ -3629,6 +3708,30 @@
         </div>
       </div>
 
+      <!-- The tour (§594, `Tour`): drawn over the real screens the first time
+           the app opens after sign-up, and again from Settings. -->
+      <div class="fam-tour" id="famTour" role="dialog" aria-modal="true"
+           aria-labelledby="tourTitle" aria-describedby="tourBody" hidden>
+        <div class="tour-hole none" id="tourHole"></div>
+        <div class="tour-card" id="tourCard">
+          <div class="tour-head">
+            <div class="tour-kicker" id="tourKicker"></div>
+            <button type="button" class="tour-skip" id="tourSkip" onclick="Tour.skip()">Skip</button>
+          </div>
+          <div class="tour-art" id="tourArt" hidden></div>
+          <h3 class="tour-title" id="tourTitle" aria-live="polite"></h3>
+          <p class="tour-body" id="tourBody"></p>
+          <div class="tour-foot">
+            <button type="button" class="tour-back" id="tourBack" onclick="Tour.back()">Back</button>
+            <div class="tour-progress" aria-hidden="true">
+              <span class="tour-count" id="tourCount"></span>
+              <div class="tour-track"><div class="tour-fill" id="tourFill"></div></div>
+            </div>
+            <button type="button" class="tour-next" id="tourNext" onclick="Tour.next()">Next</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ============ LOADING ============
            One screen for every wait, deliberately. There used to be a
            .generating overlay per screen chosen by id, and the id for the home
@@ -4347,6 +4450,7 @@
         <div class="scroll">
           <!-- The friends row from YourFAM, first thing on the page (10.2
                packet #1): faces with a VIBE badge play as stories. -->
+          <div class="fm-card" id="freeMonthCard" hidden></div>
           <div class="myfam-circle" id="myfamCircle" hidden></div>
           <div id="goDeeperBlock"></div>
           <div class="offline-bar" id="offlineBar" hidden>You&rsquo;re offline. Episodes you&rsquo;ve finished on this device still play.</div>
@@ -16239,6 +16343,7 @@
         }
         authUnreachable = false;
         rememberSignedIn(!!d.authenticated);
+        try { drawFreeMonthCard(); } catch(e){}
         // The Profile tab is decided entirely by this answer, so it is the
         // one screen that has to be redrawn when the answer changes under
         // it. Without this a cold open that lands on Profile before
@@ -16254,6 +16359,60 @@
         return d;
       })
       .catch(function(){ return AUTH; });
+  }
+
+  // The free month somebody let off the waitlist may claim (§593), from
+  // `/api/auth/me` `free_month`: {claimed, starts, ends}, absent for anyone
+  // else. Unclaimed, the card is the first thing on DailyFAM and its button
+  // claims it (`/api/free-month/claim`, the emailed link's same claim).
+  // Claimed, it says when the month runs and can be closed - closed once,
+  // on this device (`fam.freeMonthClosed`). The month starts the day the
+  // real app is published, never in the beta, and the words say so.
+  function freeMonthWhen(fm){
+    if(!fm || !fm.starts) return "It starts the day the full FAM app is published.";
+    var o = { month:"long", day:"numeric" };
+    return "It runs " + new Date(fm.starts * 1000).toLocaleDateString(undefined, o)
+      + " to " + new Date(fm.ends * 1000).toLocaleDateString(undefined, o) + ".";
+  }
+  function freeMonthClosed(){
+    try { return localStorage.getItem("fam.freeMonthClosed") === "1"; } catch(e){ return false; }
+  }
+  function drawFreeMonthCard(){
+    var el = document.getElementById("freeMonthCard");
+    if(!el) return;
+    var fm = AUTH && AUTH.authenticated ? AUTH.free_month : null;
+    if(!fm || (fm.claimed && freeMonthClosed())){ el.hidden = true; el.innerHTML = ""; return; }
+    el.innerHTML = fm.claimed
+      ? '<button class="fm-x" onclick="closeFreeMonthCard()" aria-label="Close">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
+        + '<div class="fm-kicker">Free month claimed</div>'
+        + '<div class="fm-title">A month of FAM Plus is yours</div>'
+        + '<p class="fm-body">' + escapeHtml(freeMonthWhen(fm)) + ' Nothing to pay, and nothing is billed after.</p>'
+      : '<div class="fm-kicker">You&rsquo;re off the waitlist</div>'
+        + '<div class="fm-title">Claim your free month of FAM Plus</div>'
+        + '<p class="fm-body">' + escapeHtml(freeMonthWhen(fm)) + ' Nothing to pay, and nothing is billed after.</p>'
+        + '<div class="pf-acts"><button class="pf-btn primary" id="freeMonthClaim" onclick="claimFreeMonth()">Claim free month</button></div>';
+    el.hidden = false;
+  }
+  function claimFreeMonth(){
+    var b = document.getElementById("freeMonthClaim");
+    if(b){ b.disabled = true; b.textContent = "Claiming\u2026"; }
+    fetch("/api/free-month/claim", { method:"POST" })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(x){
+        if(!x.ok) throw new Error(x.d && x.d.detail || "Could not claim it. Try again.");
+        AUTH.free_month = x.d.free_month;
+        drawFreeMonthCard();
+        toast("Free month claimed");
+      })
+      .catch(function(e){
+        if(b){ b.disabled = false; b.textContent = "Claim free month"; }
+        toast(e && e.message ? e.message : "Could not claim it. Try again.");
+      });
+  }
+  function closeFreeMonthCard(){
+    try { localStorage.setItem("fam.freeMonthClosed", "1"); } catch(e){}
+    drawFreeMonthCard();
   }
 
   // The two buttons every account gate in the app draws, and the one place
@@ -16352,6 +16511,8 @@
         // as a friends list left in a variable.
         stopNotificationPolling();
         stopThreadPolling();
+        // The tour as this device knew it was theirs (§595).
+        Tour.forget();
         // The previous listener's new mix is not this one's.
         freshMixes = { ids: [], edition: "" };
         drawMixDot();
@@ -17978,7 +18139,9 @@
     }
     html += settingsRow("Terms and conditions", "", "openTerms()")
       + settingsRow("Privacy policy", "", "openLegal('privacy')")
-      + settingsRow("Help and support", "", "openLegal('support')");
+      + settingsRow("Help and support", "", "openLegal('support')")
+      // The first run's tour (§594), from the top.
+      + settingsRow("Take the tour", "", "startTourFromSettings()");
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
       // be reachable from exactly one place - the screen a listener sees when
@@ -23206,6 +23369,9 @@
       savePreferences({ interests: introSelection, topics: topicIds,
                         intro_done: true });
     }
+    // The tour is owed from here, the end of sign-up's own steps (§594), and
+    // starts once the hand-off and the activation step are out of the way.
+    Tour.owe();
     finishEntry();
   }
 
@@ -23229,6 +23395,9 @@
     // the other; `startNotificationPolling` clears its own timer, so arriving
     // by both cannot leave two running.
     startNotificationPolling();
+    // The tour: owed from the first run just finished, or once for an
+    // account from before it existed (§594, §595).
+    Tour.offerOnce();
   }
 
   // The FAM intro (§201, from the owner's sketch). Four beats, about 1.8s:
@@ -23329,6 +23498,406 @@
     run(logo, [{ transform: "none", opacity: 1 },
                { transform: "translateX(-40%)", opacity: 0 }], slide)
       .finished.then(done, done);
+  }
+
+  // ---------------- The tour (§594) ----------------
+  // A guided look round the app, the first time it opens after sign-up
+  // (`finishIntro` marks it owed) and again from Settings. Each step opens
+  // the real screen and spotlights the real control; nothing is a mock-up
+  // except the player, which has nothing to show until an episode plays.
+  //
+  // What it keeps to:
+  // * **Skippable at any moment** - Skip on every card, Escape, and a skip
+  //   is remembered exactly like a finish (`tour: "done"` here,
+  //   `tour_done` on the account), so it never comes back by itself.
+  // * **Never on top of something else** - it waits for the sign-in
+  //   hand-off, the Terms and activation steps and any sheet, and steps
+  //   aside (paused) if one opens part-way, coming back where it was.
+  // * **Motion never holds anything** (rule `motion`): the screen under it
+  //   is switched first, the hole glides to it in 380 ms, the card swaps in
+  //   220 ms; with reduced motion the hole jumps and the card only fades.
+  // * **Stops nothing playing**: it moves between tab roots only, where a
+  //   minimised episode keeps going.
+  var Tour = (function(){
+    var ROOTS = ["myfam", "home", "playfam", "messages", "profile"];
+    var STEPS = [
+      { screen: "myfam", art: "logo", kicker: "Welcome",
+        title: "Welcome to FAM",
+        body: "FAM turns what you care about into short audio stories, so you can keep up without the work. Here’s a quick look around. You can skip whenever you like.",
+        next: "Show me around" },
+      { screen: "myfam", target: "#myfamFeed", kicker: "dailyFAM",
+        title: "Today’s stories, made for you",
+        body: "Fresh every morning and evening: Made for you, Trending, Most played today and what your friends are hearing. Tap any tile and it plays." },
+      { screen: "myfam", target: "#myfamCircle", optional: true, kicker: "dailyFAM",
+        title: "Your friends’ vibes",
+        body: "A face with a ring has posted a vibe. Tap it to hear what they’re listening to, and reply or like it." },
+      { screen: "myfam", art: "player", kicker: "The player",
+        title: "Every episode, one player",
+        body: "GO DEEPER asks the next question for you. CC shows captions; share, VIBE! and save sit on the right, and ⋯ adds it to your queue. When it ends, four more are waiting." },
+      { screen: "home", target: "#searchBar", kicker: "searchFAM",
+        title: "Ask anything",
+        body: "Type a question and FAM researches it and tells you the story, from today’s sources. Underneath, Trending searches shows what people are asking right now." },
+      { screen: "home", target: "#searchBar .bar-btns", kicker: "searchFAM",
+        title: "Talk or attach",
+        body: function(){
+          var mic = document.getElementById("voiceMicBtn");
+          return (mic && !mic.hidden ? "Tap the mic to ask out loud, or the clip" : "Tap the clip")
+            + " to add a document, photo or link and hear about it.";
+        } },
+      { screen: "home", target: "#screen-home .fam-controls", kicker: "searchFAM",
+        title: "Make it yours",
+        body: "Length sets one to five minutes. Voice picks who reads your searches. Private keeps a search out of your history and the library until you turn it off." },
+      { screen: "home", target: "#myfamSearchBtn", kicker: "searchFAM",
+        title: "The episode library",
+        body: "Every episode other listeners have made, A to Z. Most play straight away." },
+      { screen: "playfam", target: "#screen-playfam .pf-tabs", kicker: "myFAM",
+        title: "Your mixes",
+        body: "A mix is the subjects you follow, like a team or a market, with new episodes every morning. Name one with Create new mix, or copy somebody else’s. Categories browses today’s episodes by subject." },
+      { screen: "messages", target: "#screen-messages .tabbar .tab[data-tab=messages]", kicker: "Messages",
+        title: "Share with friends",
+        body: "Send an episode to a friend, reply to their vibes and start group chats." },
+      { screen: "profile", target: "#screen-profile .tabbar .tab[data-tab=profile]", kicker: "yourFAM",
+        title: "Your profile",
+        body: "Your vibes, your mixes, your friends, and Settings for everything you can change, including this tour." },
+      { screen: "myfam", art: "logo", kicker: "Ready",
+        title: "You’re all set",
+        body: "Tap a story on dailyFAM, or ask searchFAM anything.",
+        next: "Start listening" }
+    ];
+    var OWED = "owed";
+    var el = {}, at = -1, running = false, waitTimer = null, watchTimer = null,
+        settleTimer = null, shown = [];
+    //: Bumped by every move, so a late callback from an earlier one (a
+    //: card still fading out, an optional step's second look) does nothing
+    //: once a quicker tap has moved on.
+    var seq = 0;
+
+    function reduced(){
+      return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    }
+    function $(id){ return el[id] || (el[id] = document.getElementById(id)); }
+    function done(){
+      if(localPrefs().tour === "done") return true;
+      return !!(AUTH.authenticated && PREF_CHOICES && PREF_CHOICES.tour_done);
+    }
+    // Anything else on screen that the tour must not cover or compete with.
+    function blocked(){
+      var hand = $("famHandoff"), splash = document.getElementById("splashScreen");
+      if(hand && !hand.hidden) return true;
+      if(splash && !splash.classList.contains("hide")) return true;
+      if(document.querySelector(".modal-overlay.active, .sheet-overlay.active")) return true;
+      var here = document.querySelector(".screen.active");
+      return !here || ROOTS.indexOf(here.id.replace("screen-", "")) === -1;
+    }
+
+    // Owed from the first run, and kept owed across a reload until it runs.
+    // A new account's, whatever an earlier account on this device did.
+    function owe(){ saveLocalPrefs({ tour: OWED }); }
+    // Every way into the app (`routeFirstScreen`, `finishEntry`): owed from
+    // the first run, or - for an account that was here before the tour
+    // existed - owed once if the account says it has not been taken
+    // (the owner's ask, §595). The account's word is asked for once per
+    // device; a "done" from it is kept here so it is not asked again.
+    function offerOnce(){
+      if(running) return;
+      var here = localPrefs().tour;
+      if(here === OWED) return offer();
+      if(here === "done" || !AUTH.authenticated) return;
+      var asking = AUTH.email;
+      fetch("/api/preferences")
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){
+          // Signed out, or somebody else signed in, while this was asked.
+          if(!d || !d.saved || !AUTH.authenticated || AUTH.email !== asking) return;
+          if(d.tour_done){ saveLocalPrefs({ tour: "done" }); return; }
+          saveLocalPrefs({ tour: OWED });
+          offer();
+        })
+        .catch(function(){});
+    }
+    function offer(){
+      if(running || done() || localPrefs().tour !== OWED) return;
+      waitUntilClear(function(){
+        // Asked again at the moment it would start: a sign-out while it
+        // waited has taken the debt away (`forget`).
+        if(!running && !done() && localPrefs().tour === OWED) begin();
+      });
+    }
+    // Signing out: whatever this device knew about the tour was the last
+    // account's, and the next one is asked afresh (`offerOnce`).
+    function forget(){
+      clearTimeout(waitTimer);
+      if(running) finishQuietly();
+      saveLocalPrefs({ tour: "" });
+    }
+    function finishQuietly(){
+      running = false;
+      seq++;
+      clearTimeout(settleTimer); clearInterval(watchTimer);
+      document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("resize", place);
+      $("famTour").hidden = true;
+      $("famTour").classList.remove("paused");
+      $("tourCard")._fresh = false;
+      at = -1;
+    }
+    // Two clear looks in a row, so a sheet or the activation step that is
+    // about to open (it is fetched first) gets there before the tour does.
+    function waitUntilClear(go){
+      clearTimeout(waitTimer);
+      var clear = 0;
+      (function look(){
+        clear = blocked() ? 0 : clear + 1;
+        if(clear >= 2) return go();
+        waitTimer = setTimeout(look, 450);
+      })();
+    }
+
+    function start(){
+      // From Settings: whatever was open closes into the tour's first screen.
+      if(running) return;
+      begin();
+    }
+    function begin(){
+      running = true;
+      shown = [];
+      var wrap = $("famTour");
+      wrap.hidden = false;
+      wrap.classList.remove("paused");
+      if(wrap.animate) wrap.animate([{ opacity: 0 }, { opacity: 1 }],
+        { duration: reduced() ? 120 : 240, easing: "ease-out" });
+      document.addEventListener("keydown", onKey, true);
+      window.addEventListener("resize", place);
+      watchTimer = setInterval(watch, 400);
+      go(0, 1);
+    }
+
+    function targetOf(step){
+      if(!step.target) return null;
+      var t = document.querySelector(step.target);
+      if(!t || t.hidden || t.closest("[hidden]")) return null;
+      var r = t.getBoundingClientRect();
+      return (r.width < 2 || r.height < 2) ? null : t;
+    }
+    // Whether a step applies at all, asked of any screen, shown or not: an
+    // optional control that is not drawn for this listener is passed over.
+    function present(step){
+      if(!step.optional) return true;
+      var t = document.querySelector(step.target);
+      return !!(t && !t.hidden && !t.closest("[hidden]"));
+    }
+    function openScreen(id){
+      var here = document.querySelector(".screen.active");
+      if(here && here.id === "screen-" + id) return;
+      if(id === "myfam") openMyFamTab();
+      else if(id === "playfam") openPlayFAM();
+      else if(id === "messages") openMessages();
+      else if(id === "profile") openProfile();
+      else setTab(id);
+    }
+
+    // `dir` is 1 forward, -1 back: an optional step whose control is not
+    // on screen (no friends yet, nothing trending) is passed over either way.
+    function go(i, dir){
+      var mine = ++seq;
+      if(i < 0) i = 0;
+      if(i >= STEPS.length){ finish(); return; }
+      var step = STEPS[i];
+      openScreen(step.screen);
+      if(step.optional && !targetOf(step)){
+        // The screen may still be drawing it; one short look before passing.
+        if(!step._looked){
+          step._looked = true;
+          setTimeout(function(){
+            if(running && mine === seq) go(i, dir);
+            else step._looked = false;
+          }, 350);
+          return;
+        }
+        step._looked = false;
+        return go(i + dir, dir);
+      }
+      step._looked = false;
+      at = i;
+      if(dir > 0) shown.push(i);
+      var t = targetOf(step);
+      if(t && t.scrollIntoView){
+        try { t.scrollIntoView({ block: "nearest", behavior: reduced() ? "auto" : "smooth" }); }
+        catch(e){ t.scrollIntoView(false); }
+      }
+      draw(step);
+    }
+
+    function draw(step){
+      var card = $("tourCard"), mine = seq;
+      var swap = function(){
+        if(!running || mine !== seq) return;
+        $("tourKicker").textContent = step.kicker || "";
+        $("tourTitle").textContent = step.title;
+        $("tourBody").textContent = typeof step.body === "function" ? step.body() : step.body;
+        var art = $("tourArt");
+        art.hidden = !step.art;
+        art.innerHTML = step.art === "logo" ? tourLogo()
+          : step.art === "player" ? tourPlayer() : "";
+        var last = at === STEPS.length - 1;
+        $("tourNext").textContent = step.next || (last ? "Done" : "Next");
+        $("tourBack").hidden = at === 0 || last;
+        $("tourSkip").hidden = last;
+        // Counted over the steps that apply to this listener, so a step
+        // passed over (no friends yet) never shows as a jump in the count.
+        var live = STEPS.filter(present), n = live.indexOf(step) + 1;
+        $("tourCount").textContent = n + " of " + live.length;
+        $("tourFill").style.width = Math.round(n / live.length * 100) + "%";
+        place();
+        try { $("tourNext").focus({ preventScroll: true }); } catch(e){}
+      };
+      if(card.animate && !card._fresh){
+        card._fresh = true;   // the first card arrives with the overlay
+        swap();
+        if(!reduced()) card.animate([{ opacity: 0, transform: "translateY(10px)" },
+                                     { opacity: 1, transform: "none" }],
+                                    { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+        return;
+      }
+      if(!card.animate){ swap(); return; }
+      var out = card.animate([{ opacity: 1 }, { opacity: 0 }],
+                             { duration: reduced() ? 60 : 120, easing: "ease-in", fill: "forwards" });
+      out.finished.then(function(){
+        out.cancel();
+        if(!running || mine !== seq) return;   // a newer card is on its way
+        swap();
+        card.animate(reduced()
+            ? [{ opacity: 0 }, { opacity: 1 }]
+            : [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }],
+          { duration: reduced() ? 120 : 220, easing: "cubic-bezier(.2,.8,.2,1)" });
+      }, swap);
+      // A screen change, or a scroll into view, moves the control while it
+      // happens: measure again once it has settled, and the hole glides.
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(place, 460);
+    }
+
+    // The hole round the control, and the card above or below it - below
+    // when it fits, above when that fits, and over the bottom of a control
+    // too tall for either (the dailyFAM feed), with the hole cut short.
+    function place(){
+      if(!running || at < 0) return;
+      var wrap = $("famTour"), hole = $("tourHole"), card = $("tourCard");
+      var box = wrap.getBoundingClientRect();
+      var W = box.width, H = box.height, gap = 14, pad = 6;
+      var ch = card.offsetHeight;
+      var t = targetOf(STEPS[at]);
+      if(!t){
+        hole.classList.add("none");
+        hole.style.left = (W / 2) + "px"; hole.style.top = (H / 2) + "px";
+        hole.style.width = "0px"; hole.style.height = "0px";
+        card.style.top = Math.max(16, (H - ch) / 2) + "px";
+        return;
+      }
+      var r = t.getBoundingClientRect();
+      var x = Math.max(8, r.left - box.left - pad), y = Math.max(8, r.top - box.top - pad);
+      var x2 = Math.min(W - 8, r.right - box.left + pad), y2 = Math.min(H - 8, r.bottom - box.top + pad);
+      var top;
+      if(H - y2 >= ch + gap + 16) top = y2 + gap;
+      else if(y >= ch + gap + 16) top = y - gap - ch;
+      else {
+        top = H - ch - 16;
+        y2 = Math.max(y + 60, top - gap);
+      }
+      hole.classList.remove("none");
+      hole.style.left = x + "px"; hole.style.top = y + "px";
+      hole.style.width = Math.max(0, x2 - x) + "px";
+      hole.style.height = Math.max(0, y2 - y) + "px";
+      var round = Math.min(22, (y2 - y) / 2);
+      hole.style.borderRadius = round + "px";
+      card.style.top = Math.max(16, top) + "px";
+    }
+
+    // A sheet, the activation step or the Terms opening part-way: the tour
+    // steps aside and comes back where it was once it has gone.
+    function watch(){
+      if(!running) return;
+      var wrap = $("famTour");
+      var other = !!document.querySelector(".modal-overlay.active, .sheet-overlay.active");
+      if(other && !wrap.classList.contains("paused")){
+        wrap.classList.add("paused");
+      } else if(!other && wrap.classList.contains("paused")){
+        wrap.classList.remove("paused");
+        openScreen(STEPS[at].screen);
+        place();
+      }
+    }
+
+    function onKey(e){
+      if(!running || $("famTour").classList.contains("paused")) return;
+      if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); skip(); }
+      else if(e.key === "ArrowRight"){ e.preventDefault(); e.stopPropagation(); next(); }
+      else if(e.key === "ArrowLeft"){ e.preventDefault(); e.stopPropagation(); back(); }
+    }
+
+    function next(){ if(running) go(at + 1, 1); }
+    function back(){
+      if(!running) return;
+      if(at <= 0) return;
+      while(shown.length && shown[shown.length - 1] >= at) shown.pop();
+      var prev = shown.length ? shown.pop() : 0;
+      go(prev, 1);
+    }
+    function skip(){ finish(); }
+    function finish(){
+      if(!running) return;
+      running = false;
+      clearTimeout(waitTimer); clearTimeout(settleTimer); clearInterval(watchTimer);
+      document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("resize", place);
+      saveLocalPrefs({ tour: "done" });
+      if(AUTH.authenticated){
+        if(PREF_CHOICES) PREF_CHOICES.tour_done = true;
+        savePreferences({ tour_done: true });
+      }
+      var wrap = $("famTour"), card = $("tourCard");
+      card._fresh = false;
+      openScreen("myfam");
+      var close = function(){
+        wrap.hidden = true;
+        wrap.classList.remove("paused");
+        at = -1;
+      };
+      if(wrap.animate && !wrap.classList.contains("paused")){
+        wrap.animate([{ opacity: 1 }, { opacity: 0 }],
+                     { duration: reduced() ? 120 : 220, easing: "ease-in" })
+          .finished.then(close, close);
+      } else close();
+    }
+
+    function tourLogo(){
+      var logo = document.querySelector("#splashScreen .fam-logo");
+      return logo ? '<div class="fam-logo" aria-hidden="true">' + logo.innerHTML + '</div>' : "";
+    }
+    function tourPlayer(){
+      var ic = function(d){
+        return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+          + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+      };
+      return '<div class="tour-player" aria-hidden="true">'
+        + '<div class="tp-row"><span class="tp-pill">GO DEEPER</span>'
+        + '<span class="tp-pill cc">CC</span>'
+        + '<span class="tp-icons">'
+        + ic('<path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v13"/>')
+        + ic('<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>')
+        + ic('<path d="M6 3h12v18l-6-4-6 4z"/>')
+        + '</span></div>'
+        + '<div class="tp-pic"></div>'
+        + '<div class="tp-bar"><i></i></div></div>';
+    }
+
+    return { owe: owe, offer: offer, offerOnce: offerOnce, forget: forget, start: start, next: next, back: back,
+             skip: skip, on: function(){ return running; } };
+  })();
+
+  // Settings' "Take the tour": the same tour, started over from the top.
+  function startTourFromSettings(){
+    Tour.start();
   }
 
   // --- Explore New ---------------------------------------------------------
@@ -23830,6 +24399,7 @@
     var active = document.querySelector(".screen.active");
     if(!active || SURVEY_OPEN_SCREENS.indexOf(active.id) === -1) return false;
     if(document.querySelector(".modal-overlay.active, .sheet-overlay.active")) return false;
+    if(Tour.on()) return false;
     return !SURVEY.def;
   }
   function maybeOfferAppSurvey(){
@@ -23972,6 +24542,9 @@
     // you" is the next time this listener's own app asks.
     checkNewFollowers();
     startNotificationPolling();
+    // A tour owed from sign-up that a reload interrupted before it began,
+    // or one owed once to an account from before the tour (§595).
+    Tour.offerOnce();
   }
 
   // ---------------- drop-down notifications ----------------
