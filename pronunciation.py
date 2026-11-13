@@ -121,7 +121,7 @@ _DIGRAPHS = frozenset("th sh ch ph gh wh zh kh ng".split())
 
 def _joined(word: str) -> str:
     """One respelled word's syllables as one word: "sah-gah-poh" -> "sahgahpoh",
-    keeping a hyphen only where joining would make a new sound (§574)."""
+    keeping a hyphen only where joining would make a new sound (§575)."""
     parts = [p for p in word.split("-") if p]
     out = parts[0] if parts else ""
     for part in parts[1:]:
@@ -136,7 +136,7 @@ def voiced(say: str) -> str:
     syllables run together. A stressed syllable written in capitals
     ("loo-TEH") is kept in the lexicon for anybody reading it, but not handed
     to the voice as capitals: `spoken_text` would read "TEH" as the letters
-    T, E, H. The hyphens between syllables went to the voice too until §574,
+    T, E, H. The hyphens between syllables went to the voice too until §575,
     and Chatterbox said "Sah-gah-poh-loo-teh-leh" as six clipped pieces - the
     owner heard every respelled name as choppy - so a word is handed over
     whole ("Sahgahpohlooteleh"), as the words it learned from are written.

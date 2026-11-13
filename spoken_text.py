@@ -486,7 +486,7 @@ def _integer(m: re.Match) -> str:
     return _spaced(cardinal(int(m.group(1).replace(",", ""))), m)
 
 
-#: Dashes used as punctuation (§574). Chatterbox's own clean-up
+#: Dashes used as punctuation (§575). Chatterbox's own clean-up
 #: (`chatterbox.tts.punc_norm`, run inside every `generate`) turns "—" and
 #: "–" into "-" *after* it has softened " - " into a comma, so "won—again—on
 #: Sunday" reached the model as "won-again-on Sunday", three words glued into

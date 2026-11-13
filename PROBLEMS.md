@@ -35161,7 +35161,51 @@ accepts no phone), and the iPhone app's identity step never asked.
 `test_the_apps_first_run_offers_an_optional_phone_and_gates_skip_on_the_name`
 in `tests/test_implementations_108.py`.
 
-## 574. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13)
+## 574. fam-db's memory was its connections (2026-11-13)
+
+**What was asked.** The owner, on Keith's open incident "render: fam-db
+memory at 83% of 0.26843546 GB (reopened 9 times)" with no more than two
+people ever on the app at once: what is in that memory, and the long-term
+fixes. Then: "build 1, 2 and 4, and walk me through 3".
+
+**Why.** Each server connection is a Postgres process with memory of its
+own, busy or idle. The pool (§243) opened up to 20 and kept up to 8 idle for
+ever; what fills it is not listeners (they share the pool over HTTP) but
+background work - editions, sweeps, Keith's rounds - all at once. So the
+database's memory followed the busiest moment of FAM's own schedule and
+never came back down. Not measured on production from here (no key): the
+`pg_stat_activity` query in POSTGRES.md confirms it, and Keith now reads it.
+
+**1. Idle connections close** (`db.idle_seconds()`, `DATABASE_IDLE_SECONDS`,
+300). On release and by a reaper thread every minute, so a quiet server
+hangs up too. None is kept back: one left open could be the one the
+server's `idle_session_timeout` closes, failing the next statement.
+
+**2. Background work has a share** (`db.background_connections()`,
+`DATABASE_BACKGROUND_CONNECTIONS`, 4, never all of the pool). A request is
+marked by `app.carry_the_session` (`db.for_request()`, a context variable
+the request's threads inherit); anything else waits for the share, and says
+so if it times out. Two exemptions, both to avoid a wait on oneself: a
+thread already holding a background connection, and the event loop (a wait
+there stops every request). A task a request spawns counts as the request.
+
+**4. Keith says who holds connections** (`db.server_connections()`: every
+client connection by state, FAM's by `application_name = 'fam'`, the
+server's `max_connections`, this pool). The Render monitor adds a "fam-db
+connections" figure against `max_connections` and hangs the count on the
+memory figure; the memory incident's plan names idle connections before a
+plan when more than two of FAM's sit idle. Sizes read as the plan names
+them: "256 MB", not "0.26843546 GB" (`incidents._quantity`).
+
+**3. The owner's step** (POSTGRES.md, "The database's own safety net"):
+`ALTER ROLE CURRENT_USER SET idle_session_timeout = '15min'` from fam-db's
+PSQL, longer than FAM's five minutes. Tried here as a non-superuser owner
+on Postgres 16.
+
+**Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
+two against a real Postgres, run here on a local 16).
+
+## 575. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13)
 
 **What was asked.** The owner: "These still sound choppy to me. Is there a
 chance that the dashes in the pronunciations are making their way into the
@@ -35191,5 +35235,5 @@ and `chatterbox_speed` calls the same function):
 Checked against the real `punc_norm`: "Sagapolutele threw—twice—for NVIDIA –
 of all teams." went to the model as "Sagapolutele threw-twice-for NVIDIA - of
 all teams." and now goes as "Sahgahpohlootehleh threw, twice, for Envidia, of
-all teams." `tests/test_dashes_574.py`; ten older tests updated to the
+all teams." `tests/test_dashes_575.py`; ten older tests updated to the
 unhyphenated voice text. Unheard: no voice here.

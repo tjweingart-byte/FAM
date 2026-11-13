@@ -32,6 +32,7 @@ Render (2d, §486), and Claude from FAM's own spend count (§487).
 """
 from __future__ import annotations
 
+import asyncio
 import calendar
 import datetime
 import json
@@ -555,6 +556,13 @@ def _series_points(body) -> list:
     return [(v, u) for _, v, u in sorted(out, key=lambda p: p[0])]
 
 
+def _server_connections() -> Optional[dict]:
+    """`db.server_connections()`: None off Postgres or when it does not answer."""
+    import db
+
+    return db.server_connections()
+
+
 async def read_render(now: Optional[datetime.datetime] = None, client=None) -> dict:
     """Render: `fam`'s memory against its plan's, `fam-db`'s storage against
     its disk and its memory against its plan's, and `fam`'s outbound
@@ -659,11 +667,26 @@ async def read_render(now: Optional[datetime.datetime] = None, client=None) -> d
                     next_plan="grow the disk: $0.30/GB-month, in steps of 5 GB"))
             db_memory = await latest_gb("memory", db_id, f"{name}'s memory")
             db_limit = await latest_gb("memory-limit", db_id, f"{name}'s memory limit")
-            if db_memory is not None:
+            # Who holds connections on it (§574): each is a server process
+            # with memory of its own, busy or idle, so the memory figure
+            # carries them - an idle pile is fixed in code, not by a plan.
+            held = await asyncio.to_thread(_server_connections)
+            if held is not None:
+                detail["connections"] = held
                 figures.append(figure(
+                    f"{name} connections", held["total"], "connections", "now",
+                    limit=float(held["max_connections"]) or None,
+                    limit_source="its max_connections (Postgres)",
+                    next_plan="close idle ones (DATABASE_IDLE_SECONDS), or fewer "
+                              "per server (DATABASE_MAX_CONNECTIONS)"))
+            if db_memory is not None:
+                memory = figure(
                     f"{name} memory", round(db_memory, 4), "GB", "now",
                     limit=db_limit, limit_source="its plan (Render)",
-                    next_plan=RENDER_NEXT.get(db_plan, RENDER_NEXT_UNKNOWN)))
+                    next_plan=RENDER_NEXT.get(db_plan, RENDER_NEXT_UNKNOWN))
+                if held is not None:
+                    memory["connections"] = held
+                figures.append(memory)
     finally:
         if own:
             await client.aclose()
