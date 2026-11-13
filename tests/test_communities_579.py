@@ -279,3 +279,15 @@ def test_nothing_here_can_send_or_sign_in():
     for word in ("graph.facebook.com", "oauth.reddit.com", "api.x.com", "discord.com/api",
                  "slack.com/api", ".post(", "smtp"):
         assert word not in src, word
+
+
+def test_a_card_copies_its_message_and_a_prompt_for_claude():
+    """§598: "Copy message" stays; "Copy for Claude" copies the whole card as
+    one prompt ending in the owner's question, built only from what the
+    card shows."""
+    html = (ROOT / "admin_ui" / "groups.html").read_text()
+    assert 'data-act="copy"' in html and ">Copy message<" in html
+    assert 'data-act="claude"' in html and ">Copy for Claude<" in html
+    body = html.split("function claudePrompt(k)", 1)[1].split("function copyLong", 1)[0]
+    for part in ("k.how", "k.contact_url", "k.pitches", "message(k.id)", '"My question:"'):
+        assert part in body, part

@@ -258,6 +258,7 @@
       + '<div class="label">First message</div>'
       + '<textarea data-edit="' + esc(k.id) + '">' + esc(msg) + '</textarea>'
       + '<div class="acts"><button class="ghost" data-act="copy" data-id="' + esc(k.id) + '">Copy message</button>'
+      + '<button class="ghost" data-act="claude" data-id="' + esc(k.id) + '" title="The whole card as a prompt: paste it into Claude and ask your question underneath">Copy for Claude</button>'
       + (contact ? '<button class="ghost" data-act="open" data-id="' + esc(k.id) + '">Copy and open ' + esc(plat.label) + '</button>' : '') + '</div>'
       + '<div class="label">Admin’s handle, as you found it</div>'
       + '<input class="handle" data-handle="' + esc(k.id) + '" value="' + esc(edits[k.id + ":h"] != null ? edits[k.id + ":h"] : (k.handle || "")) + '" maxlength="120" placeholder="e.g. their name on ' + esc(plat.label) + '">'
@@ -301,6 +302,59 @@
   }
   function message(id) { var k = lead(id); return edits[id] != null ? edits[id] : (k.message || ""); }
 
+  // "Copy for Claude" (§598): the whole card as one prompt, to paste into
+  // Claude with a question underneath. Only what the card already shows -
+  // no phone number is ever stored - with the words as they are on screen,
+  // edits not yet saved included.
+  function claudePrompt(k) {
+    var plat = (data.health.platforms || {})[k.platform] || { label: k.platform, noun: "community" };
+    var statuses = data.health.statuses || {};
+    var notes = edits[k.id + ":n"] != null ? edits[k.id + ":n"] : (k.notes || "");
+    var handle = edits[k.id + ":h"] != null ? edits[k.id + ":h"] : (k.handle || "");
+    var facts = [plat.label + " " + plat.noun];
+    if (k.privacy) facts.push(k.privacy);
+    if (k.members) facts.push("about " + Number(k.members).toLocaleString() + " members");
+    var lines = [
+      "I'm reaching out to an online community on behalf of FAM, an app that turns what people care about " +
+      "into short, researched audio stories. We offer community admins free early access so they can share " +
+      "episodes with their members. I contact them by hand; nothing is automated.",
+      "",
+      "Community: " + (k.name || k.ident) + " (" + facts.join(", ") + ")",
+      "Link: " + (k.url || ""),
+      "Subject we'd pitch it on: " + (k.subject || ""),
+    ];
+    if (k.description) lines.push("What its page says: " + k.description);
+    lines.push("How to reach the admins: " + (k.how || "") + (k.contact_url ? " (" + k.contact_url + ")" : ""));
+    if (k.public_contact && k.public_contact.length) lines.push("Contact the community publishes: " + k.public_contact.join(", "));
+    if (handle) lines.push("Admin's handle, as I found it: " + handle);
+    lines.push("Status: " + (statuses[k.status] || k.status) + (notes ? ". My notes: " + notes : ""));
+    lines.push("Fit: " + k.fit + "/5" + (k.fit_why ? " (" + k.fit_why + ")" : ""));
+    if (k.source === "sent" && k.note) lines.push("What we knew when we picked it: " + k.note);
+    if ((k.pitches || []).length) {
+      lines.push("", "Episode ideas for its members (ideas, not yet made):");
+      (k.pitches || []).forEach(function (p, i) {
+        lines.push((i + 1) + ". " + p.title + (p.angle ? ": " + p.angle : "") + (p.why ? " (" + p.why + ")" : ""));
+      });
+    }
+    if (k.episode) lines.push("", "An episode FAM already has that fits: \u201c" + k.episode.title + "\u201d (" +
+      k.episode.minutes + " min)" + (k.share_url ? ", " + k.share_url : ""));
+    var msg = message(k.id);
+    if (msg) lines.push("", (k.status === "new" ? "The message I plan to send:" : "The message I sent:"), "\u201c" + msg + "\u201d");
+    lines.push("", "My question:", "");
+    return lines.join("\n");
+  }
+  // Copy a long text: the clipboard where the browser allows it, else a
+  // selected box the person copies themselves (a prompt() is one line).
+  function copyLong(text, b) {
+    copy(text).then(function () { b.textContent = "Copied - paste into Claude"; }, function () {
+      var box = document.createElement("textarea");
+      box.value = text; box.style.width = "100%"; box.style.minHeight = "220px";
+      b.parentNode.insertAdjacentElement("afterend", box);
+      box.focus(); box.select();
+      b.textContent = "Select all and copy below";
+    });
+  }
+
   document.addEventListener("input", function (ev) {
     var d = ev.target.dataset || {};
     if (d.edit) edits[d.edit] = ev.target.value;
@@ -324,6 +378,10 @@
     var k = lead(id);
     if (act === "copy") {
       copy(message(id)).then(function () { b.textContent = "Copied"; }, function () { prompt("Copy the message:", message(id)); });
+      return;
+    }
+    if (act === "claude") {
+      copyLong(claudePrompt(k), b);
       return;
     }
     if (act === "copylink") {
