@@ -46,10 +46,10 @@ DAY = 86400
 #: X left with the X agent (§578) and came back with Reddit as
 #: /admin/groups' community sources (§580), counted per request.
 PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket",
-             "gnews", "tiingo", "reddit", "x",
+             "gnews", "tiingo",
              "wikidata", "wikipedia", "wikimedia_enterprise",
              "nws", "open_meteo", "local_feeds",
-             "anthropic", "gemini", "r2")
+             "reddit", "x", "anthropic", "gemini", "r2")
 
 LABELS = {
     "balldontlie": "BALLDONTLIE",
