@@ -27,16 +27,15 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(freeMonthClosed, forKey: "fam.freeMonthClosed") }
     }
 
-    /// The card's Claim button (§593). Returns the sentence to show when it
-    /// fails, nil when the month is claimed.
-    func claimFreeMonth() async -> String? {
+    /// The card's Claim button (§593): claimed, or why not - both a toast,
+    /// as the web's `claimFreeMonth` says them.
+    func claimFreeMonth() async {
         do {
             let offer = try await api.claimFreeMonth()
             listener?.freeMonth = offer
             nowPlaying.say("Free month claimed")
-            return nil
         } catch {
-            return (error as? LocalizedError)?.errorDescription ?? "Could not claim it. Try again."
+            nowPlaying.say((error as? LocalizedError)?.errorDescription ?? "Could not claim it. Try again.")
         }
     }
     @Published private(set) var rails: [Rail] = []
@@ -124,6 +123,8 @@ final class AppModel: ObservableObject {
     /// Bumped whenever the FAM intro plays (§201): every open, and when
     /// signing in or finishing sign-up hands over to DailyFAM.
     @Published private(set) var introRun = 0
+    /// When the FAM intro last played: the tour waits until it has gone.
+    private(set) var introAt = Date.distantPast
     /// Bumped when the phone changes account without signing out (linking
     /// an Apple ID or Google account that had a FAM account of its own):
     /// every tab is drawn afresh, nothing of the last account left on it.
@@ -199,6 +200,8 @@ final class AppModel: ObservableObject {
     let nowPlaying: NowPlayingModel
     /// The optional surveys (`surveys.py`, §560).
     let surveys: SurveysModel
+    /// The tour of the app after sign-up (§594, §595).
+    let tour = TourModel()
     /// The episode behind the loading screen, until its audio is released.
     private var pending: Episode?
 
@@ -459,6 +462,7 @@ final class AppModel: ObservableObject {
             self.player.resume()
         }
         social.requestTab = { [weak self] tab in self?.tabRequest = tab }
+        tour.app = self
         // "Couldn't reach FAM. Try again." when the AI answer cannot be read.
         consent.unreachable = { [weak self] in self?.nowPlaying.say("Couldn\u{2019}t reach FAM. Try again.") }
         // A deprecated or retired build hears it from any answer (§208).
@@ -523,6 +527,11 @@ final class AppModel: ObservableObject {
         if stage == .ready && (!UserDefaults.standard.bool(forKey: Self.entryKey)
                                || listener?.passwordNeeded == true) {
             await beginEntry(handoff: false)
+        } else if stage == .ready {
+            // `routeFirstScreen`: a tour owed from sign-up that a relaunch
+            // interrupted before it began, or one owed once to an account
+            // from before the tour (§595).
+            tour.offerOnce()
         }
         await checkTerms()
     }
@@ -598,6 +607,8 @@ final class AppModel: ObservableObject {
         await refreshWho()
         if UserDefaults.standard.bool(forKey: Self.entryKey) {
             entry = nil
+            // What launch would have offered behind the password (§595).
+            tour.offerOnce()
         } else {
             await beginEntry(handoff: false)
         }
@@ -636,6 +647,7 @@ final class AppModel: ObservableObject {
     /// The FAM intro (§201): skipped under Reduce Motion by the layer.
     func playIntro() {
         introRun += 1
+        introAt = Date()
     }
 
     /// `/api/health` once (`genStatusNote`): "Staging: playing the built-in
@@ -920,6 +932,8 @@ final class AppModel: ObservableObject {
         emptiedRails = []
         tasteSource = "taste"
         forgetDevicePrefs()
+        // The tour as this phone knew it was theirs (§595).
+        tour.forget()
         activationOwed = false
         owedActivation = nil
         listener = nil
@@ -1414,7 +1428,12 @@ final class AppModel: ObservableObject {
     /// "Maya listened", "Maya and Jordan listened", "Maya, Jordan and 4
     /// others listened" (the web's `friendsListenedLine`).
     static func friendsListenedLine(_ faces: [FriendFace], count: Int) -> String {
-        let names = faces.map { $0.name.isEmpty ? "@" + ($0.handle ?? "") : $0.name }
+        // The web's `f.name || (f.handle ? "@" + f.handle : "A friend")`.
+        let names = faces.map { face -> String in
+            if !face.name.isEmpty { return face.name }
+            if let handle = face.handle, !handle.isEmpty { return "@" + handle }
+            return "A friend"
+        }
         let n = max(faces.count, count)
         guard let first = names.first else { return "" }
         if n <= 1 { return first + " listened" }

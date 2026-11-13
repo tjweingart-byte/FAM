@@ -683,7 +683,7 @@ struct InAppLinks: ViewModifier {
                 page = LegalPage(url: url)
                 return .handled
             })
-            .sheet(item: $page) { p in SafariView(url: p.url).ignoresSafeArea() }
+            .sheet(item: $page) { p in SafariView(url: p.url).ignoresSafeArea().tourCover() }
     }
 }
 

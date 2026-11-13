@@ -16435,7 +16435,7 @@
     fetch("/api/free-month/claim", { method:"POST" })
       .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
       .then(function(x){
-        if(!x.ok) throw new Error(x.d && x.d.detail || "Could not claim it. Try again.");
+        if(!x.ok) throw new Error(x.d && (x.d.detail || x.d.error) || "Could not claim it. Try again.");
         AUTH.free_month = x.d.free_month;
         drawFreeMonthCard();
         toast("Free month claimed");

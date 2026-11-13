@@ -71,17 +71,22 @@ struct FacesRow: View {
                 .padding(.top, 6)
                 .padding(.bottom, 4)
             }
+            // `#myfamCircle`: the tour's friends' step.
+            .tourTarget(.circle)
             .fullScreenCover(item: $viewing) { reel in
                 StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
                             openMine: { showMine() }, origin: reel.origin)
                     .environmentObject(model)
+                    .tourCover()
             }
             .fullScreenCover(item: $composing) { subject in
                 StoryEditor(subject: subject, openMine: { showMine() })
                     .environmentObject(model)
+                    .tourCover()
             }
             .sheet(isPresented: $invite) {
                 ActivityView(items: model.inviteItems(handle: model.circle?.me?.handle ?? "")) { invite = false }
+                    .tourCover()
             }
         }
     }
@@ -480,6 +485,7 @@ struct StoryViewer: View {
         .fullScreenCover(item: $resharing, onDismiss: { close(animated: false) }) { subject in
             StoryEditor(subject: subject, openMine: openMine)
                 .environmentObject(model)
+                .tourCover()
         }
         .famSheet(item: $sharing) { subject in
             ShareSheet(subject: subject)

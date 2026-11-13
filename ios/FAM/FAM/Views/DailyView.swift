@@ -13,6 +13,7 @@ struct DailyView: View {
     /// Whether the page is at its top: a tap there refetches, a tap
     /// further down only scrolls back up (`openMyFamTab`).
     @State private var atTop = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack(path: $model.dailyPath) {
@@ -41,6 +42,12 @@ struct DailyView: View {
                                 if model.isOffline { OfflineBar() }
                                 feed
                             }
+                            // `#myfamFeed` for the tour: the rails stay lazy,
+                            // each reports its bounds, and their union is
+                            // the hole's target.
+                            .overlayPreferenceValue(TourFeedParts.self) { parts in
+                                TourUnionReader(target: .feed, parts: parts)
+                            }
                             .padding(.horizontal, 18)
                             .padding(.bottom, 24)
                         }
@@ -53,6 +60,16 @@ struct DailyView: View {
                     .refreshable { await model.loadRails() }
                     .onChange(of: scrollToTop) { _, _ in
                         tabTapped(proxy)
+                    }
+                    // The tour's friends' step (`scrollIntoView`): back to
+                    // the top, where the faces row is; nothing reloads.
+                    .onReceive(model.tour.scrolls) { _ in
+                        guard !atTop else { return }
+                        if reduceMotion {
+                            proxy.scrollTo("top", anchor: .top)
+                        } else {
+                            withAnimation { proxy.scrollTo("top", anchor: .top) }
+                        }
                     }
                 }
             }
@@ -72,11 +89,14 @@ struct DailyView: View {
     @ViewBuilder private var feed: some View {
         if !model.railsProblem.isEmpty {
             EmptyNote(text: model.railsProblem).padding(.top, 20)
+                .tourFeedPart()
         } else if model.rails.isEmpty {
             Skeleton(top: tight ? 0 : 18)
+                .tourFeedPart()
         } else {
             ForEach(Array(model.rails.enumerated()), id: \.element.id) { n, rail in
                 RailRow(rail: rail, order: n, tight: n == 0 && tight)
+                    .tourFeedPart()
             }
         }
     }
@@ -143,7 +163,6 @@ private struct Skeleton: View {
 struct FreeMonthCard: View {
     @EnvironmentObject private var model: AppModel
     @State private var working = false
-    @State private var problem = ""
 
     var body: some View {
         if let fm = model.listener?.freeMonth, !(fm.claimed && model.freeMonthClosed) {
@@ -178,18 +197,11 @@ struct FreeMonthCard: View {
                 .foregroundStyle(FAMColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
-            if !problem.isEmpty {
-                Text(problem)
-                    .font(FAMFont.body(12.5))
-                    .foregroundStyle(FAMColor.coral)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 8)
-            }
             if !fm.claimed {
                 Button {
                     Task {
                         working = true
-                        problem = await model.claimFreeMonth() ?? ""
+                        await model.claimFreeMonth()
                         working = false
                     }
                 } label: {
