@@ -110,6 +110,8 @@ from paths import PROJECT_ROOT
 import mixes as mixes_mod
 import topic_title
 import mail as mail_mod
+import sms as sms_mod
+import waitlist_notify
 import push as push_mod
 import push_stories
 import listener_clock
@@ -886,6 +888,8 @@ async def lifespan(_: FastAPI):
     # is retried here. A no-op with no token, which is every staging deploy.
     if VIRAL_LOOPS.configured:
         _BACKGROUND.add(asyncio.create_task(_drain_viral_loops_forever()))
+    # "You're off the waitlist" notices (§585): email and text, retried here.
+    _BACKGROUND.add(asyncio.create_task(_drain_notices_forever()))
     # Kept audio's week (§237): keep what is saved, shared or vibed, delete
     # the rest, and say whether the bucket really answers - with a write, a
     # read and a delete, never by looking at the settings.
@@ -919,7 +923,8 @@ async def lifespan(_: FastAPI):
 
     incidents.restartable(_gdelt.run_forever, local_news_mod.run_forever,
                           weather_mod.run_forever, _refresh_stories_forever,
-                          _drain_viral_loops_forever, _sweep_audio_forever)
+                          _drain_viral_loops_forever, _drain_notices_forever,
+                          _sweep_audio_forever)
     yield
     # Loops that live as long as the process end with it, rather than being
     # destroyed pending when the event loop closes under them.
@@ -2474,6 +2479,7 @@ def _health_report(request: Request) -> dict:
         # Email (mail.py, §244): whether password reset can send, how many
         # sends worked and failed, and the last failure's words.
         "mail": mail_mod.report(),
+        "sms": sms_mod.report(),
     }
 
 
@@ -5760,6 +5766,49 @@ async def privacy() -> HTMLResponse:
 async def support() -> HTMLResponse:
     """The support URL App Store Connect links to. Open to everybody."""
     return HTMLResponse(legal_page("support", settings.support_email))
+
+
+@app.get("/claim/{code}", include_in_schema=False)
+async def claim_free_month(code: str) -> HTMLResponse:
+    """The link in "you're off the waitlist" (§585): claims the free month.
+
+    Open to everybody - it is opened from a mail app or a text, often in a
+    browser with no session - and the code is the whole credential: it names
+    one account and does one harmless, idempotent thing to it. The month runs
+    from the day the real app is published, never in the beta.
+    """
+    user = await asyncio.to_thread(WAITLIST.claim_free_month, code)
+    home = html.escape(settings.app_home_url)
+    if not user:
+        title = "That link doesn't work"
+        words = ("This free-month link isn't one we recognise. Check you "
+                 "copied all of it, or contact support.")
+        status = 404
+    else:
+        starts = WAITLIST.free_month_starts()
+        title = "Your free month is claimed"
+        if starts:
+            t, e = time.gmtime(starts), time.gmtime(starts + waitlist_mod.FREE_MONTH_SECONDS)
+            words = (f"A month of FAM Plus, from {time.strftime('%B', t)} {t.tm_mday}"
+                     f" to {time.strftime('%B', e)} {e.tm_mday}, {e.tm_year}."
+                     " Nothing to pay, and nothing is billed after.")
+        else:
+            words = ("A month of FAM Plus, starting the day the full FAM app "
+                     "is published. Nothing to pay, and nothing is billed after.")
+        status = 200
+    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FAM - {html.escape(title)}</title>
+<style>body{{margin:0;font:17px/1.5 system-ui,sans-serif;background:#fff;color:#111;
+display:flex;min-height:100vh;align-items:center;justify-content:center}}
+main{{max-width:28rem;padding:2rem 1rem;text-align:center}}
+a{{display:inline-block;margin-top:1.5rem;padding:.8rem 1.6rem;border-radius:999px;
+background:#111;color:#fff;text-decoration:none;font-weight:600}}
+@media (prefers-color-scheme:dark){{body{{background:#000;color:#eee}}a{{background:#eee;color:#000}}}}</style>
+</head><body><main><h1>{html.escape(title)}</h1><p>{html.escape(words)}</p>
+<a href="{home}">Open FAM</a></main></body></html>"""
+    return HTMLResponse(page, status_code=status,
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/reset", include_in_schema=False)
@@ -13653,7 +13702,8 @@ def _admit_admin(listener):
     if not _allowed_admin(listener):
         return listener
     user = listener.user_id
-    WAITLIST.grant([user], flag=WAITLIST.has_action(user, "register"))
+    WAITLIST.grant([user], flag=WAITLIST.has_action(user, "register"),
+                   notify=False)
     log.info("waitlist: %r is an admin account; kept off the line", user)
     return ACCOUNTS.listener_of(user)
 
@@ -13853,6 +13903,42 @@ async def _drain_viral_loops_forever(every: float = 300.0) -> None:
                 log.info("viral loops outbox: %s", result)
         except Exception:  # noqa: BLE001 - a loop that dies stops retrying
             log.exception("viral loops outbox drain failed")
+        await asyncio.sleep(every)
+
+
+def _notice_bases(request: Request | None = None) -> tuple[str, str]:
+    """(where a claim link points, the app's home) for a waitlist notice.
+    Never relative - it is read in a mail app or a text."""
+    home = settings.app_home_url
+    return (_public_base(request) or settings.public_base_url or home), home
+
+
+def _drain_notices(base: str = "", home: str = "") -> dict:
+    if not base:
+        base, home = _notice_bases()
+    return waitlist_notify.drain(WAITLIST, base, home)
+
+
+def _kick_notices(request: Request | None = None) -> None:
+    """Send the notices just queued, in the background (§585)."""
+    base, home = _notice_bases(request)
+    try:
+        task = asyncio.get_running_loop().create_task(
+            asyncio.to_thread(_drain_notices, base, home))
+        _BACKGROUND.add(task)
+        task.add_done_callback(_BACKGROUND.discard)
+    except RuntimeError:
+        pass  # no running loop; the timer sends it
+
+
+async def _drain_notices_forever(every: float = 300.0) -> None:
+    while True:
+        try:
+            result = await asyncio.to_thread(_drain_notices)
+            if result["sent"] or result["failed"]:
+                log.info("waitlist notices: %s", result)
+        except Exception:  # noqa: BLE001 - a loop that dies stops retrying
+            log.exception("waitlist notice drain failed")
         await asyncio.sleep(every)
 
 
@@ -14329,6 +14415,7 @@ async def admin_waitlist_grant(req: AdminGrantRequest, request: Request) -> dict
     except waitlist_mod.WaitlistError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _kick_viral_loops()
+    _kick_notices(request)
     return {"granted": len(granted), "user_ids": granted}
 
 

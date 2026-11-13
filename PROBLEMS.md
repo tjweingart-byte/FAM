@@ -35745,3 +35745,49 @@ shared screen's bar inside its scroll view, and whether the ribbon's
 window really yields the status bar. Tests: eight `..._584` tests in
 `tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
 one in `test_client_contracts.py`.
+
+## 585. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13)
+
+**Asked:** "Are people emailed when they get let off the waitlist right
+now? If they're not, they need to be notified (and if their phone number is
+in they should be texted) ... with a link to claim a free month." Then: "The
+free trial should start when the real app is published, it should not apply
+to the beta version." Only grants from now on are told (the owner chose not
+to message people already let in).
+
+**Found:** no. `Waitlist.grant` flipped `status`, stamped
+`access_granted_at` and queued Viral Loops' `flag`; nothing reached the
+person. Nothing in FAM could send a text at all (a phone number was a
+sign-in name, unverified).
+
+**Built:**
+- `grant(..., notify=True)` mints `accounts.claim_code` and queues
+  `notify_email` / `notify_sms` - whichever the account has - in
+  `waitlist_outbox`. `app._admit_admin` passes `notify=False`.
+- `due(actions=...)`: Viral Loops' drain reads `VENDOR_ACTIONS` only (its
+  `_drain` marked any unknown action done, so without this it would have
+  swallowed the notices); `waitlist_notify.drain` reads `NOTIFY_ACTIONS`.
+- `sms.py`: Twilio's REST API over httpx, mail.py's shape - `status()` says
+  what is missing, `report()` in `/api/health` as `sms`, the number never in
+  an error, `TWILIO_AUTH_TOKEN` a paid credential `spend_guard` removes.
+- `waitlist_notify.py`: the email ("You're off the FAM waitlist") and the
+  text, each with `<base>/claim/<code>`, worded from `free_month_starts`
+  ("starts the day the full FAM app is published" until it is set, then the
+  date). A failed or unconfigured send is `mark_failed` and retried on
+  `RETRY_DELAYS` (hourly at the tail) - never dropped, counted in
+  `outbox_summary` on /admin. Drained right after an admin grant
+  (`_kick_notices`) and every five minutes (`_drain_notices_forever`).
+- `GET /claim/<code>`: stamps `free_month_earned_at` once (the stamp five
+  friends earn, §577), so the month is plus for 30 days from the launch day
+  and nothing during the beta; a page says so with an Open FAM button. Open
+  past the gate (it is opened from a mail app or a text); 404 for a code that
+  names nobody. A mail scanner that opens the link claims it for its owner,
+  which is harmless.
+
+**To switch on in production:** SMTP is already the reset's (`SMTP_HOST`,
+`MAIL_FROM`, `SMTP_PASSWORD`). Texts need `TWILIO_ACCOUNT_SID`,
+`TWILIO_FROM` and `TWILIO_AUTH_TOKEN` in the dashboard (US numbers also need
+Twilio's A2P 10DLC registration). Until then texts wait in the outbox.
+
+**Tests:** `tests/test_waitlist_notify.py`.
+

@@ -1488,6 +1488,22 @@
   admin-set launch day (`free_month_starts`) for 30 days, the same month for
   everyone; it only raises a plan. The page's "five" is pinned to
   `FREE_MONTH_INVITES` by a test.
+<!-- rule:waitlist-notice -->
+- **Letting somebody off the waitlist tells them** (PROBLEMS.md §585, the
+  owner 13/11): `Waitlist.grant` queues `notify_email` (if the account has an
+  address) and `notify_sms` (if it has a phone) in the waitlist outbox, beside
+  Viral Loops' `flag`; `waitlist_notify.drain` sends them through `mail.py`
+  (SMTP) and `sms.py` (Twilio, `TWILIO_ACCOUNT_SID`/`TWILIO_FROM`, the token a
+  credential), each with `/claim/<code>`. A failed or unconfigured send is
+  retried on the outbox's delays, never dropped; `/api/health` carries `sms`
+  beside `mail`; staging sends neither. Each drain reads only its own actions
+  (`due(actions=...)`). An admin let in at sign-up is not told. Only grants
+  from §585 on are told - nobody already let in, at the owner's direction.
+  **The claimed month is the launch month:** the link stamps the same
+  `free_month_earned_at` five friends earn, so it runs from the admin-set day
+  the real app is published (`free_month_starts`) and never applies to the
+  beta (the owner: "it should not apply to the beta version"). The link is
+  open past the gate, idempotent, and its code names one account.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   > **Current (§519, the 11.9 packet):** switched **off again in production**
