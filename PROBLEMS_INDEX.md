@@ -569,8 +569,9 @@ and `limit` = Lines.
 | 35208 | 47 | 575. Shared links: the picture and the audio behind the waitlist, Message between friends, and a Mac build in CI (2026-11-13) |
 | 35255 | 33 | 576. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13) |
 | 35288 | 42 | 577. Five friends earn a free month (2026-11-13) |
-| 35330 | 68 | 579. Communities to reach replace FAM on X (2026-11-13) |
-| 35398 | 43 | 580. Egan: the outreach reader becomes a full agent (2026-11-13) |
-| 35441 | 48 | 581. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13) |
-| 35489 | 48 | 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
-| 35537 | 22 | 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13) |
+| 35330 | 43 | 578. An always-on worker cost $40 a day: chunks queued behind it booted flex workers (2026-11-13) |
+| 35373 | 68 | 579. Communities to reach replace FAM on X (2026-11-13) |
+| 35441 | 43 | 580. Egan: the outreach reader becomes a full agent (2026-11-13) |
+| 35484 | 48 | 581. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13) |
+| 35532 | 48 | 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
+| 35580 | 22 | 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13) |

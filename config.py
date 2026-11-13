@@ -1788,6 +1788,13 @@ class Settings:
     # each ask is a queued job.
     remote_voice_wake_interval: float = _env_float(
         "REMOTE_VOICE_WAKE_INTERVAL", 60.0)
+    # How many always-on ("active") workers the RunPod endpoint keeps, as set
+    # in its console (§578). 0 is a pure pay-per-second endpoint. Above 0,
+    # nothing is asleep, so no wake job is sent, and at most this many chunks
+    # are in flight at once (the lower of this and REMOTE_VOICE_CONCURRENCY):
+    # a chunk queued behind a busy active worker makes RunPod boot a flex
+    # worker, billed for its boot, the chunk and its idle timeout.
+    remote_voice_active_workers: int = _env_int("REMOTE_VOICE_ACTIVE_WORKERS", 0)
     # --- Finding the worker, rather than being told where it is ----------
     # `voice_control.py` is the whole of this. The settings below decide how
     # hard FAM works to keep its own address for the voice correct while
@@ -2478,6 +2485,11 @@ class Settings:
                 raise ValueError(
                     f"REMOTE_VOICE_CONCURRENCY={self.remote_voice_concurrency} "
                     "must be at least 1; zero would deadlock every episode.")
+            if self.remote_voice_active_workers < 0:
+                raise ValueError(
+                    f"REMOTE_VOICE_ACTIVE_WORKERS={self.remote_voice_active_workers} "
+                    "must be 0 (a pay-per-second endpoint) or the number of "
+                    "active workers set in the RunPod console.")
             if str(self.voice_discovery).strip().lower() not in VOICE_DISCOVERY:
                 # Refused rather than treated as `off`: a typo that quietly
                 # switched discovery off would look exactly like the old
