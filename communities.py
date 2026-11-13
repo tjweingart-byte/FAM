@@ -171,7 +171,7 @@ _NOT_COMMUNITIES = {
 _URLS = (
     ("facebook", re.compile(r"facebook\.com/groups/([A-Za-z0-9._-]{3,80})", re.I)),
     ("reddit", re.compile(r"reddit\.com/r/([A-Za-z0-9_]{2,21})(?![A-Za-z0-9_])", re.I)),
-    ("x", re.compile(r"(?:x|twitter)\.com/i/communities/(\d{5,25})", re.I)),
+    ("x", re.compile(r"(?<![\w-])(?:x|twitter)\.com/i/communities/(\d{5,25})", re.I)),
     ("discord", re.compile(
         r"(?:discord\.gg|discord(?:app)?\.com/invite)/([A-Za-z0-9-]{2,40})", re.I)),
     ("discord", re.compile(r"disboard\.org/server/(\d{15,22})", re.I)),
@@ -367,14 +367,14 @@ def leads_from(results: Iterable, platform: str, subject: str) -> list[Lead]:
             body = f"{title}. {text}"
             out[key] = Lead(
                 platform=plat, ident=ident,
-                name=_clean_name(title, plat) if own_page else ident,
+                name=strip_phones(_clean_name(title, plat)) if own_page else ident,
                 url=community_url(plat, ident), contact_url=contact_url(plat, ident),
                 subject=subject,
                 description=strip_phones(" ".join(text.split()))[:600],
                 members=members(body), privacy=privacy(body), seen_at=url,
                 # A contact or a name is the community's own only on its own page.
                 public_contact=public_contacts(text) if own_page else [],
-                admin_hint=admin_hints(text) if own_page else [])
+                admin_hint=[strip_phones(n) for n in admin_hints(text)] if own_page else [])
     return list(out.values())
 
 
@@ -627,13 +627,17 @@ def trim(text: str, limit: int = MESSAGE_CHARS) -> str:
     return cut[:end + 1] if end > limit // 2 else cut.rstrip() + "..."
 
 
+def _line(value, limit: int) -> str:
+    """A model's words as one line, cut, with no phone number in them."""
+    return strip_phones(" ".join(str(value or "").split()))[:limit]
+
+
 def _clean_pitch(p: dict) -> Optional[dict]:
-    title = " ".join(str(p.get("title") or "").split())[:90]
+    title = _line(p.get("title"), 90)
     if not title:
         return None
-    return {"title": title,
-            "angle": " ".join(str(p.get("angle") or "").split())[:280],
-            "why": " ".join(str(p.get("why") or "").split())[:280]}
+    return {"title": title, "angle": _line(p.get("angle"), 280),
+            "why": _line(p.get("why"), 280)}
 
 
 async def read(lead: Lead, client=None) -> tuple[Lead, float]:
@@ -670,11 +674,11 @@ async def read(lead: Lead, client=None) -> tuple[Lead, float]:
             lead.fit = max(1, min(5, int(body.get("fit"))))
         except (TypeError, ValueError):
             lead.fit = CODE_FIT
-        lead.fit_why = " ".join(str(body.get("fit_why") or "").split())[:300]
+        lead.fit_why = _line(body.get("fit_why"), 300)
         pitches = [p for p in (_clean_pitch(x) for x in (body.get("pitches") or [])
                                if isinstance(x, dict)) if p][:PITCHES]
         lead.pitches = pitches or code_pitches(lead)
-        message = trim(str(body.get("message") or ""))
+        message = trim(strip_phones(str(body.get("message") or "")))
         given = _figures(f"{lead.name} {lead.description} "
                          f"{(lead.episode or {}).get('title', '')} "
                          + " ".join(p["title"] for p in lead.pitches))
@@ -905,11 +909,29 @@ def _day_start(now: float) -> float:
     return now - (now % 86400)
 
 
+#: What this page's searches and calls are filed under in the day's spend.
+SPEND_SOURCE = "community outreach"
+
+
 async def run(cache, subjects: Iterable[str], platforms: Iterable[str], *,
               now: Optional[float] = None, searcher=None, reader=None,
               held: Optional[Store] = None) -> dict:
     """Search each subject on each platform, screen, match, read; leave the
-    cards on the page. Returns the run's report, which is also stored."""
+    cards on the page. Returns the run's report, which is also stored.
+
+    Every search and call is in the day's spend under `SPEND_SOURCE` (§481),
+    and the run is recorded however it ends, so a run that fails halfway
+    still counts the searches it spent against the day's ceiling."""
+    import metering
+
+    with metering.spend_source(SPEND_SOURCE):
+        return await _run(cache, subjects, platforms, now=now, searcher=searcher,
+                          reader=reader, held=held)
+
+
+async def _run(cache, subjects, platforms, *, now, searcher, reader, held) -> dict:
+    import metering
+
     now = time.time() if now is None else now
     held = held or store()
     held.prune(now)
@@ -930,13 +952,25 @@ async def run(cache, subjects: Iterable[str], platforms: Iterable[str], *,
         held.add_run(now, 0, report)
         return report
     searcher = searcher or (lambda q, p: asyncio.to_thread(_search_blocking, q, p))
-    known = held.known()
-    found: dict[str, Lead] = {}
     pairs = [(s, p) for s in subjects for p in platforms]
     if len(pairs) > budget:
         report["stopped"] = (f"{len(pairs) - budget} searches left out to stay "
                              f"inside today's ceiling")
-    for subject, platform in pairs[:budget]:
+    try:
+        await _search_and_read(cache, pairs[:budget], report, held, now,
+                               searcher, reader or read, metering)
+    finally:
+        report["dollars"] = round(report["dollars"], 4)
+        report["screened"] = report["screened"][:20]
+        held.add_run(now, report["searched"], report)
+    return report
+
+
+async def _search_and_read(cache, pairs, report, held, now, searcher, reader,
+                           metering) -> None:
+    known = held.known()
+    found: dict[str, Lead] = {}
+    for subject, platform in pairs:
         try:
             results, cost, _backend = await searcher(search_query(subject, platform), platform)
         except asyncio.CancelledError:
@@ -947,6 +981,8 @@ async def run(cache, subjects: Iterable[str], platforms: Iterable[str], *,
             continue
         report["searched"] += 1
         report["dollars"] += float(cost or 0.0)
+        # The day's spend (§481), like every other search FAM pays for.
+        metering.Usage().add_research(1, float(cost or 0.0))
         for lead in leads_from(results, platform, subject):
             report["found"] += 1
             if lead.id in known or lead.id in found:
@@ -960,8 +996,8 @@ async def run(cache, subjects: Iterable[str], platforms: Iterable[str], *,
     for lead in found.values():
         lead.episode = best_episode(episodes, lead)
         lead.score = score(lead)
-    shortlist = sorted(found.values(), key=lambda l: -l.score)[:int(settings.communities_shortlist)]
-    reader = reader or read
+    shortlist = sorted(found.values(), key=lambda l: -l.score)[
+        :int(config.settings.communities_shortlist)]
     for lead in shortlist:
         lead, dollars = await reader(lead)
         report["dollars"] += float(dollars or 0.0)
@@ -972,10 +1008,6 @@ async def run(cache, subjects: Iterable[str], platforms: Iterable[str], *,
             continue
         held.add(lead, now)
         report["kept"] += 1
-    report["dollars"] = round(report["dollars"], 4)
-    report["screened"] = report["screened"][:20]
-    held.add_run(now, report["searched"], report)
-    return report
 
 
 def health() -> dict:

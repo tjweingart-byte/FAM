@@ -35256,6 +35256,14 @@ their tests, the `X_THREADS_*` settings and X's row on the services report.
 key is still scrubbed on staging. The tracker links "Communities" where it
 linked "FAM on X". The rule [x-threads] became [community-outreach].
 
+**Found on review.** Searches were not in the day's spend (§481): each is
+now `metering.Usage().add_research`, the run under `spend_source("community
+outreach")`. A run that failed halfway did not record the searches it had
+spent; it is recorded in a `finally`. `x.com` matched inside `fox.com`. The
+community's name and the model's words were not phone-stripped. The page's
+eight-second poll recomputed the suggested subjects from 200 episodes each
+time; they are kept for ten minutes, and asked fresh on a run.
+
 **Not verified here.** No search or model key in this container: no real
 search was run, so how often a platform's communities show up in Parallel
 and Perplexity results is unmeasured. Discord and Slack are the likeliest

@@ -566,4 +566,4 @@ and `limit` = Lines.
 | 35110 | 36 | 572. Build 6: the iPhone catches up with §570 and §571 (2026-11-12) |
 | 35146 | 18 | 573. The phone number is optional at sign-up (2026-11-13) |
 | 35164 | 44 | 574. fam-db's memory was its connections (2026-11-13) |
-| 35208 | 60 | 575. Communities to reach replace FAM on X (2026-11-13) |
+| 35208 | 68 | 575. Communities to reach replace FAM on X (2026-11-13) |

@@ -51,6 +51,10 @@ def test_each_platforms_community_is_recognised(text, expected):
     assert C.community_of(text)[0] == expected
 
 
+def test_a_domain_ending_in_x_is_not_x():
+    assert C.community_of("https://fox.com/i/communities/123456789") == []
+
+
 def test_a_platforms_own_pages_are_not_communities():
     assert C.community_of("https://www.facebook.com/groups/feed/") == []
     assert C.community_of("https://www.reddit.com/r/popular") == []
@@ -192,6 +196,40 @@ def test_the_daily_ceiling_stops_a_run(tmp_path, monkeypatch):
     assert len(searched) == 3 and "left out" in report["stopped"]
     _held, report, searched = _run(tmp_path, monkeypatch, {})
     assert searched == [] and "used up" in report["stopped"]
+
+
+def test_searches_are_in_the_days_spend(tmp_path, monkeypatch):
+    import metering
+
+    spent = []
+    monkeypatch.setattr(metering, "_count_billed",
+                        lambda what, calls, cost: spent.append((metering.current_source(), calls, cost)))
+    _run(tmp_path, monkeypatch, {}, platforms=["reddit", "x"])
+    assert spent == [(C.SPEND_SOURCE, 1, 0.001), (C.SPEND_SOURCE, 1, 0.001)]
+
+
+def test_a_run_that_fails_halfway_still_counts_its_searches(tmp_path):
+    held = C.Store(str(tmp_path / "c.db"))
+
+    async def searcher(query, platform):
+        return [result("https://www.reddit.com/r/eagles", "r/eagles")], 0.001, "parallel"
+
+    async def reader(lead):
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(C.run(None, ["Eagles"], ["reddit"], searcher=searcher,
+                          reader=reader, held=held))
+    assert held.searches_since(0) == 1
+
+
+def test_the_models_words_carry_no_phone_number():
+    lead = C.Lead("facebook", "g", "Eagles Fans", "u", "c", "Eagles")
+    client = _Client({"fit": 4, "fit_why": "call 215-555-0134",
+                      "message": "Hi, text me on 215 555 0134? Would you like it?",
+                      "pitches": [{"title": "t", "angle": "ring (215) 555-0134", "why": "w"}]})
+    out, _ = asyncio.run(C.read(lead, client))
+    assert "555" not in out.fit_why + out.message + out.pitches[0]["angle"]
 
 
 def test_a_failed_search_is_recorded_and_the_run_goes_on(tmp_path):

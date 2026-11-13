@@ -13377,11 +13377,23 @@ async def admin_groups_page(request: Request):
                                  "X-Robots-Tag": "noindex"})
 
 
+#: `(when, subjects)`: the suggestions, worked out at most every ten
+#: minutes. The page polls every eight seconds, and each poll reading 200
+#: cached episodes and their categories is database work for nothing (§574).
+_GROUPS_SUGGESTED: list = [0.0, []]
+GROUPS_SUGGESTED_SECONDS = 600
+
+
 def _groups_suggested() -> list:
     """Subjects to search when the person names none: the categories of the
     most played kept episodes."""
-    return communities.suggested_subjects(
+    now = time.time()
+    if now - _GROUPS_SUGGESTED[0] < GROUPS_SUGGESTED_SECONDS:
+        return list(_GROUPS_SUGGESTED[1])
+    found = communities.suggested_subjects(
         SCRIPT_CACHE, lambda key: _category_label(_episode_category(key)))
+    _GROUPS_SUGGESTED[:] = [now, found]
+    return list(found)
 
 
 @app.get("/api/admin/groups")
@@ -13421,6 +13433,8 @@ async def admin_groups_run(req: GroupsRun, request: Request) -> dict:
         raise HTTPException(status_code=422, detail=f"Unknown platform: {unknown[0]}.")
     subjects = [" ".join(s.split())[:80] for s in req.subjects if s and s.strip()]
     if not subjects:
+        # Asked fresh: a run is a press, not a poll.
+        _GROUPS_SUGGESTED[0] = 0.0
         subjects = await asyncio.to_thread(_groups_suggested)
     if not subjects:
         raise HTTPException(status_code=422, detail=(
