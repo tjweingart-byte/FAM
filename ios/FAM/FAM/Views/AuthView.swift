@@ -66,7 +66,9 @@ struct AuthView: View {
 
     private var form: some View {
         VStack(spacing: 0) {
-            YouBackRow(title: making ? "Sign up" : "Log in") { back() }
+            // `/waitlist` has no title: the join has the way back and the
+            // page's wordmark (`lead`); Log in keeps the app's title.
+            YouBackRow(title: making ? "" : "Log in") { back() }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     lead
@@ -90,7 +92,10 @@ struct AuthView: View {
     @ViewBuilder
     private var lead: some View {
         if making {
-            // The waitlist page's own words (`#landing`).
+            // The waitlist page's own words (`#landing`), under its wordmark.
+            Wordmark(size: 26)
+                .accessibilityLabel("FAM")
+                .padding(.bottom, 12)
             Text("The social information network")
                 .monoLabel(9)
             Text("Listen to everything you want to know about.")
@@ -125,12 +130,11 @@ struct AuthView: View {
 
     private var joinFields: some View {
         VStack(alignment: .leading, spacing: 0) {
-            label("Email").padding(.top, 18)
-            emailField(prompt: "Enter your email")
+            // No visible labels on `/waitlist`: the fields say it (`aria-label`).
+            emailField(prompt: "Enter your email").padding(.top, 18)
             // A password in the same step (§571): the way back in from any
             // device, with no email needed (`#joinPassword`).
-            label("Password").padding(.top, 18)
-            passwordField
+            passwordField.padding(.top, 12)
             Button {
                 Task { await join() }
             } label: {
@@ -207,6 +211,7 @@ struct AuthView: View {
             .focused($field, equals: .email)
             .submitLabel(.next)
             .onSubmit { field = .password }
+            .accessibilityLabel("Email")
             .modifier(FieldBox())
     }
 
@@ -223,10 +228,15 @@ struct AuthView: View {
             }
             // A new password on Sign up, so iOS offers a strong one.
             .textContentType(making ? .newPassword : .password)
+            .accessibilityLabel("Password")
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .focused($field, equals: .password)
             .submitLabel(.go)
+            // `maxlength="1024"` on both forms: the field takes no more.
+            .onChange(of: password) { _, typed in
+                if typed.count > 1024 { password = String(typed.prefix(1024)) }
+            }
             .onSubmit {
                 if making { Task { await join() } } else { Task { await logIn() } }
             }
@@ -254,10 +264,11 @@ struct AuthView: View {
             .padding(.top, 12)
     }
 
-    /// `#toggleLogin`, the waitlist page's one line: "Already on the list?
-    /// Sign in" under the join, "New here? Get early access" under the sign-in.
+    /// Under the join, the waitlist page's `#toggleLogin` ("Already on the
+    /// list? Sign in"); under Log in, the app's `#authSwitch` ("New to FAM?
+    /// Sign up"), since the form above it is the app's.
     private var switchLine: some View {
-        Button(making ? "Already on the list? Sign in" : "New here? Get early access") { switchMode() }
+        Button(making ? "Already on the list? Sign in" : "New to FAM? Sign up") { switchMode() }
             .font(FAMFont.body(13, .bold))
             .foregroundStyle(FAMColor.copper)
             .buttonStyle(.press)
@@ -326,10 +337,6 @@ struct AuthView: View {
         }
         guard password.count >= 8 else {
             problem = "Use at least 8 characters for your password."
-            return
-        }
-        guard password.count <= 1024 else {
-            problem = "That password is too long."
             return
         }
         guard agreed else {
@@ -401,6 +408,8 @@ struct TermsSentence: View {
             .lineSpacing(3)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
+            // Settings' Terms and Privacy rows' Safari sheet, on the same host.
+            .inAppLinks()
     }
 
     private var sentence: AttributedString {

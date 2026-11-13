@@ -685,7 +685,11 @@ struct MixView: View {
             rows.append(SheetAction(label: "Delete mix", danger: true) { Task { await delete() } })
         } else {
             rows.append(SheetAction(label: "Add topics to mix") { path.append(.add(id)) })
-            rows.append(SheetAction(label: "Who\u{2019}s in this mix") { people = true })
+            // Always offered to a member; with nobody listed it opens
+            // nothing (`openMixPeople`'s `!(m.people && m.people.length)`).
+            rows.append(SheetAction(label: "Who\u{2019}s in this mix") {
+                if !(self.mix?.people.isEmpty ?? true) { people = true }
+            })
             rows.append(SheetAction(label: "Leave this mix", danger: true) { askLeave() })
         }
         actionSheet = SheetSpec(actions: rows)

@@ -561,7 +561,8 @@ struct WaitlistStatusPage: View {
                 Button { openAbout() } label: {
                     HStack(spacing: 6) {
                         Text("Learn more about FAM")
-                        Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .bold))
+                        // `.learn-btn svg`: the page's right arrow.
+                        WebIcon(path: Icons.arrowRight, size: 17, line: 2.2)
                     }
                     .font(FAMFont.body(12.5, .semibold))
                     .foregroundStyle(FAMColor.copper)
@@ -732,7 +733,8 @@ struct WaitlistStatusPage: View {
             Button { invite() } label: {
                 HStack(spacing: 8) {
                     Text("Share your link")
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 13, weight: .bold))
+                    // `.cta svg`: the same arrow as the join's.
+                    WebIcon(path: Icons.arrowRight, size: 20, line: 2)
                 }
             }
             .buttonStyle(EntryButtonStyle(primary: true))
@@ -752,9 +754,10 @@ struct WaitlistStatusPage: View {
         model.nowPlaying.say("Invite link copied")
     }
 
-    /// `invite()`: the share sheet with the web's words and the link.
+    /// `invite()`: the share sheet with the web's title ("FAM", an email's
+    /// subject), its words and the link.
     private func invite() {
-        var items: [Any] = ["Come get early access to FAM with me."]
+        var items: [Any] = [ShareTextItem(text: "Come get early access to FAM with me.", subject: "FAM")]
         if let url = URL(string: link) { items.append(url) }
         share = items
     }
@@ -847,6 +850,10 @@ struct WaitlistPasswordCard: View {
                 .autocorrectionDisabled()
                 .submitLabel(.go)
                 .onSubmit { Task { await set() } }
+                // `maxlength="1024"`: the field takes no more.
+                .onChange(of: password) { _, typed in
+                    if typed.count > 1024 { password = String(typed.prefix(1024)) }
+                }
                 Button { showPassword.toggle() } label: {
                     Image(systemName: showPassword ? "eye.slash" : "eye")
                         .foregroundStyle(FAMColor.textMuted)
@@ -866,7 +873,8 @@ struct WaitlistPasswordCard: View {
             Button {
                 Task { await set() }
             } label: {
-                Text(working ? "Saving\u{2026}" : "Set password")
+                // The page only disables it while it works (`#pwSetBtn`).
+                Text("Set password")
             }
             .buttonStyle(EntryButtonStyle(primary: true))
             .disabled(working)
@@ -882,10 +890,6 @@ struct WaitlistPasswordCard: View {
         }
         guard password.count >= 8 else {
             problem = "Use at least 8 characters for your password."
-            return
-        }
-        guard password.count <= 1024 else {
-            problem = "That password is too long."
             return
         }
         problem = ""
@@ -1037,7 +1041,7 @@ struct WaitlistFamSection: View {
                 // The web's Share here copies the link (`copyLink`).
                 Button { copy() } label: {
                     HStack(spacing: 5) {
-                        Image(systemName: "link").font(.system(size: 11, weight: .bold))
+                        WebIcon(path: Icons.personPlus, size: 18, line: 1.7)
                         Text("Share")
                     }
                     .font(FAMFont.mono(10))
@@ -1222,7 +1226,7 @@ struct WaitlistFreeMonthProgress: View {
             }
             .accessibilityHidden(true)
             Text(Self.line(month))
-                .font(FAMFont.body(13, month.earned ? .semibold : .regular))
+                .font(FAMFont.body(15, month.earned ? .semibold : .regular))
                 .foregroundStyle(month.earned ? FAMColor.copper : FAMColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }

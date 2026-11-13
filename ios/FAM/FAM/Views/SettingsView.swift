@@ -743,6 +743,7 @@ struct ActivationCard: View {
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
+                .inAppLinks()
         }
     }
 

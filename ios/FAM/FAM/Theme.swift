@@ -424,6 +424,19 @@ enum Icons {
         return p
     }()
 
+    /// The waitlist's "Your FAM" Share: a person and a plus, as
+    /// waitlist.html draws it (`circle 9,8 r3.5`, `M16 11h6M19 8v6`).
+    static let personPlus: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 5.5, y: 4.5, width: 7, height: 7))
+        p.move(to: CGPoint(x: 2.5, y: 19))
+        p.addCurve(to: CGPoint(x: 9, y: 14), control1: CGPoint(x: 3.3, y: 15.7), control2: CGPoint(x: 5.9, y: 14))
+        p.addCurve(to: CGPoint(x: 15.5, y: 19), control1: CGPoint(x: 12.1, y: 14), control2: CGPoint(x: 14.7, y: 15.7))
+        p.move(to: CGPoint(x: 16, y: 11)); p.addLine(to: CGPoint(x: 22, y: 11))
+        p.move(to: CGPoint(x: 19, y: 8)); p.addLine(to: CGPoint(x: 19, y: 14))
+        return p
+    }()
+
     /// Invite collaborators: a person and a plus.
     static let invite: Path = {
         var p = Path()
