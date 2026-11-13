@@ -1,5 +1,5 @@
 {
-  "commit": "e11e5b02331da7cb6cdbe309f971b8c1af5e2933",
+  "commit": "5a75a7f14e22810919bd6f26dba509319b83b4ac",
   "cut": "2026-11-13",
   "platform": "ios",
   "routes": [
@@ -28,6 +28,7 @@
     "/api/episode/card",
     "/api/episode/topic",
     "/api/event",
+    "/api/free-month/claim",
     "/api/friends",
     "/api/friends/announced",
     "/api/friends/follow",
@@ -106,6 +107,7 @@
       "authenticated": "boolean",
       "display_name": "string",
       "email": "string",
+      "free_month": "null",
       "has_account": "boolean",
       "has_password": "boolean",
       "home": "string",
@@ -262,6 +264,7 @@
       "search_mode": "any",
       "search_mode_source": "any",
       "sharing": "any",
+      "sms": "any",
       "status": "any",
       "storage": "any",
       "stories": "any",
@@ -536,6 +539,7 @@
       },
       "topics": [],
       "topics_chosen": [],
+      "tour_done": "boolean",
       "weekly_recap": "boolean"
     },
     "/api/profile": {

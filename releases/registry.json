@@ -5,10 +5,10 @@
       "version": "1.0.0",
       "status": "supported",
       "released": "2026-11-13",
-      "commit": "e11e5b02331da7cb6cdbe309f971b8c1af5e2933",
+      "commit": "5a75a7f14e22810919bd6f26dba509319b83b4ac",
       "contract": "releases/contracts/ios-1.0.0.json",
-      "build": "7",
-      "notes": "The first App Store submission (\u00a7537). The header is ios/1.0.0+<build>; the registry matches on the version alone, so raising CURRENT_PROJECT_VERSION per upload changes nothing here - set build to the one Apple approves. Recut with --force from the submitted commit if the app's routes change before it ships; recut for build 4 (\u00a7565), and for build 7 (\u00a7584's second audit), the first cut to read the app's relative api/v1/ calls."
+      "build": "8",
+      "notes": "The first App Store submission (\u00a7537). The header is ios/1.0.0+<build>; the registry matches on the version alone, so raising CURRENT_PROJECT_VERSION per upload changes nothing here - set build to the one Apple approves. Recut with --force from the submitted commit if the app's routes change before it ships; recut for build 4 (\u00a7565), for build 7 (\u00a7584's second audit), the first cut to read the app's relative api/v1/ calls, and for build 8 (\u00a7599: the tour, the free month's claim), which replaces build 7 in review."
     },
     {
       "platform": "web",
