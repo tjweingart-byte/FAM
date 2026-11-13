@@ -687,6 +687,24 @@ def test_share_targets_are_keyed_as_the_server_keys_them_584():
     assert snake("sms") == "sms"
 
 
+def test_every_server_keyed_dictionary_is_put_back_to_snake_case_584():
+    """Audit 4: survey `detail` and the catalogue's `tag_parent` / `tag_labels`
+    are dictionaries keyed by server ids. A future id with an underscore
+    (`college_football`) must not come back camel-cased, so each goes
+    through the same `serverKeyed` as the share targets."""
+    api = _api()
+    assert "static func serverKeyed<Value>(" in api
+    assert "detail = ShareTarget.serverKeyed(" in api
+    assert "tagParent = ShareTarget.serverKeyed(" in api
+    assert "tagLabels = ShareTarget.serverKeyed(" in api
+    # Every [String: ...] the app decodes is one of the known, normalised ones.
+    decoded = re.findall(r"^    let (\w+): \[String: (\w+)\]\??", api, re.M)
+    normalised = {"targets", "detail", "tagParent", "tagLabels"}
+    assert {name for name, _ in decoded} == normalised
+    for name, _ in decoded:
+        assert name in normalised or re.search(r"%s = ShareTarget\.serverKeyed\(" % name, api), name
+
+
 def test_staging_ribbon_and_demo_badge_584():
     """A staging or zero-spend server's ribbon on every screen and the
     player's "not your episode" badge on a server with no working key."""

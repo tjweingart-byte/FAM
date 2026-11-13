@@ -1418,9 +1418,11 @@ struct ShareTarget: Decodable {
     /// (Foundation's behaviour has differed between releases), which
     /// `ShareTargetRows.order`, its glyphs and the story hand-off would miss:
     /// every key goes back to snake_case, so it holds either way.
-    static func serverKeyed(_ targets: [String: ShareTarget]?) -> [String: ShareTarget]? {
+    /// Any dictionary keyed by server ids is put back the same way
+    /// (`SurveyQuestion.detail`, `Catalogue.tagParent` / `tagLabels`).
+    static func serverKeyed<Value>(_ targets: [String: Value]?) -> [String: Value]? {
         guard let targets else { return nil }
-        var out: [String: ShareTarget] = [:]
+        var out: [String: Value] = [:]
         for (key, value) in targets { out[snakeKey(key)] = value }
         return out
     }
@@ -1476,8 +1478,8 @@ struct SurveyQuestion: Decodable, Identifiable, Equatable {
     /// Shown only when another question's answer is one of these.
     let showIf: SurveyShowIf?
     /// An option whose own box asks a question ("name" -> "Which name?").
-    /// Its keys are option ids with no underscore, so the decoder's
-    /// snake-case conversion leaves them as they are.
+    /// Keyed by option id exactly as the server sends it
+    /// (`ShareTarget.serverKeyed`), so an id with an underscore still matches.
     let detail: [String: String]?
     /// An "Other" chip with a box.
     let other: Bool?
@@ -1486,6 +1488,26 @@ struct SurveyQuestion: Decodable, Identifiable, Equatable {
     let low: String?
     let high: String?
     let placeholder: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, text, options, showIf, detail, other, min, max, low, high, placeholder
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        kind = try c.decode(String.self, forKey: .kind)
+        text = try c.decode(String.self, forKey: .text)
+        options = try c.decodeIfPresent([SurveyOption].self, forKey: .options)
+        showIf = try c.decodeIfPresent(SurveyShowIf.self, forKey: .showIf)
+        detail = ShareTarget.serverKeyed(try c.decodeIfPresent([String: String].self, forKey: .detail))
+        other = try c.decodeIfPresent(Bool.self, forKey: .other)
+        min = try c.decodeIfPresent(Int.self, forKey: .min)
+        max = try c.decodeIfPresent(Int.self, forKey: .max)
+        low = try c.decodeIfPresent(String.self, forKey: .low)
+        high = try c.decodeIfPresent(String.self, forKey: .high)
+        placeholder = try c.decodeIfPresent(String.self, forKey: .placeholder)
+    }
 }
 
 struct SurveyOption: Decodable, Identifiable, Equatable {
@@ -2023,8 +2045,19 @@ struct RecommendedTopics: Decodable {
 
 struct Catalogue: Decodable {
     let catalogue: [Subject]
+    /// Keyed by tag exactly as the server sends them (`ShareTarget.serverKeyed`):
+    /// a tag such as `college_football` must not come back `collegeFootball`.
     let tagParent: [String: String]?
     let tagLabels: [String: String]?
+
+    enum CodingKeys: String, CodingKey { case catalogue, tagParent, tagLabels }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        catalogue = try c.decode([Subject].self, forKey: .catalogue)
+        tagParent = ShareTarget.serverKeyed(try c.decodeIfPresent([String: String].self, forKey: .tagParent))
+        tagLabels = ShareTarget.serverKeyed(try c.decodeIfPresent([String: String].self, forKey: .tagLabels))
+    }
 }
 
 /// A subject a mix can follow; `focus_picks` are the teams and companies
