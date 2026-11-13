@@ -1,4 +1,4 @@
-"""The owner's 11.12 notes (PROBLEMS.md §588): the place is optional, Return
+"""The owner's 11.12 notes (PROBLEMS.md §590): the place is optional, Return
 sends a message, a message's banner returns to an open chat rather than
 stacking it, the link picture wears the FAM logo, a story carries the player
 card, and each chunk of an episode is levelled to one pace."""

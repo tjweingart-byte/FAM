@@ -35864,7 +35864,62 @@ Twilio's A2P 10DLC registration). Until then texts wait in the outbox.
 **Tests:** `tests/test_waitlist_notify.py`.
 
 
-## 588. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13)
+## 588. Egan has his own section on /admin (2026-11-13)
+
+**What was asked.** The owner: "Where can I see Egan in the admin page, he
+should have his own section". He was a row in the shared Agents table and,
+for his work, the separate `/admin/groups` page.
+
+**What was built.** `/admin` → Tracker → **Egan (outreach)**, beside
+Keith's: his state (on, off or held, and why - "off - the page composes in
+code" until `AGENTS=1` and `OUTREACH_AGENT=1`), his model and his week
+(requests, spend, fallbacks, last call), from `/api/admin/agents`'s row for
+`outreach`; the communities by status, today's searches against the
+ceiling, the last search and which sources can be asked, and the newest
+leads with whose words each card carries - Egan's, or code's with why -
+from `/api/admin/groups`, the endpoint the Communities page reads. A link
+opens Communities. Read-only, like Keith's page. The Agents panel no
+longer says "eight agents".
+
+**Tests:** `tests/test_egan_580.py`
+(`test_he_has_his_own_section_on_the_admin_page`).
+
+## 589. The iPhone crashed as the date of birth was tapped (2026-11-13)
+
+**Seen.** A screen recording of "A few things before you start" on the
+iPhone: town typed with the keyboard up, Woman picked, then a tap toward the
+date of birth (still today's date, never set). The keyboard dropped, the card
+jumped from the top of the screen to its middle, and iOS said "FAM by APALI
+Crashed". Continue was still off, so nothing reached the server.
+
+**Why (reasoned from the code, no crash log).** `ActivationCard` drew its
+form through `ViewThatFits(in: .vertical) { form; ScrollView { form } }` - two
+copies, each with its own `DatePicker`. With the keyboard up the scrolling
+copy was showing. The tap took focus from the town box, the keyboard began
+to leave, and the compact picker began to present its calendar popover; the
+card then fitted again and SwiftUI swapped in the plain copy, removing the
+picker the popover was anchored to. UIKit raises on a popover whose source
+view has left the window.
+
+**Built.**
+* `ScrollsWhenTall` (`SocialParts.swift`): one `ScrollView` holding one
+  copy of the content, held to its measured height,
+  `.scrollBounceBehavior(.basedOnSize)`: it hugs the content when it fits
+  and scrolls when it does not, and nothing is ever swapped out from under
+  the picker. The activation card and What's next (whose search box lost
+  focus the same way when the keyboard came up) both use it.
+* Until a date is picked the field reads "Select your birthday" rather than
+  showing today as though it were an answer. The picker stays under the
+  words at 0.02 opacity (UIKit ignores taps below 0.01) so a tap still opens
+  its calendar; VoiceOver hears "Date of birth, Not set".
+
+**Not verified here.** No Xcode in this container: not built, not run. To
+check on a phone: open the card, type in the town box, then tap the date. The
+same for What's next: type in its search box on a small phone. The two-copy
+`ViewThatFits` remains only in `SearchParts.swift` (the consent card:
+buttons, no inputs).
+
+## 590. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13)
 
 **What was asked.** A PDF of notes, "Some smaller things", built on a
 listener's messages: "Location should be optional and not required, make
@@ -35966,6 +36021,16 @@ stretch is audible.
 NVIDIA's voicing after that message may have been heard; if it is still
 wrong on a new episode, the /admin lexicon entry §569 warned about is the
 first thing to check.
+
+**Double-checked** by a second reader of the Swift, with no compiler: one
+real error - the Return check was called as `ChatView.returnPressed`, but the
+screen is `ChatScreen` - now `Self.returnPressed`; everything else
+(the closures in `returnToThread`, the share sheet's captures, the
+snake_case keys under `.convertFromSnakeCase`, `FieldLabel`'s init) checked
+out. Known edge, left: if the keyboard's autocorrect swaps the last word and
+inserts the Return in one update, the Return stays a new line rather than
+sending. Numbered §590: §588 and §589 went to Egan's /admin page and the
+date-of-birth crash on `Main` meanwhile.
 
 **Unbuilt here:** the Swift (no compiler; `ios.yml` builds it on a Mac).
 **Tests:** `tests/test_owner_notes_1112.py`.

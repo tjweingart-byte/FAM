@@ -649,12 +649,9 @@ struct ActivationCard: View {
             } else if let confirm {
                 confirmView(confirm)
             } else {
-                // A small phone or a large text size scrolls the card
-                // rather than cutting it (`large-text`).
-                ViewThatFits(in: .vertical) {
-                    form
-                    ScrollView { form }
-                }
+                // A small phone, a large text size or the keyboard scrolls
+                // the card rather than cutting it (§589).
+                ScrollsWhenTall { form }
             }
         }
         .onAppear { fill() }
@@ -678,7 +675,27 @@ struct ActivationCard: View {
                 .labelsHidden()
                 .datePickerStyle(.compact)
                 .tint(FAMColor.copper)
-                .opacity(dateSet ? 1 : 0.6)
+                // Until a date is picked the field says so, rather than
+                // showing today as if it were an answer. The picker stays
+                // underneath, nearly clear (UIKit ignores taps below 0.01),
+                // so a tap still opens its calendar.
+                .opacity(dateSet ? 1 : 0.02)
+                .overlay {
+                    if !dateSet {
+                        Text("Select your birthday")
+                            .font(FAMFont.body(13))
+                            .foregroundStyle(FAMColor.textFaint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.horizontal, 8)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 6))
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityLabel("Date of birth")
+                .accessibilityValue(dateSet ? "" : "Not set")
             help(activation.help?.birthDate)
             FieldLabel(text: "Where you live", optional: true).padding(.top, 12)
             TextField("", text: $place, prompt: Text("Town or city").foregroundColor(FAMColor.textFaint))
