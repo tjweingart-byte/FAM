@@ -128,6 +128,7 @@
   <div class="list" id="list"></div>
 </div>
 
+<script src="/admin/claude-prompt.js"></script>
 <script>
 (function () {
   "use strict";
@@ -258,6 +259,7 @@
       + '<div class="label">First message</div>'
       + '<textarea data-edit="' + esc(k.id) + '">' + esc(msg) + '</textarea>'
       + '<div class="acts"><button class="ghost" data-act="copy" data-id="' + esc(k.id) + '">Copy message</button>'
+      + '<button class="ghost" data-act="claude" data-id="' + esc(k.id) + '" title="The whole card as a prompt: paste it into Claude and ask your question underneath">Copy for Claude</button>'
       + (contact ? '<button class="ghost" data-act="open" data-id="' + esc(k.id) + '">Copy and open ' + esc(plat.label) + '</button>' : '') + '</div>'
       + '<div class="label">Admin’s handle, as you found it</div>'
       + '<input class="handle" data-handle="' + esc(k.id) + '" value="' + esc(edits[k.id + ":h"] != null ? edits[k.id + ":h"] : (k.handle || "")) + '" maxlength="120" placeholder="e.g. their name on ' + esc(plat.label) + '">'
@@ -301,6 +303,19 @@
   }
   function message(id) { var k = lead(id); return edits[id] != null ? edits[id] : (k.message || ""); }
 
+  // "Copy for Claude" (§598): the card as one prompt, built by the shared
+  // /admin/claude-prompt.js (Egan's admin section uses the same one), with
+  // the words as they are on screen - unsaved edits included.
+  function claudePrompt(k) {
+    return window.famClaudePrompt(k, {
+      platforms: data.health.platforms, statuses: data.health.statuses,
+      message: message(k.id),
+      notes: edits[k.id + ":n"] != null ? edits[k.id + ":n"] : (k.notes || ""),
+      handle: edits[k.id + ":h"] != null ? edits[k.id + ":h"] : (k.handle || "")
+    });
+  }
+  function copyLong(text, b) { window.famCopyLong(text, b); }
+
   document.addEventListener("input", function (ev) {
     var d = ev.target.dataset || {};
     if (d.edit) edits[d.edit] = ev.target.value;
@@ -324,6 +339,10 @@
     var k = lead(id);
     if (act === "copy") {
       copy(message(id)).then(function () { b.textContent = "Copied"; }, function () { prompt("Copy the message:", message(id)); });
+      return;
+    }
+    if (act === "claude") {
+      copyLong(claudePrompt(k), b);
       return;
     }
     if (act === "copylink") {

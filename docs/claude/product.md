@@ -139,7 +139,7 @@ control and a card saying what it is. What it keeps to:
   in, asks `/api/preferences` once per device and offers it while
   `tour_done` is false; the account's "done" is then kept on the device.
 `tools/smoke_preview.py` drives it; `tests/test_tour_594.py` holds the flag.
-* **The iPhone app has the same tour** (§599, `ios/FAM/FAM/Tour.swift`): the
+* **The iPhone app has the same tour** (§600, `ios/FAM/FAM/Tour.swift`): the
   same twelve steps and words, the same flag, owed/offered/forgotten the same
   way; its differences are listed in `ios/FAM/PARITY.md`, and
   `tests/test_ios_app_contract.py` pins its steps to the web's `STEPS`.

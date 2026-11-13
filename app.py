@@ -13319,6 +13319,19 @@ async def admin_thumbnail_image(node_id: str, request: Request,
                     headers={"Cache-Control": "no-store"})
 
 
+@app.get("/admin/claude-prompt.js", include_in_schema=False)
+async def admin_claude_prompt_script(request: Request):
+    """"Copy for Claude" (§598), shared by /admin/groups and Egan's section
+    on /admin: builds a lead's prompt in the browser from what the page
+    already read. The script itself holds nothing."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "claude_prompt.js"
+    return Response(page.read_text(encoding="utf-8"),
+                    media_type="application/javascript; charset=utf-8",
+                    headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
 @app.get("/admin/keith-alerts.js", include_in_schema=False)
 async def admin_keith_alerts_script(request: Request):
     """Keith's pop-up (§489), included by every admin page: it asks

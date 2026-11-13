@@ -588,5 +588,6 @@ and `limit` = Lines.
 | 36135 | 33 | 594. A tour of the app after sign-up (2026-11-13) |
 | 36168 | 37 | 595. The tour, once, for accounts from before it (2026-11-13) |
 | 36205 | 25 | 596. The phone field says what the text is: consent for the carriers (2026-11-13) |
-| 36230 | 32 | 597. One text per account, ever (2026-11-13) |
-| 36262 | 40 | 599. iOS build 8: the tour, and what Main gave the app since build 7 (2026-11-13) |
+| 36230 | 31 | 597. One text per account, ever (2026-11-13) |
+| 36261 | 30 | 598. "Copy for Claude" on every community card (2026-11-13) |
+| 36291 | 40 | 600. iOS build 8: the tour, and what Main gave the app since build 7 (2026-11-13) |
