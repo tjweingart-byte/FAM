@@ -589,4 +589,6 @@ and `limit` = Lines.
 | 36168 | 37 | 595. The tour, once, for accounts from before it (2026-11-13) |
 | 36205 | 25 | 596. The phone field says what the text is: consent for the carriers (2026-11-13) |
 | 36230 | 31 | 597. One text per account, ever (2026-11-13) |
-| 36261 | 30 | 598. "Copy for Claude" on every community card (2026-11-13) |
+| 36261 | 31 | 598. "Copy for Claude" on every community card (2026-11-13) |
+| 36292 | 46 | 599. Junk grown from searches: the placer declines it, a lone word waits, the download shows titles (2026-11-13) |
+| 36338 | 37 | 600. An edit to the tree carries its episodes; Keith tells an owner's edit from Nando (2026-11-13) |
