@@ -108,6 +108,18 @@ arrived as words. The story card is unchanged for Instagram and Snapchat.
 Drawn on request, a few kept in memory, nothing stored; links already sent
 keep the preview they arrived with.
 
+**Sent from the app, not only pasted (§601).** The tile appears when a link
+is *pasted* into Messages; a link the app types in through `sms:&body=` or
+`mailto:` arrives as plain text and Messages and Mail send it bare. So on
+iOS the **iMessage** and **Email** tiles open the share sheet with the link
+as a rich link (`RichLink.swift`): the URL with its title and this picture
+already attached (`LPLinkMetadata`), which Messages and Mail send as the
+tile. `/api/share` names the picture as `preview`. Email keeps its words
+and subject above the tile. The picture stays under 280 KB
+(`link_preview.MAX_BYTES`), under the size WhatsApp drops a preview at.
+X, Facebook, LinkedIn, Threads, Reddit and WhatsApp read the page's own
+tags and draw the card themselves.
+
 ### Straight into the story editor (iOS, §558)
 
 On the iOS app a story tile can skip the share sheet. `/api/share` (and a

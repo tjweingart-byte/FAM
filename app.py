@@ -4497,6 +4497,11 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # a 9:16 JPEG. New fields; an installed build keeps `card`.
         "story_sticker": _share_image_url(share["id"], "sticker.png", request),
         "story_image": _share_image_url(share["id"], "story.jpg", request),
+        # The link's picture (`link_preview`), for a client that hands
+        # Messages or Mail the link with its picture as a rich link - the
+        # tile a pasted link makes, which a link typed into `sms:` or
+        # `mailto:` does not (§601).
+        "preview": _share_image_url(share["id"], "preview.jpg", request),
         "targets": _with_handoffs(rendered),
     }
 
