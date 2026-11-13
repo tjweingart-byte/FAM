@@ -153,6 +153,27 @@ class RemoteVoiceError(RuntimeError):
     """
 
 
+def active_workers() -> int:
+    """Always-on workers the RunPod endpoint keeps (§578); 0 when none, or
+    when the transport is not RunPod."""
+    if (settings.remote_voice_transport or "").strip().lower() != "runpod":
+        return 0
+    return max(0, int(settings.remote_voice_active_workers or 0))
+
+
+def _concurrency(transport: str) -> int:
+    """Chunks in flight at once, across every listener in this process.
+
+    With active workers, never more than there are: a chunk that queues
+    behind a busy active worker makes RunPod boot a flex worker, billed for
+    its boot (~73 s cold, §329), the chunk and its idle timeout - which made
+    an always-on worker cost several times its own price (§578).
+    """
+    size = max(1, int(settings.remote_voice_concurrency))
+    active = active_workers() if transport == "runpod" else 0
+    return min(size, active) if active else size
+
+
 @dataclass(frozen=True)
 class RemoteConfig:
     """The settings this engine needs, resolved and validated together.
@@ -189,7 +210,7 @@ class RemoteConfig:
             sample_rate=int(settings.remote_voice_sample_rate),
             timeout=float(settings.remote_voice_timeout),
             connect_timeout=float(settings.remote_voice_connect_timeout),
-            concurrency=max(1, int(settings.remote_voice_concurrency)),
+            concurrency=_concurrency(transport),
             voice=(settings.remote_voice_id or "").strip(),
         )
 
@@ -1002,6 +1023,10 @@ class RemoteChatterboxEngine(TTSEngine):
         config = cls.config()
         if config.problem() or config.transport != "runpod":
             return  # nothing to wake: an always-on pod is already up
+        if active_workers():
+            # An active worker is never asleep; a wake job would only queue
+            # behind it and boot a billed flex worker (§578).
+            return
         now = time.monotonic()
         if not force and now - cls._woken_at < settings.remote_voice_wake_interval:
             return  # already asked recently; another job would just queue
@@ -1057,6 +1082,8 @@ def report() -> dict:
         "configured": ok,
         "detail": detail,
         "transport": config.transport,
+        "active_workers": active_workers(),
+        "concurrency": config.concurrency,
         "sample_rate": config.sample_rate,
         # Where it points, never what authorises it.
         "endpoint": endpoint or None,

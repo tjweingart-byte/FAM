@@ -88,7 +88,7 @@ extension AppModel {
             return
         }
         // A shared episode plays for anyone (§575): somebody signed out or
-        // still on the waitlist gets the listen page's screen now (§576).
+        // still on the waitlist gets the listen page's screen now (§584).
         if stage == .signedOut || stage == .waiting, case .episode = link {
             openSharedListenIfHeld()
             return
@@ -166,7 +166,7 @@ extension AppModel {
         }
     }
 
-    // MARK: - A shared episode before the app is open to you (§576)
+    // MARK: - A shared episode before the app is open to you (§584)
 
     /// The stage settled (RootView's `onChange(of: stage)`): a link held
     /// since a cold start opens the shared screen for somebody not let in;

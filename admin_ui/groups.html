@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>FAM communities</title>
+<style>
+  /* The tracker's palette, so the admin pages read as one tool. */
+  :root {
+    --ground:#14111C; --panel:#1C1926; --surface:#262233; --raised:#302A40;
+    --line:#3A3348; --ink:#F1EEF7; --muted:#A79EBA; --faint:#7C7391;
+    --amber:#E9BC63; --green:#6BC2A8; --green-bg:#17322C;
+    --rose:#DE8FA8; --rose-bg:#33202A;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.5 var(--sans); }
+  button, input, textarea, select { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+  a { color:var(--amber); }
+  :focus-visible { outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:22px 16px 60px; }
+  .eyebrow { font:11px var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:6px; }
+  .eyebrow a { color:inherit; }
+  h1 { font-family:var(--serif); font-size:clamp(1.6rem,4vw,2.2rem); font-weight:600; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; max-width:780px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; }
+  .kpi { background:var(--panel); padding:12px 14px; }
+  .kpi span { display:block; font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+  .kpi b { display:block; font-family:var(--serif); font-size:24px; font-variant-numeric:tabular-nums; }
+  .kpi em { display:block; font-style:normal; font-size:11.5px; color:var(--muted); }
+  .bar { display:flex; flex-direction:column; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .bar input[type=text] { flex:1 1 220px; min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px; }
+  .go { background:var(--amber); color:#1b1408; border:0; border-radius:8px; padding:7px 14px; font-weight:600; }
+  .go:disabled { opacity:.5; cursor:default; }
+  .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
+  .ghost.on { color:var(--ink); border-color:var(--amber); }
+  .plat { font-size:12.5px; color:var(--muted); display:flex; gap:4px; align-items:center; }
+  .note { font-size:12.5px; color:var(--muted); }
+  .note.err { color:var(--rose); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .list { display:flex; flex-direction:column; gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+  @media (max-width:760px) { .card { grid-template-columns:1fr; } }
+  .col { display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .name { font-family:var(--serif); font-size:18px; font-weight:600; word-break:break-word; }
+  .chips { display:flex; flex-wrap:wrap; gap:4px; }
+  .chip { font:10px var(--mono); border-radius:999px; padding:2px 7px; background:var(--surface); color:var(--muted); }
+  .chip.p { color:var(--amber); }
+  .chip.ok { background:var(--green-bg); color:var(--green); }
+  .chip.bad { background:var(--rose-bg); color:var(--rose); }
+  .reason, .desc { font-size:12.5px; color:var(--muted); word-break:break-word; }
+  .how { font-size:12.5px; border-left:3px solid var(--amber); padding:2px 0 2px 8px; }
+  .facts { display:grid; grid-template-columns:auto 1fr; gap:3px 10px; font-size:12.5px; }
+  .facts dt { font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); padding-top:3px; }
+  .facts dd { margin:0; word-break:break-word; }
+  .pitch { background:var(--surface); border:1px dashed var(--line); border-radius:10px; padding:8px 10px; font-size:12.5px; }
+  .pitch b { font-family:var(--serif); font-size:15px; display:block; }
+  .pitch span { color:var(--muted); display:block; }
+  .label { font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+  textarea { width:100%; min-height:110px; resize:vertical; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; line-height:1.45; }
+  textarea.notes { min-height:54px; }
+  input.handle { width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:7px 10px; }
+  .acts { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .gate { max-width:360px; margin:12vh auto; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .gate form { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .gate input { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .empty { color:var(--muted); font-size:13px; padding:20px; text-align:center; background:var(--panel); border:1px dashed var(--line); border-radius:12px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="gate" id="gate" hidden>
+  <div class="eyebrow">FAM admin</div>
+  <h1>Communities</h1>
+  <p class="sub">Sign in with an admin account.</p>
+  <form id="loginForm" autocomplete="on">
+    <input id="email" type="email" placeholder="Email" autocomplete="username" required>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="go" id="loginBtn" type="submit">Sign in</button>
+    <p class="note err" id="loginErr" hidden></p>
+    <p id="forgotLink" hidden style="margin:10px 0 0;font-size:13px;"><a href="/reset?next=/admin/groups" style="color:inherit;opacity:.75">Forgot password?</a></p>
+  </form>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <div class="eyebrow"><a href="/admin">FAM admin</a> · Communities</div>
+  <h1>Communities to reach</h1>
+  <p class="sub">Facebook groups, subreddits, X Communities, Discord servers and Slack communities about
+    the subjects FAM covers, found by web search and Reddit's and X's own APIs, or sent to Egan by you. Each card says how to reach the admins through the
+    community's <b>own public channel</b>, three episodes FAM could make for its members (ideas only,
+    not written), and a first message to edit. You reach out from FAM's account; nothing here sends
+    anything. FAM never collects phone numbers, and keeps an email only when the community publishes it
+    as its contact.</p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="bar" id="sendBar">
+    <div class="label">Send a group to Egan</div>
+    <div class="row">
+      <input type="text" id="sendUrl" placeholder="Paste its link: a Facebook group, subreddit, X Community, Discord invite or Slack workspace" maxlength="500">
+    </div>
+    <div class="row">
+      <input type="text" id="sendSubject" placeholder="What to pitch it on (optional; its name if empty)" maxlength="80">
+      <input type="text" id="sendNote" placeholder="What you know about it, for Egan - no names or contact details (optional)" maxlength="600">
+      <button class="go" id="sendBtn">Send to Egan</button>
+    </div>
+    <span class="note" id="sendNote2">Egan looks it up, works out the public way to its admins, judges the fit and drafts a message. It stays in To contact whatever he thinks of it.</span>
+  </div>
+
+  <div class="bar">
+    <div class="row">
+      <input type="text" id="subjects" placeholder="Subjects, separated by commas (e.g. Philadelphia Eagles, Austin food)" maxlength="400">
+      <button class="go" id="runBtn">Find communities</button>
+    </div>
+    <div class="row" id="plats"></div>
+    <div class="row"><span class="note" id="suggest"></span></div>
+    <span class="note" id="runNote"></span>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="tabs" id="ptabs"></div>
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var tab = "new", ptab = "", data = null, edits = {};
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function api(path, body) {
+    var headers = { "Accept": "application/json" };
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+                         body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) {
+            var e = new Error(j.error || (typeof j.detail === "string" ? j.detail : "") || ("HTTP " + r.status));
+            e.status = r.status; throw e;
+          }
+          return j;
+        });
+      });
+  }
+  function kpi(label, value, note) {
+    return '<div class="kpi"><span>' + esc(label) + '</span><b>' + esc(value) + '</b>'
+      + (note ? '<em>' + esc(note) + '</em>' : '') + '</div>';
+  }
+  function when(t) {
+    if (!t) return "";
+    var d = new Date(t * 1000);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " "
+      + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+  // Only http(s) links are drawn: a page's text is the search's, not ours.
+  function safeUrl(u) { return /^https?:\/\//i.test(u || "") ? u : ""; }
+
+  function drawKpis() {
+    var h = data.health, c = h.counts || {}, last = h.last_run;
+    var total = 0; Object.keys(c).forEach(function (k) { if (k !== "set_aside") total += c[k]; });
+    $("kpis").innerHTML =
+      kpi("To contact", c["new"] || 0) +
+      kpi("Contacted", (c.contacted || 0) + (c.replied || 0), (c.replied || 0) + " replied") +
+      kpi("Invited", c.invited || 0) +
+      kpi("Joined", c.joined || 0) +
+      kpi("Searches today", (h.searches_today || 0) + " / " + h.daily_searches, h.max_searches + " per run") +
+      kpi("Last search", last ? when(last.at) : "never",
+          last ? (last.kept + " kept, " + last.set_aside + " set aside" + (last.stopped ? "; " + last.stopped : "")) : "");
+    var note = $("runNote");
+    if (!h.available) { note.className = "note err"; note.textContent = "Search unavailable: " + h.detail + "."; }
+    else if (data.running) { note.className = "note"; note.textContent = "Searching… cards appear as they are read."; }
+    else if (last && last.failed && last.failed.length) { note.className = "note err"; note.textContent = last.failed.length + " searches failed: " + last.failed[0]; }
+    else { note.className = "note"; note.textContent = h.detail + "."; }
+    $("runBtn").disabled = !h.available || data.running;
+  }
+
+  function drawControls() {
+    var h = data.health, plats = h.platforms || {};
+    if (!$("plats").dataset.drawn) {
+      $("plats").innerHTML = Object.keys(plats).map(function (k) {
+        return '<label class="plat"><input type="checkbox" data-plat="' + esc(k) + '" checked> ' + esc(plats[k].label) + '</label>';
+      }).join("");
+      $("plats").dataset.drawn = "1";
+    }
+    var s = data.suggested || [];
+    $("suggest").innerHTML = s.length
+      ? "Left empty, it searches FAM's most played subjects: " + s.map(function (x) {
+          return '<button class="ghost" data-add="' + esc(x) + '">' + esc(x) + '</button>';
+        }).join(" ")
+      : "Name at least one subject: FAM has no played episodes to suggest one from yet.";
+    var tabs = [["new", "To contact"], ["contacted", "Contacted"], ["replied", "Replied"], ["invited", "Invited"],
+                ["joined", "Joined"], ["passed", "Passed"], ["", "All"], ["set_aside", "Set aside"]];
+    $("tabs").innerHTML = tabs.map(function (t) {
+      return '<button class="ghost' + (tab === t[0] ? " on" : "") + '" data-tab="' + t[0] + '">' + esc(t[1]) + '</button>';
+    }).join("");
+    $("ptabs").innerHTML = [["", "Every platform"]].concat(Object.keys(plats).map(function (k) { return [k, plats[k].label]; }))
+      .map(function (t) {
+        return '<button class="ghost' + (ptab === t[0] ? " on" : "") + '" data-ptab="' + t[0] + '">' + esc(t[1]) + '</button>';
+      }).join("");
+  }
+
+  var NEXT = { "new": [["contacted", "I messaged them"], ["passed", "Pass"]],
+               contacted: [["replied", "They replied"], ["passed", "No answer / pass"]],
+               replied: [["invited", "Invited them"], ["passed", "They said no"]],
+               invited: [["joined", "They joined"], ["passed", "Pass"]],
+               joined: [], passed: [["new", "Back to contact"]] };
+
+  function card(k) {
+    var plat = (data.health.platforms || {})[k.platform] || { label: k.platform, noun: "community" };
+    var url = safeUrl(k.url), contact = safeUrl(k.contact_url), seen = safeUrl(k.seen_at);
+    var msg = edits[k.id] != null ? edits[k.id] : (k.message || "");
+    var left = '<div class="col">'
+      + '<div class="chips"><span class="chip p">' + esc(plat.label) + '</span>'
+      + (k.members ? '<span class="chip">' + Number(k.members).toLocaleString() + ' members</span>' : '')
+      + (k.privacy ? '<span class="chip">' + esc(k.privacy) + '</span>' : '')
+      + '<span class="chip ' + (k.fit >= 4 ? "ok" : k.fit < 3 ? "bad" : "") + '">fit ' + esc(k.fit) + '/5</span>'
+      + '<span class="chip">' + esc(data.health.statuses[k.status] || k.status) + '</span>'
+      + (k.source === "sent" ? '<span class="chip ok">sent by your team</span>' : '') + '</div>'
+      + '<div class="name">' + (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(k.name || k.ident) + '</a>' : esc(k.name || k.ident)) + '</div>'
+      + '<div class="reason">' + esc(k.reason) + (k.fit_why ? ' ' + esc(k.fit_why) : '') + '</div>'
+      + (k.description ? '<div class="desc">' + esc(k.description) + '</div>' : '')
+      + (k.note ? '<div class="desc"><b>Your note:</b> ' + esc(k.note) + '</div>' : '')
+      + '<div class="how"><b>How to reach the admins.</b> ' + esc(k.how)
+      + (contact ? ' <a href="' + esc(contact) + '" target="_blank" rel="noopener noreferrer">Open</a>' : '') + '</div>'
+      + '<dl class="facts">'
+      + (k.admin_hint && k.admin_hint.length ? '<dt>Named admin</dt><dd>' + esc(k.admin_hint.join(", ")) + ' <span class="note">(as the page states it)</span></dd>' : '')
+      + (k.public_contact && k.public_contact.length ? '<dt>Public contact</dt><dd>' + k.public_contact.map(function (e) {
+          return '<a href="mailto:' + esc(e) + '">' + esc(e) + '</a>'; }).join(", ") + ' <span class="note">(published by the community)</span></dd>' : '')
+      + (seen ? '<dt>Found on</dt><dd><a href="' + esc(seen) + '" target="_blank" rel="noopener noreferrer">' + esc(seen.replace(/^https?:\/\//, "").slice(0, 70)) + '</a></dd>' : '')
+      + (k.looked_up_with ? '<dt>Read from</dt><dd>' + esc(k.looked_up_with) + '</dd>' : '')
+      + '<dt>' + (k.source === "sent" ? "Sent" : "Searched") + '</dt><dd>' + esc(k.subject) + ', ' + esc(when(k.found_at)) + '</dd>'
+      + '</dl></div>';
+    var right = '<div class="col">'
+      + '<div class="label">Episodes to pitch (ideas, not written; ' + (k.drafted_by === "code" ? "composed in code" : "by " + esc(k.drafted_by)) + ')</div>'
+      + (k.pitches || []).map(function (p) {
+          return '<div class="pitch"><b>' + esc(p.title) + '</b><span>' + esc(p.angle) + '</span>'
+            + (p.why ? '<span><i>' + esc(p.why) + '</i></span>' : '') + '</div>';
+        }).join("")
+      + (k.episode ? '<div class="pitch"><span class="label">FAM already has</span><b>' + esc(k.episode.title) + '</b>'
+          + '<span>' + esc(k.episode.minutes) + ' min · match ' + Math.round((k.episode.match || 0) * 100) + '%'
+          + (k.listened_at ? ' · heard ' + esc(when(k.listened_at)) : '') + '</span>'
+          + '<div class="acts" style="margin-top:6px"><button class="ghost" data-act="listen" data-id="' + esc(k.id) + '">'
+          + (k.listened_at ? "Listen again" : "Listen first") + '</button>'
+          + (k.share_url ? '<button class="ghost" data-act="copylink" data-id="' + esc(k.id) + '">Copy the link</button>' : '')
+          + '</div></div>' : '')
+      + '<div class="label">First message</div>'
+      + '<textarea data-edit="' + esc(k.id) + '">' + esc(msg) + '</textarea>'
+      + '<div class="acts"><button class="ghost" data-act="copy" data-id="' + esc(k.id) + '">Copy message</button>'
+      + (contact ? '<button class="ghost" data-act="open" data-id="' + esc(k.id) + '">Copy and open ' + esc(plat.label) + '</button>' : '') + '</div>'
+      + '<div class="label">Admin’s handle, as you found it</div>'
+      + '<input class="handle" data-handle="' + esc(k.id) + '" value="' + esc(edits[k.id + ":h"] != null ? edits[k.id + ":h"] : (k.handle || "")) + '" maxlength="120" placeholder="e.g. their name on ' + esc(plat.label) + '">'
+      + '<div class="label">Notes</div>'
+      + '<textarea class="notes" data-notes="' + esc(k.id) + '" maxlength="2000">' + esc(edits[k.id + ":n"] != null ? edits[k.id + ":n"] : (k.notes || "")) + '</textarea>'
+      + (k.status === "set_aside" ? '<div class="note">Set aside by the read: listed for audit only.</div>'
+         : '<div class="acts">' + (NEXT[k.status] || []).map(function (n, i) {
+             return '<button class="' + (i === 0 ? "go" : "ghost") + '" data-act="move" data-to="' + n[0] + '" data-id="' + esc(k.id) + '">' + esc(n[1]) + '</button>';
+           }).join("") + '<button class="ghost" data-act="save" data-id="' + esc(k.id) + '">Save notes</button></div>')
+      + (k.status === "invited" ? '<div class="note">Once they sign up at /waitlist, let them in on <a href="/admin/waitlist">the waitlist page</a>.</div>' : '')
+      + '</div>';
+    return '<div class="card">' + left + right + '</div>';
+  }
+
+  function render() {
+    drawKpis(); drawControls();
+    var leads = data.leads || [];
+    $("list").innerHTML = leads.length ? leads.map(card).join("")
+      : '<div class="empty">' + (tab === "new" ? "No communities waiting. Name a subject and press Find communities." : "Nothing here.") + '</div>';
+  }
+
+  function load() {
+    var q = "?status=" + encodeURIComponent(tab) + "&platform=" + encodeURIComponent(ptab);
+    return api("/api/admin/groups" + q).then(function (d) {
+      data = d;
+      $("gate").hidden = true; $("app").hidden = false;
+      var a = document.activeElement;
+      var typing = a && a.dataset && (a.dataset.edit || a.dataset.notes || a.dataset.handle) || (a && (a.id === "subjects" || /^send/.test(a.id)));
+      if (!typing) render(); else drawKpis();
+    }).catch(function (e) {
+      if (e.status === 404 || e.status === 401) { $("app").hidden = true; $("gate").hidden = false; }
+    });
+  }
+
+  function lead(id) { return (data.leads || []).filter(function (k) { return k.id === id; })[0]; }
+  function copy(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    } catch (e) {}
+    return Promise.reject(new Error("no clipboard"));
+  }
+  function message(id) { var k = lead(id); return edits[id] != null ? edits[id] : (k.message || ""); }
+
+  document.addEventListener("input", function (ev) {
+    var d = ev.target.dataset || {};
+    if (d.edit) edits[d.edit] = ev.target.value;
+    if (d.notes) edits[d.notes + ":n"] = ev.target.value;
+    if (d.handle) edits[d.handle + ":h"] = ev.target.value;
+  });
+
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b) return;
+    if (b.dataset.tab != null) { tab = b.dataset.tab; load(); return; }
+    if (b.dataset.ptab != null) { ptab = b.dataset.ptab; load(); return; }
+    if (b.dataset.add) {
+      var box = $("subjects"), have = box.value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      if (have.indexOf(b.dataset.add) < 0) have.push(b.dataset.add);
+      box.value = have.join(", ");
+      return;
+    }
+    var id = b.dataset.id, act = b.dataset.act;
+    if (!id || !act) return;
+    var k = lead(id);
+    if (act === "copy") {
+      copy(message(id)).then(function () { b.textContent = "Copied"; }, function () { prompt("Copy the message:", message(id)); });
+      return;
+    }
+    if (act === "copylink") {
+      copy(k.share_url).then(function () { b.textContent = "Copied"; }, function () { prompt("Copy the link:", k.share_url); });
+      return;
+    }
+    if (act === "open") {
+      copy(message(id)).catch(function () {});
+      window.open(k.contact_url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (act === "listen") {
+      var lw = window.open("", "_blank");
+      b.disabled = true;
+      api("/api/admin/groups/listen", { id: id }).then(function (r) {
+        if (lw) { lw.opener = null; lw.location.href = r.url; } else window.open(r.url, "_blank", "noopener");
+        return load();
+      }).catch(function (e) { if (lw) lw.close(); alert(e.message); })
+        .then(function () { b.disabled = false; });
+      return;
+    }
+    var body = { id: id, status: act === "move" ? b.dataset.to : k.status };
+    if (edits[id + ":n"] != null) body.notes = edits[id + ":n"];
+    if (edits[id + ":h"] != null) body.handle = edits[id + ":h"];
+    b.disabled = true;
+    api("/api/admin/groups/move", body).then(function () {
+      delete edits[id + ":n"]; delete edits[id + ":h"];
+      return load();
+    }).catch(function (e) { alert(e.message); b.disabled = false; });
+  });
+
+  $("sendBtn").addEventListener("click", function () {
+    var url = $("sendUrl").value.trim();
+    if (!url) { $("sendNote2").className = "note err"; $("sendNote2").textContent = "Paste the group's link first."; return; }
+    $("sendBtn").disabled = true;
+    $("sendNote2").className = "note"; $("sendNote2").textContent = "Egan is reading it…";
+    api("/api/admin/groups/send", { url: url, subject: $("sendSubject").value.trim(), note: $("sendNote").value.trim() })
+      .then(function (r) {
+        $("sendNote2").className = "note";
+        $("sendNote2").textContent = (r.already ? "Already on the page: " : "Done: ") + (r.lead.name || r.lead.ident)
+          + (r.already ? "." : " is in To contact.");
+        $("sendUrl").value = ""; $("sendSubject").value = ""; $("sendNote").value = "";
+        tab = r.lead.status || "new"; ptab = "";
+        return load();
+      })
+      .catch(function (e) { $("sendNote2").className = "note err"; $("sendNote2").textContent = e.message; })
+      .then(function () { $("sendBtn").disabled = false; });
+  });
+
+  $("runBtn").addEventListener("click", function () {
+    var subjects = $("subjects").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+    var platforms = Array.prototype.slice.call(document.querySelectorAll("[data-plat]"))
+      .filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.plat; });
+    if (!platforms.length) { $("runNote").className = "note err"; $("runNote").textContent = "Tick at least one platform."; return; }
+    $("runBtn").disabled = true;
+    api("/api/admin/groups/run", { subjects: subjects, platforms: platforms })
+      .then(function (r) { $("runNote").className = "note"; $("runNote").textContent = "Searching for " + r.subjects.join(", ") + "…"; tab = "new"; return load(); })
+      .catch(function (e) { $("runNote").className = "note err"; $("runNote").textContent = e.message; $("runBtn").disabled = false; });
+  });
+
+  fetch("/api/auth/reset", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { $("forgotLink").hidden = !(d && d.available); })
+    .catch(function () {});
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").hidden = true; $("loginBtn").disabled = true;
+    api("/api/admin/login", { email: $("email").value.trim(), password: $("password").value })
+      .then(load)
+      .catch(function (e) { $("loginErr").textContent = e.message; $("loginErr").hidden = false; })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+
+  load();
+  setInterval(function () { if (!document.hidden && data) load(); }, 8000);
+})();
+</script>
+<!-- Keith's alerts on every admin page (§489). -->
+<script src="/admin/keith-alerts.js" defer></script>
+</body>
+</html>

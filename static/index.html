@@ -20004,7 +20004,7 @@
     nameEl.classList.toggle("is-explicit", !!person.explicit);
     paintPersonAv(document.getElementById("thread-av"), person);
     var sub = document.getElementById("thread-sub");
-    // "1 person" at one, as the app says it (§576).
+    // "1 person" at one, as the app says it (§584).
     var memberCount = (person.members || []).length;
     if(sub) sub.textContent = person.group
       ? memberCount + (memberCount === 1 ? " person" : " people") + " · See who’s here"

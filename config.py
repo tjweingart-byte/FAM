@@ -1331,28 +1331,20 @@ class Settings:
     trending_bank_max_age_hours: float = _env_float(
         "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
 
-    # --- Conversations on X (`/admin/x`, x_threads.py, §321) ---------------
-    # A read-only X API bearer token (X_BEARER_TOKEN, read through
-    # `credentials`) is the statement of intent; unset, the page says so.
-    # X bills per post read, so a run and a day are both capped.
-    x_threads_max_reads: int = _env_int("X_THREADS_MAX_READS", 300)
-    x_threads_daily_reads: int = _env_int("X_THREADS_DAILY_READS", 600)
-    # Only posts younger than this: a reply is read while a thread is moving.
-    # X's recent search reaches back seven days and refuses anything older.
-    x_threads_window_hours: float = max(
-        1.0, min(_env_float("X_THREADS_WINDOW_HOURS", 6.0), 168.0))
-    # How many episodes one run looks for conversations about.
-    x_threads_seeds: int = _env_int("X_THREADS_SEEDS", 10)
-    # High engagement is the target (§337): a post with fewer interactions
-    # (likes, replies, reposts and quotes together) is not a card.
-    x_threads_min_engagement: int = max(0, _env_int("X_THREADS_MIN_ENGAGEMENT", 25))
-    # The replies read under each card as context for the read (§368): the
-    # original post sets the subject, replies only say what is debated. X's
-    # least is 10 a request; 0 reads none. Counted inside the ceilings above.
-    x_threads_reply_reads: int = max(0, _env_int("X_THREADS_REPLY_READS", 10))
-    # Drafts the replies a person approves. A short call; the small model.
-    x_threads_model: str = field(
-        default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
+    # --- Communities to reach (`/admin/groups`, communities.py, §579) -------
+    # Facebook groups, subreddits, X Communities, Discord servers and Slack
+    # communities about FAM's subjects, found by web search through the
+    # research backends, and Reddit's and X's read-only APIs where their keys
+    # are set (§581) - never a signed-in scrape.
+    # Each search is billed, so a run and a day are both capped.
+    communities_max_searches: int = max(0, _env_int("COMMUNITIES_MAX_SEARCHES", 20))
+    communities_daily_searches: int = max(0, _env_int("COMMUNITIES_DAILY_SEARCHES", 60))
+    # Subjects one run searches, each on every chosen platform.
+    communities_subjects: int = max(1, _env_int("COMMUNITIES_SUBJECTS", 5))
+    # Leads one run reads (pitches and a message each) and leaves on the page.
+    communities_shortlist: int = max(1, _env_int("COMMUNITIES_SHORTLIST", 12))
+    # The pitches and the first message are Egan's (§580, `outreach_*`
+    # with the other agents' settings); without him they are composed in code.
 
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.
@@ -1796,6 +1788,13 @@ class Settings:
     # each ask is a queued job.
     remote_voice_wake_interval: float = _env_float(
         "REMOTE_VOICE_WAKE_INTERVAL", 60.0)
+    # How many always-on ("active") workers the RunPod endpoint keeps, as set
+    # in its console (§578). 0 is a pure pay-per-second endpoint. Above 0,
+    # nothing is asleep, so no wake job is sent, and at most this many chunks
+    # are in flight at once (the lower of this and REMOTE_VOICE_CONCURRENCY):
+    # a chunk queued behind a busy active worker makes RunPod boot a flex
+    # worker, billed for its boot, the chunk and its idle timeout.
+    remote_voice_active_workers: int = _env_int("REMOTE_VOICE_ACTIVE_WORKERS", 0)
     # --- Finding the worker, rather than being told where it is ----------
     # `voice_control.py` is the whole of this. The settings below decide how
     # hard FAM works to keep its own address for the voice correct while
@@ -2120,6 +2119,12 @@ class Settings:
     it_agent: bool = field(
         default_factory=lambda: os.environ.get("IT_AGENT", "0")
         not in ("0", "false", "False", ""))
+    # Egan, the outreach agent (§580, `/admin/groups`). Waiting for the
+    # owner's signature on his rule book: until it is signed his calls are
+    # refused whatever this says, and the page composes in code.
+    outreach_agent: bool = field(
+        default_factory=lambda: os.environ.get("OUTREACH_AGENT", "0")
+        not in ("0", "false", "False", ""))
     # **Each agent's model, its own setting** (§346, the owner's decisions of
     # 2026-10-30): `vendor:model-id`, an exact model and never a moving
     # alias, and never `MODEL` - an empty value means the agent makes no
@@ -2180,6 +2185,9 @@ class Settings:
     it_summary_model: str = field(
         default_factory=lambda: os.environ.get(
             "IT_SUMMARY_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    outreach_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "OUTREACH_MODEL", "anthropic:claude-haiku-5-5").strip())
     # **The rule-book lock** (§348, `agents/rulebooks.py`). Where the rule
     # books are read from (empty: `docs/agent_rules/`), the owner's public
     # key (always the committed `docs/agent_rules/owner.pub`, whatever
@@ -2355,6 +2363,10 @@ class Settings:
                 "fam,gdelt,tiingo,balldontlie,perplexity,gnews").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
+    # Egan's one call per community (§580): nobody waits on it, a person
+    # pressed a button; one retry when code sends his answer back.
+    outreach_timeout_seconds: float = _env_float("OUTREACH_TIMEOUT_SECONDS", 45.0)
+    outreach_max_tokens: int = _env_int("OUTREACH_MAX_TOKENS", 1200)
     # **Keith's usage monitors** (§483, keith.md "always" 6): the owner's
     # monthly budget per service in dollars, "runpod=300,anthropic=200".
     # Empty: the spend is shown with no share of anything. A warning at
@@ -2473,6 +2485,11 @@ class Settings:
                 raise ValueError(
                     f"REMOTE_VOICE_CONCURRENCY={self.remote_voice_concurrency} "
                     "must be at least 1; zero would deadlock every episode.")
+            if self.remote_voice_active_workers < 0:
+                raise ValueError(
+                    f"REMOTE_VOICE_ACTIVE_WORKERS={self.remote_voice_active_workers} "
+                    "must be 0 (a pay-per-second endpoint) or the number of "
+                    "active workers set in the RunPod console.")
             if str(self.voice_discovery).strip().lower() not in VOICE_DISCOVERY:
                 # Refused rather than treated as `off`: a typo that quietly
                 # switched discovery off would look exactly like the old

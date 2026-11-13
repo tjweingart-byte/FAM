@@ -28,7 +28,18 @@ AGENTS: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
     "housekeeper": ("Consuela", "consuela.md", "housekeeper",
                     ("housekeeper_model", "housekeeper_review_model")),
     "it": ("Keith Wong", "keith.md", "it_agent", ("it_model", "it_summary_model")),
+    # Egan, the outreach agent (§580; signed by the owner, manifest v9, §583).
+    "outreach": ("Egan", "egan.md", "outreach_agent", ("outreach_model",)),
 }
+
+#: **Agents built and waiting for the owner's signature** (§580): the same
+#: shape as `AGENTS`. Its rule book waits in `docs/agent_rule_proposals/`
+#: with `docs/agent_rules/MANIFEST.pending.json`, because an unsigned book in
+#: the signed folder would hold every agent. Until it moves into `AGENTS`, in
+#: the commit that brings its signed book, `agents/models.py` refuses its
+#: calls (not an agent) and its work runs in code, as it did before. None
+#: waits now: Egan was signed in §583.
+PROPOSED: dict[str, tuple[str, str, str, tuple[str, ...]]] = {}
 
 #: The rule book every agent also follows.
 EVERY_AGENT = "every-agent.md"

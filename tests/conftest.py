@@ -153,11 +153,10 @@ FAM_ENVIRONMENT = (
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
-    # /admin/x (§321); its token is cleared by `isolated_x_threads`.
-    "X_THREADS_MAX_READS",
-    "X_THREADS_DAILY_READS", "X_THREADS_WINDOW_HOURS", "X_THREADS_SEEDS", "X_THREADS_MIN_ENGAGEMENT",
-    "X_THREADS_REPLY_READS",
-    "X_THREADS_MODEL",
+    # /admin/groups (§579).
+    "COMMUNITIES_MAX_SEARCHES", "COMMUNITIES_DAILY_SEARCHES",
+    "COMMUNITIES_SUBJECTS", "COMMUNITIES_SHORTLIST",
+    "OUTREACH_AGENT", "OUTREACH_MODEL", "OUTREACH_TIMEOUT_SECONDS", "OUTREACH_MAX_TOKENS",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
@@ -228,7 +227,7 @@ FAM_ENVIRONMENT = (
     "VOICE_BACKEND", "REMOTE_VOICE_TRANSPORT", "REMOTE_VOICE_URL",
     "REMOTE_VOICE_TOKEN", "REMOTE_VOICE_SAMPLE_RATE", "REMOTE_VOICE_TIMEOUT",
     "REMOTE_VOICE_CONNECT_TIMEOUT", "REMOTE_VOICE_CONCURRENCY",
-    "REMOTE_VOICE_ID", "REMOTE_VOICE_WAKE_INTERVAL",
+    "REMOTE_VOICE_ID", "REMOTE_VOICE_WAKE_INTERVAL", "REMOTE_VOICE_ACTIVE_WORKERS",
     "RUNPOD_ENDPOINT_ID", "RUNPOD_API_KEY", "RUNPOD_BASE_URL",
     # How the worker is *found* rather than what it is (§112). A developer
     # with VOICE_REGISTRY_TOKEN or RUNPOD_POD set must not run a suite whose
@@ -830,19 +829,23 @@ def isolated_thumbnails(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def isolated_x_threads(tmp_path, monkeypatch):
-    """`/admin/x`'s cards (§321) per test: `x_threads._STORE` is a
+def isolated_communities(tmp_path, monkeypatch):
+    """`/admin/groups`' leads (§579) per test: `communities._STORE` is a
     process-global, like the tile pictures above."""
-    import x_threads
+    import communities
+    import community_sources
 
-    monkeypatch.setenv("X_THREADS_DB", str(tmp_path / "stores" / "x_threads.db"))
-    # Read through `credentials`, not config.py: a developer's X token must
-    # not let a test reach api.x.com.
-    monkeypatch.delenv("X_BEARER_TOKEN", raising=False)
-    monkeypatch.delenv("X_BEARER_TOKENS", raising=False)
-    x_threads.reset()
+    monkeypatch.setenv("COMMUNITIES_DB", str(tmp_path / "stores" / "communities.db"))
+    # Read through `credentials`, not config.py: a developer's Reddit or X
+    # key must not let a test reach their APIs (§581).
+    for name in ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "X_BEARER_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name + "S", raising=False)
+    communities.reset()
+    community_sources.reset_token()
     yield
-    x_threads.reset()
+    communities.reset()
+    community_sources.reset_token()
 
 
 @pytest.fixture(autouse=True)

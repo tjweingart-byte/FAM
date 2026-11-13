@@ -65,6 +65,7 @@ def configure(monkeypatch, **overrides):
         "remote_voice_concurrency": 2,
         "remote_voice_id": "",
         "remote_voice_wake_interval": 60.0,
+        "remote_voice_active_workers": 0,
         # The ladder is part of this engine's configuration now: `diagnose()`
         # asks it whether an address can be *found* when none is set. Pinned
         # here rather than inherited from the environment so a test describes
@@ -865,3 +866,48 @@ def test_a_dead_configured_address_is_not_tried_again_every_chunk(monkeypatch):
         "https://dead-pod.example/synth",
         "https://live-pod.example/synth",
         "https://live-pod.example/synth"]
+
+
+# --- an always-on (active) worker: nothing to wake, nothing to queue (§578) --
+
+def test_an_active_worker_is_never_woken(monkeypatch):
+    """A wake job queued behind a busy active worker boots a billed flex
+    worker; with an active worker nothing is asleep, so none is sent."""
+    configure(monkeypatch, remote_voice_active_workers=1)
+    client = install(monkeypatch, AssertionError("woke an active worker"))
+    run(RemoteChatterboxEngine.wake(force=True))
+    run(RemoteChatterboxEngine.wake())
+    assert client.posts == []
+
+
+def test_active_workers_cap_the_chunks_in_flight(monkeypatch):
+    """No more chunks in flight than active workers: a queued one makes
+    RunPod start a flex worker beside the always-on one."""
+    configure(monkeypatch, remote_voice_concurrency=4,
+              remote_voice_active_workers=1)
+    assert remote_voice.RemoteConfig.from_settings().concurrency == 1
+    configure(monkeypatch, remote_voice_concurrency=1,
+              remote_voice_active_workers=3)
+    assert remote_voice.RemoteConfig.from_settings().concurrency == 1
+
+
+def test_no_active_workers_keeps_the_fan_out_and_the_wake(monkeypatch):
+    configure(monkeypatch, remote_voice_concurrency=4,
+              remote_voice_active_workers=0)
+    assert remote_voice.RemoteConfig.from_settings().concurrency == 4
+    client = install(monkeypatch, FakeResponse({"id": "job-1"}))
+    run(RemoteChatterboxEngine.wake(force=True))
+    assert len(client.posts) == 1
+
+
+def test_active_workers_mean_nothing_to_an_http_pod(monkeypatch):
+    configure(monkeypatch, remote_voice_transport="http",
+              remote_voice_url="https://pod.example",
+              remote_voice_concurrency=4, remote_voice_active_workers=1)
+    assert remote_voice.RemoteConfig.from_settings().concurrency == 4
+
+
+def test_negative_active_workers_are_refused():
+    with pytest.raises(ValueError, match="REMOTE_VOICE_ACTIVE_WORKERS"):
+        dataclasses.replace(config.settings, voice_backend="remote",
+                            remote_voice_active_workers=-1)

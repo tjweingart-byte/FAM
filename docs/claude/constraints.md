@@ -1481,6 +1481,13 @@
   always delete itself. Profile setup writes only `/api/me` and `/api/preferences`,
   which cannot reach `status`, `referred_by`, place or admin. Launch is
   `WAITLIST=0`.
+<!-- rule:free-month -->
+- **Five friends earn a free month** (PROBLEMS.md §577, the owner 13/11):
+  friends count as invites do (`referred_by`); the fifth stamps
+  `free_month_earned_at` once, never cleared; the month is "plus" from the
+  admin-set launch day (`free_month_starts`) for 30 days, the same month for
+  everyone; it only raises a plan. The page's "five" is pinned to
+  `FREE_MONTH_INVITES` by a test.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   > **Current (§519, the 11.9 packet):** switched **off again in production**
@@ -1641,64 +1648,79 @@
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
-  > **Current:** since §321 FAM holds one read-only X search credential
+  > **Current:** since §321 FAM held one read-only X search credential
   > (`X_BEARER_TOKEN`) for its own account's outreach, and still nothing
-  > that can post - see [x-threads].
-<!-- rule:x-threads -->
-- **FAM on X is found by code and posted by a person** (§321, `x_threads.py`,
-  `/admin/x`). A search starts from episodes FAM already has (the Trending
-  edition, then the most played kept episodes) and looks for the threads
-  they answer, so the episode exists before the thread is found. Code
-  screens (age, replies, author size, organisations, grief and flame-war
-  subjects, one author a week) and scores (episode match, engagement per
-  hour, a question, room in the thread, author fit); each card carries its
-  reason in words ([candidate-reason]). A reply links an episode only when
-  the episode is the thread's subject; otherwise it asks a better question.
-  **Every card is about the post it answers** (§326): a one-word name is
-  searched only beside the episode's own subject words; code drops a post
-  that shares a name and nothing else (`on_subject`); the drafting call
-  judges first - not the same subject drops the card, an episode that does
-  not answer this post loses its link - and the reply answers the post.
-  **Approve opens X's own reply box with the words in it and copies them**
-  (`x.com/intent/post?in_reply_to=`); the person presses Post. Nothing here
-  can write to X, and nothing runs on a timer: a search is a button
-  ([sweep-on-demand]), capped per search and per day because X bills per
-  post read; staging scrubs the token ([zero-spend-staging]). With no model
-  key the reply is drafted in code and the card says so. Cards are kept a
-  week.
-  > **Current:** since §337 (`outreach_intelligence.py`) a post needs
-  > `X_THREADS_MIN_ENGAGEMENT` (25) likes, replies, reposts and quotes; it is
-  > matched against every kept episode, not only the one whose search found
-  > it; and the drafting call **reads before it writes** - subject, intent,
-  > which of three offered episodes answers it (from each one's summary and
-  > script opening, not its title), the angle - stored and shown on the
-  > card, then writes in X's voice (curiosity, part of the conversation). A
-  > figure neither the post nor the episode states sends the words back to
-  > the code's.
-  > **Current:** the LinkedIn engine that shared this read (§322, §327,
-  > `/admin/linkedin`) was removed at the owner's direction (§367); X is
-  > the only outreach page. The listener's LinkedIn share button is a
-  > separate feature and stays ([share-link]).
-  > **Current:** since §368 (the owner's guardrails brief) **the original
-  > post anchors everything**: replies under a card are read as context
-  > (`X_THREADS_REPLY_READS`, inside the ceilings) and never set its
-  > subject. Before the reply the read states the author's central message
-  > and a **relevance score 1-5** against the original post, with why, and
-  > answers the **original-author test** (would they see at once why this
-  > relates to what they posted?) - false rejects the card whatever the
-  > score; 1-2 rejects; 3 is a comment only; only 4-5 may link a kept
-  > episode (checked again on the server at approval) or **propose** a
-  > specific one (title, scope, question), which is never mentioned until
-  > written and matched ("Match again"). Outcomes are episode + comment /
-  > comment only / skip; an episode is never required. A code read is worth
-  > 3 and its author test is "not run". A reply that sounds like an ad
-  > (`promotional`) goes back to the code's words, and a card with no link
-  > never keeps words saying FAM has an episode; one sharing no word with
-  > the post is flagged. Approve needs a person's tick that every claim was
-  > checked, and a link needs the episode heard through that link first
-  > (`listened_at`). Rejections are listed for audit, never actionable.
-  > `tools/x_agent_eval.py` is the before-deployment review: real posts
-  > beside FAM's episode and comment.
+  > that could post. Since §579 nothing reads it: outreach is
+  > [community-outreach], by web search, with no platform token at all.
+  > Since §581 it is read again, beside Reddit's app-only
+  > `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`: read-only searches for
+  > communities on `/admin/groups`. Still nothing that can post, message,
+  > vote or follow.
+<!-- rule:community-outreach -->
+- **FAM reaches communities' admins through public channels, and a person
+  does it** (§579, the owner's direction; `communities.py`,
+  `/admin/groups`). Facebook groups, subreddits, X Communities, Discord
+  servers and Slack communities about FAM's subjects are found by **web
+  search through the research backends** (`research.WEB_BACKENDS`, held to
+  each platform's domains), never by signing in to a platform, scraping it,
+  or holding any platform's token. A card says **how to reach the admins
+  through the community's own public channel** - the group's admin list,
+  the subreddit's modmail, the community's moderators page, a server's
+  rules - and a person messages them from FAM's account; nothing here sends
+  anything. **No phone number is ever stored** (`strip_phones` over every
+  text kept, the person's notes included); an email only when the
+  community's own page publishes it as its contact, and an admin's name
+  only when that page states it; nothing looks a person up elsewhere. Each
+  card carries **three hypothesised episodes** (title, angle, why this
+  community), never written, and a kept episode only when one matches; it
+  is linked in a message only after a person heard it through its link.
+  A fit under 3 is set aside for audit, never actionable. Searches are a
+  button ([sweep-on-demand]), capped per run and per day; staging has no
+  search key ([zero-spend-staging]); with no model key the pitches and the
+  message are composed in code and the card says so. Each card carries its
+  reason in words ([candidate-reason]). Untouched leads are kept 30 days.
+  > **Current:** since §580 the fit, the pitches and the message are
+  > **Egan's**, a full agent ([agent-model-layer]): one call per
+  > community through `agents/models.py`, under his own rule book
+  > (`egan.md`), off by default (`OUTREACH_AGENT`). He never reads about
+  > a person (every-agent.md "never" 9): `communities.redacted` takes
+  > names, handles, addresses and numbers out of his material, and code
+  > sends back an answer that carries one, or a figure the material does
+  > not, once, then composes in code. **Until the owner signs his book**
+  > it waits in `docs/agent_rule_proposals/` with
+  > `MANIFEST.pending.json` and he is `agents.names.PROPOSED`, refused by
+  > the layer; an unsigned book in `docs/agent_rules/` would hold every
+  > agent. **Signed by the owner** (manifest v9, §583): he is in
+  > `agents.names.AGENTS` and the roster, off until `AGENTS=1` and
+  > `OUTREACH_AGENT=1`.
+  > **Current:** since §581 (the owner's direction) subreddits and X
+  > Communities are found through **Reddit's and X's own APIs** when their
+  > read-only keys are set (`community_sources.py`: subreddit search and
+  > about pages, X's Communities search and lookup; never a moderator, a
+  > member or a profile; adults-only subreddits never a card), falling back
+  > to the web search; the rest stays web search. And **a person can send
+  > a group to Egan** (`/api/admin/groups/send`, `communities.lookup`): its
+  > link is read through its API or the web, its public contact route
+  > worked out, Egan reads it with the person's note (redacted like the
+  > rest) and it is kept to contact **whatever its fit** - a person chose
+  > it - unless FAM does not pitch its subject (`AVOID`). A lookup is one
+  > search against the day's ceiling.
+  > **Current:** since §582 (a review): `scrub` keeps no email but the
+  > community's published contact anywhere, phone numbers in international
+  > shapes included; only a community's own page (`own_page`) gives a
+  > description, contact or admin, never a member's post; a sent
+  > adults-only community is refused; profile links, handles and the people
+  > a team's note names are redacted before Egan; searches count as they
+  > are made; a lead a person sent, moved or wrote on is never pruned; the
+  > server enforces the page's status moves.
+  > **History:** this replaced **FAM on X** (§321-§368, `x_threads.py`,
+  > `outreach_intelligence.py`, `/admin/x`), which searched X's API for
+  > threads one of FAM's episodes answered and drafted replies a person
+  > posted through X's own compose box, under a relevance score and an
+  > original-author test (§368). The owner removed it in §579; its rule text
+  > is in git history before that change. LinkedIn's engine had gone in
+  > §367. The listener's own share buttons are a separate feature and stay
+  > ([share-link]).
 <!-- rule:app-review-safety -->
 - **Report anything, block both ways, and ask before a listener's words go to
   the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,

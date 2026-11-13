@@ -128,7 +128,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var demoMode = false
     /// A shared episode (`/s/<id>`) opened by somebody not let in yet - signed
     /// out or on the waitlist: the listen page's own screen
-    /// (`static/listen.html`) over the front door or the status page (§576).
+    /// (`static/listen.html`) over the front door or the status page (§584).
     @Published var sharedListen: SharedListen?
     /// The shared screen's door, for somebody signed out: the front door
     /// goes to Sign up (the waitlist join), as the page's door goes to `/waitlist`.

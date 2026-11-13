@@ -43,11 +43,13 @@ DAY = 86400
 #: The services the admin page reports, in the order it draws them. §480:
 #: X, Claude, Google's image model and the R2 bucket were spent on and never
 #: reported (X was counted and not shown; the other three were not counted).
+#: X left with the X agent (§579) and came back with Reddit as
+#: /admin/groups' community sources (§581), counted per request.
 PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket",
              "gnews", "tiingo",
              "wikidata", "wikipedia", "wikimedia_enterprise",
              "nws", "open_meteo", "local_feeds",
-             "x", "anthropic", "gemini", "r2")
+             "reddit", "x", "anthropic", "gemini", "r2")
 
 LABELS = {
     "balldontlie": "BALLDONTLIE",
@@ -56,7 +58,8 @@ LABELS = {
     "gdelt": "GDELT",
     "polymarket": "Polymarket",
     "gnews": "GNews",
-    # §321: recent search for /admin/x, billed per post read.
+    # §581: /admin/groups' community search, read-only.
+    "reddit": "Reddit",
     "x": "X",
     "tiingo": "Tiingo",
     # §278: the reference look.
@@ -144,12 +147,16 @@ def _plans() -> dict:
         "local_feeds": (
             "free; one conditional request per feed per poll",
             "no paid plan"),
-        # §480: billed per post read; FAM's own daily stop is counted in
-        # posts by `x_threads`, so its row's allowance reads that store.
+        # §581: /admin/groups' community search, a person's button, inside
+        # COMMUNITIES_DAILY_SEARCHES.
+        "reddit": (
+            "Data API, app-only OAuth: 100 requests/min; commercial use under "
+            "Reddit's agreement",
+            "Reddit's commercial Data API terms, quote-based"),
         "x": (
-            f"pay per post read; FAM stops at "
-            f"{int(settings.x_threads_daily_reads):,} posts/day (X_THREADS_DAILY_READS)",
-            "a higher X_THREADS_DAILY_READS; X bills each post read"),
+            "pay per resource read; FAM stops at its daily community searches "
+            "(COMMUNITIES_DAILY_SEARCHES)",
+            "a higher X API tier or more credit; X bills each read"),
         # §480: the account's usage tier sets its rate and monthly spend
         # limits; which tier this deploy is on is not copied here yet.
         "anthropic": (
@@ -235,8 +242,6 @@ def allowances() -> dict:
             out["wikimedia_enterprise"] = _allowance(
                 settings.wikimedia_monthly_requests, "month")
         out["open_meteo"] = _allowance(1_000_000, "month")
-        if int(settings.x_threads_daily_reads or 0) > 0:
-            out["x"] = _allowance(settings.x_threads_daily_reads, "day", "posts")
         if int(settings.thumbnails_daily_images or 0) > 0:
             out["gemini" + SUB + "images"] = _allowance(
                 settings.thumbnails_daily_images, "day", "images")
@@ -256,9 +261,7 @@ def _used(allowance: Optional[dict], per_day: dict, now: float,
     if out["kind"] != "quota":
         return out
     today, month = _day(now), _day(now)[:7]
-    if provider == "x":
-        used = _x_posts_today(now)
-    elif out["period"] == "day":
+    if out["period"] == "day":
         used = per_day.get(today, (0, 0))[0]
     else:
         used = sum(r for day, (r, _) in per_day.items() if day.startswith(month))
@@ -266,20 +269,6 @@ def _used(allowance: Optional[dict], per_day: dict, now: float,
     out["share"] = (round(used / out["count"], 4)
                     if used is not None and out["count"] else None)
     return out
-
-
-def _x_posts_today(now: float) -> Optional[int]:
-    """Posts read from X today, from `x_threads`' own count (X bills per post,
-    and its requests carry many). None when nothing has been read."""
-    try:
-        import x_threads
-
-        if not x_threads._exists():
-            return None
-        return int(x_threads.store().reads_since(x_threads._day_start(now)))
-    except Exception as exc:  # noqa: BLE001
-        log.warning("could not read X's posts today: %s", exc)
-        return None
 
 
 def licences() -> dict:

@@ -89,7 +89,7 @@ struct RootView: View {
 
     var body: some View {
         stages
-            // A shared episode for somebody not let in yet (§576): the
+            // A shared episode for somebody not let in yet (§584): the
             // listen page over the front door or the status page.
             .overlay { SharedListenLayer() }
             .overlay(alignment: .bottom) {

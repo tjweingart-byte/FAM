@@ -486,6 +486,30 @@ def _integer(m: re.Match) -> str:
     return _spaced(cardinal(int(m.group(1).replace(",", ""))), m)
 
 
+#: Dashes used as punctuation (§576). Chatterbox's own clean-up
+#: (`chatterbox.tts.punc_norm`, run inside every `generate`) turns "—" and
+#: "–" into "-" *after* it has softened " - " into a comma, so "won—again—on
+#: Sunday" reached the model as "won-again-on Sunday", three words glued into
+#: one, and "won – again" as "won - again". Here they become what a reader
+#: hears: a comma's pause. An unspaced en dash between words
+#: ("Paris–Roubaix") is a space. Number ranges are words before this runs.
+_EM_DASH = re.compile(r"\s*—+\s*")
+_SPACED_DASH = re.compile(r"\s+[-–]+\s+")
+_EN_DASH = re.compile(r"(?<=\w)–(?=\w)")
+_COMMA_TIDY = [(re.compile(r"\s+,"), ","), (re.compile(r",(\s*,)+"), ","),
+               (re.compile(r",\s*([.!?;:])"), r"\1"), (re.compile(r"^\s*,\s*"), "")]
+
+
+def _dashes(text: str) -> str:
+    text = _EM_DASH.sub(", ", text)
+    text = _SPACED_DASH.sub(", ", text)
+    text = _EN_DASH.sub(" ", text)
+    text = text.replace("–", ", ")
+    for pattern, put in _COMMA_TIDY:
+        text = pattern.sub(put, text)
+    return text
+
+
 def speakable(text: str) -> str:
     """`text` with numbers and abbreviations written as they are said.
 
@@ -526,6 +550,7 @@ def speakable(text: str) -> str:
         out = _DOTTED.sub(_dotted, out)
         out = _SOUNDED.sub(lambda m: SPELLED_AS_SOUNDED[m.group(1).lower()], out)
         out = _CAPS.sub(_caps, out)
+        out = _dashes(out)
         return out
     except Exception:  # noqa: BLE001 - the voice still gets words
         return text

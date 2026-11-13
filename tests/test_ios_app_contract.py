@@ -593,7 +593,7 @@ def test_mix_rows_show_todays_episode_title_570():
     assert "!item.episodeTitle.isEmpty ? item.episodeTitle" in model
 
 
-# --- Build 7 (§576) ---------------------------------------------------------
+# --- Build 7 (§584) ---------------------------------------------------------
 
 def _swift(*parts: str) -> str:
     return (SWIFT.joinpath(*parts)).read_text()
@@ -603,7 +603,7 @@ def _listen_page() -> str:
     return (ROOT / "static" / "listen.html").read_text()
 
 
-def test_a_shared_episode_plays_before_the_app_is_open_576(monkeypatch):
+def test_a_shared_episode_plays_before_the_app_is_open_584(monkeypatch):
     """A `/s/` link opened by somebody signed out or on the waitlist plays on
     the listen page's own screen, not held until they are let in; its words
     are the page's, and its audio is the request the gate lets through."""
@@ -650,7 +650,7 @@ def test_a_shared_episode_plays_before_the_app_is_open_576(monkeypatch):
     assert appmod._shared_episode_request(read)
 
 
-def test_settings_password_note_is_the_webs_576():
+def test_settings_password_note_is_the_webs_584():
     """Settings' note under the account rows is `passwordSettingsNote()`:
     it depends on `has_password` and on `/api/auth/reset`'s `available`."""
     web = (ROOT / "static" / "index.html").read_text()
@@ -665,7 +665,7 @@ def test_settings_password_note_is_the_webs_576():
     assert 'fetch("/api/auth/reset")' in web
 
 
-def test_share_targets_are_keyed_as_the_server_keys_them_576():
+def test_share_targets_are_keyed_as_the_server_keys_them_584():
     """`.convertFromSnakeCase` may rewrite a dictionary's keys; the share
     targets are put back to the server's snake_case wherever they are read,
     so `instagram_story` / `snapchat_story` reach the sheet's order and
@@ -687,7 +687,7 @@ def test_share_targets_are_keyed_as_the_server_keys_them_576():
     assert snake("sms") == "sms"
 
 
-def test_staging_ribbon_and_demo_badge_576():
+def test_staging_ribbon_and_demo_badge_584():
     """A staging or zero-spend server's ribbon on every screen and the
     player's "not your episode" badge on a server with no working key."""
     web = (ROOT / "static" / "index.html").read_text()
@@ -707,7 +707,7 @@ def test_staging_ribbon_and_demo_badge_576():
     assert "mode" in health and "environment" in health
 
 
-def test_an_empty_search_plays_the_demo_like_the_web_576():
+def test_an_empty_search_plays_the_demo_like_the_web_584():
     """Return in an empty box: the web's `generate("spacex")`, its title as
     the question, at the search page's Length, on searchFAM."""
     web = (ROOT / "static" / "index.html").read_text()
