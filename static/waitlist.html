@@ -17,10 +17,11 @@
 <!--
   The pre-launch waitlist (WAITLIST.md). One page, two views:
 
-  * /waitlist     - the landing page: the email and a password, then the
-                    Terms box, in one step (§571; §296 had made it the email
-                    alone, which left a signed-out member no way back without
-                    mail). Signing up here is the app's own sign-up, so the
+  * /waitlist     - the landing page: the email and the Terms box, nothing
+                    else (§604, reversing §571's password). The password is
+                    the first step once let in: the app asks for it first,
+                    and the let-in link signs a passwordless account in on
+                    any device. Signing up here is the app's own sign-up, so the
                     account made here is the one the app opens with later,
                     and it always starts on the waitlist.
   * /waitlist/me?setup=1 - straight after joining, the profile, the app's
@@ -580,9 +581,8 @@
     <form id="joinForm" novalidate>
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
              placeholder="Enter your email" aria-label="Email" required>
-      <!-- A password, in the same step (§571, reversing §296's email alone):
-           the way back in from any device, with no email needed. -->
-      <div class="pw-row"><input class="field" id="joinPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Choose a password (at least 8 characters)" aria-label="Password"><button class="pw-eye" type="button" data-pw="joinPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
+      <!-- No password here (§604, the owner: "a user should only have to
+           put their email in"). It is the first step once let in. -->
       <button class="cta label" id="joinBtn" type="submit">
         <span id="joinLabel">Join the waitlist</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -609,7 +609,7 @@
       <input class="field" id="resetEmail" type="email" autocomplete="email" placeholder="The email on your account" aria-label="Email">
       <div id="resetStep2" class="hidden">
         <input class="field" id="resetCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" aria-label="6-digit code" style="margin-top:12px">
-        <div class="pw-row" style="margin-top:12px"><input class="field" id="resetPassword" type="password" autocomplete="new-password" minlength="8" placeholder="New password" aria-label="New password"><button class="pw-eye" type="button" data-pw="resetPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
+        <div class="pw-row" style="margin-top:12px"><input class="field" id="resetPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="New password" aria-label="New password"><button class="pw-eye" type="button" data-pw="resetPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
       </div>
       <button class="cta label" type="submit" id="resetBtn">Email me a code</button>
       <div class="form-note" id="resetNote" role="status" aria-live="polite">We’ll email a 6-digit code to the address on your account.</div>
@@ -907,17 +907,6 @@
     <div class="line2">Founding FAM member <span id="placeTag"></span></div>
   </div>
 
-  <!-- An account with no password - joined with the email alone (§296) -
-       sets one here (§571), since "Forgot password?" needs mail. -->
-  <section class="card hidden" id="passwordCard">
-    <h2>Set a password so you can sign back in</h2>
-    <p>You joined with just your email. Choose a password and you can sign in from any device.</p>
-    <form id="firstPasswordForm" novalidate>
-      <div class="pw-row" style="margin-top:18px"><input class="field" id="firstPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Choose a password (at least 8 characters)" aria-label="New password"><button class="pw-eye" type="button" data-pw="firstPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
-      <button class="cta label" type="submit" id="firstPasswordBtn">Set password</button>
-      <div class="form-note" id="firstPasswordNote" role="status" aria-live="polite"></div>
-    </form>
-  </section>
 
   <section class="card" id="placeCard">
     <!-- Their exact place in line (10.2 packet), counted by the server. -->
@@ -1020,7 +1009,7 @@
         <select class="pinput phone-cc" id="pPhoneCC" aria-label="Country code"></select>
         <input class="pinput" id="pPhone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Phone number" aria-label="Phone number" aria-describedby="smsConsent">
       </div>
-      <p class="sms-consent" id="smsConsent">By adding your number, you agree FAM may text you once, when you&rsquo;re let off the waitlist, with a link to claim your free month. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help. See our <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p></div>
+      <p class="sms-consent" id="smsConsent">By adding your number, you agree FAM may text you once, when you&rsquo;re let off the waitlist, with a link to set your password and claim your free month. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help. See our <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p></div>
     <div class="pfield"><span>Your interests <em class="opt">(Optional)</em></span>
       <div class="chips" id="chips"></div>
       <!-- Every topic the app's own interests page offers, A to Z, and
@@ -1280,28 +1269,21 @@
     loadSamples();
     showAbout();
     if(referral) $("invited").classList.remove("hidden");
-    // The email and a password (§571): the account the app opens with
-    // later, made here with its password in the same step and put on the
-    // list. The password is the app's own rule and the app's own sentences.
+    // The email alone (§604): the account the app opens with later, made
+    // here with no password and put on the list. The password is the first
+    // step once let in, never asked for while waiting.
     $("joinForm").addEventListener("submit", function(ev){
       ev.preventDefault();
       var note = $("joinNote"); note.className = "form-note"; note.textContent = "";
       var email = $("email").value.trim();
-      var password = $("joinPassword").value;
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
         note.className = "form-note err"; note.textContent = "That doesn’t look like an email address."; return;
-      }
-      if(!password){
-        note.className = "form-note err"; note.textContent = "Enter your password."; return;
-      }
-      if(password.length < 8){
-        note.className = "form-note err"; note.textContent = "Use at least 8 characters for your password."; return;
       }
       if(!$("acceptTerms").checked){
         note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and conditions."; return;
       }
       $("joinBtn").disabled = true;
-      api("/api/waitlist/join", { email: email, password: password, referral_code: referral, accept_terms: true })
+      api("/api/waitlist/join", { email: email, referral_code: referral, accept_terms: true })
         .then(function(d){
           try { sessionStorage.removeItem("famReferral"); } catch(e){}
           // Straight on to the profile - the app's sign-up fields - with a
@@ -1316,13 +1298,9 @@
           // the sign-in, with the address carried over, is the way back.
           if(/already registered/.test(e.message || "")){
             $("toggleLogin").click();
-            // The password typed here is very likely theirs: carried over
-            // with the address, so signing in is one tap.
-            $("loginPassword").value = password;
             $("loginNote").className = "form-note";
-            $("loginNote").textContent = canReset
-              ? "That email is already on FAM. Sign in, or use Forgot password? if you never set one."
-              : "That email is already on FAM. Sign in with its password, or on the device you joined from.";
+            $("loginNote").textContent = "That email is already on FAM. Sign in with its password"
+              + " - or, if you haven\u2019t set one, open the link we sent when you were let in.";
           }
         });
     });
@@ -1998,48 +1976,14 @@
       .catch(function(e){ toast(e.message); });
   };
   window.signOut = function(){
-    // Joined with the email alone (§296): this browser is the only way in
-    // until a password is set (the card on this page, §571), so signing out
-    // is said before it is done.
+    // Joined with the email alone (§604): no password while waiting, so a
+    // signed-out member is back in only from the let-in link. Said first.
     if(STATE && STATE.details && STATE.details.has_password === false &&
-       !window.confirm("You have no password yet, so you couldn’t sign back in. Set one on this page first. Sign out anyway?")) return;
+       !window.confirm("You don\u2019t have a password yet, so you can\u2019t sign back in until you\u2019re let in \u2014 we\u2019ll send you a link then. Sign out anyway?")) return;
     api("/api/auth/logout", {}).catch(function(){}).then(function(){ location.replace("/waitlist"); });
   };
   $("meBtn").addEventListener("click", function(ev){ ev.stopPropagation(); $("menu").classList.toggle("hidden"); });
   document.addEventListener("click", function(){ $("menu").classList.add("hidden"); });
-
-  // "Set a password so you can sign back in" (§571): drawn while the
-  // account has none, and gone once it does.
-  function drawPasswordCard(d){
-    var none = !!(d && d.details && d.details.has_password === false);
-    $("passwordCard").classList.toggle("hidden", !none);
-  }
-  Array.prototype.forEach.call(document.querySelectorAll('#passwordCard .pw-eye[data-pw]'), function(eye){
-    eye.addEventListener("click", function(){
-      var input = $(eye.getAttribute("data-pw"));
-      var show = input.type === "password";
-      input.type = show ? "text" : "password";
-      eye.setAttribute("aria-pressed", show ? "true" : "false");
-      eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
-    });
-  });
-  $("firstPasswordForm").addEventListener("submit", function(ev){
-    ev.preventDefault();
-    var note = $("firstPasswordNote"); note.className = "form-note"; note.textContent = "";
-    var pw = $("firstPassword").value;
-    if(!pw){ note.className = "form-note err"; note.textContent = "Enter your password."; return; }
-    if(pw.length < 8){ note.className = "form-note err"; note.textContent = "Use at least 8 characters for your password."; return; }
-    $("firstPasswordBtn").disabled = true;
-    api("/api/auth/password/set", { "new": pw })
-      .then(function(){
-        $("firstPassword").value = "";
-        if(STATE && STATE.details) STATE.details.has_password = true;
-        drawPasswordCard(STATE);
-        toast("Password set. Sign in with it on any device.");
-      })
-      .catch(function(e){ note.className = "form-note err"; note.textContent = e.message; })
-      .then(function(){ $("firstPasswordBtn").disabled = false; });
-  });
 
   // The free month (§577): how many of the five have joined, or that it is
   // earned and when it runs. Absent from an older server, then hidden.
@@ -2071,7 +2015,7 @@
       api("/api/preferences")
     ]).then(function(r){
       STATE = r[0];
-      drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]); drawPasswordCard(STATE);
+      drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]);
       drawFreeMonth(STATE);
       $("shareLink").value = link();
     });

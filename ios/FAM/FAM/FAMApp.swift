@@ -172,6 +172,8 @@ struct RootView: View {
                     IdentityView(mode: .firstRun)
                 case .interests:
                     InterestsView(mode: .firstRun)
+                case .password:
+                    PasswordFirstView()
                 case nil:
                     // Drawn afresh for another account (`accountEpoch`).
                     MainTabs()

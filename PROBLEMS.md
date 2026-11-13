@@ -36563,3 +36563,68 @@ one part; `as_dict`; `prepare` awaits it after the evidence and before the
 writer; the second call wins when the first is slow, one failure waits for
 the other, both raise; hedged only on searchFAM, never the outline).
 `test_ei_split_268` and `test_episode_intelligence` count the fourth call.
+
+## 604. The waitlist is the email alone; let in, the first step is a password (2026-11-13)
+
+**Asked.** The owner: "A password has been added onto the waitlist for some
+reason. A user should only have to put their email in. Once the user is let
+off of the waitlist, their first step should be to set their password ...
+If someone in the waitlist is let into the app, the account should be
+recognized, and their first step should be to set a password. You should not
+need to create a password for the waitlist." Reverses §571's password at the
+join, keeping what §571 was for: nobody let in is locked out.
+
+**The join.** `/waitlist`'s form is the email and the Terms box; the app's
+Sign Up goes there; iOS's join (`AuthView`) drops its password field and
+sends `password` empty. The server is unchanged for a join that still sends
+one (§571's page, iOS builds 6-7: `old-clients`). The status page's "Set a
+password so you can sign back in" card is gone (web and iOS); its Sign out
+warns that a member without a password is back in from the let-in link.
+
+**Recognised once let in, three ways:**
+* *The browser or phone that joined* is still signed in. `/api/auth/me`
+  (and `/api/account`) carry `password_needed`: true for an `active` account
+  with no password and no Google or Apple (`app._password_needed`; false
+  while waitlisted). The web app's `routeFirstScreen` opens
+  `#screen-password-first` - "You're in. Set your password", one field with
+  the eye, Set password, the app's sentences - before the first run, with no
+  X and no skip; set, `/api/auth/me` is read again and the app goes on from
+  the top. iOS: `EntryStep.password`, `PasswordFirstView`, ahead of
+  `beginEntry`'s checks, even on a phone that finished the first run.
+* *Another device: the let-in link.* `/claim/<code>` (the email and the one
+  text, §587/§597) still claims the month, and for a `_password_needed`
+  account also signs that browser in - a fresh session, as a log-in mints,
+  the old one ended - and 303s to `/` on the same host (never
+  `APP_HOME_URL`, which may not carry the cookie). The link reached the
+  person's own address or number, as a reset code would. Once a password is
+  set, or for a Google/Apple account, the link only claims the month: it is
+  never a standing way in. The email for a passwordless account says "Open
+  this link to sign in and set your password", the text "you're in! Set
+  your password & claim a free month of Plus" (one segment, 157 characters
+  at today's link). The phone field's consent line and the privacy page say
+  the link sets the password.
+* *Typing the email at a sign-in* is recognised rather than "That email and
+  password do not match": `accounts.log_in` raises `NoPasswordYet` for an
+  account with no hash, and `/api/auth/login` says how that account gets in
+  (`_no_password_words`) - waiting: "You're on the waitlist, so there's no
+  password yet. When you're let in, we'll send you a link to set one."; let
+  in: "Open the link we sent you when you were let in, and set one there"
+  (", or use Forgot password? ..." when mail exists); Google/Apple: names
+  the provider. The join form already says whether an address is
+  registered, so this tells nobody anything new. The phone log-in keeps its
+  one sentence.
+
+**Not done: typing the email alone never sets the password.** That would let
+anyone who knows an address take over a let-in account before its owner
+does. The link (or a reset code, where mail exists) is the proof. An account
+let in before §587 got no link; it is still signed in where it joined, and
+otherwise needs Forgot password? or the owner.
+
+**Tests:** `tests/test_waitlist.py` (§571's form and card tests rewritten:
+the form has no password, the status page offers none; new: `password_needed`
+after the grant and not before, the link signing a new browser in and then
+not once a password is set, never for a passworded account, the sign-in's
+sentences, the app's first screen), `tests/test_waitlist_notify.py` (the
+notice's words and one segment), `tests/test_ios_app_contract.py` (the
+join, `passwordNeeded`, `PasswordFirstView`). Swift parsed with tree-sitter;
+not compiled here.

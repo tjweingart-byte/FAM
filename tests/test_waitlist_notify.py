@@ -322,3 +322,20 @@ def test_sms_sorts_its_failures(monkeypatch):
                        (answering(201), sms.SENT)):
         monkeypatch.setattr(httpx, "post", post)
         assert sms.send("+14155550100", "hi") == want
+
+
+def test_an_email_only_join_is_told_its_link_sets_the_password(acc, wl, outbox):
+    """§604: the waitlist asks no password, so the let-in notice says its
+    link is where the password is set, and the text stays one segment."""
+    acc.sign_up("np", "np@fam.test", "", passwordless=True)
+    with acc._conn() as c:
+        c.execute("UPDATE accounts SET phone = '+14155550102' WHERE user_id = 'np'")
+    wl.grant(["np"])
+    view = wl.notice_view("np")
+    assert view["has_password"] is False
+    waitlist_notify.drain(wl, "https://familiarize.net", "https://familiarize.net")
+    (_to, _subject, body), = outbox["mail"]
+    assert "set your password" in body and f"/claim/{view['claim_code']}" in body
+    assert "Sign in the way you joined" not in body
+    (_number, text), = outbox["sms"]
+    assert "Set your password" in text and len(text) <= 160

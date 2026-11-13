@@ -120,6 +120,20 @@ class AuthError(ValueError):
     """Something the person can fix, phrased so it can be shown to them."""
 
 
+class NoPasswordYet(AuthError):
+    """A sign-in to an account that has never had a password (§604): an
+    email-only waitlist join, or Google or Apple. Its own class so the
+    server can say how *that* account gets in - the let-in link, or the
+    provider - instead of "do not match", which sends somebody round
+    "Forgot password?" for a password that never existed. The join form
+    already says whether an address is registered, so this tells nothing
+    new about who is on FAM."""
+
+    def __init__(self, user_id: str):
+        super().__init__("This account has no password yet.")
+        self.user_id = user_id
+
+
 @dataclass(frozen=True)
 class Listener:
     """Who the server believes is making this request.
@@ -809,6 +823,8 @@ class AccountStore:
         if not row:
             verify_password(str(password), hash_password("dummy"))
             raise AuthError("That email and password do not match.")
+        if not row[1]:
+            raise NoPasswordYet(row[0])
         if not verify_password(str(password), row[1]):
             raise AuthError("That email and password do not match.")
 

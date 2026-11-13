@@ -46,8 +46,20 @@ def _when(starts: float) -> str:
     return f"It starts on {day}, the day the full FAM app is published."
 
 
-def email_body(name: str, link: str, home: str, starts: float) -> str:
+def email_body(name: str, link: str, home: str, starts: float,
+               has_password: bool = True) -> str:
+    """The let-in email. An account that joined with the email alone has
+    no password (§604), so its link is the way in: it signs them in, the
+    app's first step is setting one, and it claims the month as well."""
     hello = f"Hi {name}," if name else "Hi,"
+    if not has_password:
+        return (f"{hello}\n\n"
+                "You're off the waitlist - FAM is open to you now. Open this "
+                "link to sign in and set your password:\n"
+                f"{link}\n\n"
+                "The same link claims your free month of FAM Plus. "
+                f"{_when(starts)} Nothing to pay, and nothing is billed after.\n\n"
+                "- FAM\n")
     return (f"{hello}\n\n"
             "You're off the waitlist - FAM is open to you now. Sign in the "
             f"way you joined:\n{home}\n\n"
@@ -57,11 +69,14 @@ def email_body(name: str, link: str, home: str, starts: float) -> str:
             "- FAM\n")
 
 
-def sms_body(link: str, starts: float) -> str:
+def sms_body(link: str, starts: float, has_password: bool = True) -> str:
     """One SMS segment (160 GSM characters) with today's link length."""
     t = time.gmtime(starts)
     when = "from launch day" if not starts else \
         f"from {time.strftime('%b', t)} {t.tm_mday}"
+    if not has_password:
+        return (f"FAM: you're in! Set your password & claim a free month "
+                f"of Plus ({when}): {link} Reply STOP to opt out.")
     return (f"FAM: you're off the waitlist! Claim a free month of Plus "
             f"({when}): {link} Reply STOP to opt out.")
 
@@ -96,7 +111,8 @@ def _drain(waitlist, base: str, home: str, limit: int, result: dict) -> dict:
                     result["skipped"] += 1
                     continue
                 ok = mail.send(view["email"], SUBJECT,
-                               email_body(view["name"], link, home, starts))
+                               email_body(view["name"], link, home, starts,
+                                          view.get("has_password", True)))
                 why = mail.status()["reason"] or "the mail server refused it"
             else:
                 if not view["phone"]:
@@ -110,7 +126,8 @@ def _drain(waitlist, base: str, home: str, limit: int, result: dict) -> dict:
                     waitlist.mark_done(item["id"])
                     result["skipped"] += 1
                     continue
-                outcome = sms.send(view["phone"], sms_body(link, starts))
+                outcome = sms.send(view["phone"], sms_body(
+                    link, starts, view.get("has_password", True)))
                 if outcome is True or outcome == sms.SENT:
                     ok = True
                 elif outcome == sms.UNKNOWN:

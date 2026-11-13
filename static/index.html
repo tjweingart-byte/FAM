@@ -4012,6 +4012,38 @@
            one block that is only an editor's business - the account, and the
            password change on it - is hidden during the first run, where there
            is no password to change yet. -->
+      <!-- Let in off the waitlist (§604): the waitlist asks for the email
+           alone, so the first thing the app asks an account with no way back
+           in (no password, no Google or Apple; `/api/auth/me`
+           `password_needed`) is a password. No X and no skip: without it,
+           signing out is locked out. -->
+      <section class="screen" id="screen-password-first">
+        <div class="screen-top" aria-hidden="true"></div>
+        <div class="scroll">
+          <div class="entry-wrap" style="min-height:0;">
+            <div class="entry-h">You&rsquo;re in. Set your password</div>
+            <p class="entry-lede" id="passwordFirstLede">You joined the waitlist with just your email. Choose a password so you can sign in on any device.</p>
+            <form id="passwordFirstForm" onsubmit="event.preventDefault(); submitPasswordFirst();" novalidate>
+              <input type="email" id="passwordFirstEmail" autocomplete="username" hidden readonly>
+              <div class="auth-field">
+                <div class="auth-label">Password</div>
+                <div class="pw-row">
+                  <input class="modal-input" id="passwordFirstInput" type="password"
+                         autocomplete="new-password" maxlength="1024"
+                         placeholder="at least 8 characters" style="margin-bottom:0;"
+                         oninput="passwordFirstError('')">
+                  <button class="pw-eye" type="button"
+                          onclick="togglePasswordShown('passwordFirstInput', this)" aria-label="Show password"
+                          aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
+                </div>
+              </div>
+              <p class="auth-error" id="passwordFirstError" role="alert" hidden></p>
+              <button class="entry-btn primary" id="passwordFirstSubmit" type="submit">Set password</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <section class="screen" id="screen-identity">
         <div class="screen-top" aria-hidden="true"></div>
         <div class="intro-top" id="identityTop" hidden>
@@ -16611,6 +16643,47 @@
     });
   }
 
+  // "You're in. Set your password" (§604): the first screen for an account
+  // let in off the waitlist with no way back in. Set, `/api/auth/me` is read
+  // again and the app carries on from the top, as if just opened.
+  function openPasswordFirst(){
+    var email = document.getElementById("passwordFirstEmail");
+    if(email) email.value = AUTH.email || "";
+    passwordFirstError("");
+    showScreen("password-first");
+  }
+  function passwordFirstError(words){
+    var el = document.getElementById("passwordFirstError");
+    if(!el) return;
+    el.textContent = words || "";
+    el.hidden = !words;
+  }
+  function submitPasswordFirst(){
+    var input = document.getElementById("passwordFirstInput");
+    var btn = document.getElementById("passwordFirstSubmit");
+    var pw = input.value;
+    if(!pw) return passwordFirstError("Enter your password.");
+    if(pw.length < 8) return passwordFirstError("Use at least 8 characters for your password.");
+    if(pw.length > 1024) return passwordFirstError("That password is too long.");
+    btn.disabled = true;
+    fetch("/api/auth/password/set", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ "new": pw })
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "That did not work. Try again.");
+      });
+    }).then(function(){
+      input.value = "";
+      toast("Password set");
+      return refreshAuth();
+    }).then(function(){
+      routeFirstScreen();
+    }).catch(function(e){
+      passwordFirstError(e.message);
+    }).then(function(){ btn.disabled = false; });
+  }
+
   function askCurrentPassword(){
     showModal({
       title: "Current password", placeholder: "", confirmLabel: "Next",
@@ -24526,6 +24599,9 @@
       showScreen("welcome");
       return;
     }
+    // Let in off the waitlist with the email alone (§604): setting a
+    // password comes before anything else, the first run included.
+    if(AUTH.password_needed){ openPasswordFirst(); return; }
     // Signed in on a device that never finished the first run - most often
     // somebody let in off the waitlist, whose account was made on /waitlist
     // and whose cookie is already here. The front door would ask them to
