@@ -7,13 +7,15 @@ Pinned here, with no database (the pool's dialling is faked):
 * the test thread is a request: never held to the background share (§574),
   while a thread it starts still is;
 * the schemas a test made are dropped by directory, and what the process
-  remembered about them is forgotten.
+  remembered about them is forgotten - except one a live connection still
+  names (a module reloaded in a test keeps its stores for the run).
 
 And against a real Postgres: a transaction that is open while `close_all`
 runs still commits; a dropped store can be made again in the same place.
 """
 from __future__ import annotations
 
+import gc
 import threading
 import time
 
@@ -147,6 +149,10 @@ def test_a_dropped_store_can_be_made_again(tmp_path):
     conn.execute("INSERT OR REPLACE INTO t (id, n) VALUES (1, 1)")
     schema = db.schema_for(path)
     db.close_all()
+    db.drop_schemas_under(str(tmp_path))
+    assert schema in db._DIRS                      # still held: kept
+    del conn
+    gc.collect()
     assert db.drop_schemas_under(str(tmp_path)) >= 1
     assert not db.has_tables(path) and schema not in db._DIRS
 
@@ -164,9 +170,20 @@ def test_only_the_tests_own_directory_is_dropped(tmp_path, tmp_path_factory):
     kept_path = str(elsewhere / "kept.db")
     kept = db.connect(kept_path, isolation_level=None)
     kept.execute("CREATE TABLE IF NOT EXISTS t (n INTEGER)")
+    del mine, kept
+    gc.collect()
     db.close_all()
     # Mine, and the ones conftest's own stores made in the same directory.
     assert db.drop_schemas_under(str(tmp_path)) >= 1
     assert not db.has_tables(str(tmp_path / "mine.db"))
     assert db.has_tables(kept_path)
     assert db.drop_schemas_under(str(elsewhere)) == 1
+
+
+@needs_postgres
+def test_a_store_something_still_holds_keeps_its_schema(tmp_path):
+    held = db.connect(str(tmp_path / "held.db"), isolation_level=None)
+    held.execute("CREATE TABLE IF NOT EXISTS t (n INTEGER)")
+    db.close_all()
+    db.drop_schemas_under(str(tmp_path))
+    assert held.execute("SELECT count(*) FROM t").fetchone()[0] == 0

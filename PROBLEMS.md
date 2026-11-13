@@ -35786,12 +35786,18 @@ catalogue it walks either way.
 
 **The fixes.**
 
-1. *Each test's schemas are dropped* (`db.drop_schemas_under`, called by
-   conftest's `close_database_connections` with the test's `tmp_path`):
-   `db.connect` remembers each schema's directory, and after a test the
-   schemas under its directory go, with what the process remembered about
-   them. About 25 ms a test. The catalogue stayed at under 200 schemas for
-   the whole second slice, and the health checks left the slowest forty.
+1. *Each test's schemas are dropped* (`db.drop_schemas_under`, from
+   conftest's `pytest_runtest_protocol` once pytest has let go of the test's
+   fixtures): `db.connect` remembers each schema's directory, and after a
+   test the schemas under its `tmp_path` go, with what the process
+   remembered about them - except one a live `db.Connection` still names.
+   That exception is not hypothetical: `test_guest_wipe_and_storage`
+   reloads `app` with its stores in its own `tmp_path`, so `app.WAITLIST`
+   lives there for the rest of the run, and the first CI run that dropped
+   every schema failed 27 later health checks on "relation waitlist_outbox
+   does not exist". About 25 ms a test. The catalogue stayed under 200
+   schemas for the whole second slice, and the health checks left the
+   slowest forty.
 2. *`close_all` never closes a connection another thread holds*: idle
    ones close at once, a lent one is marked and closed when it is given
    back, and the counts (`open`, the background share) stay true while it
@@ -35823,5 +35829,8 @@ checks the app leaks no mark from a context of its own.
 
 **After, the same last 187 files:** 3,833 tests, 46m37s, all passing, no
 test over 7.2s. Locally the whole saving is the health checks (about 3.5
-minutes of 47); on CI, where the walk is the slowdown, it should be most of
-the two extra hours - see the CI run on the branch.
+minutes of 47). **On CI** (still Postgres 16.16) the job went from 4h07m and
+5h09m (Main as it stood, run 43393013742) to 72m53s for the whole suite
+(run 43474880201), each stretch of the run at #266's pace or better and none
+growing: 50% at 48 minutes where Main took 97. That run's 27 failures were
+the reloaded `app.WAITLIST` above, fixed by keeping live schemas.

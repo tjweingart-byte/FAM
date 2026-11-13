@@ -418,19 +418,33 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(autouse=True)
-def close_database_connections(tmp_path):
+def close_database_connections(request, tmp_path):
     """With DATABASE_URL set (CI's Postgres job, §243), after each test:
     close the pool's connections (idle ones now, ones a thread the test left
     running still holds when it gives them back - never under it, §585), and
-    drop the schemas of the stores the test made in its own directory. Kept,
-    a run left a hundred thousand schemas, and everything that walks the
-    catalogue got slower test by test (§585). A no-op on SQLite."""
+    drop the schemas of the stores the test made in its own directory
+    (`pytest_runtest_protocol` below). Kept, a run left a hundred thousand
+    schemas, and everything that walks the catalogue got slower test by test
+    (§585). A no-op on SQLite."""
+    request.node._fam_store_dir = str(tmp_path)
     yield
     import db
 
     if db.enabled():
         db.close_all()
-        db.drop_schemas_under(str(tmp_path))
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_protocol(item, nextitem):
+    """The test's schemas go once pytest has let go of its fixtures' values,
+    so only stores nothing can reach any more are dropped (§585): one a
+    module reloaded during the test still holds is kept for the tests after."""
+    yield
+    import db
+
+    directory = getattr(item, "_fam_store_dir", None)
+    if directory and db.enabled():
+        db.drop_schemas_under(directory)
 
 
 @pytest.fixture(autouse=True)

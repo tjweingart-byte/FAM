@@ -576,4 +576,4 @@ and `limit` = Lines.
 | 35532 | 48 | 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
 | 35580 | 22 | 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13) |
 | 35602 | 147 | 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13) |
-| 35749 | 80 | 585. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |
+| 35749 | 89 | 585. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |

@@ -60,6 +60,7 @@ import socket
 import sqlite3
 import threading
 import time
+import weakref
 from functools import lru_cache
 from typing import Optional
 from urllib.parse import unquote, urlparse
@@ -78,6 +79,10 @@ _SCHEMAS: set = set()
 #: schema -> the directory of the store file it was opened for, so the test
 #: suite can drop what one test made (`drop_schemas_under`, §585).
 _DIRS: dict = {}
+#: Every `Connection` still reachable, so a schema something can still use is
+#: never dropped (`drop_schemas_under`).
+_LIVE: "weakref.WeakSet" = weakref.WeakSet()
+_LIVE_LOCK = threading.Lock()
 #: Idle connections kept open beyond this many are closed.
 IDLE_KEPT = 8
 #: How often the pool looks for connections idle past `idle_seconds()` (§574).
@@ -726,6 +731,8 @@ class Connection:
 
     def __init__(self, schema: str, implicit: bool = False):
         self.schema = schema
+        with _LIVE_LOCK:
+            _LIVE.add(self)
         self.row_factory = None  # rows answer by index and by name already
         # sqlite3's default isolation: a write opens a transaction that stays
         # open until commit. `isolation_level=None` (most stores) is autocommit.
@@ -1018,14 +1025,19 @@ def drop_schemas_under(directory: str) -> int:
     its own, about fifteen schemas a test, and a run of seven thousand tests
     left a hundred thousand of them - so everything that walks the catalogue
     (the health check's sizes, `pg_database_size`) got slower test by test.
-    Never raises: a schema a straggling thread still holds is left behind."""
+    A schema a live `Connection` still names is kept: something can still
+    use it. Never raises: one a straggling thread locks is left behind."""
     if not enabled():
         return 0
     import psycopg
 
     root = os.path.abspath(str(directory))
+    with _LIVE_LOCK:
+        # A store something still holds - a module reloaded inside a test
+        # keeps its stores for the rest of the run - keeps its schema.
+        held = {conn.schema for conn in list(_LIVE)}
     names = sorted(s for s, d in list(_DIRS.items())
-                   if d == root or d.startswith(root + os.sep))
+                   if (d == root or d.startswith(root + os.sep)) and s not in held)
     if not names:
         return 0
     dropped = 0
