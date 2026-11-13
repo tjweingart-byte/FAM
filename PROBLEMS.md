@@ -36034,3 +36034,73 @@ date-of-birth crash on `Main` meanwhile.
 
 **Unbuilt here:** the Swift (no compiler; `ios.yml` builds it on a Mac).
 **Tests:** `tests/test_owner_notes_1112.py`.
+
+## 591. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13)
+
+**The owner, 11.13:** "for the myFAM loading screen, it should have the
+thumbnail of the episode and name of the category they selected on the
+loading screen. Right now it is just the name of the category and not the
+thumbnail. It should not be the episode's title, it should be the thumbnail
+and category."
+
+The glide's cards (§509) were text: a number and the topic's name. Since
+§570 the line under the row read `TOPICS[key].title`, which `playMixItem`
+now sets to today's episode title once the edition has written it - so the
+loading screen named the episode, not the topic.
+
+**Now** each card is the item's `picture` (§545's `_mix_pictures`, the
+player's own picker, so the card, the mix's row and the player agree) in a
+4:3 frame, then the number (with Played or Skipped), then the topic's name
+(`item.title`, two lines at most). With no approved picture the frame is the
+plain surface. The line under the row is the current item's topic too. The
+player and the mix's rows keep the episode title (§570); only the loading
+screen changes. `playMixItem` passes the item (`loaderItem`) so a single
+episode played from somebody else's mix draws its picture as well.
+
+iOS matches: `LoadingModel.Glide.pictures` (from `api.picture(item.picture)`
+in both places a glide is built) and `GlideView`'s card draws it above the
+topic; its line under the row already used the topic. Not built here - no
+Swift toolchain in this container; the Mac build in CI compiles it.
+
+## 592. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13)
+
+The owner reopened §509's choice for DailyFAM and asked for a new set of
+options. A twelve-slide deck (Slides artifact, each option playing live in a
+phone) offered six: Picture Develop, Hook Card, Friends Gather, Edition
+Stack, Broadcast Rings, Living Mark, against today's Tuning Dial. **The
+owner's pick: "Default to 1, but do three if friends have listened as
+well."**
+
+**Now** `startBankTopic` (a tile on the rails, View more and Play all) and
+`playNotifiedStory` set `loader: "daily"`, and `paintLoadingVariant("daily")`
+draws, under the §542 FAM mark and the "DAILYFAM · {rail}" kicker:
+
+- *No friends:* the tile's `thumb` in a 4:3 frame that comes into focus from
+  `blur(16px) grayscale(1)` over 2.4 s, a light band sweeping across it every
+  1.6 s (`famDevelop`, `famDevSheen`).
+- *Friends listened* (the tile's own `friendKeys`, resolved in
+  `FRIEND_FACE_BOOK` - mutual friends only, as on the card and the player):
+  the picture sharp, up to three faces (`friendFaceHtml`) flying in to its
+  bottom-left corner, staggered, and a line under it built by
+  `friendsListenedLine`: "Maya listened", "Maya and Jordan listened",
+  "Maya, Jordan and 4 others listened".
+
+Then the title and "Getting your episode ready", as before. A story opened
+from a notification has no tile: it develops onto the player's own picture,
+asked once from `/api/episode/card` and dropped if the screen has moved on,
+and never gathers faces (asking `/api/listened` mid-wait would swap screens
+under the listener). Nothing about holding is new: no steps, the audio never
+waits for the animation, a ready episode shows the first 0.45 s.
+
+The dial is gone: its CSS (`.fam-dial*`), `dialWord` and
+`LOADING_DIAL_NEIGHBOURS` are removed from the web. iOS: `DialView` is
+replaced by `DailyLoadingView`; `LoadingModel.Dial` keeps its name in the
+plumbing but now carries the picture, the faces and the line, built by
+`AppModel.dial(for:)` from `tile.thumb` and `nowPlaying.tileFriends`
+(`friendsListenedLine`, as the web's). `dialWord` goes on iOS too: nothing
+else called it. **Not compiled here** - no Swift
+toolchain in this container; the Mac CI build is its first compile.
+
+**Tests:** the smoke check now plays a tile with no friends (develops) and
+the same tile with two named friends of five (gathers, "Maya, Jordan and 3
+others listened").
