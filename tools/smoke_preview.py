@@ -3433,8 +3433,8 @@ def main() -> int:
 
         def a_chat_can_be_deleted_and_return_makes_a_new_line():
             """The chat menu offers Delete chat where Share an episode was
-            (§142); the message box is multi-line, so return is a new line and
-            the arrow sends; and a chat you only *sent* to is on the list the
+            (§142); the message box is multi-line - Shift+Return is a new line,
+            and Return sends (11.12 notes); and a chat you only *sent* to is on the list the
             moment you come back to it."""
             page.evaluate("openMessages()")
             page.wait_for_timeout(600)
@@ -3445,13 +3445,15 @@ def main() -> int:
             assert tag == "TEXTAREA", f"the message box is an {tag}, so return cannot make a line"
             page.click("#threadInput")
             page.keyboard.type("first line")
-            page.keyboard.press("Enter")
+            page.keyboard.press("Shift+Enter")
             page.keyboard.type("second line")
             value = page.input_value("#threadInput")
             assert value == "first line\nsecond line", \
-                f"return did not make a new line: {value!r}"
-            page.evaluate("sendThreadMessage()")
+                f"shift+return did not make a new line: {value!r}"
+            # Return sends (11.12 notes, reversing §142).
+            page.keyboard.press("Enter")
             page.wait_for_timeout(500)
+            assert page.input_value("#threadInput") == "", "return did not send"
             bubble = page.eval_on_selector_all(
                 "#thread-body .msg-row.out .msg-bubble", "e => e.map(x => x.textContent)")
             assert bubble and bubble[-1] == "first line\nsecond line", bubble

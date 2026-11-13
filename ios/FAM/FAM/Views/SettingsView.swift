@@ -680,11 +680,11 @@ struct ActivationCard: View {
                 .tint(FAMColor.copper)
                 .opacity(dateSet ? 1 : 0.6)
             help(activation.help?.birthDate)
-            FieldLabel(text: "Where you live").padding(.top, 12)
+            FieldLabel(text: "Where you live", optional: true).padding(.top, 12)
             TextField("", text: $place, prompt: Text("Town or city").foregroundColor(FAMColor.textFaint))
                 .youInput()
             help(activation.help?.location)
-            FieldLabel(text: "Gender").padding(.top, 12)
+            FieldLabel(text: "Gender", optional: true).padding(.top, 12)
             FlowRow(spacing: 8) {
                 ForEach(activation.genders ?? [], id: \.id) { g in genderChip(g) }
             }

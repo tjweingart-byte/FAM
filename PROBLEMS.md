@@ -35863,3 +35863,109 @@ Twilio's A2P 10DLC registration). Until then texts wait in the outbox.
 
 **Tests:** `tests/test_waitlist_notify.py`.
 
+
+## 588. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13)
+
+**What was asked.** A PDF of notes, "Some smaller things", built on a
+listener's messages: "Location should be optional and not required, make
+sure the forgot password works, and make sure pacing works as well"; the
+message box's Enter "only does enter, which is a design flaw"; "every time a
+message is sent and you click on the notification, it opens up a new message
+tab of the same tab", so the back arrow went back into the same chat once per
+tap; the "FAM" on a shared link's picture should be "the actual FAM logo. But
+keep it in the box"; and Instagram and Snapchat stories "should paste in the
+player card that is sent over text or when you copy the link", with the two
+story buttons not working on the app.
+
+**The place.** It was never required - `ActivationRequest` takes the city as
+optional, the identity step's save sends it beside the name, and the waitlist
+form already says "(Optional)" - but the activation card ("A few things before
+you start") drew "Where you live" and "Gender" under the same labels as the
+required date of birth, and the identity step's "Where you are" likewise; only
+a help line under each said so, last. Each label now carries "optional"
+(`.auth-opt` on the web, `FieldLabel(optional:)` on the iPhone), the same mark
+the phone number has. The date of birth stays required (§411, decision 1). No
+screen asks the phone's location permission at all: the app has no
+CoreLocation, and the place is typed.
+
+**Forgot password.** The listener's own message says "The forgot password
+finally works" (§571/§584 fixed it). Nothing changed here.
+
+**Return sends** (reversing §142's "return is a new line" at the owner's
+direction). Web: `#threadInput` sends on Enter without Shift and not while an
+input method is composing; Shift+Enter is the new line; `enterkeyhint="send"`;
+an empty box does nothing (`sendThreadMessage` already returns). iPhone: a
+vertical `TextField` takes Return as a newline and never calls `onSubmit`, so
+`ChatView.returnPressed` spots one typed "\n" (exactly one character more,
+nothing else changed, wherever the caret was), puts the draft back as it was
+and sends; a pasted block keeps its lines; `.submitLabel(.send)`. The smoke
+run and `test_second_packet_142` now say so; PARITY.md's row too.
+
+**One chat per banner** (iPhone only - the web has one screen, not a stack).
+`SocialModel.open` pushed a `.thread` on whichever stack was shown every time,
+so three taps on a friend's banner while their chat was open made three
+copies of it. `returnToThread` now looks for that conversation (by `with`) on
+the shown stack - the cover's root and path, or the Messages tab's path - and
+pops back to it instead of pushing.
+
+**The logo on the link picture** (`link_preview`, §559). The badge typed
+"FAM" in Bricolage; it now draws the wordmark - F, the chevron A that is the
+mark, M - from the same strokes as `FAMLetters` / `.wm-f` / `.wm-a`, round
+caps and joins, four times over and shrunk, centred in the unchanged dark
+plate (`BADGE`). The no-picture cover's "FAM" is the drawn wordmark too.
+Messages keeps a link's preview on the phone, so an old bubble shows the old
+badge; a new share shows the new one.
+
+**The player card in a story.** The story tiles drew `sharing.story_card` -
+the words-only 9:16 SVG in the screenshot - while the picture a link makes in
+Messages is §559's preview with the title and the site under it. The server
+now draws that card itself (`link_preview.card`): the preview square, a light
+strip with the title (two lines at most) and the host, rounded, clear outside.
+`GET /api/share/<id>/sticker.png` is the card alone; `/story.jpg` is it
+centred on 1080x1920, the picture blurred and darkened behind it (FAM's
+ground and glow without one). Both kept briefly with the preview
+(`_share_drawing`), public like it (the waitlist gate's list), and named in
+`/api/share`'s answer as `story_sticker` and `story_image` - new fields, so
+installed builds keep `card`. The iPhone fetches them (`FAMAPI.shareImage`)
+and hands Instagram the card as a **sticker**
+(`com.instagram.sharedSticker.stickerImage`, on FAM's ground colours) the
+person can move and size, Snapchat the whole story; a mix, or an older
+server, still draws the SVG. The web's story share sends `story.jpg`.
+
+**"The buttons don't work on the app."** The screenshot shows Instagram's
+"pasted from FAM" banner, so Instagram's hand-off did run there; what it
+carried was the old card. Where there is no hand-off - `INSTAGRAM_APP_ID` /
+`SNAPCHAT_CLIENT_ID` unset, or a Snap Development id posting for someone who
+is not a Demo User (§558) - the share sheet was given the picture *and* the
+words, and some apps' share extensions refuse that pair. It now gets the
+picture alone, with the words on the clipboard ("Your words are on the
+clipboard - paste them in"). Both ids are now listed in `render.yaml`
+(`sync: false`) so the dashboard asks for them; `/api/health` ->
+`sharing.story_handoffs` says which are on.
+
+**One pace** (`pace_level.py`). Chatterbox has no rate control and an
+episode is voiced a chunk at a time, each chunk sampling its own tempo -
+seeding (§176) fixes a sentence's take, not two chunks' speed - so the voice
+sped up and slowed down at the seams. Each chunk's rate is measured (letters
+handed to the voice per second from the first voiced 20 ms frame to the last)
+and, against the episode's own median so far, stretched toward it with WSOLA
+(40 ms Hann windows at half-window spacing, each placed within 8 ms where it
+best continues the last; pitch unchanged, [speed-pitch]) when it is more than
+`PACE_LEVEL_DEADBAND` (4%) off, by at most `PACE_LEVEL_MAX` (15%). The first
+chunk is never touched; chunks under 1.2 s or 20 letters are not measured. It
+runs in `PodcastPipeline` straight after `synth`, before anything is measured,
+so captions, the budget and kept audio are the levelled audio; only engines
+with `levels_pace` (Chatterbox local and remote) - espeak, say and the tone
+never. About 17 ms for a ten-second chunk. `PACE_LEVEL=0` turns it off. This
+is not the speeding-up §3/§4 decided against: no chunk is hurried to fit a
+budget; each is moved toward the episode's own pace. **Unheard** - no voice
+here; the listening test is whether the seams are gone and whether a 10-15%
+stretch is audible.
+
+**Not changed: "Didn't know how to say Nvidia".** §567, §569 and §576 changed
+NVIDIA's voicing after that message may have been heard; if it is still
+wrong on a new episode, the /admin lexicon entry §569 warned about is the
+first thing to check.
+
+**Unbuilt here:** the Swift (no compiler; `ios.yml` builds it on a Mac).
+**Tests:** `tests/test_owner_notes_1112.py`.

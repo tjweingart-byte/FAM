@@ -407,6 +407,15 @@ services:
         sync: false
       - key: AHEAD_DAILYFAM_SHARE
         sync: false
+      # The story hand-offs (§558): a Facebook App ID, and a Snap Kit client
+      # id, both registered to net.familiarize.fam. Public identifiers, not
+      # secrets; without them the app's Instagram and Snapchat story tiles
+      # fall back to iOS's share sheet. /api/health -> story_handoffs says
+      # which are on.
+      - key: INSTAGRAM_APP_ID
+        sync: false
+      - key: SNAPCHAT_CLIENT_ID
+        sync: false
     # No disk (§339): it was deleted once every store was in Postgres. The
     # Dockerfile's /data/*.db paths stay as they are - they no longer name
     # files, but each store's Postgres schema is named from its path

@@ -818,7 +818,9 @@ struct ShareSheet: View {
             if let link {
                 ShareTargetRows(url: link.url, targets: link.targets ?? [:],
                                 isPublic: link.public ?? true,
-                                card: link.card ?? "") { dismiss() }
+                                card: link.card ?? "",
+                                storyImage: link.storyImage ?? "",
+                                storySticker: link.storySticker ?? "") { dismiss() }
             } else {
                 Text(problem.isEmpty ? "Making a link\u{2026}" : problem)
                     .font(FAMFont.body(12))
