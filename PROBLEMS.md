@@ -35236,8 +35236,10 @@ from launch day; there is still no checkout, so nothing is billed.
   earned, starts, ends}; the share card draws five dots and "2 of 5 friends
   joined. 3 more for a free month." / "Free month earned. It starts the day
   FAM opens to everyone." / the dates once launch is set.
-- The iOS waitlist page has the new sentence (`FrontDoor.swift`) but not yet
-  the dots; PARITY.md says so.
+- The iOS waitlist page draws the same (`WaitlistFreeMonthProgress` in
+  `FrontDoor.swift`, `WaitlistFreeMonth` in `API.swift`): five bars and the
+  web's sentences word for word. Not compiled here (no Swift toolchain in
+  the container); the next Xcode build is the check.
 
 **While `ENFORCE_QUOTAS=0`** every tier is unlimited, so the month changes
 nothing a listener can notice until the tiers are on - which is the point:

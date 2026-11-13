@@ -967,8 +967,23 @@ struct WaitlistMe: Decodable {
     let inNextBatch: Bool?
     let referralCode: String?
     let invites: Int?
+    /// Five friends earn a free month (§575); absent from an older server.
+    let freeMonth: WaitlistFreeMonth?
     let fam: [WaitlistFamPerson]?
     let details: WaitlistDetails?
+}
+
+/// `free_month` on `/api/waitlist/me` (§575): how many of the five friends
+/// have joined with the link, whether the month is earned, and - once an
+/// admin has set the day the whole app goes live - when it runs.
+struct WaitlistFreeMonth: Decodable, Hashable {
+    let needed: Int
+    let invites: Int
+    let remaining: Int
+    let earned: Bool
+    /// Seconds since the epoch, or nil until the launch day is set.
+    let starts: Double?
+    let ends: Double?
 }
 
 /// One of "Your FAM" on the status page: a friend, or somebody who joined

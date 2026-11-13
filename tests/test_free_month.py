@@ -133,3 +133,16 @@ def test_status_page_and_admin_carry_it(world):  # noqa: F811
     assert body["free_month"]["earned"] == 1
     assert body["free_month"]["starts"] == 2_000_000_000
     assert me.get("/api/waitlist/me").json()["free_month"]["starts"] == 2_000_000_000
+
+
+def test_ios_draws_the_webs_progress_word_for_word():
+    """The iPhone's share card says what the web's says (PARITY.md)."""
+    web = (ROOT / "static" / "waitlist.html").read_text()
+    ios = (ROOT / "ios" / "FAM" / "FAM" / "Views" / "FrontDoor.swift").read_text()
+    api = (ROOT / "ios" / "FAM" / "FAM" / "API.swift").read_text()
+    for words in ("Free month earned. It starts the day FAM opens to everyone.",
+                  " friends joined. ", " more for a free month.",
+                  "Free month earned: "):
+        assert words in web and words in ios, words
+    assert "let freeMonth: WaitlistFreeMonth?" in api
+    assert "WaitlistFreeMonthProgress(month: fm)" in ios
