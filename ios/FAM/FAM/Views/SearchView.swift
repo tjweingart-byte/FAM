@@ -621,7 +621,8 @@ struct SearchView: View {
     private func go(_ text: String) {
         guard !sending else { return }
         let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !typed.isEmpty || !attach.isEmpty else { return }
+        // Return in an empty box goes on too (`runSearch` -> `sendSearch("", "")`):
+        // the web's demo episode (`generate("spacex")`).
         typing = false
         let length = minutes
         sending = true

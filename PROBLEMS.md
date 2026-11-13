@@ -35227,7 +35227,7 @@ episode) was 1 and never matched its own audio. Everybody the link was sent
 to who was not an active member got a page that would not play. It is
 `as_minutes` now. `GET /api/share/{id}` also passes the gate, so the app can
 play a `/s/` link for somebody signed out or waitlisted (the app's screen
-for it is build 7, §576).
+for it is build 7, §584).
 
 **Message only between friends, on the web too.** The social audit found
 the web drew Message on any profile, and opened a chat from a face with no
@@ -35246,7 +35246,7 @@ branch-protection setting.
 **The audit behind it.** Seven read-only audits of the app against the web
 and server (animations, sharing and links, the API contract, compile risks,
 account screens, listening screens, social), in the session's scratchpad
-as `audit3-*.md`. Their fixes are build 7 (§576).
+as `audit3-*.md`. Their fixes are build 7 (§584).
 
 **Tests:** `tests/test_waitlist.py` (`..._previews_behind_the_waitlist_575`,
 `..._one_and_a_half_minutes_575`, both run with the waitlist on, both fail
@@ -35598,3 +35598,150 @@ manifest deleted; `tests/test_egan_580.py`'s waiting tests are signed
 ones (his lock passes, his request is his own). He stays **off** until the
 owner sets `AGENTS=1` and `OUTREACH_AGENT=1`; until then the page composes
 in code and the card says "off".
+
+## 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13)
+
+**What was asked.** The owner's standing rule - "Everything we've put in the
+app has been intentional, do not leave things out due to your judgement" -
+against the third round of audits (account, social, listening, API), and
+first of all: a `/s/` link opened on an iPhone by somebody signed out or on
+the waitlist was held until they were let in, so it never played. §575 made
+the server let the share and its audio through; this is the app's half.
+
+**A shared episode (`AppLinks.swift`, `Views/SharedListenView.swift`).**
+`openLink` still follows a link at once when the app is open on its tabs.
+For `.signedOut` or `.waiting` a `/s/<id>` link now opens the listen page
+itself, natively, over the front door or the status page - and so does a
+link held since a cold start, once `/api/auth/me` has answered
+(`RootView`'s `onChange(of: stage)` -> `stageSettled`). Word for word
+`static/listen.html`: its palette, the wordmark, "Shared with you", the
+title, the question, "N min listen", play / pause, ±15 s, the bar clamped to
+what is voiced, the times, the status line, "Want to hear more?" and "Be a
+part of the conversation with FAM →", the two App Store doors when there is
+an App Store link, the expired state. The audio is `api.audio(query:
+share.question, minutes: share.minutes, surface: "share")` - the request the
+gate's `_shared_episode_request` lets through, 1.5 kept as "1.5" - on the
+app's player, routed as a front-door sample's is (`shareQuery`). The open is
+counted (`shareOpened`). Every door goes where the page's goes, `/waitlist`:
+Sign up for somebody signed out (`askSignUp`), the status page for somebody
+already in line. Let in, the screen gives way and `/s/` plays in the app as
+before. The link is taken by the screen, so nothing replays it after a
+sign-up.
+
+**Settings' password note** is `passwordSettingsNote()` again (§571 made the
+web's conditional; the app kept the old sentence): `has_password` and
+`/api/auth/reset`'s `available`, asked when Settings opens.
+
+**Share targets.** `.convertFromSnakeCase` is documented to convert keyed
+containers' keys; whether a `[String: T]`'s keys escape it has differed
+between Foundation releases. `SharedLink` and `MixShare` now put every
+target key back to snake_case (`ShareTarget.serverKeyed`), so
+`instagram_story` / `snapchat_story` reach the sheet's order, glyphs and
+story hand-off either way.
+
+**Staging and demo.** `/api/health` was read only for the loading note. The
+web's `.env-ribbon` ("Staging" / "Zero spend" · the client) is now on every
+screen, covers included (its own touchless window, `EnvRibbon.swift`), and
+the player's "not your episode" badge shows on a demo server or a rejected
+key.
+
+**Account.** "Say Hey FAM" sits after Notifications; the survey invite only
+on the web's `SURVEY_OPEN_SCREENS` (searchFAM now included; Settings, View
+more, topics, profiles, conversations not); the join has no step marks, its
+arrow, its error under the button, and the waitlist page's toggle ("Already
+on the list? Sign in" / "New here? Get early access"); Log in's password
+says "at least 8 characters"; the reset form's back arrow is
+`backToWelcome`; the interests picker's "Nothing on the list matches" uses
+the lower-cased term.
+
+**Social.** iOS-only extras removed: the tappable ring on a friend's
+profile, "No listener by that handle.", See who's here's per-member ⋯ and
+"Not your friend" (Report and Block stay on the profile), the story viewer's
+swipe-down close, the group rename alert's note, the editor X's "Close" in
+note mode. The web said "1 people"; it now says "1 person", as the app did.
+
+**Motion.** Every mix menu and question, the status page's gear menu and
+the remove-a-public-mix question are FAM's action sheet, not
+`confirmationDialog`; Rename mix and "Name your new playlist" are the web's
+modal card (`textModal`), not an alert. The squeeze reaches the controls
+that lacked it and the drawn pills (`pressSqueeze`, `tapSqueeze`). A removed
+Queue or Saved row slides 45 % left and fades over 180 ms, then folds over
+200 (`rowRemoval`, `rowFold`); the player's cards and the follower popup
+drop 8 pt as they close (`famOverlay`); the welcome samples blur up.
+
+**Listening.** Return in an empty search box plays the web's demo episode
+(`generate("spacex")`), which PARITY.md had called a quirk not to copy;
+PARITY.md's stale rows (the glide's note, faces drawn as initials) are
+corrected.
+
+**Listed, not built:** push notifications (APNs, after 1.0, §564); the
+waitlist profile form's date of birth, phone, place combos and interests
+(the app's identity step stands in); the status page's admin note and its
+in-page explainer, and iOS's "Check again"; Search DailyFAM closing under
+the player; the Daily reminder's wheel; mid-sentence autocorrect; the
+attach menu's second sheet; "Hey FAM" in the background; the DailyFAM
+card's full picture and hook (the owner's call, to confirm); the VIBE!
+composer's cover against the web's instant open, and the mini bar's drop
+timing.
+
+**A compiler, at last.** `.github/workflows/ios.yml` (merged from the other
+branch) builds the app on a Mac for every push. Its first run here found
+what tree-sitter cannot: the shared screen's state was `private(set)` but
+set from `AppLinks.swift`, and two `opacity(1 - 0.45 * x)` with a CGFloat
+`x` were ambiguous - both already on Main, so build 6 would not have
+compiled even with its redeclaration fixed.
+
+A third, from the motion work: a generic `PressedLabel` cannot hold a
+static stored property. With those fixed the iOS build is green on this
+branch (run 43350266249) - the first build of the app on a compiler since
+§538. PARITY.md's "Done, unbuilt" rows (Play all, the friends pill, vibe
+posts, the background refresh) now say they compile; none has run on a
+phone. What the compiler cannot say - that the shared screen, the ribbon's
+window or the new squeezes behave on a device - is unverified.
+
+`CURRENT_PROJECT_VERSION` is 7. Tests: five `..._575` tests in
+`tests/test_ios_app_contract.py`.
+
+**Second audit (addendum).** Six read-only audits of build 7 (runtime,
+sharing, account, social, API, motion) found what the first pass left.
+Fixed: a shared or sample play no longer asks for the full player behind
+its own screen (it opened over the tabs after a sign-up); the shared screen
+loads with no waiting state or entrance, squeezes only its play button
+(0.95, 120 ms `ease`, the page's one motion), seeks once on release and
+leaves a vertical drag to the scroll, says "--:--" for a dead link, sets
+its footnote at `.doors p`'s 13.5, and keeps the status bar dark in the
+light theme. The staging ribbon's window no longer freezes the status bar
+(restyled with the theme, private search and the shared screen) and goes
+back on the live scene after a reconnect. A dead `/s/` link for a member
+is the page's "Nothing to play"; `/j/` signed out is the web's sheet (the
+invite line, Sign up, Log in); a link on a phone drawn ahead waits for
+`/api/auth/me`, so an expired session lands on the shared screen. The mix
+invite shares words and link as two items; the waitlist share carries the
+subject "FAM"; legal links in sentences open in the app's Safari sheet.
+Log in says the app's "New to FAM? Sign up"; the join has no title row or
+visible labels; passwords cap at 1024 as the pages' `maxlength`, with no
+iOS-only sentences; the free-month line is 15 pt and the status page's
+three icons are the page's paths. **The web follows the app** on New
+message (§575): a typed handle to a non-friend gets "You can message
+people who follow you back." and the card stays open; and both sides now
+refuse only once the friends list has loaded (`notAFriend` /
+`mayNotMessage` - the web's `friendsData.friends` started as `[]`, so it
+refused before its list arrived, against its own comment). Social and
+motion details are the web's (rename, "0 people", the member row, the
+save label, the playlist-done and What's next cards, the banner, the row
+fold, three missing squeezes, the Replies sheet). `release_contracts` now
+reads the app's relative `api/v1/...` literals, which it never matched, so
+`ios-1.0.0.json` is recut from this source (still unapproved; the registry
+records build 7). Survey `detail` and the catalogue's tag dictionaries go
+back to the server's keys, as the share targets do.
+
+Listed, not built: Report / Block on a one-to-one with somebody who has no
+handle (neither side has it; the owner's call under §222);
+`www.familiarize.net` is accepted by the app but not in the entitlement;
+the phone field on the identity step (APP_STORE gap 12). For a device:
+the chained sheets (a row's sheet opening the next one 0.45 s later, on
+iOS 17 and 18), the vibe tile's hold and scroll under its squeeze, the
+shared screen's bar inside its scroll view, and whether the ribbon's
+window really yields the status bar. Tests: eight `..._584` tests in
+`tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
+one in `test_client_contracts.py`.

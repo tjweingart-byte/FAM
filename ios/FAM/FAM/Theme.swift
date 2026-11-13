@@ -355,6 +355,14 @@ enum Icons {
         return p
     }()
 
+    /// The join's arrow (`M5 12h14M13 6l6 6-6 6`, `#joinBtn`).
+    static let arrowRight: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 5, y: 12)); p.addLine(to: CGPoint(x: 19, y: 12))
+        p.move(to: CGPoint(x: 13, y: 6)); p.addLine(to: CGPoint(x: 19, y: 12)); p.addLine(to: CGPoint(x: 13, y: 18))
+        return p
+    }()
+
     /// Back: the double chevron («).
     static let back: Path = {
         var p = Path()
@@ -413,6 +421,19 @@ enum Icons {
         p.addLine(to: CGPoint(x: 17, y: 21))
         p.addQuadCurve(to: CGPoint(x: 19, y: 19), control: CGPoint(x: 19, y: 21))
         p.addLine(to: CGPoint(x: 19, y: 13))
+        return p
+    }()
+
+    /// The waitlist's "Your FAM" Share: a person and a plus, as
+    /// waitlist.html draws it (`circle 9,8 r3.5`, `M16 11h6M19 8v6`).
+    static let personPlus: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 5.5, y: 4.5, width: 7, height: 7))
+        p.move(to: CGPoint(x: 2.5, y: 19))
+        p.addCurve(to: CGPoint(x: 9, y: 14), control1: CGPoint(x: 3.3, y: 15.7), control2: CGPoint(x: 5.9, y: 14))
+        p.addCurve(to: CGPoint(x: 15.5, y: 19), control1: CGPoint(x: 12.1, y: 14), control2: CGPoint(x: 14.7, y: 15.7))
+        p.move(to: CGPoint(x: 16, y: 11)); p.addLine(to: CGPoint(x: 22, y: 11))
+        p.move(to: CGPoint(x: 19, y: 8)); p.addLine(to: CGPoint(x: 19, y: 14))
         return p
     }()
 
@@ -655,6 +676,13 @@ enum Icons {
 
 // MARK: - Shared pieces
 
+extension View {
+    /// `.press`'s squeeze on a drawn button style's label.
+    func pressSqueeze(_ pressed: Bool) -> some View {
+        PressedLabel(label: self, pressed: pressed, dims: false)
+    }
+}
+
 /// The copper pill (`Create account`, `Sign up`).
 struct CopperButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -664,6 +692,8 @@ struct CopperButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: 46)
             .background(FAMColor.copper, in: Capsule())
             .opacity(configuration.isPressed ? 0.85 : 1)
+            // Squeezes as every button does (`.press`).
+            .pressSqueeze(configuration.isPressed)
     }
 }
 
@@ -677,5 +707,6 @@ struct OutlineButtonStyle: ButtonStyle {
             .frame(minHeight: 40)
             .overlay(Capsule().stroke(FAMColor.borderStrong))
             .opacity(configuration.isPressed ? 0.7 : 1)
+            .pressSqueeze(configuration.isPressed)
     }
 }

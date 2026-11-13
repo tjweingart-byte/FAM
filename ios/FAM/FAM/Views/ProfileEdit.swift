@@ -1195,7 +1195,8 @@ struct InterestsView: View {
         } else if shown.isEmpty {
             let tail = (!raw.isEmpty && !exact && !isChosen(raw))
                 ? " \u{2014} add it above and it becomes one of yours." : "."
-            Text("Nothing on the list matches \u{201C}" + raw + "\u{201D}" + tail)
+            // `term`: the typed words lower-cased (`raw.toLowerCase()`).
+            Text("Nothing on the list matches \u{201C}" + raw.lowercased() + "\u{201D}" + tail)
                 .font(FAMFont.body(11.5)).foregroundStyle(FAMColor.textFaint)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.vertical, 18)

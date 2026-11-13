@@ -254,6 +254,7 @@ struct MyFAMView: View {
                 // that must not open the mix as well.
                 ForEach(results) { mix in
                     MixCard(mix: mix, trailing: mix.mine ? .none : .add)
+                        .tapSqueeze()
                         .onTapGesture { path.append(.publicMix(mix.id)) }
                         .accessibilityElement(children: .contain)
                         .accessibilityAddTraits(.isButton)
@@ -414,7 +415,8 @@ struct AddMixButton: View {
     var wide = false
     @State private var added: Bool?
     @State private var busy = false
-    @State private var confirmRemove = false
+    /// `confirmRemoveMix`: FAM's own sheet, its question as the header.
+    @State private var confirmRemove: SheetSpec?
 
     /// Once your list has loaded it is the only truth - a copy of this mix
     /// is in it or not; before that, what the server said with the search.
@@ -425,7 +427,7 @@ struct AddMixButton: View {
 
     var body: some View {
         Button {
-            if isAdded { confirmRemove = true } else { Task { await add() } }
+            if isAdded { askRemove() } else { Task { await add() } }
         } label: {
             if wide {
                 // `.pub-add-btn`: a 44 pt rounded bar.
@@ -453,11 +455,14 @@ struct AddMixButton: View {
         // halves a disabled button, so 0.8 of that.
         .opacity(busy ? 0.8 : 1)
         .accessibilityLabel(isAdded ? "Remove \(mix.name) from your myFAM" : "Add \(mix.name) to your myFAM")
-        .confirmationDialog("Remove \(mix.name) from your myFAM?", isPresented: $confirmRemove,
-                            titleVisibility: .visible) {
-            Button("Yes, remove it", role: .destructive) { Task { await remove() } }
-            Button("Cancel", role: .cancel) {}
-        }
+        .famSheet(item: $confirmRemove) { spec in FAMActionSheet(spec: spec) }
+    }
+
+    private func askRemove() {
+        confirmRemove = SheetSpec(header: "Remove \(mix.name) from your myFAM?",
+                                  actions: [SheetAction(label: "Yes, remove it", danger: true) {
+                                      Task { await remove() }
+                                  }])
     }
 
     private var glyph: some View {
@@ -533,6 +538,7 @@ struct MixHeader<Trailing: View>: View {
             WebIcon(path: Icons.back, size: 20, line: 2.6).foregroundStyle(FAMColor.text)
                 .frame(width: 36, height: 36)
         }
+        .buttonStyle(.press)
         .accessibilityLabel(backLabel)
     }
 
@@ -611,6 +617,8 @@ struct MixDoneOverlay: View {
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong))
             .shadow(color: .black.opacity(0.45), radius: 30, y: 30)
+            .liftsIn()
+            .dropsOnLeave()
             .padding(.horizontal, 27)
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)

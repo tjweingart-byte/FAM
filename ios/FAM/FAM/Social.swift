@@ -304,6 +304,13 @@ final class SocialModel: ObservableObject {
         !userID.isEmpty && (graph?.friends.contains { $0.userId == userID } ?? false)
     }
 
+    /// One-to-one is refused before it opens only when the friends list has
+    /// loaded and they are not on it (the web's `notAFriend`); with no list
+    /// yet the conversation opens and the server decides on the send.
+    func mayNotMessage(_ userID: String) -> Bool {
+        graph != nil && !isFriend(userID)
+    }
+
     /// New message's empty sentence (`paintNewChatContacts`, §520).
     static let nobodyToMessage = "Nobody to message yet. When someone you follow follows you back, you can message them."
     /// The share sheet's (`loadShareContacts`).
@@ -493,7 +500,8 @@ final class SocialModel: ObservableObject {
 
     func dismissBanner() {
         bannerHeld = false
-        withAnimation(.easeIn(duration: 0.2)) { banner = nil }
+        // Closed on its open curve (`.notif`'s transition runs both ways).
+        withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.28)) { banner = nil }
         bannerTask?.cancel()
         bannerTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(Self.bannerGap * 1_000_000_000))

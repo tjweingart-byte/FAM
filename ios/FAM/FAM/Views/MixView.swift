@@ -13,14 +13,12 @@ struct MixView: View {
     let id: String
     @Binding var path: [MixRoute]
 
-    @State private var menu = false
     @State private var people = false
-    @State private var renaming = false
-    @State private var newName = ""
-    @State private var confirmAlone = false
-    @State private var confirmLeave = false
-    @State private var confirmPublicShare = false
-    @State private var coverChoice = false
+    /// "Rename mix" as the web's centred modal (`showModal`).
+    @State private var renameAsk: TextAsk?
+    /// The ⋯ menu and its questions - make it yours alone, leave, share
+    /// publicly, the cover's - as FAM's own action sheet (`showActionSheet`).
+    @State private var actionSheet: SheetSpec?
     @State private var pickingPhoto = false
     @State private var photo: PhotosPickerItem?
     /// The chosen photo in the cover editor ("Position your cover").
@@ -46,7 +44,7 @@ struct MixView: View {
     var body: some View {
         VStack(spacing: 0) {
             MixHeader(title: mix?.name ?? "", back: { back() }) {
-                Button { menu = true } label: { HeadDots() }
+                Button { openMenu() } label: { HeadDots() }
                     .buttonStyle(.press)
                     .accessibilityLabel("More options")
             }
@@ -90,7 +88,7 @@ struct MixView: View {
         // A topic added anywhere - Add topics, a member - leaves the five,
         // and the next takes its place.
         .onChange(of: mix?.items.count ?? 0) { _, _ in refill() }
-        .confirmationDialog(mix?.name ?? "", isPresented: $menu, titleVisibility: .hidden) { menuButtons }
+        .famSheet(item: $actionSheet) { spec in FAMActionSheet(spec: spec) }
         .famSheet(isPresented: $people) {
             if let mix {
                 MixPeopleSheet(mix: mix)
@@ -99,37 +97,7 @@ struct MixView: View {
         }
         // The field starts empty with the current name as its placeholder,
         // as the web's (`renameMix`: `placeholder: m.name`).
-        .alert("Rename mix", isPresented: $renaming) {
-            TextField(mix?.name ?? "", text: $newName)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") { Task { await rename() } }
-        }
-        .confirmationDialog("Make “\(mix?.name ?? "")” yours alone? The invite link stops working and everyone else is taken off. The topics they added stay.",
-                            isPresented: $confirmAlone, titleVisibility: .visible) {
-            Button("Yes, make it mine alone", role: .destructive) { Task { await makeAlone() } }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Leave “\(mix?.name ?? "")”? It comes out of your myFAM; the topics you added stay.",
-                            isPresented: $confirmLeave, titleVisibility: .visible) {
-            Button("Leave", role: .destructive) { Task { await leave() } }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Sharing “\(mix?.name ?? "")” makes it public: it goes on your profile, and anyone with the link can see it and add it.",
-                            isPresented: $confirmPublicShare, titleVisibility: .visible) {
-            Button("Make public and share") {
-                Task {
-                    if await mixes.update(id, ["public": true]) != nil { later { sharing = true } }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Cover", isPresented: $coverChoice, titleVisibility: .hidden) {
-            Button("Choose a different photo") { later { pickingPhoto = true } }
-            Button("Remove cover", role: .destructive) {
-                Task { if await mixes.update(id, ["cover": ""]) != nil { model.nowPlaying.say("Cover removed") } }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
+        .textModal($renameAsk)
         .photosPicker(isPresented: $pickingPhoto, selection: $photo, matching: .images)
         .onChange(of: photo) { _, item in
             guard let item else { return }
@@ -694,34 +662,64 @@ struct MixView: View {
 
     // MARK: - The ⋯ menu
 
-    /// Anything that opens another sheet, alert or picker waits for this
-    /// dialog to close first (`later`).
-    @ViewBuilder
-    private var menuButtons: some View {
-        if let mix {
-            if mix.isOwner {
-                Button(mix.public ? "Make private" : "Make public") {
-                    Task {
-                        if await mixes.update(id, ["public": !mix.public]) != nil {
-                            model.nowPlaying.say(mix.public ? "Private again" : "On your profile now")
-                        }
+    /// `openMixMenu`: the owner's rows, or a member's three. A row closes
+    /// the sheet, then acts once it has gone (`FAMActionSheet`).
+    private func openMenu() {
+        guard let mix else { return }
+        var rows: [SheetAction] = []
+        if mix.isOwner {
+            rows.append(SheetAction(label: mix.public ? "Make private" : "Make public") {
+                Task {
+                    if await mixes.update(id, ["public": !mix.public]) != nil {
+                        model.nowPlaying.say(mix.public ? "Private again" : "On your profile now")
                     }
                 }
-                Button("Rename") { later { startRename(mix) } }
-                Button(mix.cover.isEmpty ? "Add a cover photo" : "Change cover") { later { tapCover(mix) } }
-                Button("Add topics to mix") { path.append(.add(id)) }
-                Button("Invite collaborators") { later { Task { await invite() } } }
-                if mix.joint { Button("Make it yours alone") { later { confirmAlone = true } } }
-                Button("Share mix") { later { Task { await shareTapped() } } }
-                // One tap, as on the web (`deleteMix`): no second question.
-                Button("Delete mix", role: .destructive) { Task { await delete() } }
-            } else {
-                Button("Add topics to mix") { path.append(.add(id)) }
-                if !mix.people.isEmpty { Button("Who’s in this mix") { later { people = true } } }
-                Button("Leave this mix", role: .destructive) { later { confirmLeave = true } }
-            }
-            Button("Cancel", role: .cancel) {}
+            })
+            rows.append(SheetAction(label: "Rename") { startRename(mix) })
+            rows.append(SheetAction(label: mix.cover.isEmpty ? "Add a cover photo" : "Change cover") { tapCover(mix) })
+            rows.append(SheetAction(label: "Add topics to mix") { path.append(.add(id)) })
+            rows.append(SheetAction(label: "Invite collaborators") { Task { await invite() } })
+            if mix.joint { rows.append(SheetAction(label: "Make it yours alone") { askAlone() }) }
+            rows.append(SheetAction(label: "Share mix") { Task { await shareTapped() } })
+            // One tap, as on the web (`deleteMix`): no second question.
+            rows.append(SheetAction(label: "Delete mix", danger: true) { Task { await delete() } })
+        } else {
+            rows.append(SheetAction(label: "Add topics to mix") { path.append(.add(id)) })
+            // Always offered to a member; with nobody listed it opens
+            // nothing (`openMixPeople`'s `!(m.people && m.people.length)`).
+            rows.append(SheetAction(label: "Who\u{2019}s in this mix") {
+                if !(self.mix?.people.isEmpty ?? true) { people = true }
+            })
+            rows.append(SheetAction(label: "Leave this mix", danger: true) { askLeave() })
         }
+        actionSheet = SheetSpec(actions: rows)
+    }
+
+    /// `stopJointMix`.
+    private func askAlone() {
+        let name = mix?.name ?? ""
+        actionSheet = SheetSpec(header: "Make \u{201C}\(name)\u{201D} yours alone? The invite link stops working and everyone else is taken off. The topics they added stay.",
+                                actions: [SheetAction(label: "Yes, make it mine alone", danger: true) {
+                                    Task { await makeAlone() }
+                                }])
+    }
+
+    /// `leaveMix`.
+    private func askLeave() {
+        let name = mix?.name ?? ""
+        actionSheet = SheetSpec(header: "Leave \u{201C}\(name)\u{201D}? It comes out of your myFAM; the topics you added stay.",
+                                actions: [SheetAction(label: "Leave", danger: true) { Task { await leave() } }])
+    }
+
+    /// `shareMix` on a private mix: asked before it goes public.
+    private func askPublicShare() {
+        let name = mix?.name ?? ""
+        actionSheet = SheetSpec(header: "Sharing \u{201C}\(name)\u{201D} makes it public: it goes on your profile, and anyone with the link can see it and add it.",
+                                actions: [SheetAction(label: "Make public and share") {
+                                    Task {
+                                        if await mixes.update(id, ["public": true]) != nil { later { sharing = true } }
+                                    }
+                                }])
     }
 
     /// `applyCover`: saved, and said.
@@ -734,24 +732,24 @@ struct MixView: View {
     }
 
     private func tapCover(_ mix: Mix) {
-        if mix.cover.isEmpty { pickingPhoto = true } else { coverChoice = true }
+        if mix.cover.isEmpty { pickingPhoto = true; return }
+        // `coverTapped`: the two rows of FAM's own sheet.
+        actionSheet = SheetSpec(actions: [
+            SheetAction(label: "Choose a different photo") { pickingPhoto = true },
+            SheetAction(label: "Remove cover", danger: true) {
+                Task { if await mixes.update(id, ["cover": ""]) != nil { model.nowPlaying.say("Cover removed") } }
+            },
+        ])
     }
 
+    /// `renameMix`: the web's modal, empty with the name as its
+    /// placeholder; an empty name keeps it open (`showModal` refocuses),
+    /// and any name - the same one too - is saved.
     private func startRename(_ mix: Mix) {
-        newName = ""
-        renaming = true
-    }
-
-    /// `renameMix`: an empty name keeps the box open (`showModal`
-    /// refocuses), so it is asked again; any name - the same one too - is
-    /// saved.
-    private func rename() async {
-        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else {
-            later { renaming = true }
-            return
+        let mixID = id
+        renameAsk = TextAsk(title: "Rename mix", placeholder: mix.name, button: "Save") { name in
+            Task { await mixes.update(mixID, ["name": name]) }
         }
-        await mixes.update(id, ["name": name])
     }
 
     private func delete() async {
@@ -795,7 +793,7 @@ struct MixView: View {
     private func shareTapped() async {
         guard let mix else { return }
         if mix.items.isEmpty { model.nowPlaying.say("Add a topic before sharing it"); return }
-        if !mix.public { confirmPublicShare = true; return }
+        if !mix.public { askPublicShare(); return }
         sharing = true
     }
 
@@ -806,9 +804,14 @@ struct MixView: View {
             // subject, the words, and the link made absolute (`/j/<token>`
             // may come back relative).
             let address = URL(string: link.url, relativeTo: model.api.base)?.absoluteURL
+            // The words and the link as two items, as `inviteItems` hands
+            // them: Messages and Mail draw the link as a link of its own.
             let text = "Help me build “\(link.name)” on FAM — add the topics you want to hear."
-            let shared = address?.absoluteString ?? link.url
-            shareItems = [ShareTextItem(text: text + " " + shared, subject: link.name)]
+            if let address {
+                shareItems = [ShareTextItem(text: text, subject: link.name), address]
+            } else {
+                shareItems = [ShareTextItem(text: text + " " + link.url, subject: link.name)]
+            }
         } catch {
             model.nowPlaying.say(MixesModel.sentence(error, else: "Could not make an invite"))
         }

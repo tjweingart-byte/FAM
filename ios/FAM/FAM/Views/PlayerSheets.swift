@@ -557,10 +557,11 @@ struct QueueSheet: View {
                     }
                     ForEach(Array(now.queue.enumerated()), id: \.element.id) { index, entry in
                         queueRow(entry, place: index + 1)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            // `removeRow`: left 45 % and faded, then folded.
+                            .transition(.rowRemoval)
                     }
                 }
-                .animation(.easeOut(duration: 0.22), value: now.queue)
+                .animation(Animation.rowFold, value: now.queue)
             }
             Button { dismiss() } label: {
                 Text("Close")
@@ -879,25 +880,32 @@ struct ActivityView: UIViewControllerRepresentable {
 /// After an episode (`post-episode-grid`): "What’s next", four tiles - the
 /// first, Go Deeper's own suggestion, starts in 15 s, its copper bar
 /// emptying - the search box (touching it pauses the countdown for good)
-/// and "Back to search" / "Back to DailyFAM". The card rises in over 360 ms.
+/// and "Back to search" / "Back to DailyFAM". The dim fades in over 200 ms
+/// (`mo-in`) while the card rises over 360 ms (`nextup-in`); it closes as
+/// every modal does, 150 ms with the card dropping 8 pt. Reduce Motion:
+/// the card does not move, the dim fades in over 120 ms, closing is at once.
 struct NextUpOverlay: View {
     @EnvironmentObject private var now: NowPlayingModel
     @EnvironmentObject private var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onBack: () -> Void
     @State private var words = ""
     @State private var shown = false
     @FocusState private var typing: Bool
 
     var body: some View {
+        let still = shown || reduceMotion
         ZStack {
             Color(red: 10 / 255, green: 9 / 255, blue: 15 / 255).opacity(0.62).ignoresSafeArea()
             card
-                .opacity(shown ? 1 : 0)
-                .offset(y: shown ? 0 : 12)
-                .scaleEffect(shown ? 1 : 0.985)
+                .opacity(still ? 1 : 0)
+                .offset(y: still ? 0 : 12)
+                .scaleEffect(still ? 1 : 0.985)
+                .dropsOnLeave()
         }
-        .transition(.opacity)
+        .transition(.famOverlay(reduceMotion: reduceMotion))
         .onAppear {
+            guard !reduceMotion else { shown = true; return }
             withAnimation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36)) { shown = true }
         }
         .task {

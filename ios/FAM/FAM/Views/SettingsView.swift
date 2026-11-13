@@ -26,6 +26,8 @@ struct SettingsView: View {
     @State private var plans: PlansPage?
     @State private var textAsk: TextAsk?
     @State private var page: LegalPage?
+    /// Whether password reset mail works here (`RESET_READY`, `/api/auth/reset`).
+    @State private var resetReady = false
     @AppStorage(FAMAPI.zoneKey) private var pinnedZone = ""
     /// "Dark mode", on this device only (`fam.theme`, the web's key).
     @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
@@ -42,6 +44,11 @@ struct SettingsView: View {
                     if model.listener?.authenticated == true {
                         NotificationRows(mixes: model.mixes) { sheet = .daily }
                     }
+                    // "Hey FAM" (§158), only where the phone can recognise
+                    // speech: after Notifications, as the web draws it.
+                    if VoiceSearchModel.available {
+                        WakeRow(wake: model.wake)
+                    }
                     PrivacyRows(consent: model.consent, open: open)
                     accountGroup
                 }
@@ -56,6 +63,9 @@ struct SettingsView: View {
                                         sheet: $sheet, textAsk: $textAsk, page: $page,
                                         sheetView: sheetView, savePicture: savePicture))
         .task {
+            // `checkResetReady().then(renderSettings)`: the note below the
+            // account rows depends on it.
+            resetReady = (try? await model.api.resetStatus())?.available ?? false
             await you.loadSettings()
             if model.listener?.authenticated == true { await model.mixes.loadPushState() }
         }
@@ -121,10 +131,6 @@ struct SettingsView: View {
             // Always drawn (`renderSettings`), the label falling back as the
             // web's `voiceLabel` does; a tap with no bank says so.
             SetRow(label: "Voice for your searches", value: voiceValue) { openVoices() }
-            // "Hey FAM" (§158), only where the phone can recognise speech.
-            if VoiceSearchModel.available {
-                WakeRow(wake: model.wake)
-            }
         }
     }
 
@@ -188,9 +194,21 @@ struct SettingsView: View {
             }
             SetRow(label: "Log out") { Task { await model.signOut() } }
             SetRow(label: "Delete account", danger: true) { sheet = .delete }
-            // The web's note, word for word (the owner's call).
-            SetNote(text: "Password reset isn\u{2019}t available yet, so keep your password somewhere safe. Deleting your account is immediate and can\u{2019}t be undone.")
+            // The web's note, word for word (`passwordSettingsNote`, §571).
+            SetNote(text: Self.passwordNote(hasPassword: you.account?.hasPassword, resetReady: resetReady)
+                    + "Deleting your account is immediate and can\u{2019}t be undone.")
         }
+    }
+
+    /// `passwordSettingsNote()`: with no password, why to set one; with no
+    /// reset mail, to keep it safe; else nothing.
+    static func passwordNote(hasPassword: Bool?, resetReady: Bool) -> String {
+        if hasPassword == false {
+            return "Set a password so you can sign back in on any device"
+                + (resetReady ? ". " : "; password reset isn\u{2019}t available yet. ")
+        }
+        return resetReady ? ""
+            : "Password reset isn\u{2019}t available yet, so keep your password somewhere safe. "
     }
 
     private var methodsValue: String {
@@ -385,12 +403,11 @@ struct SettingsView: View {
 
     private func openBlocked() {
         Task {
-            guard let people = try? await model.safety.blocked() else {
-                model.nowPlaying.say("Couldn\u{2019}t reach FAM. Try again.")
-                return
-            }
+            // A list that could not be read is no list (`loadBlocked`
+            // answers []), so the same sentence either way.
+            let people = (try? await model.safety.blocked()) ?? []
             if people.isEmpty {
-                model.nowPlaying.say("You haven't blocked anyone")
+                model.nowPlaying.say("You haven\u{2019}t blocked anyone")
                 return
             }
             blocked = people
@@ -725,6 +742,7 @@ struct ActivationCard: View {
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
+                .inAppLinks()
         }
     }
 

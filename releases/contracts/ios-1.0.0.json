@@ -1,19 +1,26 @@
 {
-  "commit": "d5dfd919039170500a6f795ebec9432bc38e1efc",
-  "cut": "2026-11-12",
+  "commit": "e11e5b02331da7cb6cdbe309f971b8c1af5e2933",
+  "cut": "2026-11-13",
   "platform": "ios",
   "routes": [
     "/api/account",
+    "/api/account/identity",
     "/api/activation",
     "/api/attach",
     "/api/audio",
     "/api/auth/login",
+    "/api/auth/logout",
     "/api/auth/me",
     "/api/auth/password",
+    "/api/auth/password/set",
     "/api/auth/provider",
     "/api/auth/reset",
+    "/api/auth/reset/finish",
+    "/api/auth/reset/start",
     "/api/auth/signup",
     "/api/categories",
+    "/api/categories/episodes",
+    "/api/categories/mine",
     "/api/circle",
     "/api/client-status",
     "/api/consent",
@@ -22,14 +29,28 @@
     "/api/episode/topic",
     "/api/event",
     "/api/friends",
+    "/api/friends/announced",
+    "/api/friends/follow",
+    "/api/friends/seen",
     "/api/godeeper",
+    "/api/godeeper/dismiss",
     "/api/health",
+    "/api/history",
     "/api/interest",
     "/api/listened",
     "/api/me",
+    "/api/messages",
+    "/api/messages/groups",
+    "/api/messages/groups/",
+    "/api/messages/thread",
+    "/api/messages/typing",
     "/api/mixes",
     "/api/mixes/",
     "/api/mixes/fresh",
+    "/api/mixes/join",
+    "/api/mixes/public",
+    "/api/mixes/public/",
+    "/api/mixes/recommended",
     "/api/myfam",
     "/api/myfam/catalog",
     "/api/myfam/search",
@@ -45,22 +66,39 @@
     "/api/progress",
     "/api/push",
     "/api/push/prefs",
+    "/api/rate",
     "/api/saved",
+    "/api/saved/",
+    "/api/saved/folders",
+    "/api/saved/folders/",
     "/api/searches/trending",
+    "/api/share",
     "/api/share/",
     "/api/share/card",
     "/api/sources",
     "/api/spell",
     "/api/story/note",
+    "/api/story/note/",
+    "/api/surveys/answer",
+    "/api/surveys/dismiss",
     "/api/surveys/offer",
     "/api/thumb/",
     "/api/topics",
     "/api/transcript",
     "/api/vibe",
+    "/api/vibe/",
+    "/api/vibe/posts",
+    "/api/vibe/replies/",
     "/api/vibes",
+    "/api/vibes/file",
+    "/api/voice/wake",
+    "/api/voices",
+    "/api/voices/choice",
     "/api/waitlist/add",
+    "/api/waitlist/join",
     "/api/waitlist/me",
-    "/api/waitlist/people"
+    "/api/waitlist/people",
+    "/api/welcome"
   ],
   "shapes": {
     "/api/auth/me": {
@@ -69,6 +107,7 @@
       "display_name": "string",
       "email": "string",
       "has_account": "boolean",
+      "has_password": "boolean",
       "home": "string",
       "phone": "string",
       "status": "string",
@@ -247,7 +286,8 @@
       "writer_model": "any",
       "writer_model_source": "any",
       "writer_savings": "any",
-      "writer_warm": "any"
+      "writer_warm": "any",
+      "written_ahead": "any"
     },
     "/api/interest": {
       "episodes": [],
@@ -262,6 +302,16 @@
     "/api/mixes/fresh": {
       "edition": "string",
       "fresh": []
+    },
+    "/api/mixes/public": {
+      "mixes": [],
+      "query": "string"
+    },
+    "/api/mixes/recommended": {
+      "order": [
+        "string"
+      ],
+      "personalised": "boolean"
     },
     "/api/myfam": {
       "algo": "string",
@@ -556,16 +606,41 @@
         }
       ]
     },
+    "/api/vibe/posts": {
+      "mine": "boolean",
+      "more": "boolean",
+      "person": {
+        "avatar": "string",
+        "explicit": "boolean",
+        "handle": "string",
+        "name": "string"
+      },
+      "posts": []
+    },
     "/api/vibes": {
       "count": "number",
       "folders": [],
       "vibes": []
+    },
+    "/api/voices": {
+      "default": "string",
+      "selected": "string",
+      "store": "string",
+      "voices": [
+        {
+          "detail": "string",
+          "engine": "string",
+          "id": "string",
+          "label": "string"
+        }
+      ]
+    },
+    "/api/welcome": {
+      "episodes": []
     }
   },
   "unrouted_at_cut": [
-    "/api/image",
-    "/api/v1/",
-    "/api/v1/myfam"
+    "/api/image"
   ],
   "version": "1.0.0"
 }

@@ -10,6 +10,12 @@ struct FAMApp: App {
     /// dark unless it says light (§546).
     @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
+    /// The window's scheme is dark: the theme, private search's charcoal
+    /// or the shared screen.
+    private var chromeDark: Bool {
+        model.darkChrome || model.sharedListenShown || FAMTheme.isDark(theme)
+    }
+
     init() {
         // A proper picture cache (a faster start): the cards' pictures
         // (`/api/thumb/…`, `immutable` for a year) come off the disk on
@@ -40,8 +46,12 @@ struct FAMApp: App {
                 // ...and the window's - the status bar, the keyboard, the
                 // system's sheets - is that theme, or dark over private
                 // search's charcoal while that screen shows, which holds in
-                // either theme (`#screen-home.private-search`).
-                .preferredColorScheme(model.darkChrome ? .dark : FAMTheme.scheme(theme))
+                // either theme (`#screen-home.private-search`), and over the
+                // shared screen's own dark page (listen.html).
+                .preferredColorScheme(chromeDark ? .dark : FAMTheme.scheme(theme))
+                // The staging ribbon's window follows it, so it never holds
+                // the status bar to the theme it was drawn in.
+                .onChange(of: chromeDark) { _, dark in EnvRibbonWindow.restyle(dark: dark) }
                 .task { await model.open() }
                 // Google's sign-in comes back to the app through its URL scheme;
                 // any other link may carry a waitlist invite code.
@@ -77,6 +87,7 @@ struct RootView: View {
     /// The app went to the background since it was last active: a return
     /// passes through `.inactive`, so `old == .background` is never seen.
     @State private var wentAway = false
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
     /// The front door's own toasts (the tabs and the first run draw theirs).
     private var rootToasts: Bool {
@@ -89,6 +100,9 @@ struct RootView: View {
 
     var body: some View {
         stages
+            // A shared episode for somebody not let in yet (§584): the
+            // listen page over the front door or the status page.
+            .overlay { SharedListenLayer() }
             .overlay(alignment: .bottom) {
                 if rootToasts { ToastView().padding(.bottom, 40) }
             }
@@ -113,10 +127,21 @@ struct RootView: View {
                     wentAway = false
                     model.cameToFront()
                 }
+                // A scene disconnected and connected again takes the
+                // ribbon's window with it: put it back on the live one.
+                if new == .active { EnvRibbonWindow.reattach() }
             }
             // On the waitlist the first run is the status page's profile
             // (`?setup=1`): who you are, then the status page; the interests
             // come once the account is let in.
+            // A link held since a cold start, once the server has said who
+            // this is; let in, the shared screen gives way to the app.
+            .onChange(of: model.stage) { _, _ in model.stageSettled() }
+            // A staging server's ribbon over every screen (`.env-ribbon`).
+            .onChange(of: model.envRibbon) { _, words in
+                EnvRibbonWindow.show(words, dark: model.darkChrome || model.sharedListenShown
+                                     || FAMTheme.isDark(theme))
+            }
             .onChange(of: model.entry) { _, step in
                 if model.stage == .waiting && step == .interests { model.entry = nil }
             }
@@ -279,6 +304,33 @@ struct MainTabs: View {
         return max(16, bottom - pageBottom + 2)
     }
 
+    /// The screens a survey may be offered on (`SURVEY_OPEN_SCREENS`):
+    /// searchFAM, DailyFAM, myFAM, YourFAM, Friends, Messages, Saved for
+    /// Later, Listening history and a mix's page - never Settings, View
+    /// more, a topic, a profile, a conversation or anything else pushed.
+    private var surveyScreen: Bool {
+        switch tab {
+        case .search:
+            return true
+        case .daily:
+            return model.dailyPath.isEmpty
+        case .myfam:
+            guard let last = model.mixPath.last else { return true }
+            if case .mix = last { return true }
+            return false
+        case .messages:
+            guard let last = social.messagesPath.last else { return true }
+            if case .friends = last { return true }
+            return false
+        case .you:
+            guard let last = model.youPath.last else { return true }
+            switch last {
+            case .saved, .history: return true
+            default: return false
+            }
+        }
+    }
+
     /// Nothing playing, nothing open, a signed-in listener on one of the
     /// tabs (`surveyMomentFree`): the only time an app survey is asked for.
     /// One question a line: a single twelve-term expression of optionals
@@ -286,7 +338,7 @@ struct MainTabs: View {
     private var surveyMomentFree: Bool {
         guard model.listener?.authenticated == true else { return false }
         guard scenePhase == .active else { return false }
-        if model.showPlayer || sectionOpen || tab == .search { return false }
+        if model.showPlayer || !surveyScreen { return false }
         switch player.phase {
         case .playing, .buffering, .connecting: return false
         default: break
@@ -468,8 +520,9 @@ struct MainTabs: View {
         // A survey is due (`#surveyInvite`, §560): asked, never opened on
         // its own; just above the bars, where the toast sits.
         .overlay(alignment: .bottom) {
-            // Waits off searchFAM and View more, and comes back with them.
-            if tab != .search && !sectionOpen {
+            // Waits off every screen not in `SURVEY_OPEN_SCREENS`, and
+            // comes back with them.
+            if surveyScreen {
                 GeometryReader { geo in
                     SurveyInvite(surveys: model.surveys)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -496,16 +549,22 @@ struct MainTabs: View {
         // Voice search (§151): full screen over the tabs and the mini player.
         .overlay { VoiceSearchLayer(voice: model.voiceSearch) }
         .overlay {
-            if let name = model.mixDone {
-                MixDoneOverlay(name: name) {
-                    model.mixDone = nil
-                    show(.myfam)
-                    model.mixPath = []
-                    // `closeMixDone(true)` → `openPlayFAM` (§550).
-                    model.mixes.arrived()
-                    Task { await model.mixes.load() }
+            ZStack {
+                if let name = model.mixDone {
+                    MixDoneOverlay(name: name) {
+                        model.mixDone = nil
+                        show(.myfam)
+                        model.mixPath = []
+                        // `closeMixDone(true)` → `openPlayFAM` (§550).
+                        model.mixes.arrived()
+                        Task { await model.mixes.load() }
+                    }
+                    // `#mixDoneOverlay` is a `.modal-overlay`: in over 200 ms,
+                    // the card lifting 14 pt; out over 150, dropping 8.
+                    .transition(.famOverlay(reduceMotion: reduceMotion))
                 }
             }
+            .animation(.easeOut(duration: 0.2), value: model.mixDone)
         }
         .onChange(of: model.tabRequest) { _, wanted in
             guard let wanted else { return }

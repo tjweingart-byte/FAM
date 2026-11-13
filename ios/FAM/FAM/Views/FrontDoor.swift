@@ -26,7 +26,10 @@ struct UpdateNotice: Equatable, Identifiable {
 struct FrontDoorView: View {
     enum Door: Hashable { case welcome, signUp, logIn }
 
+    @EnvironmentObject private var model: AppModel
     @State private var door: Door = .welcome
+    /// A joint mix's invite opened signed out (`openLinkedJoin`).
+    @State private var invite: SheetSpec?
 
     var body: some View {
         ZStack {
@@ -43,6 +46,27 @@ struct FrontDoorView: View {
             }
         }
         .background(FAMColor.background.ignoresSafeArea())
+        // A shared episode's door (§584): `/waitlist`, which is Sign up here.
+        .onChange(of: model.askSignUp) { _, asked in
+            guard asked else { return }
+            model.askSignUp = false
+            go(.signUp)
+        }
+        // `openLinkedJoin` signed out: the invite waits for the sign-up or
+        // log-in, under the web's sheet.
+        .onChange(of: model.askJoinSignIn) { _, asked in if asked { askJoin() } }
+        .onAppear { if model.askJoinSignIn { askJoin() } }
+        .famSheet(item: $invite) { spec in FAMActionSheet(spec: spec) }
+    }
+
+    private func askJoin() {
+        model.askJoinSignIn = false
+        invite = SheetSpec(
+            header: "You\u{2019}ve been invited to a joint mix. Sign up or log in to add topics to it.",
+            actions: [
+                SheetAction(label: "Sign up") { go(.signUp) },
+                SheetAction(label: "Log in") { go(.logIn) },
+            ])
     }
 
     /// The words slide 24 pt and fade between steps (`Motion` "step").
@@ -105,6 +129,7 @@ struct EntryButtonStyle: ButtonStyle {
             .background(primary ? FAMColor.copper : Color.clear, in: Capsule())
             .overlay(Capsule().stroke(primary ? FAMColor.copper : FAMColor.borderStrong))
             .opacity(configuration.isPressed ? 0.85 : 1)
+            .pressSqueeze(configuration.isPressed)
     }
 }
 
@@ -205,7 +230,8 @@ struct SampleCarousel: View {
         let url = model.api.picture(tile.thumb)
         return ZStack(alignment: .bottomLeading) {
             if let url {
-                Picture(url: url)
+                // `.seed-img`: blurs up when it lands late.
+                Picture(url: url, blurUp: true)
             } else {
                 Rectangle().fill(FAMColor.thumb)
                 SeedThumb(icon: tile.icon)
@@ -248,7 +274,8 @@ struct SampleCarousel: View {
                         .padding(5)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                // `.ws-dot` is a button, so it squeezes as every one does.
+                .buttonStyle(.press)
                 .accessibilityLabel("Sample \(i + 1)")
             }
         }
@@ -521,7 +548,8 @@ struct WaitlistStatusPage: View {
 
     @State private var page: WaitlistMe?
     @State private var problem = ""
-    @State private var menu = false
+    /// The settings button's menu, as FAM's own action sheet.
+    @State private var menu: SheetSpec?
     @State private var editing = false
     @State private var confirmDelete = false
     @State private var confirmSignOut = false
@@ -534,7 +562,8 @@ struct WaitlistStatusPage: View {
                 Button { openAbout() } label: {
                     HStack(spacing: 6) {
                         Text("Learn more about FAM")
-                        Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .bold))
+                        // `.learn-btn svg`: the page's right arrow.
+                        WebIcon(path: Icons.arrowRight, size: 17, line: 2.2)
                     }
                     .font(FAMFont.body(12.5, .semibold))
                     .foregroundStyle(FAMColor.copper)
@@ -575,14 +604,8 @@ struct WaitlistStatusPage: View {
         .refreshable { await load() }
         .background(FAMColor.background.ignoresSafeArea())
         .task { await load() }
-        .confirmationDialog("", isPresented: $menu, titleVisibility: .hidden) {
-            Button("Edit profile") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { editing = true } }
-            Button("Sign out") { signOut() }
-            Button("Delete account", role: .destructive) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { confirmDelete = true }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
+        // A row closes the sheet, then acts once it has gone.
+        .famSheet(item: $menu) { spec in FAMActionSheet(spec: spec) }
         .alert("Delete your FAM account?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) { deleteAccount() }
             Button("Cancel", role: .cancel) {}
@@ -606,13 +629,29 @@ struct WaitlistStatusPage: View {
         .onChange(of: editing) { _, open in
             if !open { Task { await load() } }
         }
+        // A shared link while one of this page's cards is up: the cards go,
+        // so the shared screen is not drawn underneath them (audit 4).
+        .onChange(of: model.sharedListen?.id) { _, id in
+            guard id != nil else { return }
+            menu = nil
+            editing = false
+            share = nil
+            confirmDelete = false
+            confirmSignOut = false
+        }
     }
 
     private var top: some View {
         HStack {
             Wordmark(size: 26)
             Spacer()
-            Button { menu = true } label: {
+            Button {
+                menu = SheetSpec(actions: [
+                    SheetAction(label: "Edit profile") { editing = true },
+                    SheetAction(label: "Sign out") { signOut() },
+                    SheetAction(label: "Delete account", danger: true) { confirmDelete = true },
+                ])
+            } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(FAMColor.text)
@@ -695,7 +734,8 @@ struct WaitlistStatusPage: View {
             Button { invite() } label: {
                 HStack(spacing: 8) {
                     Text("Share your link")
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 13, weight: .bold))
+                    // `.cta svg`: the same arrow as the join's.
+                    WebIcon(path: Icons.arrowRight, size: 20, line: 2)
                 }
             }
             .buttonStyle(EntryButtonStyle(primary: true))
@@ -715,9 +755,10 @@ struct WaitlistStatusPage: View {
         model.nowPlaying.say("Invite link copied")
     }
 
-    /// `invite()`: the share sheet with the web's words and the link.
+    /// `invite()`: the share sheet with the web's title ("FAM", an email's
+    /// subject), its words and the link.
     private func invite() {
-        var items: [Any] = ["Come get early access to FAM with me."]
+        var items: [Any] = [ShareTextItem(text: "Come get early access to FAM with me.", subject: "FAM")]
         if let url = URL(string: link) { items.append(url) }
         share = items
     }
@@ -810,6 +851,10 @@ struct WaitlistPasswordCard: View {
                 .autocorrectionDisabled()
                 .submitLabel(.go)
                 .onSubmit { Task { await set() } }
+                // `maxlength="1024"`: the field takes no more.
+                .onChange(of: password) { _, typed in
+                    if typed.count > 1024 { password = String(typed.prefix(1024)) }
+                }
                 Button { showPassword.toggle() } label: {
                     Image(systemName: showPassword ? "eye.slash" : "eye")
                         .foregroundStyle(FAMColor.textMuted)
@@ -829,7 +874,8 @@ struct WaitlistPasswordCard: View {
             Button {
                 Task { await set() }
             } label: {
-                Text(working ? "Saving\u{2026}" : "Set password")
+                // The page only disables it while it works (`#pwSetBtn`).
+                Text("Set password")
             }
             .buttonStyle(EntryButtonStyle(primary: true))
             .disabled(working)
@@ -845,10 +891,6 @@ struct WaitlistPasswordCard: View {
         }
         guard password.count >= 8 else {
             problem = "Use at least 8 characters for your password."
-            return
-        }
-        guard password.count <= 1024 else {
-            problem = "That password is too long."
             return
         }
         problem = ""
@@ -1000,7 +1042,7 @@ struct WaitlistFamSection: View {
                 // The web's Share here copies the link (`copyLink`).
                 Button { copy() } label: {
                     HStack(spacing: 5) {
-                        Image(systemName: "link").font(.system(size: 11, weight: .bold))
+                        WebIcon(path: Icons.personPlus, size: 18, line: 1.7)
                         Text("Share")
                     }
                     .font(FAMFont.mono(10))
@@ -1185,7 +1227,7 @@ struct WaitlistFreeMonthProgress: View {
             }
             .accessibilityHidden(true)
             Text(Self.line(month))
-                .font(FAMFont.body(13, month.earned ? .semibold : .regular))
+                .font(FAMFont.body(15, month.earned ? .semibold : .regular))
                 .foregroundStyle(month.earned ? FAMColor.copper : FAMColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }

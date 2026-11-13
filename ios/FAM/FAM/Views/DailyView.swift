@@ -1131,8 +1131,9 @@ struct PickUpBlock: View {
 
     private func cardBody(title: String, summary: String, meta: String, copperMeta: Bool,
                       progress: Double?, dismissKey: String, play: @escaping () -> Void) -> some View {
-        // A tap on the card, not a Button around it: the X inside is its own
-        // button and must never also play the card.
+        // The card is a button with the web's squeeze; the X is laid over
+        // it, outside it, so a tap on the X never also plays the card.
+        Button(action: play) {
         VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(FAMFont.heading(10.5, .medium))
@@ -1168,7 +1169,8 @@ struct PickUpBlock: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
             .contentShape(Rectangle())
-            .onTapGesture(perform: play)
+        }
+            .buttonStyle(.press)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(.default, play)
@@ -1217,6 +1219,7 @@ struct SectionView: View {
                 Button { dismiss() } label: {
                     WebIcon(path: Icons.back, size: 20, line: 2.6).foregroundStyle(FAMColor.text)
                 }
+                .buttonStyle(.press)
                 .accessibilityLabel("Back")
                 Text(title)
                     .font(FAMFont.heading(19, .medium))

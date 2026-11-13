@@ -591,3 +591,306 @@ def test_mix_rows_show_todays_episode_title_570():
     assert 'item.title + (who.isEmpty ? "" : " \\u{00B7} " + who)' in view
     model = (SWIFT / "AppModel.swift").read_text()
     assert "!item.episodeTitle.isEmpty ? item.episodeTitle" in model
+
+
+# --- Build 7 (§584) ---------------------------------------------------------
+
+def _swift(*parts: str) -> str:
+    return (SWIFT.joinpath(*parts)).read_text()
+
+
+def _listen_page() -> str:
+    return (ROOT / "static" / "listen.html").read_text()
+
+
+def test_a_shared_episode_plays_before_the_app_is_open_584(monkeypatch):
+    """A `/s/` link opened by somebody signed out or on the waitlist plays on
+    the listen page's own screen, not held until they are let in; its words
+    are the page's, and its audio is the request the gate lets through."""
+    links = _swift("AppLinks.swift")
+    assert "if stage == .signedOut || stage == .waiting, case .episode = link {" in links
+    assert "openSharedListenIfHeld()" in links
+    assert "api.sharedEpisode(id)" in links and "api.shareOpened(id)" in links
+    # Exactly the shared length (1.5 stays 1.5), the share surface, nothing else.
+    assert ('api.audio(query: share.question, minutes: share.minutes, surface: "share")'
+            in links)
+    root = _swift("FAMApp.swift")
+    assert "SharedListenLayer()" in root and "model.stageSettled()" in root
+    assert "model.askSignUp" in _swift("Views", "FrontDoor.swift")
+    view = _swift("Views", "SharedListenView.swift")
+    page = _listen_page()
+    for words in ["Shared with you", "A FAM episode", "Nothing to play",
+                  "This link has expired", " min listen", "Want to hear more?",
+                  "This is one episode. FAM makes them about anything you ask.",
+                  "Ask your own question", "Browse episodes",
+                  "FAM makes an episode about anything you ask.",
+                  "Ask FAM anything of your own and it will make you an episode."]:
+        assert words in page, words
+        assert words in view, words
+    assert "Be a part of the conversation with FAM &rarr;" in page
+    assert "Be a part of the conversation with FAM \\u{2192}" in view
+    for words in ["Starting the episode", "That", "s the episode.",
+                  "That episode could not be played just now."]:
+        assert words in page and words in links, words
+    assert "FAMAPI.minutes(share.minutes)" in view
+    # The request the app builds for that tap passes the waitlist's gate.
+    body = re.search(r"func audio\(query.*?\n    \}", _api(), re.S).group(0)
+    assert 'URLQueryItem(name: "fmt", value: "opus")' in body
+    monkeypatch.setattr(appmod.SHARES, "is_shared",
+                        lambda q, minutes: q == "why is the sky blue" and minutes == "1.5")
+    values = {"q": "why is the sky blue", "minutes": "1.5", "fmt": "opus",
+              "link": "1", "surface": "share"}
+    request = Request({"type": "http", "method": "GET", "path": "/api/audio",
+                       "query_string": urlencode(values).encode(), "headers": []})
+    assert appmod._shared_episode_request(request)
+    # Swift's `FAMAPI.minutes(1.5)` is "1.5", never "1".
+    assert "value == value.rounded() ? String(Int(value)) : String(value)" in _api()
+    read = Request({"type": "http", "method": "GET", "path": "/api/share/abc123",
+                    "query_string": b"", "headers": []})
+    assert appmod._shared_episode_request(read)
+
+
+def test_settings_password_note_is_the_webs_584():
+    """Settings' note under the account rows is `passwordSettingsNote()`:
+    it depends on `has_password` and on `/api/auth/reset`'s `available`."""
+    web = (ROOT / "static" / "index.html").read_text()
+    settings = _swift("Views", "SettingsView.swift")
+    for words in ["Set a password so you can sign back in on any device",
+                  "; password reset isn\\u2019t available yet. ",
+                  "Password reset isn\\u2019t available yet, so keep your password somewhere safe. "]:
+        assert words in web, words
+        assert words.replace("\\u2019", "\\u{2019}") in settings, words
+    assert "resetReady = (try? await model.api.resetStatus())?.available ?? false" in settings
+    assert "passwordNote(hasPassword: you.account?.hasPassword, resetReady: resetReady)" in settings
+    assert 'fetch("/api/auth/reset")' in web
+
+
+def test_share_targets_are_keyed_as_the_server_keys_them_584():
+    """`.convertFromSnakeCase` may rewrite a dictionary's keys; the share
+    targets are put back to the server's snake_case wherever they are read,
+    so `instagram_story` / `snapchat_story` reach the sheet's order and
+    hand-off either way."""
+    import sharing
+    api = _api()
+    assert "static func serverKeyed<Value>(" in api and "static func snakeKey(" in api
+    assert api.count("targets = ShareTarget.serverKeyed(") == 2
+    social = _swift("Views", "SocialShare.swift")
+    for key in ("instagram_story", "snapchat_story"):
+        assert key in inspect.getsource(sharing)
+        assert f'"{key}"' in social
+
+    def snake(key: str) -> str:  # SnakeKey, as written in Swift
+        return re.sub(r"(?<!^)([A-Z])", r"_\1", key).lower()
+
+    assert snake("instagramStory") == "instagram_story"
+    assert snake("instagram_story") == "instagram_story"
+    assert snake("sms") == "sms"
+
+
+def test_every_server_keyed_dictionary_is_put_back_to_snake_case_584():
+    """Audit 4: survey `detail` and the catalogue's `tag_parent` / `tag_labels`
+    are dictionaries keyed by server ids. A future id with an underscore
+    (`college_football`) must not come back camel-cased, so each goes
+    through the same `serverKeyed` as the share targets."""
+    api = _api()
+    assert "static func serverKeyed<Value>(" in api
+    assert "detail = ShareTarget.serverKeyed(" in api
+    assert "tagParent = ShareTarget.serverKeyed(" in api
+    assert "tagLabels = ShareTarget.serverKeyed(" in api
+    # Every [String: ...] the app decodes is one of the known, normalised ones.
+    decoded = re.findall(r"^    let (\w+): \[String: (\w+)\]\??", api, re.M)
+    normalised = {"targets", "detail", "tagParent", "tagLabels"}
+    assert {name for name, _ in decoded} == normalised
+    for name, _ in decoded:
+        assert name in normalised or re.search(r"%s = ShareTarget\.serverKeyed\(" % name, api), name
+
+
+def test_staging_ribbon_and_demo_badge_584():
+    """A staging or zero-spend server's ribbon on every screen and the
+    player's "not your episode" badge on a server with no working key."""
+    web = (ROOT / "static" / "index.html").read_text()
+    assert '(env.name === "staging" ? "Staging" : "Zero spend")' in web
+    assert ">not your episode</span>" in web
+    api = _api()
+    assert '(environment?.name == "staging" ? "Staging" : "Zero spend") + " \\u{00B7} " + client' in api
+    assert 'var demoMode: Bool { mode == "demo" || credentials?.state == "rejected" }' in api
+    model = _swift("AppModel.swift")
+    assert "envRibbon = health.ribbon(client: FAMAPI.client)" in model
+    assert "demoMode = health.demoMode" in model
+    ribbon = _swift("Views", "EnvRibbon.swift")
+    assert 'Text("not your episode")' in ribbon
+    assert "EnvRibbonWindow.show(words, dark:" in _swift("FAMApp.swift")
+    assert "if model.demoMode {" in _swift("Views", "PlayerView.swift")
+    health = TestClient(appmod.app).get("/api/v1/health").json()
+    assert "mode" in health and "environment" in health
+
+
+def test_an_empty_search_plays_the_demo_like_the_web_584():
+    """Return in an empty box: the web's `generate("spacex")`, its title as
+    the question, at the search page's Length, on searchFAM."""
+    web = (ROOT / "static" / "index.html").read_text()
+    assert 'if(!typed){ sendSearch("", ""); return; }' in web
+    assert 'generate("spacex");' in web
+    assert "spacex:{title:\"SpaceX Starship: This Week's Test Flight\"" in web
+    model = _swift("AppModel.swift")
+    assert "static let demoQuestion = \"SpaceX Starship: This Week's Test Flight\"" in model
+    assert "EpisodeKey(query: Self.demoQuestion, minutes: minutes)" in model
+    search = _swift("Views", "SearchView.swift")
+    assert "guard !typed.isEmpty || !attach.isEmpty else { return }" not in search
+
+
+# --- Build 7, the second audit (§584 addendum) -------------------------------
+
+def test_a_shared_or_sample_play_leaves_no_full_player_behind_584():
+    """A shared episode or a sample plays on its own screen: `onRelease`
+    asks for no full player while one is active, and arriving from the
+    front door or the status page clears any that was asked for."""
+    model = _swift("AppModel.swift")
+    release = model[model.index("loading.onRelease = {"):]
+    release = release[:release.index("player.onFinished = {")]
+    early = release.index("if !self.shareQuery.isEmpty || !self.sampleQuery.isEmpty { return }")
+    assert early < release.index("if !inPlace { self.showPlayer = true }")
+    assert "if !held && stage != .ready { showPlayer = false }" in model
+    links = _swift("AppLinks.swift")
+    assert "if sharedListen != nil || !shareQuery.isEmpty { showPlayer = false }" in links
+
+
+def test_the_shared_screen_moves_and_reads_as_listen_html_584():
+    view = _swift("Views", "SharedListenView.swift")
+    page = _listen_page()
+    # One motion: the play button to 0.95 over 120 ms `ease`; nothing else
+    # squeezes, and the screen has no entrance.
+    assert ".play:active{ transform:scale(0.95); }" in page
+    assert "transition:transform 0.12s ease;" in page
+    assert ".scaleEffect(configuration.isPressed ? 0.95 : 1)" in view
+    assert ".timingCurve(0.25, 0.1, 0.25, 1, duration: 0.12)" in view
+    assert ".buttonStyle(.press)" not in view
+    assert view.count(".buttonStyle(ListenStillStyle())") == 3
+    assert ".transition(" not in view
+    # The bar seeks once, on release, and leaves a vertical drag to the scroll.
+    bar = view[view.index("private var bar: some View {"):view.index("private var statusWords")]
+    assert "player.seek(to:" in bar and ".onEnded" in bar
+    changed = bar[bar.index(".onChanged"):bar.index(".onEnded")]
+    assert "player.seek(" not in changed
+    assert "abs(drag.translation.width) > abs(drag.translation.height)" in changed
+    assert "minimumDistance: 0" not in bar
+    # "--:--" for a dead link; the footnote at `.doors p`'s 13.5 with no gap.
+    assert '<span id="len">--:--</span>' in page
+    assert 'Text(nothing ? "--:--" : Self.clock(total))' in view
+    assert ".doors p{\n    font-size:13.5px;" in page
+    foot = view[view.index('Text("FAM makes an episode about anything you ask.")'):]
+    assert ".font(FAMFont.body(13.5))" in foot[:200] and ".padding(.bottom, 14)" in foot[:400]
+    # No waiting state: only the wordmark until the share is read.
+    assert "if listen.loaded {" in view
+    # The window's status bar is dark over it whatever the theme.
+    app = _swift("FAMApp.swift")
+    assert "model.darkChrome || model.sharedListenShown || FAMTheme.isDark(theme)" in app
+    assert "EnvRibbonWindow.restyle(dark: dark)" in app
+    assert "EnvRibbonWindow.reattach()" in app
+    ribbon = _swift("Views", "EnvRibbon.swift")
+    assert "static func restyle(dark: Bool)" in ribbon and "static func reattach()" in ribbon
+    assert "setNeedsStatusBarAppearanceUpdate()" in ribbon
+
+
+def test_links_for_somebody_signed_out_or_with_a_dead_share_584():
+    """`/j/` signed out is the web's sheet; a dead `/s/` for a member is the
+    listen page's expired state; a phone drawn ahead waits for `/api/auth/me`."""
+    web = (ROOT / "static" / "index.html").read_text()
+    words = "You’ve been invited to a joint mix. Sign up or log in to add topics to it."
+    assert words in web
+    door = _swift("Views", "FrontDoor.swift")
+    assert words.replace("’", "\\u{2019}") in door
+    assert 'SheetAction(label: "Sign up") { go(.signUp) }' in door
+    assert 'SheetAction(label: "Log in") { go(.logIn) }' in door
+    links = _swift("AppLinks.swift")
+    assert "askJoinSignIn = true" in links
+    assert 'nowPlaying.say("This link has expired")' not in links
+    assert "sharedListen = SharedListen(id: id, loaded: true, expired: true)" in links
+    assert "if let who = self.whoTask { _ = await who.value }" in links
+    model = _swift("AppModel.swift")
+    assert "(stage == .ready && listen.expired)" in model
+    # The status page's own cards go when a shared link arrives over them.
+    assert ".onChange(of: model.sharedListen?.id) { _, id in" in door
+
+
+def test_share_sheets_carry_the_webs_title_text_and_link_584():
+    mix = _swift("Views", "MixView.swift")
+    assert "shareItems = [ShareTextItem(text: text, subject: link.name), address]" in mix
+    door = _swift("Views", "FrontDoor.swift")
+    assert 'ShareTextItem(text: "Come get early access to FAM with me.", subject: "FAM")' in door
+    waitlist = (ROOT / "static" / "waitlist.html").read_text()
+    assert 'navigator.share({ title: "FAM", text: "Come get early access to FAM with me.", url: l })' in waitlist
+    assert "func shareItems()" not in _swift("NowPlaying.swift")
+
+
+def test_legal_links_in_sentences_open_in_the_apps_safari_584():
+    parts = _swift("Views", "YouParts.swift")
+    assert "struct InAppLinks: ViewModifier" in parts
+    assert "SafariView(url: p.url)" in parts
+    assert ".inAppLinks()" in _swift("Views", "AuthView.swift")
+    assert ".inAppLinks()" in _swift("Views", "SettingsView.swift")
+
+
+def test_the_front_door_words_are_the_webs_584():
+    auth = _swift("Views", "AuthView.swift")
+    web = (ROOT / "static" / "index.html").read_text()
+    assert "New to FAM? <button" in web and ">Sign up</button>" in web
+    assert '"Already on the list? Sign in" : "New to FAM? Sign up"' in auth
+    assert "New here? Get early access" not in auth
+    assert 'YouBackRow(title: making ? "" : "Log in")' in auth
+    join = auth[auth.index("private var joinFields"):auth.index("private var loginFields")]
+    assert 'label("Email")' not in join and 'label("Password")' not in join
+    assert '.accessibilityLabel("Email")' in auth and '.accessibilityLabel("Password")' in auth
+    assert "That password is too long." not in auth
+    assert "if typed.count > 1024 { password = String(typed.prefix(1024)) }" in auth
+    door = _swift("Views", "FrontDoor.swift")
+    assert "That password is too long." not in door and 'Saving\\u{2026}" : "Set password"' not in door
+    assert "if typed.count > 1024 { password = String(typed.prefix(1024)) }" in door
+    assert ".font(FAMFont.body(15, month.earned ? .semibold : .regular))" in door
+    assert ".fm-line{ margin-top:10px; font-size:15px;" in (ROOT / "static" / "waitlist.html").read_text()
+    for sf in ("arrow.up.right", "square.and.arrow.up", 'systemName: "link"'):
+        assert sf not in door, sf
+    assert "WebIcon(path: Icons.personPlus, size: 18, line: 1.7)" in door
+    assert door.count("WebIcon(path: Icons.arrowRight") >= 2
+
+
+def test_social_details_are_the_webs_584():
+    chat = _swift("Views", "ChatView.swift")
+    assert 'if !who.loaded || who.members.isEmpty { return "See who' not in chat
+    assert 'Button { if m.handle.isEmpty { dismiss() } else { after { open(m) } } } label: {' in chat
+    assert ".disabled(m.handle.isEmpty)" not in chat
+    assert '"Remove from Saved for Later" : "Save for later"' not in chat
+    assert 'TextField("Group name"' not in chat
+    assert "let name = newName\n" in chat
+    assert "member: Bool" not in chat
+    assert "let friend: Bool?" not in _api()[_api().index("struct ChatMember"):][:400]
+    person = _swift("Views", "PersonView.swift")
+    assert "missing" not in person and "StoryViewer(" not in person and "storiesSeen" not in person
+    settings = _swift("Views", "SettingsView.swift")
+    assert 'model.nowPlaying.say("You haven\\u{2019}t blocked anyone")' in settings
+    stories = _swift("Views", "Stories.swift")
+    assert "a drag down" not in stories
+    mixview = _swift("Views", "MixView.swift")
+    assert 'if !(self.mix?.people.isEmpty ?? true) { people = true }' in mixview
+
+
+def test_motion_matches_the_web_where_audit_4_found_it_did_not_584():
+    app = _swift("FAMApp.swift")
+    assert ".transition(.famOverlay(reduceMotion: reduceMotion))" in app
+    done = _swift("Views", "MyFAMView.swift")
+    assert ".liftsIn()\n            .dropsOnLeave()" in done
+    sheets = _swift("Views", "PlayerSheets.swift")
+    nextup = sheets[sheets.index("struct NextUpOverlay"):][:2000]
+    assert ".transition(.famOverlay(reduceMotion: reduceMotion))" in nextup
+    assert ".dropsOnLeave()" in nextup and "let still = shown || reduceMotion" in nextup
+    assert ".tapSqueeze()" in _swift("Views", "Stories.swift")
+    assert ".tapSqueeze()" in _swift("Views", "MixScreens.swift")
+    assert ".buttonStyle(.plain)" not in _swift("Views", "FrontDoor.swift")
+    assert ".transition(.identity)" in _swift("Views", "VibePosts.swift")
+    motion = _swift("Motion.swift")
+    assert ".timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2).delay(0.18)" in motion
+    assert motion.count("if UIAccessibility.isReduceMotionEnabled") >= 2
+    parts = _swift("Views", "SocialParts.swift")
+    assert ".transition(comesAndGoes)" in parts and "if reduceMotion { return fade }" in parts
+    social = _swift("Social.swift")
+    assert "withAnimation(.easeIn(duration: 0.2)) { banner = nil }" not in social

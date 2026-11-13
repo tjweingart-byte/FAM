@@ -220,7 +220,8 @@ struct SavedView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
         .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
-        .transition(.move(edge: .leading).combined(with: .opacity))
+        // `removeRow`: left 45 % and faded, then folded.
+        .transition(.rowRemoval)
     }
 
     private func load() async {
@@ -239,7 +240,7 @@ struct SavedView: View {
     /// it back. The player's save goes off if it is that episode.
     private func remove(_ item: SavedItem) {
         guard let id = item.id else { return }
-        withAnimation(.easeOut(duration: 0.25)) { _ = gone.insert(id) }
+        withAnimation(Animation.rowFold) { _ = gone.insert(id) }
         Task {
             do {
                 try await model.api.removeSaved(id)

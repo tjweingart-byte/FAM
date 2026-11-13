@@ -98,11 +98,10 @@ struct ChatScreen: View {
             .famSheet(isPresented: $showMembers) { membersSheet }
             .famSheet(item: $deeper) { base in deeperSheet(base) }
             .alert("Name this group", isPresented: $renaming) {
-                TextField("Group name", text: $newName)
+                // `window.prompt`: no placeholder.
+                TextField("", text: $newName)
                 Button("Cancel", role: .cancel) {}
                 Button("Save") { rename() }
-            } message: {
-                Text("Up to 60 letters. Leave it empty to take the name off.")
             }
     }
 
@@ -236,11 +235,10 @@ struct ChatScreen: View {
         return who.group ? "Group" : "Someone"
     }
 
-    /// "View profile", or "N people · See who's here" once the group's
-    /// people are known (a banner opens a group with none yet, quirk 16).
+    /// "View profile", or "N people · See who's here" - "0 people" while
+    /// the group's people are not known yet, as the web counts them.
     private var subLine: String {
         guard who.group else { return "View profile" }
-        if !who.loaded || who.members.isEmpty { return "See who\u{2019}s here" }
         let n = who.members.count
         return "\(n) \(n == 1 ? "person" : "people") \u{00B7} See who\u{2019}s here"
     }
@@ -554,7 +552,7 @@ struct ChatScreen: View {
                     reporting = ReportTarget(subject: .person(handle: handle))
                 })
                 actions.append(SheetAction(label: "Block " + name, danger: true) {
-                    askBlock(name: name, handle: handle, member: false)
+                    askBlock(name: name, handle: handle)
                 })
             }
         }
@@ -564,8 +562,8 @@ struct ChatScreen: View {
     /// The web's action sheets (`blockPerson`, `confirmDeleteChat`,
     /// `confirmLeaveGroup`): the sentence as the sheet's group line, then
     /// the one coral row.
-    private func askBlock(name: String, handle: String, member: Bool) {
-        sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked(member: member) }
+    private func askBlock(name: String, handle: String) {
+        sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked() }
     }
 
     private func askDelete() {
@@ -579,19 +577,15 @@ struct ChatScreen: View {
         sheet = SheetSpec(header: header, actions: [SheetAction(label: "Leave group", danger: true) { leaveGroup() }])
     }
 
-    /// After a block: "Blocked", the graph and inbox re-read; a 1:1 chat
-    /// closes, a group stays without their lines.
-    private func blocked(member: Bool) {
+    /// After a block (a 1:1 chat's ⋯): "Blocked", the graph and inbox
+    /// re-read, and the chat closes (`blockPerson(..., goBack)`).
+    private func blocked() {
         model.nowPlaying.say("Blocked")
         Task {
             await social.loadGraph()
             await social.loadInbox()
         }
-        if member {
-            Task { await chat.load() }
-        } else {
-            social.back()
-        }
+        social.back()
     }
 
     private func deleteChat() {
@@ -623,7 +617,8 @@ struct ChatScreen: View {
     }
 
     private func rename() {
-        let name = String(newName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
+        // Sent as typed (`renameGroup`): the server trims and caps it.
+        let name = newName
         let gid = who.with
         Task {
             do {
@@ -694,10 +689,6 @@ struct ChatScreen: View {
         GroupMembersSheet(name: displayName, members: who.members,
                           open: { m in
                               social.openPerson(handle: m.handle, name: m.name, avatar: m.avatar)
-                          },
-                          report: { m in reporting = ReportTarget(subject: .person(handle: m.handle)) },
-                          block: { m in
-                              askBlock(name: m.name.isEmpty ? "@" + m.handle : m.name, handle: m.handle, member: true)
                           })
             .environmentObject(model)
     }
@@ -994,7 +985,9 @@ struct SharedEpisodeCard: View {
                 .overlay(Circle().stroke(saved ? FAMColor.copper : FAMColor.borderStrong))
             }
             .buttonStyle(.press)
-            .accessibilityLabel(saved ? "Remove from Saved for Later" : "Save for later")
+            // The web's `aria-label`, saved or not.
+            .accessibilityLabel("Save for later")
+            .accessibilityAddTraits(saved ? .isSelected : [])
         }
     }
 }
@@ -1036,17 +1029,14 @@ struct TypingBubble: View {
     }
 }
 
-/// See who's here (shot 25): each other member opens their profile, and
-/// each has Report and Block - the web has neither for a group's people
-/// (1.2) - then the web's last row, "You", which does nothing but close.
+/// See who's here (shot 25, `openGroupMembers`): each other member's face,
+/// name and @handle opens their profile - where Report and Block are - then
+/// the web's last row, "You", which does nothing but close.
 struct GroupMembersSheet: View {
     @Environment(\.dismiss) private var dismiss
     let name: String
     let members: [ChatMember]
     let open: (ChatMember) -> Void
-    let report: (ChatMember) -> Void
-    let block: (ChatMember) -> Void
-    @State private var acting: ChatMember?
 
     private var others: [ChatMember] { members.filter { !$0.me } }
 
@@ -1064,21 +1054,12 @@ struct GroupMembersSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(FAMColor.surface)
-        .confirmationDialog(acting.map { $0.name.isEmpty ? "@" + $0.handle : $0.name } ?? "",
-                            isPresented: Binding(get: { acting != nil }, set: { if !$0 { acting = nil } }),
-                            titleVisibility: .visible) {
-            if let m = acting {
-                Button("View profile") { after { open(m) } }
-                Button("Report", role: .destructive) { after { report(m) } }
-                Button("Block", role: .destructive) { after { block(m) } }
-                Button("Cancel", role: .cancel) {}
-            }
-        }
     }
 
     private func row(_ m: ChatMember) -> some View {
         HStack(spacing: 12) {
-            Button { after { open(m) } } label: {
+            // A row with no handle only closes the sheet, as the web's does.
+            Button { if m.handle.isEmpty { dismiss() } else { after { open(m) } } } label: {
                 HStack(spacing: 12) {
                     Face(name: m.name, handle: m.handle, avatar: m.avatar, size: 34, initialsSize: 12)
                     VStack(alignment: .leading, spacing: 2) {
@@ -1091,26 +1072,12 @@ struct GroupMembersSheet: View {
                                 .font(FAMFont.body(11))
                                 .foregroundStyle(FAMColor.textMuted)
                         }
-                        // §520: a group may hold people you are not friends
-                        // with; the server says which (`friend`).
-                        if m.friend == false {
-                            Text("Not your friend").monoLabel(8.5, color: FAMColor.copper, tracking: 0.6)
-                                .padding(.top, 1)
-                        }
                     }
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press)
-            .disabled(m.handle.isEmpty)
-            if !m.handle.isEmpty {
-                Button { acting = m } label: {
-                    RoundIcon(size: 30) { WebFill(path: Icons.dots(1.6), size: 15) }
-                }
-                .buttonStyle(.press)
-                .accessibilityLabel("More about \(m.name.isEmpty ? m.handle : m.name)")
-            }
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 9)

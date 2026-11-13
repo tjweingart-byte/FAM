@@ -29,15 +29,27 @@ extension ButtonStyle where Self == PressButtonStyle {
     static var press: PressButtonStyle { PressButtonStyle() }
 }
 
-private struct PressedLabel: View {
-    let label: ButtonStyleConfiguration.Label
+/// The squeeze, for `.press` and for the app's drawn button styles (the
+/// copper, outlined and entry pills), which keep their own disabled look.
+struct PressedLabel<Label: View>: View {
+    let label: Label
     let pressed: Bool
+    /// `.plain`'s half-dim while disabled; a drawn style keeps its own.
+    var dims = true
+
+    /// Spelled out: the private state below would make the memberwise
+    /// initialiser private to this file.
+    init(label: Label, pressed: Bool, dims: Bool = true) {
+        self.label = label
+        self.pressed = pressed
+        self.dims = dims
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
     @State private var size: CGSize = .zero
 
     /// About 30 % of a phone's screen, in points.
-    private static let largestArea: CGFloat = 100_000
+    private static var largestArea: CGFloat { 100_000 }
 
     private var squeezes: Bool {
         guard !reduceMotion, isEnabled, size.width > 0, size.height > 0 else { return false }
@@ -66,7 +78,65 @@ private struct PressedLabel: View {
             .modifier(PressRecording(pressed: pressed))
             // `.plain` dimmed a disabled button; a custom style draws no
             // disabled look of its own, so this keeps that one.
-            .opacity(isEnabled ? 1 : 0.5)
+            .opacity(isEnabled || !dims ? 1 : 0.5)
+    }
+}
+
+/// `.press` on something tapped with `onTapGesture` rather than a Button
+/// (a card that holds its own buttons): squeezed while a finger rests on
+/// it, let go when it moves - a press that turns into a scroll lets go, and
+/// the tap and the scroll still belong to whoever had them.
+struct TapSqueeze: ViewModifier {
+    @GestureState private var down = false
+
+    func body(content: Content) -> some View {
+        content
+            .pressSqueeze(down)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 60, maximumDistance: 10)
+                    .updating($down) { pressing, state, _ in state = pressing })
+    }
+}
+
+extension View {
+    func tapSqueeze() -> some View { modifier(TapSqueeze()) }
+}
+
+// MARK: - A removed row slides out, then folds (`removeRow`)
+
+/// A row taken out of a list (the queue, Saved for Later): it slides 45 %
+/// of its width to the left and fades over 180 ms, easing in; the rows
+/// under it close the gap over the next 200 ms (`rowFold`).
+struct RowGone: ViewModifier {
+    let gone: Bool
+
+    func body(content: Content) -> some View {
+        let gone = self.gone
+        content
+            .visualEffect { view, proxy in
+                view.offset(x: gone ? -0.45 * proxy.size.width : 0)
+            }
+            .opacity(gone ? 0 : 1)
+    }
+}
+
+extension AnyTransition {
+    /// With Reduce Motion the list just redraws (`removeRow`'s `reduced`).
+    static var rowRemoval: AnyTransition {
+        if UIAccessibility.isReduceMotionEnabled { return .identity }
+        return .asymmetric(insertion: .opacity,
+                           removal: AnyTransition.modifier(active: RowGone(gone: true), identity: RowGone(gone: false))
+                               .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.18)))
+    }
+}
+
+extension Animation {
+    /// The rows under a removed one close up after it has slid away, on the
+    /// web's default EASE (`cubic-bezier(.2,.8,.2,1)`: the fold names no
+    /// easing of its own). Reduce Motion: nil, the list just redraws.
+    static var rowFold: Animation? {
+        if UIAccessibility.isReduceMotionEnabled { return nil }
+        return .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2).delay(0.18)
     }
 }
 
@@ -950,6 +1020,56 @@ extension AnyTransition {
             insertion: AnyTransition.opacity.animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)),
             removal: AnyTransition.opacity.animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15)))
     }
+}
+
+/// A card drawn in place over its own dim, closing (`mo-drop`): the whole
+/// overlay fades over 150 ms, easing in, and the card inside drops 8 pt as
+/// it does (`dropsOnLeave`). Opening is `famDim`'s, the card lifting
+/// (`liftsIn`). Reduce Motion: `famDim`'s, nothing drops.
+private struct FamCardLeavingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// The overlay this card is in is closing.
+    var famCardLeaving: Bool {
+        get { self[FamCardLeavingKey.self] }
+        set { self[FamCardLeavingKey.self] = newValue }
+    }
+}
+
+private struct OverlayLeaving: ViewModifier {
+    let leaving: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(leaving ? 0 : 1)
+            .environment(\.famCardLeaving, leaving)
+    }
+}
+
+private struct DropsOnLeave: ViewModifier {
+    @Environment(\.famCardLeaving) private var leaving
+
+    func body(content: Content) -> some View {
+        content.offset(y: leaving ? 8 : 0)
+    }
+}
+
+extension AnyTransition {
+    static func famOverlay(reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion { return famDim(reduceMotion: true) }
+        return .asymmetric(
+            insertion: famDim(reduceMotion: false),
+            removal: AnyTransition.modifier(active: OverlayLeaving(leaving: true),
+                                            identity: OverlayLeaving(leaving: false))
+                .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15)))
+    }
+}
+
+extension View {
+    /// Drops 8 pt while the overlay it is in closes (`famOverlay`).
+    func dropsOnLeave() -> some View { modifier(DropsOnLeave()) }
 }
 
 /// A card lifting 14 pt into place as it first appears (`mo-lift`, 200 ms),

@@ -635,18 +635,6 @@ final class NowPlayingModel: ObservableObject {
         }
     }
 
-    /// The share link and its words (`POST /api/share`).
-    func shareItems() async -> [Any]? {
-        guard let ep = episode else { say("Play something first"); return nil }
-        guard let link = try? await api.share(ep.key, title: title) else {
-            say("Could not make a link")
-            return nil
-        }
-        let words = link.targets?["copy"]?.text
-            ?? "\(title) - a \(FAMAPI.minutes(ep.key.minutes))-minute FAM episode: \(link.url)"
-        return [words]
-    }
-
     // MARK: - Captions (`toggleCC`, `fetchCaptions`, `captionIndexNow`)
 
     private var captionTask: Task<Void, Never>?

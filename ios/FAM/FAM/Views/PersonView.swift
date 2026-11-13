@@ -12,7 +12,6 @@ struct PersonView: View {
     let open: PersonOpen
 
     @State private var page: PersonPage?
-    @State private var missing = false
     @State private var tab = 0
     @State private var allFriends = false
     @State private var menu = false
@@ -29,9 +28,6 @@ struct PersonView: View {
     @State private var followedHandles: Set<String> = []
     @State private var addedMixes: [String: Bool] = [:]
     /// A mix of theirs already in your myFAM, asked about before it goes.
-    @State private var removingMix: PersonMix?
-    @State private var story: StoryReel?
-    @AppStorage("storiesSeen") private var seenJSON = "{}"
 
     /// `.yf-person .yf-hero`'s wash, the top bar's colour at the top.
     private static let wash = FAMColor.wash
@@ -92,7 +88,7 @@ struct PersonView: View {
         .task { await load() }
     }
 
-    /// The ⋯, Report, Block, Unfollow and the story, kept out of `body`.
+    /// The ⋯, Report, Block and Unfollow, kept out of `body`.
     private func presentations<V: View>(_ content: V) -> some View {
         content
         .famSheet(isPresented: $menu) { menuSheet }
@@ -101,27 +97,6 @@ struct PersonView: View {
                            say: { model.nowPlaying.say($0) }) { _ in }
         }
         .famSheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
-        // `confirmRemoveMix`: the copy may have been renamed since, so ask.
-        .confirmationDialog(removingMix.map { "Remove \($0.name ?? "this mix") from your myFAM?" } ?? "",
-                            isPresented: Binding(get: { removingMix != nil },
-                                                 set: { if !$0 { removingMix = nil } }),
-                            titleVisibility: .visible) {
-            if let m = removingMix {
-                Button("Yes, remove it", role: .destructive) { toggleMix(m, added: true) }
-                Button("Cancel", role: .cancel) {}
-            }
-        }
-        .fullScreenCover(item: $story) { reel in
-            StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 }, openMine: {
-                // "Vibed to your story · View" after the VIBE! arrows.
-                Task { @MainActor in
-                    await model.loadCircle()
-                    try? await Task.sleep(nanoseconds: 350_000_000)
-                    if let mine = StoryReel.mine(model) { story = mine }
-                }
-            }, origin: reel.origin)
-                .environmentObject(model)
-        }
     }
 
     private func load() async {
@@ -129,9 +104,8 @@ struct PersonView: View {
         if social.me == nil { Task { await social.loadMe() } }
         do {
             page = try await model.api.person(handle: open.handle, userID: open.userID)
-            missing = false
         } catch {
-            missing = true
+            // The page stands as drawn from the graph, and says nothing.
         }
     }
 
@@ -182,9 +156,8 @@ struct PersonView: View {
                     .foregroundStyle(FAMColor.textMuted)
                     .padding(.top, 4)
             }
-            if missing && page == nil && open.name.isEmpty {
-                SocialNote(text: "No listener by that handle.")
-            }
+            // A failed `/api/person` leaves the page standing and says
+            // nothing (`loadPersonProfile`).
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -204,24 +177,13 @@ struct PersonView: View {
         return Date().timeIntervalSince1970 - at < 48 * 3600
     }
 
-    /// Their stories in the faces row, if they are there.
-    private var circlePerson: CirclePerson? {
-        model.circle?.circle.first { !handle.isEmpty && $0.handle.lowercased() == handle.lowercased() && !$0.stories.isEmpty }
-    }
-
     @ViewBuilder private var photo: some View {
         if ringed {
-            let face = Face(name: name, handle: handle, avatar: avatar, size: 86, initialsSize: 28)
+            // The ring is a plain span on the web: not a control.
+            Face(name: name, handle: handle, avatar: avatar, size: 86, initialsSize: 28)
                 .padding(2)
                 .overlay(Circle().stroke(FAMColor.copper, lineWidth: 2))
                 .padding(2)
-            if let person = circlePerson {
-                Button { openStory(person) } label: { face }
-                    .buttonStyle(.press)
-                    .accessibilityLabel("\(name)'s story")
-            } else {
-                face
-            }
         } else {
             Face(name: name, handle: handle, avatar: avatar, size: 92, initialsSize: 28)
         }
@@ -315,7 +277,7 @@ struct PersonView: View {
                 }
                 .buttonStyle(.press)
                 .disabled(working)
-            } else if !handle.isEmpty && !missing {
+            } else if !handle.isEmpty {
                 Button { follow() } label: {
                     Text("Follow")
                         .font(FAMFont.body(12, .bold))
@@ -437,7 +399,16 @@ struct PersonView: View {
         .overlay(alignment: .topTrailing) {
             if m.mine != true {
                 Button {
-                    if added { removingMix = m } else { toggleMix(m, added: false) }
+                    // `confirmRemoveMix`: the copy may have been renamed
+                    // since, so FAM's own sheet asks first.
+                    if added {
+                        confirm = SheetSpec(header: "Remove \(m.name ?? "this mix") from your myFAM?",
+                                            actions: [SheetAction(label: "Yes, remove it", danger: true) {
+                                                toggleMix(m, added: true)
+                                            }])
+                    } else {
+                        toggleMix(m, added: false)
+                    }
                 } label: {
                     Group {
                         if added {
@@ -659,24 +630,6 @@ struct PersonView: View {
                 model.nowPlaying.say(SocialModel.sentence(error, else: fallback))
             }
         }
-    }
-
-    // MARK: - Their story (the ring)
-
-    private var seen: [String: Double] {
-        (try? JSONDecoder().decode([String: Double].self, from: Data(seenJSON.utf8))) ?? [:]
-    }
-
-    private func markSeen(_ id: String, _ at: Double) {
-        var map = seen
-        map[id] = max(map[id] ?? 0, at)
-        if let data = try? JSONEncoder().encode(map) { seenJSON = String(decoding: data, as: UTF8.self) }
-    }
-
-    private func openStory(_ p: CirclePerson) {
-        var reel = StoryReel(people: [StoryPerson(id: p.userId, name: p.name, handle: p.handle, avatar: p.avatar,
-                                                  stories: p.stories, mine: false)], start: 0)
-        presentGrowing(reel: &reel) { story = $0 }
     }
 }
 

@@ -476,6 +476,7 @@ struct OverlayModal<Content: View>: View {
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
         .shadow(color: .black.opacity(0.35), radius: 20, y: 20)
         .liftsIn()
+        .dropsOnLeave()
     }
 }
 

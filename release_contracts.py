@@ -37,7 +37,13 @@ ROOT = Path(__file__).resolve().parent
 #: registers one (it would take over the live app's shell).
 WEB_FILES = ("index.html", "fam-audio.js")
 
-_LITERAL = re.compile(r"""["'`](/api/[A-Za-z0-9_\-/]*)""")
+_LITERAL = re.compile(r"""["'`](/?api/[A-Za-z0-9_\-/]*)""")
+
+#: The versioned prefix a native client calls through (`api/v1/messages`,
+#: app.py rewrites it to `/api/messages` before routing). The iOS app writes
+#: every call as a relative literal with no leading slash, so both spellings
+#: are read and recorded as the route the server actually matches.
+_VERSIONED = re.compile(r"^/?api/v1/")
 
 #: Diagnostic surfaces whose nested keys describe the machine rather than the
 #: API (which engines are installed, which databases exist). Only their
@@ -49,11 +55,14 @@ NOT_RECORDED = ("/api/auth/logout",)
 
 
 def endpoints_in(texts) -> list[str]:
-    """Every `/api/` literal in the client's code, sorted, without duplicates."""
+    """Every `/api/` literal in the client's code, sorted, without duplicates.
+    `api/v1/...` and `/api/v1/...` are recorded as the `/api/...` they reach."""
     found = set()
     for text in texts:
         for match in _LITERAL.finditer(text):
-            path = match.group(1)
+            path = _VERSIONED.sub("/api/", match.group(1))
+            if not path.startswith("/"):
+                path = "/" + path
             if path in ("/api/", "/api"):
                 continue
             found.add(path)

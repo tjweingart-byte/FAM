@@ -46,7 +46,10 @@ struct AuthView: View {
     var body: some View {
         Group {
             if resetting {
-                ResetPasswordView(initialEmail: email) { resetting = false }
+                // Its back arrow is `backToWelcome()`, as the web's; its
+                // "Remembered it? Log in" is the log-in form again.
+                ResetPasswordView(initialEmail: email, back: { resetting = false },
+                                  toWelcome: { resetting = false; back() })
             } else {
                 form
             }
@@ -63,8 +66,9 @@ struct AuthView: View {
 
     private var form: some View {
         VStack(spacing: 0) {
-            YouBackRow(title: making ? "Sign up" : "Log in") { back() }
-            if making { StepMarks(step: 1).padding(.top, -6) }
+            // `/waitlist` has no title: the join has the way back and the
+            // page's wordmark (`lead`); Log in keeps the app's title.
+            YouBackRow(title: making ? "" : "Log in") { back() }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     lead
@@ -88,7 +92,10 @@ struct AuthView: View {
     @ViewBuilder
     private var lead: some View {
         if making {
-            // The waitlist page's own words (`#landing`).
+            // The waitlist page's own words (`#landing`), under its wordmark.
+            Wordmark(size: 26)
+                .accessibilityLabel("FAM")
+                .padding(.bottom, 12)
             Text("The social information network")
                 .monoLabel(9)
             Text("Listen to everything you want to know about.")
@@ -123,21 +130,25 @@ struct AuthView: View {
 
     private var joinFields: some View {
         VStack(alignment: .leading, spacing: 0) {
-            label("Email").padding(.top, 18)
-            emailField(prompt: "Enter your email")
+            // No visible labels on `/waitlist`: the fields say it (`aria-label`).
+            emailField(prompt: "Enter your email").padding(.top, 18)
             // A password in the same step (§571): the way back in from any
             // device, with no email needed (`#joinPassword`).
-            label("Password").padding(.top, 18)
-            passwordField
-            if !problem.isEmpty { problemLine }
+            passwordField.padding(.top, 12)
             Button {
                 Task { await join() }
             } label: {
-                Text("Join the waitlist")
+                // `#joinBtn`: the words and the arrow after them.
+                HStack(spacing: 8) {
+                    Text("Join the waitlist")
+                    WebIcon(path: Icons.arrowRight, size: 16, line: 2)
+                }
             }
             .buttonStyle(EntryButtonStyle(primary: true))
             .disabled(working)
-            .padding(.top, problem.isEmpty ? 22 : 10)
+            .padding(.top, 22)
+            // `#joinNote`: what went wrong, under the button, over the terms.
+            if !problem.isEmpty { problemLine }
             terms.padding(.top, 16)
             Button("What is FAM?") { openAbout() }
                 .font(FAMFont.body(13, .bold))
@@ -200,6 +211,7 @@ struct AuthView: View {
             .focused($field, equals: .email)
             .submitLabel(.next)
             .onSubmit { field = .password }
+            .accessibilityLabel("Email")
             .modifier(FieldBox())
     }
 
@@ -216,10 +228,15 @@ struct AuthView: View {
             }
             // A new password on Sign up, so iOS offers a strong one.
             .textContentType(making ? .newPassword : .password)
+            .accessibilityLabel("Password")
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .focused($field, equals: .password)
             .submitLabel(.go)
+            // `maxlength="1024"` on both forms: the field takes no more.
+            .onChange(of: password) { _, typed in
+                if typed.count > 1024 { password = String(typed.prefix(1024)) }
+            }
             .onSubmit {
                 if making { Task { await join() } } else { Task { await logIn() } }
             }
@@ -233,8 +250,10 @@ struct AuthView: View {
         .modifier(FieldBox())
     }
 
+    /// The join's own words on Sign up; the app's form says "at least 8
+    /// characters" on Log in too (`#authPassword`).
     private var passwordPrompt: String {
-        making ? "Choose a password (at least 8 characters)" : "Your password"
+        making ? "Choose a password (at least 8 characters)" : "at least 8 characters"
     }
 
     private var problemLine: some View {
@@ -245,17 +264,16 @@ struct AuthView: View {
             .padding(.top, 12)
     }
 
+    /// Under the join, the waitlist page's `#toggleLogin` ("Already on the
+    /// list? Sign in"); under Log in, the app's `#authSwitch` ("New to FAM?
+    /// Sign up"), since the form above it is the app's.
     private var switchLine: some View {
-        HStack(spacing: 6) {
-            Text(making ? "Already have an account?" : "New to FAM?")
-                .foregroundStyle(FAMColor.textMuted)
-            Button(making ? "Log in" : "Sign up") { switchMode() }
-                .fontWeight(.bold)
-                .foregroundStyle(FAMColor.copper)
-        }
-        .font(FAMFont.body(13))
-        .frame(maxWidth: .infinity)
-        .padding(.top, 18)
+        Button(making ? "Already on the list? Sign in" : "New to FAM? Sign up") { switchMode() }
+            .font(FAMFont.body(13, .bold))
+            .foregroundStyle(FAMColor.copper)
+            .buttonStyle(.press)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 18)
     }
 
     /// Between the two without losing what was typed (`switchAuthMode`);
@@ -319,10 +337,6 @@ struct AuthView: View {
         }
         guard password.count >= 8 else {
             problem = "Use at least 8 characters for your password."
-            return
-        }
-        guard password.count <= 1024 else {
-            problem = "That password is too long."
             return
         }
         guard agreed else {
@@ -394,6 +408,8 @@ struct TermsSentence: View {
             .lineSpacing(3)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
+            // Settings' Terms and Privacy rows' Safari sheet, on the same host.
+            .inAppLinks()
     }
 
     private var sentence: AttributedString {
@@ -433,6 +449,8 @@ struct ResetPasswordView: View {
     @EnvironmentObject private var model: AppModel
     let initialEmail: String
     let back: () -> Void
+    /// The back arrow (`backToWelcome`).
+    let toWelcome: () -> Void
 
     @State private var email = ""
     @State private var code = ""
@@ -450,7 +468,7 @@ struct ResetPasswordView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            YouBackRow(title: "Reset password") { back() }
+            YouBackRow(title: "Reset password") { toWelcome() }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Enter the email on your account.")

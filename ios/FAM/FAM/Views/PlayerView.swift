@@ -67,7 +67,8 @@ struct PlayerView: View {
         .coordinateSpace(name: Self.space)
         .background(FAMColor.background.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: popup)
-        .animation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36), value: now.nextUp.isEmpty)
+        // What's next comes and goes on its own transition's timings.
+        .animation(.easeOut(duration: 0.2), value: now.nextUp.isEmpty)
         .famSheet(item: Binding(get: { sheet == .vibe ? nil : sheet }, set: { sheet = $0 })) { which in
             sheetView(which)
                 .environmentObject(model)
@@ -166,6 +167,7 @@ struct PlayerView: View {
                     .foregroundStyle(FAMColor.text)
                     .frame(width: 44, height: 44)
             }
+            .buttonStyle(.press)
             .accessibilityLabel("Minimise the player")
             Spacer(minLength: 0)
             Button { openGoDeeper() } label: {
@@ -184,6 +186,7 @@ struct PlayerView: View {
                     .foregroundStyle(FAMColor.text)
                     .frame(width: 44, height: 44)
             }
+            .buttonStyle(.press)
             .accessibilityLabel("More options")
         }
         .padding(.horizontal, 12)
@@ -222,6 +225,13 @@ struct PlayerView: View {
                         .padding(.top, friendsTop(stage: geo.size.height, picture: wide * 3 / 4))
                         .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
                         .transition(.opacity)
+                }
+                // `.p-demo`: 6 pt from the stage's top, centred, on a server
+                // with no working key (`body.demo-mode`).
+                if model.demoMode {
+                    DemoBadge()
+                        .padding(.top, 6)
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                 }
                 if now.captionsOn {
                     CaptionsCard()
@@ -492,8 +502,9 @@ struct PlayerView: View {
             OverlayModal(close: { popup = nil }) {
                 popupContent(which)
             }
-            // In over 200 ms (the card lifting, `OverlayModal`), out over 150.
-            .transition(.famDim(reduceMotion: reduceMotion))
+            // In over 200 ms (the card lifting, `OverlayModal`), out over
+            // 150, the card dropping 8 pt.
+            .transition(.famOverlay(reduceMotion: reduceMotion))
             .zIndex(5)
         }
     }
@@ -607,6 +618,7 @@ struct BareCircleStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(Circle().fill(FAMColor.text.opacity(configuration.isPressed ? 0.08 : 0)))
+            .pressSqueeze(configuration.isPressed)
     }
 }
 
@@ -1062,6 +1074,9 @@ struct MiniPlayer: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.borderStrong))
         .contentShape(Rectangle())
+        // The web's squeeze on the bar's tap (`.press`), let go as soon as
+        // the finger moves away.
+        .tapSqueeze()
         .onTapGesture {
             // The player grows out of this picture (`pictured` finds
             // `#nowThumb` inside the bar).

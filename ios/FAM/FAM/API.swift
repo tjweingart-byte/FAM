@@ -1212,6 +1212,17 @@ struct ServerHealth: Decodable {
         if credentials?.state == "rejected" { return "The server's API key was rejected\u{2026}" }
         return ""
     }
+
+    /// The web's `env-ribbon`: "Staging" or "Zero spend", then the client
+    /// (always named here: this is never `web/live`); "" for any other server.
+    func ribbon(client: String) -> String {
+        guard environment?.name == "staging" || environment?.zeroSpend == true else { return "" }
+        return (environment?.name == "staging" ? "Staging" : "Zero spend") + " \u{00B7} " + client
+    }
+
+    /// `body.demo-mode`: the sample script stands in (`mode == "demo"`), or
+    /// the key was rejected.
+    var demoMode: Bool { mode == "demo" || credentials?.state == "rejected" }
 }
 
 struct ServerHealthEnvironment: Decodable {
@@ -1300,6 +1311,11 @@ struct SharePayload: Decodable {
     let title: String
     let question: String
     let minutes: Double
+    /// The link preview's picture (`image`), for the lock screen.
+    let image: String?
+    /// Whether the App Store is where the page's other doors go (`has_app`):
+    /// "Ask your own question" and "Browse episodes" are drawn only then.
+    let hasApp: Bool?
 }
 
 /// `quotas.Verdict.as_dict`: the limit screen's words and numbers.
@@ -1361,6 +1377,8 @@ struct SavedState: Decodable { let saved: Bool }
 /// `POST /api/share`: the link, and per-target wording.
 struct SharedLink: Decodable {
     let url: String
+    /// Keyed as the server keys them (`instagram_story`, `snapchat_story`),
+    /// whatever the decoder's key strategy did to a dictionary's keys.
     let targets: [String: ShareTarget]?
     /// The story card (`/api/share/card?share=`), absolute where the server
     /// knows its own address, else a path on it.
@@ -1368,6 +1386,16 @@ struct SharedLink: Decodable {
     /// False when the server has no public address: the link only works
     /// on its own network.
     let `public`: Bool?
+
+    enum CodingKeys: String, CodingKey { case url, targets, card, `public` }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        url = try c.decode(String.self, forKey: .url)
+        targets = ShareTarget.serverKeyed(try c.decodeIfPresent([String: ShareTarget].self, forKey: .targets))
+        card = try c.decodeIfPresent(String.self, forKey: .card)
+        `public` = try c.decodeIfPresent(Bool.self, forKey: .`public`)
+    }
 }
 
 /// One destination (`sharing._rendered`): its label, the words, and where
@@ -1384,6 +1412,34 @@ struct ShareTarget: Decodable {
     /// on a story destination when the server has the platform's id; nil
     /// keeps iOS's share sheet.
     let handoff: StoryHandoff?
+
+    /// The targets keyed as the server sends them. `.convertFromSnakeCase`
+    /// may turn a dictionary's `instagram_story` into `instagramStory`
+    /// (Foundation's behaviour has differed between releases), which
+    /// `ShareTargetRows.order`, its glyphs and the story hand-off would miss:
+    /// every key goes back to snake_case, so it holds either way.
+    /// Any dictionary keyed by server ids is put back the same way
+    /// (`SurveyQuestion.detail`, `Catalogue.tagParent` / `tagLabels`).
+    static func serverKeyed<Value>(_ targets: [String: Value]?) -> [String: Value]? {
+        guard let targets else { return nil }
+        var out: [String: Value] = [:]
+        for (key, value) in targets { out[snakeKey(key)] = value }
+        return out
+    }
+
+    /// `instagramStory` -> `instagram_story`; `instagram_story`, `sms` as they are.
+    static func snakeKey(_ key: String) -> String {
+        var out = ""
+        for ch in key {
+            if ch.isUppercase {
+                if !out.isEmpty { out.append("_") }
+                out.append(contentsOf: ch.lowercased())
+            } else {
+                out.append(ch)
+            }
+        }
+        return out
+    }
 }
 
 /// A story destination's native hand-off: the card goes on the pasteboard
@@ -1422,8 +1478,8 @@ struct SurveyQuestion: Decodable, Identifiable, Equatable {
     /// Shown only when another question's answer is one of these.
     let showIf: SurveyShowIf?
     /// An option whose own box asks a question ("name" -> "Which name?").
-    /// Its keys are option ids with no underscore, so the decoder's
-    /// snake-case conversion leaves them as they are.
+    /// Keyed by option id exactly as the server sends it
+    /// (`ShareTarget.serverKeyed`), so an id with an underscore still matches.
     let detail: [String: String]?
     /// An "Other" chip with a box.
     let other: Bool?
@@ -1432,6 +1488,26 @@ struct SurveyQuestion: Decodable, Identifiable, Equatable {
     let low: String?
     let high: String?
     let placeholder: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, text, options, showIf, detail, other, min, max, low, high, placeholder
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        kind = try c.decode(String.self, forKey: .kind)
+        text = try c.decode(String.self, forKey: .text)
+        options = try c.decodeIfPresent([SurveyOption].self, forKey: .options)
+        showIf = try c.decodeIfPresent(SurveyShowIf.self, forKey: .showIf)
+        detail = ShareTarget.serverKeyed(try c.decodeIfPresent([String: String].self, forKey: .detail))
+        other = try c.decodeIfPresent(Bool.self, forKey: .other)
+        min = try c.decodeIfPresent(Int.self, forKey: .min)
+        max = try c.decodeIfPresent(Int.self, forKey: .max)
+        low = try c.decodeIfPresent(String.self, forKey: .low)
+        high = try c.decodeIfPresent(String.self, forKey: .high)
+        placeholder = try c.decodeIfPresent(String.self, forKey: .placeholder)
+    }
 }
 
 struct SurveyOption: Decodable, Identifiable, Equatable {
@@ -1795,7 +1871,7 @@ struct Mix: Decodable, Identifiable, Equatable {
         id = try c.decode(String.self, forKey: .id)
         name = (try? c.decode(String.self, forKey: .name)) ?? ""
         items = (try? c.decode([MixItem].self, forKey: .items)) ?? []
-        `public` = (try? c.decode(Bool.self, forKey: .public)) ?? false
+        `public` = (try? c.decode(Bool.self, forKey: .`public`)) ?? false
         cover = (try? c.decode(String.self, forKey: .cover)) ?? ""
         sourceId = (try? c.decode(String.self, forKey: .sourceId)) ?? ""
         listenAt = (try? c.decode(String.self, forKey: .listenAt)) ?? ""
@@ -1969,8 +2045,19 @@ struct RecommendedTopics: Decodable {
 
 struct Catalogue: Decodable {
     let catalogue: [Subject]
+    /// Keyed by tag exactly as the server sends them (`ShareTarget.serverKeyed`):
+    /// a tag such as `college_football` must not come back `collegeFootball`.
     let tagParent: [String: String]?
     let tagLabels: [String: String]?
+
+    enum CodingKeys: String, CodingKey { case catalogue, tagParent, tagLabels }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        catalogue = try c.decode([Subject].self, forKey: .catalogue)
+        tagParent = ShareTarget.serverKeyed(try c.decodeIfPresent([String: String].self, forKey: .tagParent))
+        tagLabels = ShareTarget.serverKeyed(try c.decodeIfPresent([String: String].self, forKey: .tagLabels))
+    }
 }
 
 /// A subject a mix can follow; `focus_picks` are the teams and companies
@@ -1991,9 +2078,20 @@ struct MixInvite: Decodable {
 struct MixShare: Decodable {
     let url: String
     let `public`: Bool
+    /// Keyed as the server keys them (`ShareTarget.serverKeyed`).
     let targets: [String: ShareTarget]?
     /// The mix's story card (`/api/mixes/{id}/card`).
     let card: String?
+
+    enum CodingKeys: String, CodingKey { case url, `public`, targets, card }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        url = try c.decode(String.self, forKey: .url)
+        `public` = try c.decode(Bool.self, forKey: .`public`)
+        targets = ShareTarget.serverKeyed(try c.decodeIfPresent([String: ShareTarget].self, forKey: .targets))
+        card = try c.decodeIfPresent(String.self, forKey: .card)
+    }
 }
 
 struct PushStatus: Decodable {
@@ -2338,9 +2436,6 @@ struct ChatMember: Decodable, Hashable {
     let handle: String
     let avatar: String
     let me: Bool
-    /// Whether this listener and that member follow each other (§520): a
-    /// group may hold people who are not friends with each other.
-    let friend: Bool?
 }
 
 /// A message (`Message.as_dict`), as a conversation, the inbox's last

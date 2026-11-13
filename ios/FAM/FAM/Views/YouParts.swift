@@ -662,3 +662,24 @@ struct LegalPage: Identifiable {
     let id = UUID()
     let url: URL
 }
+
+/// A link in a sentence (the Terms sentence, the counting notice's Privacy
+/// policy) opens in the app's own Safari sheet, as Settings' Terms and
+/// Privacy rows do, rather than leaving the app.
+struct InAppLinks: ViewModifier {
+    @State private var page: LegalPage?
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.openURL, OpenURLAction { url in
+                guard url.scheme == "https" || url.scheme == "http" else { return .systemAction }
+                page = LegalPage(url: url)
+                return .handled
+            })
+            .sheet(item: $page) { p in SafariView(url: p.url).ignoresSafeArea() }
+    }
+}
+
+extension View {
+    func inAppLinks() -> some View { modifier(InAppLinks()) }
+}

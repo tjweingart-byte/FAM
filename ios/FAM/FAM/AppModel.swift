@@ -120,18 +120,51 @@ final class AppModel: ObservableObject {
     /// (`welcomePlaying`): its question, "" when none; and the line under it.
     @Published private(set) var sampleQuery = ""
     @Published private(set) var sampleNote = ""
+    /// A staging or zero-spend server says so on every screen (`.env-ribbon`,
+    /// §172): "Staging · ios/1.0+7"; "" for any other server.
+    @Published private(set) var envRibbon = ""
+    /// The server has no working key (`body.demo-mode`): the player's
+    /// "not your episode" badge shows.
+    @Published private(set) var demoMode = false
+    /// A shared episode (`/s/<id>`) opened by somebody not let in yet - signed
+    /// out or on the waitlist: the listen page's own screen
+    /// (`static/listen.html`) over the front door or the status page (§584).
+    @Published var sharedListen: SharedListen?
+    /// The shared screen's door, for somebody signed out: the front door
+    /// goes to Sign up (the waitlist join), as the page's door goes to `/waitlist`.
+    @Published var askSignUp = false
+    /// A joint mix's invite (`/j/`) opened signed out: the front door asks
+    /// with the web's sheet - the invite line, Sign up, Log in.
+    @Published var askJoinSignIn = false
+    /// The shared screen is up: for somebody not let in yet, or a dead link
+    /// for anybody (listen.html's "Nothing to play"). The window's status
+    /// bar is dark over it whatever the theme.
+    var sharedListenShown: Bool {
+        guard let listen = sharedListen else { return false }
+        return stage == .signedOut || stage == .waiting || (stage == .ready && listen.expired)
+    }
+    /// The shared episode's question while its audio is the player's, "" when
+    /// none (as `sampleQuery`); the line under the player and how it ended.
+    @Published var shareQuery = ""
+    @Published var shareNote = ""
+    @Published var shareNoteBad = false
+    @Published var shareStarted = false
+    @Published var shareEnded = false
     /// An invite code a link carried (`referralCode`), kept until an
     /// account is made with it (the web's `famReferral`).
     static let referralKey = "fam.referral"
     /// This phone finished the first run (`fam.prefs` `entry: "done"`).
     static let entryKey = "fam.entryDone"
+    /// The web's demo episode (`TOPICS.spacex`), played by Return in an
+    /// empty search box: its title is its question.
+    static let demoQuestion = "SpaceX Starship: This Week's Test Flight"
     /// The account on this phone was last let in (`stage == .ready`): the
     /// next open draws the app at once, the remembered page on it, while
     /// `/api/auth/me` is asked behind it (§546, a faster start).
     static let readyKey = "fam.lastReady"
     /// This open's `/api/auth/me`: the first feed waits on it, so the two
     /// are still never asked together (the owner's call).
-    private var whoTask: Task<Bool, Never>?
+    private(set) var whoTask: Task<Bool, Never>?
     let mixes: MixesModel
     /// YourFAM: the profile, Settings and the shelves.
     let you: YouModel
@@ -255,6 +288,12 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 // A sample played in place says why under its card, and
                 // nothing else moves (`playWelcomeSample`'s onError).
+                // The shared screen's episode says why under its player
+                // (the listen page's `onError`), and nothing else moves.
+                if !self.shareQuery.isEmpty {
+                    self.shareFailed(self.player.failureWords)
+                    return
+                }
                 if !self.sampleQuery.isEmpty {
                     let words = self.player.failureWords
                     self.sampleEnded(words.isEmpty ? "That episode could not be played just now." : words)
@@ -281,6 +320,10 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.player.release()
+                // A shared episode or a front-door sample plays on its own
+                // screen: no full player is asked for behind it, to open
+                // over the tabs after a sign-up (audit 4).
+                if !self.shareQuery.isEmpty || !self.sampleQuery.isEmpty { return }
                 // A vibe's post plays where it sits (§547): the posts
                 // screen's own bar carries it, so no full player over it.
                 let inPlace = (self.pending?.inPlace ?? false) && self.vibePostsShowing > 0
@@ -304,6 +347,11 @@ final class AppModel: ObservableObject {
         player.onFinished = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                // The shared screen's episode ended: "That's the episode."
+                if !self.shareQuery.isEmpty {
+                    self.shareFinished()
+                    return
+                }
                 // A sample on the front door is not an episode of the app's.
                 if !self.sampleQuery.isEmpty {
                     self.sampleEnded("")
@@ -565,6 +613,10 @@ final class AppModel: ObservableObject {
     private func loadHealthNote() async {
         guard let health = try? await api.health() else { return }
         loading.note = health.loadingNote
+        // The staging ribbon on every screen and the player's "not your
+        // episode" badge (`.env-ribbon`, `body.demo-mode`), as the web's.
+        envRibbon = health.ribbon(client: FAMAPI.client)
+        demoMode = health.demoMode
     }
 
     /// The loading screen gave up (§497): the audio stops and the episode
@@ -799,6 +851,9 @@ final class AppModel: ObservableObject {
         // log-in's answer leaves `waitlist` out, so the last word on it
         // stands until `/api/auth/me` is asked again.
         let held = who.waitlisted && (waitlistOn ?? true)
+        // Let in from the front door or the status page: nothing played
+        // there opens the full player over the tabs.
+        if !held && stage != .ready { showPlayer = false }
         stage = held ? .waiting : .ready
         UserDefaults.standard.set(!held, forKey: Self.readyKey)
         if !held { stopSample() }
@@ -814,6 +869,7 @@ final class AppModel: ObservableObject {
 
     func forgetEverything() {
         stopSample()
+        stopSharedAudio()
         termsOwed = nil
         // Search DailyFAM's way back and searchFAM's Length are the last
         // listener's too.
@@ -1455,9 +1511,14 @@ final class AppModel: ObservableObject {
         var question = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let typed = !question.isEmpty
         if !typed && !attach.isEmpty { question = AttachModel.summarise }
-        // Nothing typed and nothing attached sends nothing (the web plays
-        // its demo episode here; quirk 1 not copied).
-        guard !question.isEmpty else { return false }
+        // Nothing typed and nothing attached: the web's demo episode
+        // (`generate("spacex")`), its curated title, at the search's Length.
+        guard !question.isEmpty else {
+            play(Episode(key: EpisodeKey(query: Self.demoQuestion, minutes: minutes),
+                         title: Self.demoQuestion, surface: "search",
+                         picture: nil, titleOverridden: true))
+            return true
+        }
         let shown: String
         if !typed && !attach.isEmpty {
             shown = attachments.firstName
@@ -1665,7 +1726,7 @@ final class AppModel: ObservableObject {
     private func refused(_ error: FAMError) -> Bool {
         // A front-door sample refused is that sample's failure, said under
         // its card; nothing else moves.
-        if !sampleQuery.isEmpty { return false }
+        if !sampleQuery.isEmpty || !shareQuery.isEmpty { return false }
         switch error {
         case .consentRequired:
             loading.stop()
