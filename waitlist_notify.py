@@ -1,4 +1,4 @@
-"""Telling somebody they are off the waitlist (§586).
+"""Telling somebody they are off the waitlist (§587).
 
 Letting a person in used to change one column and tell Viral Loops; the
 person found out only by trying to sign in. Now `Waitlist.grant` queues a

@@ -1489,7 +1489,7 @@
   everyone; it only raises a plan. The page's "five" is pinned to
   `FREE_MONTH_INVITES` by a test.
 <!-- rule:waitlist-notice -->
-- **Letting somebody off the waitlist tells them** (PROBLEMS.md §586, the
+- **Letting somebody off the waitlist tells them** (PROBLEMS.md §587, the
   owner 13/11): `Waitlist.grant` queues `notify_email` (if the account has an
   address) and `notify_sms` (if it has a phone) in the waitlist outbox, beside
   Viral Loops' `flag`; `waitlist_notify.drain` sends them through `mail.py`
@@ -1498,7 +1498,7 @@
   retried on the outbox's delays, never dropped; `/api/health` carries `sms`
   beside `mail`; staging sends neither. Each drain reads only its own actions
   (`due(actions=...)`). An admin let in at sign-up is not told. Only grants
-  from §586 on are told - nobody already let in, at the owner's direction.
+  from §587 on are told - nobody already let in, at the owner's direction.
   **The claimed month is the launch month:** the link stamps the same
   `free_month_earned_at` five friends earn, so it runs from the admin-set day
   the real app is published (`free_month_starts`) and never applies to the

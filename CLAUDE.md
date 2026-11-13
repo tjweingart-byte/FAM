@@ -428,7 +428,7 @@ Accounts, tiers, sharing
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
 - **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited`; no
   checkout [tiers-off]; 5 invites: free month [free-month];
-  let in: mail+text a claim link, month at launch (§586) [waitlist-notice]
+  let in: mail+text a claim link, month at launch (§587) [waitlist-notice]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every

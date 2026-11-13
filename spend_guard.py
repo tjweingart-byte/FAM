@@ -69,7 +69,7 @@ PAID_CREDENTIALS = (
     "OPEN_METEO_API_KEY",
     # Email (§244): providers bill per message past a free tier.
     "SMTP_PASSWORD",
-    # §586: Twilio bills per text.
+    # §587: Twilio bills per text.
     "TWILIO_AUTH_TOKEN",
     # §275, §277: sports - scores, standings, player and team reports.
     "BALLDONTLIE_API_KEY",

@@ -888,7 +888,7 @@ async def lifespan(_: FastAPI):
     # is retried here. A no-op with no token, which is every staging deploy.
     if VIRAL_LOOPS.configured:
         _BACKGROUND.add(asyncio.create_task(_drain_viral_loops_forever()))
-    # "You're off the waitlist" notices (§586): email and text, retried here.
+    # "You're off the waitlist" notices (§587): email and text, retried here.
     _BACKGROUND.add(asyncio.create_task(_drain_notices_forever()))
     # Kept audio's week (§237): keep what is saved, shared or vibed, delete
     # the rest, and say whether the bucket really answers - with a write, a
@@ -2394,7 +2394,7 @@ def _health_report(request: Request) -> dict:
         "waitlist": {"gate": settings.waitlist,
                      "viral_loops": VIRAL_LOOPS.configured,
                      "outbox_pending": WAITLIST.outbox_summary()["pending"],
-                     # Let-in emails and texts still waiting (§586).
+                     # Let-in emails and texts still waiting (§587).
                      "notices_pending": WAITLIST.outbox_summary(
                          waitlist_mod.NOTIFY_ACTIONS)["pending"]},
         "voice_store": VOICE_STORE["dir"],
@@ -5773,7 +5773,7 @@ async def support() -> HTMLResponse:
 
 @app.get("/claim/{code}", include_in_schema=False)
 async def claim_free_month(code: str) -> HTMLResponse:
-    """The link in "you're off the waitlist" (§586): claims the free month.
+    """The link in "you're off the waitlist" (§587): claims the free month.
 
     Open to everybody - it is opened from a mail app or a text, often in a
     browser with no session - and the code is the whole credential: it names
@@ -14006,7 +14006,7 @@ def _drain_notices(base: str = "", home: str = "") -> dict:
 
 
 def _kick_notices() -> None:
-    """Send the notices just queued, in the background (§586)."""
+    """Send the notices just queued, in the background (§587)."""
     try:
         task = asyncio.get_running_loop().create_task(
             asyncio.to_thread(_drain_notices))
@@ -14476,7 +14476,7 @@ async def admin_waitlist(request: Request) -> dict:
         "gate": settings.waitlist,
         "viral_loops": {"configured": VIRAL_LOOPS.configured,
                         **WAITLIST.outbox_summary()},
-        # "You're off the waitlist" (§586): whether each channel can send,
+        # "You're off the waitlist" (§587): whether each channel can send,
         # and the notices still waiting.
         "notices": {"mail": mail_mod.status(), "sms": sms_mod.status(),
                     **WAITLIST.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)},

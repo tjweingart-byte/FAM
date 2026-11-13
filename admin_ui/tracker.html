@@ -747,7 +747,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     <div class="page" data-page="voices" data-title="Voice bank" hidden>
     <section class="card section" id="voicesCard">
       <h2>Voice bank</h2>
-      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV of a few seconds of clean speech, with the speaker's consent recorded. Silence before the first word is trimmed and a quiet recording levelled when it is added, and the page says so.</p>
+      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV or M4A (a Voice Memo) of a few seconds of clean speech, with the speaker's consent recorded. Silence before the first word is trimmed and a quiet recording levelled when it is added, and the page says so.</p>
       <div id="voiceList"></div>
       <details>
         <summary>Add a voice</summary>
@@ -755,7 +755,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           <input id="vLabel" placeholder="Name listeners see, e.g. Maya" maxlength="40" required>
           <input id="vSlug" placeholder="Id (lower-case, e.g. maya)" maxlength="40" pattern="[a-z0-9][a-z0-9_-]*" required>
           <input id="vDesc" placeholder="One line about it (optional)" maxlength="160">
-          <input id="vFile" type="file" accept=".wav,audio/wav" required>
+          <input id="vFile" type="file" accept=".wav,.m4a,audio/wav,audio/mp4,audio/x-m4a" required>
           <label class="sub"><input type="checkbox" id="vConsent" required> The speaker consented to being cloned</label>
           <label class="sub"><input type="checkbox" id="vCommercial" required> Cleared for commercial use</label>
           <label class="sub"><input type="checkbox" id="vSynthetic" required> Cleared for a synthetic voice</label>
@@ -2474,6 +2474,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         var m = r && r.mastered;
         if (m) {
           var did = [];
+          if (m.converted) did.push("converted it to WAV");
           if (m.trimmed_seconds > 0) did.push("trimmed " + m.trimmed_seconds.toFixed(1) + "s of silence from the start");
           if (Math.abs(m.gain_db) >= 0.5) did.push((m.gain_db > 0 ? "raised" : "lowered") + " the level " + Math.abs(m.gain_db).toFixed(0) + " dB");
           $("vNote").textContent = "Added " + r.voice.label + (did.length ? " - " + did.join(" and ") + "." : ".");
