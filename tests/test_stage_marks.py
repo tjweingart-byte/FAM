@@ -99,7 +99,8 @@ class _Client:
 
 @pytest.fixture
 def stubbed(monkeypatch):
-    async def understand(query, minutes, context="", notes=None, now=None):
+    async def understand(query, minutes, context="", notes=None, now=None,
+                         defer_framing=False):
         await _CLOCK.wait(BRIEF_DELAY)
         return Brief(query=query, intent="recap", subject="the Fed",
                      search_query="Federal Reserve decision", recency_days=3)
