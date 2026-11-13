@@ -578,4 +578,4 @@ and `limit` = Lines.
 | 35602 | 147 | 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13) |
 | 35749 | 36 | 585. The category tree out to another reader and back (2026-11-13) |
 | 35785 | 33 | 586. A tour of the app after sign-up (2026-11-13) |
-| 35818 | 19 | 587. The tour, once, for accounts from before it (2026-11-13) |
+| 35818 | 30 | 587. The tour, once, for accounts from before it (2026-11-13) |

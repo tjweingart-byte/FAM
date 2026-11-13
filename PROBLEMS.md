@@ -35833,3 +35833,14 @@ account on the device had taken it. Rule `tour`; `tests/test_tour_586.py`.
 
 **Not verified here.** Against a real server with real accounts; the fetch
 was stubbed in the browser.
+
+**Double-checked (same day).** Four faults found reading it again, fixed:
+two quick taps past an optional step ran two moves at once and duplicated
+the Back history (a `seq` counter now drops any late callback, and Back
+walks the history down past the current step); a card with large text
+could run off the screen (`max-height`, scrolls inside); signing out kept
+the device's "done", so a second existing account on the phone was never
+offered it (`Tour.forget` on log-out); and a tour waiting to start could
+open for the next person to sign in (re-checked at the moment it starts,
+and an answer from `/api/preferences` is dropped if the account changed).
+Postgres: a duplicate column maps to the `OperationalError` already caught.

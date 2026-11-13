@@ -190,6 +190,7 @@
   .tour-card{ position:absolute; left:16px; right:16px; max-width:420px; margin:0 auto;
     background:var(--surface); color:var(--text); border:1px solid var(--border-strong);
     border-radius:20px; padding:18px 18px 14px; box-sizing:border-box;
+    max-height:calc(100% - 32px); overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y;
     box-shadow:0 18px 48px rgba(0,0,0,0.45);
     transition:top 380ms cubic-bezier(.2,.8,.2,1); }
   .tour-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
@@ -16415,6 +16416,8 @@
         // as a friends list left in a variable.
         stopNotificationPolling();
         stopThreadPolling();
+        // The tour as this device knew it was theirs (§587).
+        Tour.forget();
         // The previous listener's new mix is not this one's.
         freshMixes = { ids: [], edition: "" };
         drawMixDot();
@@ -23458,6 +23461,10 @@
     var OWED = "owed";
     var el = {}, at = -1, running = false, waitTimer = null, watchTimer = null,
         settleTimer = null, shown = [];
+    //: Bumped by every move, so a late callback from an earlier one (a
+    //: card still fading out, an optional step's second look) does nothing
+    //: once a quicker tap has moved on.
+    var seq = 0;
 
     function reduced(){
       return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -23490,10 +23497,12 @@
       var here = localPrefs().tour;
       if(here === OWED) return offer();
       if(here === "done" || !AUTH.authenticated) return;
+      var asking = AUTH.email;
       fetch("/api/preferences")
         .then(function(r){ return r.ok ? r.json() : null; })
         .then(function(d){
-          if(!d || !d.saved) return;
+          // Signed out, or somebody else signed in, while this was asked.
+          if(!d || !d.saved || !AUTH.authenticated || AUTH.email !== asking) return;
           if(d.tour_done){ saveLocalPrefs({ tour: "done" }); return; }
           saveLocalPrefs({ tour: OWED });
           offer();
@@ -23502,7 +23511,29 @@
     }
     function offer(){
       if(running || done() || localPrefs().tour !== OWED) return;
-      waitUntilClear(function(){ begin(); });
+      waitUntilClear(function(){
+        // Asked again at the moment it would start: a sign-out while it
+        // waited has taken the debt away (`forget`).
+        if(!running && !done() && localPrefs().tour === OWED) begin();
+      });
+    }
+    // Signing out: whatever this device knew about the tour was the last
+    // account's, and the next one is asked afresh (`offerOnce`).
+    function forget(){
+      clearTimeout(waitTimer);
+      if(running) finishQuietly();
+      saveLocalPrefs({ tour: "" });
+    }
+    function finishQuietly(){
+      running = false;
+      seq++;
+      clearTimeout(settleTimer); clearInterval(watchTimer);
+      document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("resize", place);
+      $("famTour").hidden = true;
+      $("famTour").classList.remove("paused");
+      $("tourCard")._fresh = false;
+      at = -1;
     }
     // Two clear looks in a row, so a sheet or the activation step that is
     // about to open (it is fetched first) gets there before the tour does.
@@ -23562,6 +23593,7 @@
     // `dir` is 1 forward, -1 back: an optional step whose control is not
     // on screen (no friends yet, nothing trending) is passed over either way.
     function go(i, dir){
+      var mine = ++seq;
       if(i < 0) i = 0;
       if(i >= STEPS.length){ finish(); return; }
       var step = STEPS[i];
@@ -23570,7 +23602,10 @@
         // The screen may still be drawing it; one short look before passing.
         if(!step._looked){
           step._looked = true;
-          setTimeout(function(){ if(running) go(i, dir); }, 350);
+          setTimeout(function(){
+            if(running && mine === seq) go(i, dir);
+            else step._looked = false;
+          }, 350);
           return;
         }
         step._looked = false;
@@ -23588,8 +23623,9 @@
     }
 
     function draw(step){
-      var card = $("tourCard");
+      var card = $("tourCard"), mine = seq;
       var swap = function(){
+        if(!running || mine !== seq) return;
         $("tourKicker").textContent = step.kicker || "";
         $("tourTitle").textContent = step.title;
         $("tourBody").textContent = typeof step.body === "function" ? step.body() : step.body;
@@ -23621,8 +23657,9 @@
       var out = card.animate([{ opacity: 1 }, { opacity: 0 }],
                              { duration: reduced() ? 60 : 120, easing: "ease-in", fill: "forwards" });
       out.finished.then(function(){
-        swap();
         out.cancel();
+        if(!running || mine !== seq) return;   // a newer card is on its way
+        swap();
         card.animate(reduced()
             ? [{ opacity: 0 }, { opacity: 1 }]
             : [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }],
@@ -23695,7 +23732,8 @@
     function next(){ if(running) go(at + 1, 1); }
     function back(){
       if(!running) return;
-      shown.pop();
+      if(at <= 0) return;
+      while(shown.length && shown[shown.length - 1] >= at) shown.pop();
       var prev = shown.length ? shown.pop() : 0;
       go(prev, 1);
     }
@@ -23747,7 +23785,7 @@
         + '<div class="tp-bar"><i></i></div></div>';
     }
 
-    return { owe: owe, offer: offer, offerOnce: offerOnce, start: start, next: next, back: back,
+    return { owe: owe, offer: offer, offerOnce: offerOnce, forget: forget, start: start, next: next, back: back,
              skip: skip, on: function(){ return running; } };
   })();
 
