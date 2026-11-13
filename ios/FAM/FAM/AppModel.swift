@@ -780,7 +780,8 @@ final class AppModel: ObservableObject {
     /// is asked its name and place first); then `/api/activation`, and the
     /// card if it is still owed.
     func checkActivation() async {
-        guard activationOwed, stage == .ready, entry == nil, owedActivation == nil else { return }
+        guard activationOwed, stage == .ready, entry == nil, owedActivation == nil,
+              listener?.passwordNeeded != true else { return }
         guard let found = await you.loadActivation() else { return }
         activationOwed = false
         if found.needed == true { owedActivation = found }

@@ -332,10 +332,23 @@ def test_an_email_only_join_is_told_its_link_sets_the_password(acc, wl, outbox):
         c.execute("UPDATE accounts SET phone = '+14155550102' WHERE user_id = 'np'")
     wl.grant(["np"])
     view = wl.notice_view("np")
-    assert view["has_password"] is False
+    assert view["can_sign_in"] is False
     waitlist_notify.drain(wl, "https://familiarize.net", "https://familiarize.net")
     (_to, _subject, body), = outbox["mail"]
     assert "set your password" in body and f"/claim/{view['claim_code']}" in body
     assert "Sign in the way you joined" not in body
     (_number, text), = outbox["sms"]
     assert "Set your password" in text and len(text) <= 160
+
+
+def test_a_google_or_apple_account_keeps_sign_in_the_way_you_joined(acc, wl, outbox):
+    """§604: no password hash, but a way in - its notice is not told to set one."""
+    acc.sign_up("g", "g@fam.test", "", passwordless=True)
+    with acc._conn() as c:
+        c.execute("INSERT INTO identities (provider, subject, user_id, email, created, last_login)"
+                  " VALUES ('google', 'sub-1', 'g', 'g@fam.test', 1, 1)")
+    wl.grant(["g"])
+    assert wl.notice_view("g")["can_sign_in"] is True
+    waitlist_notify.drain(wl, "https://familiarize.net", "https://familiarize.net")
+    (_to, _subject, body), = outbox["mail"]
+    assert "Sign in the way you joined" in body and "set your password" not in body

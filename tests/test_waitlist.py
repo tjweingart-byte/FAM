@@ -1384,3 +1384,25 @@ def test_the_app_opens_on_set_your_password_when_it_is_needed():
     submit = page.split("function submitPasswordFirst(){", 1)[1].split("\n  }\n", 1)[0]
     assert '"/api/auth/password/set"' in submit and "routeFirstScreen()" in submit
     assert "Use at least 8 characters for your password." in submit
+
+
+def test_launch_day_asks_a_waitlisted_account_for_its_password(world, monkeypatch):
+    """§604: `WAITLIST=0` lets every waitlisted account in at once, so one
+    with no password is asked for it first, as a let-in one is."""
+    member, _body = _join("launch@fam.test", password="")
+    on = appmod.settings
+    monkeypatch.setattr(appmod, "settings", dataclasses.replace(on, waitlist=False))
+    assert member.get("/api/auth/me").json()["password_needed"] is True
+    monkeypatch.setattr(appmod, "settings", on)
+    assert member.get("/api/auth/me").json()["password_needed"] is False
+
+
+def test_the_activation_card_waits_behind_set_your_password():
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    first = page.split("function inFirstRun(){", 1)[1].split("\n  }\n", 1)[0]
+    assert '"screen-password-first"' in first
+    release = page.split("function releaseActivation(id){", 1)[1].split("\n  }\n", 1)[0]
+    assert '"password-first"' in release
+    model = (ROOT / "ios" / "FAM" / "FAM" / "AppModel.swift").read_text()
+    check = model.split("func checkActivation() async {", 1)[1].split("\n    }\n", 1)[0]
+    assert "listener?.passwordNeeded != true" in check

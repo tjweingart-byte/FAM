@@ -1705,14 +1705,18 @@ def _signs_in_with_provider(user_id: str) -> list[str]:
 
 def _password_needed(user_id: str) -> bool:
     """Whether this account's first step in the app is setting a password
-    (§604): let in off the waitlist, joined with the email alone, and with
+    (§604): in the app (let in, or the gate is off - launch day lets every
+    waitlisted account in at once), joined with the email alone, and with
     no other way back in (no password, no Google or Apple). Never raises.
 
-    Waitlisted accounts are never asked - the waitlist needs no password -
-    and a Google or Apple account already has its way in."""
+    An account still held by the gate is never asked - the waitlist needs
+    no password - and a Google or Apple account already has its way in."""
     try:
         account = ACCOUNTS.account(user_id) or {}
-        if account.get("status") != waitlist_mod.ACTIVE:
+        if not account:
+            return False
+        if (account.get("status") == waitlist_mod.WAITLISTED
+                and settings.waitlist):
             return False
         return not _has_password(user_id) and not _signs_in_with_provider(user_id)
     except Exception:  # noqa: BLE001 - an open must never fail over this
@@ -1728,11 +1732,12 @@ def _no_password_words(user_id: str) -> str:
         return (f"This account signs in with {' or '.join(providers)}. Use that, "
                 "then you can add a password in Settings.")
     account = ACCOUNTS.account(user_id) or {}
-    if account.get("status") == waitlist_mod.WAITLISTED:
+    if account.get("status") == waitlist_mod.WAITLISTED and settings.waitlist:
         return ("You're on the waitlist, so there's no password yet. When "
                 "you're let in, we'll send you a link to set one.")
     words = ("This account has no password yet. Open the link we sent you "
-             "when you were let in, and set one there")
+             "when you were let in, or FAM on the device you joined from, "
+             "and set one there")
     if mail_mod.status().get("available"):
         words += ", or use Forgot password? to get a code by email"
     return words + "."

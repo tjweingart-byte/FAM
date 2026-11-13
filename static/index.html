@@ -7877,7 +7877,9 @@
   var activationPending = false;
   function inFirstRun(){
     var here = document.querySelector(".screen.active");
-    return !!(here && firstRunStep(here.id.replace("screen-", "")));
+    // "Set your password" (§604) holds it as sign-up's steps do.
+    return !!(here && (firstRunStep(here.id.replace("screen-", ""))
+                       || here.id === "screen-password-first"));
   }
   function checkActivation(){
     if(!(AUTH && AUTH.authenticated && AUTH.activation_needed)) return Promise.resolve(null);
@@ -7888,7 +7890,8 @@
     });
   }
   function releaseActivation(id){
-    if(!activationPending || firstRunStep(id)) return;
+    // Held behind "Set your password" too (§604): that comes first.
+    if(!activationPending || firstRunStep(id) || id === "password-first") return;
     activationPending = false;
     checkActivation();
   }

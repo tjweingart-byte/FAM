@@ -557,15 +557,18 @@ class Waitlist:
         """What a notice needs about one account, or None if it is gone."""
         row = self._conn().execute(
             "SELECT email, phone, display_name, claim_code, status,"
-            " password != ''"
+            " password != '' OR EXISTS (SELECT 1 FROM identities i"
+            "   WHERE i.user_id = accounts.user_id"
+            "   AND i.provider IN ('google', 'apple'))"
             " FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
         if not row:
             return None
-        # `has_password`: an email-only join (§604) is told its link is
-        # where it sets one; never the hash itself.
+        # `can_sign_in`: a password, or Google or Apple. An email-only join
+        # (§604) has neither, and is told its link is where it sets one;
+        # never the hash itself.
         return {"email": row[0], "phone": row[1], "name": row[2],
                 "claim_code": row[3], "status": row[4],
-                "has_password": bool(row[5])}
+                "can_sign_in": bool(row[5])}
 
     def claim_free_month(self, code: str, at: float = 0.0) -> str:
         """Claim the free month from a notice's link. Returns the account's

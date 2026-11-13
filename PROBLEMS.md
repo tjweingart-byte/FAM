@@ -36583,9 +36583,11 @@ warns that a member without a password is back in from the let-in link.
 
 **Recognised once let in, three ways:**
 * *The browser or phone that joined* is still signed in. `/api/auth/me`
-  (and `/api/account`) carry `password_needed`: true for an `active` account
-  with no password and no Google or Apple (`app._password_needed`; false
-  while waitlisted). The web app's `routeFirstScreen` opens
+  (and `/api/account`) carry `password_needed`: true for an account the app
+  is open to - `active`, or any account once `WAITLIST=0`, since launch day
+  lets everybody in at once - with no password and no Google or Apple
+  (`app._password_needed`; false while the gate holds it). The activation
+  card (date of birth, §411) waits behind it on both apps. The web app's `routeFirstScreen` opens
   `#screen-password-first` - "You're in. Set your password", one field with
   the eye, Set password, the app's sentences - before the first run, with no
   X and no skip; set, `/api/auth/me` is read again and the app goes on from
@@ -36601,7 +36603,8 @@ warns that a member without a password is back in from the let-in link.
   never a standing way in. The email for a passwordless account says "Open
   this link to sign in and set your password", the text "you're in! Set
   your password & claim a free month of Plus" (one segment, 157 characters
-  at today's link). The phone field's consent line and the privacy page say
+  at today's link). A Google or Apple account let in keeps "Sign in the
+  way you joined" (`notice_view` `can_sign_in`). The phone field's consent line and the privacy page say
   the link sets the password.
 * *Typing the email at a sign-in* is recognised rather than "That email and
   password do not match": `accounts.log_in` raises `NoPasswordYet` for an
@@ -36609,7 +36612,8 @@ warns that a member without a password is back in from the let-in link.
   (`_no_password_words`) - waiting: "You're on the waitlist, so there's no
   password yet. When you're let in, we'll send you a link to set one."; let
   in: "Open the link we sent you when you were let in, and set one there"
-  (", or use Forgot password? ..." when mail exists); Google/Apple: names
+  (", or FAM on the device you joined from", and Forgot password? when
+  mail exists); Google/Apple: names
   the provider. The join form already says whether an address is
   registered, so this tells nobody anything new. The phone log-in keeps its
   one sentence.
