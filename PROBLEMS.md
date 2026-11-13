@@ -35800,10 +35800,12 @@ picker the popover was anchored to. UIKit raises on a popover whose source
 view has left the window.
 
 **Built.**
-* One `ScrollView` holding one form, held to the form's measured height
-  (`ActivationFormHeight`), `.scrollBounceBehavior(.basedOnSize)`: it hugs
-  the form when it fits and scrolls when it does not, and nothing is ever
-  swapped out from under the picker.
+* `ScrollsWhenTall` (`SocialParts.swift`): one `ScrollView` holding one
+  copy of the content, held to its measured height,
+  `.scrollBounceBehavior(.basedOnSize)`: it hugs the content when it fits
+  and scrolls when it does not, and nothing is ever swapped out from under
+  the picker. The activation card and What's next (whose search box lost
+  focus the same way when the keyboard came up) both use it.
 * Until a date is picked the field reads "Select your birthday" rather than
   showing today as though it were an answer. The picker stays under the
   words at 0.02 opacity (UIKit ignores taps below 0.01) so a tap still opens
@@ -35811,7 +35813,6 @@ view has left the window.
 
 **Not verified here.** No Xcode in this container: not built, not run. To
 check on a phone: open the card, type in the town box, then tap the date. The
-same two-copy `ViewThatFits` remains in `SearchParts.swift` (the consent
-card: buttons only) and `PlayerSheets.swift` (What's next, whose search box is
-a text field: the keyboard may swap its copy and drop focus mid-typing, but
-there is no popover to strand). Both left as they are.
+same for What's next: type in its search box on a small phone. The two-copy
+`ViewThatFits` remains only in `SearchParts.swift` (the consent card:
+buttons, no inputs).

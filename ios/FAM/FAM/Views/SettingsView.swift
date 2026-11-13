@@ -635,8 +635,6 @@ struct ActivationCard: View {
     @State private var confirm: String?
     @State private var gone: String?
     @State private var working = false
-    /// The form's own height, which the scroll view holding it never grows past.
-    @State private var formHeight: CGFloat = 0
 
     var body: some View {
         ModalCard(close: { if gone == nil && !owed { dismiss() } }) {
@@ -652,25 +650,11 @@ struct ActivationCard: View {
                 confirmView(confirm)
             } else {
                 // A small phone, a large text size or the keyboard scrolls
-                // the card rather than cutting it (`large-text`). One scroll
-                // view, held to the form's own height, never a
-                // `ViewThatFits` of two copies: the keyboard leaving as the
-                // date is tapped swapped one copy for the other, taking the
-                // date picker out from under its opening calendar, and the
-                // app crashed.
-                ScrollView { measuredForm }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .frame(maxHeight: formHeight)
-                    .onPreferenceChange(ActivationFormHeight.self) { formHeight = $0 }
+                // the card rather than cutting it (§586).
+                ScrollsWhenTall { form }
             }
         }
         .onAppear { fill() }
-    }
-
-    private var measuredForm: some View {
-        form.background(GeometryReader { g in
-            Color.clear.preference(key: ActivationFormHeight.self, value: g.size.height)
-        })
     }
 
     private var form: some View {
@@ -861,14 +845,6 @@ struct ActivationCard: View {
             try? await Task.sleep(nanoseconds: 350_000_000)
             app.accountErased()
         }
-    }
-}
-
-/// The activation form's height, so its scroll view hugs it when it fits.
-private struct ActivationFormHeight: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
 
