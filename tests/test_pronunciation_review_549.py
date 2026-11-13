@@ -133,7 +133,7 @@ def test_accepting_is_saved_as_an_admins_and_wikipedia_never_replaces_it(client,
 
 def test_four_ways_to_say_a_stressed_respelling():
     v = pronounce_review.stress_variants("JAIR-in sah-gah-poh-loo-TEH-leh")
-    assert v == {"now": "Jair-in Sah-gah-poh-loo-teh-leh",
+    assert v == {"now": "Jairin Sahgahpohlootehleh",     # §574: no hyphens
                  "joined": "Jairin Sahgahpohlootehleh",
                  "accent": "jáir-in sah-gah-poh-loo-téh-leh",
                  "spaced": "Jair in sah gah poh loo Teh leh"}
@@ -160,7 +160,7 @@ def test_hearing_four_ways_keeps_nothing(client, lexicon, monkeypatch):
     # A proposal is heard as proposed, not as on file.
     client.post("/api/admin/pronunciations/hear-variants",
                 json={"name": "Wembanyama", "say": "WEM-ban-yah-mah"}, headers=ADMIN)
-    assert sent[4] == "Wem-ban-yah-mah"
+    assert sent[4] == "Wembanyahmah"
     bad = client.post("/api/admin/pronunciations/hear-variants",
                       json={"name": "Wembanyama", "say": "/ˈwɛm/"}, headers=ADMIN)
     assert bad.status_code == 400

@@ -114,15 +114,34 @@ def clean(name: str, say: str) -> Optional[tuple[str, str]]:
     return name, say
 
 
+#: Letter pairs that are one sound when they meet, so the hyphen between them
+#: stays: "mat-hew" joined would be "mathew", a th.
+_DIGRAPHS = frozenset("th sh ch ph gh wh zh kh ng".split())
+
+
+def _joined(word: str) -> str:
+    """One respelled word's syllables as one word: "sah-gah-poh" -> "sahgahpoh",
+    keeping a hyphen only where joining would make a new sound (§574)."""
+    parts = [p for p in word.split("-") if p]
+    out = parts[0] if parts else ""
+    for part in parts[1:]:
+        out += ("-" if (out[-1:] + part[:1]) in _DIGRAPHS else "") + part
+    return out
+
+
 def voiced(say: str) -> str:
     """A respelling as the voice is handed it.
 
-    Lower case, hyphens between syllables and a capital only on each word's
-    first letter. A stressed syllable written in capitals ("loo-TEH") is kept
-    in the lexicon for anybody reading it, but not handed to the voice as
-    capitals: `spoken_text` would read "TEH" as the letters T, E, H.
+    Lower case, a capital only on each word's first letter, and each word's
+    syllables run together. A stressed syllable written in capitals
+    ("loo-TEH") is kept in the lexicon for anybody reading it, but not handed
+    to the voice as capitals: `spoken_text` would read "TEH" as the letters
+    T, E, H. The hyphens between syllables went to the voice too until §574,
+    and Chatterbox said "Sah-gah-poh-loo-teh-leh" as six clipped pieces - the
+    owner heard every respelled name as choppy - so a word is handed over
+    whole ("Sahgahpohlooteleh"), as the words it learned from are written.
     """
-    words = [w.lower() for w in say.split()]
+    words = [_joined(w.lower()) for w in say.split()]
     return " ".join(w[:1].upper() + w[1:] for w in words if w)
 
 

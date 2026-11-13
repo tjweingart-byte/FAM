@@ -35160,3 +35160,36 @@ accepts no phone), and the iPhone app's identity step never asked.
 **Tests:** `test_skip_waits_for_a_name_and_the_phone_is_optional` and
 `test_the_apps_first_run_offers_an_optional_phone_and_gates_skip_on_the_name`
 in `tests/test_implementations_108.py`.
+
+## 574. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13)
+
+**What was asked.** The owner: "These still sound choppy to me. Is there a
+chance that the dashes in the pronunciations are making their way into the
+scripts and making the audio-player pause on the dashes".
+
+**Yes, twice over.** Traced to what Chatterbox is actually given (its own
+clean-up, `punc_norm` in chatterbox-tts 0.1.7, runs inside every `generate`,
+and `chatterbox_speed` calls the same function):
+
+- **Every respelled name.** `pronunciation.voiced` handed the voice
+  "Sah-gah-poh-loo-teh-leh": six pieces glued by hyphens, a shape the model
+  almost never saw in the text it learned from. Now each word's syllables run
+  together ("Sahgahpohlootehleh"), except where joining two syllables would
+  make a new sound (`_DIGRAPHS`: "mat-hew" stays, not "mathew"). Captions,
+  titles and the lexicon keep the hyphenated respelling; only the voice's
+  text changes.
+- **Every dash in a script.** `punc_norm` softens " - " into a comma and
+  *then* turns "—" and "–" into "-", so "The Eagles won—again—on Sunday"
+  reached the model as "won-again-on Sunday" (three words as one) and
+  "won – again" as "won - again". Writers use em dashes constantly.
+  `spoken_text._dashes`, the last step of `speakable`, makes a dash used as
+  punctuation (an em dash, or any dash with spaces round it) a comma, and an
+  unspaced en dash between words ("Paris–Roubaix") a space. Hyphenated words
+  ("well-known", "forty-niners") and number ranges (already words by then)
+  are untouched.
+
+Checked against the real `punc_norm`: "Sagapolutele threw—twice—for NVIDIA –
+of all teams." went to the model as "Sagapolutele threw-twice-for NVIDIA - of
+all teams." and now goes as "Sahgahpohlootehleh threw, twice, for Envidia, of
+all teams." `tests/test_dashes_574.py`; ten older tests updated to the
+unhyphenated voice text. Unheard: no voice here.

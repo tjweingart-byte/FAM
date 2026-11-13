@@ -565,3 +565,4 @@ and `limit` = Lines.
 | 35045 | 65 | 571. Sign-up asks for a password again (2026-11-12) |
 | 35110 | 36 | 572. Build 6: the iPhone catches up with §570 and §571 (2026-11-12) |
 | 35146 | 18 | 573. The phone number is optional at sign-up (2026-11-13) |
+| 35164 | 33 | 574. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13) |
