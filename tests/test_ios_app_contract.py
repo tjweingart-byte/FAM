@@ -737,3 +737,160 @@ def test_an_empty_search_plays_the_demo_like_the_web_584():
     assert "EpisodeKey(query: Self.demoQuestion, minutes: minutes)" in model
     search = _swift("Views", "SearchView.swift")
     assert "guard !typed.isEmpty || !attach.isEmpty else { return }" not in search
+
+
+# --- Build 7, the second audit (§584 addendum) -------------------------------
+
+def test_a_shared_or_sample_play_leaves_no_full_player_behind_584():
+    """A shared episode or a sample plays on its own screen: `onRelease`
+    asks for no full player while one is active, and arriving from the
+    front door or the status page clears any that was asked for."""
+    model = _swift("AppModel.swift")
+    release = model[model.index("loading.onRelease = {"):]
+    release = release[:release.index("player.onFinished = {")]
+    early = release.index("if !self.shareQuery.isEmpty || !self.sampleQuery.isEmpty { return }")
+    assert early < release.index("if !inPlace { self.showPlayer = true }")
+    assert "if !held && stage != .ready { showPlayer = false }" in model
+    links = _swift("AppLinks.swift")
+    assert "if sharedListen != nil || !shareQuery.isEmpty { showPlayer = false }" in links
+
+
+def test_the_shared_screen_moves_and_reads_as_listen_html_584():
+    view = _swift("Views", "SharedListenView.swift")
+    page = _listen_page()
+    # One motion: the play button to 0.95 over 120 ms `ease`; nothing else
+    # squeezes, and the screen has no entrance.
+    assert ".play:active{ transform:scale(0.95); }" in page
+    assert "transition:transform 0.12s ease;" in page
+    assert ".scaleEffect(configuration.isPressed ? 0.95 : 1)" in view
+    assert ".timingCurve(0.25, 0.1, 0.25, 1, duration: 0.12)" in view
+    assert ".buttonStyle(.press)" not in view
+    assert view.count(".buttonStyle(ListenStillStyle())") == 3
+    assert ".transition(" not in view
+    # The bar seeks once, on release, and leaves a vertical drag to the scroll.
+    bar = view[view.index("private var bar: some View {"):view.index("private var statusWords")]
+    assert "player.seek(to:" in bar and ".onEnded" in bar
+    changed = bar[bar.index(".onChanged"):bar.index(".onEnded")]
+    assert "player.seek(" not in changed
+    assert "abs(drag.translation.width) > abs(drag.translation.height)" in changed
+    assert "minimumDistance: 0" not in bar
+    # "--:--" for a dead link; the footnote at `.doors p`'s 13.5 with no gap.
+    assert '<span id="len">--:--</span>' in page
+    assert 'Text(nothing ? "--:--" : Self.clock(total))' in view
+    assert ".doors p{\n    font-size:13.5px;" in page
+    foot = view[view.index('Text("FAM makes an episode about anything you ask.")'):]
+    assert ".font(FAMFont.body(13.5))" in foot[:200] and ".padding(.bottom, 14)" in foot[:400]
+    # No waiting state: only the wordmark until the share is read.
+    assert "if listen.loaded {" in view
+    # The window's status bar is dark over it whatever the theme.
+    app = _swift("FAMApp.swift")
+    assert "model.darkChrome || model.sharedListenShown || FAMTheme.isDark(theme)" in app
+    assert "EnvRibbonWindow.restyle(dark: dark)" in app
+    assert "EnvRibbonWindow.reattach()" in app
+    ribbon = _swift("Views", "EnvRibbon.swift")
+    assert "static func restyle(dark: Bool)" in ribbon and "static func reattach()" in ribbon
+    assert "setNeedsStatusBarAppearanceUpdate()" in ribbon
+
+
+def test_links_for_somebody_signed_out_or_with_a_dead_share_584():
+    """`/j/` signed out is the web's sheet; a dead `/s/` for a member is the
+    listen page's expired state; a phone drawn ahead waits for `/api/auth/me`."""
+    web = (ROOT / "static" / "index.html").read_text()
+    words = "You’ve been invited to a joint mix. Sign up or log in to add topics to it."
+    assert words in web
+    door = _swift("Views", "FrontDoor.swift")
+    assert words.replace("’", "\\u{2019}") in door
+    assert 'SheetAction(label: "Sign up") { go(.signUp) }' in door
+    assert 'SheetAction(label: "Log in") { go(.logIn) }' in door
+    links = _swift("AppLinks.swift")
+    assert "askJoinSignIn = true" in links
+    assert 'nowPlaying.say("This link has expired")' not in links
+    assert "sharedListen = SharedListen(id: id, loaded: true, expired: true)" in links
+    assert "if let who = self.whoTask { _ = await who.value }" in links
+    model = _swift("AppModel.swift")
+    assert "(stage == .ready && listen.expired)" in model
+    # The status page's own cards go when a shared link arrives over them.
+    assert ".onChange(of: model.sharedListen?.id) { _, id in" in door
+
+
+def test_share_sheets_carry_the_webs_title_text_and_link_584():
+    mix = _swift("Views", "MixView.swift")
+    assert "shareItems = [ShareTextItem(text: text, subject: link.name), address]" in mix
+    door = _swift("Views", "FrontDoor.swift")
+    assert 'ShareTextItem(text: "Come get early access to FAM with me.", subject: "FAM")' in door
+    waitlist = (ROOT / "static" / "waitlist.html").read_text()
+    assert 'navigator.share({ title: "FAM", text: "Come get early access to FAM with me.", url: l })' in waitlist
+    assert "func shareItems()" not in _swift("NowPlaying.swift")
+
+
+def test_legal_links_in_sentences_open_in_the_apps_safari_584():
+    parts = _swift("Views", "YouParts.swift")
+    assert "struct InAppLinks: ViewModifier" in parts
+    assert "SafariView(url: p.url)" in parts
+    assert ".inAppLinks()" in _swift("Views", "AuthView.swift")
+    assert ".inAppLinks()" in _swift("Views", "SettingsView.swift")
+
+
+def test_the_front_door_words_are_the_webs_584():
+    auth = _swift("Views", "AuthView.swift")
+    web = (ROOT / "static" / "index.html").read_text()
+    assert "New to FAM? <button" in web and ">Sign up</button>" in web
+    assert '"Already on the list? Sign in" : "New to FAM? Sign up"' in auth
+    assert "New here? Get early access" not in auth
+    assert 'YouBackRow(title: making ? "" : "Log in")' in auth
+    join = auth[auth.index("private var joinFields"):auth.index("private var loginFields")]
+    assert 'label("Email")' not in join and 'label("Password")' not in join
+    assert '.accessibilityLabel("Email")' in auth and '.accessibilityLabel("Password")' in auth
+    assert "That password is too long." not in auth
+    assert "if typed.count > 1024 { password = String(typed.prefix(1024)) }" in auth
+    door = _swift("Views", "FrontDoor.swift")
+    assert "That password is too long." not in door and 'Saving\\u{2026}" : "Set password"' not in door
+    assert "if typed.count > 1024 { password = String(typed.prefix(1024)) }" in door
+    assert ".font(FAMFont.body(15, month.earned ? .semibold : .regular))" in door
+    assert ".fm-line{ margin-top:10px; font-size:15px;" in (ROOT / "static" / "waitlist.html").read_text()
+    for sf in ("arrow.up.right", "square.and.arrow.up", 'systemName: "link"'):
+        assert sf not in door, sf
+    assert "WebIcon(path: Icons.personPlus, size: 18, line: 1.7)" in door
+    assert door.count("WebIcon(path: Icons.arrowRight") >= 2
+
+
+def test_social_details_are_the_webs_584():
+    chat = _swift("Views", "ChatView.swift")
+    assert 'if !who.loaded || who.members.isEmpty { return "See who' not in chat
+    assert 'Button { if m.handle.isEmpty { dismiss() } else { after { open(m) } } } label: {' in chat
+    assert ".disabled(m.handle.isEmpty)" not in chat
+    assert '"Remove from Saved for Later" : "Save for later"' not in chat
+    assert 'TextField("Group name"' not in chat
+    assert "let name = newName\n" in chat
+    assert "member: Bool" not in chat
+    assert "let friend: Bool?" not in _api()[_api().index("struct ChatMember"):][:400]
+    person = _swift("Views", "PersonView.swift")
+    assert "missing" not in person and "StoryViewer(" not in person and "storiesSeen" not in person
+    settings = _swift("Views", "SettingsView.swift")
+    assert 'model.nowPlaying.say("You haven\\u{2019}t blocked anyone")' in settings
+    stories = _swift("Views", "Stories.swift")
+    assert "a drag down" not in stories
+    mixview = _swift("Views", "MixView.swift")
+    assert 'if !(self.mix?.people.isEmpty ?? true) { people = true }' in mixview
+
+
+def test_motion_matches_the_web_where_audit_4_found_it_did_not_584():
+    app = _swift("FAMApp.swift")
+    assert ".transition(.famOverlay(reduceMotion: reduceMotion))" in app
+    done = _swift("Views", "MyFAMView.swift")
+    assert ".liftsIn()\n            .dropsOnLeave()" in done
+    sheets = _swift("Views", "PlayerSheets.swift")
+    nextup = sheets[sheets.index("struct NextUpOverlay"):][:2000]
+    assert ".transition(.famOverlay(reduceMotion: reduceMotion))" in nextup
+    assert ".dropsOnLeave()" in nextup and "let still = shown || reduceMotion" in nextup
+    assert ".tapSqueeze()" in _swift("Views", "Stories.swift")
+    assert ".tapSqueeze()" in _swift("Views", "MixScreens.swift")
+    assert ".buttonStyle(.plain)" not in _swift("Views", "FrontDoor.swift")
+    assert ".transition(.identity)" in _swift("Views", "VibePosts.swift")
+    motion = _swift("Motion.swift")
+    assert ".timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2).delay(0.18)" in motion
+    assert motion.count("if UIAccessibility.isReduceMotionEnabled") >= 2
+    parts = _swift("Views", "SocialParts.swift")
+    assert ".transition(comesAndGoes)" in parts and "if reduceMotion { return fade }" in parts
+    social = _swift("Social.swift")
+    assert "withAnimation(.easeIn(duration: 0.2)) { banner = nil }" not in social
