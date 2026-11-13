@@ -35781,3 +35781,37 @@ sweep, a moved one by the next placer answer about it.
 the errors the owner saw were not seen. Other app workers read the edits at
 their next tree reload.
 
+
+## 586. The iPhone crashed as the date of birth was tapped (2026-11-13)
+
+**Seen.** A screen recording of "A few things before you start" on the
+iPhone: town typed with the keyboard up, Woman picked, then a tap toward the
+date of birth (still today's date, never set). The keyboard dropped, the card
+jumped from the top of the screen to its middle, and iOS said "FAM by APALI
+Crashed". Continue was still off, so nothing reached the server.
+
+**Why (reasoned from the code, no crash log).** `ActivationCard` drew its
+form through `ViewThatFits(in: .vertical) { form; ScrollView { form } }` - two
+copies, each with its own `DatePicker`. With the keyboard up the scrolling
+copy was showing. The tap took focus from the town box, the keyboard began
+to leave, and the compact picker began to present its calendar popover; the
+card then fitted again and SwiftUI swapped in the plain copy, removing the
+picker the popover was anchored to. UIKit raises on a popover whose source
+view has left the window.
+
+**Built.**
+* One `ScrollView` holding one form, held to the form's measured height
+  (`ActivationFormHeight`), `.scrollBounceBehavior(.basedOnSize)`: it hugs
+  the form when it fits and scrolls when it does not, and nothing is ever
+  swapped out from under the picker.
+* Until a date is picked the field reads "Select your birthday" rather than
+  showing today as though it were an answer. The picker stays under the
+  words at 0.02 opacity (UIKit ignores taps below 0.01) so a tap still opens
+  its calendar; VoiceOver hears "Date of birth, Not set".
+
+**Not verified here.** No Xcode in this container: not built, not run. To
+check on a phone: open the card, type in the town box, then tap the date. The
+same two-copy `ViewThatFits` remains in `SearchParts.swift` (the consent
+card: buttons only) and `PlayerSheets.swift` (What's next, whose search box is
+a text field: the keyboard may swap its copy and drop focus mid-typing, but
+there is no popover to strand). Both left as they are.

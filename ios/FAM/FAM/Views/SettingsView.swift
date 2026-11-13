@@ -635,6 +635,8 @@ struct ActivationCard: View {
     @State private var confirm: String?
     @State private var gone: String?
     @State private var working = false
+    /// The form's own height, which the scroll view holding it never grows past.
+    @State private var formHeight: CGFloat = 0
 
     var body: some View {
         ModalCard(close: { if gone == nil && !owed { dismiss() } }) {
@@ -649,15 +651,26 @@ struct ActivationCard: View {
             } else if let confirm {
                 confirmView(confirm)
             } else {
-                // A small phone or a large text size scrolls the card
-                // rather than cutting it (`large-text`).
-                ViewThatFits(in: .vertical) {
-                    form
-                    ScrollView { form }
-                }
+                // A small phone, a large text size or the keyboard scrolls
+                // the card rather than cutting it (`large-text`). One scroll
+                // view, held to the form's own height, never a
+                // `ViewThatFits` of two copies: the keyboard leaving as the
+                // date is tapped swapped one copy for the other, taking the
+                // date picker out from under its opening calendar, and the
+                // app crashed.
+                ScrollView { measuredForm }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxHeight: formHeight)
+                    .onPreferenceChange(ActivationFormHeight.self) { formHeight = $0 }
             }
         }
         .onAppear { fill() }
+    }
+
+    private var measuredForm: some View {
+        form.background(GeometryReader { g in
+            Color.clear.preference(key: ActivationFormHeight.self, value: g.size.height)
+        })
     }
 
     private var form: some View {
@@ -678,7 +691,27 @@ struct ActivationCard: View {
                 .labelsHidden()
                 .datePickerStyle(.compact)
                 .tint(FAMColor.copper)
-                .opacity(dateSet ? 1 : 0.6)
+                // Until a date is picked the field says so, rather than
+                // showing today as if it were an answer. The picker stays
+                // underneath, nearly clear (UIKit ignores taps below 0.01),
+                // so a tap still opens its calendar.
+                .opacity(dateSet ? 1 : 0.02)
+                .overlay {
+                    if !dateSet {
+                        Text("Select your birthday")
+                            .font(FAMFont.body(13))
+                            .foregroundStyle(FAMColor.textFaint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.horizontal, 8)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 6))
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityLabel("Date of birth")
+                .accessibilityValue(dateSet ? "" : "Not set")
             help(activation.help?.birthDate)
             FieldLabel(text: "Where you live").padding(.top, 12)
             TextField("", text: $place, prompt: Text("Town or city").foregroundColor(FAMColor.textFaint))
@@ -828,6 +861,14 @@ struct ActivationCard: View {
             try? await Task.sleep(nanoseconds: 350_000_000)
             app.accountErased()
         }
+    }
+}
+
+/// The activation form's height, so its scroll view hugs it when it fits.
+private struct ActivationFormHeight: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
