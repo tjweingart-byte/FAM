@@ -79,10 +79,15 @@ def test_a_message_keeps_its_line_breaks():
     assert messages_mod.clean_text("\n\nhi\n\n") == "hi"
 
 
-def test_the_composer_is_a_textarea_and_return_does_not_send():
+def test_the_composer_is_a_textarea_and_return_sends():
+    """Return sends again (the owner's 11.12 notes, reversing §142's new
+    line); Shift+Return is the new line, so the box stays multi-line."""
     box = re.search(r'<(\w+)[^>]*id="threadInput"[^>]*>', INDEX)
     assert box and box.group(1) == "textarea", "the message box is not multi-line"
-    assert "sendThreadMessage" not in box.group(0), "return still sends"
+    tag = box.group(0)
+    assert "sendThreadMessage" in tag, "return does not send"
+    assert "!event.shiftKey" in tag and "!event.isComposing" in tag
+    assert 'enterkeyhint="send"' in tag
 
 
 # --- messages: delete chat, for one side only ----------------------------

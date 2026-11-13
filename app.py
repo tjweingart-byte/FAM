@@ -26,7 +26,7 @@ import sqlite3
 import threading
 import time
 from contextlib import asynccontextmanager
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from collections import OrderedDict, defaultdict, deque
 from typing import Annotated, Optional, Union
 
@@ -4461,6 +4461,11 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # it. The web app fetches either happily.
         "card": _card_url(share["id"], request)
                 or f"/api/share/card?share={quote(share['id'])}",
+        # The player card a FAM link makes in Messages, for a story (the
+        # owner's 11.12 notes): on its own as a PNG sticker, and centred on
+        # a 9:16 JPEG. New fields; an installed build keeps `card`.
+        "story_sticker": _share_image_url(share["id"], "sticker.png", request),
+        "story_image": _share_image_url(share["id"], "story.jpg", request),
         "targets": _with_handoffs(rendered),
     }
 
@@ -4557,6 +4562,23 @@ def _preview_url(share_id: str, request: Request | None = None) -> str:
     return f"{base}/api/share/{quote(share_id)}/preview.jpg" if base else ""
 
 
+def _share_image_url(share_id: str, name: str, request: Request | None = None) -> str:
+    """`/api/share/<id>/<name>`, absolute where this server knows its own
+    address (a native client is not on this origin), else the path."""
+    path = f"/api/share/{quote(share_id)}/{name}"
+    base = _public_base(request)
+    return base + path if base else path
+
+
+def _share_host(request: Request | None) -> str:
+    """The site the player card names under its title, as Messages does."""
+    base = _public_base(request)
+    host = urlparse(base).hostname if base else ""
+    if not host and request is not None:
+        host = request.url.hostname or ""
+    return host or "familiarize.net"
+
+
 #: Drawn previews, newest last: (share id, title) -> (drawn at, JPEG). A
 #: link is previewed once per app it is pasted into, all within minutes, so
 #: a few, briefly, are enough (each is a few hundred KB); nothing is stored.
@@ -4585,39 +4607,73 @@ def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
         return "", None
 
 
+async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
+    """One of a share's drawn pictures (`link_preview`): "preview" (the
+    square JPEG), "sticker" (the player card, PNG) or "story" (the card on
+    9:16, JPEG), kept briefly in `_PREVIEWS`. 404 for no such share."""
+    record = SHARES.get(share_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="No such share.")
+    host = _share_host(request) if kind != "preview" else ""
+    key = (share_id, record.get("title") or "", kind, host)
+    now = time.time()
+    kept = _PREVIEWS.get(key)
+    if kept and now - kept[0] < PREVIEW_SECONDS:
+        _PREVIEWS.move_to_end(key)
+        return kept[1]
+    import link_preview
+
+    _row, picture = await asyncio.to_thread(_preview_picture, record)
+    title = record.get("title") or ""
+    minutes = as_minutes(record.get("minutes"), 1)
+    if kind == "sticker":
+        data = await asyncio.to_thread(link_preview.card, picture, title, minutes, host)
+    elif kind == "story":
+        data = await asyncio.to_thread(link_preview.story, picture, title, minutes, host)
+    else:
+        data = await asyncio.to_thread(link_preview.draw, picture, title, minutes)
+    if data is None:
+        raise HTTPException(status_code=404, detail="No preview.")
+    _PREVIEWS[key] = (now, data)
+    _PREVIEWS.move_to_end(key)
+    while len(_PREVIEWS) > PREVIEW_MEMORY:
+        _PREVIEWS.popitem(last=False)
+    return data
+
+
 @app.get("/api/share/{share_id}/preview.jpg")
 async def share_preview(share_id: str, request: Request) -> Response:
     """The picture a shared link previews with (`link_preview`, §559).
 
     Fetched by Messages, WhatsApp, X and the rest when the link is pasted:
-    the episode's picture, square, with FAM's badge and a play button, or
+    the episode's picture, square, with FAM's logo and a play button, or
     its title on FAM's ground when it has no picture. Public, like the link.
     """
     _read_limit(request)
-    record = SHARES.get(share_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="No such share.")
-    key = (share_id, record.get("title") or "")
-    now = time.time()
-    kept = _PREVIEWS.get(key)
-    if kept and now - kept[0] < PREVIEW_SECONDS:
-        _PREVIEWS.move_to_end(key)
-        data = kept[1]
-    else:
-        import link_preview
-
-        _row, picture = await asyncio.to_thread(_preview_picture, record)
-        data = await asyncio.to_thread(
-            link_preview.draw, picture, record.get("title") or "",
-            as_minutes(record.get("minutes"), 1))
-        if data is None:
-            raise HTTPException(status_code=404, detail="No preview.")
-        _PREVIEWS[key] = (now, data)
-        _PREVIEWS.move_to_end(key)
-        while len(_PREVIEWS) > PREVIEW_MEMORY:
-            _PREVIEWS.popitem(last=False)
+    data = await _share_drawing(share_id, "preview", request)
     # As briefly as the page that names it: a re-written title is a new
     # picture within minutes, not an hour.
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/api/share/{share_id}/sticker.png")
+async def share_sticker(share_id: str, request: Request) -> Response:
+    """The player card a FAM link makes in Messages - the preview with the
+    title and the site under it, rounded, clear outside - for Instagram to
+    place on a story as a sticker (the owner's 11.12 notes)."""
+    _read_limit(request)
+    data = await _share_drawing(share_id, "sticker", request)
+    return Response(content=data, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/api/share/{share_id}/story.jpg")
+async def share_story(share_id: str, request: Request) -> Response:
+    """The player card centred on a 1080x1920 story, for Snapchat and the
+    share sheet, which take a whole picture (the owner's 11.12 notes)."""
+    _read_limit(request)
+    data = await _share_drawing(share_id, "story", request)
     return Response(content=data, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=300"})
 
@@ -6462,7 +6518,8 @@ def _shared_episode_request(request: Request) -> bool:
     # each is a 404 for any id that is not a share.
     if request.method in ("GET", "HEAD") and (
             path == "/api/share/card"
-            or (path.startswith("/api/share/") and path.endswith("/preview.jpg"))):
+            or (path.startswith("/api/share/")
+                and path.endswith(("/preview.jpg", "/sticker.png", "/story.jpg")))):
         return True
     if path != "/api/audio":
         return False

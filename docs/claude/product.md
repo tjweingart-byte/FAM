@@ -317,11 +317,23 @@ surfaces; on search, keep the work small enough that there is no gap to fill.
 
 <!-- rule:browse-loaders -->
 **DailyFAM and a mix have their own loading screens** *(PROBLEMS.md §509, the
-owner's pick from a six-option page, 11.9).* A DailyFAM tile tapped shows a
-tuning dial: the needle sweeps the categories of the rail the tile came from,
-overshoots and settles on the tile's own, named in full under it ("Tuning in
-to Technology"), with the tile's title and "Getting your episode ready". A
-myFAM mix's episode shows the mix gliding along: its episodes in order, the
+owner's pick from a six-option page, 11.9).*
+
+> **Current (§592, the owner's 11.13 pick from a second deck):** a DailyFAM
+> tile no longer shows the tuning dial. Its picture comes into focus from a
+> soft grey blur, a light sweeping across it (option 1, Picture Develop); when
+> friends have listened (the tile's own faces, mutual friends only) the
+> picture is sharp and up to three faces land on its corner with a line
+> naming them, "Maya, Jordan and 4 others listened" (option 3, Friends
+> Gather). Then the tile's title and "Getting your episode ready". A story
+> opened from a notification has no tile: it develops onto the player's
+> picture (`/api/episode/card`) and never gathers faces. The loader is
+> `daily`; everything below about holding nothing still holds.
+
+A DailyFAM tile tapped showed a tuning dial: the needle swept the categories
+of the rail the tile came from, overshot and settled on the tile's own, named
+in full under it ("Tuning in to Technology"), with the tile's title and
+"Getting your episode ready". A myFAM mix's episode shows the mix gliding along: its episodes in order, the
 ones before marked Played (its audio started) or Skipped, this one slid to the
 middle, "2 of 5" in the header. Neither shows the five steps - those stay search's and
 Go Deeper's (§148, `search-no-cover`) - and **neither holds the audio**: the
@@ -330,7 +342,11 @@ screen goes the moment audio arrives, wherever the needle has got to (§292).
 Chosen by `loader` on the topic (`dial` in `startBankTopic`, `glide` in
 `playMixItem`); drawn by `paintLoadingVariant` from what is already on the
 listener's screen, never invented. Both show the FAM mark above them,
-larger than search's (§542, the owner's direction).
+larger than search's (§542, the owner's direction). Each card of the glide is
+the episode's picture (the item's `picture`, the player's own) over the topic
+the listener chose, and the line under the row names that topic - never
+today's episode title, which the player and the mix's rows use (§591, the
+owner's direction).
 
 <!-- rule:search-no-cover -->
 **On search that once meant two calls at once, and no longer does**

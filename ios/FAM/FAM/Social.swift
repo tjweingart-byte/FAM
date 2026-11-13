@@ -160,6 +160,11 @@ final class SocialModel: ObservableObject {
     /// Open a social screen where the listener is: pushed on the stack on
     /// screen, else over the current tab with a stack of its own.
     func open(_ route: SocialRoute) {
+        // A conversation already open is gone back to, never stacked again
+        // (the owner's 11.12 notes: each tap on a message's banner pushed
+        // the same chat once more, so the back arrow led into it again
+        // once per tap).
+        if case let .thread(chat) = route, returnToThread(chat.with) { return }
         if cover != nil {
             coverPath.append(route)
         } else if onMessagesTab {
@@ -168,6 +173,30 @@ final class SocialModel: ObservableObject {
             coverPath = []
             cover = SocialCover(root: route)
         }
+    }
+
+    /// The conversation with `with` on the stack shown: everything above
+    /// it is popped and true returned; false when it is not there.
+    private func returnToThread(_ with: String) -> Bool {
+        func index(_ path: [SocialRoute]) -> Int? {
+            path.lastIndex { if case let .thread(c) = $0 { return c.with == with }; return false }
+        }
+        if let root = cover?.root {
+            if let i = index(coverPath) {
+                coverPath = Array(coverPath.prefix(i + 1))
+                return true
+            }
+            if case let .thread(c) = root, c.with == with {
+                coverPath = []
+                return true
+            }
+            return false
+        }
+        if onMessagesTab, let i = index(messagesPath) {
+            messagesPath = Array(messagesPath.prefix(i + 1))
+            return true
+        }
+        return false
     }
 
     /// Open after a sheet or a cover has finished closing: a second

@@ -336,6 +336,9 @@ struct EntryDock<Content: View>: View {
 struct FieldLabel: View {
     let text: String
     var required = false
+    /// `.auth-opt`: "optional" beside a field the step never insists on
+    /// (the place and gender, 11.12 notes).
+    var optional = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -344,6 +347,10 @@ struct FieldLabel: View {
                 Text("required")
                     .font(FAMFont.mono(9))
                     .foregroundStyle(FAMColor.copper)
+            } else if optional {
+                Text("optional")
+                    .font(FAMFont.mono(9))
+                    .foregroundStyle(FAMColor.textFaint)
             }
         }
         .padding(.bottom, 6)
