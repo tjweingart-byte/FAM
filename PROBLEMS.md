@@ -36257,7 +36257,38 @@ account (a number cannot be kept after deletion without keeping it).
 
 **Tests:** five more in `tests/test_waitlist_notify.py`.
 
-## 598. The Postgres job's slowdown was the test run's own catalogue (2026-11-13)
+
+## 598. "Copy for Claude" on every community card (2026-11-13)
+
+**What was asked.** The owner wanted to take a group's context out of
+`/admin/groups` into Claude to work out questions while reaching out ("Keep
+the copy message, and add in the copy for claude").
+
+**What was built.** Beside **Copy message** (unchanged), each card has
+**Copy for Claude**: one prompt with what FAM is and how it reaches out (by
+hand, nothing automated), the community (name, platform, public or private,
+members, link, subject, what its page says), how to reach its admins and
+the link, the contact it publishes, the handle the person found, status and
+notes, the fit and why, the team's note when it was sent to Egan, the three
+episode ideas, a kept episode that fits and its link, and the message
+(planned or sent) - the words as they are on screen, unsaved edits
+included - ending in "My question:". Only what the card already shows; no
+phone number is ever stored. Where the browser refuses the clipboard, the
+text appears in a selected box to copy by hand.
+
+**And on Egan's section** ("add it to Egan's admin section too"): each lead
+under "What he read lately" on `/admin` has the same button. One builder
+serves both, `admin_ui/claude_prompt.js` at `/admin/claude-prompt.js`
+(admins only, like Keith's alerts script), so the two pages copy the same
+text; the Communities page passes its on-screen edits, Egan's section the
+saved lead.
+
+**Tests:** `tests/test_communities_579.py`
+(`test_a_card_copies_its_message_and_a_prompt_for_claude`,
+`test_the_shared_prompt_script_is_served_to_admins_only`); the button was
+pressed in a headless browser against a sample card and its text read back.
+
+## 599. The Postgres job's slowdown was the test run's own catalogue (2026-11-13)
 
 **What was asked.** CI's Postgres job went from about two hours to 4h07m
 and slowed as it ran, ending `1 failed, 7272 passed, 68 skipped, 1 error`
@@ -36333,7 +36364,7 @@ catalogue it walks either way.
    every bound in the file is kept, and a stubbed wait moved outside its
    span still shows up as `unaccounted`. The tolerance is not widened.
 
-**Tests:** `tests/test_db_tests_598.py` (the pool with faked dialling; three
+**Tests:** `tests/test_db_tests_599.py` (the pool with faked dialling; three
 against a real Postgres); `tests/test_stage_marks.py` on its own clock;
 `test_every_http_request_is_marked_as_one` now
 checks the app leaks no mark from a context of its own.

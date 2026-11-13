@@ -588,5 +588,6 @@ and `limit` = Lines.
 | 36135 | 33 | 594. A tour of the app after sign-up (2026-11-13) |
 | 36168 | 37 | 595. The tour, once, for accounts from before it (2026-11-13) |
 | 36205 | 25 | 596. The phone field says what the text is: consent for the carriers (2026-11-13) |
-| 36230 | 30 | 597. One text per account, ever (2026-11-13) |
-| 36260 | 89 | 598. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |
+| 36230 | 31 | 597. One text per account, ever (2026-11-13) |
+| 36261 | 30 | 598. "Copy for Claude" on every community card (2026-11-13) |
+| 36291 | 89 | 599. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |

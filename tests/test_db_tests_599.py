@@ -1,4 +1,4 @@
-"""The Postgres test run kept its pool's books and its catalogue (§598).
+"""The Postgres test run kept its pool's books and its catalogue (§599).
 
 Pinned here, with no database (the pool's dialling is faked):
 
