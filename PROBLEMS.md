@@ -35781,3 +35781,30 @@ sweep, a moved one by the next placer answer about it.
 the errors the owner saw were not seen. Other app workers read the edits at
 their next tree reload.
 
+
+## 586. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13)
+
+**The owner, 11.13:** "for the myFAM loading screen, it should have the
+thumbnail of the episode and name of the category they selected on the
+loading screen. Right now it is just the name of the category and not the
+thumbnail. It should not be the episode's title, it should be the thumbnail
+and category."
+
+The glide's cards (§509) were text: a number and the topic's name. Since
+§570 the line under the row read `TOPICS[key].title`, which `playMixItem`
+now sets to today's episode title once the edition has written it - so the
+loading screen named the episode, not the topic.
+
+**Now** each card is the item's `picture` (§545's `_mix_pictures`, the
+player's own picker, so the card, the mix's row and the player agree) in a
+4:3 frame, then the number (with Played or Skipped), then the topic's name
+(`item.title`, two lines at most). With no approved picture the frame is the
+plain surface. The line under the row is the current item's topic too. The
+player and the mix's rows keep the episode title (§570); only the loading
+screen changes. `playMixItem` passes the item (`loaderItem`) so a single
+episode played from somebody else's mix draws its picture as well.
+
+iOS matches: `LoadingModel.Glide.pictures` (from `api.picture(item.picture)`
+in both places a glide is built) and `GlideView`'s card draws it above the
+topic; its line under the row already used the topic. Not built here - no
+Swift toolchain in this container; the Mac build in CI compiles it.

@@ -1899,7 +1899,8 @@ extension AppModel {
         let glide = LoadingModel.Glide(mixName: list.name,
                                        titles: list.order.map { list.items[$0].title },
                                        pos: list.pos, played: list.played,
-                                       first: list.pos == 0)
+                                       first: list.pos == 0,
+                                       pictures: list.order.map { api.picture(list.items[$0].picture) })
         // Any mix played - somebody else's public one too - keeps it out of
         // dormancy (`playMixItem`: `noteMixOpen(mixPlay.id, true)`).
         if !list.mixID.isEmpty {
@@ -1979,7 +1980,8 @@ extension AppModel {
         let glide = LoadingModel.Glide(mixName: list.name,
                                        titles: list.order.map { list.items[$0].title },
                                        pos: list.pos, played: list.played,
-                                       first: false)
+                                       first: false,
+                                       pictures: list.order.map { api.picture(list.items[$0].picture) })
         startPlaying(ep, resumeAt: back.position, glide: glide)
         return true
     }

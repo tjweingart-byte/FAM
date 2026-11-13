@@ -330,7 +330,11 @@ screen goes the moment audio arrives, wherever the needle has got to (§292).
 Chosen by `loader` on the topic (`dial` in `startBankTopic`, `glide` in
 `playMixItem`); drawn by `paintLoadingVariant` from what is already on the
 listener's screen, never invented. Both show the FAM mark above them,
-larger than search's (§542, the owner's direction).
+larger than search's (§542, the owner's direction). Each card of the glide is
+the episode's picture (the item's `picture`, the player's own) over the topic
+the listener chose, and the line under the row names that topic - never
+today's episode title, which the player and the mix's rows use (§586, the
+owner's direction).
 
 <!-- rule:search-no-cover -->
 **On search that once meant two calls at once, and no longer does**

@@ -77,6 +77,9 @@ final class LoadingModel: ObservableObject {
         /// rest were skipped.
         var played: Set<Int>
         var first: Bool
+        /// Each item's picture, in playlist order (`picture`, the player's
+        /// own, §545): the card shows it above the topic's name (§586).
+        var pictures: [URL?] = []
     }
 
     /// Start the held audio and open the player.
@@ -478,7 +481,7 @@ struct GlideView: View {
                 .padding(.vertical, 10)
                 .offset(x: arrived || still ? centre : from)
             }
-            .frame(height: 118)
+            .frame(height: 194)
             if glide.titles.count >= 2 && glide.titles.count <= 12 { dots }
             Text(glide.titles.indices.contains(glide.pos) ? glide.titles[glide.pos] : "")
                 .font(FAMFont.heading(19, .semibold))
@@ -540,20 +543,33 @@ struct GlideView: View {
         let played = glide.played.contains(i)
         let label: String = before ? "\(i + 1) · \(played ? "Played" : "Skipped")" : "\(i + 1)"
         let numberColor: Color = current ? FAMColor.copper : ((before && played) ? FAMColor.textMuted : FAMColor.textFaint)
-        return VStack(alignment: .leading, spacing: 0) {
+        // The episode's picture, 4:3 like every tile, over the topic's name
+        // - never the episode's title (§586).
+        let side = cardWidth - 12
+        let url: URL? = glide.pictures.indices.contains(i) ? glide.pictures[i] : nil
+        return VStack(alignment: .leading, spacing: 5) {
+            ZStack {
+                FAMColor.surface2
+                if let url {
+                    AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                }
+            }
+            .frame(width: side, height: side * 0.75)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             Text(label)
                 .font(FAMFont.mono(9.5))
                 .tracking(0.76)
                 .foregroundStyle(numberColor)
-            Spacer(minLength: 4)
+                .padding(.horizontal, 4)
             Text(title)
                 .font(FAMFont.body(12))
                 .foregroundStyle(current ? FAMColor.text : FAMColor.textMuted)
                 .lineSpacing(3)
-                .lineLimit(3)
+                .lineLimit(2)
+                .padding(.horizontal, 4)
         }
-        .padding(10)
-        .frame(width: cardWidth, height: 96, alignment: .topLeading)
+        .padding(EdgeInsets(top: 6, leading: 6, bottom: 9, trailing: 6))
+        .frame(width: cardWidth, height: 168, alignment: .topLeading)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(current ? FAMColor.copper : FAMColor.border,
                                                           lineWidth: 1))

@@ -213,12 +213,18 @@
   .fam-glide-track{ display:flex; gap:10px; width:max-content;
     animation:famGlide .45s .1s cubic-bezier(.3,1.1,.4,1) both; }
   @keyframes famGlide{ from{ transform:translateX(var(--from, 0px)); } to{ transform:translateX(var(--to, 0px)); } }
-  .fam-glide-card{ flex:none; width:128px; height:96px; border-radius:12px; padding:10px; box-sizing:border-box;
+  .fam-glide-card{ flex:none; width:128px; border-radius:12px; padding:6px 6px 9px; box-sizing:border-box;
     background:var(--surface); border:1px solid var(--border); text-align:left; position:relative;
-    display:flex; flex-direction:column; justify-content:space-between; opacity:.4; overflow:hidden; }
+    display:flex; flex-direction:column; gap:5px; opacity:.4; overflow:hidden; }
+  /* The episode's picture, 4:3 like every tile (§586); the surface shows
+     through when the topic has none. */
+  .fam-glide-pic{ display:block; width:100%; aspect-ratio:4/3; border-radius:8px; overflow:hidden;
+    background:var(--surface-2); }
+  .fam-glide-pic img{ display:block; width:100%; height:100%; object-fit:cover; }
+  .fam-glide-card .n, .fam-glide-card .t{ padding:0 4px; }
   .fam-glide-card .n{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:.08em; color:var(--text-faint); }
   .fam-glide-card .t{ font-size:12px; line-height:1.25; color:var(--text-muted); display:-webkit-box;
-    -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .fam-glide-card.on{ opacity:1; border-color:var(--copper); animation:famGlidePick .4s .25s cubic-bezier(.2,1.3,.4,1) both; }
   .fam-glide-card.on .t{ color:var(--text); }
   .fam-glide-card.on .n{ color:var(--copper); }
