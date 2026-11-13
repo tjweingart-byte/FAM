@@ -35327,7 +35327,7 @@ it is a promise kept at launch.
 
 **Tests:** `tests/test_free_month.py`.
 
-## 578. Communities to reach replace FAM on X (2026-11-13)
+## 579. Communities to reach replace FAM on X (2026-11-13)
 
 **What was asked.** The owner: an agent on the admin page that looks across
 Facebook groups, finds their admins and their contact information
@@ -35393,11 +35393,11 @@ to come back thin (invites live on directories and in passages). The model
 call is not an agent under `agents/models.py`: like the X agent it replaces,
 it is an admin tool calling the small model directly, metered.
 
-**Tests:** `tests/test_communities_578.py`.
+**Tests:** `tests/test_communities_579.py`.
 
-## 579. Egan: the outreach reader becomes a full agent (2026-11-13)
+## 580. Egan: the outreach reader becomes a full agent (2026-11-13)
 
-**What was asked.** The owner, on §578's note that `/admin/groups`' model
+**What was asked.** The owner, on §579's note that `/admin/groups`' model
 call went straight to Claude rather than through `agents/models.py`: "make
 it a full agent with a rule book".
 
@@ -35415,7 +35415,7 @@ name, a figure the material does not contain - then composes in code;
 when code's, why.
 
 **The rule book, and every-agent.md "never" 9.** "Research or describe a
-private person" rules out what §578's prompt allowed: the admins are
+private person" rules out what §579's prompt allowed: the admins are
 private people. So Egan is never given an admin's name, handle, address
 or number (`communities.redacted` over all his material), never greets
 anyone by name, and an answer that names or reaches a person is refused.
@@ -35435,10 +35435,10 @@ activation steps are in the proposals README.
 **Also.** `tests/test_agents_model_layer.py`'s import allow-list gains
 `communities.py: {models}`: an admin page's button, never a listener's path.
 
-**Tests:** `tests/test_egan_579.py`; `tests/test_communities_578.py`
+**Tests:** `tests/test_egan_580.py`; `tests/test_communities_579.py`
 updated (its direct-client tests went with the direct client).
 
-## 580. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13)
+## 581. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13)
 
 **What was asked.** The owner, after hearing that Egan sees only what a web
 search has indexed: "add the Reddit API and X API. Also, I want to be able
@@ -35465,7 +35465,7 @@ three keys.
 the "Send a group to Egan" box). Paste a Facebook group, subreddit, X
 Community, Discord invite or Slack link, optionally a subject and a note.
 Code reads it through its API, else a web search for its address (the
-page's own contact email and named admin, as §578 keeps them); the contact
+page's own contact email and named admin, as §579 keeps them); the contact
 route is the community's own (`contact_url`); Egan reads it, the note
 included and redacted like everything he reads; it is kept in To contact
 **whatever its fit** - a person chose it - unless its subject is one FAM
@@ -35484,14 +35484,14 @@ Communities search endpoint and its fields should be confirmed against the
 account's API access on the first real run; a refusal is shown on the page
 and the run falls back to the web.
 
-**Tests:** `tests/test_community_sources_580.py`.
+**Tests:** `tests/test_community_sources_581.py`.
 
-## 581. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13)
+## 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13)
 
 At the owner's request every change on the branch was read again, by the
 session and by an independent reviewer that saw the code and not the
 session's conclusions. The reviewer's findings, each verified with a probe
-and each now a test in `tests/test_community_sources_580.py`:
+and each now a test in `tests/test_community_sources_581.py`:
 
 - **Emails were stored in descriptions, notes and handles**: only phones
   were stripped. `communities.scrub` now keeps no email but the
@@ -35534,10 +35534,10 @@ and each now a test in `tests/test_community_sources_580.py`:
 The `leads.source` and `runs.id` columns are in the tables' first shape:
 neither table has shipped.
 
-## 582. The owner signed Egan's rule book: manifest version 9 (2026-11-13)
+## 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13)
 
-The owner signed `MANIFEST.pending.json` (version 9, §579, rewritten in
-§580) on their MacBook Air with `tools/sign_rulebooks.py` - after OpenSSL
+The owner signed `MANIFEST.pending.json` (version 9, §580, rewritten in
+§581) on their MacBook Air with `tools/sign_rulebooks.py` - after OpenSSL
 could not find a key file the key had never been saved to (the Python
 signer reads the key from the clipboard and never writes it) - and
 uploaded `egan.md`, `MANIFEST.json` and `MANIFEST.json.sig` to
@@ -35551,7 +35551,7 @@ and `egan.md` is the proposal byte for byte.
 `agents.roster.PROPOSED` (both empty now) into `AGENTS` and `ROSTER`; his
 tab is `docs/FAM_AGENTS.md` "## 9. Outreach (Egan)" with the four sub-tabs;
 his row in `docs/agent_rules/README.md`; the proposal and the pending
-manifest deleted; `tests/test_egan_579.py`'s waiting tests are signed
+manifest deleted; `tests/test_egan_580.py`'s waiting tests are signed
 ones (his lock passes, his request is his own). He stays **off** until the
 owner sets `AGENTS=1` and `OUTREACH_AGENT=1`; until then the page composes
 in code and the card says "off".

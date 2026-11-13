@@ -7,10 +7,10 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-Nothing. Manifest version 9 - `egan.md`, a new agent, Egan (§579-§582) -
+Nothing. Manifest version 9 - `egan.md`, a new agent, Egan (§580-§583) -
 was signed on 2026-11-13 on the owner's MacBook Air with
 `tools/sign_rulebooks.py` and uploaded with the book; the session verified
-it, registered him and deleted the proposal (§582).
+it, registered him and deleted the proposal (§583).
 
 Before that: manifest version 8 - `journalism_playbook.md` v2, Part 3's story
 shapes, on top of Main's version 7 - was signed on 2026-11-10 on the

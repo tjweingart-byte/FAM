@@ -161,7 +161,7 @@ def test_only_an_admin_reads_or_answers_the_alerts(admin):
 
 
 def test_every_admin_page_includes_the_script_and_it_is_served(admin):
-    # `/admin/x` went with the X agent; `/admin/groups` replaced it (§578).
+    # `/admin/x` went with the X agent; `/admin/groups` replaced it (§579).
     for page in ("tracker", "thumbnails", "waitlist", "groups"):
         html = (ROOT / "admin_ui" / f"{page}.html").read_text()
         assert '<script src="/admin/keith-alerts.js" defer></script>' in html

@@ -11,14 +11,14 @@ channel, and hypothesises three episodes worth showing them. A person reaches
 out; FAM never does.
 
 It replaced the reply-drafting X agent (`x_threads.py`, §321-§368) at the
-owner's direction (§578): X is now one platform among five, searched the same
+owner's direction (§579): X is now one platform among five, searched the same
 way, for communities rather than threads.
 
 ## Rules that are load-bearing
 
 **Public channels only** ([community-outreach]). Discovery is a web search
 through FAM's own research backends (`research.WEB_BACKENDS`), and Reddit's
-and X's own APIs where their read-only keys are set (§580,
+and X's own APIs where their read-only keys are set (§581,
 `community_sources.py`), never a logged-in scrape: nothing here signs in to
 Facebook, Reddit, X, Discord or Slack, and no key held can post or message. A card says *how* to
 reach the admins - the group's admin list, Reddit's modmail, the
@@ -47,7 +47,7 @@ scrubbed there, and a run says so rather than pretending it found nothing.
 
 **A candidate carries its reason in words** ([candidate-reason]).
 
-**Egan reads each community** (§579, the outreach agent): the fit, the
+**Egan reads each community** (§580, the outreach agent): the fit, the
 pitches and the message are his, through `agents/models.py` under his
 signed rule book (`egan.md`), off by default. He never reads about a
 person: the material he is given is `redacted` of names, handles, addresses
@@ -411,7 +411,7 @@ class Lead:
     drafted_by: str = "code"
     score: float = 0.0
     reason: str = ""
-    #: `search` (found by a run) or `sent` (a person sent it to Egan, §580).
+    #: `search` (found by a run) or `sent` (a person sent it to Egan, §581).
     source: str = SEARCHED
     #: What the person who sent it said about it.
     note: str = ""
@@ -628,7 +628,7 @@ def suggested_subjects(cache, label_of: Callable[[str], str] = lambda k: "",
 # The pitches and the message
 
 
-#: Egan, the outreach agent (§579, `docs/agent_rule_proposals/egan.md`
+#: Egan, the outreach agent (§580, `docs/agent_rule_proposals/egan.md`
 #: until the owner signs it): his role in `agents.names`, his switch and
 #: model settings, and his rule book.
 AGENT = "outreach"
@@ -834,7 +834,7 @@ def refused(lead: Lead, reading) -> str:
 
 
 async def read(lead: Lead, ask=None) -> tuple[Lead, float]:
-    """The fit, the pitches and the message: Egan's (§579), one call and
+    """The fit, the pitches and the message: Egan's (§580), one call and
     one retry when code sends his answer back; the code's whenever he cannot
     answer - off, held, unsigned, failed or refused twice - and the card says
     which. Never raises but cancellation. Returns the lead and his cost."""
@@ -935,7 +935,7 @@ class Store:
 
     def put(self, lead: Lead, at: float, status: str = NEW) -> None:
         """Add `lead`, or read it again over the stored one (a person sent
-        it, §580): the person's notes and the handle they found are kept."""
+        it, §581): the person's notes and the handle they found are kept."""
         self.add(lead, at, status)
         self._conn().execute(
             "UPDATE leads SET lead = ?, status = ?, score = ?, fit = ?, updated_at = ?,"
@@ -1082,7 +1082,7 @@ def backends() -> list[str]:
 
 def available() -> tuple[bool, str]:
     """Whether a run can find anything: a web search backend, or Reddit's or
-    X's API (§580) for their own platforms."""
+    X's API (§581) for their own platforms."""
     import community_sources as CS
 
     have = []
@@ -1134,7 +1134,7 @@ def _search_blocking(query: str, platform: str) -> tuple[list, float, str]:
 
 def _api_for(platform: str):
     """`(search, about, label)` for a platform with its own API configured
-    (§580), or None: Reddit's and X's, read-only."""
+    (§581), or None: Reddit's and X's, read-only."""
     import community_sources as CS
 
     if platform == "reddit" and CS.reddit_available()[0]:
@@ -1354,7 +1354,7 @@ def health() -> dict:
 
 
 # --------------------------------------------------------------------------
-# A group a person sends to Egan (§580)
+# A group a person sends to Egan (§581)
 
 
 #: What the page says it can read.

@@ -155,7 +155,7 @@ ALL_VARS = sorted(DECLARED)
 #: exists - the same case again. `ARCHIVE_DB` (§308) is created by the
 #: first written episode with sources, and reported once it exists.
 #: `EPISODE_QUALITY_DB` (§309) is created by the first written episode - the
-#: routing rows' case. `COMMUNITIES_DB` (§578) is created by the first
+#: routing rows' case. `COMMUNITIES_DB` (§579) is created by the first
 #: search on `/admin/groups`, and reported once it exists.
 #: `AGENTS_DB` (§349) is created by the first agent task, and reported once
 #: it exists - the trending bank's case. `HOUSEKEEPER_DB` (§399) is created

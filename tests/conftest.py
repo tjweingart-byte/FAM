@@ -153,7 +153,7 @@ FAM_ENVIRONMENT = (
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
-    # /admin/groups (§578).
+    # /admin/groups (§579).
     "COMMUNITIES_MAX_SEARCHES", "COMMUNITIES_DAILY_SEARCHES",
     "COMMUNITIES_SUBJECTS", "COMMUNITIES_SHORTLIST",
     "OUTREACH_AGENT", "OUTREACH_MODEL", "OUTREACH_TIMEOUT_SECONDS", "OUTREACH_MAX_TOKENS",
@@ -830,14 +830,14 @@ def isolated_thumbnails(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_communities(tmp_path, monkeypatch):
-    """`/admin/groups`' leads (§578) per test: `communities._STORE` is a
+    """`/admin/groups`' leads (§579) per test: `communities._STORE` is a
     process-global, like the tile pictures above."""
     import communities
     import community_sources
 
     monkeypatch.setenv("COMMUNITIES_DB", str(tmp_path / "stores" / "communities.db"))
     # Read through `credentials`, not config.py: a developer's Reddit or X
-    # key must not let a test reach their APIs (§580).
+    # key must not let a test reach their APIs (§581).
     for name in ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "X_BEARER_TOKEN"):
         monkeypatch.delenv(name, raising=False)
         monkeypatch.delenv(name + "S", raising=False)

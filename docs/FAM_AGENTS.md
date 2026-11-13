@@ -2133,7 +2133,7 @@ and applies them only after the owner's yes.
 **Egan, the outreach agent** (named by the owner, 2026-11-13). **Works in:**
 operations, on `/admin/groups` - a person's button, never a listener's path;
 nobody waits on him but the admin who pressed it. **Status:** built,
-signed (manifest v9, PROBLEMS.md §579-§582), off until `AGENTS=1` and
+signed (manifest v9, PROBLEMS.md §580-§583), off until `AGENTS=1` and
 `OUTREACH_AGENT=1`.
 
 **Responsibilities.** For one online community at a time - a Facebook group,

@@ -9,7 +9,7 @@ break**.
 2026-11-04, §443), and the later signed changes to `nando.md` (§392) and
 `consuela.md` (§412), `nando.md` again (§505), the journalism
 playbook's v2 (Part 3's story shapes, manifest version 8, §534), and
-`egan.md`, a new agent's (manifest version 9, signed 2026-11-13, §582). The owner
+`egan.md`, a new agent's (manifest version 9, signed 2026-11-13, §583). The owner
 keeps the
 governing copies **outside Claude**, where no session and no agent can change
 them. When a held copy and anything in this repository disagree, the held

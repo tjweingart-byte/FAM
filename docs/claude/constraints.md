@@ -1650,15 +1650,15 @@
   tokens to leak, and nothing that can post while somebody is asleep.
   > **Current:** since §321 FAM held one read-only X search credential
   > (`X_BEARER_TOKEN`) for its own account's outreach, and still nothing
-  > that could post. Since §578 nothing reads it: outreach is
+  > that could post. Since §579 nothing reads it: outreach is
   > [community-outreach], by web search, with no platform token at all.
-  > Since §580 it is read again, beside Reddit's app-only
+  > Since §581 it is read again, beside Reddit's app-only
   > `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`: read-only searches for
   > communities on `/admin/groups`. Still nothing that can post, message,
   > vote or follow.
 <!-- rule:community-outreach -->
 - **FAM reaches communities' admins through public channels, and a person
-  does it** (§578, the owner's direction; `communities.py`,
+  does it** (§579, the owner's direction; `communities.py`,
   `/admin/groups`). Facebook groups, subreddits, X Communities, Discord
   servers and Slack communities about FAM's subjects are found by **web
   search through the research backends** (`research.WEB_BACKENDS`, held to
@@ -1679,7 +1679,7 @@
   search key ([zero-spend-staging]); with no model key the pitches and the
   message are composed in code and the card says so. Each card carries its
   reason in words ([candidate-reason]). Untouched leads are kept 30 days.
-  > **Current:** since §579 the fit, the pitches and the message are
+  > **Current:** since §580 the fit, the pitches and the message are
   > **Egan's**, a full agent ([agent-model-layer]): one call per
   > community through `agents/models.py`, under his own rule book
   > (`egan.md`), off by default (`OUTREACH_AGENT`). He never reads about
@@ -1690,10 +1690,10 @@
   > it waits in `docs/agent_rule_proposals/` with
   > `MANIFEST.pending.json` and he is `agents.names.PROPOSED`, refused by
   > the layer; an unsigned book in `docs/agent_rules/` would hold every
-  > agent. **Signed by the owner** (manifest v9, §582): he is in
+  > agent. **Signed by the owner** (manifest v9, §583): he is in
   > `agents.names.AGENTS` and the roster, off until `AGENTS=1` and
   > `OUTREACH_AGENT=1`.
-  > **Current:** since §580 (the owner's direction) subreddits and X
+  > **Current:** since §581 (the owner's direction) subreddits and X
   > Communities are found through **Reddit's and X's own APIs** when their
   > read-only keys are set (`community_sources.py`: subreddit search and
   > about pages, X's Communities search and lookup; never a moderator, a
@@ -1705,7 +1705,7 @@
   > rest) and it is kept to contact **whatever its fit** - a person chose
   > it - unless FAM does not pitch its subject (`AVOID`). A lookup is one
   > search against the day's ceiling.
-  > **Current:** since §581 (a review): `scrub` keeps no email but the
+  > **Current:** since §582 (a review): `scrub` keeps no email but the
   > community's published contact anywhere, phone numbers in international
   > shapes included; only a community's own page (`own_page`) gives a
   > description, contact or admin, never a member's post; a sent
@@ -1717,7 +1717,7 @@
   > `outreach_intelligence.py`, `/admin/x`), which searched X's API for
   > threads one of FAM's episodes answered and drafted replies a person
   > posted through X's own compose box, under a relevance score and an
-  > original-author test (§368). The owner removed it in §578; its rule text
+  > original-author test (§368). The owner removed it in §579; its rule text
   > is in git history before that change. LinkedIn's engine had gone in
   > §367. The listener's own share buttons are a separate feature and stay
   > ([share-link]).

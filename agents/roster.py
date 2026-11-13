@@ -131,7 +131,7 @@ ROSTER: dict = {a.role: a for a in (
            ("watch", "write up an incident", "summarise"), (BACKGROUND,), "monitor",
            ((BACKGROUND, "it_timeout_seconds", "it_max_tokens"),),
            "/admin as it is today; nothing is fixed", False),
-    # Signed in §582 (manifest v9): one call per community on /admin/groups,
+    # Signed in §583 (manifest v9): one call per community on /admin/groups,
     # a person's button, never a listener's path.
     _agent("outreach",
            "For one online community a search found or the team sent: how well FAM "
@@ -145,7 +145,7 @@ ROSTER: dict = {a.role: a for a in (
 
 
 #: Agents built and waiting for the owner's signature (`names.PROPOSED`,
-#: §579), ready to join `ROSTER` with the signed book. None waits now.
+#: §580), ready to join `ROSTER` with the signed book. None waits now.
 PROPOSED: dict = {}
 
 

@@ -1,4 +1,4 @@
-"""Egan, the outreach agent (§579): `/admin/groups`' reader, as a full agent.
+"""Egan, the outreach agent (§580): `/admin/groups`' reader, as a full agent.
 
 Pinned here: his call goes through `agents/models.py` and nowhere else; he
 waits for the owner's signature without holding any other agent; he never
@@ -109,7 +109,7 @@ def test_unsure_or_unanswered_is_composed_in_code_and_says_why():
 
 
 def test_off_by_default_the_layer_sends_nothing_and_the_card_is_codes():
-    """Signed (§582) but off until the owner sets AGENTS=1 and
+    """Signed (§583) but off until the owner sets AGENTS=1 and
     OUTREACH_AGENT=1: the real layer refuses before anything leaves."""
     out, dollars = asyncio.run(C.read(lead()))
     assert out.drafted_by == "code" and dollars == 0.0
@@ -122,7 +122,7 @@ def test_nothing_but_the_model_layer_calls_a_model():
         assert word not in src, word
 
 
-# ------------------------------------------------------------- signed (§582)
+# ------------------------------------------------------------- signed (§583)
 
 def test_he_is_signed_and_on_the_roster():
     assert names.AGENTS["outreach"] == ("Egan", "egan.md", "outreach_agent", ("outreach_model",))

@@ -131,7 +131,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **live_routing.db** (`LIVE_ROUTING_DB`, §264) | `live_routing.py` | `episodes` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py`; `incidents.py` (§488) | `errors`, `steps`, `refusals`; Keith's `incidents` (one row per cause, kept 90 days after closing) and `incident_fixes` (the fix report, §490: every fix and every "would", kept 90 days) | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **episode_quality.db** (`EPISODE_QUALITY_DB`, §309) | `episode_quality.py` (`QualityStore`) | `episodes`, `listens`, `labels` | `listens` only (the account that listened); `episodes` holds the typed question | 180 days (`KEEP_DAYS`); the evidence text until graded, at most 14 days (`EVIDENCE_DAYS`) | `listens` erased · **Wiped** |
-| **communities.db** (`COMMUNITIES_DB`, §578) | `communities.py` (`Store`) | `leads`, `runs` | No listener; holds public community pages, a contact a community publishes, and the admin's notes | Untouched leads 30 days (`KEEP_DAYS`); a lead a person moved is kept; runs 30 days | n/a · kept |
+| **communities.db** (`COMMUNITIES_DB`, §579) | `communities.py` (`Store`) | `leads`, `runs` | No listener; holds public community pages, a contact a community publishes, and the admin's notes | Untouched leads 30 days (`KEEP_DAYS`); a lead a person moved is kept; runs 30 days | n/a · kept |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
@@ -392,7 +392,7 @@ and live records stay. When Nando's tree prunes or moves a node, facts,
 intake records and readings filed under it are re-filed to the nearest
 surviving ancestor (`housekeeper.db`, `refiles`, records each one).
 
-**communities.db** (`communities.Store`, §578): `/admin/groups`' leads.
+**communities.db** (`communities.Store`, §579): `/admin/groups`' leads.
 `leads`, one row per Facebook group, subreddit, X Community, Discord server
 or Slack community a web search found: its name, public page, member count,
 the public way to its admins (the group's admin list, modmail, its
@@ -400,15 +400,15 @@ moderators page), an email only when the community publishes one as its
 contact on that page, an admin's name or handle only when that page states
 it, the three hypothesised episodes and the drafted first message, a kept
 episode that fits, and the admin's status, notes and the handle they found;
-since §580 whether a run found it or a person sent it to Egan (`source`),
+since §581 whether a run found it or a person sent it to Egan (`source`),
 the sender's note (phone numbers removed) and what its facts were read from
 (Reddit's or X's API, or a web search).
 **No phone number is ever stored** (`communities.strip_phones` runs over
 every text kept, the notes included). `runs`, what each search asked and how
-many searches it spent, counted as each is made (§581), which is how the
+many searches it spent, counted as each is made (§582), which is how the
 daily ceiling is counted. No
 listener's data; untouched leads pruned after 30 days. Read only by
-`/admin/groups`. (Replaced `x_threads.db`, §321, removed in §578.)
+`/admin/groups`. (Replaced `x_threads.db`, §321, removed in §579.)
 
 **episode_quality.db** (`episode_quality.QualityStore`, §309): how well each
 written episode was written. `episodes`, one row per episode cached anywhere

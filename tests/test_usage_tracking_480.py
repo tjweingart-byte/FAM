@@ -52,7 +52,7 @@ class _Usage:
 # ------------------------------------------------------------ provider_usage
 def test_x_reddit_claude_the_image_model_and_r2_are_reported():
     shown = rows()
-    # X left with the X agent (§578) and came back with Reddit (§580).
+    # X left with the X agent (§579) and came back with Reddit (§581).
     for provider, label in (("x", "X"), ("reddit", "Reddit"), ("anthropic", "Claude (Anthropic)"),
                             ("gemini", "Google image model"),
                             ("r2", "Cloudflare R2")):

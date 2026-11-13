@@ -43,8 +43,8 @@ DAY = 86400
 #: The services the admin page reports, in the order it draws them. §480:
 #: X, Claude, Google's image model and the R2 bucket were spent on and never
 #: reported (X was counted and not shown; the other three were not counted).
-#: X left with the X agent (§578) and came back with Reddit as
-#: /admin/groups' community sources (§580), counted per request.
+#: X left with the X agent (§579) and came back with Reddit as
+#: /admin/groups' community sources (§581), counted per request.
 PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket",
              "gnews", "tiingo",
              "wikidata", "wikipedia", "wikimedia_enterprise",
@@ -58,7 +58,7 @@ LABELS = {
     "gdelt": "GDELT",
     "polymarket": "Polymarket",
     "gnews": "GNews",
-    # §580: /admin/groups' community search, read-only.
+    # §581: /admin/groups' community search, read-only.
     "reddit": "Reddit",
     "x": "X",
     "tiingo": "Tiingo",
@@ -147,7 +147,7 @@ def _plans() -> dict:
         "local_feeds": (
             "free; one conditional request per feed per poll",
             "no paid plan"),
-        # §580: /admin/groups' community search, a person's button, inside
+        # §581: /admin/groups' community search, a person's button, inside
         # COMMUNITIES_DAILY_SEARCHES.
         "reddit": (
             "Data API, app-only OAuth: 100 requests/min; commercial use under "

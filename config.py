@@ -1331,11 +1331,11 @@ class Settings:
     trending_bank_max_age_hours: float = _env_float(
         "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
 
-    # --- Communities to reach (`/admin/groups`, communities.py, §578) -------
+    # --- Communities to reach (`/admin/groups`, communities.py, §579) -------
     # Facebook groups, subreddits, X Communities, Discord servers and Slack
     # communities about FAM's subjects, found by web search through the
     # research backends, and Reddit's and X's read-only APIs where their keys
-    # are set (§580) - never a signed-in scrape.
+    # are set (§581) - never a signed-in scrape.
     # Each search is billed, so a run and a day are both capped.
     communities_max_searches: int = max(0, _env_int("COMMUNITIES_MAX_SEARCHES", 20))
     communities_daily_searches: int = max(0, _env_int("COMMUNITIES_DAILY_SEARCHES", 60))
@@ -1343,7 +1343,7 @@ class Settings:
     communities_subjects: int = max(1, _env_int("COMMUNITIES_SUBJECTS", 5))
     # Leads one run reads (pitches and a message each) and leaves on the page.
     communities_shortlist: int = max(1, _env_int("COMMUNITIES_SHORTLIST", 12))
-    # The pitches and the first message are Egan's (§579, `outreach_*`
+    # The pitches and the first message are Egan's (§580, `outreach_*`
     # with the other agents' settings); without him they are composed in code.
 
     # --- GNews (gnews.io), the bank's source -------------------------------
@@ -2112,7 +2112,7 @@ class Settings:
     it_agent: bool = field(
         default_factory=lambda: os.environ.get("IT_AGENT", "0")
         not in ("0", "false", "False", ""))
-    # Egan, the outreach agent (§579, `/admin/groups`). Waiting for the
+    # Egan, the outreach agent (§580, `/admin/groups`). Waiting for the
     # owner's signature on his rule book: until it is signed his calls are
     # refused whatever this says, and the page composes in code.
     outreach_agent: bool = field(
@@ -2356,7 +2356,7 @@ class Settings:
                 "fam,gdelt,tiingo,balldontlie,perplexity,gnews").split(",") if p.strip()))
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
-    # Egan's one call per community (§579): nobody waits on it, a person
+    # Egan's one call per community (§580): nobody waits on it, a person
     # pressed a button; one retry when code sends his answer back.
     outreach_timeout_seconds: float = _env_float("OUTREACH_TIMEOUT_SECONDS", 45.0)
     outreach_max_tokens: int = _env_int("OUTREACH_MAX_TOKENS", 1200)
