@@ -517,6 +517,29 @@ def test_anyone_can_listen_to_a_shared_episode(world, monkeypatch):
         assert r.status_code == 403 and r.headers["X-FAM-Waitlist"] == "/waitlist"
 
 
+def test_a_shared_link_previews_behind_the_waitlist_574(world, monkeypatch):
+    """§574: Messages showed a shared link with FAM's icon and no picture,
+    because the gate refused the `og:image` to the preview fetcher, which has
+    no account. The page's two pictures pass; nothing else under
+    /api/share/ does, and an unknown id is still a 404."""
+    import sharing
+    store = sharing.ShareStore(os.path.join(os.path.dirname(
+        appmod.WAITLIST.accounts.path), "shares.db"))
+    monkeypatch.setattr(appmod, "SHARES", store)
+    share = store.create("sharer", "why is the sky blue", 1.5, "The Sky")
+    fetcher = TestClient(appmod.app, headers={
+        "User-Agent": "facebookexternalhit/1.1 Facebot Twitterbot/1.0"})
+    r = fetcher.get(f"/api/share/{share['id']}/preview.jpg")
+    assert "X-FAM-Waitlist" not in r.headers, r.status_code
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    r = fetcher.get("/api/share/card", params={"share": share["id"]})
+    assert "X-FAM-Waitlist" not in r.headers and r.status_code == 200
+    assert fetcher.get("/api/share/nope/preview.jpg").status_code == 404
+    # Making a share is still the app's, not the page's.
+    r = fetcher.post("/api/share", json={"query": "x", "minutes": 1})
+    assert r.status_code == 403 and r.headers["X-FAM-Waitlist"] == "/waitlist"
+
+
 @pytest.mark.usefixtures("everyone_friends")
 def test_launch_lifts_the_waitlist_rules(world, monkeypatch):
     """WAITLIST=0 is launch: anyone still marked waitlisted is findable and
