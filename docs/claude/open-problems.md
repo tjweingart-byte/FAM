@@ -96,6 +96,11 @@
    > ordinary case ("Nascar"; `WORD_CASE`), captions keep the capitals;
    > `SAID_AS` holds part-letter forms (USAID "U S Aid"). /admin's "Words in
    > capitals" box hears any word five ways.
+   > **Current (PROBLEMS.md §576):** no dash reaches the voice as a hyphen:
+   > a respelling's syllables are joined ("Sahgahpohlootehleh", a hyphen kept
+   > only where joining makes a new sound), and a dash used as punctuation is
+   > a comma (Chatterbox's `punc_norm` turned "won—again—on" into
+   > "won-again-on").
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default
