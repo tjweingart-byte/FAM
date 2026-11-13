@@ -19,6 +19,7 @@ Pinned here, with no database (the pool's dialling is faked):
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import dataclasses
 import datetime
 import sqlite3
@@ -216,9 +217,15 @@ def test_every_http_request_is_marked_as_one(monkeypatch):
         return real()
 
     monkeypatch.setattr(db, "report", report)
-    assert TestClient(appmod.app).get("/api/health").status_code == 200
+
+    def call():
+        assert TestClient(appmod.app).get("/api/health").status_code == 200
+        return db._FOR_REQUEST.get()
+
+    # In a context of its own: the test itself is marked as a request
+    # (conftest, §604), and what is checked is that the app leaks no mark.
+    assert contextvars.Context().run(call) is False  # not leaked to the caller
     assert seen and all(seen)
-    assert db._FOR_REQUEST.get() is False          # not leaked to the caller
 
 
 # --------------------------------------------------------------- Keith

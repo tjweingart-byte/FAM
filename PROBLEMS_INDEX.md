@@ -595,5 +595,6 @@ and `limit` = Lines.
 | 36375 | 28 | 601. A shared link sends as the picture tile from every share button, not only a paste (2026-11-13) |
 | 36403 | 92 | 602. The brief has no time limit, and "the voice fell behind" counted the wait before the first word (2026-11-13) |
 | 36495 | 72 | 603. The brief made faster at the same effort: the framing beside the research, and a slow call asked twice (2026-11-13) |
-| 36567 | 69 | 604. The waitlist is the email alone; let in, the first step is a password (2026-11-13) |
-| 36636 | 45 | 605. iOS build 8: the tour, and what Main gave the app since build 7 (2026-11-13) |
+| 36567 | 89 | 604. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |
+| 36656 | 45 | 605. iOS build 8: the tour, and what Main gave the app since build 7 (2026-11-13) |
+| 36701 | 69 | 606. The waitlist is the email alone; let in, the first step is a password (2026-11-13) |
