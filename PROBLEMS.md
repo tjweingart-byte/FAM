@@ -35745,3 +35745,26 @@ shared screen's bar inside its scroll view, and whether the ribbon's
 window really yields the status bar. Tests: eight `..._584` tests in
 `tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
 one in `test_client_contracts.py`.
+
+## 585. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13)
+
+The owner recorded a reference in Voice Memos and /admin's Voice bank would
+not take it: the file picker said `.wav` only and `check_recording` reads
+with the stdlib `wave` module. Converting on the admin's own machine
+(`afconvert`) is a step nobody should need for the format a phone records.
+
+`voice_bank.to_wav` decodes anything that is not a RIFF/WAVE header with
+PyAV - already a dependency for kept audio (§237), and its wheel carries the
+AAC decoder, so the image still needs no ffmpeg - to 16-bit mono PCM at the
+recording's own rate. `prepare_upload` runs it before mastering (§328), so a
+converted memo is trimmed and levelled like any WAV, and `mastered.converted`
+tells the page, which says "converted it to WAV". A WAV is still kept byte
+for byte. The input is capped at `MAX_REFERENCE_BYTES` before decoding and
+decoding stops past it, so a long file is refused as too long rather than
+filling memory. Without PyAV, or for bytes that are not audio, the upload is
+refused as before, now naming both formats ("not a WAV or M4A file").
+
+The picker accepts `.wav,.m4a`. The server decodes any format PyAV reads; the
+page names only the two that have been tried. Tests: three in
+`tests/test_voice_drift_176.py` (an AAC .m4a built with PyAV, one opening in
+silence, junk refused).
