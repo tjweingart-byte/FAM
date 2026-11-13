@@ -35369,3 +35369,232 @@ holds only the 24 GB class, and that Active workers reads 1.
 `tests/test_remote_voice.py` (an active worker is never woken; active
 workers cap the chunks in flight; with none, the fan-out and the wake stay;
 nothing changes for an http pod; a negative count is refused).
+
+## 579. Communities to reach replace FAM on X (2026-11-13)
+
+**What was asked.** The owner: an agent on the admin page that looks across
+Facebook groups, finds their admins and their contact information
+(Facebook handle, email, phone number), and hypothesises episodes to show
+them - not written - so FAM can offer admins access to share episodes with
+their groups. After a workshop: "go with the public-channels version,
+Facebook and Reddit. Also do X, delete the current X agent in there and do
+the same thing. Discord and slack good too".
+
+**The workshop's answer, and why.** Collecting admins' personal emails and
+phone numbers from Facebook means a signed-in scrape, which Meta's terms
+forbid and enforce against, and messaging private people at addresses they
+never gave FAM (TCPA for texts, CAN-SPAM for email, GDPR in Europe), while
+App Review reads FAM's privacy story. It is also worse outreach: an admin
+reached through their own group, with something made for it, listens. So:
+discovery is a web search through FAM's research backends; the contact is
+the community's own public channel; a person sends.
+
+**What was built.** `communities.py` and `/admin/groups` ([community-outreach]):
+- Five platforms (`PLATFORMS`): Facebook groups, subreddits, X Communities,
+  Discord servers (invites, DISBOARD), Slack communities. One search per
+  subject per platform, held to its domains (`_search_blocking`, down the
+  research ladder's web rungs). Subjects are typed, or the categories of
+  FAM's most played kept episodes.
+- `community_of` recognises a community in a URL or a passage (a platform's
+  own pages excluded); `contact_url` is the community's way to its admins
+  (`/members/admins`, modmail compose, `/moderators`, the invite).
+- `strip_phones` over every text kept, the notes too. `public_contacts`
+  keeps an email only in the same sentence as "contact", "admins" and the
+  like, and only on the community's own page; `admin_hints` a name only as
+  that page states it.
+- One small-model call per shortlisted lead (`COMMUNITIES_MODEL`, Haiku):
+  fit 1-5, three pitches, a first message under 600 characters; a figure it
+  was not given sends the message back to the code's. With no key, all of
+  it in code. Fit under 3 is set aside.
+- A kept episode that matches (embeddings 0.6, shared words 0.4, at 0.35)
+  is offered, linkable once heard (`/api/admin/groups/listen`).
+- Statuses new -> contacted -> replied -> invited -> joined, or passed;
+  notes and the admin's handle as the person found it. Invited points at
+  `/admin/waitlist` to let them in once they sign up.
+- Ceilings `COMMUNITIES_MAX_SEARCHES` (20) and `COMMUNITIES_DAILY_SEARCHES`
+  (60); `COMMUNITIES_DB`; untouched leads pruned after 30 days.
+
+**What was removed.** `x_threads.py`, `outreach_intelligence.py`,
+`admin_ui/x.html`, `/admin/x` and its endpoints, `tools/x_agent_eval.py`,
+their tests, the `X_THREADS_*` settings and X's row on the services report.
+`X_BEARER_TOKEN` stays in `spend_guard.PAID_CREDENTIALS` so an old deploy's
+key is still scrubbed on staging. The tracker links "Communities" where it
+linked "FAM on X". The rule [x-threads] became [community-outreach].
+
+**Found on review.** Searches were not in the day's spend (§481): each is
+now `metering.Usage().add_research`, the run under `spend_source("community
+outreach")`. A run that failed halfway did not record the searches it had
+spent; it is recorded in a `finally`. `x.com` matched inside `fox.com`. The
+community's name and the model's words were not phone-stripped. The page's
+eight-second poll recomputed the suggested subjects from 200 episodes each
+time; they are kept for ten minutes, and asked fresh on a run.
+
+**Not verified here.** No search or model key in this container: no real
+search was run, so how often a platform's communities show up in Parallel
+and Perplexity results is unmeasured. Discord and Slack are the likeliest
+to come back thin (invites live on directories and in passages). The model
+call is not an agent under `agents/models.py`: like the X agent it replaces,
+it is an admin tool calling the small model directly, metered.
+
+**Tests:** `tests/test_communities_579.py`.
+
+## 580. Egan: the outreach reader becomes a full agent (2026-11-13)
+
+**What was asked.** The owner, on §579's note that `/admin/groups`' model
+call went straight to Claude rather than through `agents/models.py`: "make
+it a full agent with a rule book".
+
+**What was built.** Egan (role `outreach`; named by the owner,
+2026-11-13, first built as "Hermes"). His one call per community goes through
+`agents/models.py` (`communities.request`, schema `communities.Reading`,
+material tagged `evidence` and `archive` - never `request`, because it is a
+community's page and not a listener's words). Settings with the other
+agents': `OUTREACH_AGENT` (off), `OUTREACH_MODEL`
+(`anthropic:claude-haiku-5-5`), `OUTREACH_TIMEOUT_SECONDS` (45),
+`OUTREACH_MAX_TOKENS` (1,200). `COMMUNITIES_MODEL` is gone. Code sends his
+answer back once - not three pitches, a way to reach a person, a person's
+name, a figure the material does not contain - then composes in code;
+"unsure" is composed in code too. The card says whose words they are and,
+when code's, why.
+
+**The rule book, and every-agent.md "never" 9.** "Research or describe a
+private person" rules out what §579's prompt allowed: the admins are
+private people. So Egan is never given an admin's name, handle, address
+or number (`communities.redacted` over all his material), never greets
+anyone by name, and an answer that names or reaches a person is refused.
+`docs/agent_rule_proposals/egan.md`: seven "always", seven "never".
+
+**Waiting for the signature, without holding anyone.** The lock holds
+every agent while the signed folder has a book its manifest does not
+cover, and the tests require every `names.AGENTS` entry to have a signed
+book there. So the book waits in `docs/agent_rule_proposals/`, and
+`docs/agent_rules/MANIFEST.pending.json` (version 9) is version 8 with
+`egan.md` added and nothing else changed - a test pins that, and that it
+is the exact bytes the lock will compute. He is `agents.names.PROPOSED` and
+`agents.roster.PROPOSED`: the model layer refuses his calls as "not an
+agent", so until he is signed the page composes in code, as before. The
+activation steps are in the proposals README.
+
+**Also.** `tests/test_agents_model_layer.py`'s import allow-list gains
+`communities.py: {models}`: an admin page's button, never a listener's path.
+
+**Tests:** `tests/test_egan_580.py`; `tests/test_communities_579.py`
+updated (its direct-client tests went with the direct client).
+
+## 581. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13)
+
+**What was asked.** The owner, after hearing that Egan sees only what a web
+search has indexed: "add the Reddit API and X API. Also, I want to be able
+to send groups to egan so he can figure out contact info and a good
+message, so it shouldn't be sourcing the groups by itself only, but can be
+helped by us".
+
+**The APIs** (`community_sources.py`). Reddit: app-only OAuth
+(`client_credentials`, `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`), the token
+held in memory until a minute before it expires, then
+`/subreddits/search` (adults-only excluded and dropped again in code) and
+`/r/<name>/about`; a descriptive User-Agent naming FAM's tool and nobody's
+address. X: `X_BEARER_TOKEN` (§321's key) and v2's `/communities/search`
+and `/communities/<id>` with `member_count`, `access`, `join_policy`. Both
+read-only: one POST in the module, Reddit's token, and a test pins that
+nothing reads a moderator, member, user or post. Each request is counted on
+the services report (Reddit and X rows back) and in the day's spend as
+unpriced - their rates are not known here, so never as $0. A run uses a
+platform's API when its key is set and falls back to the web search when it
+fails; with only an API key the page can still search. Staging scrubs all
+three keys.
+
+**Sending a group** (`communities.lookup`, `POST /api/admin/groups/send`,
+the "Send a group to Egan" box). Paste a Facebook group, subreddit, X
+Community, Discord invite or Slack link, optionally a subject and a note.
+Code reads it through its API, else a web search for its address (the
+page's own contact email and named admin, as §579 keeps them); the contact
+route is the community's own (`contact_url`); Egan reads it, the note
+included and redacted like everything he reads; it is kept in To contact
+**whatever its fit** - a person chose it - unless its subject is one FAM
+does not pitch (`AVOID`: refused, with why). One already on the page is
+returned as it is; a set-aside one is read again, keeping the person's
+notes. A lookup is one search against `COMMUNITIES_DAILY_SEARCHES`. Nothing
+found still gives a card: Egan reads its address alone, and the card says so.
+
+**Egan's rule book, still unsigned, widened** before signing: his job and
+"always" 1 now name groups FAM's team sends and their note.
+`MANIFEST.pending.json` (version 9) was rewritten for it.
+
+**Not verified here.** No Reddit or X key in this container: the clients are
+tested against a fake network built from the APIs' documented shapes. X's
+Communities search endpoint and its fields should be confirmed against the
+account's API access on the first real run; a refusal is shown on the page
+and the run falls back to the web.
+
+**Tests:** `tests/test_community_sources_581.py`.
+
+## 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13)
+
+At the owner's request every change on the branch was read again, by the
+session and by an independent reviewer that saw the code and not the
+session's conclusions. The reviewer's findings, each verified with a probe
+and each now a test in `tests/test_community_sources_581.py`:
+
+- **Emails were stored in descriptions, notes and handles**: only phones
+  were stripped. `communities.scrub` now keeps no email but the
+  community's published contact, everywhere text is kept (search results,
+  Reddit and X descriptions and names, sent notes, the person's notes and
+  handle).
+- **A member's post counted as the community's page**: a URL naming the
+  community (`/r/nfl/comments/...`, `/groups/x/posts/...`) gave a
+  "published" contact and an admin from a member's words. `own_page`: only
+  the community's address, its about, members, info or rules page. Any other
+  page gives the address alone, with only its host as where it was found.
+- **A sent adults-only subreddit became a card.** Refused now (`NotPitched`).
+- **Names reached Egan**: the team's note was not redacted for people, and
+  profile links (`reddit.com/u/...`, `x.com/<name>`, `facebook.com/<name>`)
+  and handles said in words ("her handle is ...") passed. `note_people`,
+  `_PROFILE` and `_CALLED` take them out; the note box asks for no names or
+  contacts. `refused` sends back an answer carrying a profile link.
+- **`_ADMIN` missed "Admin: Sarah", "Dr. Jane Smith", lists, and matched
+  "Moderators: Fantasy Football Talk"** - which then redacted the
+  community's own name and made Egan's every answer "name a person". A
+  separator is required now, lists and titles are read, and a "name" made of
+  the community's words or words like "fans", "team" is no person.
+- **Phone numbers in international shapes passed** (+91 98765 43210,
+  06 12 34 56 78, 555-1234). `_PHONE` now reads digit groups and
+  `_is_phone` decides: 7-15 digits, not a date; bare digits only at 10-11;
+  never inside a URL or an id.
+- **The daily ceiling could be overshot** while a run was going: searches
+  were recorded at its end. Each search is now counted as it is made
+  (`start_run`, `count_search`), a run re-checks before each search, and a
+  lookup that asked nothing is not counted.
+- **Prune deleted leads a person had worked on.** Only searched leads with
+  no note, handle or move go after 30 days (`leads.source`).
+- **`/send` mapped any `LookupError` (a stray `KeyError`) to "searches used
+  up"** and any `ValueError` to 409: its own exception types now.
+- Smaller: the server enforces the page's status moves (`MOVES`); the
+  store reads, the catalogue's embeddings and `health()` run in threads,
+  never on the event loop; " : r/name" leaves Reddit titles; stale
+  "no platform token" wording in config.py and the module docstring.
+
+The `leads.source` and `runs.id` columns are in the tables' first shape:
+neither table has shipped.
+
+## 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13)
+
+The owner signed `MANIFEST.pending.json` (version 9, §580, rewritten in
+§581) on their MacBook Air with `tools/sign_rulebooks.py` - after OpenSSL
+could not find a key file the key had never been saved to (the Python
+signer reads the key from the clipboard and never writes it) - and
+uploaded `egan.md`, `MANIFEST.json` and `MANIFEST.json.sig` to
+`docs/agent_rules/` on the branch (c39d755), exactly those three.
+Verified in a separate checkout before anything else touched it:
+`python tools/rulebook_manifest.py --verify` passes, every one of the eight
+agents may still run, the signed manifest is the pending one byte for byte,
+and `egan.md` is the proposal byte for byte.
+
+**Registered.** `outreach` moved from `agents.names.PROPOSED` and
+`agents.roster.PROPOSED` (both empty now) into `AGENTS` and `ROSTER`; his
+tab is `docs/FAM_AGENTS.md` "## 9. Outreach (Egan)" with the four sub-tabs;
+his row in `docs/agent_rules/README.md`; the proposal and the pending
+manifest deleted; `tests/test_egan_580.py`'s waiting tests are signed
+ones (his lock passes, his request is his own). He stays **off** until the
+owner sets `AGENTS=1` and `OUTREACH_AGENT=1`; until then the page composes
+in code and the card says "off".

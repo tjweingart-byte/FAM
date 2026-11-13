@@ -264,7 +264,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   works with no account; email/phone/Google/Apple; **reset** emails a code
   to the account's address (`mail.py`, §244; `/reset`, §297). [op-identity]
 
-## Settled constraints - do not undo without discussing (`constraints.md`)
+## Settled constraints - discuss before undoing (`constraints.md`)
 
 Audio and the opening
 - **A first play streams as voiced** (PCM, or Opus if decoded, §242); **a
@@ -441,7 +441,7 @@ Accounts, tiers, sharing
   other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
-- FAM never posts, holds no posting token; /admin/x drafts. [no-social-posting] [x-threads]
+- FAM never posts, holds no posting token; /admin/groups. [no-social-posting] [community-outreach]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
