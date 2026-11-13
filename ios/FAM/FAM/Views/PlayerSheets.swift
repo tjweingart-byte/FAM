@@ -561,7 +561,7 @@ struct QueueSheet: View {
                             .transition(.rowRemoval)
                     }
                 }
-                .animation(.rowFold, value: now.queue)
+                .animation(Animation.rowFold, value: now.queue)
             }
             Button { dismiss() } label: {
                 Text("Close")

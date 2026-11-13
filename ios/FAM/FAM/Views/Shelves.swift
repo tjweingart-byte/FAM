@@ -240,7 +240,7 @@ struct SavedView: View {
     /// it back. The player's save goes off if it is that episode.
     private func remove(_ item: SavedItem) {
         guard let id = item.id else { return }
-        withAnimation(.rowFold) { _ = gone.insert(id) }
+        withAnimation(Animation.rowFold) { _ = gone.insert(id) }
         Task {
             do {
                 try await model.api.removeSaved(id)
