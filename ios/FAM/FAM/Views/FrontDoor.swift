@@ -28,6 +28,8 @@ struct FrontDoorView: View {
 
     @EnvironmentObject private var model: AppModel
     @State private var door: Door = .welcome
+    /// A joint mix's invite opened signed out (`openLinkedJoin`).
+    @State private var invite: SheetSpec?
 
     var body: some View {
         ZStack {
@@ -50,6 +52,21 @@ struct FrontDoorView: View {
             model.askSignUp = false
             go(.signUp)
         }
+        // `openLinkedJoin` signed out: the invite waits for the sign-up or
+        // log-in, under the web's sheet.
+        .onChange(of: model.askJoinSignIn) { _, asked in if asked { askJoin() } }
+        .onAppear { if model.askJoinSignIn { askJoin() } }
+        .famSheet(item: $invite) { spec in FAMActionSheet(spec: spec) }
+    }
+
+    private func askJoin() {
+        model.askJoinSignIn = false
+        invite = SheetSpec(
+            header: "You\u{2019}ve been invited to a joint mix. Sign up or log in to add topics to it.",
+            actions: [
+                SheetAction(label: "Sign up") { go(.signUp) },
+                SheetAction(label: "Log in") { go(.logIn) },
+            ])
     }
 
     /// The words slide 24 pt and fade between steps (`Motion` "step").
@@ -609,6 +626,16 @@ struct WaitlistStatusPage: View {
         }
         .onChange(of: editing) { _, open in
             if !open { Task { await load() } }
+        }
+        // A shared link while one of this page's cards is up: the cards go,
+        // so the shared screen is not drawn underneath them (audit 4).
+        .onChange(of: model.sharedListen?.id) { _, id in
+            guard id != nil else { return }
+            menu = nil
+            editing = false
+            share = nil
+            confirmDelete = false
+            confirmSignOut = false
         }
     }
 

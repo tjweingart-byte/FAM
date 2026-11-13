@@ -10,6 +10,12 @@ struct FAMApp: App {
     /// dark unless it says light (§546).
     @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
+    /// The window's scheme is dark: the theme, private search's charcoal
+    /// or the shared screen.
+    private var chromeDark: Bool {
+        model.darkChrome || model.sharedListenShown || FAMTheme.isDark(theme)
+    }
+
     init() {
         // A proper picture cache (a faster start): the cards' pictures
         // (`/api/thumb/…`, `immutable` for a year) come off the disk on
@@ -40,8 +46,12 @@ struct FAMApp: App {
                 // ...and the window's - the status bar, the keyboard, the
                 // system's sheets - is that theme, or dark over private
                 // search's charcoal while that screen shows, which holds in
-                // either theme (`#screen-home.private-search`).
-                .preferredColorScheme(model.darkChrome ? .dark : FAMTheme.scheme(theme))
+                // either theme (`#screen-home.private-search`), and over the
+                // shared screen's own dark page (listen.html).
+                .preferredColorScheme(chromeDark ? .dark : FAMTheme.scheme(theme))
+                // The staging ribbon's window follows it, so it never holds
+                // the status bar to the theme it was drawn in.
+                .onChange(of: chromeDark) { _, dark in EnvRibbonWindow.restyle(dark: dark) }
                 .task { await model.open() }
                 // Google's sign-in comes back to the app through its URL scheme;
                 // any other link may carry a waitlist invite code.
@@ -77,6 +87,7 @@ struct RootView: View {
     /// The app went to the background since it was last active: a return
     /// passes through `.inactive`, so `old == .background` is never seen.
     @State private var wentAway = false
+    @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
     /// The front door's own toasts (the tabs and the first run draw theirs).
     private var rootToasts: Bool {
@@ -116,6 +127,9 @@ struct RootView: View {
                     wentAway = false
                     model.cameToFront()
                 }
+                // A scene disconnected and connected again takes the
+                // ribbon's window with it: put it back on the live one.
+                if new == .active { EnvRibbonWindow.reattach() }
             }
             // On the waitlist the first run is the status page's profile
             // (`?setup=1`): who you are, then the status page; the interests
@@ -124,7 +138,10 @@ struct RootView: View {
             // this is; let in, the shared screen gives way to the app.
             .onChange(of: model.stage) { _, _ in model.stageSettled() }
             // A staging server's ribbon over every screen (`.env-ribbon`).
-            .onChange(of: model.envRibbon) { _, words in EnvRibbonWindow.show(words) }
+            .onChange(of: model.envRibbon) { _, words in
+                EnvRibbonWindow.show(words, dark: model.darkChrome || model.sharedListenShown
+                                     || FAMTheme.isDark(theme))
+            }
             .onChange(of: model.entry) { _, step in
                 if model.stage == .waiting && step == .interests { model.entry = nil }
             }

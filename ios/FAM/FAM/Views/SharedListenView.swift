@@ -15,6 +15,8 @@ struct SharedListenView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     let listen: SharedListen
+    /// The bar's knob while a finger drags it; the audio seeks on release.
+    @State private var dragAt: Double?
 
     // listen.html's `:root`, restated.
     private static let ink = Color(hex: 0x18151F)
@@ -33,10 +35,14 @@ struct SharedListenView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     brand
-                    heading
-                    playerBlock.padding(.top, 34)
-                    Spacer(minLength: 40)
-                    doors
+                    // The page has its share in its HTML, so it never draws
+                    // a waiting state: until it is read, only the wordmark.
+                    if listen.loaded {
+                        heading
+                        playerBlock.padding(.top, 34)
+                        Spacer(minLength: 40)
+                        doors
+                    }
                 }
                 .frame(maxWidth: 520, alignment: .leading)
                 .padding(.horizontal, 22)
@@ -60,7 +66,7 @@ struct SharedListenView: View {
             FAMLetters(capHeight: 26, color: Self.copper)
                 .frame(height: 26, alignment: .bottom)
         }
-        .buttonStyle(.press)
+        .buttonStyle(ListenStillStyle())
         .accessibilityLabel("FAM")
     }
 
@@ -134,7 +140,7 @@ struct SharedListenView: View {
                         .background(Self.copper, in: Circle())
                         .opacity(canPlay ? 1 : 0.45)
                 }
-                .buttonStyle(.press)
+                .buttonStyle(ListenPlayStyle())
                 .disabled(!canPlay)
                 .accessibilityLabel(playing ? "Pause" : "Play")
                 skip("\u{21B6} 15", by: -15)
@@ -142,9 +148,11 @@ struct SharedListenView: View {
             }
             bar.padding(.top, 22).padding(.bottom, 8)
             HStack {
-                Text(Self.clock(at))
+                Text(Self.clock(shownAt))
                 Spacer()
-                Text(Self.clock(total))
+                // `#len` starts "--:--" and only `draw()` sets it, which the
+                // page never runs for a dead link.
+                Text(nothing ? "--:--" : Self.clock(total))
             }
             .font(FAMFont.mono(11))
             .foregroundStyle(Self.muted)
@@ -168,15 +176,18 @@ struct SharedListenView: View {
                 .overlay(Capsule().stroke(Self.line, lineWidth: 1))
                 .opacity(canSkip ? 1 : 0.35)
         }
-        .buttonStyle(.press)
+        .buttonStyle(ListenStillStyle())
         .disabled(!canSkip)
     }
 
     /// Drag as well as tap, clamped to what has been voiced (the player's
     /// own seek stops at `seekLimit`) - it is still being made as it plays.
+    /// The knob follows the finger and the audio moves once, on release, as
+    /// the main player's bar does; a drag that is mostly vertical is the
+    /// page's scroll, not a seek.
     private var bar: some View {
         GeometryReader { geo in
-            let pct = total > 0 ? max(0, min(1, at / total)) : 0
+            let pct = total > 0 ? max(0, min(1, shownAt / total)) : 0
             ZStack(alignment: .leading) {
                 Capsule().fill(Self.paper.opacity(0.16)).frame(height: 4)
                 Capsule().fill(Self.copper).frame(width: geo.size.width * pct, height: 4)
@@ -185,17 +196,32 @@ struct SharedListenView: View {
             }
             .frame(height: 22)
             .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+            .onTapGesture(coordinateSpace: .local) { point in
                 guard ours, geo.size.width > 0 else { return }
-                let to = max(0, min(1, drag.location.x / geo.size.width))
-                player.seek(to: to * total)
-            })
+                player.seek(to: max(0, min(1, point.x / geo.size.width)) * total)
+            }
+            .simultaneousGesture(DragGesture(minimumDistance: 6)
+                .onChanged { drag in
+                    guard ours, geo.size.width > 0 else { return }
+                    if dragAt == nil {
+                        guard abs(drag.translation.width) > abs(drag.translation.height) else { return }
+                    }
+                    let to = max(0, min(1, drag.location.x / geo.size.width)) * total
+                    dragAt = min(to, max(player.seekLimit, 0))
+                }
+                .onEnded { _ in
+                    if let to = dragAt { player.seek(to: to) }
+                    dragAt = nil
+                })
         }
         .frame(height: 22)
         .accessibilityElement()
         .accessibilityLabel("Position")
-        .accessibilityValue(Self.clock(at))
+        .accessibilityValue(Self.clock(shownAt))
     }
+
+    /// Where the knob is: the finger while dragging, else the audio.
+    private var shownAt: Double { dragAt ?? at }
 
     private var statusWords: String {
         if nothing { return "Ask FAM anything of your own and it will make you an episode." }
@@ -229,12 +255,14 @@ struct SharedListenView: View {
                     door("Ask your own question", join: false)
                     door("Browse episodes", join: false)
                 } else {
+                    // `.doors p` outranks `.footnote` in the page's CSS:
+                    // 13.5 px, no gap above, 14 below.
                     Text("FAM makes an episode about anything you ask.")
-                        .font(FAMFont.body(12))
-                        .lineSpacing(12 * 0.5 - 3)
+                        .font(FAMFont.body(13.5))
+                        .lineSpacing(13.5 * 0.5 - 4)
                         .foregroundStyle(Self.muted)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 8)
+                        .padding(.bottom, 14)
                 }
             }
         }
@@ -254,7 +282,7 @@ struct SharedListenView: View {
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(join ? Color.clear : Self.line, lineWidth: 1))
         }
-        .buttonStyle(.press)
+        .buttonStyle(ListenStillStyle())
         .padding(.bottom, 10)
     }
 
@@ -282,21 +310,32 @@ struct SharedListenView: View {
 }
 
 /// The shared screen over the front door or the status page, while one is
-/// open and nobody is let in yet: up from below, down when it closes.
+/// open and nobody is let in yet (or over the tabs, for a dead link). The
+/// page just loads, so it has no entrance and no exit of its own.
 struct SharedListenLayer: View {
     @EnvironmentObject private var model: AppModel
 
-    private var shown: Bool {
-        model.stage == .signedOut || model.stage == .waiting
-    }
-
     var body: some View {
-        ZStack {
-            if shown, let listen = model.sharedListen {
-                SharedListenView(listen: listen)
-                    .transition(.move(edge: .bottom))
-            }
+        if model.sharedListenShown, let listen = model.sharedListen {
+            SharedListenView(listen: listen)
         }
-        .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.3), value: model.sharedListen?.id)
+    }
+}
+
+/// listen.html's one motion: `.play:active{transform:scale(0.95)}` over
+/// `transition: transform 0.12s ease`.
+private struct ListenPlayStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .animation(.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// The page's other controls (the wordmark, ±15, the doors): drawn as they
+/// are, with no press motion, since the page gives them none.
+private struct ListenStillStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.contentShape(Rectangle())
     }
 }

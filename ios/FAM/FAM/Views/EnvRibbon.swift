@@ -54,26 +54,62 @@ struct DemoBadge: View {
 @MainActor
 enum EnvRibbonWindow {
     private static var window: UIWindow?
+    private static var words = ""
+    /// The app window's scheme - the theme, or dark over private search or
+    /// the shared screen - which the status bar under this window takes.
+    private static var dark = true
 
-    static func show(_ words: String) {
+    static func show(_ words: String, dark: Bool) {
+        self.words = words
+        self.dark = dark
         window?.isHidden = true
         window = nil
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         guard !words.isEmpty,
-              let scene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene }).first else { return }
-        let host = UIHostingController(rootView: EnvRibbon(words: words).famThemed())
+              let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+        else { return }
+        let host = RibbonHost(rootView: AnyView(EnvRibbon(words: words).famThemed()))
+        host.dark = dark
         host.view.backgroundColor = .clear
         let shown = TouchlessWindow(windowScene: scene)
         shown.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.alert.rawValue + 1)
         shown.backgroundColor = .clear
-        // The status bar keeps the theme's colours under a window this high.
-        let stored = UserDefaults.standard.string(forKey: FAMTheme.key) ?? FAMTheme.standard
-        shown.overrideUserInterfaceStyle = FAMTheme.isDark(stored) ? .dark : .light
+        shown.overrideUserInterfaceStyle = dark ? .dark : .light
         shown.isUserInteractionEnabled = false
         shown.rootViewController = host
         shown.isHidden = false
         window = shown
     }
+
+    /// The theme, private search's charcoal or the shared screen changed the
+    /// app's scheme: a window this high decides the status bar, so it is
+    /// told at once rather than keeping the one it was drawn in.
+    static func restyle(dark: Bool) {
+        self.dark = dark
+        guard let window else { return }
+        window.overrideUserInterfaceStyle = dark ? .dark : .light
+        if let host = window.rootViewController as? RibbonHost {
+            host.dark = dark
+            host.setNeedsStatusBarAppearanceUpdate()
+        }
+    }
+
+    /// The scene the ribbon was put on went away (disconnected, then a new
+    /// one connected): it goes on the live scene again.
+    static func reattach() {
+        guard !words.isEmpty else { return }
+        let live = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+        guard let live, window?.windowScene !== live || window?.isHidden != false else { return }
+        show(words, dark: dark)
+    }
+}
+
+/// The ribbon's controller: the status bar it decides is the app's.
+private final class RibbonHost: UIHostingController<AnyView> {
+    var dark = true
+    override var preferredStatusBarStyle: UIStatusBarStyle { dark ? .lightContent : .darkContent }
 }
 
 /// A window every touch goes through.

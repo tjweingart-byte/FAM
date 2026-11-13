@@ -672,7 +672,7 @@ def test_share_targets_are_keyed_as_the_server_keys_them_584():
     hand-off either way."""
     import sharing
     api = _api()
-    assert "static func serverKeyed(" in api and "static func snakeKey(" in api
+    assert "static func serverKeyed<Value>(" in api and "static func snakeKey(" in api
     assert api.count("targets = ShareTarget.serverKeyed(") == 2
     social = _swift("Views", "SocialShare.swift")
     for key in ("instagram_story", "snapchat_story"):
@@ -719,7 +719,7 @@ def test_staging_ribbon_and_demo_badge_584():
     assert "demoMode = health.demoMode" in model
     ribbon = _swift("Views", "EnvRibbon.swift")
     assert 'Text("not your episode")' in ribbon
-    assert "EnvRibbonWindow.show(words)" in _swift("FAMApp.swift")
+    assert "EnvRibbonWindow.show(words, dark:" in _swift("FAMApp.swift")
     assert "if model.demoMode {" in _swift("Views", "PlayerView.swift")
     health = TestClient(appmod.app).get("/api/v1/health").json()
     assert "mode" in health and "environment" in health

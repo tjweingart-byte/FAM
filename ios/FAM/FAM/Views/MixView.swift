@@ -800,9 +800,14 @@ struct MixView: View {
             // subject, the words, and the link made absolute (`/j/<token>`
             // may come back relative).
             let address = URL(string: link.url, relativeTo: model.api.base)?.absoluteURL
+            // The words and the link as two items, as `inviteItems` hands
+            // them: Messages and Mail draw the link as a link of its own.
             let text = "Help me build “\(link.name)” on FAM — add the topics you want to hear."
-            let shared = address?.absoluteString ?? link.url
-            shareItems = [ShareTextItem(text: text + " " + shared, subject: link.name)]
+            if let address {
+                shareItems = [ShareTextItem(text: text, subject: link.name), address]
+            } else {
+                shareItems = [ShareTextItem(text: text + " " + link.url, subject: link.name)]
+            }
         } catch {
             model.nowPlaying.say(MixesModel.sentence(error, else: "Could not make an invite"))
         }

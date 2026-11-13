@@ -95,7 +95,7 @@ extension AppModel {
         }
         if stage == .signedOut, case .join = link {
             // The web's sheet: the token waits for the sign-up or log-in.
-            nowPlaying.say("You\u{2019}ve been invited to a joint mix. Sign up or log in to add topics to it.")
+            askJoinSignIn = true
         }
     }
 
@@ -105,8 +105,19 @@ extension AppModel {
         guard stage == .ready, entry == nil, let url = pendingLink else { return }
         pendingLink = nil
         guard let link = Self.sharedLink(url) else { return }
-        // After the tabs have drawn: a presentation needs a window.
         Task { @MainActor in
+            // A phone drawn ahead (`open`) is on its tabs before the server
+            // has said who this is: the link waits for that answer, and a
+            // session that ran out holds it as for anybody signed out - a
+            // shared episode on its own screen, an invite's sheet.
+            if let who = self.whoTask { _ = await who.value }
+            guard self.stage == .ready else {
+                if self.pendingLink == nil { self.pendingLink = url }
+                if case .episode = link { self.openSharedListenIfHeld() }
+                if self.stage == .signedOut, case .join = link { self.askJoinSignIn = true }
+                return
+            }
+            // After the tabs have drawn: a presentation needs a window.
             try? await Task.sleep(nanoseconds: 350_000_000)
             switch link {
             case let .episode(id): await self.openLinkedEpisode(id)
@@ -123,7 +134,7 @@ extension AppModel {
         do {
             let share = try await api.sharedEpisode(id)
             guard !share.question.isEmpty else {
-                nowPlaying.say("This link has expired")
+                showExpiredShare(id)
                 return
             }
             Task { await self.api.shareOpened(id) }
@@ -132,8 +143,21 @@ extension AppModel {
                              title: title, surface: "share")
             play(ep)
         } catch {
-            nowPlaying.say(MixesModel.sentence(error, else: "This link has expired"))
+            if case let FAMError.refused(status, _) = error, status == 404 {
+                showExpiredShare(id)
+            } else {
+                nowPlaying.say(MixesModel.sentence(error, else: "This link has expired"))
+            }
         }
+    }
+
+    /// A dead `/s/` link for somebody let in: the listen page's own words
+    /// ("Nothing to play", "This link has expired", "Ask FAM anything…"),
+    /// on its screen, as the page draws them for anybody; the wordmark
+    /// closes it.
+    func showExpiredShare(_ id: String) {
+        showPlayer = false
+        sharedListen = SharedListen(id: id, loaded: true, expired: true)
     }
 
     /// `/m/<id>` (`openLinkedMix`): somebody else's public mix on its page;
@@ -173,8 +197,17 @@ extension AppModel {
     /// let in, the screen closes and the app takes over as before.
     func stageSettled() {
         switch stage {
-        case .signedOut, .waiting: openSharedListenIfHeld()
-        case .ready: closeSharedListen()
+        case .signedOut, .waiting:
+            openSharedListenIfHeld()
+            // An invite held since a cold start: the web's sheet on the front door.
+            if stage == .signedOut, let url = pendingLink, case .join? = Self.sharedLink(url) {
+                askJoinSignIn = true
+            }
+        case .ready:
+            // A shared episode heard on its own screen leaves no full player
+            // to open over the tabs (audit 4).
+            if sharedListen != nil || !shareQuery.isEmpty { showPlayer = false }
+            closeSharedListen()
         case .opening: break
         }
     }

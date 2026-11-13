@@ -133,6 +133,16 @@ final class AppModel: ObservableObject {
     /// The shared screen's door, for somebody signed out: the front door
     /// goes to Sign up (the waitlist join), as the page's door goes to `/waitlist`.
     @Published var askSignUp = false
+    /// A joint mix's invite (`/j/`) opened signed out: the front door asks
+    /// with the web's sheet - the invite line, Sign up, Log in.
+    @Published var askJoinSignIn = false
+    /// The shared screen is up: for somebody not let in yet, or a dead link
+    /// for anybody (listen.html's "Nothing to play"). The window's status
+    /// bar is dark over it whatever the theme.
+    var sharedListenShown: Bool {
+        guard let listen = sharedListen else { return false }
+        return stage == .signedOut || stage == .waiting || (stage == .ready && listen.expired)
+    }
     /// The shared episode's question while its audio is the player's, "" when
     /// none (as `sampleQuery`); the line under the player and how it ended.
     @Published var shareQuery = ""
@@ -154,7 +164,7 @@ final class AppModel: ObservableObject {
     static let readyKey = "fam.lastReady"
     /// This open's `/api/auth/me`: the first feed waits on it, so the two
     /// are still never asked together (the owner's call).
-    private var whoTask: Task<Bool, Never>?
+    private(set) var whoTask: Task<Bool, Never>?
     let mixes: MixesModel
     /// YourFAM: the profile, Settings and the shelves.
     let you: YouModel
@@ -310,6 +320,10 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.player.release()
+                // A shared episode or a front-door sample plays on its own
+                // screen: no full player is asked for behind it, to open
+                // over the tabs after a sign-up (audit 4).
+                if !self.shareQuery.isEmpty || !self.sampleQuery.isEmpty { return }
                 // A vibe's post plays where it sits (§547): the posts
                 // screen's own bar carries it, so no full player over it.
                 let inPlace = (self.pending?.inPlace ?? false) && self.vibePostsShowing > 0
@@ -837,6 +851,9 @@ final class AppModel: ObservableObject {
         // log-in's answer leaves `waitlist` out, so the last word on it
         // stands until `/api/auth/me` is asked again.
         let held = who.waitlisted && (waitlistOn ?? true)
+        // Let in from the front door or the status page: nothing played
+        // there opens the full player over the tabs.
+        if !held && stage != .ready { showPlayer = false }
         stage = held ? .waiting : .ready
         UserDefaults.standard.set(!held, forKey: Self.readyKey)
         if !held { stopSample() }
