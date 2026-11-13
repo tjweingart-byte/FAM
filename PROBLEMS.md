@@ -35781,3 +35781,36 @@ sweep, a moved one by the next placer answer about it.
 the errors the owner saw were not seen. Other app workers read the edits at
 their next tree reload.
 
+
+## 586. A tour of the app after sign-up (2026-11-13)
+
+**Asked.** "A tutorial for FAM when someone first opens the app. This should
+walk them through all of the features, flow smoothly (with proper animations),
+and be skippable at any time."
+
+**Built.** Rule `tour` (`docs/claude/product.md`).
+* `Tour` in `static/index.html`: twelve steps over the real screens, a
+  spotlight hole (one element, its shadow dims the rest) that glides between
+  controls, a card above or below it (over the bottom of a control too tall
+  for either, the dailyFAM feed, with the hole cut short), a progress bar
+  counted over the steps that apply, Back, Next, Skip on every card,
+  Escape / arrow keys. It pauses under any sheet or modal and resumes on the
+  same step. Optional steps (friends' vibes) are passed over when their
+  control is not drawn. Trending searches was a step and became a sentence on
+  "Ask anything": it loads only when searchFAM opens, so the count changed
+  part-way.
+* Started by `finishIntro` (owed on the device, offered when clear) and from
+  `routeFirstScreen` after a reload; "Take the tour" in Settings replays it.
+  `surveyMomentFree` waits for it.
+* `preferences.tour_done` (column added like the others), written on finish
+  or skip, read back by `/api/preferences`, so another device does not offer
+  it again. The iOS client can read the same flag.
+* `tests/test_tour_586.py`; a smoke check that it opens after the first run,
+  Next walks to searchFAM, Back goes back, a sheet pauses it, Skip lands on
+  dailyFAM and is remembered.
+* CLAUDE.md was at its budget: four lines reworded to make room, no rule
+  changed.
+
+**Not verified here.** On a phone: the card's placement with large text, and
+the feel of the glide. The preview is a guest, so Messages and yourFAM show
+their sign-up doors behind the card; an account sees its own.
