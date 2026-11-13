@@ -36697,3 +36697,49 @@ the app's; its share sheet is the one the tour already pauses under. #289,
 **Not verified here.** No Xcode in this container: the Mac build in CI
 (`.github/workflows/ios.yml`) compiles it; the glide, the card at large text
 and VoiceOver want a phone.
+
+## 606. The four failures §602/§603 left on Main, and the hedged brief call nobody paid for (2026-11-13)
+
+PR #292 (§602, §603) merged with four tests failing. One was a real bug;
+three were tests not updated.
+
+**The real bug: a hedged brief's second request was never counted.** In
+`episode_intelligence._ask` the request (`make()`) and its count
+(`metering.fold_call`) had come apart: `_hedged` sends an identical second
+request when the first is slower than `EI_HEDGE_SECONDS` on searchFAM, took
+the winner, cancelled the other, and only the winner's usage reached the
+spend. §603 wrote the under-count down as a cost; the metering rule
+("cost at spend time per listener") does not allow one, and
+`test_model_spend_481`'s structural check (a Claude request and its count in
+the same function) caught it. Now:
+
+- `make()` awaits the request and folds that answer's usage itself, so every
+  request that answers is counted where it answers - the winner as before,
+  and the one not taken too;
+- the request not taken is no longer cancelled: it has been sent and is
+  billed whether or not anyone reads it, so it is left to answer (held in
+  `_LEFT_TO_ANSWER`) and its tokens land in the same notes and the day's
+  spend. A loser that answers after the episode's ledger was written still
+  reaches the day's spend (`fold_call` -> `count_call`); only the per-episode
+  row could miss it, and losers answer within seconds of the winner;
+- a request cancelled before answering - the caller was cancelled, a
+  listener left, or the process stopped - is recorded per part in
+  `_UNANSWERED` (`/api/health` -> `episode_intelligence.unanswered`) and
+  logged, since its tokens never came back.
+
+**Tests not updated:**
+
+- `test_hermetic`: `config.py` reads `EI_FRAME_APART`, `EI_HEDGE_SECONDS`
+  and `EI_PROMPT_CACHE_TTL`; `tests/conftest.py`'s `FAM_ENVIRONMENT` now
+  clears them.
+- `test_writer_latency_270` (two tests) saw "search" asked twice. Not the
+  hedge - that fixture has no delay, and the hedge waits 6 s. It is §603's
+  framing call (`EI_FRAME_APART=1`), whose schema has no `intent`, which the
+  stub's two-way classifier labelled "search". The fourth call is intended,
+  so the stub now names `frame` (as `test_ei_split_268` does) and the tests
+  expect four parts, or three with the outline off; with
+  `EI_FRAME_APART=0` too they still assert the two parts of §268.
+
+Tests: `tests/test_hedge_metered_606.py` (the loser is counted in the same
+notes after the winner; one call is counted once; a request cancelled before
+answering is recorded).

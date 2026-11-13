@@ -1703,26 +1703,57 @@ def _note_usage(part: str, seconds: float, usage) -> None:
 _HEDGES: dict = {}
 
 
+#: Brief requests sent and then cancelled before they answered (§606), per
+#: part: their tokens never came back, so the spend cannot say what they
+#: cost - this says that they happened. A listener who leaves, or a request
+#: still running when the process stops, lands here.
+_UNANSWERED: dict = {}
+
+#: Second calls that lost the race and are left to answer (§606), held so
+#: the event loop does not drop them before their usage is counted.
+_LEFT_TO_ANSWER: set = set()
+
+
+def _note_unanswered(part: str):
+    """A done-callback: a request cancelled before answering is recorded."""
+    def done(task):
+        if task.cancelled():
+            _UNANSWERED.setdefault(part, collections.Counter())["cancelled"] += 1
+            log.info("a brief request (%s) was cancelled before it answered; "
+                     "its tokens are not known", part)
+    return done
+
+
 async def _hedged(make, after: float, part: str):
     """`make()`'s answer - and, when it has not come within `after` seconds,
     whichever of it and one identical second call answers first (§603).
 
     The same request at the same effort, so the answer is the same kind of
     answer: what it cures is a call that was slow for the service's reasons
-    (queued, a slow host), not one that thought for longer. The one not
-    taken is cancelled. When one fails the other is still waited for; only
-    both failing raises (the first's error). `after` of 0 is one call."""
+    (queued, a slow host), not one that thought for longer. When one fails
+    the other is still waited for; only both failing raises (the first's
+    error). `after` of 0 is one call.
+
+    **Every request sent is counted** (§606): `make()` folds its own answer's
+    usage into the spend, so the one not taken is not cancelled but left to
+    answer, and its tokens land in the same notes and the day's spend when
+    it does. A request cancelled before answering - the caller itself was
+    cancelled - is recorded in `_UNANSWERED`."""
     first = asyncio.ensure_future(make())
+    first.add_done_callback(_note_unanswered(part))
     if not after or after <= 0:
         return await first
     second = None
+    taken = None
     try:
         done, _ = await asyncio.wait({first}, timeout=after)
         if done:
+            taken = first
             return first.result()
         counts = _HEDGES.setdefault(part, collections.Counter())
         counts["started"] += 1
         second = asyncio.ensure_future(make())
+        second.add_done_callback(_note_unanswered(part))
         pending = {first, second}
         error = None
         while pending:
@@ -1734,12 +1765,21 @@ async def _hedged(make, after: float, part: str):
                 if task.exception() is None:
                     if task is second:
                         counts["second_won"] += 1
+                    taken = task
                     return task.result()
                 error = error or task.exception()
         raise error
     finally:
         for task in (first, second):
-            if task is not None and not task.done():
+            if task is None or task.done():
+                continue
+            if taken is not None:
+                # Already sent and billed: let it answer so it is counted.
+                _LEFT_TO_ANSWER.add(task)
+                task.add_done_callback(_LEFT_TO_ANSWER.discard)
+            else:
+                # The caller was cancelled (a listener left): stop it, and
+                # `_note_unanswered` records that it never answered.
                 task.cancel()
 
 
@@ -1786,8 +1826,8 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
              else FORMATS[part])
     began = time.monotonic()
 
-    def make():
-        return client.messages.create(
+    async def make():
+        response = await client.messages.create(
             model=settings.ei_model,
             max_tokens=settings.ei_max_tokens,
             system=ei_system(),
@@ -1797,6 +1837,10 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
             },
             messages=[{"role": "user", "content": content}],
         )
+        # Counted where it answers, not where it is taken (§606): a hedged
+        # call's loser answers too, is billed, and lands in the same notes.
+        metering.fold_call(notes, settings.ei_model, getattr(response, "usage", None))
+        return response
 
     # A second, identical call when a listener is waiting and the first is
     # slow (§603): never on the outline, which has its own grace.
@@ -1813,7 +1857,6 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
     except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis here
         return "failed", None, f"EI call failed: {exc}"
 
-    metering.fold_call(notes, settings.ei_model, getattr(response, "usage", None))
     _note_usage(part, time.monotonic() - began, getattr(response, "usage", None))
 
     # `output_config.format` guarantees valid JSON in the first text block -
@@ -2482,6 +2525,7 @@ def report() -> dict:
         "frame_apart": bool(settings.ei_split and settings.ei_frame_apart),
         "hedge_seconds": settings.ei_hedge_seconds,
         "hedges": {p: dict(c) for p, c in _HEDGES.items()},
+        "unanswered": {p: dict(c) for p, c in _UNANSWERED.items()},
         "default_recency_days": settings.ei_default_recency_days,
         "intents": list(INTENTS),
         "structures": [s for s in PICKABLE_STRUCTURES if s != "general"],
