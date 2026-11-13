@@ -6397,6 +6397,21 @@ def _shared_episode_request(request: Request) -> bool:
     path = request.url.path
     if path.startswith("/api/share/") and path.endswith("/open"):
         return True
+    # The share itself (`share_read`), which the app reads to play a
+    # `/s/<id>` link it was opened with (§575) - the web page has it in its
+    # HTML. Public by construction, and a 404 for anything that is not one.
+    if (request.method in ("GET", "HEAD") and path.startswith("/api/share/")
+            and path.count("/") == 3 and path != "/api/share/card"):
+        return True
+    # The pictures the page names in its head (§575): the link preview's
+    # JPEG and the story card. They are fetched by Messages, WhatsApp, X and
+    # the rest - none of which has an account - so behind the gate a shared
+    # link drew only its title and FAM's icon. Both are public by design and
+    # each is a 404 for any id that is not a share.
+    if request.method in ("GET", "HEAD") and (
+            path == "/api/share/card"
+            or (path.startswith("/api/share/") and path.endswith("/preview.jpg"))):
+        return True
     if path != "/api/audio":
         return False
     params = request.query_params

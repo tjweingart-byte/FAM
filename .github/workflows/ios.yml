@@ -1,0 +1,69 @@
+name: iOS build
+
+# The iPhone app compiled on a Mac for every change to it (§575). Nothing
+# else in this repository compiles Swift: build 6 failed in Xcode on a member
+# two merged branches had each declared ("Invalid redeclaration of 'stage'"),
+# after every Python check had passed. This job is that Xcode build, run
+# before the merge instead of after it. It builds what Product > Archive
+# builds - the FAM scheme, Release, for a device - without signing, which
+# needs the owner's certificate and is not what is being checked.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the project
+        working-directory: ios/FAM
+        run: xcodegen generate
+
+      - name: Build the app (FAM scheme, Release, device, unsigned)
+        working-directory: ios/FAM
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project FAM.xcodeproj \
+            -scheme FAM \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            2>&1 | tee xcodebuild.log
+
+      - name: Warnings
+        if: always()
+        working-directory: ios/FAM
+        run: |
+          # Shown, not failed on: the owner fixes warnings, but a warning is
+          # not a broken build.
+          grep -E ": (warning|error): " xcodebuild.log | sort -u | head -100 || true
+
+      - name: Keep the log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ios/FAM/xcodebuild.log

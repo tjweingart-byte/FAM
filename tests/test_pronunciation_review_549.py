@@ -133,7 +133,7 @@ def test_accepting_is_saved_as_an_admins_and_wikipedia_never_replaces_it(client,
 
 def test_four_ways_to_say_a_stressed_respelling():
     v = pronounce_review.stress_variants("JAIR-in sah-gah-poh-loo-TEH-leh")
-    assert v == {"now": "Jairin Sahgahpohlootehleh",     # §575: no hyphens
+    assert v == {"now": "Jairin Sahgahpohlootehleh",     # §576: no hyphens
                  "joined": "Jairin Sahgahpohlootehleh",
                  "accent": "jáir-in sah-gah-poh-loo-téh-leh",
                  "spaced": "Jair in sah gah poh loo Teh leh"}
