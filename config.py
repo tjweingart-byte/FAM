@@ -1224,6 +1224,13 @@ class Settings:
     # have verified the address. Nothing invents one.
     mail_from: str = field(
         default_factory=lambda: os.environ.get("MAIL_FROM", "").strip())
+    # Texts (`sms.py`, §587): Twilio, for the "you're off the waitlist"
+    # notice. TWILIO_AUTH_TOKEN is a credential, read through `credentials`.
+    # TWILIO_FROM is a +E.164 number or a Messaging Service id (MG...).
+    twilio_account_sid: str = field(
+        default_factory=lambda: os.environ.get("TWILIO_ACCOUNT_SID", "").strip())
+    twilio_from: str = field(
+        default_factory=lambda: os.environ.get("TWILIO_FROM", "").strip())
     # The length DailyFAM episodes are written and played at is
     # `BROWSE_MINUTES` (§147) - no longer a setting, because only searchFAM
     # offers a length.
@@ -1889,6 +1896,16 @@ class Settings:
     chatterbox_seeded: bool = field(
         default_factory=lambda: os.environ.get("CHATTERBOX_SEEDED", "1")
         .strip().lower() not in ("0", "false", "no", "off"))
+    # One pace for a whole episode (`pace_level.py`, the owner's 11.12
+    # notes): Chatterbox picks its own tempo per chunk, so the voice sped up
+    # and slowed down at the seams. Each chunk is stretched (WSOLA, pitch
+    # kept) towards the episode's median pace, by at most PACE_LEVEL_MAX
+    # either way, when it is further off than PACE_LEVEL_DEADBAND. `0` off.
+    pace_level: bool = field(
+        default_factory=lambda: os.environ.get("PACE_LEVEL", "1")
+        .strip().lower() not in ("0", "false", "no", "off"))
+    pace_level_max: float = _env_float("PACE_LEVEL_MAX", 0.15)
+    pace_level_deadband: float = _env_float("PACE_LEVEL_DEADBAND", 0.04)
     # Mixed into every chunk's seed. Seeding makes a bad take permanent -
     # the same sentence comes out the same way every time - so changing this
     # re-rolls every sentence at once. Blank is the default roll.

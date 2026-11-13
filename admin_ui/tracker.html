@@ -377,6 +377,7 @@
     <a href="#accounts" data-nav="accounts">Newest accounts</a>
     <a href="#agents" data-nav="agents">Agents</a>
     <a href="#keith" data-nav="keith">Keith <span class="badge" id="navKeith" hidden></span></a>
+    <a href="#egan" data-nav="egan">Egan (outreach) <span class="badge" id="navEgan" hidden></span></a>
     <div class="group">Inbox</div>
     <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
     <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
@@ -511,6 +512,29 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         <span><span class="ct-grown"></span> grown from listeners; the rest were seeded</span>
         <span id="ctOrphans"></span>
       </div>
+      <div class="wikibar" id="ctReviewBar">
+        <div><b>Fixed by another reader</b><span id="ctReviewState">Download the whole tree, give it to another reader (a Claude chat on high effort, with the prompt) and upload the edits that come back: move, remove, merge, rename or add. An upload changes nothing: each edit is listed beside the node as it stands, and only the ones you accept are made - as yours, which the sweep, the seed and the placer never undo.</span></div>
+        <button class="ghost" id="ctReviewDownload" type="button">Download tree</button>
+        <button class="ghost" id="ctReviewPrompt" type="button">Copy the prompt</button>
+        <label class="ghost button">Upload edits<input id="ctReviewFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden></label>
+      </div>
+      <details id="ctReviewPaste" class="reviewpaste">
+        <summary>Or paste the reply</summary>
+        <textarea id="ctReviewText" rows="6" placeholder="action,node,target,confidence,reason"></textarea>
+        <div class="formrow"><button class="go" id="ctReviewRead" type="button">Read edits</button></div>
+      </details>
+      <div id="ctReviewOut" hidden>
+        <div class="formrow reviewacts">
+          <span class="sub" id="ctReviewCount"></span>
+          <button class="go" id="ctReviewAcceptHigh" type="button">Accept all high confidence</button>
+          <button class="ghost" id="ctReviewClear" type="button">Close</button>
+        </div>
+        <div id="ctReviewList"></div>
+      </div>
+      <details id="ctEdits" class="reviewpaste">
+        <summary>Your edits to the tree <span id="ctEditsCount"></span></summary>
+        <div id="ctEditsList"></div>
+      </details>
     </section>
     <section class="card section">
       <h2>How Nando is graded</h2>
@@ -675,7 +699,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     <div class="page" data-page="agents" data-title="Agents" hidden>
     <section class="card section" id="agentsCard">
       <h2>Agents</h2>
-      <p class="sub">FAM's eight agents (docs/FAM_AGENTS.md): whether each is on, the model it is set to, whether its rule book is signed, and what it did and spent over the last 7 days. Read-only: an agent is switched in the deployment's settings (<b>AGENTS</b>, then its own switch), and runs only under rule books the owner signed (<b>python tools/rulebook_manifest.py --commands</b>). A fallback is any request that did not come back as an answer - the episode ran as it did before the agent.</p>
+      <p class="sub">FAM's agents (docs/FAM_AGENTS.md): whether each is on, the model it is set to, whether its rule book is signed, and what it did and spent over the last 7 days. Read-only: an agent is switched in the deployment's settings (<b>AGENTS</b>, then its own switch), and runs only under rule books the owner signed (<b>python tools/rulebook_manifest.py --commands</b>). A fallback is any request that did not come back as an answer - the episode ran as it did before the agent.</p>
       <div id="agentsLock"></div>
       <div id="agents"></div>
     </section>
@@ -713,6 +737,27 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     </section>
     </div>
 
+    <!-- Egan, the outreach agent (§588): his state, his week, the
+         communities he reads on /admin/groups, and what he drafted. -->
+    <div class="page" data-page="egan" data-title="Egan (outreach)" hidden>
+    <section class="card section">
+      <h2>Egan</h2>
+      <p class="sub">The outreach agent (docs/agent_rules/egan.md): for each community /admin/groups finds or you send him, he judges the fit, imagines three episodes and drafts a first message to its admins. He never reads about a person and never sends anything; a person does. Read-only here: he is switched on in the deployment's settings (<b>AGENTS=1</b> and <b>OUTREACH_AGENT=1</b>).</p>
+      <div id="eganState"></div>
+      <p style="margin:10px 0 0"><a href="/admin/groups">Open Communities ↗</a></p>
+    </section>
+    <section class="card section">
+      <h2>Communities</h2>
+      <p class="sub">The leads on /admin/groups by status, today's searches against the ceiling, the last search, and which sources can be asked.</p>
+      <div id="eganLeads"></div>
+    </section>
+    <section class="card section">
+      <h2>What he read lately</h2>
+      <p class="sub">The newest leads: whose words each card carries - Egan's, or code's when he could not answer, with why.</p>
+      <div id="eganRecent"></div>
+    </section>
+    </div>
+
     <div class="page" data-page="accounts" data-title="Newest accounts" hidden>
     <section class="card section">
       <h2>Newest accounts</h2>
@@ -724,7 +769,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     <div class="page" data-page="voices" data-title="Voice bank" hidden>
     <section class="card section" id="voicesCard">
       <h2>Voice bank</h2>
-      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV of a few seconds of clean speech, with the speaker's consent recorded. Silence before the first word is trimmed and a quiet recording levelled when it is added, and the page says so.</p>
+      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV or M4A (a Voice Memo) of a few seconds of clean speech, with the speaker's consent recorded. Silence before the first word is trimmed and a quiet recording levelled when it is added, and the page says so.</p>
       <div id="voiceList"></div>
       <details>
         <summary>Add a voice</summary>
@@ -732,7 +777,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           <input id="vLabel" placeholder="Name listeners see, e.g. Maya" maxlength="40" required>
           <input id="vSlug" placeholder="Id (lower-case, e.g. maya)" maxlength="40" pattern="[a-z0-9][a-z0-9_-]*" required>
           <input id="vDesc" placeholder="One line about it (optional)" maxlength="160">
-          <input id="vFile" type="file" accept=".wav,audio/wav" required>
+          <input id="vFile" type="file" accept=".wav,.m4a,audio/wav,audio/mp4,audio/x-m4a" required>
           <label class="sub"><input type="checkbox" id="vConsent" required> The speaker consented to being cloned</label>
           <label class="sub"><input type="checkbox" id="vCommercial" required> Cleared for commercial use</label>
           <label class="sub"><input type="checkbox" id="vSynthetic" required> Cleared for a synthetic voice</label>
@@ -972,8 +1017,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   }
 
   // --------------------------------------------------------------- agents
+  var agentsData = null;
   function loadAgents() {
-    return api("/api/admin/agents").then(drawAgents).catch(function () {
+    return api("/api/admin/agents").then(function (a) { agentsData = a; drawAgents(a); drawEganState(); }).catch(function () {
       $("agents").innerHTML = '<p class="sub">The agents could not be read.</p>';
     });
   }
@@ -1644,6 +1690,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (name === "overview") drawChart(series);
     if (name === "quality" && !$("main").hidden) loadQuality();
     if (name === "categories" && !$("main").hidden) loadCategories();
+    if (name === "egan" && !$("main").hidden) loadEgan();
     window.scrollTo(0, 0);
   }
   function menu(open) {
@@ -1716,6 +1763,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       }
       tick();
       if (pageName() === "quality" && !first) loadQuality();
+      if (pageName() === "egan" && !first) loadEgan();
       loadInbox();
       loadSurveys();
       loadReports();
@@ -1779,6 +1827,67 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     return '<div class="kpi"><span>' + esc(label) + '</span><b>' + esc(value) + '</b>'
       + (note ? '<em>' + esc(note) + '</em>' : '') + '</div>';
   }
+  // Egan's page (§588). His row from /api/admin/agents, and /admin/groups'
+  // own figures - the same endpoint that page reads.
+  function drawEganState() {
+    var a = agentsData;
+    if (!a) return;
+    var r = (a.agents || []).filter(function (x) { return x.role === "outreach"; })[0];
+    if (!r) { $("eganState").innerHTML = '<p class="sub">Egan is not on the roster of this server.</p>'; return; }
+    var w = r.week || {};
+    var state = r.may_run ? 'on - he reads every community' : (r.on ? 'held' : 'off - the page composes in code');
+    var models = Object.keys(r.models || {}).map(function (k) {
+      var m = r.models[k]; return esc(m.value || 'code only');
+    }).join(", ");
+    $("navEgan").hidden = !r.held;
+    $("navEgan").textContent = r.held ? "held" : "";
+    $("eganState").innerHTML = '<div class="tbl"><table><tbody>' +
+      '<tr><th>State</th><td><b>' + esc(state) + '</b>' + (r.why_not ? '<br><small style="color:var(--muted)">' +
+        esc(r.why_not) + '</small>' : '') + (r.held ? '<br><small style="color:var(--bad, #c0392b)">held: ' +
+        esc(r.held) + '</small>' : '') + '</td></tr>' +
+      '<tr><th>Model</th><td>' + models + '</td></tr>' +
+      '<tr><th>Requests (7d)</th><td>' + Number(w.requests || 0).toLocaleString() + '</td></tr>' +
+      '<tr><th>Spend (7d)</th><td>' + (w.cost_usd === null || w.cost_usd === undefined ? '-' :
+        '$' + Number(w.cost_usd).toFixed(4)) + '</td></tr>' +
+      '<tr><th>Fallbacks (7d)</th><td>' + Number(w.fallbacks || 0).toLocaleString() + '</td></tr>' +
+      '<tr><th>Last call</th><td>' + (w.last_at ? esc(new Date(w.last_at * 1000).toLocaleString()) + ' · ' +
+        esc(w.last_status) : 'never') + '</td></tr>' +
+      '</tbody></table></div>';
+  }
+  function loadEgan() {
+    drawEganState();
+    return api("/api/admin/groups?status=").then(function (g) {
+      var h = g.health || {}, c = h.counts || {}, last = h.last_run, apis = h.apis || {};
+      var labels = h.statuses || {};
+      var counts = Object.keys(labels).map(function (k) {
+        return esc(labels[k]) + ' <b>' + Number(c[k] || 0) + '</b>';
+      }).join(' · ') + ' · Set aside <b>' + Number(c.set_aside || 0) + '</b>';
+      var src = ['web search: ' + (h.available ? esc(h.detail) : 'unavailable - ' + esc(h.detail))]
+        .concat(Object.keys(apis).map(function (k) {
+          var x = apis[k] || {}; return esc(k) + ' API: ' + (x.available ? 'on' : esc(x.detail || 'off'));
+        }));
+      $("eganLeads").innerHTML = '<p>' + counts + '</p>' +
+        '<p class="sub">Searches today: <b>' + Number(h.searches_today || 0) + '</b> of ' +
+        esc(h.daily_searches) + ' · last search: ' + (last ? esc(new Date(last.at * 1000).toLocaleString()) +
+          ' (' + Number(last.kept || 0) + ' kept, ' + Number(last.set_aside || 0) + ' set aside' +
+          (last.stopped ? '; ' + esc(last.stopped) : '') + ')' : 'never') + '</p>' +
+        '<p class="sub">' + src.join(' · ') + '</p>';
+      var leads = (g.leads || []).slice().sort(function (x, y) { return (y.updated_at || 0) - (x.updated_at || 0); })
+        .slice(0, 12);
+      $("eganRecent").innerHTML = leads.length ? '<div class="tbl"><table><thead><tr><th>Community</th>' +
+        '<th>Fit</th><th>Words by</th><th>Status</th></tr></thead><tbody>' + leads.map(function (k) {
+          var his = k.drafted_by && k.drafted_by !== "code";
+          return '<tr><td><b>' + esc(k.name || k.ident) + '</b><br><small style="color:var(--muted)">' +
+            esc(k.platform) + (k.source === "sent" ? ' · sent by your team' : '') + '</small></td><td>' +
+            esc(k.fit) + '/5</td><td>' + (his ? esc(k.drafted_by) : 'code<br><small style="color:var(--muted)">' +
+            esc(k.fit_why || '') + '</small>') + '</td><td>' + esc(labels[k.status] || k.status) + '</td></tr>';
+        }).join("") + '</tbody></table></div>' : '<p class="sub">No communities yet. Search or send one on ' +
+        '<a href="/admin/groups">Communities</a>.</p>';
+    }).catch(function () {
+      $("eganLeads").innerHTML = '<p class="sub">The communities could not be read.</p>';
+    });
+  }
+
   function loadQuality() {
     return Promise.all([
       api("/api/admin/quality?days=" + encodeURIComponent($("qDays").value)),
@@ -1971,7 +2080,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   function ctRows(items, max, q, depth) {
     return items.map(function (it) {
       var n = it.n, width = n.total ? Math.max(4, Math.round(Math.sqrt(n.total / max) * 100)) : 0;
-      var grown = n.source && n.source !== "seed"
+      var grown = n.source && n.source !== "seed" && n.source !== "owner"
         ? '<span class="ct-grown" title="grown from listeners (' + esc(n.source) + ')"></span>' : "";
       var title = n.label + " - " + n.total + " episode" + (n.total === 1 ? "" : "s")
         + (n.episodes !== n.total ? " (" + n.episodes + " filed here)" : "");
@@ -2034,8 +2143,116 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
+  // §585: the tree out as a CSV, back as proposed edits, each accepted by hand.
+  var ctRvRows = [], ctRvDone = {}, ctRvErr = {};
+  var CT_VERB = { move: "Move", remove: "Remove", merge: "Merge", rename: "Rename", add: "Add" };
+  function ctRvKey(p) { return p.action + "\u0000" + p.node + "\u0000" + p.target; }
+  function ctRvSays(p) {
+    var n = '<b>' + esc(p.node) + '</b>';
+    if (p.action === "move") return n + ' <span class="faint">' + esc(p.path || p.parent) + '</span> → under <b>' + esc(p.target) + '</b>';
+    if (p.action === "remove") return n + ' <span class="faint">' + esc(p.path) + '</span> → removed' + (p.children ? ' (' + p.children + ' below it move up)' : '');
+    if (p.action === "merge") return n + ' <span class="faint">' + esc(p.path) + '</span> → into <b>' + esc(p.target) + '</b>';
+    if (p.action === "rename") return n + ' <span class="faint">' + esc(p.path) + '</span> → <b>' + esc(p.target) + '</b>';
+    return '<span class="faint">new</span> ' + n + ' under <b>' + esc(p.target) + '</b>';
+  }
+  function drawCtReview(r) {
+    if (r) {
+      ctRvRows = r.proposals || []; ctRvDone = {}; ctRvErr = {};
+      var refused = r.refused || [];
+      $("ctReviewState").textContent = ctRvRows.length + " edit" + (ctRvRows.length === 1 ? "" : "s") + " to look at" +
+        (refused.length ? ", " + refused.length + " refused: " + refused.slice(0, 5).map(function (x) { return (x.node || "line " + x.line) + " (" + x.why + ")"; }).join("; ") + (refused.length > 5 ? "…" : "") : "") + ".";
+    }
+    $("ctReviewOut").hidden = !ctRvRows.length;
+    var left = ctRvRows.filter(function (p) { return !ctRvDone[ctRvKey(p)]; });
+    var high = left.filter(function (p) { return p.confidence === "high"; }).length;
+    $("ctReviewCount").textContent = left.length + " left";
+    $("ctReviewAcceptHigh").disabled = !high;
+    $("ctReviewAcceptHigh").textContent = "Accept all high confidence (" + high + ")";
+    $("ctReviewList").innerHTML = ctRvRows.map(function (p, i) {
+      var k = ctRvKey(p), done = ctRvDone[k];
+      return '<div class="vrow sayrow reviewrow' + (done ? " done" : "") + '"><div class="sayname"><span class="srctag">' + esc(CT_VERB[p.action] || p.action) + '</span> ' +
+        ctRvSays(p) + ' ' + (p.confidence ? '<span class="conf ' + esc(p.confidence) + '">' + esc(p.confidence) + '</span>' : '<span class="conf low">no confidence given</span>') + '</div>' +
+        (p.reason ? '<span class="hardex">' + esc(p.reason) + '</span>' : '') +
+        (p.episodes ? '<span class="hardex">' + p.episodes + ' episode' + (p.episodes === 1 ? '' : 's') + ' filed there and below</span>' : '') +
+        (p.needs ? '<span class="hardex">Needs "' + esc(p.needs) + '" added first</span>' : '') +
+        (ctRvErr[k] && !done ? '<span class="hardex err">' + esc(ctRvErr[k]) + '</span>' : '') +
+        '<div class="sayacts">' + (done ? '<span class="faint">' + esc(done) + '</span>' :
+          '<button class="go tiny" type="button" data-ctrv-accept="' + i + '">Accept</button> ' +
+          '<button class="ghost tiny" type="button" data-ctrv-skip="' + i + '">Skip</button>') + '</div></div>';
+    }).join("");
+  }
+  function acceptCtReview(p) {
+    var k = ctRvKey(p);
+    return api("/api/admin/categories/edit", { action: p.action, node: p.node, target: p.target, reason: p.reason || "" })
+      .then(function (r) { ctRvDone[k] = "Done - " + (r.said || "saved") + ", as yours"; delete ctRvErr[k]; })
+      .catch(function (e) { ctRvErr[k] = "Not made: " + e.message; });
+  }
+  function readCtReview(text) {
+    $("ctReviewState").textContent = "Reading…";
+    api("/api/admin/categories/import", { csv: text })
+      .then(function (r) { drawCtReview(r); })
+      .catch(function (e) { $("ctReviewState").textContent = e.message; });
+  }
+  function loadCtEdits() {
+    return api("/api/admin/categories/edits").then(function (r) {
+      var rows = r.edits || [];
+      $("ctEditsCount").textContent = rows.length ? "(" + rows.length + ")" : "(none yet)";
+      $("ctEditsList").innerHTML = rows.length ? rows.map(function (e) {
+        return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(e.node) + '</b> <span class="faint">' + esc(e.action) +
+          (e.target ? " " + esc(e.target) : "") + '</span></div><div class="sayacts"><button class="ghost tiny" type="button" data-ct-forget="' +
+          esc(e.node) + '" title="Forget this decision: a removed phrase may grow back, a placed node may be moved again. The tree is not changed back.">Forget</button></div></div>';
+      }).join("") : '<p class="sub">Nothing yet.</p>';
+    }).catch(function () {});
+  }
+  $("ctReviewDownload").addEventListener("click", function () {
+    var b = $("ctReviewDownload"); b.disabled = true;
+    fetch("/api/admin/categories/export", { credentials: "same-origin" }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var name = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "fam-categories.csv";
+      return r.blob().then(function (blob) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      });
+    }).catch(function (e) { $("ctReviewState").textContent = "The tree could not be downloaded: " + e.message; })
+      .then(function () { b.disabled = false; });
+  });
+  $("ctReviewPrompt").addEventListener("click", function () {
+    api("/api/admin/categories/review-prompt").then(function (v) {
+      var done = function () { $("ctReviewPrompt").textContent = "Prompt copied"; setTimeout(function () { $("ctReviewPrompt").textContent = "Copy the prompt"; }, 2500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(v.prompt).then(done);
+      $("ctReviewText").value = v.prompt; $("ctReviewPaste").open = true; $("ctReviewText").select();
+    }).catch(function (e) { $("ctReviewState").textContent = e.message; });
+  });
+  $("ctReviewFile").addEventListener("change", function () {
+    var f = $("ctReviewFile").files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () { readCtReview(String(reader.result || "")); $("ctReviewFile").value = ""; };
+    reader.readAsText(f);
+  });
+  $("ctReviewRead").addEventListener("click", function () { readCtReview($("ctReviewText").value); });
+  $("ctReviewClear").addEventListener("click", function () { ctRvRows = []; drawCtReview(); loadTree(); loadCtEdits(); });
+  $("ctReviewAcceptHigh").addEventListener("click", function () {
+    var high = ctRvRows.filter(function (p) { return p.confidence === "high" && !ctRvDone[ctRvKey(p)]; });
+    if (!high.length || !confirm("Make " + high.length + " high-confidence edit" + (high.length === 1 ? "" : "s") + " to the tree? They are kept as yours: nothing that grows the tree undoes them.")) return;
+    $("ctReviewAcceptHigh").disabled = true;
+    high.reduce(function (chain, p) { return chain.then(function () { return acceptCtReview(p); }); }, Promise.resolve())
+      .then(function () { drawCtReview(); loadTree(); loadCtEdits(); });
+  });
+  $("ctReviewList").addEventListener("click", function (ev) {
+    var t = ev.target, i;
+    if ((i = t.getAttribute("data-ctrv-accept")) != null) { t.disabled = true; acceptCtReview(ctRvRows[+i]).then(function () { drawCtReview(); loadTree(); loadCtEdits(); }); return; }
+    if ((i = t.getAttribute("data-ctrv-skip")) != null) { ctRvDone[ctRvKey(ctRvRows[+i])] = "Skipped"; drawCtReview(); }
+  });
+  $("ctEditsList").addEventListener("click", function (ev) {
+    var n = ev.target.getAttribute("data-ct-forget");
+    if (n == null) return;
+    api("/api/admin/categories/edits/" + encodeURIComponent(n), null, "DELETE").then(loadCtEdits);
+  });
+
   function loadCategories() {
     loadTree();
+    loadCtEdits();
     return Promise.all([api("/api/admin/categories"), api("/api/admin/categories/queue?limit=20")])
       .then(function (got) { drawCategories(got[0]); drawCatQueue(got[1].episodes || []); })
       .catch(function (e) { $("catKpis").innerHTML = '<p class="sub">Could not load: ' + esc(e.message) + '</p>'; });
@@ -2343,6 +2560,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         var m = r && r.mastered;
         if (m) {
           var did = [];
+          if (m.converted) did.push("converted it to WAV");
           if (m.trimmed_seconds > 0) did.push("trimmed " + m.trimmed_seconds.toFixed(1) + "s of silence from the start");
           if (Math.abs(m.gain_db) >= 0.5) did.push((m.gain_db > 0 ? "raised" : "lowered") + " the level " + Math.abs(m.gain_db).toFixed(0) + " dB");
           $("vNote").textContent = "Added " + r.voice.label + (did.length ? " - " + did.join(" and ") + "." : ".");

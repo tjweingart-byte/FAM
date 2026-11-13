@@ -416,6 +416,9 @@ class AccountStore:
                 # this account's link. Set once and never cleared, so a
                 # friend deleting their account cannot take it back.
                 "ALTER TABLE accounts ADD COLUMN free_month_earned_at REAL NOT NULL DEFAULT 0",
+                # §587: the code in the "you're off the waitlist" notice's
+                # free-month claim link, minted when the account is let in.
+                "ALTER TABLE accounts ADD COLUMN claim_code TEXT NOT NULL DEFAULT ''",
             ):
                 try:
                     conn.execute(ddl)

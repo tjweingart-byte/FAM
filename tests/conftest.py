@@ -142,6 +142,7 @@ FAM_ENVIRONMENT = (
     "PUSH_BREAKING", "PUSH_BREAKING_FOLLOWED_OUTLETS", "PUSH_BREAKING_EVERYONE_OUTLETS",
     "PUSH_BREAKING_RATIO", "PUSH_FINALS",
     "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "MAIL_FROM",
+    "TWILIO_ACCOUNT_SID", "TWILIO_FROM",
     "DAILY_EDITION_MAX_EPISODES",
     "DAILY_EDITION_MAX_DOLLARS", "DAILY_EDITION_RETRY_SECONDS",
     # Dormancy, concurrency, the in-progress window and the rails edition (§359).
@@ -421,11 +422,11 @@ def pytest_collection_modifyitems(config, items):
 def close_database_connections(request, tmp_path):
     """With DATABASE_URL set (CI's Postgres job, §243), after each test:
     close the pool's connections (idle ones now, ones a thread the test left
-    running still holds when it gives them back - never under it, §585), and
+    running still holds when it gives them back - never under it, §593), and
     drop the schemas of the stores the test made in its own directory
     (`pytest_runtest_protocol` below). Kept, a run left a hundred thousand
     schemas, and everything that walks the catalogue got slower test by test
-    (§585). A no-op on SQLite."""
+    (§593). A no-op on SQLite."""
     request.node._fam_store_dir = str(tmp_path)
     yield
     import db
@@ -437,7 +438,7 @@ def close_database_connections(request, tmp_path):
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
     """The test's schemas go once pytest has let go of its fixtures' values,
-    so only stores nothing can reach any more are dropped (§585): one a
+    so only stores nothing can reach any more are dropped (§593): one a
     module reloaded during the test still holds is kept for the tests after."""
     yield
     import db
@@ -449,7 +450,7 @@ def pytest_runtest_protocol(item, nextitem):
 
 @pytest.fixture(autouse=True)
 def a_test_is_a_request():
-    """The test is the person waiting (§585): its own statements are never
+    """The test is the person waiting (§593): its own statements are never
     held to the share background work gets (§574), as a request's are not.
     Threads the code under test starts are still background, as they are in
     production."""

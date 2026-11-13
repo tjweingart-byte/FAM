@@ -1383,17 +1383,25 @@ struct SharedLink: Decodable {
     /// The story card (`/api/share/card?share=`), absolute where the server
     /// knows its own address, else a path on it.
     let card: String?
+    /// The player card a FAM link makes in Messages, for a story (11.12
+    /// notes): alone as a PNG sticker (`/api/share/<id>/sticker.png`) and
+    /// centred on a 9:16 JPEG (`story.jpg`). Absent from an older server,
+    /// which keeps `card`.
+    let storySticker: String?
+    let storyImage: String?
     /// False when the server has no public address: the link only works
     /// on its own network.
     let `public`: Bool?
 
-    enum CodingKeys: String, CodingKey { case url, targets, card, `public` }
+    enum CodingKeys: String, CodingKey { case url, targets, card, storySticker, storyImage, `public` }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         url = try c.decode(String.self, forKey: .url)
         targets = ShareTarget.serverKeyed(try c.decodeIfPresent([String: ShareTarget].self, forKey: .targets))
         card = try c.decodeIfPresent(String.self, forKey: .card)
+        storySticker = try c.decodeIfPresent(String.self, forKey: .storySticker)
+        storyImage = try c.decodeIfPresent(String.self, forKey: .storyImage)
         `public` = try c.decodeIfPresent(Bool.self, forKey: .`public`)
     }
 }
@@ -1783,6 +1791,24 @@ extension FAMAPI {
             throw FAMError.unreadable
         }
         return text
+    }
+
+    /// A share's drawn picture (`/api/share/<id>/sticker.png`, `story.jpg`),
+    /// from the address the share answer gave; only to this server.
+    func shareImage(_ address: String) async throws -> Data {
+        guard let url = URL(string: address, relativeTo: base)?.absoluteURL else { throw FAMError.unreadable }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue(Self.client, forHTTPHeaderField: "X-FAM-Client")
+        if url.host == base.host, let token {
+            req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await readPaced(req)
+        try Self.check(response, data)
+        // A PNG or a JPEG, not a page of words.
+        let head = [UInt8](data.prefix(2))
+        guard head == [0x89, 0x50] || head == [0xFF, 0xD8] else { throw FAMError.unreadable }
+        return data
     }
 
     /// What an episode is about, as a mix topic (`/api/episode/topic`).

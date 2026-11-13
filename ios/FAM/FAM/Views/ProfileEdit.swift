@@ -595,7 +595,7 @@ struct IdentityView: View {
 
     private var placeBlock: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FieldLabel(text: "Where you are")
+            FieldLabel(text: "Where you are", optional: true)
             TextField("", text: $city, prompt: Text("City").foregroundColor(FAMColor.textFaint))
                 .textContentType(.addressCity)
                 .youInput()

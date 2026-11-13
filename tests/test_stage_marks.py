@@ -37,7 +37,7 @@ WRITER_THINKING = 0.25
 SHORTEST_STEP = min(BRIEF_DELAY, RETRIEVAL_DELAY, WRITER_THINKING)
 
 class _Clock:
-    """The episode's clock for these tests (§585): it moves only when a stub
+    """The episode's clock for these tests (§593): it moves only when a stub
     "waits", by exactly what it waits. On the wall clock a loaded runner made
     a 0.30s brief read 0.42s (CI, on SQLite) and 0.69-0.79s (on Postgres),
     from the scheduler and the real code inside the span - neither is what

@@ -35746,7 +35746,366 @@ window really yields the status bar. Tests: eight `..._584` tests in
 `tests/test_ios_app_contract.py`, three in `test_message_friends_575.py`,
 one in `test_client_contracts.py`.
 
-## 585. The Postgres job's slowdown was the test run's own catalogue (2026-11-13)
+## 585. The category tree out to another reader and back (2026-11-13)
+
+**Asked.** The owner looked at the tree on /admin's Categories page for the
+first time and found clear errors. They wanted to download it, have a
+different Claude chat (on high effort) correct it, and upload the result -
+the way pronunciations already go out and come back (§549).
+
+**The catch.** The tree is not a file: it is grown. The seed is minted at
+every boot, the sweep mints what listeners searched for and the writer's
+words, the placer reparents what it mints, and prune drops what went quiet.
+A fix written straight into the `categories` table would be undone - a
+removed seed node is back at the next boot, a removed grown one at the next
+sweep, a moved one by the next placer answer about it.
+
+**Built.**
+* `category_review.py`: `export_csv` (every node with its path, parent,
+  depth, children, source, episodes there and below, listeners, owner edit),
+  `PROMPT`, `read_upload` (proposals in file order, so an add precedes the
+  moves under it; refusals in words; a chat's code fence and prose stripped)
+  and `apply`.
+* `categories.py`: a `category_owner` table and `owner_add/move/remove/
+  rename/undo`. `mint` refuses a removed or merged phrase from any source but
+  the owner; `apply_paths` leaves owner-placed nodes; `prune` keeps them;
+  merged phrases become aliases; `apply_owner` (run by `apply_seed`) restores
+  owner adds and placements after a wipe or on a fresh database.
+* `/api/admin/categories/export`, `/review-prompt`, `/import`, `/edit`,
+  `/edits` (GET, DELETE one) and the panel under the tree: Download tree,
+  Copy the prompt, Upload edits (or paste), Accept / Skip / Accept all high
+  confidence, and "Your edits to the tree" with Forget.
+* `tests/test_category_review_585.py`.
+
+**Not verified here.** No real tree: this container has the seed only, so
+the errors the owner saw were not seen. Other app workers read the edits at
+their next tree reload.
+
+
+## 586. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13)
+
+The owner recorded a reference in Voice Memos and /admin's Voice bank would
+not take it: the file picker said `.wav` only and `check_recording` reads
+with the stdlib `wave` module. Converting on the admin's own machine
+(`afconvert`) is a step nobody should need for the format a phone records.
+
+`voice_bank.to_wav` decodes anything that is not a RIFF/WAVE header with
+PyAV - already a dependency for kept audio (§237), and its wheel carries the
+AAC decoder, so the image still needs no ffmpeg - to 16-bit mono PCM at the
+recording's own rate. `prepare_upload` runs it before mastering (§328), so a
+converted memo is trimmed and levelled like any WAV, and `mastered.converted`
+tells the page, which says "converted it to WAV". A WAV is still kept byte
+for byte. The input is capped at `MAX_REFERENCE_BYTES` before decoding and
+decoding stops past it, so a long file is refused as too long rather than
+filling memory. Without PyAV, or for bytes that are not audio, the upload is
+refused as before, now naming both formats ("not a WAV or M4A file").
+
+The picker accepts `.wav,.m4a`. The server decodes any format PyAV reads; the
+page names only the two that have been tried. Tests: three in
+`tests/test_voice_drift_176.py` (an AAC .m4a built with PyAV, one opening in
+silence, junk refused).
+
+## 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13)
+
+**Asked:** "Are people emailed when they get let off the waitlist right
+now? If they're not, they need to be notified (and if their phone number is
+in they should be texted) ... with a link to claim a free month." Then: "The
+free trial should start when the real app is published, it should not apply
+to the beta version." Only grants from now on are told (the owner chose not
+to message people already let in).
+
+**Found:** no. `Waitlist.grant` flipped `status`, stamped
+`access_granted_at` and queued Viral Loops' `flag`; nothing reached the
+person. Nothing in FAM could send a text at all (a phone number was a
+sign-in name, unverified).
+
+**Built:**
+- `grant(..., notify=True)` mints `accounts.claim_code` and queues
+  `notify_email` / `notify_sms` - whichever the account has - in
+  `waitlist_outbox`. `app._admit_admin` passes `notify=False`.
+- `due(actions=...)`: Viral Loops' drain reads `VENDOR_ACTIONS` only (its
+  `_drain` marked any unknown action done, so without this it would have
+  swallowed the notices); `waitlist_notify.drain` reads `NOTIFY_ACTIONS`.
+- `sms.py`: Twilio's REST API over httpx, mail.py's shape - `status()` says
+  what is missing, `report()` in `/api/health` as `sms`, the number never in
+  an error, `TWILIO_AUTH_TOKEN` a paid credential `spend_guard` removes.
+- `waitlist_notify.py`: the email ("You're off the FAM waitlist") and the
+  text, each with `<base>/claim/<code>`, worded from `free_month_starts`
+  ("starts the day the full FAM app is published" until it is set, then the
+  date). A failed or unconfigured send is `mark_failed` and retried on
+  `RETRY_DELAYS` (hourly at the tail) - never dropped, counted in
+  `outbox_summary` on /admin. Drained right after an admin grant
+  (`_kick_notices`) and every five minutes (`_drain_notices_forever`).
+- `GET /claim/<code>`: stamps `free_month_earned_at` once (the stamp five
+  friends earn, §577), so the month is plus for 30 days from the launch day
+  and nothing during the beta; a page says so with an Open FAM button. Open
+  past the gate (it is opened from a mail app or a text); 404 for a code that
+  names nobody. A mail scanner that opens the link claims it for its owner,
+  which is harmless.
+
+**To switch on in production:** SMTP is already the reset's (`SMTP_HOST`,
+`MAIL_FROM`, `SMTP_PASSWORD`). Texts need `TWILIO_ACCOUNT_SID`,
+`TWILIO_FROM` and `TWILIO_AUTH_TOKEN` in the dashboard (US numbers also need
+Twilio's A2P 10DLC registration). Until then texts wait in the outbox.
+
+**Checked again before merging** (the owner: "double check all changes"):
+- Two drains could overlap - the one a grant kicks and the five-minute timer
+  - and read the same due rows, sending one notice twice. `drain` now takes
+  a per-process lock and a second drain returns at once.
+- `outbox_summary` counted notices as "Viral Loops call(s) waiting" on
+  /admin/waitlist. It now takes `actions`; the page has its own lines for
+  let-in notices, and says when mail or texts cannot send and why.
+  `/api/health` has `waitlist.notices_pending`.
+- The text ends "Reply STOP to opt out." and is one SMS segment.
+- The claim link always names `PUBLIC_BASE_URL` or `APP_HOME_URL`, never the
+  host an admin granted from; `claim_code` is indexed.
+- Numbered §587: §585 and §586 went to the category tree review and the voice bank on `Main` meanwhile.
+
+**Tests:** `tests/test_waitlist_notify.py`.
+
+
+## 588. Egan has his own section on /admin (2026-11-13)
+
+**What was asked.** The owner: "Where can I see Egan in the admin page, he
+should have his own section". He was a row in the shared Agents table and,
+for his work, the separate `/admin/groups` page.
+
+**What was built.** `/admin` → Tracker → **Egan (outreach)**, beside
+Keith's: his state (on, off or held, and why - "off - the page composes in
+code" until `AGENTS=1` and `OUTREACH_AGENT=1`), his model and his week
+(requests, spend, fallbacks, last call), from `/api/admin/agents`'s row for
+`outreach`; the communities by status, today's searches against the
+ceiling, the last search and which sources can be asked, and the newest
+leads with whose words each card carries - Egan's, or code's with why -
+from `/api/admin/groups`, the endpoint the Communities page reads. A link
+opens Communities. Read-only, like Keith's page. The Agents panel no
+longer says "eight agents".
+
+**Tests:** `tests/test_egan_580.py`
+(`test_he_has_his_own_section_on_the_admin_page`).
+
+## 589. The iPhone crashed as the date of birth was tapped (2026-11-13)
+
+**Seen.** A screen recording of "A few things before you start" on the
+iPhone: town typed with the keyboard up, Woman picked, then a tap toward the
+date of birth (still today's date, never set). The keyboard dropped, the card
+jumped from the top of the screen to its middle, and iOS said "FAM by APALI
+Crashed". Continue was still off, so nothing reached the server.
+
+**Why (reasoned from the code, no crash log).** `ActivationCard` drew its
+form through `ViewThatFits(in: .vertical) { form; ScrollView { form } }` - two
+copies, each with its own `DatePicker`. With the keyboard up the scrolling
+copy was showing. The tap took focus from the town box, the keyboard began
+to leave, and the compact picker began to present its calendar popover; the
+card then fitted again and SwiftUI swapped in the plain copy, removing the
+picker the popover was anchored to. UIKit raises on a popover whose source
+view has left the window.
+
+**Built.**
+* `ScrollsWhenTall` (`SocialParts.swift`): one `ScrollView` holding one
+  copy of the content, held to its measured height,
+  `.scrollBounceBehavior(.basedOnSize)`: it hugs the content when it fits
+  and scrolls when it does not, and nothing is ever swapped out from under
+  the picker. The activation card and What's next (whose search box lost
+  focus the same way when the keyboard came up) both use it.
+* Until a date is picked the field reads "Select your birthday" rather than
+  showing today as though it were an answer. The picker stays under the
+  words at 0.02 opacity (UIKit ignores taps below 0.01) so a tap still opens
+  its calendar; VoiceOver hears "Date of birth, Not set".
+
+**Not verified here.** No Xcode in this container: not built, not run. To
+check on a phone: open the card, type in the town box, then tap the date. The
+same for What's next: type in its search box on a small phone. The two-copy
+`ViewThatFits` remains only in `SearchParts.swift` (the consent card:
+buttons, no inputs).
+
+## 590. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13)
+
+**What was asked.** A PDF of notes, "Some smaller things", built on a
+listener's messages: "Location should be optional and not required, make
+sure the forgot password works, and make sure pacing works as well"; the
+message box's Enter "only does enter, which is a design flaw"; "every time a
+message is sent and you click on the notification, it opens up a new message
+tab of the same tab", so the back arrow went back into the same chat once per
+tap; the "FAM" on a shared link's picture should be "the actual FAM logo. But
+keep it in the box"; and Instagram and Snapchat stories "should paste in the
+player card that is sent over text or when you copy the link", with the two
+story buttons not working on the app.
+
+**The place.** It was never required - `ActivationRequest` takes the city as
+optional, the identity step's save sends it beside the name, and the waitlist
+form already says "(Optional)" - but the activation card ("A few things before
+you start") drew "Where you live" and "Gender" under the same labels as the
+required date of birth, and the identity step's "Where you are" likewise; only
+a help line under each said so, last. Each label now carries "optional"
+(`.auth-opt` on the web, `FieldLabel(optional:)` on the iPhone), the same mark
+the phone number has. The date of birth stays required (§411, decision 1). No
+screen asks the phone's location permission at all: the app has no
+CoreLocation, and the place is typed.
+
+**Forgot password.** The listener's own message says "The forgot password
+finally works" (§571/§584 fixed it). Nothing changed here.
+
+**Return sends** (reversing §142's "return is a new line" at the owner's
+direction). Web: `#threadInput` sends on Enter without Shift and not while an
+input method is composing; Shift+Enter is the new line; `enterkeyhint="send"`;
+an empty box does nothing (`sendThreadMessage` already returns). iPhone: a
+vertical `TextField` takes Return as a newline and never calls `onSubmit`, so
+`ChatView.returnPressed` spots one typed "\n" (exactly one character more,
+nothing else changed, wherever the caret was), puts the draft back as it was
+and sends; a pasted block keeps its lines; `.submitLabel(.send)`. The smoke
+run and `test_second_packet_142` now say so; PARITY.md's row too.
+
+**One chat per banner** (iPhone only - the web has one screen, not a stack).
+`SocialModel.open` pushed a `.thread` on whichever stack was shown every time,
+so three taps on a friend's banner while their chat was open made three
+copies of it. `returnToThread` now looks for that conversation (by `with`) on
+the shown stack - the cover's root and path, or the Messages tab's path - and
+pops back to it instead of pushing.
+
+**The logo on the link picture** (`link_preview`, §559). The badge typed
+"FAM" in Bricolage; it now draws the wordmark - F, the chevron A that is the
+mark, M - from the same strokes as `FAMLetters` / `.wm-f` / `.wm-a`, round
+caps and joins, four times over and shrunk, centred in the unchanged dark
+plate (`BADGE`). The no-picture cover's "FAM" is the drawn wordmark too.
+Messages keeps a link's preview on the phone, so an old bubble shows the old
+badge; a new share shows the new one.
+
+**The player card in a story.** The story tiles drew `sharing.story_card` -
+the words-only 9:16 SVG in the screenshot - while the picture a link makes in
+Messages is §559's preview with the title and the site under it. The server
+now draws that card itself (`link_preview.card`): the preview square, a light
+strip with the title (two lines at most) and the host, rounded, clear outside.
+`GET /api/share/<id>/sticker.png` is the card alone; `/story.jpg` is it
+centred on 1080x1920, the picture blurred and darkened behind it (FAM's
+ground and glow without one). Both kept briefly with the preview
+(`_share_drawing`), public like it (the waitlist gate's list), and named in
+`/api/share`'s answer as `story_sticker` and `story_image` - new fields, so
+installed builds keep `card`. The iPhone fetches them (`FAMAPI.shareImage`)
+and hands Instagram the card as a **sticker**
+(`com.instagram.sharedSticker.stickerImage`, on FAM's ground colours) the
+person can move and size, Snapchat the whole story; a mix, or an older
+server, still draws the SVG. The web's story share sends `story.jpg`.
+
+**"The buttons don't work on the app."** The screenshot shows Instagram's
+"pasted from FAM" banner, so Instagram's hand-off did run there; what it
+carried was the old card. Where there is no hand-off - `INSTAGRAM_APP_ID` /
+`SNAPCHAT_CLIENT_ID` unset, or a Snap Development id posting for someone who
+is not a Demo User (§558) - the share sheet was given the picture *and* the
+words, and some apps' share extensions refuse that pair. It now gets the
+picture alone, with the words on the clipboard ("Your words are on the
+clipboard - paste them in"). Both ids are now listed in `render.yaml`
+(`sync: false`) so the dashboard asks for them; `/api/health` ->
+`sharing.story_handoffs` says which are on.
+
+**One pace** (`pace_level.py`). Chatterbox has no rate control and an
+episode is voiced a chunk at a time, each chunk sampling its own tempo -
+seeding (§176) fixes a sentence's take, not two chunks' speed - so the voice
+sped up and slowed down at the seams. Each chunk's rate is measured (letters
+handed to the voice per second from the first voiced 20 ms frame to the last)
+and, against the episode's own median so far, stretched toward it with WSOLA
+(40 ms Hann windows at half-window spacing, each placed within 8 ms where it
+best continues the last; pitch unchanged, [speed-pitch]) when it is more than
+`PACE_LEVEL_DEADBAND` (4%) off, by at most `PACE_LEVEL_MAX` (15%). The first
+chunk is never touched; chunks under 1.2 s or 20 letters are not measured. It
+runs in `PodcastPipeline` straight after `synth`, before anything is measured,
+so captions, the budget and kept audio are the levelled audio; only engines
+with `levels_pace` (Chatterbox local and remote) - espeak, say and the tone
+never. About 17 ms for a ten-second chunk. `PACE_LEVEL=0` turns it off. This
+is not the speeding-up §3/§4 decided against: no chunk is hurried to fit a
+budget; each is moved toward the episode's own pace. **Unheard** - no voice
+here; the listening test is whether the seams are gone and whether a 10-15%
+stretch is audible.
+
+**Not changed: "Didn't know how to say Nvidia".** §567, §569 and §576 changed
+NVIDIA's voicing after that message may have been heard; if it is still
+wrong on a new episode, the /admin lexicon entry §569 warned about is the
+first thing to check.
+
+**Double-checked** by a second reader of the Swift, with no compiler: one
+real error - the Return check was called as `ChatView.returnPressed`, but the
+screen is `ChatScreen` - now `Self.returnPressed`; everything else
+(the closures in `returnToThread`, the share sheet's captures, the
+snake_case keys under `.convertFromSnakeCase`, `FieldLabel`'s init) checked
+out. Known edge, left: if the keyboard's autocorrect swaps the last word and
+inserts the Return in one update, the Return stays a new line rather than
+sending. Numbered §590: §588 and §589 went to Egan's /admin page and the
+date-of-birth crash on `Main` meanwhile.
+
+**Unbuilt here:** the Swift (no compiler; `ios.yml` builds it on a Mac).
+**Tests:** `tests/test_owner_notes_1112.py`.
+
+## 591. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13)
+
+**The owner, 11.13:** "for the myFAM loading screen, it should have the
+thumbnail of the episode and name of the category they selected on the
+loading screen. Right now it is just the name of the category and not the
+thumbnail. It should not be the episode's title, it should be the thumbnail
+and category."
+
+The glide's cards (§509) were text: a number and the topic's name. Since
+§570 the line under the row read `TOPICS[key].title`, which `playMixItem`
+now sets to today's episode title once the edition has written it - so the
+loading screen named the episode, not the topic.
+
+**Now** each card is the item's `picture` (§545's `_mix_pictures`, the
+player's own picker, so the card, the mix's row and the player agree) in a
+4:3 frame, then the number (with Played or Skipped), then the topic's name
+(`item.title`, two lines at most). With no approved picture the frame is the
+plain surface. The line under the row is the current item's topic too. The
+player and the mix's rows keep the episode title (§570); only the loading
+screen changes. `playMixItem` passes the item (`loaderItem`) so a single
+episode played from somebody else's mix draws its picture as well.
+
+iOS matches: `LoadingModel.Glide.pictures` (from `api.picture(item.picture)`
+in both places a glide is built) and `GlideView`'s card draws it above the
+topic; its line under the row already used the topic. Not built here - no
+Swift toolchain in this container; the Mac build in CI compiles it.
+
+## 592. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13)
+
+The owner reopened §509's choice for DailyFAM and asked for a new set of
+options. A twelve-slide deck (Slides artifact, each option playing live in a
+phone) offered six: Picture Develop, Hook Card, Friends Gather, Edition
+Stack, Broadcast Rings, Living Mark, against today's Tuning Dial. **The
+owner's pick: "Default to 1, but do three if friends have listened as
+well."**
+
+**Now** `startBankTopic` (a tile on the rails, View more and Play all) and
+`playNotifiedStory` set `loader: "daily"`, and `paintLoadingVariant("daily")`
+draws, under the §542 FAM mark and the "DAILYFAM · {rail}" kicker:
+
+- *No friends:* the tile's `thumb` in a 4:3 frame that comes into focus from
+  `blur(16px) grayscale(1)` over 2.4 s, a light band sweeping across it every
+  1.6 s (`famDevelop`, `famDevSheen`).
+- *Friends listened* (the tile's own `friendKeys`, resolved in
+  `FRIEND_FACE_BOOK` - mutual friends only, as on the card and the player):
+  the picture sharp, up to three faces (`friendFaceHtml`) flying in to its
+  bottom-left corner, staggered, and a line under it built by
+  `friendsListenedLine`: "Maya listened", "Maya and Jordan listened",
+  "Maya, Jordan and 4 others listened".
+
+Then the title and "Getting your episode ready", as before. A story opened
+from a notification has no tile: it develops onto the player's own picture,
+asked once from `/api/episode/card` and dropped if the screen has moved on,
+and never gathers faces (asking `/api/listened` mid-wait would swap screens
+under the listener). Nothing about holding is new: no steps, the audio never
+waits for the animation, a ready episode shows the first 0.45 s.
+
+The dial is gone: its CSS (`.fam-dial*`), `dialWord` and
+`LOADING_DIAL_NEIGHBOURS` are removed from the web. iOS: `DialView` is
+replaced by `DailyLoadingView`; `LoadingModel.Dial` keeps its name in the
+plumbing but now carries the picture, the faces and the line, built by
+`AppModel.dial(for:)` from `tile.thumb` and `nowPlaying.tileFriends`
+(`friendsListenedLine`, as the web's). `dialWord` goes on iOS too: nothing
+else called it. **Not compiled here** - no Swift
+toolchain in this container; the Mac CI build is its first compile.
+
+**Tests:** the smoke check now plays a tile with no friends (develops) and
+the same tile with two named friends of five (gathers, "Maya, Jordan and 3
+others listened").
+
+## 593. The Postgres job's slowdown was the test run's own catalogue (2026-11-13)
 
 **What was asked.** CI's Postgres job went from about two hours to 4h07m
 and slowed as it ran, ending `1 failed, 7272 passed, 68 skipped, 1 error`
@@ -35822,7 +36181,7 @@ catalogue it walks either way.
    every bound in the file is kept, and a stubbed wait moved outside its
    span still shows up as `unaccounted`. The tolerance is not widened.
 
-**Tests:** `tests/test_db_tests_585.py` (the pool with faked dialling; three
+**Tests:** `tests/test_db_tests_593.py` (the pool with faked dialling; three
 against a real Postgres); `tests/test_stage_marks.py` on its own clock;
 `test_every_http_request_is_marked_as_one` now
 checks the app leaks no mark from a context of its own.

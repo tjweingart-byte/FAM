@@ -62,6 +62,10 @@ class TTSEngine(ABC):
     keeps_audio = False
     #: Rate the engine speaks at with default settings, used to derive scales.
     nominal_wpm = 165.0
+    #: Whether each chunk's pace is levelled to the episode's (`pace_level`):
+    #: only an engine with no rate control of its own, whose chunks each
+    #: settle on their own tempo - Chatterbox, here or on a worker.
+    levels_pace = False
 
     @abstractmethod
     async def synth(self, text: str, wpm: float, voice: str | None = None) -> bytes:
@@ -403,6 +407,7 @@ class ChatterboxEngine(TTSEngine):
     """
 
     name = "chatterbox"
+    levels_pace = True
     keeps_audio = True
     #: The rate the model emits at. Read back from the model once loaded, but
     #: needed before that for the stream header on the very first chunk.

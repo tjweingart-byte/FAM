@@ -26,7 +26,7 @@ import sqlite3
 import threading
 import time
 from contextlib import asynccontextmanager
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from collections import OrderedDict, defaultdict, deque
 from typing import Annotated, Optional, Union
 
@@ -110,6 +110,8 @@ from paths import PROJECT_ROOT
 import mixes as mixes_mod
 import topic_title
 import mail as mail_mod
+import sms as sms_mod
+import waitlist_notify
 import push as push_mod
 import push_stories
 import listener_clock
@@ -886,6 +888,8 @@ async def lifespan(_: FastAPI):
     # is retried here. A no-op with no token, which is every staging deploy.
     if VIRAL_LOOPS.configured:
         _BACKGROUND.add(asyncio.create_task(_drain_viral_loops_forever()))
+    # "You're off the waitlist" notices (§587): email and text, retried here.
+    _BACKGROUND.add(asyncio.create_task(_drain_notices_forever()))
     # Kept audio's week (§237): keep what is saved, shared or vibed, delete
     # the rest, and say whether the bucket really answers - with a write, a
     # read and a delete, never by looking at the settings.
@@ -919,7 +923,8 @@ async def lifespan(_: FastAPI):
 
     incidents.restartable(_gdelt.run_forever, local_news_mod.run_forever,
                           weather_mod.run_forever, _refresh_stories_forever,
-                          _drain_viral_loops_forever, _sweep_audio_forever)
+                          _drain_viral_loops_forever, _drain_notices_forever,
+                          _sweep_audio_forever)
     yield
     # Loops that live as long as the process end with it, rather than being
     # destroyed pending when the event loop closes under them.
@@ -2388,7 +2393,10 @@ def _health_report(request: Request) -> dict:
         # and whether the vendor is being told.
         "waitlist": {"gate": settings.waitlist,
                      "viral_loops": VIRAL_LOOPS.configured,
-                     "outbox_pending": WAITLIST.outbox_summary()["pending"]},
+                     "outbox_pending": WAITLIST.outbox_summary()["pending"],
+                     # Let-in emails and texts still waiting (§587).
+                     "notices_pending": WAITLIST.outbox_summary(
+                         waitlist_mod.NOTIFY_ACTIONS)["pending"]},
         "voice_store": VOICE_STORE["dir"],
         # Where pictures live (§330): the bucket, or inline in their rows.
         "images": {**image_store.describe(), "moved": dict(_IMAGE_MOVE)},
@@ -2474,6 +2482,7 @@ def _health_report(request: Request) -> dict:
         # Email (mail.py, §244): whether password reset can send, how many
         # sends worked and failed, and the last failure's words.
         "mail": mail_mod.report(),
+        "sms": sms_mod.report(),
     }
 
 
@@ -4452,6 +4461,11 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # it. The web app fetches either happily.
         "card": _card_url(share["id"], request)
                 or f"/api/share/card?share={quote(share['id'])}",
+        # The player card a FAM link makes in Messages, for a story (the
+        # owner's 11.12 notes): on its own as a PNG sticker, and centred on
+        # a 9:16 JPEG. New fields; an installed build keeps `card`.
+        "story_sticker": _share_image_url(share["id"], "sticker.png", request),
+        "story_image": _share_image_url(share["id"], "story.jpg", request),
         "targets": _with_handoffs(rendered),
     }
 
@@ -4548,6 +4562,23 @@ def _preview_url(share_id: str, request: Request | None = None) -> str:
     return f"{base}/api/share/{quote(share_id)}/preview.jpg" if base else ""
 
 
+def _share_image_url(share_id: str, name: str, request: Request | None = None) -> str:
+    """`/api/share/<id>/<name>`, absolute where this server knows its own
+    address (a native client is not on this origin), else the path."""
+    path = f"/api/share/{quote(share_id)}/{name}"
+    base = _public_base(request)
+    return base + path if base else path
+
+
+def _share_host(request: Request | None) -> str:
+    """The site the player card names under its title, as Messages does."""
+    base = _public_base(request)
+    host = urlparse(base).hostname if base else ""
+    if not host and request is not None:
+        host = request.url.hostname or ""
+    return host or "familiarize.net"
+
+
 #: Drawn previews, newest last: (share id, title) -> (drawn at, JPEG). A
 #: link is previewed once per app it is pasted into, all within minutes, so
 #: a few, briefly, are enough (each is a few hundred KB); nothing is stored.
@@ -4576,39 +4607,73 @@ def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
         return "", None
 
 
+async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
+    """One of a share's drawn pictures (`link_preview`): "preview" (the
+    square JPEG), "sticker" (the player card, PNG) or "story" (the card on
+    9:16, JPEG), kept briefly in `_PREVIEWS`. 404 for no such share."""
+    record = SHARES.get(share_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="No such share.")
+    host = _share_host(request) if kind != "preview" else ""
+    key = (share_id, record.get("title") or "", kind, host)
+    now = time.time()
+    kept = _PREVIEWS.get(key)
+    if kept and now - kept[0] < PREVIEW_SECONDS:
+        _PREVIEWS.move_to_end(key)
+        return kept[1]
+    import link_preview
+
+    _row, picture = await asyncio.to_thread(_preview_picture, record)
+    title = record.get("title") or ""
+    minutes = as_minutes(record.get("minutes"), 1)
+    if kind == "sticker":
+        data = await asyncio.to_thread(link_preview.card, picture, title, minutes, host)
+    elif kind == "story":
+        data = await asyncio.to_thread(link_preview.story, picture, title, minutes, host)
+    else:
+        data = await asyncio.to_thread(link_preview.draw, picture, title, minutes)
+    if data is None:
+        raise HTTPException(status_code=404, detail="No preview.")
+    _PREVIEWS[key] = (now, data)
+    _PREVIEWS.move_to_end(key)
+    while len(_PREVIEWS) > PREVIEW_MEMORY:
+        _PREVIEWS.popitem(last=False)
+    return data
+
+
 @app.get("/api/share/{share_id}/preview.jpg")
 async def share_preview(share_id: str, request: Request) -> Response:
     """The picture a shared link previews with (`link_preview`, §559).
 
     Fetched by Messages, WhatsApp, X and the rest when the link is pasted:
-    the episode's picture, square, with FAM's badge and a play button, or
+    the episode's picture, square, with FAM's logo and a play button, or
     its title on FAM's ground when it has no picture. Public, like the link.
     """
     _read_limit(request)
-    record = SHARES.get(share_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="No such share.")
-    key = (share_id, record.get("title") or "")
-    now = time.time()
-    kept = _PREVIEWS.get(key)
-    if kept and now - kept[0] < PREVIEW_SECONDS:
-        _PREVIEWS.move_to_end(key)
-        data = kept[1]
-    else:
-        import link_preview
-
-        _row, picture = await asyncio.to_thread(_preview_picture, record)
-        data = await asyncio.to_thread(
-            link_preview.draw, picture, record.get("title") or "",
-            as_minutes(record.get("minutes"), 1))
-        if data is None:
-            raise HTTPException(status_code=404, detail="No preview.")
-        _PREVIEWS[key] = (now, data)
-        _PREVIEWS.move_to_end(key)
-        while len(_PREVIEWS) > PREVIEW_MEMORY:
-            _PREVIEWS.popitem(last=False)
+    data = await _share_drawing(share_id, "preview", request)
     # As briefly as the page that names it: a re-written title is a new
     # picture within minutes, not an hour.
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/api/share/{share_id}/sticker.png")
+async def share_sticker(share_id: str, request: Request) -> Response:
+    """The player card a FAM link makes in Messages - the preview with the
+    title and the site under it, rounded, clear outside - for Instagram to
+    place on a story as a sticker (the owner's 11.12 notes)."""
+    _read_limit(request)
+    data = await _share_drawing(share_id, "sticker", request)
+    return Response(content=data, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/api/share/{share_id}/story.jpg")
+async def share_story(share_id: str, request: Request) -> Response:
+    """The player card centred on a 1080x1920 story, for Snapchat and the
+    share sheet, which take a whole picture (the owner's 11.12 notes)."""
+    _read_limit(request)
+    data = await _share_drawing(share_id, "story", request)
     return Response(content=data, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=300"})
 
@@ -5762,6 +5827,49 @@ async def support() -> HTMLResponse:
     return HTMLResponse(legal_page("support", settings.support_email))
 
 
+@app.get("/claim/{code}", include_in_schema=False)
+async def claim_free_month(code: str) -> HTMLResponse:
+    """The link in "you're off the waitlist" (§587): claims the free month.
+
+    Open to everybody - it is opened from a mail app or a text, often in a
+    browser with no session - and the code is the whole credential: it names
+    one account and does one harmless, idempotent thing to it. The month runs
+    from the day the real app is published, never in the beta.
+    """
+    user = await asyncio.to_thread(WAITLIST.claim_free_month, code)
+    home = html.escape(settings.app_home_url)
+    if not user:
+        title = "That link doesn't work"
+        words = ("This free-month link isn't one we recognise. Check you "
+                 "copied all of it, or contact support.")
+        status = 404
+    else:
+        starts = WAITLIST.free_month_starts()
+        title = "Your free month is claimed"
+        if starts:
+            t, e = time.gmtime(starts), time.gmtime(starts + waitlist_mod.FREE_MONTH_SECONDS)
+            words = (f"A month of FAM Plus, from {time.strftime('%B', t)} {t.tm_mday}"
+                     f" to {time.strftime('%B', e)} {e.tm_mday}, {e.tm_year}."
+                     " Nothing to pay, and nothing is billed after.")
+        else:
+            words = ("A month of FAM Plus, starting the day the full FAM app "
+                     "is published. Nothing to pay, and nothing is billed after.")
+        status = 200
+    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FAM - {html.escape(title)}</title>
+<style>body{{margin:0;font:17px/1.5 system-ui,sans-serif;background:#fff;color:#111;
+display:flex;min-height:100vh;align-items:center;justify-content:center}}
+main{{max-width:28rem;padding:2rem 1rem;text-align:center}}
+a{{display:inline-block;margin-top:1.5rem;padding:.8rem 1.6rem;border-radius:999px;
+background:#111;color:#fff;text-decoration:none;font-weight:600}}
+@media (prefers-color-scheme:dark){{body{{background:#000;color:#eee}}a{{background:#eee;color:#000}}}}</style>
+</head><body><main><h1>{html.escape(title)}</h1><p>{html.escape(words)}</p>
+<a href="{home}">Open FAM</a></main></body></html>"""
+    return HTMLResponse(page, status_code=status,
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/reset", include_in_schema=False)
 async def reset_page() -> HTMLResponse:
     """The reset password page (§297): the email on the account, then the
@@ -6410,7 +6518,8 @@ def _shared_episode_request(request: Request) -> bool:
     # each is a 404 for any id that is not a share.
     if request.method in ("GET", "HEAD") and (
             path == "/api/share/card"
-            or (path.startswith("/api/share/") and path.endswith("/preview.jpg"))):
+            or (path.startswith("/api/share/")
+                and path.endswith(("/preview.jpg", "/sticker.png", "/story.jpg")))):
         return True
     if path != "/api/audio":
         return False
@@ -12874,6 +12983,88 @@ async def admin_categories_tree(request: Request) -> dict:
     return await asyncio.to_thread(_category_outline)
 
 
+@app.get("/api/admin/categories/export")
+async def admin_export_categories(request: Request) -> Response:
+    """Every node of the tree as a CSV - path, source, episodes filed - for
+    a reviewer outside FAM (§585), as the pronunciations go out (§549)."""
+    _require_admin(request)
+    import category_review
+
+    counts = SCRIPT_CACHE.node_counts() if hasattr(SCRIPT_CACHE, "node_counts") else {}
+    body = await asyncio.to_thread(
+        category_review.export_csv, topics_mod.category_tree(), counts)
+    stamp = time.strftime("%Y-%m-%d")
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-categories-{stamp}.csv"'})
+
+
+@app.get("/api/admin/categories/review-prompt")
+async def admin_category_review_prompt(request: Request) -> dict:
+    """The fixed prompt that goes with a tree download (§585)."""
+    _require_admin(request)
+    import category_review
+
+    return {"prompt": category_review.PROMPT}
+
+
+class CategoryUpload(BaseModel):
+    csv: str = Field(..., max_length=2_000_000)
+
+
+@app.post("/api/admin/categories/import")
+async def admin_import_categories(req: CategoryUpload, request: Request) -> dict:
+    """Read a reviewer's CSV into proposed edits (§585). Changes nothing: an
+    admin accepts each one."""
+    _require_admin(request)
+    import category_review
+
+    try:
+        return await asyncio.to_thread(
+            category_review.read_upload, req.csv, topics_mod.category_tree())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class CategoryEdit(BaseModel):
+    action: str = Field(..., min_length=1, max_length=20)
+    node: str = Field(..., min_length=1, max_length=120)
+    target: str = Field("", max_length=120)
+    reason: str = Field("", max_length=200)
+
+
+@app.post("/api/admin/categories/edit")
+async def admin_edit_category(req: CategoryEdit, request: Request) -> dict:
+    """One accepted edit, saved as the owner's (§585): nothing that grows the
+    tree undoes it."""
+    _require_admin(request)
+    import category_review
+
+    try:
+        return await asyncio.to_thread(category_review.apply, topics_mod.category_tree(),
+                                       req.action, req.node, req.target, req.reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/admin/categories/edits")
+async def admin_category_edits(request: Request) -> dict:
+    """The owner's edits to the tree (§585), newest first."""
+    _require_admin(request)
+    decisions = topics_mod.category_tree().owner_decisions() \
+        if hasattr(topics_mod.category_tree(), "owner_decisions") else {}
+    return {"edits": [{"node": k, "action": a, "target": t}
+                      for k, (a, t) in sorted(decisions.items())]}
+
+
+@app.delete("/api/admin/categories/edits/{node}")
+async def admin_forget_category_edit(node: str, request: Request) -> dict:
+    """Forget one owner edit: a removed phrase may grow again, a placed node
+    may be moved by the placer. The tree is not changed back."""
+    _require_admin(request)
+    tree = topics_mod.category_tree()
+    return {"ok": bool(hasattr(tree, "owner_undo") and tree.owner_undo(node))}
+
+
 @app.get("/api/admin/categories/queue")
 async def admin_categories_queue(request: Request, limit: int = 20) -> dict:
     """Episodes for the owner to file by hand (§503), disagreements first,
@@ -13653,7 +13844,8 @@ def _admit_admin(listener):
     if not _allowed_admin(listener):
         return listener
     user = listener.user_id
-    WAITLIST.grant([user], flag=WAITLIST.has_action(user, "register"))
+    WAITLIST.grant([user], flag=WAITLIST.has_action(user, "register"),
+                   notify=False)
     log.info("waitlist: %r is an admin account; kept off the line", user)
     return ACCOUNTS.listener_of(user)
 
@@ -13853,6 +14045,42 @@ async def _drain_viral_loops_forever(every: float = 300.0) -> None:
                 log.info("viral loops outbox: %s", result)
         except Exception:  # noqa: BLE001 - a loop that dies stops retrying
             log.exception("viral loops outbox drain failed")
+        await asyncio.sleep(every)
+
+
+def _notice_bases() -> tuple[str, str]:
+    """(where a claim link points, the app's home) for a waitlist notice.
+    Never relative - it is read in a mail app or a text - and never the host
+    an admin happened to grant from, so every notice names the same one."""
+    home = settings.app_home_url
+    return (settings.public_base_url or home), home
+
+
+def _drain_notices(base: str = "", home: str = "") -> dict:
+    if not base:
+        base, home = _notice_bases()
+    return waitlist_notify.drain(WAITLIST, base, home)
+
+
+def _kick_notices() -> None:
+    """Send the notices just queued, in the background (§587)."""
+    try:
+        task = asyncio.get_running_loop().create_task(
+            asyncio.to_thread(_drain_notices))
+        _BACKGROUND.add(task)
+        task.add_done_callback(_BACKGROUND.discard)
+    except RuntimeError:
+        pass  # no running loop; the timer sends it
+
+
+async def _drain_notices_forever(every: float = 300.0) -> None:
+    while True:
+        try:
+            result = await asyncio.to_thread(_drain_notices)
+            if result["sent"] or result["failed"]:
+                log.info("waitlist notices: %s", result)
+        except Exception:  # noqa: BLE001 - a loop that dies stops retrying
+            log.exception("waitlist notice drain failed")
         await asyncio.sleep(every)
 
 
@@ -14305,6 +14533,10 @@ async def admin_waitlist(request: Request) -> dict:
         "gate": settings.waitlist,
         "viral_loops": {"configured": VIRAL_LOOPS.configured,
                         **WAITLIST.outbox_summary()},
+        # "You're off the waitlist" (§587): whether each channel can send,
+        # and the notices still waiting.
+        "notices": {"mail": mail_mod.status(), "sms": sms_mod.status(),
+                    **WAITLIST.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)},
         "rows": rows,
     }
 
@@ -14329,6 +14561,7 @@ async def admin_waitlist_grant(req: AdminGrantRequest, request: Request) -> dict
     except waitlist_mod.WaitlistError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _kick_viral_loops()
+    _kick_notices()
     return {"granted": len(granted), "user_ids": granted}
 
 

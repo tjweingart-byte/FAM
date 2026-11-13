@@ -340,6 +340,53 @@ def test_an_upload_that_passes_is_kept_byte_for_byte():
     assert voice_bank.prepare_upload(junk) == (junk, None)
 
 
+def m4a(seconds: float = 4.0, rate: int = 44100, lead: float = 0.0) -> bytes:
+    """A Voice Memo's shape: AAC in an MP4 (.m4a) container, made with PyAV."""
+    av = pytest.importorskip("av")
+    import numpy as np
+
+    t = np.arange(int(seconds * rate)) / rate
+    wave_ = (0.2 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+    samples = np.concatenate([np.zeros(int(lead * rate), np.float32), wave_])
+    buf = io.BytesIO()
+    with av.open(buf, mode="w", format="ipod") as container:
+        stream = container.add_stream("aac", rate=rate)
+        stream.layout = "mono"
+        frame = av.AudioFrame.from_ndarray(samples[None, :], format="flt",
+                                           layout="mono")
+        frame.sample_rate = rate
+        for packet in stream.encode(frame):
+            container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    return buf.getvalue()
+
+
+def test_an_m4a_upload_is_converted_to_wav_and_says_so():
+    original = m4a()
+    assert not voice_bank.is_wav(original)
+    audio, mastered = voice_bank.prepare_upload(original)
+    assert voice_bank.is_wav(audio)
+    assert mastered["converted"] is True
+    stats = voice_bank.recording_stats(audio)
+    assert stats["sample_rate"] == 44100 and stats["channels"] == 1
+    assert 3.8 < stats["seconds"] < 4.3
+    assert voice_bank.check_recording(audio) > 3
+
+
+def test_an_m4a_that_opens_in_silence_is_converted_then_trimmed():
+    audio, mastered = voice_bank.prepare_upload(m4a(lead=1.0))
+    assert mastered["converted"] is True and mastered["trimmed_seconds"] > 0.7
+    voice_bank.check_recording(audio)
+
+
+def test_a_file_that_is_not_audio_is_refused_naming_both_formats():
+    junk = b"not a recording at all"
+    assert voice_bank.to_wav(junk) is None
+    with pytest.raises(voice_bank.VoiceBankError, match="WAV or M4A"):
+        voice_bank.check_recording(voice_bank.prepare_upload(junk)[0])
+
+
 def test_the_admin_endpoint_keeps_the_mastered_recording(monkeypatch, tmp_path):
     import base64
     import app as app_module

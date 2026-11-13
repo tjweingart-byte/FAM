@@ -317,11 +317,23 @@ surfaces; on search, keep the work small enough that there is no gap to fill.
 
 <!-- rule:browse-loaders -->
 **DailyFAM and a mix have their own loading screens** *(PROBLEMS.md §509, the
-owner's pick from a six-option page, 11.9).* A DailyFAM tile tapped shows a
-tuning dial: the needle sweeps the categories of the rail the tile came from,
-overshoots and settles on the tile's own, named in full under it ("Tuning in
-to Technology"), with the tile's title and "Getting your episode ready". A
-myFAM mix's episode shows the mix gliding along: its episodes in order, the
+owner's pick from a six-option page, 11.9).*
+
+> **Current (§592, the owner's 11.13 pick from a second deck):** a DailyFAM
+> tile no longer shows the tuning dial. Its picture comes into focus from a
+> soft grey blur, a light sweeping across it (option 1, Picture Develop); when
+> friends have listened (the tile's own faces, mutual friends only) the
+> picture is sharp and up to three faces land on its corner with a line
+> naming them, "Maya, Jordan and 4 others listened" (option 3, Friends
+> Gather). Then the tile's title and "Getting your episode ready". A story
+> opened from a notification has no tile: it develops onto the player's
+> picture (`/api/episode/card`) and never gathers faces. The loader is
+> `daily`; everything below about holding nothing still holds.
+
+A DailyFAM tile tapped showed a tuning dial: the needle swept the categories
+of the rail the tile came from, overshot and settled on the tile's own, named
+in full under it ("Tuning in to Technology"), with the tile's title and
+"Getting your episode ready". A myFAM mix's episode shows the mix gliding along: its episodes in order, the
 ones before marked Played (its audio started) or Skipped, this one slid to the
 middle, "2 of 5" in the header. Neither shows the five steps - those stay search's and
 Go Deeper's (§148, `search-no-cover`) - and **neither holds the audio**: the
@@ -330,7 +342,11 @@ screen goes the moment audio arrives, wherever the needle has got to (§292).
 Chosen by `loader` on the topic (`dial` in `startBankTopic`, `glide` in
 `playMixItem`); drawn by `paintLoadingVariant` from what is already on the
 listener's screen, never invented. Both show the FAM mark above them,
-larger than search's (§542, the owner's direction).
+larger than search's (§542, the owner's direction). Each card of the glide is
+the episode's picture (the item's `picture`, the player's own) over the topic
+the listener chose, and the line under the row names that topic - never
+today's episode title, which the player and the mix's rows use (§591, the
+owner's direction).
 
 <!-- rule:search-no-cover -->
 **On search that once meant two calls at once, and no longer does**
@@ -690,6 +706,32 @@ fell to a facet). Four changes, none of which moves the §209 rules above:
   subject as an ordinary present-day town - a main street, a town hall, a
   school - never a globe or the view from space. Pictures already painted
   keep theirs until regenerated (`tools/thumbnails.py`).
+
+<!-- rule:tree-review -->
+**The tree goes out to another reader and comes back as edits** *(PROBLEMS.md
+§585, at the owner's direction)*, the pronunciation round trip (§549) for
+categories. /admin's Categories page downloads every node as a CSV (path,
+parent, source, episodes filed there and below, listeners, any edit already
+made) with a fixed prompt (`category_review.PROMPT`) for a Claude chat on high
+effort, which returns `action,node,target,confidence,reason` rows: move,
+remove, merge, rename, add.
+
+* **An upload changes nothing.** It is read into proposals checked against the
+  tree as it stands (a loop, a missing node, a parent that is not a facet or
+  node is refused in words); an admin accepts each, or the high-confidence
+  ones together.
+* **An accepted edit is the owner's and nothing that grows the tree undoes
+  it** (`category_owner` table, `CategoryStore.owner_*`): a removed or merged
+  phrase is refused by `mint` whatever its source - the sweep, the writer's
+  words, the seed at every boot; the placer never moves a node the owner
+  placed; an owner's node is never pruned; `apply_owner` re-applies adds and
+  placements after the seed, so a wipe keeps them (they are decisions, not
+  derived from listening).
+* **A merged phrase reads as the node it went into**, like a seed alias, so
+  episodes whose words named it still land there. An episode Nando filed at
+  a removed node falls back as for any node the tree no longer holds.
+* "Forget" on an edit lets a removed phrase grow again and the placer move a
+  node again; it never changes the tree back.
 
 <!-- rule:no-inverted-pyramid -->
 Note this **replaced an earlier rule** that said to open with the answer

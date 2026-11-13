@@ -201,8 +201,7 @@ final class MixesModel: ObservableObject {
     }
 
     /// The subject catalogue and the facets' names (`/api/preferences`,
-    /// once): the mix pages read it, and DailyFAM's tuning dial names a
-    /// tile's facet from it ("Money & markets", `dialWord`).
+    /// once): the mix pages read it.
     func loadVocabulary() async {
         guard subjects.isEmpty, let page = try? await api.catalogue() else { return }
         subjects = page.catalogue

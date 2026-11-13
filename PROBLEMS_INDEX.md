@@ -576,4 +576,12 @@ and `limit` = Lines.
 | 35532 | 48 | 582. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
 | 35580 | 22 | 583. The owner signed Egan's rule book: manifest version 9 (2026-11-13) |
 | 35602 | 147 | 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13) |
-| 35749 | 89 | 585. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |
+| 35749 | 36 | 585. The category tree out to another reader and back (2026-11-13) |
+| 35785 | 23 | 586. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13) |
+| 35808 | 59 | 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13) |
+| 35867 | 20 | 588. Egan has his own section on /admin (2026-11-13) |
+| 35887 | 35 | 589. The iPhone crashed as the date of birth was tapped (2026-11-13) |
+| 35922 | 116 | 590. The owner's 11.12 notes: the place optional, Return sends, one chat per banner, the logo on the link picture, the player card in a story, one pace (2026-11-13) |
+| 36038 | 27 | 591. A mix's loading screen: the episode's picture and the topic chosen, never the episode's title (2026-11-13) |
+| 36065 | 43 | 592. DailyFAM's wait: the picture develops, or friends gather on it (2026-11-13) |
+| 36108 | 89 | 593. The Postgres job's slowdown was the test run's own catalogue (2026-11-13) |
