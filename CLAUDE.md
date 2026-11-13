@@ -1,23 +1,23 @@
 # FAM - working context
 
-Read this before making changes: where the product is going, which constraints
+Read before making changes: where the product is going, which constraints
 are load-bearing, which settled decisions not to re-litigate.
 
 ## How this file works
 
-This is the **core**: every rule, one or two lines each, loaded every session.
+The **core**: every rule in a line or two, loaded every session.
 The reasoning, history and exact wording behind each rule live in
 `docs/claude/*.md` (PROBLEMS.md §168); a sentence newer
 rules supersede has a `> **Current:**` note at its rule. Every line below
 ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **Read the full text before changing anything a rule covers**, or reversing
-  or narrowing one. A one-line summary is not permission to re-derive a rule.
+  or narrowing one. A summary is not permission to re-derive a rule.
 - **Adding or changing a rule:** reasoning in a `docs/claude/` file under a
   new `<!-- rule:ID -->` marker, one line here citing `[ID]`.
   `tests/test_claude_md.py` fails if the IDs disagree or this file passes its
   budget - history goes in topic files and `PROBLEMS.md`, never here.
-- **History:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section and line
+- **History:** `PROBLEMS_INDEX.md` lists each PROBLEMS.md section and line
   (`tools/problems_index.py`; a test fails if stale). Read by offset.
 - "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`.
 
@@ -80,6 +80,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   episodes; myFAM's header button (a bookshelf, §203) opens the A-Z of others'
   cached episodes; Messages is a tab where Explore was; the player's (+) adds
   the episode's topic to a mix. [interface-181]
+- **Tour** once per account, Skip on any card (§594-5) [tour]
 
 - **The player is Spotify's layout** (§190): Home logo (§255), picture (4:3, §192;
   centred between GO DEEPER and the title; `pick_for_player` borrows (tiles
@@ -159,7 +160,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   the opening for latency is gone. [third-cause-opening]
 - `write.py` prints the brief above the script - diagnose brief vs script
   separately; `--no-ei` compares; `tools/ei_eval.py` is the milestone. [brief-above-script]
-- **`examples/` is the strongest lever** - prefer adding an example over a rule. [examples-lever]
+- **`examples/` is the strongest lever**: add an example over a rule. [examples-lever]
 - **Quality per tree node** (§309): code, listening, a grader trusted once
   it matches the owner. [episode-quality]
 
@@ -537,15 +538,15 @@ Every change ends the same way, without being asked [ship-loop]:
 ## Picking up a session (`workflow.md`)
 
 - Push to the session's branch; no PR unless asked. [branch-no-pr]
-- Reading order and the reference docs are listed in `workflow.md`; recent
-  history is in `PROBLEMS_INDEX.md`. [reading-order]
+- Reading order and reference docs: `workflow.md`; recent history:
+  `PROBLEMS_INDEX.md`. [reading-order]
 - Setup: `pip install -r requirements.txt`, `pip install playwright`. [setup-deps]
 - Run `./dev.sh check` first; it ends `all checks passed` twice, smoke
   count from `grep -c '^        check(' tools/smoke_preview.py`. [baseline-check-counts]
 - The share landing page has its own smoke run (`tools/smoke_landing.py`); CI
   runs all three; a check added to `dev.sh` must be added to
   `.github/workflows/ci.yml` by hand. [landing-smoke]
-- CI runs Python 3.12, this container 3.11 - reproduce in 3.12 first. [ci-python]
+- CI runs Python 3.12, this container 3.11: reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
 - Fonts differ here and in CI; suspect them first. [fonts-env]
 - No API key here: writing quality and latency unverified. [no-api-key]

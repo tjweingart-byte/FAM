@@ -115,6 +115,31 @@ new one (`/api/episode/topic`).
 myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
 
+<!-- rule:tour -->
+**A tour, once, after sign-up (§594, the owner's ask: "walk them through all of
+the features, flow smoothly, and be skippable at any time").** `Tour` in
+`static/index.html`. `finishIntro` marks it owed (`tour: "owed"` on the device,
+so a reload before it begins still gets it) and it starts once the screen is
+clear: the sign-in hand-off has played, no Terms, activation step or sheet is
+up, and a tab root is showing. It walks the real screens - dailyFAM's rails,
+friends' vibes (passed over when there are none), the player (a drawn card:
+nothing plays yet), searchFAM's bar, mic and attach, Length/Voice/Private, the
+episode library, myFAM's mixes, Messages, yourFAM - a spotlight round each real
+control and a card saying what it is. What it keeps to:
+* **Skip on every card** and Escape; a skip is remembered exactly like a finish
+  (`tour: "done"` here, `tour_done` on the account via `/api/preferences`), so
+  it never comes back by itself. Settings' "Take the tour" starts it over.
+* **Never on top of something else**: a sheet or modal opening part-way pauses
+  it, and it comes back on the same step.
+* **Motion** (rule `motion`): the screen is switched first, the hole glides in
+  380 ms, the card swaps in 220 ms; reduced motion jumps and fades only.
+* It moves between tab roots only, so a minimised episode keeps playing.
+* **Existing accounts get it once too** (§595, the owner's word: "show it to
+  existing users once too"): `Tour.offerOnce`, on opening the app or signing
+  in, asks `/api/preferences` once per device and offers it while
+  `tour_done` is false; the account's "done" is then kept on the device.
+`tools/smoke_preview.py` drives it; `tests/test_tour_594.py` holds the flag.
+
 <!-- rule:explore-reel -->
 > **Current (PROBLEMS.md §499, the owner's 11.3 packet): exploreFAM is out of the app entirely.** The reel screen, its pill on search's top right and beside Made for you, search's right-to-left swipe, the feed dropdown, "Interested?", the reel's Go Deeper and the comments sheet are all deleted from `static/index.html`, with their script and styles. A category, which opened the reel since §253, plays in the ordinary player (`your-categories`). The server keeps `/api/explore`, the comment endpoints and their tables, because a phone that has not updated still calls them (`old-clients`); nothing in the current page reaches them. "No dislike anywhere" still holds. Bringing any of it back is the owner's call.
 
