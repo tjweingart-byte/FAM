@@ -566,7 +566,7 @@ and `limit` = Lines.
 | 35110 | 36 | 572. Build 6: the iPhone catches up with §570 and §571 (2026-11-12) |
 | 35146 | 18 | 573. The phone number is optional at sign-up (2026-11-13) |
 | 35164 | 44 | 574. fam-db's memory was its connections (2026-11-13) |
-| 35208 | 68 | 575. Communities to reach replace FAM on X (2026-11-13) |
-| 35276 | 43 | 576. Egan: the outreach reader becomes a full agent (2026-11-13) |
-| 35319 | 48 | 577. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13) |
-| 35367 | 48 | 578. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |
+| 35208 | 68 | 578. Communities to reach replace FAM on X (2026-11-13) |
+| 35276 | 43 | 579. Egan: the outreach reader becomes a full agent (2026-11-13) |
+| 35319 | 48 | 580. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13) |
+| 35367 | 48 | 581. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13) |

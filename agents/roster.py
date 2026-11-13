@@ -135,7 +135,7 @@ ROSTER: dict = {a.role: a for a in (
 
 
 #: Agents built and waiting for the owner's signature (`names.PROPOSED`,
-#: §576): their entries, ready to join `ROSTER` with the signed book.
+#: §579): their entries, ready to join `ROSTER` with the signed book.
 PROPOSED: dict = {a.role: a for a in (
     _agent("outreach",
            "For one online community a web search found: how well FAM fits it, "

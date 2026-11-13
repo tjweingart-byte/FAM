@@ -7,11 +7,11 @@ file, until the owner signs it. Nothing reads this folder at run time.
 
 ## Waiting now
 
-**A new agent: Egan, the outreach agent** (`egan.md`, PROBLEMS.md §576),
+**A new agent: Egan, the outreach agent** (`egan.md`, PROBLEMS.md §579),
 who reads each community `/admin/groups` finds - the fit, three imagined
 episodes, a first message to its admins - in place of the code that
 composes them today; also each group the team sends him with a note
-(§577, which widened his "always" 1 to say so before he was signed). `docs/agent_rules/MANIFEST.pending.json` is version 9:
+(§580, which widened his "always" 1 to say so before he was signed). `docs/agent_rules/MANIFEST.pending.json` is version 9:
 version 8's books unchanged, plus `egan.md`. Sign it as below; the upload
 is `egan.md`, `MANIFEST.json` and `MANIFEST.json.sig` into
 `docs/agent_rules/`. A new book cannot wait in that folder unsigned: the
@@ -21,7 +21,7 @@ Once it is signed, the session that verifies it also: moves `outreach`
 from `agents/names.PROPOSED` and `agents/roster.PROPOSED` into `AGENTS` and
 `ROSTER`; adds his tab to `docs/FAM_AGENTS.md` (`## 9. Outreach (Egan)`,
 the same four sub-tabs) and his row to `docs/agent_rules/README.md`; and
-turns `tests/test_egan_576.py`'s waiting tests into signed ones. He stays
+turns `tests/test_egan_579.py`'s waiting tests into signed ones. He stays
 off until the owner sets `AGENTS=1` and `OUTREACH_AGENT=1`.
 
 Before him: manifest version 8 - `journalism_playbook.md` v2, Part 3's story

@@ -1,4 +1,4 @@
-"""Egan, the outreach agent (§576): `/admin/groups`' reader, as a full agent.
+"""Egan, the outreach agent (§579): `/admin/groups`' reader, as a full agent.
 
 Pinned here: his call goes through `agents/models.py` and nowhere else; he
 waits for the owner's signature without holding any other agent; he never

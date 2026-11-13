@@ -1285,7 +1285,7 @@ def _database_report() -> list[dict]:
                            thumbnails_mod.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
-    # Communities to reach (§575): created by the first search on /admin/groups.
+    # Communities to reach (§578): created by the first search on /admin/groups.
     if communities._exists():
         try:
             stores.append(("communities", "COMMUNITIES_DB", communities.store().path))
@@ -13353,7 +13353,7 @@ async def admin_push_decide(req: PushDecision, request: Request) -> dict:
     return {"ok": True, "story": push_stories.store().decide(req.id, req.status, time.time())}
 
 
-# --- Communities to reach (§575, communities.py) -----------------------------
+# --- Communities to reach (§578, communities.py) -----------------------------
 # Facebook groups, subreddits, X Communities, Discord servers and Slack
 # communities whose admins might share FAM with their members. Found by web
 # search; each card says how a person reaches the admins through the
@@ -13467,7 +13467,7 @@ class GroupsSend(BaseModel):
 
 @app.post("/api/admin/groups/send")
 async def admin_groups_send(req: GroupsSend, request: Request) -> dict:
-    """Send one community to Egan (§577): looked up through its platform's
+    """Send one community to Egan (§580): looked up through its platform's
     API or the web, its public way to the admins worked out, judged and
     drafted for. Kept as a lead to contact whatever its fit; nothing is sent
     to anybody."""

@@ -1,4 +1,4 @@
-"""Communities to reach (§575, `communities.py`, `/admin/groups`).
+"""Communities to reach (§578, `communities.py`, `/admin/groups`).
 
 The rules pinned here: discovery is a web search, never a platform's own
 pages signed in; a card says how to reach the admins through the

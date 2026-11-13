@@ -1,4 +1,4 @@
-"""Reddit's and X's APIs, and groups a person sends to Egan (§577).
+"""Reddit's and X's APIs, and groups a person sends to Egan (§580).
 
 Pinned: the APIs are read-only and only asked for communities; a source that
 fails falls back to the web search; a group a person sends is looked up,
@@ -277,7 +277,7 @@ def test_the_send_endpoint(monkeypatch, tmp_path):
     assert r.status_code == 200 and r.json()["lead"]["id"] == "reddit:eagles"
 
 
-# ------------------------------------------------------------- the review's findings (§578)
+# ------------------------------------------------------------- the review's findings (§581)
 
 def test_no_email_is_kept_but_the_communitys_published_contact():
     lead = C.leads_from([SimpleNamespace(

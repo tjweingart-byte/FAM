@@ -30,7 +30,7 @@ AGENTS: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
     "it": ("Keith Wong", "keith.md", "it_agent", ("it_model", "it_summary_model")),
 }
 
-#: **Agents built and waiting for the owner's signature** (§576): the same
+#: **Agents built and waiting for the owner's signature** (§579): the same
 #: shape as `AGENTS`. Its rule book waits in `docs/agent_rule_proposals/`
 #: with `docs/agent_rules/MANIFEST.pending.json`, because an unsigned book in
 #: the signed folder would hold every agent. Until it moves into `AGENTS`, in

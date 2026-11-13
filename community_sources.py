@@ -1,4 +1,4 @@
-"""Reddit's and X's own APIs, read-only, for `/admin/groups` (§577).
+"""Reddit's and X's own APIs, read-only, for `/admin/groups` (§580).
 
 Two sources better than a web search for their platforms: Reddit's
 subreddit search and about pages, and X's Communities. Both are read-only

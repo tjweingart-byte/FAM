@@ -417,7 +417,7 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "refile_old.py": {"categorizer"},
         # Consuela's totals (§415) register their nightly task.
         "demographic_totals.py": {"netenyahu"},
-        # Egan (§576): /admin/groups' reader, a person's button on an admin
+        # Egan (§579): /admin/groups' reader, a person's button on an admin
         # page, never a listener's path. His one call goes through the layer.
         "communities.py": {"models"},
     }

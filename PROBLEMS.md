@@ -35205,7 +35205,7 @@ on Postgres 16.
 **Tests:** `tests/test_db_connections_574.py` (the pool with faked dialling;
 two against a real Postgres, run here on a local 16).
 
-## 575. Communities to reach replace FAM on X (2026-11-13)
+## 578. Communities to reach replace FAM on X (2026-11-13)
 
 **What was asked.** The owner: an agent on the admin page that looks across
 Facebook groups, finds their admins and their contact information
@@ -35271,11 +35271,11 @@ to come back thin (invites live on directories and in passages). The model
 call is not an agent under `agents/models.py`: like the X agent it replaces,
 it is an admin tool calling the small model directly, metered.
 
-**Tests:** `tests/test_communities_575.py`.
+**Tests:** `tests/test_communities_578.py`.
 
-## 576. Egan: the outreach reader becomes a full agent (2026-11-13)
+## 579. Egan: the outreach reader becomes a full agent (2026-11-13)
 
-**What was asked.** The owner, on §575's note that `/admin/groups`' model
+**What was asked.** The owner, on §578's note that `/admin/groups`' model
 call went straight to Claude rather than through `agents/models.py`: "make
 it a full agent with a rule book".
 
@@ -35293,7 +35293,7 @@ name, a figure the material does not contain - then composes in code;
 when code's, why.
 
 **The rule book, and every-agent.md "never" 9.** "Research or describe a
-private person" rules out what §575's prompt allowed: the admins are
+private person" rules out what §578's prompt allowed: the admins are
 private people. So Egan is never given an admin's name, handle, address
 or number (`communities.redacted` over all his material), never greets
 anyone by name, and an answer that names or reaches a person is refused.
@@ -35313,10 +35313,10 @@ activation steps are in the proposals README.
 **Also.** `tests/test_agents_model_layer.py`'s import allow-list gains
 `communities.py: {models}`: an admin page's button, never a listener's path.
 
-**Tests:** `tests/test_egan_576.py`; `tests/test_communities_575.py`
+**Tests:** `tests/test_egan_579.py`; `tests/test_communities_578.py`
 updated (its direct-client tests went with the direct client).
 
-## 577. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13)
+## 580. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13)
 
 **What was asked.** The owner, after hearing that Egan sees only what a web
 search has indexed: "add the Reddit API and X API. Also, I want to be able
@@ -35343,7 +35343,7 @@ three keys.
 the "Send a group to Egan" box). Paste a Facebook group, subreddit, X
 Community, Discord invite or Slack link, optionally a subject and a note.
 Code reads it through its API, else a web search for its address (the
-page's own contact email and named admin, as §575 keeps them); the contact
+page's own contact email and named admin, as §578 keeps them); the contact
 route is the community's own (`contact_url`); Egan reads it, the note
 included and redacted like everything he reads; it is kept in To contact
 **whatever its fit** - a person chose it - unless its subject is one FAM
@@ -35362,14 +35362,14 @@ Communities search endpoint and its fields should be confirmed against the
 account's API access on the first real run; a refusal is shown on the page
 and the run falls back to the web.
 
-**Tests:** `tests/test_community_sources_577.py`.
+**Tests:** `tests/test_community_sources_580.py`.
 
-## 578. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13)
+## 581. /admin/groups double-checked: contacts, people and the ceiling (2026-11-13)
 
 At the owner's request every change on the branch was read again, by the
 session and by an independent reviewer that saw the code and not the
 session's conclusions. The reviewer's findings, each verified with a probe
-and each now a test in `tests/test_community_sources_577.py`:
+and each now a test in `tests/test_community_sources_580.py`:
 
 - **Emails were stored in descriptions, notes and handles**: only phones
   were stripped. `communities.scrub` now keeps no email but the
