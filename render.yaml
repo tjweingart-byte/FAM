@@ -220,6 +220,11 @@ services:
       # synthesis. A warm one answers a chunk in a couple of seconds.
       - key: REMOTE_VOICE_TIMEOUT
         value: "180.0"
+      # Always-on ("active") workers on the endpoint - keep it equal to the
+      # RunPod console (§578). Above 0: no wake jobs, and no more chunks in
+      # flight than active workers, so none queues and boots a flex worker.
+      - key: REMOTE_VOICE_ACTIVE_WORKERS
+        value: "1"
       # --- Finding the worker when RunPod moves it ----------------------
       #
       # The address of a rented GPU is not a constant, and an app holding a

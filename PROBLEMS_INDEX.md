@@ -569,3 +569,4 @@ and `limit` = Lines.
 | 35208 | 47 | 575. Shared links: the picture and the audio behind the waitlist, Message between friends, and a Mac build in CI (2026-11-13) |
 | 35255 | 33 | 576. Dashes reached the voice as hyphens: names and dashed sentences were choppy (2026-11-13) |
 | 35288 | 42 | 577. Five friends earn a free month (2026-11-13) |
+| 35330 | 43 | 578. An always-on worker cost $40 a day: chunks queued behind it booted flex workers (2026-11-13) |

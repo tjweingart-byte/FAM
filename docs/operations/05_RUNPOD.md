@@ -197,7 +197,9 @@ did not change.
   real person's voice, used under a signed consent. You never need to open
   it.
 - **Raise Active workers above 0.** Each one costs about $343 a month. That
-  is the owner's decision.
+  is the owner's decision. When it changes, `REMOTE_VOICE_ACTIVE_WORKERS` on
+  `fam` must change to the same number (PROBLEMS.md §578): left at 0 beside
+  an active worker, every episode boots billed flex workers too.
 - **Start a "Pod".** The old always-on setup is history.
 
 ## Cost

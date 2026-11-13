@@ -35326,3 +35326,46 @@ nothing a listener can notice until the tiers are on - which is the point:
 it is a promise kept at launch.
 
 **Tests:** `tests/test_free_month.py`.
+
+## 578. An always-on worker cost $40 a day: chunks queued behind it booted flex workers (2026-11-13)
+
+Reported by the owner: RunPod's automatic top-up took $40 on each of the two
+days after the endpoint `FAM` was given an active (always-on) worker. One
+active 24 GB worker is ~$0.47/h, ~$11.30 a day (`docs/SCALING_TIMELINE.md`);
+$40 is ~$1.67/h, about 3.5 times that.
+
+**Why, from the code** (the console's billing was not readable from the
+session). Two things FAM sends assumed a pay-per-second endpoint with nothing
+running:
+
+1. **Four chunks in flight** (`REMOTE_VOICE_CONCURRENCY=4`). A worker voices
+   one chunk at a time, so with one active worker three of every episode's
+   four wait in RunPod's queue - and a queued job is what makes RunPod start
+   a flex worker (up to the endpoint's 6), billed at the flex rate for its
+   cold boot (~73 s, §329), the chunk, and the 180 s idle timeout after it.
+2. **A wake job on every episode** (§497, `wake(force=True)`), plus the app
+   open's. An active worker is never asleep; a wake that lands while it is
+   voicing someone else's chunk queues too, and boots a flex worker of its
+   own to answer an empty job.
+
+**Now:** `REMOTE_VOICE_ACTIVE_WORKERS` (default 0; `render.yaml` sets `1` for
+`fam`, and it must be kept equal to the console). Above 0, on the RunPod
+transport: `wake()` sends nothing, and at most that many chunks are in
+flight (the lower of it and `REMOTE_VOICE_CONCURRENCY`) - the semaphore is
+the class's, so the cap is across every listener in the process. Nothing
+queues at RunPod, so nothing boots a flex worker. `/api/health`'s
+`remote_voice` reports `active_workers` and the effective `concurrency`.
+
+**The cost of it:** listeners voiced at the same moment share the active
+worker's card in turn, in FAM's queue rather than RunPod's. When that wait
+matters, raise the console's Active workers and this setting together; do
+not raise the concurrency above the active workers, which is this bill again.
+
+**Console, told to the owner, not changed:** Max workers 1-2 and Idle timeout
+~5 s stop flex workers costing much even before this deploys (the idle
+timeout never applies to an active worker). Check the endpoint's GPU list
+holds only the 24 GB class, and that Active workers reads 1.
+
+`tests/test_remote_voice.py` (an active worker is never woken; active
+workers cap the chunks in flight; with none, the fan-out and the wake stay;
+nothing changes for an http pod; a negative count is refused).

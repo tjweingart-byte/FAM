@@ -161,6 +161,13 @@ makes serverless viable at all.
 
 Copy the **endpoint id**.
 
+*With an active (always-on) worker:* set `REMOTE_VOICE_ACTIVE_WORKERS` on
+the server to the console's Active workers (§578). FAM then sends no wake
+jobs and never has more chunks in flight than active workers - otherwise
+every queued chunk boots a flex worker beside the active one, billed for its
+boot and idle timeout, which made one active worker cost ~$40 a day. Max
+workers 1-2 and a short idle timeout (~5 s) keep any flex worker cheap.
+
 *For an always-on pod instead:* deploy the same image as a Pod, set
 `REMOTE_VOICE_TOKEN=<a long random string>` (the mode is derived),
 expose port 8001, and use the proxy URL RunPod gives you as
