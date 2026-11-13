@@ -427,7 +427,8 @@ Accounts, tiers, sharing
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
 - **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited`; no
-  checkout [tiers-off]; 5 invites: free month [free-month]
+  checkout [tiers-off]; 5 invites: free month [free-month];
+  let in: mail+text a claim link, month at launch (§587) [waitlist-notice]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every
@@ -457,7 +458,7 @@ Accounts, tiers, sharing
 - **A listener id is never accepted from the client** - take it from
   `_listener(request)` (cookie or `Authorization: Bearer`), never a parameter;
   `?user=` is ignored; a browser never requests or reads the bearer token. [listener-id-server]
-- A limit counts episodes, not requests; a request that cannot spend is not paced. [limit-episodes]
+- A limit counts episodes, not requests; one that cannot spend is not paced. [limit-episodes]
 
 Operations and honesty
 - **A wipe enumerates what is derived** from what it empties: register it in
@@ -535,10 +536,10 @@ Every change ends the same way, without being asked [ship-loop]:
 
 ## Picking up a session (`workflow.md`)
 
-- Develop and push on the branch the session assigns; no PR unless asked. [branch-no-pr]
+- Push to the session's branch; no PR unless asked. [branch-no-pr]
 - Reading order and the reference docs are listed in `workflow.md`; recent
   history is in `PROBLEMS_INDEX.md`. [reading-order]
-- Setup: `pip install -r requirements.txt` and `pip install playwright`. [setup-deps]
+- Setup: `pip install -r requirements.txt`, `pip install playwright`. [setup-deps]
 - Run `./dev.sh check` first; it ends `all checks passed` twice, smoke
   count from `grep -c '^        check(' tools/smoke_preview.py`. [baseline-check-counts]
 - The share landing page has its own smoke run (`tools/smoke_landing.py`); CI
@@ -547,12 +548,12 @@ Every change ends the same way, without being asked [ship-loop]:
 - CI runs Python 3.12, this container 3.11 - reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
 - Fonts differ here and in CI; suspect them first. [fonts-env]
-- No API key here: writing quality and latency are unverified. [no-api-key]
-- `tools/shots.py`, `stall_probe.py`, `compare_search.py`: claims were wrong without them. [shots-probes]
+- No API key here: writing quality and latency unverified. [no-api-key]
+- `tools/shots.py`, `stall_probe.py`, `compare_search.py`: claims were wrong without. [shots-probes]
 - Deleting CSS broke the app twice: `tools/check_css.py`, `tools/shots.py`. [css-deletion]
 - A top-level name declared twice in `static/index.html` silently wins (`tools/check_js.py`). [js-dup-names]
 - **A setting is settled only where it is copied** - `.env.example` must agree
   with `config.py`; interface literals pinned to their variable. [settings-copied]
-- `PROBLEMS.md` is the engineering log - add to it rather than starting new notes. [problems-log]
-- Tests run with no API key or speech engine. [tests-no-key]
-- `diagnose_api.py` for connections, `compare_models.py` for models. [diag-tools]
+- `PROBLEMS.md` is the engineering log; add to it. [problems-log]
+- Tests need no API key or speech engine. [tests-no-key]
+- `diagnose_api.py`: connections; `compare_models.py`: models. [diag-tools]

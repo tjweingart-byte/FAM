@@ -1224,6 +1224,13 @@ class Settings:
     # have verified the address. Nothing invents one.
     mail_from: str = field(
         default_factory=lambda: os.environ.get("MAIL_FROM", "").strip())
+    # Texts (`sms.py`, §587): Twilio, for the "you're off the waitlist"
+    # notice. TWILIO_AUTH_TOKEN is a credential, read through `credentials`.
+    # TWILIO_FROM is a +E.164 number or a Messaging Service id (MG...).
+    twilio_account_sid: str = field(
+        default_factory=lambda: os.environ.get("TWILIO_ACCOUNT_SID", "").strip())
+    twilio_from: str = field(
+        default_factory=lambda: os.environ.get("TWILIO_FROM", "").strip())
     # The length DailyFAM episodes are written and played at is
     # `BROWSE_MINUTES` (§147) - no longer a setting, because only searchFAM
     # offers a length.

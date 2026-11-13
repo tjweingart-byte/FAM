@@ -377,6 +377,7 @@
     <a href="#accounts" data-nav="accounts">Newest accounts</a>
     <a href="#agents" data-nav="agents">Agents</a>
     <a href="#keith" data-nav="keith">Keith <span class="badge" id="navKeith" hidden></span></a>
+    <a href="#egan" data-nav="egan">Egan (outreach) <span class="badge" id="navEgan" hidden></span></a>
     <div class="group">Inbox</div>
     <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
     <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
@@ -698,7 +699,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     <div class="page" data-page="agents" data-title="Agents" hidden>
     <section class="card section" id="agentsCard">
       <h2>Agents</h2>
-      <p class="sub">FAM's eight agents (docs/FAM_AGENTS.md): whether each is on, the model it is set to, whether its rule book is signed, and what it did and spent over the last 7 days. Read-only: an agent is switched in the deployment's settings (<b>AGENTS</b>, then its own switch), and runs only under rule books the owner signed (<b>python tools/rulebook_manifest.py --commands</b>). A fallback is any request that did not come back as an answer - the episode ran as it did before the agent.</p>
+      <p class="sub">FAM's agents (docs/FAM_AGENTS.md): whether each is on, the model it is set to, whether its rule book is signed, and what it did and spent over the last 7 days. Read-only: an agent is switched in the deployment's settings (<b>AGENTS</b>, then its own switch), and runs only under rule books the owner signed (<b>python tools/rulebook_manifest.py --commands</b>). A fallback is any request that did not come back as an answer - the episode ran as it did before the agent.</p>
       <div id="agentsLock"></div>
       <div id="agents"></div>
     </section>
@@ -736,6 +737,27 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     </section>
     </div>
 
+    <!-- Egan, the outreach agent (§588): his state, his week, the
+         communities he reads on /admin/groups, and what he drafted. -->
+    <div class="page" data-page="egan" data-title="Egan (outreach)" hidden>
+    <section class="card section">
+      <h2>Egan</h2>
+      <p class="sub">The outreach agent (docs/agent_rules/egan.md): for each community /admin/groups finds or you send him, he judges the fit, imagines three episodes and drafts a first message to its admins. He never reads about a person and never sends anything; a person does. Read-only here: he is switched on in the deployment's settings (<b>AGENTS=1</b> and <b>OUTREACH_AGENT=1</b>).</p>
+      <div id="eganState"></div>
+      <p style="margin:10px 0 0"><a href="/admin/groups">Open Communities ↗</a></p>
+    </section>
+    <section class="card section">
+      <h2>Communities</h2>
+      <p class="sub">The leads on /admin/groups by status, today's searches against the ceiling, the last search, and which sources can be asked.</p>
+      <div id="eganLeads"></div>
+    </section>
+    <section class="card section">
+      <h2>What he read lately</h2>
+      <p class="sub">The newest leads: whose words each card carries - Egan's, or code's when he could not answer, with why.</p>
+      <div id="eganRecent"></div>
+    </section>
+    </div>
+
     <div class="page" data-page="accounts" data-title="Newest accounts" hidden>
     <section class="card section">
       <h2>Newest accounts</h2>
@@ -747,7 +769,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     <div class="page" data-page="voices" data-title="Voice bank" hidden>
     <section class="card section" id="voicesCard">
       <h2>Voice bank</h2>
-      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV of a few seconds of clean speech, with the speaker's consent recorded. Silence before the first word is trimmed and a quiet recording levelled when it is added, and the page says so.</p>
+      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV or M4A (a Voice Memo) of a few seconds of clean speech, with the speaker's consent recorded. Silence before the first word is trimmed and a quiet recording levelled when it is added, and the page says so.</p>
       <div id="voiceList"></div>
       <details>
         <summary>Add a voice</summary>
@@ -755,7 +777,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           <input id="vLabel" placeholder="Name listeners see, e.g. Maya" maxlength="40" required>
           <input id="vSlug" placeholder="Id (lower-case, e.g. maya)" maxlength="40" pattern="[a-z0-9][a-z0-9_-]*" required>
           <input id="vDesc" placeholder="One line about it (optional)" maxlength="160">
-          <input id="vFile" type="file" accept=".wav,audio/wav" required>
+          <input id="vFile" type="file" accept=".wav,.m4a,audio/wav,audio/mp4,audio/x-m4a" required>
           <label class="sub"><input type="checkbox" id="vConsent" required> The speaker consented to being cloned</label>
           <label class="sub"><input type="checkbox" id="vCommercial" required> Cleared for commercial use</label>
           <label class="sub"><input type="checkbox" id="vSynthetic" required> Cleared for a synthetic voice</label>
@@ -995,8 +1017,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   }
 
   // --------------------------------------------------------------- agents
+  var agentsData = null;
   function loadAgents() {
-    return api("/api/admin/agents").then(drawAgents).catch(function () {
+    return api("/api/admin/agents").then(function (a) { agentsData = a; drawAgents(a); drawEganState(); }).catch(function () {
       $("agents").innerHTML = '<p class="sub">The agents could not be read.</p>';
     });
   }
@@ -1667,6 +1690,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (name === "overview") drawChart(series);
     if (name === "quality" && !$("main").hidden) loadQuality();
     if (name === "categories" && !$("main").hidden) loadCategories();
+    if (name === "egan" && !$("main").hidden) loadEgan();
     window.scrollTo(0, 0);
   }
   function menu(open) {
@@ -1739,6 +1763,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       }
       tick();
       if (pageName() === "quality" && !first) loadQuality();
+      if (pageName() === "egan" && !first) loadEgan();
       loadInbox();
       loadSurveys();
       loadReports();
@@ -1802,6 +1827,67 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     return '<div class="kpi"><span>' + esc(label) + '</span><b>' + esc(value) + '</b>'
       + (note ? '<em>' + esc(note) + '</em>' : '') + '</div>';
   }
+  // Egan's page (§588). His row from /api/admin/agents, and /admin/groups'
+  // own figures - the same endpoint that page reads.
+  function drawEganState() {
+    var a = agentsData;
+    if (!a) return;
+    var r = (a.agents || []).filter(function (x) { return x.role === "outreach"; })[0];
+    if (!r) { $("eganState").innerHTML = '<p class="sub">Egan is not on the roster of this server.</p>'; return; }
+    var w = r.week || {};
+    var state = r.may_run ? 'on - he reads every community' : (r.on ? 'held' : 'off - the page composes in code');
+    var models = Object.keys(r.models || {}).map(function (k) {
+      var m = r.models[k]; return esc(m.value || 'code only');
+    }).join(", ");
+    $("navEgan").hidden = !r.held;
+    $("navEgan").textContent = r.held ? "held" : "";
+    $("eganState").innerHTML = '<div class="tbl"><table><tbody>' +
+      '<tr><th>State</th><td><b>' + esc(state) + '</b>' + (r.why_not ? '<br><small style="color:var(--muted)">' +
+        esc(r.why_not) + '</small>' : '') + (r.held ? '<br><small style="color:var(--bad, #c0392b)">held: ' +
+        esc(r.held) + '</small>' : '') + '</td></tr>' +
+      '<tr><th>Model</th><td>' + models + '</td></tr>' +
+      '<tr><th>Requests (7d)</th><td>' + Number(w.requests || 0).toLocaleString() + '</td></tr>' +
+      '<tr><th>Spend (7d)</th><td>' + (w.cost_usd === null || w.cost_usd === undefined ? '-' :
+        '$' + Number(w.cost_usd).toFixed(4)) + '</td></tr>' +
+      '<tr><th>Fallbacks (7d)</th><td>' + Number(w.fallbacks || 0).toLocaleString() + '</td></tr>' +
+      '<tr><th>Last call</th><td>' + (w.last_at ? esc(new Date(w.last_at * 1000).toLocaleString()) + ' · ' +
+        esc(w.last_status) : 'never') + '</td></tr>' +
+      '</tbody></table></div>';
+  }
+  function loadEgan() {
+    drawEganState();
+    return api("/api/admin/groups?status=").then(function (g) {
+      var h = g.health || {}, c = h.counts || {}, last = h.last_run, apis = h.apis || {};
+      var labels = h.statuses || {};
+      var counts = Object.keys(labels).map(function (k) {
+        return esc(labels[k]) + ' <b>' + Number(c[k] || 0) + '</b>';
+      }).join(' · ') + ' · Set aside <b>' + Number(c.set_aside || 0) + '</b>';
+      var src = ['web search: ' + (h.available ? esc(h.detail) : 'unavailable - ' + esc(h.detail))]
+        .concat(Object.keys(apis).map(function (k) {
+          var x = apis[k] || {}; return esc(k) + ' API: ' + (x.available ? 'on' : esc(x.detail || 'off'));
+        }));
+      $("eganLeads").innerHTML = '<p>' + counts + '</p>' +
+        '<p class="sub">Searches today: <b>' + Number(h.searches_today || 0) + '</b> of ' +
+        esc(h.daily_searches) + ' · last search: ' + (last ? esc(new Date(last.at * 1000).toLocaleString()) +
+          ' (' + Number(last.kept || 0) + ' kept, ' + Number(last.set_aside || 0) + ' set aside' +
+          (last.stopped ? '; ' + esc(last.stopped) : '') + ')' : 'never') + '</p>' +
+        '<p class="sub">' + src.join(' · ') + '</p>';
+      var leads = (g.leads || []).slice().sort(function (x, y) { return (y.updated_at || 0) - (x.updated_at || 0); })
+        .slice(0, 12);
+      $("eganRecent").innerHTML = leads.length ? '<div class="tbl"><table><thead><tr><th>Community</th>' +
+        '<th>Fit</th><th>Words by</th><th>Status</th></tr></thead><tbody>' + leads.map(function (k) {
+          var his = k.drafted_by && k.drafted_by !== "code";
+          return '<tr><td><b>' + esc(k.name || k.ident) + '</b><br><small style="color:var(--muted)">' +
+            esc(k.platform) + (k.source === "sent" ? ' · sent by your team' : '') + '</small></td><td>' +
+            esc(k.fit) + '/5</td><td>' + (his ? esc(k.drafted_by) : 'code<br><small style="color:var(--muted)">' +
+            esc(k.fit_why || '') + '</small>') + '</td><td>' + esc(labels[k.status] || k.status) + '</td></tr>';
+        }).join("") + '</tbody></table></div>' : '<p class="sub">No communities yet. Search or send one on ' +
+        '<a href="/admin/groups">Communities</a>.</p>';
+    }).catch(function () {
+      $("eganLeads").innerHTML = '<p class="sub">The communities could not be read.</p>';
+    });
+  }
+
   function loadQuality() {
     return Promise.all([
       api("/api/admin/quality?days=" + encodeURIComponent($("qDays").value)),
@@ -2474,6 +2560,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         var m = r && r.mastered;
         if (m) {
           var did = [];
+          if (m.converted) did.push("converted it to WAV");
           if (m.trimmed_seconds > 0) did.push("trimmed " + m.trimmed_seconds.toFixed(1) + "s of silence from the start");
           if (Math.abs(m.gain_db) >= 0.5) did.push((m.gain_db > 0 ? "raised" : "lowered") + " the level " + Math.abs(m.gain_db).toFixed(0) + " dB");
           $("vNote").textContent = "Added " + r.voice.label + (did.length ? " - " + did.join(" and ") + "." : ".");

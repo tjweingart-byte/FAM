@@ -353,7 +353,7 @@ struct ModalCard<Content: View>: View {
 /// content, never a `ViewThatFits` of two: the keyboard coming or going
 /// swapped one copy for the other, dropping a text field's focus and once
 /// removing a date picker from under its opening calendar, which crashed
-/// the app (§586).
+/// the app (§589).
 struct ScrollsWhenTall<Content: View>: View {
     @ViewBuilder var content: () -> Content
     @State private var height: CGFloat = 0

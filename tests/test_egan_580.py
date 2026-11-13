@@ -152,3 +152,12 @@ def test_his_request_is_his_own_and_his_settings_are_sound():
     timeout, size = agent.ceiling(roster.BACKGROUND)
     assert timeout > 0 and size > 0
     assert agent.surfaces == (roster.BACKGROUND,) and not agent.sees_listener_words
+
+
+def test_he_has_his_own_section_on_the_admin_page():
+    """§588: Egan's page on /admin, beside Keith's, reading his row and
+    /admin/groups' own figures."""
+    html = (ROOT / "admin_ui" / "tracker.html").read_text()
+    assert 'href="#egan" data-nav="egan"' in html and 'data-page="egan"' in html
+    assert "function loadEgan()" in html and '"/api/admin/groups?status="' in html
+    assert 'x.role === "outreach"' in html and 'href="/admin/groups"' in html

@@ -650,7 +650,7 @@ struct ActivationCard: View {
                 confirmView(confirm)
             } else {
                 // A small phone, a large text size or the keyboard scrolls
-                // the card rather than cutting it (§586).
+                // the card rather than cutting it (§589).
                 ScrollsWhenTall { form }
             }
         }
