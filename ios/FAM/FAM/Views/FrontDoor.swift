@@ -667,7 +667,7 @@ struct WaitlistStatusPage: View {
             Text("Move up the list")
                 .font(FAMFont.heading(18, .semibold))
                 .foregroundStyle(FAMColor.text)
-            Text("Share your link. Every person who joins with it moves you up.")
+            Text("Share the waitlist to five friends to earn a free month!")
                 .font(FAMFont.body(13))
                 .foregroundStyle(FAMColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
