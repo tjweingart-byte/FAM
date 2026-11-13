@@ -2393,7 +2393,10 @@ def _health_report(request: Request) -> dict:
         # and whether the vendor is being told.
         "waitlist": {"gate": settings.waitlist,
                      "viral_loops": VIRAL_LOOPS.configured,
-                     "outbox_pending": WAITLIST.outbox_summary()["pending"]},
+                     "outbox_pending": WAITLIST.outbox_summary()["pending"],
+                     # Let-in emails and texts still waiting (§585).
+                     "notices_pending": WAITLIST.outbox_summary(
+                         waitlist_mod.NOTIFY_ACTIONS)["pending"]},
         "voice_store": VOICE_STORE["dir"],
         # Where pictures live (§330): the bucket, or inline in their rows.
         "images": {**image_store.describe(), "moved": dict(_IMAGE_MOVE)},
@@ -13906,11 +13909,12 @@ async def _drain_viral_loops_forever(every: float = 300.0) -> None:
         await asyncio.sleep(every)
 
 
-def _notice_bases(request: Request | None = None) -> tuple[str, str]:
+def _notice_bases() -> tuple[str, str]:
     """(where a claim link points, the app's home) for a waitlist notice.
-    Never relative - it is read in a mail app or a text."""
+    Never relative - it is read in a mail app or a text - and never the host
+    an admin happened to grant from, so every notice names the same one."""
     home = settings.app_home_url
-    return (_public_base(request) or settings.public_base_url or home), home
+    return (settings.public_base_url or home), home
 
 
 def _drain_notices(base: str = "", home: str = "") -> dict:
@@ -13919,12 +13923,11 @@ def _drain_notices(base: str = "", home: str = "") -> dict:
     return waitlist_notify.drain(WAITLIST, base, home)
 
 
-def _kick_notices(request: Request | None = None) -> None:
+def _kick_notices() -> None:
     """Send the notices just queued, in the background (§585)."""
-    base, home = _notice_bases(request)
     try:
         task = asyncio.get_running_loop().create_task(
-            asyncio.to_thread(_drain_notices, base, home))
+            asyncio.to_thread(_drain_notices))
         _BACKGROUND.add(task)
         task.add_done_callback(_BACKGROUND.discard)
     except RuntimeError:
@@ -14391,6 +14394,10 @@ async def admin_waitlist(request: Request) -> dict:
         "gate": settings.waitlist,
         "viral_loops": {"configured": VIRAL_LOOPS.configured,
                         **WAITLIST.outbox_summary()},
+        # "You're off the waitlist" (§585): whether each channel can send,
+        # and the notices still waiting.
+        "notices": {"mail": mail_mod.status(), "sms": sms_mod.status(),
+                    **WAITLIST.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)},
         "rows": rows,
     }
 
@@ -14415,7 +14422,7 @@ async def admin_waitlist_grant(req: AdminGrantRequest, request: Request) -> dict
     except waitlist_mod.WaitlistError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _kick_viral_loops()
-    _kick_notices(request)
+    _kick_notices()
     return {"granted": len(granted), "user_ids": granted}
 
 

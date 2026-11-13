@@ -92,7 +92,8 @@ def test_drain_sends_both_with_the_claim_link_and_no_launch_date(acc, wl, outbox
     assert "the day the full FAM app is published" in body
     (number, text), = outbox["sms"]
     assert number == "+14155550101" and f"/claim/{code}" in text
-    assert "when the full app is published" in text
+    assert "from launch day" in text and "STOP" in text
+    assert len(text) <= 160  # one segment
     # Sent once: a second drain has nothing to do.
     assert waitlist_notify.drain(wl, "https://x", "https://x")["sent"] == 0
 
@@ -134,7 +135,13 @@ def test_admin_grant_and_claim_page(world, outbox):
         "/api/admin/waitlist/grant", json={"user_ids": [user]},
         headers={"Authorization": "Bearer admin-secret"})
     assert r.status_code == 200 and r.json()["granted"] == 1, r.text
-    waitlist_notify.drain(appmod.WAITLIST, "https://h", "https://h")
+    # The grant kicked a drain in the background; finish whatever it left.
+    import time
+    for _ in range(50):
+        waitlist_notify.drain(appmod.WAITLIST, "https://h", "https://h")
+        if not appmod.WAITLIST.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)["pending"]:
+            break
+        time.sleep(0.1)
     code = appmod.WAITLIST.notice_view(user)["claim_code"]
     assert any(f"/claim/{code}" in m[2] for m in outbox["mail"])
     guest = TestClient(appmod.app)
@@ -143,3 +150,27 @@ def test_admin_grant_and_claim_page(world, outbox):
     assert "full FAM app is published" in page.text
     assert appmod.ACCOUNTS.account(user)["free_month_earned_at"] > 0
     assert guest.get("/claim/nope").status_code == 404
+
+
+def test_two_drains_at_once_send_once(acc, wl, monkeypatch):
+    """The grant's kick and the timer can overlap; only one sends."""
+    import threading
+    acc.sign_up("e", "e@fam.test", PASSWORD)
+    wl.grant(["e"])
+    started, release, sent = threading.Event(), threading.Event(), []
+
+    def slow_send(*a):
+        started.set(); release.wait(5); sent.append(a); return True
+    monkeypatch.setattr(waitlist_notify.mail, "send", slow_send)
+    first = threading.Thread(target=waitlist_notify.drain, args=(wl, "https://x", "https://x"))
+    first.start(); started.wait(5)
+    assert waitlist_notify.drain(wl, "https://x", "https://x")["sent"] == 0
+    release.set(); first.join(5)
+    assert len(sent) == 1
+
+
+def test_admin_counts_notices_apart_from_viral_loops(acc, wl):
+    acc.sign_up("e", "e@fam.test", PASSWORD)
+    wl.grant(["e"])
+    assert wl.outbox_summary()["pending"] == 1  # the flag
+    assert wl.outbox_summary(waitlist_mod.NOTIFY_ACTIONS)["pending"] == 1

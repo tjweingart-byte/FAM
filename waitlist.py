@@ -137,6 +137,9 @@ class Waitlist:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS waitlist_outbox_due"
                          " ON waitlist_outbox(done_at, next_at)")
+            # The free-month claim link's lookup (§585).
+            conn.execute("CREATE INDEX IF NOT EXISTS accounts_claim_code"
+                         " ON accounts(claim_code) WHERE claim_code != ''")
         try:
             self._credit_everyone()
         except Exception:
@@ -629,19 +632,25 @@ class Waitlist:
             (at or time.time(), action, containing))
         return int(cur.rowcount or 0)
 
-    def outbox_summary(self) -> dict:
+    def outbox_summary(self, actions=VENDOR_ACTIONS) -> dict:
+        """Pending and refused calls of these kinds: Viral Loops' by default,
+        the notices' with `NOTIFY_ACTIONS` - each shown under its own name."""
+        actions = tuple(actions)
+        kinds = " AND action IN (%s)" % ",".join("?" * len(actions))
         row = self._conn().execute(
             "SELECT COUNT(*), COALESCE(MAX(attempts), 0) FROM waitlist_outbox"
-            " WHERE done_at = 0").fetchone()
+            " WHERE done_at = 0" + kinds, actions).fetchone()
         last = self._conn().execute(
             "SELECT last_error FROM waitlist_outbox WHERE done_at = 0"
-            " AND last_error != '' ORDER BY id DESC LIMIT 1").fetchone()
+            " AND last_error != ''" + kinds + " ORDER BY id DESC LIMIT 1",
+            actions).fetchone()
         refused = self._conn().execute(
             "SELECT COUNT(*) FROM waitlist_outbox WHERE done_at > 0"
-            " AND last_error LIKE 'refused: %'").fetchone()[0]
+            " AND last_error LIKE 'refused: %'" + kinds, actions).fetchone()[0]
         last_refused = self._conn().execute(
             "SELECT last_error FROM waitlist_outbox WHERE done_at > 0"
-            " AND last_error LIKE 'refused: %' ORDER BY id DESC LIMIT 1").fetchone()
+            " AND last_error LIKE 'refused: %'" + kinds
+            + " ORDER BY id DESC LIMIT 1", actions).fetchone()
         return {"pending": int(row[0]), "max_attempts": int(row[1]),
                 "last_error": last[0] if last else "",
                 "refused": int(refused),

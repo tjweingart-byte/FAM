@@ -18,6 +18,7 @@ month.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 
 import mail
@@ -27,6 +28,10 @@ import waitlist as waitlist_mod
 log = logging.getLogger("fam.waitlist_notify")
 
 SUBJECT = "You're off the FAM waitlist"
+
+#: One drain at a time in this process: the drain kicked by a grant and the
+#: five-minute timer would otherwise read the same due rows and both send.
+_drain_lock = threading.Lock()
 
 
 def claim_link(base: str, code: str) -> str:
@@ -53,17 +58,28 @@ def email_body(name: str, link: str, home: str, starts: float) -> str:
 
 
 def sms_body(link: str, starts: float) -> str:
+    """One SMS segment (160 GSM characters) with today's link length."""
     t = time.gmtime(starts)
-    when = "starts when the full app is published" if not starts else \
-        f"starts {time.strftime('%b', t)} {t.tm_mday}"
-    return (f"FAM: you're off the waitlist! Claim your free month of Plus "
-            f"({when}): {link}")
+    when = "from launch day" if not starts else \
+        f"from {time.strftime('%b', t)} {t.tm_mday}"
+    return (f"FAM: you're off the waitlist! Claim a free month of Plus "
+            f"({when}): {link} Reply STOP to opt out.")
 
 
 def drain(waitlist, base: str, home: str, limit: int = 50) -> dict:
     """Send whatever notices are due. Never raises. Blocking (SMTP, HTTP):
-    callers run it in a thread."""
+    callers run it in a thread. A drain already running in this process
+    is not joined: whatever it leaves is the next one's."""
     result = {"sent": 0, "failed": 0, "skipped": 0}
+    if not _drain_lock.acquire(blocking=False):
+        return result
+    try:
+        return _drain(waitlist, base, home, limit, result)
+    finally:
+        _drain_lock.release()
+
+
+def _drain(waitlist, base: str, home: str, limit: int, result: dict) -> dict:
     starts = waitlist.free_month_starts()
     for item in waitlist.due(limit=limit, actions=waitlist_mod.NOTIFY_ACTIONS):
         try:
