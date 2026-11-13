@@ -63,6 +63,17 @@ FREE_MONTH_INVITES = 5
 #: let in, so everybody's month is the same month.
 FREE_MONTH_SECONDS = 30 * 86400
 
+#: The outbox's two kinds of call (§587). Viral Loops' drain reads only its
+#: own; the "you're off the waitlist" notices are `waitlist_notify`'s, one
+#: row per channel so an email that went is not re-sent when a text retries.
+VENDOR_ACTIONS = ("register", "flag")
+NOTIFY_EMAIL = "notify_email"
+NOTIFY_SMS = "notify_sms"
+NOTIFY_ACTIONS = (NOTIFY_EMAIL, NOTIFY_SMS)
+
+#: Length of the code in a free-month claim link (`/claim/<code>`).
+CLAIM_CODE_LENGTH = 22
+
 
 class WaitlistError(ValueError):
     """A request the waitlist refuses, with a sentence a person can read."""
@@ -126,6 +137,9 @@ class Waitlist:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS waitlist_outbox_due"
                          " ON waitlist_outbox(done_at, next_at)")
+            # The free-month claim link's lookup (§587).
+            conn.execute("CREATE INDEX IF NOT EXISTS accounts_claim_code"
+                         " ON accounts(claim_code) WHERE claim_code != ''")
         try:
             self._credit_everyone()
         except Exception:
@@ -451,7 +465,8 @@ class Waitlist:
 
     # --- granting ---------------------------------------------------------
 
-    def grant(self, user_ids, at: float = 0.0, flag: bool = True) -> list[str]:
+    def grant(self, user_ids, at: float = 0.0, flag: bool = True,
+              notify: bool = True) -> list[str]:
         """Let these people in. Returns the ids that actually changed.
 
         Only 'waitlisted' rows move, so granting twice is harmless and an id
@@ -459,6 +474,12 @@ class Waitlist:
         Loops, which takes them off its leaderboard without deleting them -
         unless `flag` is False, for an account Viral Loops was never told
         about (an admin let in at sign-up, `app._admit_admin`).
+
+        Each one granted is also told (§587, unless `notify` is False - the
+        admin let in at sign-up, who was never waiting): an email to the
+        account's address and a text to its phone, whichever it has, each
+        carrying the link that claims the free month. Queued in the same
+        outbox, so a mail outage delays the notice and never loses it.
         """
         now = at or time.time()
         changed = []
@@ -471,7 +492,73 @@ class Waitlist:
                 changed.append(user_id)
                 if flag:
                     self.enqueue(user_id, "flag", at=now)
+                if notify:
+                    self._queue_notice(user_id, now)
         return changed
+
+    # --- "you're off the waitlist" (§587) ---------------------------------
+
+    def _queue_notice(self, user_id: str, now: float) -> None:
+        row = self._conn().execute(
+            "SELECT email, phone FROM accounts WHERE user_id = ?",
+            (user_id,)).fetchone()
+        if not row:
+            return
+        self.ensure_claim_code(user_id)
+        if row[0]:
+            self.enqueue(user_id, NOTIFY_EMAIL, at=now)
+        if row[1]:
+            self.enqueue(user_id, NOTIFY_SMS, at=now)
+
+    def ensure_claim_code(self, user_id: str) -> str:
+        """The code in this account's free-month claim link, minted once."""
+        row = self._conn().execute(
+            "SELECT claim_code FROM accounts WHERE user_id = ?",
+            (user_id,)).fetchone()
+        if row is None:
+            return ""
+        if row[0]:
+            return row[0]
+        code = secrets.token_urlsafe(CLAIM_CODE_LENGTH)[:CLAIM_CODE_LENGTH]
+        self._conn().execute(
+            "UPDATE accounts SET claim_code = ? WHERE user_id = ?"
+            " AND claim_code = ''", (code, user_id))
+        return self._conn().execute(
+            "SELECT claim_code FROM accounts WHERE user_id = ?",
+            (user_id,)).fetchone()[0]
+
+    def notice_view(self, user_id: str) -> Optional[dict]:
+        """What a notice needs about one account, or None if it is gone."""
+        row = self._conn().execute(
+            "SELECT email, phone, display_name, claim_code, status"
+            " FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
+        if not row:
+            return None
+        return {"email": row[0], "phone": row[1], "name": row[2],
+                "claim_code": row[3], "status": row[4]}
+
+    def claim_free_month(self, code: str, at: float = 0.0) -> str:
+        """Claim the free month from a notice's link. Returns the account's
+        id, or "" for a code that names nobody.
+
+        It stamps `free_month_earned_at` - the same stamp five friends earn -
+        so the month is the one month everyone gets: it runs from the day the
+        real app is published (`free_month_starts`), never during the beta.
+        Set once and never moved; claiming twice changes nothing.
+        """
+        code = str(code or "").strip()
+        if not code or len(code) > 64:
+            return ""
+        row = self._conn().execute(
+            "SELECT user_id FROM accounts WHERE claim_code = ?",
+            (code,)).fetchone()
+        if not row:
+            return ""
+        self._conn().execute(
+            "UPDATE accounts SET free_month_earned_at = ?"
+            " WHERE user_id = ? AND free_month_earned_at = 0",
+            (at or time.time(), row[0]))
+        return row[0]
 
     def grant_top(self, n: int, at: float = 0.0) -> list[str]:
         if int(n) <= 0:
@@ -487,12 +574,18 @@ class Waitlist:
             " VALUES (?, ?, ?, ?)", (user_id, action, now, now))
         return int(cur.lastrowid)
 
-    def due(self, now: float = 0.0, limit: int = 50) -> list[dict]:
+    def due(self, now: float = 0.0, limit: int = 50,
+            actions=VENDOR_ACTIONS) -> list[dict]:
+        """Calls due now, of these kinds only: each reader drains its own,
+        so Viral Loops' drain never marks a notice done (or the reverse)."""
         now = now or time.time()
+        actions = tuple(actions)
+        marks = ",".join("?" * len(actions))
         rows = self._conn().execute(
             "SELECT id, user_id, action, attempts FROM waitlist_outbox"
-            " WHERE done_at = 0 AND next_at <= ? ORDER BY id LIMIT ?",
-            (now, int(limit))).fetchall()
+            f" WHERE done_at = 0 AND next_at <= ? AND action IN ({marks})"
+            " ORDER BY id LIMIT ?",
+            (now, *actions, int(limit))).fetchall()
         return [{"id": r[0], "user_id": r[1], "action": r[2], "attempts": r[3]}
                 for r in rows]
 
@@ -539,19 +632,25 @@ class Waitlist:
             (at or time.time(), action, containing))
         return int(cur.rowcount or 0)
 
-    def outbox_summary(self) -> dict:
+    def outbox_summary(self, actions=VENDOR_ACTIONS) -> dict:
+        """Pending and refused calls of these kinds: Viral Loops' by default,
+        the notices' with `NOTIFY_ACTIONS` - each shown under its own name."""
+        actions = tuple(actions)
+        kinds = " AND action IN (%s)" % ",".join("?" * len(actions))
         row = self._conn().execute(
             "SELECT COUNT(*), COALESCE(MAX(attempts), 0) FROM waitlist_outbox"
-            " WHERE done_at = 0").fetchone()
+            " WHERE done_at = 0" + kinds, actions).fetchone()
         last = self._conn().execute(
             "SELECT last_error FROM waitlist_outbox WHERE done_at = 0"
-            " AND last_error != '' ORDER BY id DESC LIMIT 1").fetchone()
+            " AND last_error != ''" + kinds + " ORDER BY id DESC LIMIT 1",
+            actions).fetchone()
         refused = self._conn().execute(
             "SELECT COUNT(*) FROM waitlist_outbox WHERE done_at > 0"
-            " AND last_error LIKE 'refused: %'").fetchone()[0]
+            " AND last_error LIKE 'refused: %'" + kinds, actions).fetchone()[0]
         last_refused = self._conn().execute(
             "SELECT last_error FROM waitlist_outbox WHERE done_at > 0"
-            " AND last_error LIKE 'refused: %' ORDER BY id DESC LIMIT 1").fetchone()
+            " AND last_error LIKE 'refused: %'" + kinds
+            + " ORDER BY id DESC LIMIT 1", actions).fetchone()
         return {"pending": int(row[0]), "max_attempts": int(row[1]),
                 "last_error": last[0] if last else "",
                 "refused": int(refused),

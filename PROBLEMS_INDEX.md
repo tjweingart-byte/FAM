@@ -578,3 +578,4 @@ and `limit` = Lines.
 | 35602 | 147 | 584. Build 7: a shared episode for anybody, and the iPhone made the web's again (2026-11-13) |
 | 35749 | 36 | 585. The category tree out to another reader and back (2026-11-13) |
 | 35785 | 23 | 586. The voice bank takes a Voice Memo: M4A decoded to WAV on upload (2026-11-13) |
+| 35808 | 59 | 587. Letting somebody off the waitlist tells them, with a free month to claim (2026-11-13) |
