@@ -528,7 +528,8 @@ struct WaitlistStatusPage: View {
 
     @State private var page: WaitlistMe?
     @State private var problem = ""
-    @State private var menu = false
+    /// The settings button's menu, as FAM's own action sheet.
+    @State private var menu: SheetSpec?
     @State private var editing = false
     @State private var confirmDelete = false
     @State private var confirmSignOut = false
@@ -582,14 +583,8 @@ struct WaitlistStatusPage: View {
         .refreshable { await load() }
         .background(FAMColor.background.ignoresSafeArea())
         .task { await load() }
-        .confirmationDialog("", isPresented: $menu, titleVisibility: .hidden) {
-            Button("Edit profile") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { editing = true } }
-            Button("Sign out") { signOut() }
-            Button("Delete account", role: .destructive) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { confirmDelete = true }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
+        // A row closes the sheet, then acts once it has gone.
+        .famSheet(item: $menu) { spec in FAMActionSheet(spec: spec) }
         .alert("Delete your FAM account?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) { deleteAccount() }
             Button("Cancel", role: .cancel) {}
@@ -619,7 +614,13 @@ struct WaitlistStatusPage: View {
         HStack {
             Wordmark(size: 26)
             Spacer()
-            Button { menu = true } label: {
+            Button {
+                menu = SheetSpec(actions: [
+                    SheetAction(label: "Edit profile") { editing = true },
+                    SheetAction(label: "Sign out") { signOut() },
+                    SheetAction(label: "Delete account", danger: true) { confirmDelete = true },
+                ])
+            } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(FAMColor.text)

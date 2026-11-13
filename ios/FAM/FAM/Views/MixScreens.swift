@@ -13,7 +13,8 @@ struct NewMixView: View {
     @State private var cover = ""
     @State private var photo: PhotosPickerItem?
     @State private var picking = false
-    @State private var coverChoice = false
+    /// `coverTapped("new")`: FAM's own sheet, two rows.
+    @State private var coverSheet: SheetSpec?
     /// The chosen photo in the cover editor ("Position your cover").
     @State private var coverEditing: EditingPhoto?
     @State private var working = false
@@ -41,7 +42,7 @@ struct NewMixView: View {
             .frame(minHeight: 48)
             ScrollView {
                 VStack(spacing: 0) {
-                    Button { if cover.isEmpty { picking = true } else { coverChoice = true } } label: { folder }
+                    Button { tapCover() } label: { folder }
                         .buttonStyle(.press)
                         .accessibilityLabel("Choose a cover photo")
                         .padding(.top, 20)
@@ -121,14 +122,17 @@ struct NewMixView: View {
                         square: true, title: "Position your cover", pixels: 360)
                 .famThemed()
         }
-        .confirmationDialog("Cover", isPresented: $coverChoice, titleVisibility: .hidden) {
-            // The picker waits for the dialog to close, or it is dropped.
-            Button("Choose a different photo") {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { picking = true }
-            }
-            Button("Remove cover", role: .destructive) { cover = "" }
-            Button("Cancel", role: .cancel) {}
-        } message: { Text(MixCover.note) }
+        .famSheet(item: $coverSheet) { spec in FAMActionSheet(spec: spec) }
+    }
+
+    /// No cover yet: straight to the photos. Else choose again or remove;
+    /// a row waits for the sheet to close before it acts.
+    private func tapCover() {
+        if cover.isEmpty { picking = true; return }
+        coverSheet = SheetSpec(actions: [
+            SheetAction(label: "Choose a different photo") { picking = true },
+            SheetAction(label: "Remove cover", danger: true) { cover = "" },
+        ])
     }
 
     private var folder: some View {
@@ -464,8 +468,8 @@ struct AddToMixSheet: View {
 
     @State private var topic: EpisodeTopic?
     @State private var problem = ""
-    @State private var naming = false
-    @State private var newName = ""
+    /// "Name your new playlist" as the web's centred modal (`showModal`).
+    @State private var nameAsk: TextAsk?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -477,7 +481,7 @@ struct AddToMixSheet: View {
                             Button { Task { await add(to: mix, topic) } } label: { mixRow(mix) }
                                 .buttonStyle(.press)
                         }
-                        Button { newName = topic.label; naming = true } label: { createRow }
+                        Button { askName(topic) } label: { createRow }
                             .buttonStyle(.press)
                     }
                 }
@@ -492,10 +496,14 @@ struct AddToMixSheet: View {
         .padding(.bottom, 12)
         .background(FAMColor.surface)
         .task { await load() }
-        .alert("Name your new playlist", isPresented: $naming) {
-            TextField("e.g. Morning commute", text: $newName)
-            Button("Cancel", role: .cancel) {}
-            Button("Create") { Task { await create() } }
+        .textModal($nameAsk)
+    }
+
+    /// `createMixWithTopic`: the topic's name to start from.
+    private func askName(_ topic: EpisodeTopic) {
+        nameAsk = TextAsk(title: "Name your new playlist", placeholder: "e.g. Morning commute",
+                          button: "Create", initial: topic.label) { name in
+            Task { await create(named: name) }
         }
     }
 
@@ -581,9 +589,9 @@ struct AddToMixSheet: View {
         }
     }
 
-    private func create() async {
+    private func create(named typed: String) async {
         guard let topic else { return }
-        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         dismiss()
         do {

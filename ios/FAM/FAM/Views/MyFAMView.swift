@@ -414,7 +414,8 @@ struct AddMixButton: View {
     var wide = false
     @State private var added: Bool?
     @State private var busy = false
-    @State private var confirmRemove = false
+    /// `confirmRemoveMix`: FAM's own sheet, its question as the header.
+    @State private var confirmRemove: SheetSpec?
 
     /// Once your list has loaded it is the only truth - a copy of this mix
     /// is in it or not; before that, what the server said with the search.
@@ -425,7 +426,7 @@ struct AddMixButton: View {
 
     var body: some View {
         Button {
-            if isAdded { confirmRemove = true } else { Task { await add() } }
+            if isAdded { askRemove() } else { Task { await add() } }
         } label: {
             if wide {
                 // `.pub-add-btn`: a 44 pt rounded bar.
@@ -453,11 +454,14 @@ struct AddMixButton: View {
         // halves a disabled button, so 0.8 of that.
         .opacity(busy ? 0.8 : 1)
         .accessibilityLabel(isAdded ? "Remove \(mix.name) from your myFAM" : "Add \(mix.name) to your myFAM")
-        .confirmationDialog("Remove \(mix.name) from your myFAM?", isPresented: $confirmRemove,
-                            titleVisibility: .visible) {
-            Button("Yes, remove it", role: .destructive) { Task { await remove() } }
-            Button("Cancel", role: .cancel) {}
-        }
+        .famSheet(item: $confirmRemove) { spec in FAMActionSheet(spec: spec) }
+    }
+
+    private func askRemove() {
+        confirmRemove = SheetSpec(header: "Remove \(mix.name) from your myFAM?",
+                                  actions: [SheetAction(label: "Yes, remove it", danger: true) {
+                                      Task { await remove() }
+                                  }])
     }
 
     private var glyph: some View {

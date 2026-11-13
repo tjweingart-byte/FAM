@@ -29,7 +29,6 @@ struct PersonView: View {
     @State private var followedHandles: Set<String> = []
     @State private var addedMixes: [String: Bool] = [:]
     /// A mix of theirs already in your myFAM, asked about before it goes.
-    @State private var removingMix: PersonMix?
     @State private var story: StoryReel?
     @AppStorage("storiesSeen") private var seenJSON = "{}"
 
@@ -101,16 +100,6 @@ struct PersonView: View {
                            say: { model.nowPlaying.say($0) }) { _ in }
         }
         .famSheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
-        // `confirmRemoveMix`: the copy may have been renamed since, so ask.
-        .confirmationDialog(removingMix.map { "Remove \($0.name ?? "this mix") from your myFAM?" } ?? "",
-                            isPresented: Binding(get: { removingMix != nil },
-                                                 set: { if !$0 { removingMix = nil } }),
-                            titleVisibility: .visible) {
-            if let m = removingMix {
-                Button("Yes, remove it", role: .destructive) { toggleMix(m, added: true) }
-                Button("Cancel", role: .cancel) {}
-            }
-        }
         .fullScreenCover(item: $story) { reel in
             StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 }, openMine: {
                 // "Vibed to your story · View" after the VIBE! arrows.
@@ -425,7 +414,16 @@ struct PersonView: View {
         .overlay(alignment: .topTrailing) {
             if m.mine != true {
                 Button {
-                    if added { removingMix = m } else { toggleMix(m, added: false) }
+                    // `confirmRemoveMix`: the copy may have been renamed
+                    // since, so FAM's own sheet asks first.
+                    if added {
+                        confirm = SheetSpec(header: "Remove \(m.name ?? "this mix") from your myFAM?",
+                                            actions: [SheetAction(label: "Yes, remove it", danger: true) {
+                                                toggleMix(m, added: true)
+                                            }])
+                    } else {
+                        toggleMix(m, added: false)
+                    }
                 } label: {
                     Group {
                         if added {
