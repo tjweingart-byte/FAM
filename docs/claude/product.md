@@ -691,6 +691,32 @@ fell to a facet). Four changes, none of which moves the §209 rules above:
   school - never a globe or the view from space. Pictures already painted
   keep theirs until regenerated (`tools/thumbnails.py`).
 
+<!-- rule:tree-review -->
+**The tree goes out to another reader and comes back as edits** *(PROBLEMS.md
+§585, at the owner's direction)*, the pronunciation round trip (§549) for
+categories. /admin's Categories page downloads every node as a CSV (path,
+parent, source, episodes filed there and below, listeners, any edit already
+made) with a fixed prompt (`category_review.PROMPT`) for a Claude chat on high
+effort, which returns `action,node,target,confidence,reason` rows: move,
+remove, merge, rename, add.
+
+* **An upload changes nothing.** It is read into proposals checked against the
+  tree as it stands (a loop, a missing node, a parent that is not a facet or
+  node is refused in words); an admin accepts each, or the high-confidence
+  ones together.
+* **An accepted edit is the owner's and nothing that grows the tree undoes
+  it** (`category_owner` table, `CategoryStore.owner_*`): a removed or merged
+  phrase is refused by `mint` whatever its source - the sweep, the writer's
+  words, the seed at every boot; the placer never moves a node the owner
+  placed; an owner's node is never pruned; `apply_owner` re-applies adds and
+  placements after the seed, so a wipe keeps them (they are decisions, not
+  derived from listening).
+* **A merged phrase reads as the node it went into**, like a seed alias, so
+  episodes whose words named it still land there. An episode Nando filed at
+  a removed node falls back as for any node the tree no longer holds.
+* "Forget" on an edit lets a removed phrase grow again and the placer move a
+  node again; it never changes the tree back.
+
 <!-- rule:no-inverted-pyramid -->
 Note this **replaced an earlier rule** that said to open with the answer
 immediately. That was news-writing — the inverted pyramid — and it is the

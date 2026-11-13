@@ -12874,6 +12874,88 @@ async def admin_categories_tree(request: Request) -> dict:
     return await asyncio.to_thread(_category_outline)
 
 
+@app.get("/api/admin/categories/export")
+async def admin_export_categories(request: Request) -> Response:
+    """Every node of the tree as a CSV - path, source, episodes filed - for
+    a reviewer outside FAM (§585), as the pronunciations go out (§549)."""
+    _require_admin(request)
+    import category_review
+
+    counts = SCRIPT_CACHE.node_counts() if hasattr(SCRIPT_CACHE, "node_counts") else {}
+    body = await asyncio.to_thread(
+        category_review.export_csv, topics_mod.category_tree(), counts)
+    stamp = time.strftime("%Y-%m-%d")
+    return Response(body, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="fam-categories-{stamp}.csv"'})
+
+
+@app.get("/api/admin/categories/review-prompt")
+async def admin_category_review_prompt(request: Request) -> dict:
+    """The fixed prompt that goes with a tree download (§585)."""
+    _require_admin(request)
+    import category_review
+
+    return {"prompt": category_review.PROMPT}
+
+
+class CategoryUpload(BaseModel):
+    csv: str = Field(..., max_length=2_000_000)
+
+
+@app.post("/api/admin/categories/import")
+async def admin_import_categories(req: CategoryUpload, request: Request) -> dict:
+    """Read a reviewer's CSV into proposed edits (§585). Changes nothing: an
+    admin accepts each one."""
+    _require_admin(request)
+    import category_review
+
+    try:
+        return await asyncio.to_thread(
+            category_review.read_upload, req.csv, topics_mod.category_tree())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class CategoryEdit(BaseModel):
+    action: str = Field(..., min_length=1, max_length=20)
+    node: str = Field(..., min_length=1, max_length=120)
+    target: str = Field("", max_length=120)
+    reason: str = Field("", max_length=200)
+
+
+@app.post("/api/admin/categories/edit")
+async def admin_edit_category(req: CategoryEdit, request: Request) -> dict:
+    """One accepted edit, saved as the owner's (§585): nothing that grows the
+    tree undoes it."""
+    _require_admin(request)
+    import category_review
+
+    try:
+        return await asyncio.to_thread(category_review.apply, topics_mod.category_tree(),
+                                       req.action, req.node, req.target, req.reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/admin/categories/edits")
+async def admin_category_edits(request: Request) -> dict:
+    """The owner's edits to the tree (§585), newest first."""
+    _require_admin(request)
+    decisions = topics_mod.category_tree().owner_decisions() \
+        if hasattr(topics_mod.category_tree(), "owner_decisions") else {}
+    return {"edits": [{"node": k, "action": a, "target": t}
+                      for k, (a, t) in sorted(decisions.items())]}
+
+
+@app.delete("/api/admin/categories/edits/{node}")
+async def admin_forget_category_edit(node: str, request: Request) -> dict:
+    """Forget one owner edit: a removed phrase may grow again, a placed node
+    may be moved by the placer. The tree is not changed back."""
+    _require_admin(request)
+    tree = topics_mod.category_tree()
+    return {"ok": bool(hasattr(tree, "owner_undo") and tree.owner_undo(node))}
+
+
 @app.get("/api/admin/categories/queue")
 async def admin_categories_queue(request: Request, limit: int = 20) -> dict:
     """Episodes for the owner to file by hand (§503), disagreements first,

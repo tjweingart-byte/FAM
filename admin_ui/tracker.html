@@ -511,6 +511,29 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         <span><span class="ct-grown"></span> grown from listeners; the rest were seeded</span>
         <span id="ctOrphans"></span>
       </div>
+      <div class="wikibar" id="ctReviewBar">
+        <div><b>Fixed by another reader</b><span id="ctReviewState">Download the whole tree, give it to another reader (a Claude chat on high effort, with the prompt) and upload the edits that come back: move, remove, merge, rename or add. An upload changes nothing: each edit is listed beside the node as it stands, and only the ones you accept are made - as yours, which the sweep, the seed and the placer never undo.</span></div>
+        <button class="ghost" id="ctReviewDownload" type="button">Download tree</button>
+        <button class="ghost" id="ctReviewPrompt" type="button">Copy the prompt</button>
+        <label class="ghost button">Upload edits<input id="ctReviewFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden></label>
+      </div>
+      <details id="ctReviewPaste" class="reviewpaste">
+        <summary>Or paste the reply</summary>
+        <textarea id="ctReviewText" rows="6" placeholder="action,node,target,confidence,reason"></textarea>
+        <div class="formrow"><button class="go" id="ctReviewRead" type="button">Read edits</button></div>
+      </details>
+      <div id="ctReviewOut" hidden>
+        <div class="formrow reviewacts">
+          <span class="sub" id="ctReviewCount"></span>
+          <button class="go" id="ctReviewAcceptHigh" type="button">Accept all high confidence</button>
+          <button class="ghost" id="ctReviewClear" type="button">Close</button>
+        </div>
+        <div id="ctReviewList"></div>
+      </div>
+      <details id="ctEdits" class="reviewpaste">
+        <summary>Your edits to the tree <span id="ctEditsCount"></span></summary>
+        <div id="ctEditsList"></div>
+      </details>
     </section>
     <section class="card section">
       <h2>How Nando is graded</h2>
@@ -1971,7 +1994,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   function ctRows(items, max, q, depth) {
     return items.map(function (it) {
       var n = it.n, width = n.total ? Math.max(4, Math.round(Math.sqrt(n.total / max) * 100)) : 0;
-      var grown = n.source && n.source !== "seed"
+      var grown = n.source && n.source !== "seed" && n.source !== "owner"
         ? '<span class="ct-grown" title="grown from listeners (' + esc(n.source) + ')"></span>' : "";
       var title = n.label + " - " + n.total + " episode" + (n.total === 1 ? "" : "s")
         + (n.episodes !== n.total ? " (" + n.episodes + " filed here)" : "");
@@ -2034,8 +2057,116 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
+  // §585: the tree out as a CSV, back as proposed edits, each accepted by hand.
+  var ctRvRows = [], ctRvDone = {}, ctRvErr = {};
+  var CT_VERB = { move: "Move", remove: "Remove", merge: "Merge", rename: "Rename", add: "Add" };
+  function ctRvKey(p) { return p.action + "\u0000" + p.node + "\u0000" + p.target; }
+  function ctRvSays(p) {
+    var n = '<b>' + esc(p.node) + '</b>';
+    if (p.action === "move") return n + ' <span class="faint">' + esc(p.path || p.parent) + '</span> → under <b>' + esc(p.target) + '</b>';
+    if (p.action === "remove") return n + ' <span class="faint">' + esc(p.path) + '</span> → removed' + (p.children ? ' (' + p.children + ' below it move up)' : '');
+    if (p.action === "merge") return n + ' <span class="faint">' + esc(p.path) + '</span> → into <b>' + esc(p.target) + '</b>';
+    if (p.action === "rename") return n + ' <span class="faint">' + esc(p.path) + '</span> → <b>' + esc(p.target) + '</b>';
+    return '<span class="faint">new</span> ' + n + ' under <b>' + esc(p.target) + '</b>';
+  }
+  function drawCtReview(r) {
+    if (r) {
+      ctRvRows = r.proposals || []; ctRvDone = {}; ctRvErr = {};
+      var refused = r.refused || [];
+      $("ctReviewState").textContent = ctRvRows.length + " edit" + (ctRvRows.length === 1 ? "" : "s") + " to look at" +
+        (refused.length ? ", " + refused.length + " refused: " + refused.slice(0, 5).map(function (x) { return (x.node || "line " + x.line) + " (" + x.why + ")"; }).join("; ") + (refused.length > 5 ? "…" : "") : "") + ".";
+    }
+    $("ctReviewOut").hidden = !ctRvRows.length;
+    var left = ctRvRows.filter(function (p) { return !ctRvDone[ctRvKey(p)]; });
+    var high = left.filter(function (p) { return p.confidence === "high"; }).length;
+    $("ctReviewCount").textContent = left.length + " left";
+    $("ctReviewAcceptHigh").disabled = !high;
+    $("ctReviewAcceptHigh").textContent = "Accept all high confidence (" + high + ")";
+    $("ctReviewList").innerHTML = ctRvRows.map(function (p, i) {
+      var k = ctRvKey(p), done = ctRvDone[k];
+      return '<div class="vrow sayrow reviewrow' + (done ? " done" : "") + '"><div class="sayname"><span class="srctag">' + esc(CT_VERB[p.action] || p.action) + '</span> ' +
+        ctRvSays(p) + ' ' + (p.confidence ? '<span class="conf ' + esc(p.confidence) + '">' + esc(p.confidence) + '</span>' : '<span class="conf low">no confidence given</span>') + '</div>' +
+        (p.reason ? '<span class="hardex">' + esc(p.reason) + '</span>' : '') +
+        (p.episodes ? '<span class="hardex">' + p.episodes + ' episode' + (p.episodes === 1 ? '' : 's') + ' filed there and below</span>' : '') +
+        (p.needs ? '<span class="hardex">Needs "' + esc(p.needs) + '" added first</span>' : '') +
+        (ctRvErr[k] && !done ? '<span class="hardex err">' + esc(ctRvErr[k]) + '</span>' : '') +
+        '<div class="sayacts">' + (done ? '<span class="faint">' + esc(done) + '</span>' :
+          '<button class="go tiny" type="button" data-ctrv-accept="' + i + '">Accept</button> ' +
+          '<button class="ghost tiny" type="button" data-ctrv-skip="' + i + '">Skip</button>') + '</div></div>';
+    }).join("");
+  }
+  function acceptCtReview(p) {
+    var k = ctRvKey(p);
+    return api("/api/admin/categories/edit", { action: p.action, node: p.node, target: p.target, reason: p.reason || "" })
+      .then(function (r) { ctRvDone[k] = "Done - " + (r.said || "saved") + ", as yours"; delete ctRvErr[k]; })
+      .catch(function (e) { ctRvErr[k] = "Not made: " + e.message; });
+  }
+  function readCtReview(text) {
+    $("ctReviewState").textContent = "Reading…";
+    api("/api/admin/categories/import", { csv: text })
+      .then(function (r) { drawCtReview(r); })
+      .catch(function (e) { $("ctReviewState").textContent = e.message; });
+  }
+  function loadCtEdits() {
+    return api("/api/admin/categories/edits").then(function (r) {
+      var rows = r.edits || [];
+      $("ctEditsCount").textContent = rows.length ? "(" + rows.length + ")" : "(none yet)";
+      $("ctEditsList").innerHTML = rows.length ? rows.map(function (e) {
+        return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(e.node) + '</b> <span class="faint">' + esc(e.action) +
+          (e.target ? " " + esc(e.target) : "") + '</span></div><div class="sayacts"><button class="ghost tiny" type="button" data-ct-forget="' +
+          esc(e.node) + '" title="Forget this decision: a removed phrase may grow back, a placed node may be moved again. The tree is not changed back.">Forget</button></div></div>';
+      }).join("") : '<p class="sub">Nothing yet.</p>';
+    }).catch(function () {});
+  }
+  $("ctReviewDownload").addEventListener("click", function () {
+    var b = $("ctReviewDownload"); b.disabled = true;
+    fetch("/api/admin/categories/export", { credentials: "same-origin" }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var name = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "fam-categories.csv";
+      return r.blob().then(function (blob) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      });
+    }).catch(function (e) { $("ctReviewState").textContent = "The tree could not be downloaded: " + e.message; })
+      .then(function () { b.disabled = false; });
+  });
+  $("ctReviewPrompt").addEventListener("click", function () {
+    api("/api/admin/categories/review-prompt").then(function (v) {
+      var done = function () { $("ctReviewPrompt").textContent = "Prompt copied"; setTimeout(function () { $("ctReviewPrompt").textContent = "Copy the prompt"; }, 2500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(v.prompt).then(done);
+      $("ctReviewText").value = v.prompt; $("ctReviewPaste").open = true; $("ctReviewText").select();
+    }).catch(function (e) { $("ctReviewState").textContent = e.message; });
+  });
+  $("ctReviewFile").addEventListener("change", function () {
+    var f = $("ctReviewFile").files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () { readCtReview(String(reader.result || "")); $("ctReviewFile").value = ""; };
+    reader.readAsText(f);
+  });
+  $("ctReviewRead").addEventListener("click", function () { readCtReview($("ctReviewText").value); });
+  $("ctReviewClear").addEventListener("click", function () { ctRvRows = []; drawCtReview(); loadTree(); loadCtEdits(); });
+  $("ctReviewAcceptHigh").addEventListener("click", function () {
+    var high = ctRvRows.filter(function (p) { return p.confidence === "high" && !ctRvDone[ctRvKey(p)]; });
+    if (!high.length || !confirm("Make " + high.length + " high-confidence edit" + (high.length === 1 ? "" : "s") + " to the tree? They are kept as yours: nothing that grows the tree undoes them.")) return;
+    $("ctReviewAcceptHigh").disabled = true;
+    high.reduce(function (chain, p) { return chain.then(function () { return acceptCtReview(p); }); }, Promise.resolve())
+      .then(function () { drawCtReview(); loadTree(); loadCtEdits(); });
+  });
+  $("ctReviewList").addEventListener("click", function (ev) {
+    var t = ev.target, i;
+    if ((i = t.getAttribute("data-ctrv-accept")) != null) { t.disabled = true; acceptCtReview(ctRvRows[+i]).then(function () { drawCtReview(); loadTree(); loadCtEdits(); }); return; }
+    if ((i = t.getAttribute("data-ctrv-skip")) != null) { ctRvDone[ctRvKey(ctRvRows[+i])] = "Skipped"; drawCtReview(); }
+  });
+  $("ctEditsList").addEventListener("click", function (ev) {
+    var n = ev.target.getAttribute("data-ct-forget");
+    if (n == null) return;
+    api("/api/admin/categories/edits/" + encodeURIComponent(n), null, "DELETE").then(loadCtEdits);
+  });
+
   function loadCategories() {
     loadTree();
+    loadCtEdits();
     return Promise.all([api("/api/admin/categories"), api("/api/admin/categories/queue?limit=20")])
       .then(function (got) { drawCategories(got[0]); drawCatQueue(got[1].episodes || []); })
       .catch(function (e) { $("catKpis").innerHTML = '<p class="sub">Could not load: ' + esc(e.message) + '</p>'; });
