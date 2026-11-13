@@ -66,13 +66,15 @@ def _part(kwargs):
     props = kwargs["output_config"]["format"]["schema"]["properties"]
     if "beats" in props:
         return "outline"
+    if "why_now" in props and "intent" not in props:
+        return "frame"      # the framing apart from the routing (§603)
     return "understand" if "intent" in props else "search"
 
 
 @pytest.fixture
 def model(monkeypatch):
     state = {"calls": [], "understand": UNDERSTOOD, "search": WORDED,
-             "outline": OUTLINED, "delay": {}}
+             "outline": OUTLINED, "frame": UNDERSTOOD, "delay": {}}
 
     class _Messages:
         async def create(self, **kwargs):
@@ -112,7 +114,10 @@ def test_the_defaults_and_the_example_file_agree():
 
 def test_the_outline_is_a_third_part_asked_at_the_same_moment(model):
     brief = asyncio.run(ei.understand("did the eagles win", 2))
-    assert sorted(p for p, _ in model["calls"]) == ["outline", "search", "understand"]
+    # Since §603 the framing (why_now, structure, cautions) is its own call,
+    # asked at the same moment (EI_FRAME_APART=1), so the outline is one of four.
+    assert sorted(p for p, _ in model["calls"]) == ["frame", "outline", "search",
+                                                     "understand"]
     outline_call = next(k for p, k in model["calls"] if p == "outline")
     prompt = outline_call["messages"][0]["content"]
     assert "State no facts" in prompt and "<request>did the eagles win</request>" in prompt
@@ -166,6 +171,13 @@ def test_ahead_the_outline_has_the_whole_ceiling(model, monkeypatch):
 
 def test_off_it_is_the_two_parts_of_268(model, monkeypatch):
     _with(monkeypatch, ei_outline=False)
+    asyncio.run(ei.understand("did the eagles win", 2))
+    # Off removes only the outline; the framing stays its own call (§603).
+    assert sorted(p for p, _ in model["calls"]) == ["frame", "search", "understand"]
+    # With the framing back in the understanding part too, it is byte for byte
+    # the two parts of 268 (§603: EI_FRAME_APART=0).
+    model["calls"].clear()
+    _with(monkeypatch, ei_frame_apart=False)
     asyncio.run(ei.understand("did the eagles win", 2))
     assert sorted(p for p, _ in model["calls"]) == ["search", "understand"]
 
