@@ -27,16 +27,15 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(freeMonthClosed, forKey: "fam.freeMonthClosed") }
     }
 
-    /// The card's Claim button (§593). Returns the sentence to show when it
-    /// fails, nil when the month is claimed.
-    func claimFreeMonth() async -> String? {
+    /// The card's Claim button (§593): claimed, or why not - both a toast,
+    /// as the web's `claimFreeMonth` says them.
+    func claimFreeMonth() async {
         do {
             let offer = try await api.claimFreeMonth()
             listener?.freeMonth = offer
             nowPlaying.say("Free month claimed")
-            return nil
         } catch {
-            return (error as? LocalizedError)?.errorDescription ?? "Could not claim it. Try again."
+            nowPlaying.say((error as? LocalizedError)?.errorDescription ?? "Could not claim it. Try again.")
         }
     }
     @Published private(set) var rails: [Rail] = []
@@ -1412,7 +1411,12 @@ final class AppModel: ObservableObject {
     /// "Maya listened", "Maya and Jordan listened", "Maya, Jordan and 4
     /// others listened" (the web's `friendsListenedLine`).
     static func friendsListenedLine(_ faces: [FriendFace], count: Int) -> String {
-        let names = faces.map { $0.name.isEmpty ? "@" + ($0.handle ?? "") : $0.name }
+        // The web's `f.name || (f.handle ? "@" + f.handle : "A friend")`.
+        let names = faces.map { face -> String in
+            if !face.name.isEmpty { return face.name }
+            if let handle = face.handle, !handle.isEmpty { return "@" + handle }
+            return "A friend"
+        }
         let n = max(faces.count, count)
         guard let first = names.first else { return "" }
         if n <= 1 { return first + " listened" }

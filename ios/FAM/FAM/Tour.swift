@@ -757,11 +757,9 @@ private struct TourCard: View {
     private var last: Bool { index == TourModel.steps.count - 1 }
 
     var body: some View {
-        ViewThatFits(in: .vertical) {
-            inner
-            ScrollView { inner }
-                .scrollBounceBehavior(.basedOnSize)
-        }
+        // One copy that scrolls only when taller than the room
+        // (`ScrollsWhenTall`, §589): never two copies swapped in and out.
+        ScrollsWhenTall { inner }
         .frame(maxHeight: maxHeight)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong, lineWidth: 1))

@@ -159,7 +159,6 @@ private struct Skeleton: View {
 struct FreeMonthCard: View {
     @EnvironmentObject private var model: AppModel
     @State private var working = false
-    @State private var problem = ""
 
     var body: some View {
         if let fm = model.listener?.freeMonth, !(fm.claimed && model.freeMonthClosed) {
@@ -194,18 +193,11 @@ struct FreeMonthCard: View {
                 .foregroundStyle(FAMColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
-            if !problem.isEmpty {
-                Text(problem)
-                    .font(FAMFont.body(12.5))
-                    .foregroundStyle(FAMColor.coral)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 8)
-            }
             if !fm.claimed {
                 Button {
                     Task {
                         working = true
-                        problem = await model.claimFreeMonth() ?? ""
+                        await model.claimFreeMonth()
                         working = false
                     }
                 } label: {
