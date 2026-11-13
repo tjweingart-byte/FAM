@@ -753,7 +753,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     </section>
     <section class="card section">
       <h2>What he read lately</h2>
-      <p class="sub">The newest leads: whose words each card carries - Egan's, or code's when he could not answer, with why.</p>
+      <p class="sub">The newest leads: whose words each card carries - Egan's, or code's when he could not answer, with why. <b>Copy for Claude</b> copies a lead's whole card as a prompt, the same one as on Communities: paste it into Claude and ask your question underneath.</p>
       <div id="eganRecent"></div>
     </section>
     </div>
@@ -1854,6 +1854,18 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         esc(w.last_status) : 'never') + '</td></tr>' +
       '</tbody></table></div>';
   }
+  var eganData = null;
+  // "Copy for Claude" (§598) on Egan's leads: the shared builder, from what
+  // /api/admin/groups returned - the same prompt as the Communities page.
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("[data-egan-claude]");
+    if (!b || !eganData || !window.famClaudePrompt) return;
+    var id = b.getAttribute("data-egan-claude");
+    var k = (eganData.leads || []).filter(function (x) { return x.id === id; })[0];
+    if (!k) return;
+    var h = eganData.health || {};
+    window.famCopyLong(window.famClaudePrompt(k, { platforms: h.platforms, statuses: h.statuses }), b);
+  });
   function loadEgan() {
     drawEganState();
     return api("/api/admin/groups?status=").then(function (g) {
@@ -1872,15 +1884,17 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           ' (' + Number(last.kept || 0) + ' kept, ' + Number(last.set_aside || 0) + ' set aside' +
           (last.stopped ? '; ' + esc(last.stopped) : '') + ')' : 'never') + '</p>' +
         '<p class="sub">' + src.join(' · ') + '</p>';
+      eganData = g;
       var leads = (g.leads || []).slice().sort(function (x, y) { return (y.updated_at || 0) - (x.updated_at || 0); })
         .slice(0, 12);
       $("eganRecent").innerHTML = leads.length ? '<div class="tbl"><table><thead><tr><th>Community</th>' +
-        '<th>Fit</th><th>Words by</th><th>Status</th></tr></thead><tbody>' + leads.map(function (k) {
+        '<th>Fit</th><th>Words by</th><th>Status</th><th></th></tr></thead><tbody>' + leads.map(function (k) {
           var his = k.drafted_by && k.drafted_by !== "code";
           return '<tr><td><b>' + esc(k.name || k.ident) + '</b><br><small style="color:var(--muted)">' +
             esc(k.platform) + (k.source === "sent" ? ' · sent by your team' : '') + '</small></td><td>' +
             esc(k.fit) + '/5</td><td>' + (his ? esc(k.drafted_by) : 'code<br><small style="color:var(--muted)">' +
-            esc(k.fit_why || '') + '</small>') + '</td><td>' + esc(labels[k.status] || k.status) + '</td></tr>';
+            esc(k.fit_why || '') + '</small>') + '</td><td>' + esc(labels[k.status] || k.status) + '</td>' +
+            '<td><button type="button" class="chip" data-egan-claude="' + esc(k.id) + '">Copy for Claude</button></td></tr>';
         }).join("") + '</tbody></table></div>' : '<p class="sub">No communities yet. Search or send one on ' +
         '<a href="/admin/groups">Communities</a>.</p>';
     }).catch(function () {
@@ -2936,5 +2950,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 </script>
 <!-- Keith's alerts on every admin page (§489). -->
 <script src="/admin/keith-alerts.js" defer></script>
+<!-- "Copy for Claude" (§598), shared with /admin/groups. -->
+<script src="/admin/claude-prompt.js" defer></script>
 </body>
 </html>

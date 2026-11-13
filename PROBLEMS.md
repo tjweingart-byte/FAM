@@ -36276,6 +36276,14 @@ included - ending in "My question:". Only what the card already shows; no
 phone number is ever stored. Where the browser refuses the clipboard, the
 text appears in a selected box to copy by hand.
 
+**And on Egan's section** ("add it to Egan's admin section too"): each lead
+under "What he read lately" on `/admin` has the same button. One builder
+serves both, `admin_ui/claude_prompt.js` at `/admin/claude-prompt.js`
+(admins only, like Keith's alerts script), so the two pages copy the same
+text; the Communities page passes its on-screen edits, Egan's section the
+saved lead.
+
 **Tests:** `tests/test_communities_579.py`
-(`test_a_card_copies_its_message_and_a_prompt_for_claude`); the button was
+(`test_a_card_copies_its_message_and_a_prompt_for_claude`,
+`test_the_shared_prompt_script_is_served_to_admins_only`); the button was
 pressed in a headless browser against a sample card and its text read back.
