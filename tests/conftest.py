@@ -833,11 +833,19 @@ def isolated_communities(tmp_path, monkeypatch):
     """`/admin/groups`' leads (§575) per test: `communities._STORE` is a
     process-global, like the tile pictures above."""
     import communities
+    import community_sources
 
     monkeypatch.setenv("COMMUNITIES_DB", str(tmp_path / "stores" / "communities.db"))
+    # Read through `credentials`, not config.py: a developer's Reddit or X
+    # key must not let a test reach their APIs (§577).
+    for name in ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "X_BEARER_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name + "S", raising=False)
     communities.reset()
+    community_sources.reset_token()
     yield
     communities.reset()
+    community_sources.reset_token()
 
 
 @pytest.fixture(autouse=True)

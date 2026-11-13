@@ -35315,3 +35315,51 @@ activation steps are in the proposals README.
 
 **Tests:** `tests/test_egan_576.py`; `tests/test_communities_575.py`
 updated (its direct-client tests went with the direct client).
+
+## 577. Reddit's and X's APIs, and groups the team sends to Egan (2026-11-13)
+
+**What was asked.** The owner, after hearing that Egan sees only what a web
+search has indexed: "add the Reddit API and X API. Also, I want to be able
+to send groups to egan so he can figure out contact info and a good
+message, so it shouldn't be sourcing the groups by itself only, but can be
+helped by us".
+
+**The APIs** (`community_sources.py`). Reddit: app-only OAuth
+(`client_credentials`, `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`), the token
+held in memory until a minute before it expires, then
+`/subreddits/search` (adults-only excluded and dropped again in code) and
+`/r/<name>/about`; a descriptive User-Agent naming FAM's tool and nobody's
+address. X: `X_BEARER_TOKEN` (§321's key) and v2's `/communities/search`
+and `/communities/<id>` with `member_count`, `access`, `join_policy`. Both
+read-only: one POST in the module, Reddit's token, and a test pins that
+nothing reads a moderator, member, user or post. Each request is counted on
+the services report (Reddit and X rows back) and in the day's spend as
+unpriced - their rates are not known here, so never as $0. A run uses a
+platform's API when its key is set and falls back to the web search when it
+fails; with only an API key the page can still search. Staging scrubs all
+three keys.
+
+**Sending a group** (`communities.lookup`, `POST /api/admin/groups/send`,
+the "Send a group to Egan" box). Paste a Facebook group, subreddit, X
+Community, Discord invite or Slack link, optionally a subject and a note.
+Code reads it through its API, else a web search for its address (the
+page's own contact email and named admin, as §575 keeps them); the contact
+route is the community's own (`contact_url`); Egan reads it, the note
+included and redacted like everything he reads; it is kept in To contact
+**whatever its fit** - a person chose it - unless its subject is one FAM
+does not pitch (`AVOID`: refused, with why). One already on the page is
+returned as it is; a set-aside one is read again, keeping the person's
+notes. A lookup is one search against `COMMUNITIES_DAILY_SEARCHES`. Nothing
+found still gives a card: Egan reads its address alone, and the card says so.
+
+**Egan's rule book, still unsigned, widened** before signing: his job and
+"always" 1 now name groups FAM's team sends and their note.
+`MANIFEST.pending.json` (version 9) was rewritten for it.
+
+**Not verified here.** No Reddit or X key in this container: the clients are
+tested against a fake network built from the APIs' documented shapes. X's
+Communities search endpoint and its fields should be confirmed against the
+account's API access on the first real run; a refusal is shown on the page
+and the run falls back to the web.
+
+**Tests:** `tests/test_community_sources_577.py`.

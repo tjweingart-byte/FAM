@@ -399,7 +399,10 @@ the public way to its admins (the group's admin list, modmail, its
 moderators page), an email only when the community publishes one as its
 contact on that page, an admin's name or handle only when that page states
 it, the three hypothesised episodes and the drafted first message, a kept
-episode that fits, and the admin's status, notes and the handle they found.
+episode that fits, and the admin's status, notes and the handle they found;
+since §577 whether a run found it or a person sent it to Egan (`source`),
+the sender's note (phone numbers removed) and what its facts were read from
+(Reddit's or X's API, or a web search).
 **No phone number is ever stored** (`communities.strip_phones` runs over
 every text kept, the notes included). `runs`, what each search asked and how
 many searches it spent, which is how the daily ceiling is counted. No

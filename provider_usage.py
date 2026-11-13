@@ -43,9 +43,10 @@ DAY = 86400
 #: The services the admin page reports, in the order it draws them. §480:
 #: X, Claude, Google's image model and the R2 bucket were spent on and never
 #: reported (X was counted and not shown; the other three were not counted).
-#: X left with the X agent (§575): nothing reads from it any more.
+#: X left with the X agent (§575) and came back with Reddit as
+#: /admin/groups' community sources (§577), counted per request.
 PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket",
-             "gnews", "tiingo",
+             "gnews", "tiingo", "reddit", "x",
              "wikidata", "wikipedia", "wikimedia_enterprise",
              "nws", "open_meteo", "local_feeds",
              "anthropic", "gemini", "r2")
@@ -57,6 +58,9 @@ LABELS = {
     "gdelt": "GDELT",
     "polymarket": "Polymarket",
     "gnews": "GNews",
+    # §577: /admin/groups' community search, read-only.
+    "reddit": "Reddit",
+    "x": "X",
     "tiingo": "Tiingo",
     # §278: the reference look.
     "wikidata": "Wikidata",
@@ -143,6 +147,16 @@ def _plans() -> dict:
         "local_feeds": (
             "free; one conditional request per feed per poll",
             "no paid plan"),
+        # §577: /admin/groups' community search, a person's button, inside
+        # COMMUNITIES_DAILY_SEARCHES.
+        "reddit": (
+            "Data API, app-only OAuth: 100 requests/min; commercial use under "
+            "Reddit's agreement",
+            "Reddit's commercial Data API terms, quote-based"),
+        "x": (
+            "pay per resource read; FAM stops at its daily community searches "
+            "(COMMUNITIES_DAILY_SEARCHES)",
+            "a higher X API tier or more credit; X bills each read"),
         # §480: the account's usage tier sets its rate and monthly spend
         # limits; which tier this deploy is on is not copied here yet.
         "anthropic": (

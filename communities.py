@@ -325,6 +325,9 @@ def _clean_name(title: str, platform: str) -> str:
 # --------------------------------------------------------------------------
 # A lead
 
+#: Where a lead came from.
+SEARCHED, SENT = "search", "sent"
+
 
 @dataclass
 class Lead:
@@ -348,6 +351,12 @@ class Lead:
     drafted_by: str = "code"
     score: float = 0.0
     reason: str = ""
+    #: `search` (found by a run) or `sent` (a person sent it to Egan, §577).
+    source: str = SEARCHED
+    #: What the person who sent it said about it.
+    note: str = ""
+    #: What the lead's facts were read from: "web search", "Reddit's API"...
+    looked_up_with: str = ""
 
     @property
     def id(self) -> str:
@@ -383,6 +392,17 @@ def leads_from(results: Iterable, platform: str, subject: str) -> list[Lead]:
                 public_contact=public_contacts(text) if own_page else [],
                 admin_hint=[strip_phones(n) for n in admin_hints(text)] if own_page else [])
     return list(out.values())
+
+
+def lead_from_found(found, subject: str, looked_up_with: str) -> Lead:
+    """A lead from a platform API's row (`community_sources.Found`)."""
+    return Lead(platform=found.platform, ident=found.ident,
+                name=strip_phones(found.name),
+                url=community_url(found.platform, found.ident),
+                contact_url=contact_url(found.platform, found.ident), subject=subject,
+                description=strip_phones(found.description)[:600], members=found.members,
+                privacy=found.privacy, seen_at=found.source_url,
+                looked_up_with=looked_up_with)
 
 
 def screen(lead: Lead) -> str:
@@ -421,7 +441,9 @@ def score(lead: Lead) -> float:
 def reason(lead: Lead) -> str:
     """The card's reason in words ([candidate-reason])."""
     plat = PLATFORMS[lead.platform]
-    parts = [f"A {plat.label} {plat.noun} about {lead.subject}"]
+    parts = [(f"Sent to Egan by FAM's team: a {plat.label} {plat.noun}"
+              if lead.source == SENT else f"A {plat.label} {plat.noun}")
+             + f" about {lead.subject}"]
     if lead.members:
         parts.append(f"{lead.members:,} members")
     if lead.privacy:
@@ -526,8 +548,9 @@ AGENT = "outreach"
 TASK = "read a community"
 
 #: The task's fixed instructions, after the preamble and his rule books.
-INSTRUCTIONS = """One community at a time, as a web search saw it, is in the
-<evidence> tags; an episode FAM already has may be in the <archive> tags.
+INSTRUCTIONS = """One community at a time, as it was found - by a search, or sent
+by FAM's team with a note - is in the <evidence> tags; an episode FAM
+already has may be in the <archive> tags.
 
 Answer with:
 - fit: 1-5, and fit_why in one sentence (rule book "always" 2).
@@ -593,7 +616,7 @@ def material(lead: Lead) -> tuple:
         f"Searched for: {redacted(lead.subject, people)}",
         f"Members: {lead.members:,}" if lead.members else "Members: not shown",
         f"Its page says: {redacted(lead.description, people) or '(nothing shown)'}",
-    ])
+    ] + ([f"FAM's team noted: {redacted(lead.note, people)}"] if lead.note else []))
     out = [("evidence", evidence)]
     if lead.episode:
         out.append(("archive", f"An episode FAM has: \u201c{lead.episode['title']}\u201d "
@@ -792,6 +815,15 @@ class Store:
             (lead.id, lead.platform, at, at, status, lead.score, lead.fit,
              json.dumps(asdict(lead))))
 
+    def put(self, lead: Lead, at: float, status: str = NEW) -> None:
+        """Add `lead`, or read it again over the stored one (a person sent
+        it, §577): the person's notes and the handle they found are kept."""
+        self.add(lead, at, status)
+        self._conn().execute(
+            "UPDATE leads SET lead = ?, status = ?, score = ?, fit = ?, updated_at = ?"
+            " WHERE id = ?",
+            (json.dumps(asdict(lead)), status, lead.score, lead.fit, at, lead.id))
+
     def _row(self, r) -> dict:
         out = json.loads(r[7])
         out.update({"id": r[0], "platform": r[1], "found_at": r[2],
@@ -914,11 +946,23 @@ def backends() -> list[str]:
 
 
 def available() -> tuple[bool, str]:
+    """Whether a run can find anything: a web search backend, or Reddit's or
+    X's API (§577) for their own platforms."""
+    import community_sources as CS
+
+    have = []
     rungs = backends()
-    if not rungs:
-        return False, ("no web search backend is configured (PARALLEL_API_KEY or "
-                       "PERPLEXITY_API_KEY); on staging they are removed on purpose")
-    return True, f"searching with {rungs[0]}"
+    if rungs:
+        have.append(f"the web with {rungs[0]}")
+    for label, (ok, _why) in (("Reddit's API", CS.reddit_available()),
+                              ("X's API", CS.x_available())):
+        if ok:
+            have.append(label)
+    if not have:
+        return False, ("no source is configured: no web search backend "
+                       "(PARALLEL_API_KEY or PERPLEXITY_API_KEY), and neither Reddit's "
+                       "nor X's API key; on staging they are removed on purpose")
+    return True, "searching " + ", ".join(have)
 
 
 def search_query(subject: str, platform: str) -> str:
@@ -933,6 +977,8 @@ def _search_blocking(query: str, platform: str) -> tuple[list, float, str]:
 
     plat = PLATFORMS[platform]
     last: Optional[Exception] = None
+    if not backends():
+        raise RuntimeError("no web search backend is configured")
     for backend in backends():
         try:
             if backend == "parallel":
@@ -949,6 +995,46 @@ def _search_blocking(query: str, platform: str) -> tuple[list, float, str]:
             provider_usage.record(backend, ok=False)
             last = exc
     raise RuntimeError(f"every search backend failed: {last}")
+
+
+def _api_for(platform: str):
+    """`(search, about, label)` for a platform with its own API configured
+    (§577), or None: Reddit's and X's, read-only."""
+    import community_sources as CS
+
+    if platform == "reddit" and CS.reddit_available()[0]:
+        return CS.reddit_search, CS.reddit_about, "Reddit's API"
+    if platform == "x" and CS.x_available()[0]:
+        return CS.x_search, CS.x_about, "X's API"
+    return None
+
+
+async def _find(subject: str, platform: str, searcher) -> tuple[list, float, str]:
+    """`(leads, dollars, what was asked)` for one subject on one platform:
+    the platform's API when it has one configured, else - or when it fails -
+    the web search. A test's `searcher` stands in for the web search."""
+    api = _api_for(platform) if searcher is None else None
+    if api is not None:
+        search, _about, label = api
+        try:
+            found = await asyncio.to_thread(search, subject)
+            return ([lead_from_found(f, subject, label) for f in found if not f.adult],
+                    0.0, label)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - the web search is the next rung
+            log.warning("communities: %s failed, searching the web: %s", label, exc)
+            if not backends():
+                raise RuntimeError(f"{label} failed ({exc}) and no web search is configured")
+    if searcher is None:
+        results, cost, backend = await asyncio.to_thread(
+            _search_blocking, search_query(subject, platform), platform)
+    else:
+        results, cost, backend = await searcher(search_query(subject, platform), platform)
+    leads = leads_from(results, platform, subject)
+    for lead in leads:
+        lead.looked_up_with = f"a web search ({backend})"
+    return leads, float(cost or 0.0), backend
 
 
 def _day_start(now: float) -> float:
@@ -997,7 +1083,6 @@ async def _run(cache, subjects, platforms, *, now, searcher, reader, held) -> di
         report["stopped"] = "today's searches are used up (COMMUNITIES_DAILY_SEARCHES)"
         held.add_run(now, 0, report)
         return report
-    searcher = searcher or (lambda q, p: asyncio.to_thread(_search_blocking, q, p))
     pairs = [(s, p) for s in subjects for p in platforms]
     if len(pairs) > budget:
         report["stopped"] = (f"{len(pairs) - budget} searches left out to stay "
@@ -1018,7 +1103,7 @@ async def _search_and_read(cache, pairs, report, held, now, searcher, reader,
     found: dict[str, Lead] = {}
     for subject, platform in pairs:
         try:
-            results, cost, _backend = await searcher(search_query(subject, platform), platform)
+            leads, cost, _asked = await _find(subject, platform, searcher)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - recorded, the run goes on
@@ -1027,9 +1112,11 @@ async def _search_and_read(cache, pairs, report, held, now, searcher, reader,
             continue
         report["searched"] += 1
         report["dollars"] += float(cost or 0.0)
-        # The day's spend (§481), like every other search FAM pays for.
-        metering.Usage().add_research(1, float(cost or 0.0))
-        for lead in leads_from(results, platform, subject):
+        if cost:
+            # The day's spend (§481), like every other search FAM pays for.
+            # The platforms' APIs count themselves (`community_sources`).
+            metering.Usage().add_research(1, float(cost or 0.0))
+        for lead in leads:
             report["found"] += 1
             if lead.id in known or lead.id in found:
                 continue
@@ -1056,6 +1143,15 @@ async def _search_and_read(cache, pairs, report, held, now, searcher, reader,
         report["kept"] += 1
 
 
+def _apis() -> dict:
+    try:
+        import community_sources as CS
+
+        return CS.report()
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        return {"error": str(exc)}
+
+
 def health() -> dict:
     ok, why = available()
     settings = config.settings
@@ -1063,6 +1159,8 @@ def health() -> dict:
            "max_searches": settings.communities_max_searches,
            "daily_searches": settings.communities_daily_searches,
            "platforms": {k: {"label": p.label, "noun": p.noun} for k, p in PLATFORMS.items()},
+           "apis": _apis(),
+           "sendable": SENDABLE,
            "statuses": STATUS_LABELS}
     if not _exists():
         out["counts"], out["searches_today"], out["last_run"] = {}, 0, None
@@ -1075,3 +1173,114 @@ def health() -> dict:
     except Exception as exc:  # noqa: BLE001
         out["error"] = str(exc)
     return out
+
+
+# --------------------------------------------------------------------------
+# A group a person sends to Egan (§577)
+
+
+class NotACommunity(ValueError):
+    """The link is not one this page can read, in words."""
+
+
+#: What the page says it can read.
+SENDABLE = ("a Facebook group (facebook.com/groups/...), a subreddit (reddit.com/r/...), "
+            "an X Community (x.com/i/communities/...), a Discord invite (discord.gg/...) "
+            "or a Slack workspace (name.slack.com or join.slack.com/t/...)")
+
+
+async def _facts(lead: Lead, searcher=None) -> tuple[Optional[Lead], float, str]:
+    """`(what the source says about it, dollars, what was asked)`: the
+    platform's API when it has one, else a web search for its address.
+    `(None, ...)` when nothing was found."""
+    api = _api_for(lead.platform) if searcher is None else None
+    if api is not None:
+        _search, about, label = api
+        try:
+            found = await asyncio.to_thread(about, lead.ident)
+            return lead_from_found(found, lead.subject, label), 0.0, label
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - the web is the next rung
+            log.warning("communities: %s could not read %s: %s", label, lead.id, exc)
+    query = lead.url.split("://", 1)[-1]
+    if searcher is None:
+        if not backends():
+            return None, 0.0, "nothing: no web search backend is configured"
+        results, cost, backend = await asyncio.to_thread(_search_blocking, query, lead.platform)
+    else:
+        results, cost, backend = await searcher(query, lead.platform)
+    for found in leads_from(results, lead.platform, lead.subject):
+        if found.id == lead.id:
+            found.looked_up_with = f"a web search ({backend})"
+            return found, float(cost or 0.0), backend
+    return None, float(cost or 0.0), backend
+
+
+async def lookup(cache, url: str, subject: str = "", note: str = "", *,
+                 now: Optional[float] = None, searcher=None, reader=None,
+                 held: Optional[Store] = None) -> dict:
+    """A community a person sends to Egan: read it from its platform's API or
+    the web, work out the public way to its admins, have Egan judge it and
+    draft the message, and keep it as a lead to contact - whatever its fit,
+    because a person chose it. Returns `{"lead": ..., "already": bool}`.
+
+    Raises `NotACommunity` for a link this page cannot read, `LookupError`
+    when today's searches are used up, and `ValueError` for a community FAM
+    does not pitch (`AVOID`), with the reason."""
+    import metering
+
+    now = time.time() if now is None else now
+    held = held or store()
+    pairs = community_of(url or "")
+    if not pairs:
+        raise NotACommunity(f"That link is not one this page can read. Send {SENDABLE}.")
+    platform, ident = pairs[0]
+    subject = " ".join((subject or "").split())[:80]
+    note = strip_phones(" ".join((note or "").split()))[:600]
+    existing = held.get(f"{platform}:{ident}")
+    if existing is not None and existing["status"] != SET_ASIDE:
+        return {"lead": existing, "already": True}
+    if held.searches_since(_day_start(now)) >= int(config.settings.communities_daily_searches):
+        raise LookupError("Today's searches are used up (COMMUNITIES_DAILY_SEARCHES).")
+    lead = Lead(platform=platform, ident=ident, name=ident,
+                url=community_url(platform, ident), contact_url=contact_url(platform, ident),
+                subject=subject, source=SENT, note=note)
+    report = {"sent": lead.id, "searched": 0, "dollars": 0.0, "kept": 0, "set_aside": 0,
+              "failed": [], "screened": [], "stopped": ""}
+    with metering.spend_source(SPEND_SOURCE):
+        try:
+            facts, cost, asked = await _facts(lead, searcher)
+            report["searched"] = 1
+            report["dollars"] += cost
+            if cost:
+                metering.Usage().add_research(1, cost)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - Egan reads its address alone
+            facts, asked = None, f"nothing: the lookup failed ({exc})"
+            report["searched"] = 1
+            report["failed"].append(str(exc))
+        if facts is not None:
+            for name in ("name", "description", "members", "privacy", "seen_at",
+                         "public_contact", "admin_hint", "looked_up_with"):
+                setattr(lead, name, getattr(facts, name))
+        else:
+            lead.looked_up_with = f"{asked}; found nothing, so Egan reads its address alone"
+        if not lead.subject:
+            lead.subject = lead.name if lead.name != ident else ident
+        why = screen(lead)
+        if why and "too few" not in why:
+            held.add_run(now, report["searched"], {**report, "screened": [why]})
+            raise ValueError(f"FAM does not pitch this community: {why}.")
+        lead.episode = best_episode(catalogue(cache), lead)
+        lead.score = score(lead)
+        try:
+            lead, dollars = await (reader or read)(lead)
+            report["dollars"] += float(dollars or 0.0)
+        finally:
+            held.add_run(now, report["searched"], report)
+    lead.reason = reason(lead)
+    held.put(lead, now, NEW)
+    report["kept"] = 1
+    return {"lead": held.get(lead.id), "already": False}

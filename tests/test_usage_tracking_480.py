@@ -50,11 +50,10 @@ class _Usage:
 
 
 # ------------------------------------------------------------ provider_usage
-def test_claude_the_image_model_and_r2_are_reported():
+def test_x_reddit_claude_the_image_model_and_r2_are_reported():
     shown = rows()
-    # X left with the X agent (§575).
-    assert "x" not in shown
-    for provider, label in (("anthropic", "Claude (Anthropic)"),
+    # X left with the X agent (§575) and came back with Reddit (§577).
+    for provider, label in (("x", "X"), ("reddit", "Reddit"), ("anthropic", "Claude (Anthropic)"),
                             ("gemini", "Google image model"),
                             ("r2", "Cloudflare R2")):
         assert shown[provider]["label"] == label

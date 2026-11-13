@@ -35,7 +35,7 @@
   .kpi em { display:block; font-style:normal; font-size:11.5px; color:var(--muted); }
   .bar { display:flex; flex-direction:column; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:14px; }
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  .bar input[type=text] { flex:1 1 260px; min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px; }
+  .bar input[type=text] { flex:1 1 220px; min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px; }
   .go { background:var(--amber); color:#1b1408; border:0; border-radius:8px; padding:7px 14px; font-weight:600; }
   .go:disabled { opacity:.5; cursor:default; }
   .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
@@ -92,13 +92,26 @@
   <div class="eyebrow"><a href="/admin">FAM admin</a> · Communities</div>
   <h1>Communities to reach</h1>
   <p class="sub">Facebook groups, subreddits, X Communities, Discord servers and Slack communities about
-    the subjects FAM covers, found by web search. Each card says how to reach the admins through the
+    the subjects FAM covers, found by web search and Reddit's and X's own APIs, or sent to Egan by you. Each card says how to reach the admins through the
     community's <b>own public channel</b>, three episodes FAM could make for its members (ideas only,
     not written), and a first message to edit. You reach out from FAM's account; nothing here sends
     anything. FAM never collects phone numbers, and keeps an email only when the community publishes it
     as its contact.</p>
 
   <div class="kpis" id="kpis"></div>
+
+  <div class="bar" id="sendBar">
+    <div class="label">Send a group to Egan</div>
+    <div class="row">
+      <input type="text" id="sendUrl" placeholder="Paste its link: a Facebook group, subreddit, X Community, Discord invite or Slack workspace" maxlength="500">
+    </div>
+    <div class="row">
+      <input type="text" id="sendSubject" placeholder="What to pitch it on (optional; its name if empty)" maxlength="80">
+      <input type="text" id="sendNote" placeholder="Anything you know about it, for Egan (optional)" maxlength="600">
+      <button class="go" id="sendBtn">Send to Egan</button>
+    </div>
+    <span class="note" id="sendNote2">Egan looks it up, works out the public way to its admins, judges the fit and drafts a message. It stays in To contact whatever he thinks of it.</span>
+  </div>
 
   <div class="bar">
     <div class="row">
@@ -169,7 +182,7 @@
     if (!h.available) { note.className = "note err"; note.textContent = "Search unavailable: " + h.detail + "."; }
     else if (data.running) { note.className = "note"; note.textContent = "Searching… cards appear as they are read."; }
     else if (last && last.failed && last.failed.length) { note.className = "note err"; note.textContent = last.failed.length + " searches failed: " + last.failed[0]; }
-    else { note.className = "note"; note.textContent = h.detail; }
+    else { note.className = "note"; note.textContent = h.detail + "."; }
     $("runBtn").disabled = !h.available || data.running;
   }
 
@@ -213,10 +226,12 @@
       + (k.members ? '<span class="chip">' + Number(k.members).toLocaleString() + ' members</span>' : '')
       + (k.privacy ? '<span class="chip">' + esc(k.privacy) + '</span>' : '')
       + '<span class="chip ' + (k.fit >= 4 ? "ok" : k.fit < 3 ? "bad" : "") + '">fit ' + esc(k.fit) + '/5</span>'
-      + '<span class="chip">' + esc(data.health.statuses[k.status] || k.status) + '</span></div>'
+      + '<span class="chip">' + esc(data.health.statuses[k.status] || k.status) + '</span>'
+      + (k.source === "sent" ? '<span class="chip ok">sent by your team</span>' : '') + '</div>'
       + '<div class="name">' + (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(k.name || k.ident) + '</a>' : esc(k.name || k.ident)) + '</div>'
       + '<div class="reason">' + esc(k.reason) + (k.fit_why ? ' ' + esc(k.fit_why) : '') + '</div>'
       + (k.description ? '<div class="desc">' + esc(k.description) + '</div>' : '')
+      + (k.note ? '<div class="desc"><b>Your note:</b> ' + esc(k.note) + '</div>' : '')
       + '<div class="how"><b>How to reach the admins.</b> ' + esc(k.how)
       + (contact ? ' <a href="' + esc(contact) + '" target="_blank" rel="noopener noreferrer">Open</a>' : '') + '</div>'
       + '<dl class="facts">'
@@ -224,7 +239,8 @@
       + (k.public_contact && k.public_contact.length ? '<dt>Public contact</dt><dd>' + k.public_contact.map(function (e) {
           return '<a href="mailto:' + esc(e) + '">' + esc(e) + '</a>'; }).join(", ") + ' <span class="note">(published by the community)</span></dd>' : '')
       + (seen ? '<dt>Found on</dt><dd><a href="' + esc(seen) + '" target="_blank" rel="noopener noreferrer">' + esc(seen.replace(/^https?:\/\//, "").slice(0, 70)) + '</a></dd>' : '')
-      + '<dt>Searched</dt><dd>' + esc(k.subject) + ', ' + esc(when(k.found_at)) + '</dd>'
+      + (k.looked_up_with ? '<dt>Read from</dt><dd>' + esc(k.looked_up_with) + '</dd>' : '')
+      + '<dt>' + (k.source === "sent" ? "Sent" : "Searched") + '</dt><dd>' + esc(k.subject) + ', ' + esc(when(k.found_at)) + '</dd>'
       + '</dl></div>';
     var right = '<div class="col">'
       + '<div class="label">Episodes to pitch (ideas, not written; ' + (k.drafted_by === "code" ? "composed in code" : "by " + esc(k.drafted_by)) + ')</div>'
@@ -269,7 +285,7 @@
       data = d;
       $("gate").hidden = true; $("app").hidden = false;
       var a = document.activeElement;
-      var typing = a && a.dataset && (a.dataset.edit || a.dataset.notes || a.dataset.handle) || (a && a.id === "subjects");
+      var typing = a && a.dataset && (a.dataset.edit || a.dataset.notes || a.dataset.handle) || (a && (a.id === "subjects" || /^send/.test(a.id)));
       if (!typing) render(); else drawKpis();
     }).catch(function (e) {
       if (e.status === 404 || e.status === 401) { $("app").hidden = true; $("gate").hidden = false; }
@@ -337,6 +353,24 @@
       delete edits[id + ":n"]; delete edits[id + ":h"];
       return load();
     }).catch(function (e) { alert(e.message); b.disabled = false; });
+  });
+
+  $("sendBtn").addEventListener("click", function () {
+    var url = $("sendUrl").value.trim();
+    if (!url) { $("sendNote2").className = "note err"; $("sendNote2").textContent = "Paste the group's link first."; return; }
+    $("sendBtn").disabled = true;
+    $("sendNote2").className = "note"; $("sendNote2").textContent = "Egan is reading it…";
+    api("/api/admin/groups/send", { url: url, subject: $("sendSubject").value.trim(), note: $("sendNote").value.trim() })
+      .then(function (r) {
+        $("sendNote2").className = "note";
+        $("sendNote2").textContent = (r.already ? "Already on the page: " : "Done: ") + (r.lead.name || r.lead.ident)
+          + (r.already ? "." : " is in To contact.");
+        $("sendUrl").value = ""; $("sendSubject").value = ""; $("sendNote").value = "";
+        tab = r.lead.status || "new"; ptab = "";
+        return load();
+      })
+      .catch(function (e) { $("sendNote2").className = "note err"; $("sendNote2").textContent = e.message; })
+      .then(function () { $("sendBtn").disabled = false; });
   });
 
   $("runBtn").addEventListener("click", function () {

@@ -1645,6 +1645,10 @@
   > (`X_BEARER_TOKEN`) for its own account's outreach, and still nothing
   > that could post. Since §575 nothing reads it: outreach is
   > [community-outreach], by web search, with no platform token at all.
+  > Since §577 it is read again, beside Reddit's app-only
+  > `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`: read-only searches for
+  > communities on `/admin/groups`. Still nothing that can post, message,
+  > vote or follow.
 <!-- rule:community-outreach -->
 - **FAM reaches communities' admins through public channels, and a person
   does it** (§575, the owner's direction; `communities.py`,
@@ -1680,6 +1684,18 @@
   > `MANIFEST.pending.json` and he is `agents.names.PROPOSED`, refused by
   > the layer; an unsigned book in `docs/agent_rules/` would hold every
   > agent.
+  > **Current:** since §577 (the owner's direction) subreddits and X
+  > Communities are found through **Reddit's and X's own APIs** when their
+  > read-only keys are set (`community_sources.py`: subreddit search and
+  > about pages, X's Communities search and lookup; never a moderator, a
+  > member or a profile; adults-only subreddits never a card), falling back
+  > to the web search; the rest stays web search. And **a person can send
+  > a group to Egan** (`/api/admin/groups/send`, `communities.lookup`): its
+  > link is read through its API or the web, its public contact route
+  > worked out, Egan reads it with the person's note (redacted like the
+  > rest) and it is kept to contact **whatever its fit** - a person chose
+  > it - unless FAM does not pitch its subject (`AVOID`). A lookup is one
+  > search against the day's ceiling.
   > **History:** this replaced **FAM on X** (§321-§368, `x_threads.py`,
   > `outreach_intelligence.py`, `/admin/x`), which searched X's API for
   > threads one of FAM's episodes answered and drafted replies a person

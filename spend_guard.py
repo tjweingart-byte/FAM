@@ -61,10 +61,10 @@ PAID_CREDENTIALS = (
     # §258: the search backends.
     "PARALLEL_API_KEY", "PERPLEXITY_API_KEY",
     "GNEWS_KEY",
-    # §321: X's recent search, billed per post read. Nothing reads it since
-    # the X agent was removed (§575); still scrubbed so an old deploy's key
-    # never reaches staging.
+    # §321, §577: X's API, billed per read - /admin/groups' X Communities.
     "X_BEARER_TOKEN",
+    # §577: Reddit's Data API for /admin/groups (commercial use is metered).
+    "REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET",
     # Open-Meteo's paid plan (§194), for weather and place names.
     "OPEN_METEO_API_KEY",
     # Email (§244): providers bill per message past a free tier.

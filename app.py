@@ -13455,6 +13455,32 @@ async def admin_groups_run(req: GroupsRun, request: Request) -> dict:
     return {"started": True, "subjects": subjects}
 
 
+class GroupsSend(BaseModel):
+    #: The community's link, as the person copied it.
+    url: str = Field(..., min_length=8, max_length=500)
+    #: What to pitch it on; its name when empty.
+    subject: str = Field("", max_length=80)
+    #: Anything the person knows about it, for Egan.
+    note: str = Field("", max_length=600)
+
+
+@app.post("/api/admin/groups/send")
+async def admin_groups_send(req: GroupsSend, request: Request) -> dict:
+    """Send one community to Egan (§577): looked up through its platform's
+    API or the web, its public way to the admins worked out, judged and
+    drafted for. Kept as a lead to contact whatever its fit; nothing is sent
+    to anybody."""
+    _require_admin(request)
+    try:
+        return await communities.lookup(SCRIPT_CACHE, req.url, req.subject, req.note)
+    except communities.NotACommunity as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 class GroupsLead(BaseModel):
     id: str = Field(..., min_length=3, max_length=140, pattern=r"^[a-z]+:[A-Za-z0-9._:-]+$")
 
