@@ -36962,3 +36962,14 @@ nothing is voiced ahead, which is the point. Kept audio still lives a week
 prefetcher is unchanged: it still warms text only.
 
 `VOICE_AHEAD=0` restores voicing on tap exactly. `tests/test_voice_ahead_610.py`.
+
+## 611. CI's Postgres job red on Main: a test wrote a SQLite file by hand (2026-11-14)
+
+`tests/test_tour_594.py::test_an_older_table_is_widened_not_recreated` builds
+a pre-§594 `preferences` table with raw `sqlite3` and opens the store on it.
+With `DATABASE_URL` set (CI's `postgres` job, §243) `db.connect` goes to
+Postgres, the hand-made file is never read, and row `old` does not exist -
+`1 failed, 7422 passed` on #301's merge. Every other such test carries
+`@pytest.mark.sqlite_file`, which `tests/conftest.py` skips on Postgres; this
+one did not. Marked; checked against a local Postgres 16 (skipped there, the
+other five pass).

@@ -602,3 +602,4 @@ and `limit` = Lines.
 | 36816 | 30 | 608. The tour shortened to seven cards (2026-11-14) |
 | 36846 | 34 | 609. "The voice fell behind" on Friday: one worker since §578, taken first come (2026-11-14) |
 | 36880 | 86 | 610. An always-on worker that is not working is wasted money: voice the editions ahead (2026-11-14) |
+| 36966 | 11 | 611. CI's Postgres job red on Main: a test wrote a SQLite file by hand (2026-11-14) |
