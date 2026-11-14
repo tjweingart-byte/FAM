@@ -36876,3 +36876,33 @@ together (~$11 a day each, §578; never the concurrency alone). If they say
 "never waiting" under 1x, the endpoint's GPU class is too slow.
 
 `tests/test_voice_schedule_609.py`.
+
+## 610. A sent episode arrived as "Can You Tell Me How to Make..." (2026-11-14)
+
+Reported by the owner from Messages, with a screenshot: a shared episode's
+bubble, its cover picture and its words all said "Can You Tell Me How to
+Make..." - and the owner's rule: **every sent episode shows the full title,
+no matter what.**
+
+**Why.** That is the player's provisional title (`deriveTitleFromPrompt`,
+iOS `SearchTitle`): the question's first seven words and an ellipsis,
+shown until the writer's title lands. The share sheet sends whatever title
+the player holds, so a share made in the first seconds sent the stand-in -
+and `ShareStore.create` returned the existing row for a second share of the
+same episode, so the stand-in was kept for good. Separately, the pictures
+cut long titles: the link cover at five lines, the player card's strip at
+two, the SVG story card at four, each ending in "…".
+
+**Now.** `sharing.share_title` never lets the stand-in through
+(`is_provisional_title`: ends in an ellipsis and is the question's first
+words) and falls back to the whole question (`question_title`, cased as the
+player cases); `create` takes a newer title over a row's old one
+(`retitle`). `app._share_titled` resolves every read of a share - the share
+response, `/api/share/<id>`, `/s/<id>`, the card and the drawn pictures -
+to the writer's title from the cache when it has one, storing it on the row.
+The pictures never cut: the cover picks the largest of `COVER_SIZES` that
+fits, the player card's strip grows, the story card steps its type down.
+Platform caps (X, LinkedIn) still trim the *question* in their words; the
+title is never what gets cut.
+
+`tests/test_sharing.py`, `tests/test_share_and_save_endpoints.py`.

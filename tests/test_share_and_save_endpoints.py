@@ -288,3 +288,17 @@ def test_platform_ids_give_each_story_its_native_handoff(client, monkeypatch):
         "instagram_story", "snapchat_story"}
     health = client.get("/api/health").json()
     assert health["sharing"]["story_handoffs"] == ["instagram_story", "snapchat_story"]
+
+
+def test_a_share_sent_with_the_players_stand_in_title_shows_the_whole_one(client):
+    """11.14: a link arrived in Messages as "Can You Tell Me How to Make..." -
+    the player's seven-word stand-in. The share, its words and the page it
+    lands on carry the whole title instead."""
+    q = "can you tell me how to make a sourdough starter from scratch at home"
+    body = client.post("/api/share", json={
+        "query": q, "minutes": 1.5, "title": "Can You Tell Me How to Make…"}).json()
+    assert body["share"]["title"].endswith("from Scratch at Home")
+    assert "Make…" not in body["targets"]["copy"]["text"]
+    page = client.get("/s/" + body["share"]["id"]).text
+    assert "from Scratch at Home" in page
+    assert "Make…" not in page

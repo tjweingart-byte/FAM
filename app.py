@@ -4515,6 +4515,30 @@ async def share_targets(request: Request) -> dict:
         for t in sharing.TARGETS]}
 
 
+async def _share_titled(record: Optional[dict]) -> Optional[dict]:
+    """The share with the title a sent episode shows (11.14): the writer's
+    title from the cache when it has one - kept on the row, so a share made
+    before it landed is corrected once - else the stored title unless it is
+    the player's seven-word stand-in, else the whole question. Never cut,
+    never raises, never generates."""
+    if not record:
+        return record
+    query = record.get("query") or ""
+    written = ""
+    try:
+        pipeline = _make_pipeline()
+        written, _summary = await _episode_blurb(
+            pipeline, query, max(1, as_minutes(record.get("minutes"), 1)))
+    except Exception:  # noqa: BLE001 - TTSUnavailable or anything: the stored title
+        written = ""
+    written = " ".join(str(written or "").split())
+    if written and not sharing.is_provisional_title(written, query):
+        if written != record.get("title"):
+            SHARES.retitle(record["id"], written)
+        return {**record, "title": written[:sharing.MAX_TITLE]}
+    return {**record, "title": sharing.share_title(record.get("title") or "", query)}
+
+
 @app.post("/api/share")
 async def share_create(req: ShareRequest, request: Request) -> dict:
     """Make a share link and the words to send with it, per destination.
@@ -4535,6 +4559,7 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         share = SHARES.create(user, req.query, req.minutes, req.title)
     except sharing.ShareError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    share = await _share_titled(share)
     url, public = _share_url(share["id"], request)
     rendered = {t.key: sharing.render(
         t.key, title=share["title"], question=share["query"],
@@ -4573,7 +4598,7 @@ async def share_card(request: Request,
     screenshot of a player UI, which is not an invitation to anything.
     """
     _read_limit(request)
-    record = SHARES.get(share)
+    record = await _share_titled(SHARES.get(share))
     if not record:
         raise HTTPException(status_code=404, detail="No such share.")
     person = SOCIAL.person(record["user_id"]) if record["user_id"] else {}
@@ -4601,7 +4626,7 @@ async def share_read(share_id: str, request: Request) -> dict:
     to a stranger.
     """
     _read_limit(request)
-    record = SHARES.get(share_id)
+    record = await _share_titled(SHARES.get(share_id))
     if not record:
         raise HTTPException(status_code=404, detail="No such share.")
     return sharing.landing_payload(
@@ -4704,7 +4729,7 @@ async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
     """One of a share's drawn pictures (`link_preview`): "preview" (the
     square JPEG), "sticker" (the player card, PNG) or "story" (the card on
     9:16, JPEG), kept briefly in `_PREVIEWS`. 404 for no such share."""
-    record = SHARES.get(share_id)
+    record = await _share_titled(SHARES.get(share_id))
     if not record:
         raise HTTPException(status_code=404, detail="No such share.")
     host = _share_host(request) if kind != "preview" else ""
@@ -4839,7 +4864,7 @@ async def share_open(share_id: str, request: Request):
 
     The open is not counted here. See `share_opened`.
     """
-    record = SHARES.get(share_id)
+    record = await _share_titled(SHARES.get(share_id))
     payload = sharing.landing_payload(
         record or {}, url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request) if record else "",

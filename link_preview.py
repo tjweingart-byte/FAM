@@ -157,9 +157,11 @@ def _play(d, cx: int = SIZE - 150, cy: int = SIZE - 150, r: int = 96) -> None:
                (cx + k * 1.05, cy)], fill=INK)
 
 
-def _wrap(d, text: str, font, width: int, most: int) -> list[str]:
-    """`text` in lines no wider than `width`, at most `most` of them; the
-    last one ends in an ellipsis when it had to be cut."""
+def _wrap(d, text: str, font, width: int, most: int = 0) -> list[str]:
+    """`text` in lines no wider than `width`, at most `most` of them (0: as
+    many as it takes); the last one ends in an ellipsis when it had to be
+    cut. A shared episode's title is never cut (11.14): its callers pass no
+    `most` and make the type smaller instead (`_fitted`)."""
     lines: list[str] = []
     current = ""
     for word in text.split():
@@ -171,13 +173,32 @@ def _wrap(d, text: str, font, width: int, most: int) -> list[str]:
             current = word
     if current:
         lines.append(current)
-    if len(lines) > most:
+    if most and len(lines) > most:
         lines = lines[:most]
         last = lines[-1]
         while last and d.textlength(last + "…", font=font) > width:
             last = last.rsplit(" ", 1)[0] if " " in last else last[:-1]
         lines[-1] = last + "…"
     return lines
+
+
+#: The cover's title sizes, largest first, and the room they share: the
+#: title is set at the largest size whose lines fit, so a long one is
+#: smaller, never cut (11.14).
+COVER_SIZES = (108, 92, 78, 66, 56, 48, 40)
+COVER_ROOM = 640
+
+
+def _fitted(d, text: str, face: str, sizes, width: int, room: int):
+    """`(font, lines, line height)` at the largest size in `sizes` whose
+    lines fit in `room`; the smallest if none does - every word either way."""
+    for size in sizes:
+        font = _font(face, size)
+        lines = _wrap(d, text, font, width)
+        step = round(size * 1.15)
+        if len(lines) * step <= room:
+            break
+    return font, lines, step
 
 
 def _cover(title: str, minutes: float):
@@ -190,11 +211,13 @@ def _cover(title: str, minutes: float):
     im = im.filter(ImageFilter.GaussianBlur(160))
     _wordmark(im, 96, 110, 70)
     d = ImageDraw.Draw(im)
-    font = _font("BricolageGrotesque-SemiBold.ttf", 108)
+    font, lines, step = _fitted(d, title or "A FAM episode",
+                                "BricolageGrotesque-SemiBold.ttf",
+                                COVER_SIZES, 1000, COVER_ROOM)
     y = 330
-    for line in _wrap(d, title or "A FAM episode", font, 1000, 5):
+    for line in lines:
         d.text((96, y), line, font=font, fill=PAPER)
-        y += 124
+        y += step
     # A half minute stays a half minute (§332): "1.5 MIN EPISODE".
     try:
         length = max(0.5, float(minutes or 1))
@@ -278,7 +301,8 @@ def _card(picture: Optional[bytes], title: str, minutes: float, host: str):
     title_font = _font("Geist-SemiBold.ttf", 46)
     host_font = _font("Geist-Regular.ttf", 34)
     pad = 44
-    lines = _wrap(measure, title or "A FAM episode", title_font, CARD_WIDTH - 2 * pad, 2)
+    # Every line of the title (11.14): the strip grows to hold it.
+    lines = _wrap(measure, title or "A FAM episode", title_font, CARD_WIDTH - 2 * pad)
     strip_h = 40 + 58 * len(lines) + 12 + 42 + 36
     card = Image.new("RGBA", (CARD_WIDTH, CARD_WIDTH + strip_h), STRIP + (255,))
     card.paste(square, (0, 0))

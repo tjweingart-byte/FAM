@@ -76,6 +76,62 @@ class ShareError(ValueError):
     """Something the listener can fix, phrased so it can be shown to them."""
 
 
+# --- the title a share carries ---------------------------------------------
+#
+# **A sent episode shows its whole title, whatever happens** (11.14, at the
+# owner's direction). A link arrived in Messages as "Can You Tell Me How to
+# Make..." - the player's provisional title (`deriveTitleFromPrompt`: the
+# question's first seven words and an ellipsis), sent to `/api/share` before
+# the writer's title had landed, and then kept forever because a second share
+# of the same episode returned the first row. So a share never stores that
+# stand-in, the app resolves the written title when it reads a share
+# (`app._share_titled`), and with no written title the whole question is the
+# title - never seven words of it.
+
+_ELLIPSES = ("\u2026", "...")
+_SMALL_WORDS = frozenset(
+    "a an and as at but by for from in into is nor of on or over per the to "
+    "up via vs with".split())
+
+
+def is_provisional_title(title: str, query: str) -> bool:
+    """Whether `title` is the player's stand-in cut from `query`: it ends in
+    an ellipsis and its words are the question's first words."""
+    words = " ".join(str(title or "").split())
+    if not words.endswith(_ELLIPSES):
+        return False
+    stem = words.rstrip(".\u2026 ").casefold().split()
+    asked = " ".join(str(query or "").split()).casefold().split()
+    return bool(stem) and asked[:len(stem)] == stem and len(asked) > len(stem)
+
+
+def question_title(query: str) -> str:
+    """The whole question as a title, cased the way the player cases its
+    stand-in (small words small, a word somebody capitalised kept) - but every
+    word of it."""
+    out = []
+    for i, word in enumerate(" ".join(str(query or "").split()).split(" ")):
+        lower = word.lower()
+        if not word:
+            continue
+        if i > 0 and lower in _SMALL_WORDS and word == lower:
+            out.append(lower)
+        elif word != lower:
+            out.append(word)
+        else:
+            out.append(word[:1].upper() + word[1:])
+    return " ".join(out)[:MAX_TITLE]
+
+
+def share_title(title: str, query: str) -> str:
+    """The title a share shows: `title` unless it is the provisional stand-in
+    or empty, else the whole question."""
+    words = " ".join(str(title or "").split())[:MAX_TITLE]
+    if words and not is_provisional_title(words, query):
+        return words
+    return question_title(query) or words
+
+
 @dataclass(frozen=True)
 class Target:
     """One destination, and what it can carry.
@@ -219,7 +275,7 @@ def render(target_key: str, *, title: str, question: str, minutes: int,
     if chosen is None:
         raise ShareError(f"Unknown share destination {target_key!r}.")
     values = {
-        "title": (title or "A FAM episode").strip()[:MAX_TITLE],
+        "title": share_title(title, question) or "A FAM episode",
         "question": (question or "").strip()[:MAX_QUERY],
         "minutes": max(1, as_minutes(minutes)),
         "url": url or "",
@@ -470,13 +526,18 @@ def story_card(title: str, question: str, minutes: int, handle: str = "",
     Everything is escaped - the question is text a listener typed, and this is
     markup.
     """
-    lines = _wrap(title or "A FAM episode", per_line=18, max_lines=4)
+    # The whole title, always (11.14): a long one is set smaller, never cut.
+    for per_line, size in ((18, 92), (22, 76), (27, 62), (33, 50), (40, 42)):
+        lines = _wrap(title or "A FAM episode", per_line=per_line, max_lines=99)
+        step = round(size * 1.13)
+        if len(lines) * step <= 440:
+            break
     ask = _wrap(question or "", per_line=34, max_lines=2)
     minutes = max(1, as_minutes(minutes))
     esc = html.escape
 
     title_svg = "".join(
-        f'<tspan x="90" dy="{0 if i == 0 else 104}">{esc(line)}</tspan>'
+        f'<tspan x="90" dy="{0 if i == 0 else step}">{esc(line)}</tspan>'
         for i, line in enumerate(lines))
     ask_svg = "".join(
         f'<tspan x="90" dy="{0 if i == 0 else 46}">{esc(line)}</tspan>'
@@ -505,7 +566,7 @@ def story_card(title: str, question: str, minutes: int, handle: str = "",
         font-size="34" font-weight="700" letter-spacing="6">FAM</text>
 
   <text x="90" y="700" fill="#F4EFE4" font-family="'Bricolage Grotesque',Helvetica,Arial,sans-serif"
-        font-size="92" font-weight="600">{title_svg}</text>
+        font-size="{size}" font-weight="600">{title_svg}</text>
 
   <text x="90" y="1180" fill="#ABA3C4" font-family="'Geist',Helvetica,Arial,sans-serif"
         font-size="38">{ask_svg}</text>
@@ -563,13 +624,18 @@ class ShareStore:
         if not query:
             raise ShareError("There is no episode to share.")
         minutes = max(0, as_minutes(minutes))
-        title = " ".join(str(title or "").split())[:MAX_TITLE]
+        title = share_title(title, query)
         now = at or time.time()
 
         existing = self._conn().execute(
-            "SELECT id FROM shares WHERE user_id = ? AND query = ? AND minutes = ?",
+            "SELECT id, title FROM shares WHERE user_id = ? AND query = ? AND minutes = ?",
             (user_id, query, minutes)).fetchone()
         if existing:
+            # The same episode shared again: the newer title wins, so a row
+            # made before the written title landed does not keep its
+            # stand-in for good.
+            if title and title != existing[1]:
+                self.retitle(existing[0], title)
             return self.get(existing[0]) or {}
 
         share_id = secrets.token_urlsafe(9)
@@ -578,6 +644,18 @@ class ShareStore:
             " VALUES (?, ?, ?, ?, ?, ?)",
             (share_id, user_id, query, minutes, title, now))
         return self.get(share_id) or {}
+
+    def retitle(self, share_id: str, title: str) -> None:
+        """Replace a share's title (the written one, found later). Never
+        raises: a title is not worth failing a share over."""
+        title = " ".join(str(title or "").split())[:MAX_TITLE]
+        if not title:
+            return
+        try:
+            self._conn().execute("UPDATE shares SET title = ? WHERE id = ?",
+                                 (title, share_id))
+        except Exception:
+            log.exception("could not retitle a share")
 
     def get(self, share_id: str) -> Optional[dict]:
         try:
@@ -712,7 +790,8 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
     """
     return {
         "id": str(share.get("id") or ""),
-        "title": (share.get("title") or "A FAM episode").strip()[:MAX_TITLE],
+        "title": (share_title(share.get("title") or "", share.get("query") or "")
+                  or "A FAM episode"),
         "question": (share.get("query") or "").strip()[:MAX_QUERY],
         "minutes": max(1, as_minutes(share.get("minutes") or 0)),
         "url": url or "",
