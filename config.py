@@ -1834,6 +1834,35 @@ class Settings:
     # a chunk queued behind a busy active worker makes RunPod boot a flex
     # worker, billed for its boot, the chunk and its idle timeout.
     remote_voice_active_workers: int = _env_int("REMOTE_VOICE_ACTIVE_WORKERS", 0)
+    # Voice ahead (§610, at the owner's direction): while an always-on
+    # worker has nobody to voice, it voices the myFAM and DailyFAM episodes
+    # the editions already wrote, and keeps the audio, so a tap replays it.
+    # Only with an always-on worker (REMOTE_VOICE_ACTIVE_WORKERS above 0, a
+    # pod, or a card in-process): on a pay-per-second endpoint the same
+    # work would be a bill. A listener always comes first - nothing starts
+    # while one is being voiced, nor for VOICE_AHEAD_QUIET_SECONDS after.
+    voice_ahead: bool = field(
+        default_factory=lambda: os.environ.get("VOICE_AHEAD", "1") not in ("0", "false", "False"))
+    voice_ahead_quiet_seconds: float = _env_float("VOICE_AHEAD_QUIET_SECONDS", 3.0)
+    # Which written-ahead episodes it voices, by the cache row's origin.
+    voice_ahead_origins: str = field(default_factory=lambda: os.environ.get(
+        "VOICE_AHEAD_ORIGINS", "myfam,dailyfam,trending,startup,push"))
+    # Episodes looked at per pass, newest first.
+    voice_ahead_scan: int = _env_int("VOICE_AHEAD_SCAN", 300)
+    # Flex workers FAM may make RunPod start beside the active ones (§613):
+    # the console's Max workers less its Active workers. With an active
+    # worker, chunks in flight are the active plus these (capped by
+    # REMOTE_VOICE_CONCURRENCY); one over the active count waits in RunPod's
+    # queue, which goes to whichever worker frees first or boots a flex one,
+    # billed per second for its boot, the chunk and the idle timeout. 0 keeps
+    # §578: nothing ever queues, so no flex worker ever starts.
+    remote_voice_flex_workers: int = _env_int("REMOTE_VOICE_FLEX_WORKERS", 0)
+    # Just-in-time voicing on a shared worker (§614): an episode waits while
+    # its listener already has this many seconds of audio in hand, so the
+    # worker serves somebody else, and an episode left part-way voices no
+    # more than this past where they stopped. 0 voices as far ahead as it
+    # can (before §614). Never applies to a voice on this machine.
+    voice_lead_seconds: float = _env_float("VOICE_LEAD_SECONDS", 25.0)
     # --- Finding the worker, rather than being told where it is ----------
     # `voice_control.py` is the whole of this. The settings below decide how
     # hard FAM works to keep its own address for the voice correct while
@@ -2539,6 +2568,11 @@ class Settings:
                     f"REMOTE_VOICE_ACTIVE_WORKERS={self.remote_voice_active_workers} "
                     "must be 0 (a pay-per-second endpoint) or the number of "
                     "active workers set in the RunPod console.")
+            if self.remote_voice_flex_workers < 0:
+                raise ValueError(
+                    f"REMOTE_VOICE_FLEX_WORKERS={self.remote_voice_flex_workers} "
+                    "must be 0 (never start a flex worker) or the console's "
+                    "Max workers less its Active workers.")
             if str(self.voice_discovery).strip().lower() not in VOICE_DISCOVERY:
                 # Refused rather than treated as `off`: a typo that quietly
                 # switched discovery off would look exactly like the old

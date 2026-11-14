@@ -737,7 +737,7 @@ class MessageStore:
         rows = self._conn().execute(
             "SELECT DISTINCT query, minutes, episode FROM messages"
             " WHERE kind = 'episode' AND query != ''").fetchall()
-        return [(q, int(m or 0), e or "") for q, m, e in rows]
+        return [(q, as_minutes(m or 0), e or "") for q, m, e in rows]
 
     def remove(self, message_id: int) -> bool:
         """A reviewer removing a reported message for everybody."""

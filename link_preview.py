@@ -160,7 +160,7 @@ def _play(d, cx: int = SIZE - 150, cy: int = SIZE - 150, r: int = 96) -> None:
 def _wrap(d, text: str, font, width: int, most: int = 0) -> list[str]:
     """`text` in lines no wider than `width`, at most `most` of them (0: as
     many as it takes); the last one ends in an ellipsis when it had to be
-    cut. A shared episode's title is never cut (11.14): its callers pass no
+    cut. A shared episode's title is never cut (§615): its callers pass no
     `most` and make the type smaller instead (`_fitted`)."""
     lines: list[str] = []
     current = ""
@@ -184,7 +184,7 @@ def _wrap(d, text: str, font, width: int, most: int = 0) -> list[str]:
 
 #: The cover's title sizes, largest first, and the room they share: the
 #: title is set at the largest size whose lines fit, so a long one is
-#: smaller, never cut (11.14).
+#: smaller, never cut (§615).
 COVER_SIZES = (108, 92, 78, 66, 56, 48, 40)
 COVER_ROOM = 640
 
@@ -301,7 +301,7 @@ def _card(picture: Optional[bytes], title: str, minutes: float, host: str):
     title_font = _font("Geist-SemiBold.ttf", 46)
     host_font = _font("Geist-Regular.ttf", 34)
     pad = 44
-    # Every line of the title (11.14): the strip grows to hold it.
+    # Every line of the title (§615): the strip grows to hold it.
     lines = _wrap(measure, title or "A FAM episode", title_font, CARD_WIDTH - 2 * pad)
     strip_h = 40 + 58 * len(lines) + 12 + 42 + 36
     card = Image.new("RGBA", (CARD_WIDTH, CARD_WIDTH + strip_h), STRIP + (255,))
