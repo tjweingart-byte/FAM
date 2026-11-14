@@ -292,8 +292,12 @@ extension AppModel {
         // (`selectedLengthMinutes = item.minutes`), so searchFAM's Length
         // follows it until the next return to the app puts it back to 1.5.
         if item.minutes > 0 { searchLength = item.minutes }
-        play(Episode(key: EpisodeKey(query: item.query, minutes: item.minutes),
-                     title: title, surface: "other", titleOverridden: false))
+        var ep = Episode(key: EpisodeKey(query: item.query, minutes: item.minutes),
+                         title: title, surface: "other", titleOverridden: false)
+        // The saved episode by its id (§612); a 409 (no longer kept) asks
+        // the question instead (`onGenerationFailed`).
+        ep.episodeID = item.episode ?? ""
+        play(ep)
         if let id = item.id, !id.isEmpty {
             let api = self.api
             Task { await api.playedSaved(id) }
@@ -312,11 +316,14 @@ extension AppModel {
         play(ep)
     }
 
-    /// One of your own vibes (`playOwnVibe`): by its question and length.
-    func playOwnVibe(query: String, minutes: Double?, title: String?) {
+    /// One of your own vibes (`playOwnVibe`): the vibed episode by its id
+    /// (§612), else by its question and length.
+    func playOwnVibe(query: String, minutes: Double?, title: String?, episode: String = "") {
         let words = title ?? ""
-        play(Episode(key: EpisodeKey(query: query, minutes: minutes ?? FAMAPI.browseMinutes),
-                     title: words.isEmpty ? query : words, surface: "other"))
+        var ep = Episode(key: EpisodeKey(query: query, minutes: minutes ?? FAMAPI.browseMinutes),
+                         title: words.isEmpty ? query : words, surface: "other")
+        ep.episodeID = episode
+        play(ep)
     }
 
     /// After a sign-up or a sign-in (`afterAccount`): the interests already

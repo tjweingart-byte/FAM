@@ -608,3 +608,4 @@ and `limit` = Lines.
 | 37095 | 38 | 614. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14) |
 | 37133 | 30 | 615. A sent episode arrived as "Can You Tell Me How to Make..." (2026-11-14) |
 | 37163 | 110 | 616. The owner's 11.14 notes: mixes best first as stacked decks, a cleaner "Which one do you mean?", the iPhone tour and message box their own height, Return submits (2026-11-14) |
+| 37273 | 44 | 617. iOS build 9: the audit of Main since build 8, and §612 on the iPhone (2026-11-14) |

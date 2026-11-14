@@ -642,6 +642,8 @@ struct StoryEditorSubject: Identifiable {
     /// "" to ask `/api/episode/card` for it.
     let thumb: String
     let thread: String
+    /// The vibed episode's kept id (§612), so the vibe replays it by id.
+    var episode: String = ""
 
     /// A story with no episode (`openNoteComposer`).
     static func note() -> StoryEditorSubject {
@@ -649,9 +651,10 @@ struct StoryEditorSubject: Identifiable {
                            thumb: "", thread: "")
     }
 
-    static func episode(_ key: EpisodeKey, title: String, thumb: String, thread: String) -> StoryEditorSubject {
+    static func episode(_ key: EpisodeKey, title: String, thumb: String, thread: String,
+                        episode: String = "") -> StoryEditorSubject {
         StoryEditorSubject(note: false, key: key, title: title.isEmpty ? key.query : title, thumb: thumb,
-                           thread: thread)
+                           thread: thread, episode: episode)
     }
 
     /// A picture URL the app already holds, as the server path a layout
@@ -1170,7 +1173,8 @@ final class StoryEditorModel: ObservableObject {
             do {
                 try await api.vibeStory(key, title: self.subject.title, thread: self.subject.thread,
                                         caption: caption, style: style, tags: tags,
-                                        line: lineText, lineAt: lineStart)
+                                        line: lineText, lineAt: lineStart,
+                                        episode: self.subject.episode)
                 done()
                 model.nowPlaying.vibedFromEditor(key)
                 model.nowPlaying.say("Vibed to your story", action: openMine == nil ? nil : "View",
@@ -2008,7 +2012,7 @@ extension FAMAPI {
     /// tagged friend is sent the episode by the server.
     func vibeStory(_ ep: EpisodeKey, title: String, thread: String, caption: String,
                    style: [String: Any], tags: [[String: Any]],
-                   line: String? = nil, lineAt: Double? = nil) async throws {
+                   line: String? = nil, lineAt: Double? = nil, episode: String = "") async throws {
         var body: [String: Any] = [
             // `EchoRequest`'s limits, so a long field is never a silent 422.
             "query": FAMAPI.cut(ep.query, 300), "title": FAMAPI.cut(title, 200),
@@ -2018,6 +2022,8 @@ extension FAMAPI {
         // The line (§547): `EchoRequest`'s limits, 2000 and 0-3600 s.
         if let line { body["line"] = FAMAPI.cut(line, 2000) }
         if let lineAt { body["line_at"] = min(max(0, lineAt), 3600) }
+        // Which episode (§612), so the vibe replays it and never writes.
+        if !episode.isEmpty { body["episode"] = FAMAPI.cut(episode, 80) }
         _ = try await send("POST", "api/v1/vibe", body: body, as: Ignored.self)
     }
 

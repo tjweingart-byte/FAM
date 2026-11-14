@@ -434,7 +434,8 @@ struct ChatScreen: View {
 
     private func save(_ m: ChatMessage) {
         guard let q = m.query, !q.isEmpty else { return }
-        model.toggleSaved(query: q, minutes: m.minutes ?? FAMAPI.browseMinutes, title: m.title ?? "")
+        model.toggleSaved(query: q, minutes: m.minutes ?? FAMAPI.browseMinutes, title: m.title ?? "",
+                          episode: m.episode ?? "")
     }
 
     private func reportMessage(_ m: ChatMessage) {

@@ -37269,3 +37269,47 @@ Tests: `tests/test_mix_today_616.py`, `tests/test_owner_notes_1114.py`,
 `tools/smoke_preview.py`, whose mix-list checks now find `#mixList .mix-a`. **Not verified here:** the Swift
 compiles in `ios.yml`; the tour card and message box want a look on the
 phones that showed them.
+
+## 617. iOS build 9: the audit of Main since build 8, and §612 on the iPhone (2026-11-14)
+
+**Asked.** "Bump the build to 9, and make sure everything in main is
+included. Do a full audit to ensure nothing is missed."
+
+**The audit.** Every pull request merged after build 8 (#294), #295-#306,
+read for what it gave a listener and checked against the Swift:
+
+| PR | What | On the iPhone |
+|---|---|---|
+| #295, #297-#299, #301, #302, #304 | Postgres tests, the brief's metering, the voice worker's scheduling, voicing editions ahead, the caching audit's server side | Server only; nothing to port |
+| #296 (§606) | The waitlist is the email alone; a password first once let in | In the PR (`PasswordFirstView`) |
+| #300 (§608) | The tour shortened to seven cards | In the PR; it broke the iOS build, fixed in #306 |
+| #303 (§612-§614) | Sent, saved and vibed episodes replay by id | **Missing: built here** |
+| #305 (§615) | A sent episode's whole title | Server only (the title is fixed on every read) |
+| #306 (§616) | The 11.14 notes | In the PR |
+
+**§612 on the iPhone.** The web sent the kept episode's id with every save,
+vibe, link and message-save, and replayed Saved for Later, your vibes, a
+friend's story and vibe posts by it; the iPhone sent and read none of it, so
+from the app a saved or vibed episode was asked by its question and, once
+past its window, written again - the owner's "it generated a full new one",
+one surface over. Now `FAMAPI.save` / `vibe` / `vibeStory` / `share` /
+`saveShared` take `episode`: the player's is the id the server said it
+served (`X-FAM-Episode`, `NowPlayingModel.keptID`), a story's, a vibe
+post's and a message's their own. `SavedItem`, `Story`, `VibeRow` and
+`VibePost` decode `episode`, and each plays by it. A 409 (no longer kept)
+still asks the question instead, by §288's path. A tile saved from a rail
+card sends none, as on the web.
+
+**Checked and left as they are:** `PARITY.md`'s Partial and Not yet rows
+are decisions already written down (push notifications after 1.0, the
+friends' row's seen state per device, story cards drawn on the phone); the
+§612 table's "found, not fixed" surfaces (the Queue keeps no id, Go
+Deeper's context) are the same on both clients and wait on the owner.
+
+**The build.** `CURRENT_PROJECT_VERSION` 9; `releases/contracts/ios-1.0.0.json`
+recut with `--force` from this code (97 routes, 30 shapes; nothing removed:
+`password_needed` and `voice_ahead` added to two shapes); the registry's
+build is 9, its notes kept. Build 9 replaces build 8.
+
+Tests: `tests/test_build9_612_ios.py`. **Not verified here:** the Swift
+compiles in `ios.yml`; the replays want a phone.
