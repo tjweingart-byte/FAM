@@ -37313,3 +37313,25 @@ build is 9, its notes kept. Build 9 replaces build 8.
 
 Tests: `tests/test_build9_612_ios.py`. **Not verified here:** the Swift
 compiles in `ios.yml`; the replays want a phone.
+
+## 618. "One more thing": Continue cut off at the bottom on Android web (2026-11-14)
+
+**Reported** (Instant feedback, screen `intro`, build web/live @ 3205ddd,
+980x1805): on Android web the activation step's Continue button was cut off
+at the bottom of the phone frame and hard to tap.
+
+**Why.** The activation card (§414) was one scrolling box - `max-height:88%;
+overflow-y:auto` - with Continue as the last thing in it. In headless
+Chromium at 390x844 the form fit with about 45px to spare; on Android the
+date input draws taller and a 980px-wide layout gets font boosting, so the
+form outgrew the card and Continue sat below the scroll's fold, a sliver
+showing at the card's edge.
+
+**Fixed.** The card is a column: the title on top, the fields in their own
+scroll (`.act-scroll`), Continue a footer (`.act-foot`) that never scrolls
+away. The confirm and "deleted" panes are unchanged (two short buttons).
+
+Tests: `tools/smoke_activation.py` blows the form's text up to 24px (as
+font boosting does) and checks Continue is the element under a tap on it
+and inside the window - it fails on the old layout, passes on this one.
+**Not verified here:** a real Android phone.

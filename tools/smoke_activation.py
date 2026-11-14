@@ -103,6 +103,18 @@ def main() -> int:
                 page.evaluate("showScreen('home')")
                 page.wait_for_timeout(1200)
                 check("the step opens once sign-up's steps are done", overlay_shown(page))
+                # Continue is the card's footer, never below its scroll: with
+                # the text blown up (as Android's font boosting does), it is
+                # still the thing under a tap on it (the 11.14 report).
+                page.add_style_tag(content=(
+                    "#actForm :not(button){font-size:24px !important;"
+                    " line-height:1.6 !important}"))
+                page.wait_for_timeout(200)
+                check("Continue stays tappable however tall the form grows",
+                      page.evaluate("""() => { const b = document.getElementById('actGo').getBoundingClientRect();
+                        const e = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+                        return !!e && e.id === 'actGo' && b.bottom <= innerHeight; }"""))
+                page.evaluate("document.head.lastElementChild.remove()")
                 check("it cannot be closed the first time", page.locator("#actClose").is_hidden())
                 check("Continue waits for a date of birth", page.locator("#actGo").is_disabled())
                 chips = page.locator(".act-chip").all_text_contents()
