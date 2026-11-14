@@ -927,7 +927,7 @@ def _web_tour() -> str:
     return block[:block.index("var OWED")]
 
 
-def test_the_tour_has_the_webs_twelve_steps_594():
+def test_the_tour_has_the_webs_seven_steps_594():
     """The same cards in the same order: kickers, titles, bodies, the Next
     labels and the screen each opens (names swapped, `names-swapped`: the
     web's `myfam` rails are the `.daily` tab, `playfam` the `.myfam` tab)."""
@@ -938,11 +938,11 @@ def test_the_tour_has_the_webs_twelve_steps_594():
         mine = re.findall(field + r': "([^"]+)"', swift)
         theirs = re.findall(field + r': "([^"]+)"', web)
         assert mine == theirs, (field, mine, theirs)
-    assert len(re.findall(r'title: "([^"]+)"', web)) == 12
+    assert len(re.findall(r'title: "([^"]+)"', web)) == 7
     assert re.findall(r'body: "([^"]+)"', swift) == re.findall(r'body: "([^"]+)"', web)
-    # "Talk or attach" follows whether the mic is drawn, as the web's does.
-    for words in ('"Tap the mic to ask out loud, or the clip"', '"Tap the clip"',
-                  '" to add a document, photo or link and hear about it."'):
+    # "Ask anything" follows whether the mic is drawn, as the web's does.
+    for words in ('"Type, talk or attach a file."', '"Type or attach a file."',
+                  '" FAM looks it up and tells you the story, one to five minutes long."'):
         assert words in web and words in swift, words
     assert "VoiceSearchModel.available ?" in swift
     tabs = {"myfam": "daily", "home": "search", "playfam": "myfam",

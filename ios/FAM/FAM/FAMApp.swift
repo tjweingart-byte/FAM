@@ -796,9 +796,9 @@ struct TabBar: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.press)
-        // The tour's hole round the Messages and yourFAM tabs
-        // (`.tabbar .tab[data-tab=…]`).
-        .tourTarget(which == .messages ? .messagesTab : (which == .you ? .youTab : nil))
+        // The tour's hole round the yourFAM tab
+        // (`.tabbar .tab[data-tab=profile]`).
+        .tourTarget(which == .you ? .youTab : nil)
         .accessibilityShowsLargeContentViewer {
             WebIcon(path: icon, size: 20)
             Text(label)

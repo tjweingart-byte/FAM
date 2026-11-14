@@ -205,17 +205,6 @@
   .tour-art{ display:flex; justify-content:center; margin:4px 0 14px; }
   .tour-art[hidden], .tour-skip[hidden]{ display:none; }
   .tour-art .fam-logo{ padding:0; font-size:34px; }
-  .tour-player{ width:100%; display:flex; flex-direction:column; gap:8px; align-items:stretch;
-    background:var(--bg); border:1px solid var(--border); border-radius:14px; padding:10px; }
-  .tour-player .tp-row{ display:flex; align-items:center; gap:8px; }
-  .tour-player .tp-pill{ font-family:'Geist Mono', monospace; font-size:9.5px; font-weight:700;
-    letter-spacing:0.08em; padding:4px 9px; border-radius:20px; background:var(--deeper); color:var(--ink); }
-  .tour-player .tp-pill.cc{ background:none; color:var(--text); border:1px solid var(--border-strong); }
-  .tour-player .tp-pic{ height:54px; border-radius:9px;
-    background:linear-gradient(135deg, var(--surface-2), var(--copper)); opacity:0.85; }
-  .tour-player .tp-icons{ margin-left:auto; display:flex; gap:10px; color:var(--text-muted); }
-  .tour-player .tp-bar{ height:3px; border-radius:2px; background:var(--border-strong); overflow:hidden; }
-  .tour-player .tp-bar i{ display:block; width:38%; height:100%; background:var(--copper); }
   .tour-foot{ display:flex; align-items:center; gap:10px; margin-top:16px; }
   .tour-back{ height:40px; padding:0 14px; border-radius:20px; cursor:pointer;
     background:none; border:1px solid var(--border-strong); color:var(--text);
@@ -23599,45 +23588,30 @@
     var STEPS = [
       { screen: "myfam", art: "logo", kicker: "Welcome",
         title: "Welcome to FAM",
-        body: "FAM turns what you care about into short audio stories, so you can keep up without the work. Here’s a quick look around. You can skip whenever you like.",
+        body: "Here’s a quick look around. You can skip whenever you like.",
         next: "Show me around" },
       { screen: "myfam", target: "#myfamFeed", kicker: "dailyFAM",
-        title: "Today’s stories, made for you",
-        body: "Fresh every morning and evening: Made for you, Trending, Most played today and what your friends are hearing. Tap any tile and it plays." },
+        title: "Today’s stories",
+        body: "Audio stories on what you care about, fresh every morning and evening. Tap any tile to listen." },
       { screen: "myfam", target: "#myfamCircle", optional: true, kicker: "dailyFAM",
         title: "Your friends’ vibes",
-        body: "A face with a ring has posted a vibe. Tap it to hear what they’re listening to, and reply or like it." },
-      { screen: "myfam", art: "player", kicker: "The player",
-        title: "Every episode, one player",
-        body: "GO DEEPER asks the next question for you. CC shows captions; share, VIBE! and save sit on the right, and ⋯ adds it to your queue. When it ends, four more are waiting." },
+        body: "A ring means a friend posted what they’re hearing. Tap to listen." },
       { screen: "home", target: "#searchBar", kicker: "searchFAM",
         title: "Ask anything",
-        body: "Type a question and FAM researches it and tells you the story, from today’s sources. Underneath, Trending searches shows what people are asking right now." },
-      { screen: "home", target: "#searchBar .bar-btns", kicker: "searchFAM",
-        title: "Talk or attach",
         body: function(){
           var mic = document.getElementById("voiceMicBtn");
-          return (mic && !mic.hidden ? "Tap the mic to ask out loud, or the clip" : "Tap the clip")
-            + " to add a document, photo or link and hear about it.";
+          return (mic && !mic.hidden ? "Type, talk or attach a file." : "Type or attach a file.")
+            + " FAM looks it up and tells you the story, one to five minutes long.";
         } },
-      { screen: "home", target: "#screen-home .fam-controls", kicker: "searchFAM",
-        title: "Make it yours",
-        body: "Length sets one to five minutes. Voice picks who reads your searches. Private keeps a search out of your history and the library until you turn it off." },
-      { screen: "home", target: "#myfamSearchBtn", kicker: "searchFAM",
-        title: "The episode library",
-        body: "Every episode other listeners have made, A to Z. Most play straight away." },
-      { screen: "playfam", target: "#screen-playfam .pf-tabs", kicker: "myFAM",
+      { screen: "playfam", target: "#pfTabMixes", kicker: "myFAM",
         title: "Your mixes",
-        body: "A mix is the subjects you follow, like a team or a market, with new episodes every morning. Name one with Create new mix, or copy somebody else’s. Categories browses today’s episodes by subject." },
-      { screen: "messages", target: "#screen-messages .tabbar .tab[data-tab=messages]", kicker: "Messages",
-        title: "Share with friends",
-        body: "Send an episode to a friend, reply to their vibes and start group chats." },
+        body: "Follow a team, a market, anything, and get new episodes every morning." },
+      { screen: "playfam", target: "#pfTabCats", kicker: "myFAM",
+        title: "Categories",
+        body: "Today’s episodes, sorted by subject. Pick one and listen." },
       { screen: "profile", target: "#screen-profile .tabbar .tab[data-tab=profile]", kicker: "yourFAM",
-        title: "Your profile",
-        body: "Your vibes, your mixes, your friends, and Settings for everything you can change, including this tour." },
-      { screen: "myfam", art: "logo", kicker: "Ready",
-        title: "You’re all set",
-        body: "Tap a story on dailyFAM, or ask searchFAM anything.",
+        title: "Friends and you",
+        body: "Share episodes in Messages. Your profile and Settings are in yourFAM, where you can take this tour again.",
         next: "Start listening" }
     ];
     var OWED = "owed";
@@ -23813,8 +23787,7 @@
         $("tourBody").textContent = typeof step.body === "function" ? step.body() : step.body;
         var art = $("tourArt");
         art.hidden = !step.art;
-        art.innerHTML = step.art === "logo" ? tourLogo()
-          : step.art === "player" ? tourPlayer() : "";
+        art.innerHTML = step.art === "logo" ? tourLogo() : "";
         var last = at === STEPS.length - 1;
         $("tourNext").textContent = step.next || (last ? "Done" : "Next");
         $("tourBack").hidden = at === 0 || last;
@@ -23949,22 +23922,6 @@
     function tourLogo(){
       var logo = document.querySelector("#splashScreen .fam-logo");
       return logo ? '<div class="fam-logo" aria-hidden="true">' + logo.innerHTML + '</div>' : "";
-    }
-    function tourPlayer(){
-      var ic = function(d){
-        return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-          + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
-      };
-      return '<div class="tour-player" aria-hidden="true">'
-        + '<div class="tp-row"><span class="tp-pill">GO DEEPER</span>'
-        + '<span class="tp-pill cc">CC</span>'
-        + '<span class="tp-icons">'
-        + ic('<path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v13"/>')
-        + ic('<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>')
-        + ic('<path d="M6 3h12v18l-6-4-6 4z"/>')
-        + '</span></div>'
-        + '<div class="tp-pic"></div>'
-        + '<div class="tp-bar"><i></i></div></div>';
     }
 
     return { owe: owe, offer: offer, offerOnce: offerOnce, forget: forget, start: start, next: next, back: back,

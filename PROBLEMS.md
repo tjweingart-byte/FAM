@@ -36812,3 +36812,34 @@ the same function) caught it. Now:
 Tests: `tests/test_hedge_metered_607.py` (the loser is counted in the same
 notes after the winner; one call is counted once; a request cancelled before
 answering is recorded).
+
+## 608. The tour shortened to seven cards (2026-11-14)
+
+The owner, looking at the twelve cards of §594: "this seems long. think of
+good ways to shorten it", then "go with the 6 card version plus an intro" and
+"we probably dont need the library button, do categories instead".
+
+Now: Welcome (the logo, one line) -> Today's stories (dailyFAM's rails) ->
+Your friends' vibes (optional, as before) -> Ask anything (the search bar; the
+body says "type, talk or attach" only when the mic is drawn, "type or attach"
+otherwise, as "Talk or attach" did) -> Your mixes (`#pfTabMixes`) ->
+Categories (`#pfTabCats`) -> Friends and you (the yourFAM tab; Messages named
+in its body; "Start listening").
+
+Cut, and why:
+- **The player card.** It was a drawing, since nothing plays when the tour
+  runs, and the longest card. A first-play hint on the real player was offered
+  instead and not asked for.
+- **Talk or attach, Make it yours.** Folded into Ask anything; the bubbles are
+  labelled.
+- **The episode library.** The owner's call; Categories took its place.
+- **Messages and Your profile** as two cards: one card on the yourFAM tab.
+- **You're all set.** It pointed at nothing; the last real card ends the tour.
+
+The drawn player (`tourPlayer()`, `.tour-player` CSS, iOS `TourPlayerArt`,
+`TourArt.player`) is deleted with the card, and the iOS targets nothing uses
+any more (`barButtons`, `controls`, `library`, `messagesTab`; `mixTabs` split
+into `mixesTab`/`categoriesTab`, one per tab) with their `.tourTarget` tags.
+`test_ios_app_contract` still pins the iPhone's words to the web's. The
+iPhone gets the new tour in its next build; until then it shows the twelve.
+

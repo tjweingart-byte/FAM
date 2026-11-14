@@ -121,11 +121,17 @@ the features, flow smoothly, and be skippable at any time").** `Tour` in
 `static/index.html`. `finishIntro` marks it owed (`tour: "owed"` on the device,
 so a reload before it begins still gets it) and it starts once the screen is
 clear: the sign-in hand-off has played, no Terms, activation step or sheet is
-up, and a tab root is showing. It walks the real screens - dailyFAM's rails,
-friends' vibes (passed over when there are none), the player (a drawn card:
-nothing plays yet), searchFAM's bar, mic and attach, Length/Voice/Private, the
-episode library, myFAM's mixes, Messages, yourFAM - a spotlight round each real
-control and a card saying what it is. What it keeps to:
+up, and a tab root is showing.
+> **Current (PROBLEMS.md §608, the owner 11.14: "this seems long"):** seven
+> cards, one sentence each - a welcome (the logo), dailyFAM's rails, friends'
+> vibes (passed over when there are none), searchFAM's bar (mic and attach
+> named in it), myFAM's Mixes tab, its Categories tab, and the yourFAM tab
+> (Messages named in it), whose button is "Start listening". The player card
+> (a drawing, since nothing plays yet), Length/Voice/Private, the episode
+> library and the closing "You're all set" are gone; the library at the
+> owner's word ("do categories instead").
+
+A spotlight round each real control and a card saying what it is. What it keeps to:
 * **Skip on every card** and Escape; a skip is remembered exactly like a finish
   (`tour: "done"` here, `tour_done` on the account via `/api/preferences`), so
   it never comes back by itself. Settings' "Take the tour" starts it over.
@@ -140,7 +146,7 @@ control and a card saying what it is. What it keeps to:
   `tour_done` is false; the account's "done" is then kept on the device.
 `tools/smoke_preview.py` drives it; `tests/test_tour_594.py` holds the flag.
 * **The iPhone app has the same tour** (§605, `ios/FAM/FAM/Tour.swift`): the
-  same twelve steps and words, the same flag, owed/offered/forgotten the same
+  same steps and words, the same flag, owed/offered/forgotten the same
   way; its differences are listed in `ios/FAM/PARITY.md`, and
   `tests/test_ios_app_contract.py` pins its steps to the web's `STEPS`.
 
