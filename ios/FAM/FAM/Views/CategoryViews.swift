@@ -40,9 +40,6 @@ struct CategoryChip: View {
         }
         .buttonStyle(.press)
         .accessibilityAddTraits(on ? .isSelected : [])
-        // `#pfTabMixes` / `#pfTabCats`: the tour's "Your mixes" and
-        // "Categories".
-        .tourTarget(which == .mixes ? .mixesTab : .categoriesTab)
     }
 }
 
